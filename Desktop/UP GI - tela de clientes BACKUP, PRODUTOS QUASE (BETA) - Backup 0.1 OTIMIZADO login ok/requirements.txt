@@ -1,0 +1,23 @@
+# FastAPI e dependências principais
+fastapi
+uvicorn
+python-multipart
+
+# Supabase
+supabase
+
+# Autenticação e segurança
+python-jose
+passlib
+bcrypt
+
+# Utilitários
+python-dotenv
+pydantic
+
+# HTTP requests
+httpx
+requests
+
+# Sessões
+itsdangerous
