@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UP Gestão Inteligente - Configuração de Clientes</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar Menu -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-content">
+            <a href="cadastro-cliente.html" class="sidebar-item" title="Cadastro de Clientes">
+                <i class="fas fa-user-plus"></i>
+                <span class="sidebar-text">Cadastro de Clientes</span>
+            </a>
+            <a href="/painel" class="sidebar-item" title="Painel">
+                <i class="fas fa-chart-bar"></i>
+                <span class="sidebar-text">Painel</span>
+            </a>
+            <a href="clientes.html" class="sidebar-item" title="Clientes">
+                <i class="fas fa-users"></i>
+                <span class="sidebar-text">Clientes</span>
+            </a>
+            <a href="configuracao-clientes.html" class="sidebar-item active" title="Configuração de Clientes">
+                <i class="fas fa-cog"></i>
+                <span class="sidebar-text">Configuração de Clientes</span>
+            </a>
+        </div>
+    </nav>
+    <!-- Header azul escuro no topo -->
+    <header class="top-header">
+        <div class="header-container">
+            <div class="header-left">
+                <div class="header-logo">
+                    <img src="assets/images/LOGO DO SISTEMA .png" alt="UP Gestão Inteligente" class="header-logo-img">
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <main class="main-content">
+            <div class="form-header">
+                <h2 class="form-title">Configuração de Clientes</h2>
+            </div>
+            
+            <!-- Lista de Clientes -->
+            <div class="configuracao-clientes-container">
+                <div id="loading-message" class="loading-message">
+                    <i class="fas fa-spinner fa-spin"></i> Carregando clientes...
+                </div>
+                <div id="clientes-list" class="clientes-list" style="display: none;">
+                    <!-- Lista será preenchida dinamicamente -->
+                </div>
+                <div id="error-message" class="error-message" style="display: none;">
+                    <!-- Mensagem de erro será exibida aqui -->
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="auth-check.js"></script>
+    <script src="configuracao-clientes.js"></script>
+</body>
+</html>
+
+
+

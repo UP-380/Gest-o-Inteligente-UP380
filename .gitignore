@@ -1,0 +1,20 @@
+ node_modules/
+*.log
+.env
+.env.local
+.env.production
+.DS_Store
+Thumbs.db
+desktop.ini
+.cache/
+dist/
+build/
+*.tmp
+*.temp
+*.bak
+# Adicionar também:
+*.env.test
+package-lock.json
+.vscode/
+.idea/
+.cursor/
