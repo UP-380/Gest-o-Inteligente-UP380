@@ -14,7 +14,6 @@ build/
 *.bak
 # Adicionar também:
 *.env.test
-package-lock.json
 .vscode/
 .idea/
 .cursor/
