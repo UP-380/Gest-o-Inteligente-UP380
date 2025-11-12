@@ -867,6 +867,25 @@ function renderOptionsClickup(clientes) {
     console.log('Total de itens renderizados:', optionsList.children.length);
 }
 
+function renderOptionsCnpj(opcoes) {
+    const optionsList = document.getElementById('cnpj-list');
+    if (!optionsList) return;
+    optionsList.innerHTML = '';
+    if (!opcoes || opcoes.length === 0) return;
+    opcoes.forEach((valor) => {
+        const item = document.createElement('li');
+        item.className = 'dropdown-item';
+        item.textContent = valor;
+        item.addEventListener('click', () => {
+            const input = document.getElementById('teste');
+            if (!input) return;
+            const formatado = aplicarMascaraCpfCnpj(valor);
+            input.value = formatado;
+            optionsList.style.display = 'none';
+        });
+        optionsList.appendChild(item);
+    });
+}
 // Funcao para selecionar uma opcao ClickUp
 function selectOptionClickup(value) {
     console.log('🔥 selectOptionClickup chamada com valor:', value);
@@ -896,6 +915,7 @@ function selectOptionClickup(value) {
     
     // Carregar dados dos contratos
     carregarDadosContratos(value);
+    loadCnpjOptionsFromContratos(value);
     
     // Atualizar título do formulário (modo edição)
     if (typeof updateFormTitle === 'function') {
@@ -1339,6 +1359,29 @@ async function carregarDadosContratos(nomeClienteClickup) {
     // Agora usa o sistema de cards
     await carregarContratosCards(nomeClienteClickup);
     console.log('🚀 === carregarContratosCards FINALIZADA ===');
+}
+
+async function loadCnpjOptionsFromContratos(nomeClienteClickup) {
+    try {
+        const url = `/api/contratos-cliente/${encodeURIComponent(nomeClienteClickup.trim())}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            const list = document.getElementById('cnpj-list');
+            if (list) list.innerHTML = '';
+            return;
+        }
+        const result = await response.json();
+        if (result && result.success && Array.isArray(result.data)) {
+            const valores = result.data
+                .map(c => c.cpf_cnpj)
+                .filter(v => v && v !== 'N/A');
+            const unicos = Array.from(new Set(valores));
+            renderOptionsCnpj(unicos);
+        }
+    } catch (e) {
+        const list = document.getElementById('cnpj-list');
+        if (list) list.innerHTML = '';
+    }
 }
 
 // Função para carregar grupos
@@ -2255,6 +2298,30 @@ function setupSearchableDropdownClickup() {
     });
 }
 
+function setupDropdownCnpj() {
+    const input = document.getElementById('teste');
+    const optionsList = document.getElementById('cnpj-list');
+    const dropdownArrow = document.querySelector('#cnpj-container .dropdown-arrow');
+    if (!input || !optionsList) return;
+    input.addEventListener('focus', () => {
+        if (optionsList.children.length > 0) optionsList.style.display = 'block';
+    });
+    if (dropdownArrow) {
+        dropdownArrow.addEventListener('click', () => {
+            if (optionsList.style.display === 'none' || optionsList.style.display === '') {
+                if (optionsList.children.length > 0) optionsList.style.display = 'block';
+                input.focus();
+            } else {
+                optionsList.style.display = 'none';
+            }
+        });
+    }
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#cnpj-container')) {
+            optionsList.style.display = 'none';
+        }
+    });
+}
 // Funcao para limpar erros
 function clearErrors() {
     const errorElements = document.querySelectorAll('.error-message');
@@ -2892,6 +2959,7 @@ function initApp() {
     // Configurar máscara de CPF/CNPJ
     configurarMascaraCpfCnpj();
     configurarMascaraCpfCnpjEdicao();
+    setupDropdownCnpj();
     
     // Event listener simples para o formulario
     form.addEventListener('submit', function(e) {
@@ -2935,110 +3003,62 @@ if (document.readyState === 'loading') {
     initApp();
 }
 
-// Função para aplicar máscara de CPF/CNPJ
+// Função para aplicar máscara de CNPJ
 function aplicarMascaraCpfCnpj(valor) {
-    // Remove todos os caracteres não numéricos
     const apenasNumeros = valor.replace(/\D/g, '');
-    
-    // Limita a 14 dígitos (CNPJ)
     const numeroLimitado = apenasNumeros.substring(0, 14);
-    
-    // Aplica a máscara baseada na quantidade de dígitos
-    if (numeroLimitado.length <= 11) {
-        // Máscara de CPF: XXX.XXX.XXX-XX
-        return numeroLimitado
-            .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-        // Máscara de CNPJ: XX.XXX.XXX/XXXX-XX
-        return numeroLimitado
-            .replace(/(\d{2})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d)/, '$1/$2')
-            .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-    }
+    return numeroLimitado
+        .replace(/(\d{2})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1/$2')
+        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
 // Função para configurar máscara no campo CPF/CNPJ
 function configurarMascaraCpfCnpj() {
-    console.log('🔧 Configurando máscara de CPF/CNPJ...');
-    const campoTeste = document.getElementById('cpfCnpj');
-    console.log('📋 Campo teste encontrado:', !!campoTeste);
-    
+    const campoTeste = document.getElementById('teste');
     if (campoTeste) {
         campoTeste.addEventListener('input', function(e) {
-            console.log('⌨️ Input detectado no campo teste');
             const valorAtual = e.target.value;
-            console.log('📝 Valor atual:', valorAtual);
             const valorFormatado = aplicarMascaraCpfCnpj(valorAtual);
-            console.log('✨ Valor formatado:', valorFormatado);
-            
-            // Atualiza o valor do campo com a máscara aplicada
             e.target.value = valorFormatado;
-            
-            // Atualiza o placeholder baseado na quantidade de dígitos
             const apenasNumeros = valorAtual.replace(/\D/g, '');
             if (apenasNumeros.length === 0) {
-                e.target.placeholder = 'Digite o CPF ou CNPJ';
-            } else if (apenasNumeros.length <= 11) {
-                e.target.placeholder = 'CPF: XXX.XXX.XXX-XX';
+                e.target.placeholder = 'Digite o CNPJ';
             } else {
                 e.target.placeholder = 'CNPJ: XX.XXX.XXX/XXXX-XX';
             }
         });
-        
-        // Previne a entrada de caracteres não numéricos
         campoTeste.addEventListener('keypress', function(e) {
-            // Permite apenas números, backspace, delete, tab, escape, enter
             if (!/[0-9]/.test(e.key) && 
                 !['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 e.preventDefault();
             }
         });
-        
-        console.log('Máscara de CPF/CNPJ configurada no campo teste');
     }
 }
 
 // Função para configurar máscara no campo de edição CPF/CNPJ
 function configurarMascaraCpfCnpjEdicao() {
-    console.log('🔧 Configurando máscara de CPF/CNPJ no campo de edição...');
-    const campoEdicao = document.getElementById('edit-cnpj-cpf');
-    console.log('📋 Campo edição encontrado:', !!campoEdicao);
-    
+    const campoEdicao = document.getElementById('edit-teste');
     if (campoEdicao) {
         campoEdicao.addEventListener('input', function(e) {
-            console.log('⌨️ Input detectado no campo de edição');
             const valorAtual = e.target.value;
-            console.log('📝 Valor atual:', valorAtual);
             const valorFormatado = aplicarMascaraCpfCnpj(valorAtual);
-            console.log('✨ Valor formatado:', valorFormatado);
-            
-            // Atualiza o valor do campo com a máscara aplicada
             e.target.value = valorFormatado;
-            
-            // Atualiza o placeholder baseado na quantidade de dígitos
             const apenasNumeros = valorAtual.replace(/\D/g, '');
             if (apenasNumeros.length === 0) {
-                e.target.placeholder = 'Digite o CPF ou CNPJ';
-            } else if (apenasNumeros.length <= 11) {
-                e.target.placeholder = 'CPF: XXX.XXX.XXX-XX';
+                e.target.placeholder = 'Digite o CNPJ';
             } else {
                 e.target.placeholder = 'CNPJ: XX.XXX.XXX/XXXX-XX';
             }
         });
-        
-        // Previne a entrada de caracteres não numéricos
         campoEdicao.addEventListener('keypress', function(e) {
-            // Permite apenas números, backspace, delete, tab, escape, enter
             if (!/[0-9]/.test(e.key) && 
                 !['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 e.preventDefault();
             }
         });
-        
-        console.log('Máscara de CPF/CNPJ configurada no campo de edição');
     }
 }
 

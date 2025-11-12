@@ -44,7 +44,7 @@
             <div class="form-header">
                 <h2 class="form-title">Clientes</h2>
                 <div class="form-header-actions">
-                    <button class="add-client-btn" onclick="window.location.href='cadastro-cliente.html'">
+                    <button class="add-client-btn" onclick="window.location.href='/portifolio-clientes'">
                         <i class="fas fa-gear"></i>
                         Clientes
                     </button>
@@ -324,7 +324,6 @@
 
     <script src="auth-check.js"></script>
     <script src="clientes.js?v=99999999999999"></script>
-    <!-- <script src="debug_tarefa_redirect.js"></script> -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -363,7 +362,7 @@
     info.style.marginBottom = '8px';
     info.style.color = '#555';
     info.style.fontSize = '14px';
-    info.textContent = 'Listando tarefas com campos faltando: dt_inicio, dt_vencimento ou cliente_id.';
+    info.textContent = 'Listando tarefas com campos faltando.';
 
     const listContainer = document.createElement('div');
     listContainer.id = 'tarefas-desajustadas-list';
@@ -413,7 +412,7 @@
       const resp = await fetch('/api/tarefas-incompletas', { credentials: 'include' });
       if (!resp.ok) throw new Error('Falha ao buscar tarefas desajustadas');
       const payload = await resp.json();
-      renderIncompleteTasks(payload.items || []);
+      await renderIncompleteTasks(payload.items || []);
     } catch (err) {
       const list = document.getElementById('tarefas-desajustadas-list');
       if (list) list.innerHTML = `<div class=\"error\">${err.message}</div>`;
@@ -421,7 +420,26 @@
     }
   }
 
-  function renderIncompleteTasks(items) {
+  let __clientesMap = null;
+  async function ensureClientesMap() {
+    if (__clientesMap) return __clientesMap;
+    try {
+      const resp = await fetch('/api/clientes-filtro');
+      const data = await resp.json();
+      const map = {};
+      if (data && data.success && Array.isArray(data.clientes)) {
+        data.clientes.forEach(c => { if (c && c.id) map[String(c.id)] = c.nome || String(c.id); });
+      }
+      __clientesMap = map;
+      return map;
+    } catch (_) {
+      __clientesMap = {};
+      return __clientesMap;
+    }
+  }
+
+  async function renderIncompleteTasks(items) {
+    const clientesMap = await ensureClientesMap();
     const list = document.getElementById('tarefas-desajustadas-list');
     if (!list) return;
     if (!items.length) {
@@ -441,7 +459,7 @@
 
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
-    const headers = ['ID', 'Data Início', 'Data Vencimento', 'Cliente'];
+    const headers = ['ID', 'Data Início', 'Data Vencimento', 'Cliente', 'Abrir'];
     headers.forEach(h => {
       const th = document.createElement('th');
       th.textContent = h;
@@ -471,8 +489,9 @@
       const tdInicio = document.createElement('td');
       const inicioVal = formatDate(t.dt_inicio);
       tdInicio.textContent = inicioVal || 'X';
-      tdInicio.style.color = inicioVal ? '#333' : '#dc3545';
+      tdInicio.style.color = inicioVal ? '#333' : '#fd7e14';
       tdInicio.style.fontWeight = inicioVal ? '400' : '600';
+      tdInicio.style.textAlign = inicioVal ? 'left' : 'center';
       tdInicio.style.padding = '8px';
       tdInicio.style.borderBottom = '1px solid #f0f0f0';
       tr.appendChild(tdInicio);
@@ -480,20 +499,58 @@
       const tdVenc = document.createElement('td');
       const vencVal = formatDate(t.dt_vencimento);
       tdVenc.textContent = vencVal || 'X';
-      tdVenc.style.color = vencVal ? '#333' : '#dc3545';
+      tdVenc.style.color = vencVal ? '#333' : '#fd7e14';
       tdVenc.style.fontWeight = vencVal ? '400' : '600';
+      tdVenc.style.textAlign = vencVal ? 'left' : 'center';
       tdVenc.style.padding = '8px';
       tdVenc.style.borderBottom = '1px solid #f0f0f0';
       tr.appendChild(tdVenc);
 
       const tdCliente = document.createElement('td');
-      const clienteVal = t.cliente_id ? String(t.cliente_id) : null;
-      tdCliente.textContent = clienteVal || 'X';
-      tdCliente.style.color = clienteVal ? '#333' : '#dc3545';
-      tdCliente.style.fontWeight = clienteVal ? '400' : '600';
       tdCliente.style.padding = '8px';
       tdCliente.style.borderBottom = '1px solid #f0f0f0';
+      const clienteRaw = t.cliente_id ? String(t.cliente_id) : '';
+      if (!clienteRaw) {
+        tdCliente.style.textAlign = 'center';
+        const x = document.createElement('span');
+        x.textContent = 'X';
+        x.style.color = '#fd7e14';
+        x.style.fontWeight = '600';
+        tdCliente.appendChild(x);
+      } else {
+        const ids = clienteRaw.split(',').map(s => s.trim()).filter(Boolean);
+        const wrap = document.createElement('div');
+        wrap.className = 'cliente-tags';
+        ids.forEach(id => {
+          const name = clientesMap[id] || id;
+          const tag = document.createElement('span');
+          tag.className = 'cliente-tag-orange';
+          tag.textContent = name;
+          wrap.appendChild(tag);
+        });
+        tdCliente.appendChild(wrap);
+      }
       tr.appendChild(tdCliente);
+
+      const tdAbrir = document.createElement('td');
+      tdAbrir.style.padding = '8px';
+      tdAbrir.style.borderBottom = '1px solid #f0f0f0';
+      if (t.url && String(t.url).trim() !== '') {
+        const btn = document.createElement('button');
+        btn.className = 'tarefa-redirect-btn';
+        btn.title = 'Abrir tarefa';
+        btn.setAttribute('data-url', t.url);
+        btn.innerHTML = '<i class="fas fa-external-link-alt"></i>';
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openTarefaUrl(t.url);
+        });
+        tdAbrir.appendChild(btn);
+      } else {
+        tdAbrir.textContent = '-';
+        tdAbrir.style.color = '#999';
+      }
+      tr.appendChild(tdAbrir);
 
       tbody.appendChild(tr);
     });

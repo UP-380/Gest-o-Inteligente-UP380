@@ -8,6 +8,10 @@ const NodeCache = require('node-cache');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const IS_PROD = process.env.NODE_ENV === 'production';
+if (IS_PROD) {
+  console.log = function() {};
+}
 
 // ========================================
 // 🚀 SISTEMA DE CACHE - Otimização de Performance
@@ -80,8 +84,7 @@ app.use((req, res, next) => {
   // Verificar se é uma requisição direta para páginas HTML protegidas
   if (req.path.endsWith('.html') && 
       (req.path.includes('clientes.html') || 
-       req.path.includes('dashboard.html') || 
-       req.path.includes('cadastro-cliente.html'))) {
+       req.path.includes('dashboard.html'))) {
     
     // Verificar se o usuário está autenticado
     if (!req.session || !req.session.usuario) {
@@ -89,6 +92,11 @@ app.use((req, res, next) => {
     }
   }
   next();
+});
+
+// Bloquear acesso direto à URL antiga antes de servir arquivos estáticos
+app.get('/cadastro-cliente.html', (req, res) => {
+  return res.status(404).send('');
 });
 
 // Middleware para servir arquivos estáticos
@@ -127,9 +135,7 @@ app.get('/dashboard.html', requireAuth, (req, res) => {
   return res.redirect('/painel');
 });
 
-app.get('/cadastro-cliente.html', requireAuth, (req, res) => {
-  return res.redirect('/portifolio-clientes');
-});
+
 
 // Endpoint para autenticação de login
 app.post('/api/login', async (req, res) => {
@@ -1186,6 +1192,16 @@ app.put('/api/clientes/:id/inativar', requireAuth, async (req, res) => {
     clearCache('clientes');
     
     console.log('Cliente inativado com sucesso:', clienteExistente.nome);
+    try {
+      await supabase
+        .schema('up_gestaointeligente')
+        .from('contratos_clientes')
+        .update({ status_cliente: 'inativo' })
+        .eq('id_cliente', id);
+      console.log('Status_cliente sincronizado para INATIVO em contratos_clientes:', id);
+    } catch (syncErr) {
+      console.warn('Falha ao sincronizar status_cliente (inativar):', syncErr);
+    }
     
     res.json({ 
       success: true, 
@@ -1262,6 +1278,16 @@ app.put('/api/clientes/:id/ativar', requireAuth, async (req, res) => {
     clearCache('clientes');
     
     console.log('Cliente ativado com sucesso:', clienteExistente.nome);
+    try {
+      await supabase
+        .schema('up_gestaointeligente')
+        .from('contratos_clientes')
+        .update({ status_cliente: 'ativo' })
+        .eq('id_cliente', id);
+      console.log('Status_cliente sincronizado para ATIVO em contratos_clientes:', id);
+    } catch (syncErr) {
+      console.warn('Falha ao sincronizar status_cliente (ativar):', syncErr);
+    }
     
     res.json({ 
       success: true, 
@@ -1394,6 +1420,72 @@ app.get('/api/clientes-ativos', requireAuth, async (req, res) => {
       success: false, 
       error: 'Erro interno do servidor' 
     });
+  }
+});
+
+// Endpoint: Portfólio de clientes usando somente cp_cliente
+app.get('/api/portifolio-clientes', requireAuth, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = (req.query.search || '').trim();
+    const status = (req.query.status || '').trim();
+    const incompletosParam = req.query.incompletos;
+    const showIncompletos = incompletosParam === 'true' || incompletosParam === true;
+
+    const offset = (page - 1) * limit;
+
+    let baseQuery = supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('*');
+
+    let countQuery = supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('id', { count: 'exact', head: true });
+
+    if (search) {
+      const ilike = `%${search}%`;
+      baseQuery = baseQuery.or(`nome.ilike.${ilike},razao_social.ilike.${ilike},nome_fantasia.ilike.${ilike},nome_amigavel.ilike.${ilike}`);
+      countQuery = countQuery.or(`nome.ilike.${ilike},razao_social.ilike.${ilike},nome_fantasia.ilike.${ilike},nome_amigavel.ilike.${ilike}`);
+    }
+
+    if (showIncompletos) {
+      const f = `or(nome.is.null,nome.eq.,cpf_cnpj.is.null,cpf_cnpj.eq.,status.is.null,status.eq.,nome_cli_kamino.is.null,nome_cli_kamino.eq.)`;
+      baseQuery = baseQuery.or(f);
+      countQuery = countQuery.or(f);
+    } else if (status) {
+      baseQuery = baseQuery.eq('status', status);
+      countQuery = countQuery.eq('status', status);
+    }
+
+    baseQuery = baseQuery.order('razao_social', { ascending: true }).range(offset, offset + limit - 1);
+
+    const [{ data, error: dataErr }, { count, error: countErr }] = await Promise.all([
+      baseQuery,
+      countQuery
+    ]);
+
+    if (dataErr || countErr) {
+      const err = dataErr || countErr;
+      console.error('Erro no portfólio de clientes:', err);
+      return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+    }
+
+    const totalPages = Math.max(1, Math.ceil((count || 0) / limit));
+    return res.json({
+      success: true,
+      data: data || [],
+      count: data ? data.length : 0,
+      total: count || 0,
+      page,
+      limit,
+      totalPages
+    });
+  } catch (e) {
+    console.error('Erro no endpoint /api/portifolio-clientes:', e);
+    return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
   }
 });
 
@@ -1536,6 +1628,22 @@ app.put('/api/update-cliente-cp', async (req, res) => {
     }
     
     console.log('Cliente ClickUp atualizado com sucesso:', data);
+
+    // Sincronizar status com contratos_clientes.status_cliente
+    try {
+      const updatedClient = data && data[0];
+      const statusVal = (updateData.status || '').trim().toLowerCase();
+      if (updatedClient && (statusVal === 'ativo' || statusVal === 'inativo')) {
+        await supabase
+          .schema('up_gestaointeligente')
+          .from('contratos_clientes')
+          .update({ status_cliente: statusVal })
+          .eq('id_cliente', updatedClient.id);
+        console.log('Status sincronizado em contratos_clientes:', { id_cliente: updatedClient.id, status_cliente: statusVal });
+      }
+    } catch (syncErr) {
+      console.warn('Falha ao sincronizar status_cliente em contratos_clientes:', syncErr);
+    }
     
     const camposAtualizados = Object.keys(updateData).join(', ');
     
@@ -1692,6 +1800,21 @@ app.put('/api/cliente-dados/:nomeClienteClickup', async (req, res) => {
       console.log('🔥 result.nome_cli_kamino salvo:', result.nome_cli_kamino);
     }
     
+    // Sincronizar status com contratos_clientes.status_cliente (apenas ativo/inativo)
+    try {
+      const statusVal = String(result?.status || '').trim().toLowerCase();
+      if (result?.id && (statusVal === 'ativo' || statusVal === 'inativo')) {
+        await supabase
+          .schema('up_gestaointeligente')
+          .from('contratos_clientes')
+          .update({ status_cliente: statusVal })
+          .eq('id_cliente', result.id);
+        console.log('Status sincronizado em contratos_clientes (cliente-dados):', { id_cliente: result.id, status_cliente: statusVal });
+      }
+    } catch (syncErr) {
+      console.warn('Falha ao sincronizar status_cliente (cliente-dados):', syncErr);
+    }
+
     res.json({ 
       success: true, 
       message: 'Dados do cliente processados com sucesso',
@@ -3075,7 +3198,28 @@ app.get('/api/contratos-count/:clienteId', requireAuth, async (req, res) => {
         }
         
         console.log('Total de contratos encontrados:', count);
-        res.json({ success: true, total: count || 0, count: count || 0 });
+
+        // Buscar status_cliente para determinar se há algum contrato inativo
+        let statusQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('contratos_clientes')
+            .select('status_cliente');
+
+        if (clienteId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            statusQuery = statusQuery.eq('id_cliente', clienteId);
+        } else {
+            statusQuery = statusQuery.or(`razao_social.ilike.%${clienteNome}%,nome_fantasia.ilike.%${clienteNome}%`);
+        }
+
+        const { data: statusRows, error: statusErr } = await statusQuery;
+        if (statusErr) {
+            console.warn('Erro ao buscar status_cliente:', statusErr);
+        }
+
+        const hasInativo = Array.isArray(statusRows) && statusRows.some(r => String(r.status_cliente || '').trim().toLowerCase() === 'inativo');
+        const statusCliente = hasInativo ? 'inativo' : 'ativo';
+
+        res.json({ success: true, total: count || 0, count: count || 0, status_cliente: statusCliente, inativo: hasInativo });
         
     } catch (error) {
         console.error('Erro no endpoint de contagem de contratos:', error);
@@ -5858,6 +6002,40 @@ app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
   console.log(`API disponível em http://localhost:${PORT}/api/clientes-kamino`);
 
+  (async () => {
+    try {
+      const { data: clientes, error } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_cliente')
+        .select('id, status');
+      if (error) {
+        return;
+      }
+      const ativos = (clientes || [])
+        .filter(c => String(c.status || '').trim().toLowerCase() === 'ativo')
+        .map(c => c.id)
+        .filter(Boolean);
+      const inativos = (clientes || [])
+        .filter(c => String(c.status || '').trim().toLowerCase() === 'inativo')
+        .map(c => c.id)
+        .filter(Boolean);
+      if (ativos.length > 0) {
+        await supabase
+          .schema('up_gestaointeligente')
+          .from('contratos_clientes')
+          .update({ status_cliente: 'ativo' })
+          .in('id_cliente', ativos);
+      }
+      if (inativos.length > 0) {
+        await supabase
+          .schema('up_gestaointeligente')
+          .from('contratos_clientes')
+          .update({ status_cliente: 'inativo' })
+          .in('id_cliente', inativos);
+      }
+    } catch (_) {}
+  })();
+
   // DEBUG de precisão para membro_id 87987618 com horas 58.08
   (async () => {
     try {
@@ -5893,4 +6071,8 @@ app.listen(PORT, () => {
 process.on('SIGINT', async () => {
   console.log('\nEncerrando servidor...');
   process.exit(0);
+});
+// Bloquear acesso direto à URL antiga
+app.get('/cadastro-cliente.html', (req, res) => {
+  res.status(404).send('');
 });

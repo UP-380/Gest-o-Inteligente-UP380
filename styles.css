@@ -1181,6 +1181,26 @@
     border-color: #93c5fd;
 }
 
+/* Tags de cliente na lista de tarefas desajustadas */
+.cliente-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.cliente-tag-orange {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(253, 126, 20, 0.1);
+    color: #fd7e14;
+    border: 1px solid #fd7e14;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .remove-cliente-tag {
     background: none;
     border: none;
@@ -5038,6 +5058,27 @@ body {
     margin-bottom: 1.5rem;
 }
 
+#clientFormSection .form-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 1rem;
+}
+
+#clientFormSection .form-header-top {
+    align-self: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+#clientFormSection .form-title {
+    margin: 0;
+}
+
+#clientFormSection .form-subtitle {
+    margin: 0;
+}
+
 /* Agrupa os botões à direita para evitar espaçamento central */
 .form-header-actions {
     display: flex;
@@ -6152,4 +6193,14 @@ body {
 
 .toggle-slider-minimal:hover {
     opacity: 0.8;
+}
+/* Ícone de informação minimalista ao lado de rótulos */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  color: #fd7e14;
+  font-size: 0.9em;
+  cursor: help;
 }

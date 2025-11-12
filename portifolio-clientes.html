@@ -48,7 +48,7 @@
                 <div class="search-container">
                     <div class="search-input-wrapper">
                         <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="clientSearchFilter" class="search-input" placeholder="Buscar cliente por nome...">
+                        <input type="text" id="clientSearchFilter" class="search-input" placeholder="Buscar cliente por nome amigavel...">
                     </div>
                 </div>
                 <div class="listing-controls-right">
@@ -138,7 +138,7 @@
                         Voltar
                     </button>
                 </div>
-                <h2 class="form-title" id="formTitle">CADASTRAR/EDITAR CLIENTES</h2>
+                <h2 class="form-title" id="formTitle">CADASTRAR CLIENTES</h2>
                 <p class="form-subtitle" id="formSubtitle">Preencha os dados abaixo para cadastrar ou editar um cliente</p>
             </div>
             
@@ -217,12 +217,19 @@
                             </div>
                             
                             <div class="form-group">
-                                <label for="teste" class="form-label">CPF/CNPJ</label>
-                                <input type="text" 
-                                       id="teste" 
-                                       name="teste" 
-                                       class="form-input" 
-                                       placeholder="Digite o CPF ou CNPJ">
+                                <label for="teste" class="form-label">CNPJ|CONTRATO <span class="info-icon" title="O contrato é Cadastrado no CLICKUP"><i class="fas fa-info-circle"></i></span></label>
+                                <div class="searchable-select" id="cnpj-container">
+                                    <input type="text" 
+                                           id="teste" 
+                                           name="teste" 
+                                           class="form-input searchable-input" 
+                                           placeholder="Digite o CNPJ" 
+                                           autocomplete="off">
+                                    <div class="dropdown-arrow">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <ul class="dropdown-list" id="cnpj-list"></ul>
+                                </div>
                                 <div id="teste-error" class="error-message"></div>
                             </div>
                             
@@ -390,7 +397,7 @@
     <div id="editClienteModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Editar Cliente</h3>
+                <h3>CADASTRAR/EDITAR CLIENTE</h3>
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
@@ -442,12 +449,12 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit-teste" class="form-label">CPF/CNPJ</label>
+                        <label for="edit-teste" class="form-label">CNPJ|CONTRATO</label>
                         <input type="text" 
                                id="edit-teste" 
                                name="teste" 
                                class="form-input" 
-                               placeholder="Digite o CPF ou CNPJ">
+                               placeholder="Digite o CNPJ">
                     </div>
                     
                     <div class="form-group">
@@ -538,8 +545,8 @@
                 isLoadingClients = true;
                 showLoadingMessage();
                 
-                // Buscar clientes com paginação e filtros no backend (mesma API da página de clientes)
-                let url = `/api/clientes?page=${currentPage}&limit=${itemsPerPage}`;
+                // Buscar clientes do portfólio pela tabela cp_cliente
+                let url = `/api/portifolio-clientes?page=${currentPage}&limit=${itemsPerPage}`;
                 
                 // Adicionar filtro de busca se existir
                 if (searchTerm && searchTerm.trim() !== '') {
@@ -583,11 +590,11 @@
                 
                 filteredClients = clientesRaw.map(cliente => {
                     const nomeExtraido = cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || 'Nome não informado';
-                    
                     return {
                         id: cliente.id,
                         nome: nomeExtraido,
-                        status: cliente.status || 'ativo'
+                        status: cliente.status || 'ativo',
+                        clickupNome: cliente.nome || ''
                     };
                 });
                 
@@ -771,6 +778,9 @@
                     <div class="client-list-item ${statusClass}" data-client-id="${client.id}" data-client-status="${client.status}">
                         <p class="client-name">${clientName}</p>
                         <div class="client-actions">
+                            <button class="client-action-btn edit-btn" onclick="editClient('${client.id}', '${clientName.replace(/'/g, "\\'")}', '${(client.clickupNome || '').replace(/'/g, "\\'")}')" title="Editar cliente">
+                                <i class="fas fa-pencil-alt"></i>
+                            </button>
                             ${statusButton}
                         </div>
                     </div>
@@ -1057,7 +1067,7 @@
         // ===== FUNCIONALIDADE DE EDIÇÃO =====
         
         // Função para editar cliente (alternar para modo de cadastro com cliente selecionado)
-        function editClient(clienteId, clienteName) {
+        function editClient(clienteId, clienteName, clickupName) {
             if (!clienteId) {
                 return;
             }
@@ -1072,11 +1082,52 @@
                     selecionarClientePorId(clienteId);
                 }
                 
+                disableClienteClickupField(clickupName);
+                if (clickupName && clickupName.trim() !== '') {
+                    if (typeof loadCnpjOptionsFromContratos === 'function') {
+                        loadCnpjOptionsFromContratos(clickupName);
+                    }
+                    if (typeof carregarDadosContratos === 'function') {
+                        carregarDadosContratos(clickupName);
+                    }
+                }
+                
                 // Atualizar título após seleção (modo edição)
                 setTimeout(() => {
                     updateFormTitle();
                 }, 300);
             }, 500); // Aumentar o tempo para garantir que tudo foi carregado
+        }
+
+        function disableClienteClickupField(presetName) {
+            const search = document.getElementById('clienteClickup-search');
+            const hidden = document.getElementById('clienteClickup');
+            if (search) {
+                if (presetName && presetName.trim() !== '') {
+                    search.value = presetName;
+                    if (hidden) {
+                        hidden.value = presetName;
+                    }
+                }
+                search.setAttribute('readonly', 'readonly');
+                search.setAttribute('disabled', 'disabled');
+            }
+        }
+
+        function enableClienteClickupField() {
+            const search = document.getElementById('clienteClickup-search');
+            if (search) {
+                search.removeAttribute('readonly');
+                search.removeAttribute('disabled');
+            }
+            clearCnpjOptions();
+        }
+
+        function clearCnpjOptions() {
+            const list = document.getElementById('cnpj-list');
+            if (list) {
+                list.innerHTML = '';
+            }
         }
         
         // Função para filtrar clientes (redireciona busca para backend)
@@ -1104,10 +1155,10 @@
                                        (clienteClickupSearch && clienteClickupSearch.value && clienteClickupSearch.value.trim() !== '');
             
             if (hasClienteSelected) {
-                formTitle.textContent = 'EDITAR CLIENTE';
+                formTitle.textContent = 'CADASTRAR/EDITAR CLIENTE';
                 formSubtitle.textContent = 'Altere os dados abaixo para atualizar o cliente';
             } else {
-                formTitle.textContent = 'CADASTRAR CLIENTE';
+                formTitle.textContent = 'CADASTRAR CLIENTES';
                 formSubtitle.textContent = 'Preencha os dados abaixo para cadastrar um novo cliente';
             }
         }
@@ -1135,6 +1186,8 @@
         function showClientForm() {
             clientsListingSection.style.display = 'none';
             clientFormSection.style.display = 'block';
+            enableClienteClickupField();
+            clearCnpjOptions();
             
             // Atualizar título baseado no estado do formulário
             setTimeout(() => {
@@ -1147,6 +1200,7 @@
         function showClientsList() {
             clientFormSection.style.display = 'none';
             clientsListingSection.style.display = 'block';
+            enableClienteClickupField();
             
             // Limpar o formulário
             const form = document.getElementById('clientForm');
@@ -1160,6 +1214,7 @@
                 const searchInputs = form.querySelectorAll('.searchable-input');
                 searchInputs.forEach(input => input.value = '');
             }
+            clearCnpjOptions();
             
             // Recarregar a lista de clientes
             loadClients();
