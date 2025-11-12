@@ -2023,8 +2023,8 @@ async function loadContractCountsAsync(clientes) {
                 if (data && data.success) {
                     cliente.contratos_count = data.count;
                     cliente.contratos_loaded = true; // Marcar como carregado
-                    // Atualizar card individual imediatamente
-                    updateClientCard(cliente.id, { contratos: data.count, contratos_loaded: true });
+                    cliente.status_cliente = data.status_cliente || cliente.status_cliente;
+                    updateClientCard(cliente.id, { contratos: data.count, contratos_loaded: true, status_cliente: data.status_cliente });
                 } else {
                     console.warn(`Erro ao buscar contratos para cliente ${cliente.nome}:`, data);
                     cliente.contratos_count = 0;
@@ -2576,10 +2576,12 @@ function createClientCard(cliente) {
         </div>
     ` : '';
     
+    const statusBadge = cliente.status_cliente && cliente.status_cliente === 'inativo' ? `<span class="client-status inativo">INATIVO</span>` : '';
     return `
         <div class="client-card" data-client-id="${cliente.id}">
             <div class="client-card-header">
                 <h3>${nome}</h3>
+                ${statusBadge}
                 ${expandIcon}
             </div>
             <div class="client-card-body">
@@ -2746,6 +2748,25 @@ function updateClientCard(clienteId, updates) {
                 // Remover ícone de expandir se não tem contratos
                 existingExpandIcon.remove();
             }
+        }
+    }
+
+    if (updates.status_cliente !== undefined) {
+        const header = clientCard.querySelector('.client-card-header');
+        let badge = header.querySelector('.client-status');
+        if (updates.status_cliente === 'inativo') {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'client-status inativo';
+                badge.textContent = 'INATIVO';
+                header.insertBefore(badge, header.querySelector('.expand-icon'));
+            } else {
+                badge.classList.remove('ativo');
+                badge.classList.add('inativo');
+                badge.textContent = 'INATIVO';
+            }
+        } else {
+            if (badge) badge.remove();
         }
     }
     

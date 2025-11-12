@@ -43,7 +43,7 @@ router.get('/clientes', requireAuth, (req, res) => {
 
 // Rota para a página de portfólio de clientes - COM autenticação
 router.get('/portifolio-clientes', requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, 'cadastro-cliente.html'));
+    res.sendFile(path.join(__dirname, 'portifolio-clientes.html'));
 });
 
 // Rota para a página de configuração de clientes - COM autenticação
