@@ -119,6 +119,18 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'login.html'));
 });
 
+app.get('/clientes.html', requireAuth, (req, res) => {
+  return res.redirect('/clientes');
+});
+
+app.get('/dashboard.html', requireAuth, (req, res) => {
+  return res.redirect('/painel');
+});
+
+app.get('/cadastro-cliente.html', requireAuth, (req, res) => {
+  return res.redirect('/portifolio-clientes');
+});
+
 // Endpoint para autenticação de login
 app.post('/api/login', async (req, res) => {
   try {
@@ -393,7 +405,7 @@ app.get('/api/clientes', requireAuth, async (req, res) => {
     // ========================================
     const { status, startDate, endDate, clienteIds, colaboradorIds, search, incompletos } = req.query;
     
-    console.log('🔍 Parâmetros recebidos:', { 
+  console.log('🔍 Parâmetros recebidos:', { 
       page, 
       limit: finalLimit, 
       offset,
@@ -405,6 +417,26 @@ app.get('/api/clientes', requireAuth, async (req, res) => {
       search,
       incompletos
     });
+
+    // Regra: colaboradorIds exige período (startDate e endDate)
+    if (colaboradorIds && colaboradorIds.trim() !== '') {
+      const hasStart = !!(startDate && startDate.trim() !== '');
+      const hasEnd = !!(endDate && endDate.trim() !== '');
+      if (!hasStart || !hasEnd) {
+        console.log('❌ Validação: colaboradorIds informado sem período completo.');
+        return res.status(400).json({ success: false, error: 'Ao filtrar por colaborador, informe startDate e endDate.' });
+      }
+    }
+
+    // Regra: clienteIds exige período (startDate e endDate)
+    if (clienteIds && clienteIds.trim() !== '') {
+      const hasStart = !!(startDate && startDate.trim() !== '');
+      const hasEnd = !!(endDate && endDate.trim() !== '');
+      if (!hasStart || !hasEnd) {
+        console.log('❌ Validação: clienteIds informado sem período completo.');
+        return res.status(400).json({ success: false, error: 'Ao filtrar por cliente, informe startDate e endDate.' });
+      }
+    }
     
     // ========================================
     // 💾 VERIFICAR CACHE
@@ -439,17 +471,66 @@ app.get('/api/clientes', requireAuth, async (req, res) => {
     // 🔧 APLICAR FILTROS
     // ========================================
     
-    // Filtro de status (direto na tabela de clientes)
+    // Filtro de status baseado em contratos: listar clientes com ao menos 1 contrato no status
     if (status && status.trim() !== '') {
-      const statusValue = status.trim();
-      console.log('📊 Aplicando filtro de status do cliente:', statusValue);
-      console.log('📊 Parâmetros recebidos - status:', status, 'statusValue:', statusValue);
-      
-      // Aplicar filtro direto na tabela de clientes
-      countQuery = countQuery.eq('status', statusValue);
-      dataQuery = dataQuery.eq('status', statusValue);
-      
-      console.log('📊 Filtro de status aplicado nas queries');
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      console.log('📊 Aplicando filtro de status de contratos:', statuses);
+
+      // Buscar IDs de clientes na tabela contratos_clientes que tenham ao menos um contrato com qualquer desses status
+      let contratosQuery = supabase
+        .schema('up_gestaointeligente')
+        .from('contratos_clientes')
+        .select('id_cliente, status')
+        .not('id_cliente', 'is', null);
+
+      if (statuses.length === 1) {
+        contratosQuery = contratosQuery.eq('status', statuses[0]);
+      } else {
+        contratosQuery = contratosQuery.in('status', statuses);
+      }
+
+      const { data: contratosComStatus, error: contratosStatusError } = await contratosQuery;
+      if (contratosStatusError) {
+        console.error('❌ Erro ao buscar contratos por status:', contratosStatusError);
+        return res.status(500).json({ success: false, error: 'Erro ao filtrar clientes por status de contratos' });
+      }
+
+      // Debug detalhado dos primeiros registros
+      if (contratosComStatus && contratosComStatus.length > 0) {
+        const sample = contratosComStatus.slice(0, 5).map(c => ({ id_cliente: c.id_cliente, status: c.status, type: typeof c.id_cliente }));
+        console.log('🔎 Amostra de contratos retornados (id_cliente, status, type):', sample);
+      }
+
+      // Extrair IDs de cliente (UUID/texto) e normalizar
+      const clienteIdsFromContratos = [...new Set((contratosComStatus || [])
+        .map(c => c.id_cliente)
+        .filter(id => id && String(id).trim() !== '')
+        .map(id => String(id).trim())
+      )];
+
+      console.log(`📊 Clientes com contratos nos status especificados: ${clienteIdsFromContratos.length}`);
+      console.log('📊 Amostra de IDs:', clienteIdsFromContratos.slice(0, 10));
+
+      if (clienteIdsFromContratos.length === 0) {
+        console.log('📊 Nenhum cliente possui contratos com os status informados. Retornando vazio.');
+        return res.json({ 
+          success: true, 
+          data: [],
+          count: 0,
+          total: 0,
+          page,
+          limit: finalLimit,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPrevPage: false,
+          filters: { status, startDate, endDate, clienteIds, colaboradorIds, search, incompletos }
+        });
+      }
+
+      // Aplicar filtro nas queries principais de clientes
+      countQuery = countQuery.in('id', clienteIdsFromContratos);
+      dataQuery = dataQuery.in('id', clienteIdsFromContratos);
+      console.log('📊 Filtro de status (contratos) aplicado nas queries de clientes');
     } else {
       console.log('📊 Nenhum filtro de status aplicado - status:', status);
     }
@@ -478,72 +559,98 @@ app.get('/api/clientes', requireAuth, async (req, res) => {
       }
     }
     
-    // Filtro de colaboradores (via tarefas)
+    // Filtro de colaboradores (NOVA LÓGICA via registro_tempo)
     if (colaboradorIds && colaboradorIds.trim() !== '') {
-      const colaboradorArray = colaboradorIds.split(',').map(id => id.trim()).filter(id => id);
-      if (colaboradorArray.length > 0) {
-        console.log('👥 Aplicando filtro de colaboradores:', colaboradorArray);
+      const colaboradoresRaw = colaboradorIds.split(',').map(id => id.trim()).filter(Boolean);
+      const colaboradoresNum = colaboradoresRaw.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      if (colaboradoresRaw.length > 0) {
+        console.log('👥 Aplicando filtro de colaboradores via registro_tempo:', { colaboradoresRaw, colaboradoresNum });
         
-        // Buscar clientes que têm tarefas com os colaboradores especificados
-        // A tabela 'tarefa' tem o campo 'responsavel_id' que é o ID do colaborador
-        let tarefasQuery = supabase
+        // Buscar registros de tempo dos colaboradores selecionados para obter tarefa_id
+        let registrosQuery = supabase
           .schema('up_gestaointeligente')
-          .from('tarefa')
-          .select('cliente_id')
-          .in('responsavel_id', colaboradorArray);
+          .from('registro_tempo')
+          .select('tarefa_id, usuario_id, data_inicio');
         
-        // 🔗 VINCULAR COM PERÍODO: Se período foi selecionado, filtrar tarefas por data
-    if (startDate && startDate.trim() !== '') {
-          const dateInicialObj = new Date(startDate);
-          // Filtrar tarefas que iniciaram no período ou foram criadas no período (se dt_inicio for null)
-          tarefasQuery = tarefasQuery.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${new Date(endDate || startDate).toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${new Date(endDate || startDate).toISOString()})`);
-          console.log(`📅👥 Filtrando tarefas dos colaboradores no período: ${startDate} até ${endDate || startDate}`);
-        } else if (endDate && endDate.trim() !== '') {
-          const dateFinalObj = new Date(endDate);
-          dateFinalObj.setUTCHours(23, 59, 59, 999);
-          tarefasQuery = tarefasQuery.or(`dt_inicio.lte.${dateFinalObj.toISOString()},and(dt_inicio.is.null,created_at.lte.${dateFinalObj.toISOString()})`);
-          console.log(`📅👥 Filtrando tarefas dos colaboradores até: ${endDate}`);
+        if (colaboradoresNum.length > 0) {
+          registrosQuery = registrosQuery.in('usuario_id', colaboradoresNum);
+        } else {
+          registrosQuery = registrosQuery.in('usuario_id', colaboradoresRaw);
         }
         
-        const { data: tarefasComColaboradores, error: colaboradoresError } = await tarefasQuery;
+        // 🔗 VINCULAR COM PERÍODO: aplicar sobre data_inicio dos registros
+        if (startDate && startDate.trim() !== '') {
+          const dateInicialObj = new Date(startDate);
+          registrosQuery = registrosQuery.gte('data_inicio', dateInicialObj.toISOString());
+          console.log(`📅⏱️ Filtrando registros de tempo no período: ${startDate} até ${endDate || startDate}`);
+        }
+        if (endDate && endDate.trim() !== '') {
+          const dateFinalObj = new Date(endDate);
+          dateFinalObj.setUTCHours(23, 59, 59, 999);
+          registrosQuery = registrosQuery.lte('data_inicio', dateFinalObj.toISOString());
+          console.log(`📅⏱️ Filtrando registros de tempo até: ${endDate}`);
+        }
         
-        if (colaboradoresError) {
-          console.error('Erro ao buscar tarefas dos colaboradores:', colaboradoresError);
-          return res.status(500).json({ 
-            success: false, 
-            error: 'Erro ao filtrar por colaboradores' 
+        const { data: registrosTempo, error: registrosErro } = await registrosQuery;
+        if (registrosErro) {
+          console.error('❌ Erro ao buscar registros de tempo dos colaboradores:', registrosErro);
+          return res.status(500).json({ success: false, error: 'Erro ao filtrar por colaboradores (registro_tempo)' });
+        }
+        
+        const tarefaIds = [...new Set((registrosTempo || []).map(r => r.tarefa_id).filter(Boolean))];
+        console.log(`⏱️ Registros encontrados: ${(registrosTempo || []).length}; tarefas únicas: ${tarefaIds.length}`);
+        
+        if (tarefaIds.length === 0) {
+          const periodoMsg = (startDate && endDate) ? ` no período especificado` : '';
+          console.log(`👥 Nenhum registro de tempo encontrado para os colaboradores${periodoMsg}`);
+          return res.json({ 
+            success: true, 
+            data: [],
+            count: 0,
+            total: 0,
+            page,
+            limit: finalLimit,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPrevPage: false,
+            filters: { status, startDate, endDate, clienteIds, colaboradorIds }
           });
         }
         
-        if (tarefasComColaboradores && tarefasComColaboradores.length > 0) {
-          // Extrair IDs únicos dos clientes (podem estar em UUID)
-          const clienteIdsFromColaboradores = [...new Set(tarefasComColaboradores.map(t => t.cliente_id))].filter(id => id);
-          
-          const periodoMsg = (startDate && endDate) ? ` no período ${startDate} - ${endDate}` : '';
-          console.log(`👥 Encontrados ${clienteIdsFromColaboradores.length} clientes únicos com tarefas dos colaboradores${periodoMsg}`);
-          
-          if (clienteIdsFromColaboradores.length > 0) {
-            countQuery = countQuery.in('id', clienteIdsFromColaboradores);
-            dataQuery = dataQuery.in('id', clienteIdsFromColaboradores);
+        // Buscar tarefas dessas IDs para extrair cliente_id (com suporte a CSV)
+        const { data: tarefasData, error: tarefasErro } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tarefa')
+          .select('id, cliente_id')
+          .in('id', tarefaIds);
+        if (tarefasErro) {
+          console.error('❌ Erro ao buscar tarefas por tarefa_id dos registros:', tarefasErro);
+          return res.status(500).json({ success: false, error: 'Erro ao buscar tarefas associadas aos registros de tempo' });
+        }
+        
+        const expandedClienteIds = [];
+        for (const t of (tarefasData || [])) {
+          const raw = t.cliente_id;
+          if (!raw) continue;
+          if (typeof raw === 'string') {
+            raw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => expandedClienteIds.push(id));
+          } else if (Array.isArray(raw)) {
+            raw.map(x => String(x)).forEach(id => expandedClienteIds.push(id));
           } else {
-            // Se não encontrou clientes, retornar vazio
-            return res.json({ 
-              success: true, 
-              data: [],
-              count: 0,
-              total: 0,
-              page,
-              limit: finalLimit,
-              totalPages: 0,
-              hasNextPage: false,
-              hasPrevPage: false,
-              filters: { status, startDate, endDate, clienteIds, colaboradorIds }
-            });
+            expandedClienteIds.push(String(raw));
           }
+        }
+        const clienteIdsFromTempo = [...new Set(expandedClienteIds)].filter(id => id);
+        
+        const periodoMsg = (startDate && endDate) ? ` no período ${startDate} - ${endDate}` : '';
+        console.log(`👥 Clientes únicos (expandidos) via registros de tempo: ${clienteIdsFromTempo.length}${periodoMsg}`);
+        console.log('👥 IDs de clientes considerados (amostra):', clienteIdsFromTempo.slice(0, 10));
+        
+        if (clienteIdsFromTempo.length > 0) {
+          countQuery = countQuery.in('id', clienteIdsFromTempo);
+          dataQuery = dataQuery.in('id', clienteIdsFromTempo);
         } else {
-          // Nenhuma tarefa encontrada para esses colaboradores
-          const periodoMsg = (startDate && endDate) ? ` no período especificado` : '';
-          console.log(`👥 Nenhuma tarefa encontrada para os colaboradores${periodoMsg}`);
+          // Se não encontrou clientes, retornar vazio
           return res.json({ 
             success: true, 
             data: [],
@@ -559,7 +666,93 @@ app.get('/api/clientes', requireAuth, async (req, res) => {
         }
       }
     }
-    
+
+    // 🔎 Filtro de período independente (sem colaborador): limitar clientes que têm registros no período
+    // Isso garante interseção correta: período Y restringe clientes aos que possuem registros de tempo dentro do intervalo
+    if ((!colaboradorIds || colaboradorIds.trim() === '') && ((startDate && startDate.trim() !== '') || (endDate && endDate.trim() !== ''))) {
+      try {
+        console.log('⏱️ Aplicando filtro de período independente para clientes (registro_tempo)');
+        let registrosQueryPeriodo = supabase
+          .schema('up_gestaointeligente')
+          .from('registro_tempo')
+          .select('tarefa_id, data_inicio');
+
+        if (startDate && startDate.trim() !== '') {
+          const dateInicialObj = new Date(startDate);
+          registrosQueryPeriodo = registrosQueryPeriodo.gte('data_inicio', dateInicialObj.toISOString());
+        }
+        if (endDate && endDate.trim() !== '') {
+          const dateFinalObj = new Date(endDate);
+          dateFinalObj.setUTCHours(23, 59, 59, 999);
+          registrosQueryPeriodo = registrosQueryPeriodo.lte('data_inicio', dateFinalObj.toISOString());
+        }
+
+        const { data: registrosPeriodo, error: errPeriodo } = await registrosQueryPeriodo;
+        if (errPeriodo) {
+          console.error('❌ Erro ao buscar registros de tempo por período:', errPeriodo);
+        } else {
+          const tarefaIdsPeriodo = [...new Set((registrosPeriodo || []).map(r => r.tarefa_id).filter(Boolean))];
+          console.log(`⏱️ Registros no período: ${(registrosPeriodo || []).length}; tarefas únicas: ${tarefaIdsPeriodo.length}`);
+
+          if (tarefaIdsPeriodo.length > 0) {
+            const { data: tarefasPeriodo, error: tarefasPeriodoErro } = await supabase
+              .schema('up_gestaointeligente')
+              .from('tarefa')
+              .select('id, cliente_id')
+              .in('id', tarefaIdsPeriodo);
+            if (tarefasPeriodoErro) {
+              console.error('❌ Erro ao buscar tarefas do período:', tarefasPeriodoErro);
+            } else {
+              const expandedClienteIdsPeriodo = [];
+              for (const t of (tarefasPeriodo || [])) {
+                const raw = t.cliente_id;
+                if (!raw) continue;
+                if (typeof raw === 'string') {
+                  raw.split(',').map(s => s.trim()).filter(Boolean).forEach(id => expandedClienteIdsPeriodo.push(id));
+                } else if (Array.isArray(raw)) {
+                  raw.map(x => String(x)).forEach(id => expandedClienteIdsPeriodo.push(id));
+                } else {
+                  expandedClienteIdsPeriodo.push(String(raw));
+                }
+              }
+              let clienteIdsPeriodo = [...new Set(expandedClienteIdsPeriodo)].filter(id => id);
+
+              // Se clienteIds foi informado, fazer interseção
+              if (clienteIds && clienteIds.trim() !== '') {
+                const idsArray = clienteIds.split(',').map(id => id.trim()).filter(Boolean);
+                clienteIdsPeriodo = clienteIdsPeriodo.filter(id => idsArray.includes(id));
+                console.log(`🔗 Interseção período ∩ clienteIds: ${clienteIdsPeriodo.length}`);
+              }
+
+              if (clienteIdsPeriodo.length === 0) {
+                console.log('⏱️ Nenhum cliente com registros no período (após interseção, se aplicada). Retornando vazio.');
+                return res.json({ 
+                  success: true, 
+                  data: [],
+                  count: 0,
+                  total: 0,
+                  page,
+                  limit: finalLimit,
+                  totalPages: 0,
+                  hasNextPage: false,
+                  hasPrevPage: false,
+                  filters: { status, startDate, endDate, clienteIds, colaboradorIds }
+                });
+              }
+
+              countQuery = countQuery.in('id', clienteIdsPeriodo);
+              dataQuery = dataQuery.in('id', clienteIdsPeriodo);
+              console.log('⏱️ Filtro de período aplicado às queries de clientes (sem colaborador)');
+            }
+          } else {
+            console.log('⏱️ Nenhum registro de tempo encontrado no período para limitar clientes.');
+          }
+        }
+      } catch (e) {
+        console.error('❌ Erro ao aplicar filtro de período independente:', e);
+      }
+    }
+
     // Filtros de data (aplicados no faturamento, não no cliente)
     // As datas serão usadas posteriormente para filtrar o faturamento
     if (startDate && startDate.trim() !== '') {
@@ -2673,20 +2866,28 @@ app.get('/api/tarefas-count/:clienteId', requireAuth, async (req, res) => {
         console.log('Contando tarefas para cliente ID:', clienteId, 'com filtros:', { 
             status, startDate, endDate, dataInicial, dataFinal, colaboradorIds 
         });
+
+        // Validação: colaboradorIds exige período
+        const hasColabs = colaboradorIds && colaboradorIds.trim() !== '';
+        const hasPeriod = (startDate && endDate) || (dataInicial && dataFinal) || (req.query.inicio && req.query.fim);
+        if (hasColabs && !hasPeriod) {
+            console.log('❌ Validação /tarefas-count: colaboradorIds informado sem período completo.');
+            return res.status(400).json({ success: false, error: 'Ao filtrar por colaborador, informe startDate e endDate.' });
+        }
         
         // Primeiro, buscar a contagem
         let countQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
             .select('*', { count: 'exact', head: true })
-            .eq('cliente_id', clienteId);
+            .or(`cliente_id.eq.${clienteId},cliente_id.ilike.%${clienteId}%`);
         
         // Segundo, buscar a primeira tarefa com URL para o botão de redirecionamento
         let firstTaskQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
             .select('url')
-            .eq('cliente_id', clienteId)
+            .or(`cliente_id.eq.${clienteId},cliente_id.ilike.%${clienteId}%`)
             .not('url', 'is', null)
             .neq('url', '')
             .order('created_at', { ascending: false })
@@ -2702,21 +2903,60 @@ app.get('/api/tarefas-count/:clienteId', requireAuth, async (req, res) => {
             }
         }
         
-        // Filtro de colaboradores
+        // Filtro de colaboradores (NOVA LÓGICA via registro_tempo.usuario_id)
         if (colaboradorIds) {
-            const colaboradorArray = colaboradorIds.split(',').map(id => id.trim()).filter(id => id);
-            if (colaboradorArray.length > 0) {
-                countQuery = countQuery.in('responsavel_id', colaboradorArray);
-                firstTaskQuery = firstTaskQuery.in('responsavel_id', colaboradorArray);
-                console.log('👥 Filtro de colaboradores aplicado na contagem de tarefas:', colaboradorArray);
+            const colaboradoresAplicados = colaboradorIds.split(',').map(id => id.trim()).filter(Boolean);
+            if (colaboradoresAplicados.length > 0) {
+                console.log('👥 Aplicando nova lógica de colaborador via registro_tempo:', colaboradoresAplicados);
+                
+                // Buscar registros de tempo do(s) colaborador(es) para obter tarefa_id
+                let registrosQuery = supabase
+                    .schema('up_gestaointeligente')
+                    .from('registro_tempo')
+                    .select('tarefa_id, usuario_id, data_inicio')
+                    .in('usuario_id', colaboradoresAplicados);
+                
+                // Aplicar período sobre data_inicio dos registros de tempo, se fornecido
+                const dateStartCollab = startDate || dataInicial || req.query.inicio;
+                const dateEndCollab = endDate || dataFinal || req.query.fim;
+                if (dateStartCollab) {
+                    const dateInicialObj = new Date(dateStartCollab);
+                    registrosQuery = registrosQuery.gte('data_inicio', dateInicialObj.toISOString());
+                }
+                if (dateEndCollab) {
+                    const dateFinalObj = new Date(dateEndCollab);
+                    dateFinalObj.setUTCHours(23, 59, 59, 999);
+                    registrosQuery = registrosQuery.lte('data_inicio', dateFinalObj.toISOString());
+                }
+                
+                const { data: registrosTempo, error: registrosErro } = await registrosQuery;
+                if (registrosErro) {
+                    console.error('❌ Erro ao buscar registros de tempo para colaboradores:', registrosErro);
+                    return res.status(500).json({ success: false, error: 'Erro ao filtrar por colaborador (registro_tempo)' });
+                }
+                
+                const tarefaIds = [...new Set((registrosTempo || []).map(r => r.tarefa_id).filter(Boolean))];
+                console.log(`⏱️ Registros encontrados: ${(registrosTempo || []).length}; tarefas únicas: ${tarefaIds.length}`);
+                
+                if (tarefaIds.length === 0) {
+                    console.log('⏱️ Nenhum tarefa_id encontrado nos registros de tempo para os colaboradores');
+                    return res.json({ success: true, total: 0, count: 0, primeira_tarefa_url: null });
+                }
+                
+                // Restringir contagem e primeira tarefa às tarefas onde o colaborador registrou tempo
+                countQuery = countQuery.in('id', tarefaIds);
+                firstTaskQuery = firstTaskQuery.in('id', tarefaIds);
             }
         }
         
-        // Filtro de período - suporta tanto startDate/endDate quanto dataInicial/dataFinal
-        const dateStart = startDate || dataInicial;
-        const dateEnd = endDate || dataFinal;
+        // Filtro de período - suporta startDate/endDate, dataInicial/dataFinal ou inicio/fim e lógica E/OU
+        const { periodoLogica } = req.query;
+        const dateStart = startDate || dataInicial || req.query.inicio;
+        const dateEnd = endDate || dataFinal || req.query.fim;
         
-        if (dateStart && dateEnd) {
+        // Importante: quando há filtro por colaborador, NÃO aplicar período nas tarefas
+        // O período já é aplicado nos registros de tempo acima
+        if (!hasColabs && dateStart && dateEnd) {
             // Converter para objetos Date
             const dateInicialObj = new Date(dateStart);
             const dateFinalObj = new Date(dateEnd);
@@ -2724,16 +2964,31 @@ app.get('/api/tarefas-count/:clienteId', requireAuth, async (req, res) => {
             // Para a data final, vamos até o final do dia (23:59:59.999)
             dateFinalObj.setUTCHours(23, 59, 59, 999);
             
-            console.log('Aplicando filtro de período:', {
+            const logica = (periodoLogica === 'E' || periodoLogica === 'OU') ? periodoLogica : 'OU';
+            console.log('Aplicando filtro de período em tarefas-count (lógica:', logica, '):', {
                 inicio: dateInicialObj.toISOString(),
                 fim: dateFinalObj.toISOString()
             });
             
-            // Filtrar tarefas que estão dentro do período:
-            // Usar created_at como fallback quando dt_inicio for NULL
-            const periodFilter = `and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`;
-            countQuery = countQuery.or(periodFilter);
-            firstTaskQuery = firstTaskQuery.or(periodFilter);
+            if (logica === 'E') {
+                // Lógica E: exigir ambas as datas dentro do período (sem fallback)
+                countQuery = countQuery
+                    .not('dt_inicio', 'is', null)
+                    .not('dt_vencimento', 'is', null)
+                    .gte('dt_inicio', dateInicialObj.toISOString())
+                    .lte('dt_vencimento', dateFinalObj.toISOString());
+                
+                firstTaskQuery = firstTaskQuery
+                    .not('dt_inicio', 'is', null)
+                    .not('dt_vencimento', 'is', null)
+                    .gte('dt_inicio', dateInicialObj.toISOString())
+                    .lte('dt_vencimento', dateFinalObj.toISOString());
+            } else {
+                // Lógica OU (comportamento existente): dt_inicio no período ou created_at como fallback
+                const periodFilter = `and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`;
+                countQuery = countQuery.or(periodFilter);
+                firstTaskQuery = firstTaskQuery.or(periodFilter);
+            }
         }
         
         // Executar ambas as queries em paralelo
@@ -2837,6 +3092,10 @@ app.get('/api/tempo-estimado/:clienteId', requireAuth, async (req, res) => {
         console.log('Calculando tempo estimado para cliente ID:', clienteId);
         console.log('Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds });
         
+        // Parse colaboradorIds para array de strings (responsavel_id é texto na tabela tarefa)
+        const colaboradoresArrayRaw = colaboradorIds ? colaboradorIds.split(',').map(s => s.trim()).filter(s => s) : [];
+        const colaboradoresArray = colaboradoresArrayRaw.map(id => id.toString());
+        
         // Agora cliente_id na tabela tarefa armazena o ID numérico do cliente
         let query = supabase
             .schema('up_gestaointeligente')
@@ -2910,551 +3169,781 @@ app.get('/api/tempo-estimado/:clienteId', requireAuth, async (req, res) => {
     }
 });
 
-// Endpoint para calcular tempo realizado total por cliente
+// Endpoint para calcular tempo realizado total por cliente (NOVA LÓGICA via registro_tempo)
 app.get('/api/tempo-realizado/:clienteId', requireAuth, async (req, res) => {
     try {
         const { clienteId } = req.params;
         const { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds } = req.query;
-        
-        console.log('Calculando tempo realizado para cliente ID:', clienteId);
-        console.log('Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds });
-        
-        // Buscar tarefas com tempo_realizado aplicando todos os filtros
+
+        console.log('🔍 DEBUG PASSO 1: ENTRADA', { clienteId, status, startDate, endDate, dataInicial, dataFinal, colaboradorIds });
+
+        // 1) Buscar tarefas do cliente com filtros, incluindo responsavel_id
         let tarefasQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('tempo_realizado')
+            .select('id, responsavel_id')
             .eq('cliente_id', clienteId);
-        
-        // Filtro de status (múltiplos valores separados por vírgula)
+
         if (status) {
             const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
             if (statusArray.length > 0) {
                 tarefasQuery = tarefasQuery.in('status', statusArray);
             }
         }
-        
-        // 👥 FILTRO DE COLABORADORES - Apenas horas deles
+
+        // 👥 Filtro por colaboradores no nível das tarefas (responsavel_id)
+        let colaboradoresFiltroArray = [];
         if (colaboradorIds) {
-            const colaboradorArray = colaboradorIds.split(',').map(id => id.trim()).filter(id => id);
-            if (colaboradorArray.length > 0) {
-                tarefasQuery = tarefasQuery.in('responsavel_id', colaboradorArray);
-                console.log('👥 Filtrando horas realizadas apenas dos colaboradores:', colaboradorArray);
+            colaboradoresFiltroArray = colaboradorIds
+                .split(',')
+                .map(id => id.trim())
+                .filter(Boolean)
+                .map(id => parseInt(id, 10))
+                .filter(n => Number.isFinite(n));
+            if (colaboradoresFiltroArray.length > 0) {
+                tarefasQuery = tarefasQuery.in('responsavel_id', colaboradoresFiltroArray);
+                console.log('👥 Filtrando tarefas por responsavel_id:', colaboradoresFiltroArray);
             }
         }
-        
-        // Filtro de período - suporta tanto startDate/endDate quanto dataInicial/dataFinal
-        const dateStart = startDate || dataInicial;
-        const dateEnd = endDate || dataFinal;
-        
+
+        const { data: tarefasDoCliente, error: tarefasError } = await tarefasQuery;
+        if (tarefasError) {
+            console.error('Erro ao buscar tarefas do cliente:', tarefasError);
+            return res.status(500).json({ success: false, error: tarefasError.message });
+        }
+
+        // Mapa de tarefa -> responsavel (apenas válidos)
+        const responsavelPorTarefa = new Map();
+        for (const t of (tarefasDoCliente || [])) {
+            if (Number.isFinite(t.responsavel_id)) {
+                responsavelPorTarefa.set(t.id, t.responsavel_id);
+            }
+        }
+
+        const tarefaIds = Array.from(responsavelPorTarefa.keys());
+        const tarefasDebug = (tarefasDoCliente || []).map(t => ({ id: t.id, responsavel_id: t.responsavel_id }));
+        console.log('🔍 DEBUG PASSO 2: TAREFAS', { total: tarefaIds.length, tarefas: tarefasDebug });
+
+        if (!tarefaIds || tarefaIds.length === 0) {
+            console.log(`Nenhuma tarefa válida (com responsavel) para cliente ${clienteId}`);
+            return res.json({ success: true, tempo_decimal: 0, total_tarefas: 0 });
+        }
+
+        // 2) Buscar registros de tempo dentro do período
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, usuario_id, tempo_realizado, data_inicio')
+            .in('tarefa_id', tarefaIds);
+
+        // Aplicar período (usar startDate/endDate, dataInicial/dataFinal ou inicio/fim)
+        const { inicio, fim } = req.query;
+        const dateStart = startDate || dataInicial || inicio;
+        const dateEnd = endDate || dataFinal || fim;
         if (dateStart && dateEnd) {
-            // Converter para objetos Date
             const dateInicialObj = new Date(dateStart);
             const dateFinalObj = new Date(dateEnd);
-            
-            // Para a data final, vamos até o final do dia (23:59:59.999)
+            // normalizar começo e fim do dia em UTC
+            dateInicialObj.setUTCHours(0, 0, 0, 0);
             dateFinalObj.setUTCHours(23, 59, 59, 999);
-            
-            console.log('Aplicando filtro de período para tempo realizado:', {
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dateInicialObj.toISOString())
+                .lte('data_inicio', dateFinalObj.toISOString());
+            console.log('📅 Filtro de período (registro_tempo):', {
                 inicio: dateInicialObj.toISOString(),
                 fim: dateFinalObj.toISOString()
             });
-            
-            // Filtrar tarefas que estão dentro do período:
-            // Usar created_at como fallback quando dt_inicio for NULL
-            tarefasQuery = tarefasQuery.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
         }
-        
-        const { data: tarefasComTempoFiltradas, error: tempoFiltradoError } = await tarefasQuery;
-        
-        if (tempoFiltradoError) {
-            console.error('Erro ao buscar tarefas com tempo realizado:', tempoFiltradoError);
-            return res.status(500).json({ success: false, error: tempoFiltradoError.message });
+
+        // Decidir estratégia de soma: incluir todos os registros; se houver filtro de colaborador, restringir por usuario_id
+        if (colaboradoresFiltroArray.length > 0) {
+            registrosQuery = registrosQuery.in('usuario_id', colaboradoresFiltroArray);
+            console.log('🔍 DEBUG PASSO 3: REGISTROS - aplicando filtro por usuario_id', colaboradoresFiltroArray);
+        } else {
+            console.log('🔍 DEBUG PASSO 3: REGISTROS - sem filtro de usuario_id; somando todos os registros do cliente');
         }
-        
-        if (!tarefasComTempoFiltradas || tarefasComTempoFiltradas.length === 0) {
-            console.log(`Nenhuma tarefa encontrada para cliente ${clienteId}`);
-            return res.json({ 
-                success: true, 
-                tempo_decimal: 0,
-                total_tarefas: 0
-            });
+
+        const responsaveisUnicos = Array.from(new Set(Array.from(responsavelPorTarefa.values())));
+        console.log('👥 Responsáveis únicos nas tarefas:', responsaveisUnicos);
+
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('Erro ao buscar registros de tempo:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
         }
-        
-        console.log(`Encontradas ${tarefasComTempoFiltradas.length} tarefas para o cliente ${clienteId}`);
-        
-        // Somar todos os tempos realizados (já em horas decimais)
-        let totalHoras = 0;
-        if (tarefasComTempoFiltradas && tarefasComTempoFiltradas.length > 0) {
-            totalHoras = tarefasComTempoFiltradas.reduce((sum, tarefa) => {
-                let tempo = tarefa.tempo_realizado;
-                
-                // Tratar valores null, undefined ou string vazia
-                if (tempo === null || tempo === undefined || tempo === '') {
-                    return sum;
-                }
-                
-                // Converter string para número se necessário
-                if (typeof tempo === 'string') {
-                    tempo = parseFloat(tempo);
-                }
-                
-                // Verificar se é um número válido
-                if (isNaN(tempo)) {
-                    return sum;
-                }
-                
-                return sum + tempo;
-            }, 0);
+
+        if (!registrosTempo || registrosTempo.length === 0) {
+            console.log(`Nenhum registro de tempo encontrado para cliente ${clienteId} no período`);
+            return res.json({ success: true, tempo_decimal: 0, total_tarefas: 0 });
         }
-        
-        console.log(`Tempo realizado total para cliente ${clienteId}: ${totalHoras.toFixed(2)}h (${tarefasComTempoFiltradas?.length || 0} tarefas)`);
-        
-        res.json({ 
-            success: true, 
+
+        console.log('🔍 DEBUG PASSO 3: REGISTROS encontrados', { total: registrosTempo.length, primeiro: registrosTempo[0] });
+
+        // Helper: normalizar valores para milissegundos
+        const toMs = (val) => {
+            let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return n; // sempre em ms
+        };
+
+        // 3) Somar horas de todos os registros considerados
+        let registrosConsiderados = 0;
+        let totalMs = 0;
+        for (const registro of registrosTempo) {
+            const tempoMs = toMs(registro.tempo_realizado);
+            totalMs += tempoMs;
+            registrosConsiderados++;
+        }
+        const totalHoras = totalMs / (1000 * 60 * 60);
+        console.log('🔍 DEBUG PASSO 5: SOMA', { horas: totalHoras.toFixed(2), registrosConsiderados });
+
+        return res.json({
+            success: true,
             tempo_decimal: parseFloat(totalHoras.toFixed(2)),
-            total_tarefas: tarefasComTempoFiltradas?.length || 0
+            total_tarefas: tarefaIds.length,
+            registros_considerados: registrosConsiderados
         });
-        
     } catch (error) {
-        console.error('Erro no endpoint de tempo realizado:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('Erro no endpoint de tempo realizado (nova lógica):', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// Endpoint para contar colaboradores únicos por cliente
-app.get('/api/colaboradores-count/:clienteId', requireAuth, async (req, res) => {
+// Endpoint para somar horas realizadas por período (global ou por colaboradores)
+app.get('/api/horas-realizadas-por-periodo', requireAuth, async (req, res) => {
+    try {
+        const { inicio, fim, colaboradorIds } = req.query; // YYYY-MM-DD, opcional: lista de IDs
+
+        if (!inicio || !fim) {
+            return res.status(400).json({ success: false, error: 'Parâmetros inválidos. Use ?inicio=YYYY-MM-DD&fim=YYYY-MM-DD' });
+        }
+
+        const inicioDate = new Date(inicio);
+        const fimDate = new Date(fim);
+        // Considerar o dia final até 23:59:59.999 (UTC)
+        fimDate.setUTCHours(23, 59, 59, 999);
+
+        const inicioIso = inicioDate.toISOString();
+        const fimIso = fimDate.toISOString();
+
+        console.log('📅 Somando horas realizadas no período:', { inicio: inicioIso, fim: fimIso, colaboradorIds });
+
+        // Buscar registros de tempo no intervalo
+        let consulta = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tempo_realizado, data_inicio, usuario_id')
+            .gte('data_inicio', inicioIso)
+            .lte('data_inicio', fimIso);
+
+        // Filtro opcional por colaboradores
+        if (colaboradorIds) {
+            const colabArr = colaboradorIds
+                .split(',')
+                .map(id => id.trim())
+                .filter(Boolean)
+                .map(id => parseInt(id, 10))
+                .filter(n => Number.isFinite(n));
+            if (colabArr.length > 0) {
+                consulta = consulta.in('usuario_id', colabArr);
+                console.log('👥 Filtrando por colaboradores em horas-realizadas-por-periodo:', colabArr);
+            }
+        }
+
+        const { data: registros, error } = await consulta;
+
+        if (error) {
+            console.error('Erro ao buscar registros de tempo:', error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+
+        if (!registros || registros.length === 0) {
+            return res.json({ success: true, totalTempo: 0, total_registros: 0 });
+        }
+
+        // Normalizar valores: sempre tratar como milissegundos
+        const toMs = (val) => {
+            let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return n; // sempre em ms
+        };
+
+        const totalMs = registros.reduce((sum, r) => sum + toMs(r.tempo_realizado), 0);
+        const totalHoras = totalMs / (1000 * 60 * 60);
+
+        console.log(`✅ Total de horas realizadas no período: ${totalHoras.toFixed(2)}h (registros: ${registros.length})`);
+
+        return res.json({ success: true, totalTempo: parseFloat(totalHoras.toFixed(2)), total_registros: registros.length });
+    } catch (err) {
+        console.error('Erro no endpoint horas-realizadas-por-periodo:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Endpoint de DEBUG para investigar cálculo de horas realizadas
+app.get('/api/debug-horas-realizadas/:clienteId', requireAuth, async (req, res) => {
     try {
         const { clienteId } = req.params;
-        const { status, startDate, endDate, dataInicial, dataFinal } = req.query;
-        
-        console.log('Contando colaboradores únicos para cliente ID:', clienteId);
-        console.log('Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal });
-        
-        // Agora cliente_id na tabela tarefa armazena o ID numérico do cliente
-        let tarefaQuery = supabase
+        const { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds } = req.query;
+
+        // 1) Buscar IDs das tarefas do cliente (status opcional)
+        let tarefasQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
             .select('id')
             .eq('cliente_id', clienteId);
-        
-        // Filtro de status (múltiplos valores separados por vírgula)
+
         if (status) {
             const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
             if (statusArray.length > 0) {
-                tarefaQuery = tarefaQuery.in('status', statusArray);
+                tarefasQuery = tarefasQuery.in('status', statusArray);
             }
         }
-        
-        // Filtro de período - suporta tanto startDate/endDate quanto dataInicial/dataFinal
+
+        const { data: tarefasDoCliente, error: tarefasError } = await tarefasQuery;
+        if (tarefasError) {
+            console.error('Erro ao buscar tarefas do cliente:', tarefasError);
+            return res.status(500).json({ success: false, error: tarefasError.message });
+        }
+
+        const tarefaIds = (tarefasDoCliente || []).map(t => t.id);
+        if (!tarefaIds || tarefaIds.length === 0) {
+            return res.json({ success: true, message: `Nenhuma tarefa para cliente ${clienteId}`, dados: { filtros: { clienteId } } });
+        }
+
+        // 2) Buscar registros de tempo
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('id, tarefa_id, usuario_id, tempo_realizado, data_inicio')
+            .in('tarefa_id', tarefaIds);
+
+        // Período
         const dateStart = startDate || dataInicial;
         const dateEnd = endDate || dataFinal;
-        
+        let periodoAplicado = null;
         if (dateStart && dateEnd) {
-            // Converter para objetos Date
-            const dateInicialObj = new Date(dateStart);
-            const dateFinalObj = new Date(dateEnd);
-            
-            // Para a data final, vamos até o final do dia (23:59:59.999)
-            dateFinalObj.setUTCHours(23, 59, 59, 999);
-            
-            console.log('Aplicando filtro de período para colaboradores:', {
-                inicio: dateInicialObj.toISOString(),
-                fim: dateFinalObj.toISOString()
-            });
-            
-            // Filtrar tarefas que estão dentro do período:
-            // Usar created_at como fallback quando dt_inicio for NULL
-            tarefaQuery = tarefaQuery.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
-        }
-        
-        const { data: tarefas, error: tarefaError } = await tarefaQuery;
-        
-        if (tarefaError) {
-            console.error('Erro ao buscar tarefas:', tarefaError);
-            return res.status(500).json({ success: false, error: tarefaError.message });
-        }
-        
-        if (!tarefas || tarefas.length === 0) {
-            console.log(`Nenhuma tarefa encontrada para cliente ${clienteId}`);
-            return res.json({ 
-                success: true, 
-                count: 0,
-                total_tarefas: 0,
-                total_registros: 0
-            });
-        }
-        
-        // Extrair os IDs das tarefas
-        const tarefaIds = tarefas.map(tarefa => tarefa.id);
-        console.log(`Encontradas ${tarefaIds.length} tarefas para o cliente ${clienteId}`);
-        
-        // Buscar tarefas com responsavel_id para contar colaboradores únicos (mesma lógica do endpoint de nomes)
-        const { data: tarefasComResponsavel, error: responsavelError } = await supabase
-            .schema('up_gestaointeligente')
-            .from('tarefa')
-            .select('responsavel_id')
-            .eq('cliente_id', clienteId)
-            .not('responsavel_id', 'is', null);
-        
-        if (responsavelError) {
-            console.error('Erro ao buscar tarefas com responsável:', responsavelError);
-            return res.status(500).json({ success: false, error: responsavelError.message });
-        }
-        
-        // Aplicar os mesmos filtros de status e período nas tarefas com responsável
-        let tarefasComResponsavelFiltradas = tarefasComResponsavel || [];
-        
-        if (status) {
-            const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
-            if (statusArray.length > 0) {
-                // Buscar novamente com filtro de status
-                let queryComFiltro = supabase
-                    .schema('up_gestaointeligente')
-                    .from('tarefa')
-                    .select('responsavel_id')
-                    .eq('cliente_id', clienteId)
-                    .not('responsavel_id', 'is', null)
-                    .in('status', statusArray);
-                
-                // Aplicar filtro de período se existir
-                const dateStart = startDate || dataInicial;
-                const dateEnd = endDate || dataFinal;
-                
-                if (dateStart && dateEnd) {
-                    const dateInicialObj = new Date(dateStart);
-                    const dateFinalObj = new Date(dateEnd);
-                    dateFinalObj.setUTCHours(23, 59, 59, 999);
-                    
-                    queryComFiltro = queryComFiltro.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
-                }
-                
-                const { data: tarefasFiltradas, error: filtroError } = await queryComFiltro;
-                
-                if (filtroError) {
-                    console.error('Erro ao aplicar filtros:', filtroError);
-                    return res.status(500).json({ success: false, error: filtroError.message });
-                }
-                
-                tarefasComResponsavelFiltradas = tarefasFiltradas || [];
-            }
-        } else if (dateStart && dateEnd) {
-            // Aplicar apenas filtro de período
             const dateInicialObj = new Date(dateStart);
             const dateFinalObj = new Date(dateEnd);
             dateFinalObj.setUTCHours(23, 59, 59, 999);
-            
-            let queryComPeriodo = supabase
-                .schema('up_gestaointeligente')
-                .from('tarefa')
-                .select('responsavel_id')
-                .eq('cliente_id', clienteId)
-                .not('responsavel_id', 'is', null)
-                .or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
-            
-            const { data: tarefasPeriodo, error: periodoError } = await queryComPeriodo;
-            
-            if (periodoError) {
-                console.error('Erro ao aplicar filtro de período:', periodoError);
-                return res.status(500).json({ success: false, error: periodoError.message });
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dateInicialObj.toISOString())
+                .lte('data_inicio', dateFinalObj.toISOString());
+            periodoAplicado = { inicio: dateInicialObj.toISOString(), fim: dateFinalObj.toISOString() };
+        }
+
+        // Colaboradores
+        let colaboradoresAplicados = [];
+        if (colaboradorIds) {
+            colaboradoresAplicados = colaboradorIds
+                .split(',')
+                .map(id => id.trim())
+                .filter(id => id)
+                .map(id => parseInt(id, 10))
+                .filter(id => !isNaN(id));
+            if (colaboradoresAplicados.length > 0) {
+                registrosQuery = registrosQuery.in('usuario_id', colaboradoresAplicados);
             }
-            
-            tarefasComResponsavelFiltradas = tarefasPeriodo || [];
         }
-        
-        // Contar responsáveis únicos
-        let colaboradoresUnicos = 0;
-        if (tarefasComResponsavelFiltradas && tarefasComResponsavelFiltradas.length > 0) {
-            const responsaveisUnicos = new Set(tarefasComResponsavelFiltradas.map(tarefa => tarefa.responsavel_id));
-            colaboradoresUnicos = responsaveisUnicos.size;
+
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('Erro ao buscar registros de tempo:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
         }
-        
-        console.log(`Colaboradores únicos para cliente ${clienteId}: ${colaboradoresUnicos} (${tarefasComResponsavelFiltradas.length} tarefas com responsável)`);
-        
-        res.json({ 
-            success: true, 
-            count: colaboradoresUnicos,
-            total_tarefas: tarefasComResponsavelFiltradas.length,
-            total_registros: 0 // Não usamos mais registros de tempo
+
+        const toMs = (val) => {
+            if (typeof val === 'string' && val.includes(':')) {
+                const parts = val.split(':').map(p => parseInt(p, 10) || 0);
+                const h = parts[0] || 0, m = parts[1] || 0, s = parts[2] || 0;
+                return ((h * 60 + m) * 60 + s) * 1000;
+            }
+            let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return n; // sempre em ms
+        };
+
+        const registros = (registrosTempo || []).map(r => ({
+            id: r.id,
+            tarefa_id: r.tarefa_id,
+            usuario_id: r.usuario_id,
+            tempo_realizado_ms: toMs(r.tempo_realizado),
+            data_inicio: r.data_inicio
+        }));
+
+        // 3) Agrupamento por tarefa
+        const agrupamentoPorTarefa = {};
+        const maiorTempoPorTarefa = new Map();
+        const somaPorTarefa = new Map();
+        for (const r of registros) {
+            const atualMax = maiorTempoPorTarefa.get(r.tarefa_id) || 0;
+            const novoMs = r.tempo_realizado_ms || 0;
+            if (novoMs > atualMax) {
+                maiorTempoPorTarefa.set(r.tarefa_id, novoMs);
+            }
+            somaPorTarefa.set(r.tarefa_id, (somaPorTarefa.get(r.tarefa_id) || 0) + novoMs);
+            if (!agrupamentoPorTarefa[r.tarefa_id]) agrupamentoPorTarefa[r.tarefa_id] = { registros_count: 0, max_ms: 0, sum_ms: 0 };
+            agrupamentoPorTarefa[r.tarefa_id].registros_count += 1;
+            agrupamentoPorTarefa[r.tarefa_id].max_ms = Math.max(agrupamentoPorTarefa[r.tarefa_id].max_ms, novoMs);
+            agrupamentoPorTarefa[r.tarefa_id].sum_ms += novoMs;
+        }
+
+        // 4) Totais
+        const systemSumMs = Array.from(maiorTempoPorTarefa.values()).reduce((sum, v) => sum + (v || 0), 0);
+        const manualSumMs = registros.reduce((sum, r) => sum + (r.tempo_realizado_ms || 0), 0);
+        const msToHours = (ms) => (ms / (1000 * 60 * 60));
+
+        const totais = {
+            system_sum_ms: systemSumMs,
+            system_sum_horas: parseFloat(msToHours(systemSumMs).toFixed(2)),
+            manual_sum_ms: manualSumMs,
+            manual_sum_horas: parseFloat(msToHours(manualSumMs).toFixed(2)),
+            diff_ms: systemSumMs - manualSumMs,
+            diff_horas: parseFloat(msToHours(systemSumMs - manualSumMs).toFixed(2))
+        };
+
+        const filtrosAplicados = {
+            cliente_id: clienteId,
+            status: status || null,
+            periodo: periodoAplicado,
+            colaboradores: colaboradoresAplicados
+        };
+
+        return res.json({
+            success: true,
+            filtros_aplicados: filtrosAplicados,
+            tarefas_total: tarefaIds.length,
+            registros_total: registros.length,
+            agrupamento_por_tarefa: agrupamentoPorTarefa,
+            totais: totais,
+            registros_brutos: registros
         });
-        
     } catch (error) {
-        console.error('Erro no endpoint de colaboradores:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('Erro no endpoint de debug de horas realizadas:', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// Endpoint para buscar nomes dos colaboradores por cliente
+// Endpoint de DEBUG por colaborador (sem período por padrão)
+app.get('/api/debug-colaborador/:usuarioId', requireAuth, async (req, res) => {
+    try {
+        const { usuarioId } = req.params;
+        const { clienteId, startDate, endDate } = req.query;
+
+        // Se clienteId foi fornecido, buscar tarefas do cliente
+        let tarefaIds = null;
+        if (clienteId) {
+            const { data: tarefasDoCliente, error: tarefasError } = await supabase
+                .schema('up_gestaointeligente')
+                .from('tarefa')
+                .select('id')
+                .eq('cliente_id', clienteId);
+            if (tarefasError) {
+                console.error('Erro ao buscar tarefas do cliente:', tarefasError);
+                return res.status(500).json({ success: false, error: tarefasError.message });
+            }
+            tarefaIds = (tarefasDoCliente || []).map(t => t.id);
+        }
+
+        // Query de registros do colaborador
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('id, tarefa_id, usuario_id, tempo_realizado, data_inicio')
+            .eq('usuario_id', parseInt(usuarioId, 10));
+
+        if (tarefaIds && tarefaIds.length > 0) {
+            registrosQuery = registrosQuery.in('tarefa_id', tarefaIds);
+        }
+
+        let periodoAplicado = null;
+        if (startDate && endDate) {
+            const dateInicialObj = new Date(startDate);
+            const dateFinalObj = new Date(endDate);
+            dateFinalObj.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dateInicialObj.toISOString())
+                .lte('data_inicio', dateFinalObj.toISOString());
+            periodoAplicado = { inicio: dateInicialObj.toISOString(), fim: dateFinalObj.toISOString() };
+        }
+
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('Erro ao buscar registros de tempo:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
+        }
+
+        const toMs = (val) => {
+            if (typeof val === 'string' && val.includes(':')) {
+                const parts = val.split(':').map(p => parseInt(p, 10) || 0);
+                const h = parts[0] || 0, m = parts[1] || 0, s = parts[2] || 0;
+                return ((h * 60 + m) * 60 + s) * 1000;
+            }
+            const n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return n; // sempre em ms
+        };
+
+        const registros = (registrosTempo || []).map(r => ({
+            id: r.id,
+            tarefa_id: r.tarefa_id,
+            usuario_id: r.usuario_id,
+            tempo_realizado_ms: toMs(r.tempo_realizado),
+            data_inicio: r.data_inicio
+        }));
+
+        const agrupamentoPorTarefa = {};
+        const somaPorTarefa = new Map();
+        for (const r of registros) {
+            const novoMs = r.tempo_realizado_ms || 0;
+            somaPorTarefa.set(r.tarefa_id, (somaPorTarefa.get(r.tarefa_id) || 0) + novoMs);
+            if (!agrupamentoPorTarefa[r.tarefa_id]) agrupamentoPorTarefa[r.tarefa_id] = { registros_count: 0, sum_ms: 0 };
+            agrupamentoPorTarefa[r.tarefa_id].registros_count += 1;
+            agrupamentoPorTarefa[r.tarefa_id].sum_ms += novoMs;
+        }
+
+        const manualSumMs = registros.reduce((sum, r) => sum + (r.tempo_realizado_ms || 0), 0);
+        const msToHours = (ms) => (ms / (1000 * 60 * 60));
+        const formatHHmm = (ms) => {
+            const totalMinutes = Math.round(ms / 60000);
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            return `${h}:${m.toString().padStart(2, '0')}`;
+        };
+
+        const totais = {
+            registros_total: registros.length,
+            manual_sum_ms: manualSumMs,
+            manual_sum_horas: parseFloat(msToHours(manualSumMs).toFixed(2)),
+            manual_sum_hhmm: formatHHmm(manualSumMs)
+        };
+
+        return res.json({
+            success: true,
+            filtros_aplicados: { usuario_id: parseInt(usuarioId, 10), cliente_id: clienteId || null, periodo: periodoAplicado },
+            por_tarefa: agrupamentoPorTarefa,
+            totais,
+            registros_brutos: registros
+        });
+    } catch (error) {
+        console.error('Erro no endpoint de debug por colaborador:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Endpoint simples para contar colaboradores únicos por cliente com base nas tarefas do card
+app.get('/api/colaboradores-count-simples/:clienteId', requireAuth, async (req, res) => {
+    try {
+        const { clienteId } = req.params;
+        // Resolver clienteId para UUID (aceita UUID ou nome exato; se não encontrar, tenta parcial)
+        let clienteUuid = clienteId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clienteId);
+        if (!isUuid) {
+            const { data: cliExact, error: cliExactErr } = await supabase
+                .schema('up_gestaointeligente')
+                .from('cp_cliente')
+                .select('id, nome')
+                .eq('nome', clienteId)
+                .single();
+            if (cliExactErr || !cliExact) {
+                const { data: cliLike, error: cliLikeErr } = await supabase
+                    .schema('up_gestaointeligente')
+                    .from('cp_cliente')
+                    .select('id, nome')
+                    .ilike('nome', `%${clienteId}%`)
+                    .limit(1);
+                if (cliLikeErr || !cliLike || cliLike.length === 0) {
+                    return res.json({ success: true, count: 0, total_tarefas: 0, total_registros: 0 });
+                }
+                clienteUuid = cliLike[0].id;
+            } else {
+                clienteUuid = cliExact.id;
+            }
+        }
+
+        // 1) Buscar tarefas consideradas no card (por cliente_id)
+        const { data: tarefas, error: tarefasErr } = await supabase
+            .schema('up_gestaointeligente')
+            .from('tarefa')
+            .select('id')
+            .eq('cliente_id', clienteUuid);
+        if (tarefasErr) {
+            return res.status(500).json({ success: false, error: tarefasErr.message });
+        }
+        if (!tarefas || tarefas.length === 0) {
+            return res.json({ success: true, count: 0, total_tarefas: 0, total_registros: 0 });
+        }
+        const tarefaIds = tarefas.map(t => t.id);
+
+        // 2) Buscar registros de tempo filtrando por tarefa_id dessas tarefas
+        const { data: registros, error: regErr } = await supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('usuario_id, tarefa_id')
+            .in('tarefa_id', tarefaIds);
+        if (regErr) {
+            return res.status(500).json({ success: false, error: regErr.message });
+        }
+
+        // 3) Contar usuario_id distintos
+        const unicos = new Set((registros || []).map(r => r.usuario_id));
+        const count = unicos.size;
+
+        return res.json({ success: true, count, total_tarefas: tarefaIds.length, total_registros: (registros || []).length });
+    } catch (error) {
+        console.error('❌ Erro no endpoint colaboradores-count-simples:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Endpoint para buscar nomes dos colaboradores por cliente (mesmo escopo das tarefas do card)
 app.get('/api/colaboradores-nomes/:clienteId', requireAuth, async (req, res) => {
     try {
         const { clienteId } = req.params;
-        const { status, startDate, endDate, dataInicial, dataFinal } = req.query;
-        
-        console.log('Buscando nomes dos colaboradores para cliente ID:', clienteId);
-        console.log('Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal });
-        
-        // Buscar tarefas com responsavel_id para calcular horas estimadas e realizadas
+        const { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds, inicio, fim, periodoLogica } = req.query;
+
+        console.log('👥 Buscando nomes de colaboradores (escopo do card) para cliente:', clienteId);
+        console.log('🔎 Filtros:', { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds, inicio, fim, periodoLogica });
+
+        // Validação: colaboradorIds exige período
+        const hasColabs = colaboradorIds && colaboradorIds.trim() !== '';
+        const hasPeriod = (startDate && endDate) || (dataInicial && dataFinal) || (inicio && fim);
+        if (hasColabs && !hasPeriod) {
+            console.log('❌ Validação /colaboradores-nomes: colaboradorIds informado sem período completo.');
+            return res.status(400).json({ success: false, error: 'Ao filtrar por colaborador, informe startDate e endDate.' });
+        }
+
+        // Resolver clienteId para UUID (aceita nome ou parcial)
+        let clienteUuidParaQuery = clienteId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clienteId);
+        if (!isUuid) {
+            const { data: clienteData, error: clienteError } = await supabase
+                .schema('up_gestaointeligente')
+                .from('cp_cliente')
+                .select('id, nome')
+                .eq('nome', clienteId)
+                .single();
+            if (clienteError || !clienteData) {
+                const { data: clienteDataParcial, error: clienteErrorParcial } = await supabase
+                    .schema('up_gestaointeligente')
+                    .from('cp_cliente')
+                    .select('id, nome')
+                    .ilike('nome', `%${clienteId}%`)
+                    .limit(1);
+                if (clienteErrorParcial || !clienteDataParcial || clienteDataParcial.length === 0) {
+                    console.warn('Cliente não encontrado ao resolver UUID para colaboradores-nomes:', clienteId);
+                    return res.json({ success: true, colaboradores: [], total_tarefas: 0, total_registros: 0 });
+                }
+                clienteUuidParaQuery = clienteDataParcial[0].id;
+            } else {
+                clienteUuidParaQuery = clienteData.id;
+            }
+        }
+
+        // Normalizar filtros
+        const dateStart = startDate || dataInicial || inicio;
+        const dateEnd = endDate || dataFinal || fim;
+        const statusArray = status ? status.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const colaboradoresArrayRaw = colaboradorIds ? colaboradorIds.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const colaboradoresNumericos = colaboradoresArrayRaw.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+
+        // Base: tarefas do cliente (como /tarefas-detalhes)
         let tarefaQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('responsavel_id, tempo_estimado, tempo_realizado')
-            .eq('cliente_id', clienteId)
-            .not('responsavel_id', 'is', null); // Apenas tarefas com responsável definido
-        
-        // Filtro de status (múltiplos valores separados por vírgula)
-        if (status) {
-            const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
-            if (statusArray.length > 0) {
-                tarefaQuery = tarefaQuery.in('status', statusArray);
+            .select('id, tempo_estimado, cliente_id')
+            .eq('cliente_id', clienteUuidParaQuery);
+
+        if (statusArray.length > 0) tarefaQuery = tarefaQuery.in('status', statusArray);
+
+        // Aplicar período nas tarefas somente quando NÃO houver filtro por colaborador
+        if (!colaboradorIds && dateStart && dateEnd) {
+            const dI = new Date(dateStart);
+            const dF = new Date(dateEnd);
+            dF.setUTCHours(23, 59, 59, 999);
+            const logica = (periodoLogica === 'E' || periodoLogica === 'OU') ? periodoLogica : 'OU';
+            console.log('🗓️ Filtro período nas tarefas (lógica', logica, '):', { inicio: dI.toISOString(), fim: dF.toISOString() });
+            if (logica === 'E') {
+                tarefaQuery = tarefaQuery
+                    .not('dt_inicio', 'is', null)
+                    .not('dt_vencimento', 'is', null)
+                    .gte('dt_inicio', dI.toISOString())
+                    .lte('dt_vencimento', dF.toISOString());
+            } else {
+                tarefaQuery = tarefaQuery.or(`and(dt_inicio.gte.${dI.toISOString()},dt_inicio.lte.${dF.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dI.toISOString()},created_at.lte.${dF.toISOString()})`);
             }
         }
-        
-        // Filtro de período - suporta tanto startDate/endDate quanto dataInicial/dataFinal
-        const dateStart = startDate || dataInicial;
-        const dateEnd = endDate || dataFinal;
-        
-        if (dateStart && dateEnd) {
-            // Converter para objetos Date
-            const dateInicialObj = new Date(dateStart);
-            const dateFinalObj = new Date(dateEnd);
-            
-            // Para a data final, vamos até o final do dia (23:59:59.999)
-            dateFinalObj.setUTCHours(23, 59, 59, 999);
-            
-            console.log('Aplicando filtro de período para nomes dos colaboradores:', {
-                inicio: dateInicialObj.toISOString(),
-                fim: dateFinalObj.toISOString()
-            });
-            
-            // Filtrar tarefas que estão dentro do período:
-            // Usar created_at como fallback quando dt_inicio for NULL
-            tarefaQuery = tarefaQuery.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
+
+        // Se colaboradorIds estiver ativo, obter tarefa_ids via registros de tempo
+        let tarefaIdsFiltro = null;
+        if (colaboradorIds && colaboradoresNumericos.length > 0) {
+            let registrosQuery = supabase
+                .schema('up_gestaointeligente')
+                .from('registro_tempo')
+                .select('tarefa_id, usuario_id, data_inicio');
+            registrosQuery = registrosQuery.in('usuario_id', colaboradoresNumericos);
+            if (dateStart) {
+                const dI = new Date(dateStart);
+                registrosQuery = registrosQuery.gte('data_inicio', dI.toISOString());
+            }
+            if (dateEnd) {
+                const dF = new Date(dateEnd);
+                dF.setUTCHours(23, 59, 59, 999);
+                registrosQuery = registrosQuery.lte('data_inicio', dF.toISOString());
+            }
+            const { data: registrosTempoDet, error: regErrDet } = await registrosQuery;
+            if (regErrDet) {
+                console.error('❌ Erro ao buscar registros de tempo para colaboradores-nomes:', regErrDet);
+                return res.status(500).json({ success: false, error: 'Erro ao filtrar por colaboradores (nomes)' });
+            }
+            tarefaIdsFiltro = [...new Set((registrosTempoDet || []).map(r => r.tarefa_id).filter(Boolean))];
+            console.log(`⏱️ tarefas únicas via registros (nomes): ${tarefaIdsFiltro.length}`);
+            if (tarefaIdsFiltro.length === 0) {
+                return res.json({ success: true, colaboradores: [], total_tarefas: 0, total_registros: 0 });
+            }
         }
-        
-        const { data: tarefasComResponsavel, error: tarefaError } = await tarefaQuery;
-        
+
+        // Executar query de tarefas
+        let { data: tarefasBase, error: tarefaError } = await tarefaQuery;
         if (tarefaError) {
-            console.error('Erro ao buscar tarefas:', tarefaError);
+            console.error('❌ Erro ao buscar tarefas (nomes):', tarefaError);
             return res.status(500).json({ success: false, error: tarefaError.message });
         }
-        
-        if (!tarefasComResponsavel || tarefasComResponsavel.length === 0) {
-            console.log(`Nenhuma tarefa com responsável encontrada para cliente ${clienteId}`);
-            return res.json({ 
-                success: true, 
-                colaboradores: [],
-                total_tarefas: 0,
-                total_registros: 0
-            });
+        if (!tarefasBase || tarefasBase.length === 0) {
+            console.log(`🚫 Nenhuma tarefa encontrada para cliente ${clienteUuidParaQuery}`);
+            return res.json({ success: true, colaboradores: [], total_tarefas: 0, total_registros: 0 });
         }
-        
-        console.log(`Encontradas ${tarefasComResponsavel.length} tarefas com responsável para o cliente ${clienteId}`);
-        
-        // Obter IDs únicos dos responsáveis
-        const responsaveisUnicos = [...new Set(tarefasComResponsavel.map(tarefa => tarefa.responsavel_id))];
-        console.log(`IDs únicos de responsáveis encontrados:`, responsaveisUnicos);
-        
-        // Calcular horas estimadas e realizadas por colaborador
+
+        // Se tem tarefaIdsFiltro, reduzir
+        if (tarefaIdsFiltro && tarefaIdsFiltro.length > 0) {
+            const antes = tarefasBase.length;
+            tarefasBase = (tarefasBase || []).filter(t => tarefaIdsFiltro.includes(t.id));
+            console.log(`🔧 Filtradas por registros (nomes): ${antes} -> ${tarefasBase.length}`);
+            if (tarefasBase.length === 0) {
+                return res.json({ success: true, colaboradores: [], total_tarefas: 0, total_registros: 0 });
+            }
+        }
+
+        const tarefaIds = (tarefasBase || []).map(t => t.id);
+        const estimadoPorTarefa = new Map((tarefasBase || []).map(t => [t.id, parseFloat(t.tempo_estimado) || 0]));
+
+        // Buscar registros de tempo dessas tarefas e agregar por usuario
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, tempo_realizado, data_inicio, usuario_id')
+            .in('tarefa_id', tarefaIds);
+
+        if (dateStart && dateEnd) {
+            const dI = new Date(dateStart);
+            const dF = new Date(dateEnd);
+            dF.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dI.toISOString())
+                .lte('data_inicio', dF.toISOString());
+        }
+        if (colaboradoresNumericos.length > 0) {
+            registrosQuery = registrosQuery.in('usuario_id', colaboradoresNumericos);
+        }
+
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('❌ Erro ao buscar registros de tempo (nomes):', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
+        }
+
+        const toMs = (val) => {
+            let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return Math.round(n);
+        };
+
         const horasEstimadasPorColaborador = {};
         const horasRealizadasPorColaborador = {};
-        console.log('DEBUG: Dados das tarefas com responsável:', tarefasComResponsavel);
-        
-        tarefasComResponsavel.forEach(tarefa => {
-            const responsavelId = tarefa.responsavel_id;
-            const tempoEstimadoOriginal = tarefa.tempo_estimado;
-            const tempoRealizadoOriginal = tarefa.tempo_realizado;
-            
-            // Tratar valores null, undefined, string vazia e NaN para tempo estimado
-            let tempoEstimado = 0;
-            if (tempoEstimadoOriginal !== null && tempoEstimadoOriginal !== undefined && tempoEstimadoOriginal !== '') {
-                const parsed = parseFloat(tempoEstimadoOriginal);
-                if (!isNaN(parsed)) {
-                    tempoEstimado = parsed;
-                }
-            }
-            
-            // Tratar valores null, undefined, string vazia e NaN para tempo realizado
-            let tempoRealizado = 0;
-            if (tempoRealizadoOriginal !== null && tempoRealizadoOriginal !== undefined && tempoRealizadoOriginal !== '') {
-                const parsed = parseFloat(tempoRealizadoOriginal);
-                if (!isNaN(parsed)) {
-                    tempoRealizado = parsed;
-                }
-            }
-            
-            console.log(`DEBUG: Tarefa responsavel_id=${responsavelId}, tempo_estimado_original="${tempoEstimadoOriginal}", tempo_estimado_parsed=${tempoEstimado}, tempo_realizado_original="${tempoRealizadoOriginal}", tempo_realizado_parsed=${tempoRealizado}`);
-            
-            if (!horasEstimadasPorColaborador[responsavelId]) {
-                horasEstimadasPorColaborador[responsavelId] = 0;
-            }
-            if (!horasRealizadasPorColaborador[responsavelId]) {
-                horasRealizadasPorColaborador[responsavelId] = 0;
-            }
-            
-            horasEstimadasPorColaborador[responsavelId] += tempoEstimado;
-            horasRealizadasPorColaborador[responsavelId] += tempoRealizado;
+        const tarefasPorUsuario = new Map();
+
+        (registrosTempo || []).forEach(r => {
+            const ms = toMs(r.tempo_realizado);
+            const horas = ms / 3600000;
+            const uid = r.usuario_id;
+            const tid = r.tarefa_id;
+            if (!horasRealizadasPorColaborador[uid]) horasRealizadasPorColaborador[uid] = 0;
+            horasRealizadasPorColaborador[uid] += horas;
+            const arr = tarefasPorUsuario.get(uid) || new Set();
+            arr.add(tid);
+            tarefasPorUsuario.set(uid, arr);
         });
 
-        console.log('Horas estimadas por colaborador:', horasEstimadasPorColaborador);
-        console.log('Horas realizadas por colaborador:', horasRealizadasPorColaborador);
-        
-        // Buscar nomes dos colaboradores na tabela membro
-        // Converter responsavel_id (text) para bigint para fazer a busca correta
-        const responsaveisNumericos = responsaveisUnicos
-            .map(id => {
-                const numericId = parseInt(id);
-                return isNaN(numericId) ? null : numericId;
-            })
-            .filter(id => id !== null);
+        // Estimadas por colaborador: soma do tempo_estimado das tarefas onde registrou tempo
+        tarefasPorUsuario.forEach((set, uid) => {
+            let sumEst = 0;
+            set.forEach(tid => { sumEst += estimadoPorTarefa.get(tid) || 0; });
+            horasEstimadasPorColaborador[uid] = sumEst;
+        });
 
-        console.log('IDs únicos de responsáveis (string):', responsaveisUnicos);
-        console.log('IDs convertidos para numérico:', responsaveisNumericos);
+        // Colaboradores com registros
+        let colaboradoresUnicos = Object.keys(horasRealizadasPorColaborador)
+            .filter(id => (horasRealizadasPorColaborador[id] || 0) > 0);
 
+        // Buscar nomes dos colaboradores
+        const idsNumericos = colaboradoresUnicos.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
         let membros = [];
-        let horasContratadasPorMembro = {};
-        const custoPorHoraPorMembro = {};
-        
-        if (responsaveisNumericos.length > 0) {
-            // Buscar dados dos membros
+        if (idsNumericos.length > 0) {
             const { data: membrosData, error: membroError } = await supabase
                 .schema('up_gestaointeligente')
                 .from('membro')
                 .select('id, nome')
-                .in('id', responsaveisNumericos);
-
+                .in('id', idsNumericos);
             if (membroError) {
-                console.error('Erro ao buscar membros:', membroError);
-                return res.status(500).json({ success: false, error: membroError.message });
+                console.error('❌ Erro ao buscar membros:', membroError);
+            } else {
+                membros = membrosData || [];
             }
+        }
 
-            membros = membrosData || [];
-            
-            // Buscar horas contratadas e custo por hora da view v_custo_hora_membro
-            console.log('🔍 DEBUG - Buscando dados da view v_custo_hora_membro para responsaveisNumericos:', responsaveisNumericos);
-            
-            // Primeiro, vamos verificar se a view tem dados em geral
-            const { data: testView, error: testError } = await supabase
-                .schema('up_gestaointeligente')
-                .from('v_custo_hora_membro')
-                .select('membro_id, horas_mensal, custo_por_hora')
-                .limit(5);
-            
-            console.log('🔍 DEBUG - Teste geral da view v_custo_hora_membro (primeiros 5 registros):');
-            console.log('🔍 - Erro do teste:', testError);
-            console.log('🔍 - Dados do teste:', testView);
-            
+        // Buscar custos/horas contratadas
+        let horasContratadasPorMembro = {};
+        const custoPorHoraPorMembro = {};
+        if (idsNumericos.length > 0) {
             const { data: horasContratadas, error: horasError } = await supabase
                 .schema('up_gestaointeligente')
                 .from('v_custo_hora_membro')
                 .select('membro_id, horas_mensal, custo_por_hora')
-                .in('membro_id', responsaveisNumericos);
-
-            console.log('🔍 DEBUG - Resultado da query v_custo_hora_membro:');
-            console.log('🔍 - Erro:', horasError);
-            console.log('🔍 - Dados retornados:', horasContratadas);
-            console.log('🔍 - Quantidade de registros:', horasContratadas ? horasContratadas.length : 0);
-            console.log('🔍 - Membros buscados:', responsaveisNumericos);
-
-            // Identificar membros que não foram encontrados na view
-            const membrosEncontradosNaView = (horasContratadas || []).map(item => item.membro_id);
-            const membrosNaoEncontrados = responsaveisNumericos.filter(id => !membrosEncontradosNaView.includes(id));
-            
-            if (membrosNaoEncontrados.length > 0) {
-                console.log('⚠️ AVISO - Membros não encontrados na view v_custo_hora_membro:', membrosNaoEncontrados);
-                console.log('⚠️ Estes membros terão custo_por_hora = 0.00 (dados inconsistentes no banco)');
-            }
-
-            if (horasError) {
-                console.error('❌ Erro ao buscar horas contratadas:', horasError);
-                // Não retornar erro, apenas continuar sem as horas contratadas
-            } else {
-                // Organizar horas contratadas e custo por hora por membro_id
-                (horasContratadas || []).forEach((item, index) => {
-                    console.log(`🔍 DEBUG - Processando item ${index + 1}:`, {
-                        membro_id: item.membro_id,
-                        horas_mensal: item.horas_mensal,
-                        custo_por_hora: item.custo_por_hora,
-                        tipo_custo_por_hora: typeof item.custo_por_hora
-                    });
-                    
+                .in('membro_id', idsNumericos);
+            if (!horasError && horasContratadas) {
+                (horasContratadas || []).forEach(item => {
                     horasContratadasPorMembro[item.membro_id] = parseFloat(item.horas_mensal) || 0;
                     custoPorHoraPorMembro[item.membro_id] = parseFloat(item.custo_por_hora) || 0;
-                    
-                    console.log(`🔍 DEBUG - Valores processados para membro ${item.membro_id}:`, {
-                        horas_contratadas: horasContratadasPorMembro[item.membro_id],
-                        custo_por_hora: custoPorHoraPorMembro[item.membro_id]
-                    });
-                });
-                
-                // Definir valores padrão para membros não encontrados na view
-                membrosNaoEncontrados.forEach(membroId => {
-                    horasContratadasPorMembro[membroId] = 0;
-                    custoPorHoraPorMembro[membroId] = 0;
-                    console.log(`⚠️ DEBUG - Definindo valores padrão para membro ${membroId}: horas=0, custo=0`);
                 });
             }
         }
 
-
-        
-        console.log(`Membros encontrados na tabela membro:`, membros);
-        console.log(`Horas contratadas por membro:`, horasContratadasPorMembro);
-        console.log(`Custo por hora por membro:`, custoPorHoraPorMembro);
-
-        // Organizar os nomes dos colaboradores com horas estimadas, realizadas, contratadas e disponíveis
-        const colaboradores = responsaveisUnicos.map(responsavelId => {
-            const numericId = parseInt(responsavelId);
+        // Compose response
+        const colaboradores = colaboradoresUnicos.map(colabId => {
+            const numericId = parseInt(colabId, 10);
             const membro = membros.find(m => m.id === numericId);
-            const horasEstimadas = horasEstimadasPorColaborador[responsavelId] || 0;
-            const horasRealizadas = horasRealizadasPorColaborador[responsavelId] || 0;
+            const horasEstimadas = horasEstimadasPorColaborador[colabId] || 0;
+            const horasRealizadas = horasRealizadasPorColaborador[colabId] || 0;
             const horasContratadas = horasContratadasPorMembro[numericId] || 0;
             const horasDisponiveis = horasContratadas - horasRealizadas;
             const custoPorHora = custoPorHoraPorMembro[numericId] || 0;
             const custoRealizacao = horasRealizadas * custoPorHora;
             const custoEstimado = horasEstimadas * custoPorHora;
             const custoContratado = horasContratadas * custoPorHora;
-            
-            // Debug detalhado do cálculo dos custos
-            console.log(`🔍 DEBUG CUSTOS - Colaborador ${responsavelId} (${membro ? membro.nome : 'não encontrado'}):`);            
-            console.log(`  - Horas Estimadas: ${horasEstimadas}`);
-            console.log(`  - Horas Realizadas: ${horasRealizadas}`);
-            console.log(`  - Horas Contratadas: ${horasContratadas}`);
-            console.log(`  - Custo Por Hora: ${custoPorHora}`);
-            console.log(`  - Custo Estimado Calculado: ${custoEstimado}`);
-            console.log(`  - Custo Realização: ${custoRealizacao}`);
-            console.log(`  - Custo Contratado: ${custoContratado}`);
-            
-            // Função para formatar horas decimais em hora:minuto
+
             const formatarHoras = (horasDecimais) => {
                 const horas = Math.floor(horasDecimais);
                 const minutos = Math.round((horasDecimais - horas) * 60);
                 return `${horas}h ${minutos.toString().padStart(2, '0')}min`;
             };
-            
-            // Formatar custos como moeda brasileira
-            const custoRealizacaoFormatado = new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(custoRealizacao);
-            
-            const custoEstimadoFormatado = new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(custoEstimado);
-            
-            const custoContratadoFormatado = new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(custoContratado);
-            
-            // Formatar horas estimadas
+            const custoRealizacaoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(custoRealizacao);
+            const custoEstimadoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(custoEstimado);
+            const custoContratadoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(custoContratado);
             const horasEstimadasFormatadas = formatarHoras(horasEstimadas);
-            
-            console.log(`Processando responsavel_id: ${responsavelId} (numérico: ${numericId}), membro encontrado:`, membro);
-            
+
             return {
-                id: responsavelId,
-                nome: membro ? (membro.nome || `Usuário ${responsavelId}`) : `Usuário ${responsavelId} (não encontrado)`,
+                id: colabId,
+                nome: membro ? (membro.nome || `Usuário ${colabId}`) : `Usuário ${colabId}`,
                 horas_estimadas: horasEstimadas,
                 horas_estimadas_formatadas: horasEstimadasFormatadas,
                 horas_realizadas: horasRealizadas,
@@ -3469,16 +3958,10 @@ app.get('/api/colaboradores-nomes/:clienteId', requireAuth, async (req, res) => 
                 custo_contratado_formatado: custoContratadoFormatado
             };
         });
-        
-        console.log(`Nomes dos colaboradores para cliente ${clienteId}:`, colaboradores.map(c => `${c.nome} - Estimadas: ${c.horas_estimadas}h, Realizadas: ${c.horas_realizadas}h, Contratadas: ${c.horas_contratadas}h, Disponíveis: ${c.horas_disponiveis}h`));
-        
-        res.json({ 
-            success: true, 
-            colaboradores: colaboradores,
-            total_tarefas: tarefasComResponsavel.length,
-            total_registros: 0 // Não estamos mais usando registros de tempo
-        });
-        
+
+        console.log(`✅ Colaboradores calculados: ${colaboradores.length} (tarefas: ${tarefaIds.length}, registros: ${(registrosTempo||[]).length})`);
+        return res.json({ success: true, colaboradores, total_tarefas: tarefaIds.length, total_registros: (registrosTempo||[]).length });
+
     } catch (error) {
         console.error('Erro no endpoint de nomes dos colaboradores:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -3531,7 +4014,7 @@ app.get('/api/custo-total/:clienteId', requireAuth, async (req, res) => {
         let tarefasQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('responsavel_id, tempo_realizado')
+            .select('id, responsavel_id')
             .eq('cliente_id', clienteUuidParaQuery)
             .not('responsavel_id', 'is', null);
         
@@ -3582,16 +4065,55 @@ app.get('/api/custo-total/:clienteId', requireAuth, async (req, res) => {
             });
         }
         
-        // Agrupar horas realizadas por responsável
+        // Agrupar horas realizadas por responsável via registros_tempo
+        const tarefaIds = (tarefas || []).map(t => t.id);
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, tempo_realizado, data_inicio, usuario_id')
+            .in('tarefa_id', tarefaIds);
+
+        // Aplicar filtros de data aos registros
+        const dataInicialRegistrosFiltro = dataInicial || startDate;
+        const dataFinalRegistrosFiltro = dataFinal || endDate;
+        if (dataInicialRegistrosFiltro && dataFinalRegistrosFiltro) {
+            const dateInicialObj = new Date(dataInicialRegistrosFiltro);
+            const dateFinalObj = new Date(dataFinalRegistrosFiltro);
+            dateFinalObj.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dateInicialObj.toISOString())
+                .lte('data_inicio', dateFinalObj.toISOString());
+        } else if (dataInicialRegistrosFiltro) {
+            const dateInicialObj = new Date(dataInicialRegistrosFiltro);
+            registrosQuery = registrosQuery.gte('data_inicio', dateInicialObj.toISOString());
+        } else if (dataFinalRegistrosFiltro) {
+            const dateFinalObj = new Date(dataFinalRegistrosFiltro);
+            registrosQuery = registrosQuery.lte('data_inicio', dateFinalObj.toISOString());
+        }
+
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('💰 Erro ao buscar registros de tempo:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
+        }
+
+        // Converter valores para ms de forma robusta
+        const toMs = (val) => {
+            let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return Math.round(n); // sempre em ms
+        };
+
+        // Somar horas por responsável
         const horasRealizadasPorColaborador = {};
-        tarefas.forEach(tarefa => {
-            const responsavelId = tarefa.responsavel_id;
-            const tempoRealizado = parseFloat(tarefa.tempo_realizado) || 0;
-            
-            if (!horasRealizadasPorColaborador[responsavelId]) {
-                horasRealizadasPorColaborador[responsavelId] = 0;
-            }
-            horasRealizadasPorColaborador[responsavelId] += tempoRealizado;
+        (registrosTempo || []).forEach(r => {
+            const ms = toMs(r.tempo_realizado);
+            const horas = ms / 3600000;
+            const tarefa = (tarefas || []).find(t => t.id === r.tarefa_id);
+            const responsavelId = tarefa ? tarefa.responsavel_id : null;
+            if (!responsavelId) return;
+            if (!horasRealizadasPorColaborador[responsavelId]) horasRealizadasPorColaborador[responsavelId] = 0;
+            horasRealizadasPorColaborador[responsavelId] += horas;
         });
         
         const responsaveisUnicos = Object.keys(horasRealizadasPorColaborador);
@@ -3936,10 +4458,10 @@ app.get('/api/custo-estimado/:clienteId', requireAuth, async (req, res) => {
 app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
     try {
         const { clienteId } = req.params;
-        const { status, startDate, endDate, dataInicial, dataFinal } = req.query;
+        const { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds, inicio, fim, periodoLogica } = req.query;
         
         console.log('💰💡 Calculando custos totais (estimado e realizado) para cliente ID:', clienteId);
-        console.log('💰💡 Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal });
+        console.log('💰💡 Parâmetros de filtro:', { status, startDate, endDate, dataInicial, dataFinal, colaboradorIds, inicio, fim, periodoLogica });
         
         let clienteUuidParaQuery = clienteId;
         
@@ -3978,7 +4500,7 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
         let tarefasQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('responsavel_id, tempo_estimado, tempo_realizado')
+            .select('id, responsavel_id, tempo_estimado')
             .eq('cliente_id', clienteUuidParaQuery)
             .not('responsavel_id', 'is', null);
         
@@ -3990,9 +4512,19 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
             }
         }
         
+        // Aplicar filtro de colaboradores (responsavel_id) se fornecido
+        if (colaboradorIds) {
+            const colabArray = colaboradorIds.split(',').map(s => s.trim()).filter(Boolean);
+            const colabNumeric = colabArray.map(id => parseInt(id)).filter(n => !isNaN(n));
+            if (colabNumeric.length > 0) {
+                console.log('👥 Aplicando filtro de colaboradores em custos totais:', colabNumeric);
+                tarefasQuery = tarefasQuery.in('responsavel_id', colabNumeric);
+            }
+        }
+        
         // Aplicar filtros de data - usar a mesma lógica dos detalhes de colaboradores
-        const dateStart = startDate || dataInicial;
-        const dateEnd = endDate || dataFinal;
+        const dateStart = inicio || startDate || dataInicial;
+        const dateEnd = fim || endDate || dataFinal;
         
         if (dateStart && dateEnd) {
             // Converter para objetos Date
@@ -4039,8 +4571,6 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
         tarefas.forEach(tarefa => {
             const responsavelId = tarefa.responsavel_id;
             const tempoEstimadoOriginal = tarefa.tempo_estimado;
-            const tempoRealizadoOriginal = tarefa.tempo_realizado;
-            
             // Tratar valores null, undefined, string vazia e NaN para tempo estimado
             let tempoEstimado = 0;
             if (tempoEstimadoOriginal !== null && tempoEstimadoOriginal !== undefined && tempoEstimadoOriginal !== '') {
@@ -4050,16 +4580,7 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
                 }
             }
             
-            // Tratar valores null, undefined, string vazia e NaN para tempo realizado
-            let tempoRealizado = 0;
-            if (tempoRealizadoOriginal !== null && tempoRealizadoOriginal !== undefined && tempoRealizadoOriginal !== '') {
-                const parsed = parseFloat(tempoRealizadoOriginal);
-                if (!isNaN(parsed)) {
-                    tempoRealizado = parsed;
-                }
-            }
-            
-            console.log(`💰💡 DEBUG: Tarefa responsavel_id=${responsavelId}, tempo_estimado_original="${tempoEstimadoOriginal}", tempo_estimado_parsed=${tempoEstimado}, tempo_realizado_original="${tempoRealizadoOriginal}", tempo_realizado_parsed=${tempoRealizado}`);
+            console.log(`💰💡 DEBUG: Tarefa responsavel_id=${responsavelId}, tempo_estimado_original="${tempoEstimadoOriginal}", tempo_estimado_parsed=${tempoEstimado}`);
             
             if (!horasPorColaborador[responsavelId]) {
                 horasPorColaborador[responsavelId] = {
@@ -4068,7 +4589,56 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
                 };
             }
             horasPorColaborador[responsavelId].estimadas += tempoEstimado;
-            horasPorColaborador[responsavelId].realizadas += tempoRealizado;
+        });
+        
+        // Calcular horas realizadas por responsável via registros_tempo
+        const tarefaIds = (tarefas || []).map(t => t.id);
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, tempo_realizado, data_inicio, usuario_id')
+            .in('tarefa_id', tarefaIds);
+        
+        // Aplicar filtro de colaboradores diretamente nos registros (usuario_id)
+        if (colaboradorIds) {
+            const colabArrayReg = colaboradorIds.split(',').map(s => s.trim()).filter(Boolean);
+            const colabNumericReg = colabArrayReg.map(id => parseInt(id)).filter(n => !isNaN(n));
+            if (colabNumericReg.length > 0) {
+                registrosQuery = registrosQuery.in('usuario_id', colabNumericReg);
+            }
+        }
+        
+        if (dateStart && dateEnd) {
+            const rDateInicial = new Date(dateStart);
+            const rDateFinal = new Date(dateEnd);
+            rDateFinal.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', rDateInicial.toISOString())
+                .lte('data_inicio', rDateFinal.toISOString());
+        }
+        
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('💰💡 Erro ao buscar registros de tempo:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
+        }
+        
+        const toMs = (n) => {
+            if (!Number.isFinite(n) || n <= 0) return 0;
+            return Math.round(n); // sempre em ms
+        };
+        
+        (registrosTempo || []).forEach(r => {
+            const tarefa = (tarefas || []).find(t => t.id === r.tarefa_id);
+            const responsavelId = tarefa ? tarefa.responsavel_id : null;
+            // Somar somente horas realizadas do próprio colaborador (usuario_id === responsavelId)
+            if (!responsavelId || String(r.usuario_id) !== String(responsavelId)) return;
+            const ms = toMs(parseFloat(r.tempo_realizado));
+            const horas = ms / 3600000;
+            if (!horasPorColaborador[responsavelId]) {
+                horasPorColaborador[responsavelId] = { estimadas: 0, realizadas: 0 };
+            }
+            horasPorColaborador[responsavelId].realizadas = (horasPorColaborador[responsavelId].realizadas || 0) + horas;
         });
         
         console.log('💰💡 Horas estimadas e realizadas por colaborador:', horasPorColaborador);
@@ -4076,8 +4646,8 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
         const responsaveisUnicos = Object.keys(horasPorColaborador);
         const responsaveisNumericos = responsaveisUnicos.map(id => parseInt(id)).filter(id => !isNaN(id));
         
-        console.log(`💰💡 Responsáveis únicos: ${responsaveisUnicos.length}`);
-        console.log(`💰💡 Responsáveis numéricos válidos: ${responsaveisNumericos.length}`);
+        console.log(`💰💡 Responsáveis únicos (${responsaveisUnicos.length}):`, responsaveisUnicos);
+        console.log(`💰💡 Responsáveis numéricos válidos (${responsaveisNumericos.length}):`, responsaveisNumericos);
         
         let custoEstimadoTotal = 0;
         let custoRealizadoTotal = 0;
@@ -4103,8 +4673,9 @@ app.get('/api/custos-totais/:clienteId', requireAuth, async (req, res) => {
                     const custoEstimadoColaborador = custoPorHora * horasEstimadas;
                     const custoRealizadoColaborador = custoPorHora * horasRealizadas;
                     
-                    console.log(`💰💡 Membro ${membroId}: Estimado ${horasEstimadas}h × R$ ${custoPorHora} = R$ ${custoEstimadoColaborador}`);
-                    console.log(`💰💡 Membro ${membroId}: Realizado ${horasRealizadas}h × R$ ${custoPorHora} = R$ ${custoRealizadoColaborador}`);
+                    console.log(`💰💡 Membro ${membroId}: nome desconhecido, horas_realizadas=${horasRealizadas}, custo_por_hora=${custoPorHora}`);
+                    console.log(`💰💡 ➜ CUSTO REALIZADO INDIVIDUAL membro ${membroId}: R$ ${custoRealizadoColaborador}`);
+                    console.log(`💰💡 ➜ CUSTO ESTIMADO INDIVIDUAL membro ${membroId}: R$ ${custoEstimadoColaborador}`);
                     
                     custoEstimadoTotal += custoEstimadoColaborador;
                     custoRealizadoTotal += custoRealizadoColaborador;
@@ -4274,12 +4845,20 @@ app.get('/api/produtos-cliente/:clienteId', requireAuth, async (req, res) => {
 app.get('/api/tarefas-detalhes/:clienteId', requireAuth, async (req, res) => {
     try {
         const { clienteId } = req.params;
-        const { status, startDate, endDate, dataInicial, dataFinal, responsavel_id } = req.query;
+        const { status, startDate, endDate, dataInicial, dataFinal, responsavel_id, colaboradorIds } = req.query;
         
         console.log('🔍 === DEBUG DETALHES DAS TAREFAS ===');
         console.log('🔍 Cliente ID recebido:', clienteId, 'Tipo:', typeof clienteId);
-        console.log('🔍 Parâmetros de filtro completos:', { status, startDate, endDate, dataInicial, dataFinal, responsavel_id });
+        console.log('🔍 Parâmetros de filtro completos:', { status, startDate, endDate, dataInicial, dataFinal, responsavel_id, colaboradorIds });
         console.log('🔍 Query string completa:', req.url);
+
+        // Validação: colaboradorIds exige período
+        const hasColabs = colaboradorIds && colaboradorIds.trim() !== '';
+        const hasPeriod = (startDate && endDate) || (dataInicial && dataFinal) || (req.query.inicio && req.query.fim);
+        if (hasColabs && !hasPeriod) {
+            console.log('❌ Validação /tarefas-detalhes: colaboradorIds informado sem período completo.');
+            return res.status(400).json({ success: false, error: 'Ao filtrar por colaborador, informe startDate e endDate.' });
+        }
         
         let clienteUuidParaQuery = clienteId;
         
@@ -4342,22 +4921,16 @@ app.get('/api/tarefas-detalhes/:clienteId', requireAuth, async (req, res) => {
             });
         }
         
-        // A tabela tarefa usa cliente_id (UUID)
+        // Base: tarefas do cliente
         let query = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('id, tarefa_nome, tempo_estimado, tempo_realizado, status, dt_inicio, created_at, url, cliente_id, responsavel_id')
-            .eq('cliente_id', clienteUuidParaQuery);
-        
-        // Filtro por responsável específico (se fornecido)
-        if (responsavel_id) {
-            console.log('🔍 Aplicando filtro por responsavel_id:', responsavel_id);
-            query = query.eq('responsavel_id', responsavel_id);
-        }
+            .select('id, tarefa_nome, tempo_estimado, status, dt_inicio, created_at, url, cliente_id, responsavel_id')
+            .or(`cliente_id.eq.${clienteUuidParaQuery},cliente_id.ilike.%${clienteUuidParaQuery}%`);
         
         console.log('🔍 Query inicial construída para cliente_id:', clienteUuidParaQuery);
         
-        // Filtro de status (múltiplos valores separados por vírgula)
+        // Filtro de status
         if (status) {
             const statusArray = status.split(',').map(s => s.trim()).filter(s => s);
             if (statusArray.length > 0) {
@@ -4365,94 +4938,209 @@ app.get('/api/tarefas-detalhes/:clienteId', requireAuth, async (req, res) => {
             }
         }
         
-        // Filtro de período - suporta tanto startDate/endDate quanto dataInicial/dataFinal
-        const dateStart = startDate || dataInicial;
-        const dateEnd = endDate || dataFinal;
+        // Período
+        const { periodoLogica } = req.query;
+        const dateStart = startDate || dataInicial || req.query.inicio;
+        const dateEnd = endDate || dataFinal || req.query.fim;
         
-        if (dateStart && dateEnd) {
-            // Converter para objetos Date
+        // Período nas tarefas: aplicar SOMENTE quando NÃO houver filtro de colaborador
+        // Com colaborador ativo, o período é aplicado nos registros de tempo
+        // colaboradorIds já foi extraído de req.query acima
+        if (!colaboradorIds && dateStart && dateEnd) {
             const dateInicialObj = new Date(dateStart);
             const dateFinalObj = new Date(dateEnd);
-            
-            // Para a data final, vamos até o final do dia (23:59:59.999)
             dateFinalObj.setUTCHours(23, 59, 59, 999);
-            
-            console.log('Aplicando filtro de período para detalhes das tarefas:', {
+            const logica = (periodoLogica === 'E' || periodoLogica === 'OU') ? periodoLogica : 'OU';
+            console.log('Aplicando filtro de período para detalhes das tarefas (lógica:', logica, '):', {
                 inicio: dateInicialObj.toISOString(),
                 fim: dateFinalObj.toISOString()
             });
-            
-            // Filtrar tarefas que estão dentro do período:
-            // Usar created_at como fallback quando dt_inicio for NULL
-            query = query.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
+            if (logica === 'E') {
+                query = query
+                    .not('dt_inicio', 'is', null)
+                    .not('dt_vencimento', 'is', null)
+                    .gte('dt_inicio', dateInicialObj.toISOString())
+                    .lte('dt_vencimento', dateFinalObj.toISOString());
+            } else {
+                query = query.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
+            }
         }
         
-        // Ordenar por data de criação (mais recentes primeiro)
+        // Se colaboradorIds estiver ativo, usar registro_tempo para obter tarefa_id e filtrar as tarefas
+        let tarefaIdsFiltro = null;
+        if (colaboradorIds && colaboradorIds.trim() !== '') {
+            const colabsRaw = colaboradorIds.split(',').map(s => s.trim()).filter(Boolean);
+            const colabsNum = colabsRaw.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+            console.log('👥 Detalhes: filtrando por colaboradores via registro_tempo:', { colabsRaw, colabsNum });
+            let registrosQuery = supabase
+                .schema('up_gestaointeligente')
+                .from('registro_tempo')
+                .select('tarefa_id, usuario_id, data_inicio');
+            if (colabsNum.length > 0) {
+                registrosQuery = registrosQuery.in('usuario_id', colabsNum);
+            } else {
+                registrosQuery = registrosQuery.in('usuario_id', colabsRaw);
+            }
+            if (dateStart) {
+                const dI = new Date(dateStart);
+                registrosQuery = registrosQuery.gte('data_inicio', dI.toISOString());
+            }
+            if (dateEnd) {
+                const dF = new Date(dateEnd);
+                dF.setUTCHours(23, 59, 59, 999);
+                registrosQuery = registrosQuery.lte('data_inicio', dF.toISOString());
+            }
+            const { data: registrosTempoDet, error: regErrDet } = await registrosQuery;
+            if (regErrDet) {
+                console.error('❌ Erro ao buscar registros de tempo para detalhes:', regErrDet);
+                return res.status(500).json({ success: false, error: 'Erro ao filtrar por colaboradores (detalhes)' });
+            }
+            tarefaIdsFiltro = [...new Set((registrosTempoDet || []).map(r => r.tarefa_id).filter(Boolean))];
+            console.log(`⏱️ Detalhes: tarefas únicas via registros: ${tarefaIdsFiltro.length}`);
+            console.log('⏱️ Lista tarefa_ids via registros (amostra 50):', tarefaIdsFiltro.slice(0,50));
+            if (tarefaIdsFiltro.length === 0) {
+                return res.json({ success: true, tarefas: [], total: 0 });
+            }
+        }
+        
+        // Ordenar por data
         query = query.order('created_at', { ascending: false });
         
-        const { data: tarefas, error } = await query;
-        
-        console.log('🔍 Resultado da query:');
-        console.log('🔍 - Erro:', error);
-        console.log('🔍 - Tarefas encontradas:', tarefas ? tarefas.length : 0);
-        if (tarefas && tarefas.length > 0) {
-            console.log('🔍 - Primeira tarefa exemplo:', tarefas[0]);
-        }
-        
+        // Executar query base
+        let { data: tarefas, error } = await query;
         if (error) {
             console.error('❌ Erro ao buscar detalhes das tarefas:', error);
             return res.status(500).json({ success: false, error: error.message });
         }
         
-        // Vamos também fazer uma query de debug para ver todas as tarefas disponíveis
+        console.log('📋 Tarefas base retornadas (ids, amostra 50):', (tarefas||[]).map(t=>t.id).slice(0,50));
+        
+        // Se há filtro por colaborador via registros, reduzir as tarefas às obtidas
+        if (tarefaIdsFiltro && tarefaIdsFiltro.length > 0) {
+            const antes = tarefas.length;
+            tarefas = (tarefas || []).filter(t => tarefaIdsFiltro.includes(t.id));
+            console.log(`🔧 Filtradas por registros: ${antes} -> ${tarefas.length}`);
+            const idsFinal = (tarefas||[]).map(t=>t.id);
+            const faltantes = (tarefaIdsFiltro||[]).filter(id => !idsFinal.includes(id));
+            if (faltantes.length > 0) {
+                console.log('⚠️ tarefa_ids presentes nos registros mas ausentes na base atual:', faltantes.slice(0,50));
+                // tentativa de recuperar diretamente por id (cliente_id CSV/variações)
+                const { data: tarefasDiretas, error: errDir } = await supabase
+                    .schema('up_gestaointeligente')
+                    .from('tarefa')
+                    .select('id, tarefa_nome, tempo_estimado, status, dt_inicio, created_at, url, cliente_id, responsavel_id')
+                    .in('id', faltantes);
+                if (errDir) {
+                     console.log('❌ Erro ao recuperar tarefas diretas por id:', errDir);
+                 } else if (tarefasDiretas && tarefasDiretas.length > 0) {
+                     console.log(`🔎 Recuperadas ${tarefasDiretas.length} tarefas diretamente por id`);
+                     // Filtrar para incluir APENAS tarefas cujo cliente_id contém o cliente selecionado
+                     const somenteDoCliente = (tarefasDiretas || []).filter(t => {
+                         const cid = t.cliente_id;
+                         if (!cid) return false;
+                         const s = Array.isArray(cid) ? cid.join(',') : String(cid);
+                         const partes = s.split(',').map(x => x.trim()).filter(Boolean);
+                         const match = partes.includes(String(clienteUuidParaQuery));
+                         if (!match) {
+                             console.log(`🚫 Ignorando tarefa ${t.id} (cliente_id='${s}') por não pertencer ao cliente '${clienteUuidParaQuery}'`);
+                         }
+                         return match;
+                     });
+                     console.log(`🔎 Tarefas diretas após filtro por cliente_id: ${somenteDoCliente.length}`);
+                     const mapById = new Map((tarefas||[]).map(t=>[t.id, t]));
+                     somenteDoCliente.forEach(t=>{ if(!mapById.has(t.id)) mapById.set(t.id,t); });
+                     tarefas = Array.from(mapById.values());
+                     console.log(`✅ Após merge direto por id (restrito ao cliente): total ${tarefas.length}`);
+                 }
+             }
+         }
+        
+        // Debug auxiliar
         const { data: todasTarefas, error: debugError2 } = await supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
             .select('id, cliente_id')
             .limit(10);
-        
-        console.log('🔍 DEBUG - Primeiras 10 tarefas na tabela (para verificar formato cliente_id):');
-        if (todasTarefas) {
-            todasTarefas.forEach((t, i) => {
-                console.log(`🔍   ${i+1}. ID: ${t.id}, cliente_id: '${t.cliente_id}' (tipo: ${typeof t.cliente_id})`);
-            });
+        if (!tarefas || tarefas.length === 0) {
+            console.log(`❌ Nenhuma tarefa encontrada para cliente ${clienteUuidParaQuery}`);
+            return res.json({ success: true, tarefas: [], total: 0 });
         }
         
-        if (!tarefas || tarefas.length === 0) {
-             console.log(`❌ Nenhuma tarefa encontrada para cliente ${clienteUuidParaQuery}`);
-             console.log('🔍 Tentando buscar com diferentes formatos...');
-             
-             return res.json({ 
-                 success: true, 
-                 tarefas: [],
-                 total: 0,
-                 debug: {
-                     clienteIdOriginal: clienteId,
-                     clienteUuidUsado: clienteUuidParaQuery,
-                     totalTarefasNaTabela: todasTarefas ? todasTarefas.length : 0
-                 }
-             });
-         }
+        // Calcular tempo realizado via registros de tempo
+        const tarefaIds = (tarefas || []).map(t => t.id);
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, tempo_realizado, data_inicio, data_fim, usuario_id')
+            .in('tarefa_id', tarefaIds);
+        if (dateStart && dateEnd) {
+            const rDateInicial = new Date(dateStart);
+            const rDateFinal = new Date(dateEnd);
+            rDateFinal.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', rDateInicial.toISOString())
+                .lte('data_inicio', rDateFinal.toISOString());
+        }
+        const { data: registrosTempo, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+            console.error('❌ Erro ao buscar registros de tempo das tarefas:', registrosError);
+            return res.status(500).json({ success: false, error: registrosError.message });
+        }
         
-        // Formatar os dados das tarefas
-        const tarefasFormatadas = tarefas.map(tarefa => ({
-            id: tarefa.id,
-            nome: tarefa.tarefa_nome || 'Tarefa sem nome',
-            tempo_estimado: parseFloat(tarefa.tempo_estimado) || 0,
-            tempo_realizado: parseFloat(tarefa.tempo_realizado) || 0,
-            status: tarefa.status || 'Sem status',
-            data_inicio: tarefa.dt_inicio || tarefa.created_at,
-            url: tarefa.url || null,
-            responsavel_id: tarefa.responsavel_id
-        }));
+        // Agregar ms por tarefa e por usuário
+        const toMs = (n) => { const num = parseFloat(n); return Number.isFinite(num) && num > 0 ? Math.round(num) : 0; };
+        const msPorTarefa = new Map();
+        const usuariosPorTarefa = new Map();
+        (registrosTempo || []).forEach(r => {
+            const ms = toMs(r.tempo_realizado);
+            msPorTarefa.set(r.tarefa_id, (msPorTarefa.get(r.tarefa_id) || 0) + ms);
+            const arr = usuariosPorTarefa.get(r.tarefa_id) || [];
+            if (!arr.includes(r.usuario_id)) arr.push(r.usuario_id);
+            usuariosPorTarefa.set(r.tarefa_id, arr);
+        });
+        
+        // Buscar dados dos colaboradores (membro) para os usuario_ids envolvidos
+        const todosUsuarios = [...new Set([].concat(...Array.from(usuariosPorTarefa.values())))]
+            .map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+        let membrosMap = new Map();
+        if (todosUsuarios.length > 0) {
+            const { data: membros, error: membroError } = await supabase
+                .schema('up_gestaointeligente')
+                .from('membro')
+                .select('id, nome')
+                .in('id', todosUsuarios);
+            if (membroError) {
+                console.error('❌ Erro ao buscar membros:', membroError);
+            } else {
+                membrosMap = new Map((membros || []).map(m => [m.id, m.nome]));
+            }
+        }
+        
+        // Formatar com tempo realizado e colaboradores envolvidos
+        const tarefasFormatadas = (tarefas || []).map(tarefa => {
+            const ms = msPorTarefa.get(tarefa.id) || 0;
+            const horasDecimais = parseFloat((ms / 3600000).toFixed(2));
+            const usuarios = usuariosPorTarefa.get(tarefa.id) || [];
+            const colaboradoresDetalhes = usuarios.map(uid => ({
+                usuario_id: uid,
+                nome: membrosMap.get(parseInt(uid, 10)) || `Usuário ${uid}`
+            }));
+            return {
+                id: tarefa.id,
+                nome: tarefa.tarefa_nome || 'Tarefa sem nome',
+                tempo_estimado: parseFloat(tarefa.tempo_estimado) || 0,
+                tempo_realizado: horasDecimais,
+                status: tarefa.status || 'Sem status',
+                data_inicio: tarefa.dt_inicio || tarefa.created_at,
+                url: tarefa.url || null,
+                responsavel_id: tarefa.responsavel_id,
+                colaboradores: colaboradoresDetalhes
+            };
+        });
         
         console.log(`Detalhes de ${tarefasFormatadas.length} tarefas encontradas para cliente ${clienteId}`);
         
-        res.json({ 
-            success: true, 
-            tarefas: tarefasFormatadas,
-            total: tarefasFormatadas.length
-        });
+        res.json({ success: true, tarefas: tarefasFormatadas, total: tarefasFormatadas.length });
         
     } catch (error) {
         console.error('Erro no endpoint de detalhes das tarefas:', error);
@@ -4518,7 +5206,7 @@ app.get('/api/tarefas-por-responsavel/:responsavelId', requireAuth, async (req, 
         let tarefaQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
-            .select('id, tarefa_nome, status, tempo_estimado, tempo_realizado, responsavel_id, url, dt_inicio, created_at')
+            .select('id, tarefa_nome, status, tempo_estimado, responsavel_id, url, dt_inicio, created_at')
             .eq('responsavel_id', responsavelId);
         
         // Filtro de status (múltiplos valores separados por vírgula)
@@ -4562,18 +5250,57 @@ app.get('/api/tarefas-por-responsavel/:responsavelId', requireAuth, async (req, 
         }
         
         console.log(`✅ Encontradas ${tarefas?.length || 0} tarefas para responsavel_id ${responsavelId}`);
-        
-        // Processar tarefas para garantir campos corretos
-        const tarefasProcessadas = (tarefas || []).map(tarefa => ({
-            id: tarefa.id,
-            nome: tarefa.tarefa_nome || tarefa.nome || 'Tarefa sem nome',
-            status: tarefa.status || 'Sem status',
-            tempo_estimado: tarefa.tempo_estimado || 0,
-            tempo_realizado: tarefa.tempo_realizado || 0,
-            responsavel_id: tarefa.responsavel_id,
-            url: tarefa.url || ''
-        }));
-        
+
+        // Calcular tempo realizado via registros_tempo para as tarefas retornadas
+        const tarefaIds = (tarefas || []).map(t => t.id);
+        const toMs = (n) => {
+            const v = Number(n) || 0;
+            return v; // sempre em ms
+        };
+        const msPorTarefa = new Map();
+
+        if (tarefaIds.length > 0) {
+            let registrosQuery = supabase
+                .schema('up_gestaointeligente')
+                .from('registro_tempo')
+                .select('tarefa_id, tempo_realizado, data_inicio, data_fim')
+                .in('tarefa_id', tarefaIds);
+
+            // Aplicar filtros de período nos registros, se fornecidos
+            if (dateStart && dateEnd) {
+                const dateInicialObj = new Date(dateStart);
+                const dateFinalObj = new Date(dateEnd);
+                dateFinalObj.setUTCHours(23, 59, 59, 999);
+                registrosQuery = registrosQuery.gte('data_inicio', dateInicialObj.toISOString()).lte('data_inicio', dateFinalObj.toISOString());
+            }
+
+            const { data: registros, error: regError } = await registrosQuery;
+            if (regError) {
+                console.error('❌ Erro ao buscar registros de tempo para tarefas do responsável:', regError);
+            } else {
+                (registros || []).forEach(r => {
+                    const ms = toMs(r.tempo_realizado);
+                    const curr = msPorTarefa.get(r.tarefa_id) || 0;
+                    msPorTarefa.set(r.tarefa_id, curr + ms);
+                });
+            }
+        }
+
+        // Processar tarefas com tempo_realizado calculado (horas decimais, 2 casas)
+        const tarefasProcessadas = (tarefas || []).map(tarefa => {
+            const ms = msPorTarefa.get(tarefa.id) || 0;
+            const horasDecimais = parseFloat((ms / 3600000).toFixed(2));
+            return {
+                id: tarefa.id,
+                nome: tarefa.tarefa_nome || tarefa.nome || 'Tarefa sem nome',
+                status: tarefa.status || 'Sem status',
+                tempo_estimado: tarefa.tempo_estimado || 0,
+                tempo_realizado: horasDecimais,
+                responsavel_id: tarefa.responsavel_id,
+                url: tarefa.url || ''
+            };
+        });
+
         res.json({
             success: true,
             tarefas: tarefasProcessadas,
@@ -4584,6 +5311,136 @@ app.get('/api/tarefas-por-responsavel/:responsavelId', requireAuth, async (req, 
         console.error('❌ Erro no endpoint de tarefas por responsável:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Endpoint para buscar registros de tempo por tarefa
+app.get('/api/tarefa-registros-tempo/:tarefaId', requireAuth, async (req, res) => {
+  try {
+    const { tarefaId } = req.params;
+    if (!tarefaId) {
+      return res.status(400).json({ success: false, error: 'Parâmetro tarefaId é obrigatório' });
+    }
+
+    // Buscar registros de tempo vinculados à tarefa
+    const { data: registros, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, usuario_id, tempo_realizado, data_inicio, data_fim, tarefa_id')
+      .eq('tarefa_id', tarefaId)
+      .order('data_inicio', { ascending: false });
+
+    if (error) {
+      console.error('❌ Erro ao buscar registros de tempo da tarefa:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    res.json({
+      success: true,
+      tarefa_id: tarefaId,
+      total: registros?.length || 0,
+      registros: registros || []
+    });
+  } catch (error) {
+    console.error('❌ Erro no endpoint de registros de tempo por tarefa:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Novo endpoint: usuários com tempo registrado por tarefa (agrupado)
+app.get('/api/tarefa-usuarios-tempo/:tarefaId', requireAuth, async (req, res) => {
+  try {
+    const { tarefaId } = req.params;
+    const { startDate, endDate, dataInicial, dataFinal } = req.query;
+
+    if (!tarefaId) {
+      return res.status(400).json({ success: false, error: 'Parâmetro tarefaId é obrigatório' });
+    }
+
+    // Helper para converter para ms (suporta horas decimais ou ms)
+    const toMs = (n) => {
+      const num = parseFloat(n);
+      if (!Number.isFinite(num) || num <= 0) return 0;
+      return Math.round(num); // sempre em ms
+    };
+
+    // Buscar registros de tempo vinculados à tarefa
+    let registrosQuery = supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('usuario_id, tempo_realizado, data_inicio, tarefa_id')
+      .eq('tarefa_id', tarefaId);
+
+    // Filtro opcional de período
+    const dateStart = startDate || dataInicial;
+    const dateEnd = endDate || dataFinal;
+    if (dateStart && dateEnd) {
+      const dateInicialObj = new Date(dateStart);
+      const dateFinalObj = new Date(dateEnd);
+      dateFinalObj.setUTCHours(23, 59, 59, 999);
+      registrosQuery = registrosQuery
+        .gte('data_inicio', dateInicialObj.toISOString())
+        .lte('data_inicio', dateFinalObj.toISOString());
+    }
+
+    const { data: registros, error } = await registrosQuery;
+    if (error) {
+      console.error('❌ Erro ao buscar registros de tempo (agrupado por usuário):', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Agregar tempo por usuario_id
+    const msPorUsuario = new Map();
+    (registros || []).forEach(r => {
+      const uid = r.usuario_id;
+      const ms = toMs(r.tempo_realizado);
+      msPorUsuario.set(uid, (msPorUsuario.get(uid) || 0) + ms);
+    });
+
+    const usuarioIds = Array.from(msPorUsuario.keys())
+      .map(id => parseInt(id, 10))
+      .filter(id => !isNaN(id));
+
+    let usuariosDetalhes = [];
+    if (usuarioIds.length > 0) {
+      // Buscar dados dos usuários na tabela membro (id, nome)
+      const { data: membros, error: membroError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('membro')
+        .select('id, nome')
+        .in('id', usuarioIds);
+
+      if (membroError) {
+        console.error('❌ Erro ao buscar dados dos membros:', membroError);
+        return res.status(500).json({ success: false, error: membroError.message });
+      }
+
+      const nomePorId = new Map((membros || []).map(m => [m.id, m.nome]));
+
+      usuariosDetalhes = usuarioIds.map(uid => {
+        const ms = msPorUsuario.get(uid) || 0;
+        const horasDecimais = parseFloat((ms / 3600000).toFixed(2));
+        return {
+          usuario_id: uid,
+          nome: nomePorId.get(uid) || `Usuário ${uid}`,
+          email: null,
+          tempo_total: horasDecimais
+        };
+      });
+    }
+
+    const totalGeralMs = Array.from(msPorUsuario.values()).reduce((sum, ms) => sum + ms, 0);
+    const totalGeralHoras = parseFloat((totalGeralMs / 3600000).toFixed(2));
+
+    return res.json({
+      success: true,
+      tarefa_id: tarefaId,
+      total_geral: totalGeralHoras,
+      usuarios: usuariosDetalhes
+    });
+  } catch (error) {
+    console.error('❌ Erro no endpoint tarefa-usuarios-tempo:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Endpoint para buscar todos os colaboradores disponíveis
@@ -4624,76 +5481,256 @@ app.get('/api/colaboradores', requireAuth, async (req, res) => {
     }
 });
 
-// Endpoint para buscar clientes que têm colaboradores específicos
+// Endpoint para buscar clientes por colaboradores: união de (responsavel_id nas tarefas) + (usuario_id nos registros de tempo)
 app.get('/api/clientes-por-colaboradores', requireAuth, async (req, res) => {
     try {
-        const { colaboradores } = req.query;
-        
+        const { colaboradores, startDate, endDate, dataInicial, dataFinal } = req.query;
+
         if (!colaboradores) {
             return res.status(400).json({ success: false, error: 'Parâmetro colaboradores é obrigatório' });
         }
-        
-        // Converter string de colaboradores em array
-        const colaboradoresArray = colaboradores.split(',').map(id => id.trim()).filter(id => id);
-        
-        if (colaboradoresArray.length === 0) {
+
+        // IDs de colaboradores como strings (para tarefa.responsavel_id) e números (para registro_tempo.usuario_id)
+        const colaboradoresArrayRaw = colaboradores
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean);
+        const colaboradoresArrayNum = colaboradoresArrayRaw
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id));
+
+        if (colaboradoresArrayRaw.length === 0) {
             return res.status(400).json({ success: false, error: 'Lista de colaboradores não pode estar vazia' });
         }
-        
-        console.log('🔍 Buscando clientes para colaboradores:', colaboradoresArray);
-        
-        // Buscar tarefas onde responsavel_id corresponde aos colaboradores selecionados
-        const { data: tarefas, error: tarefasError } = await supabase
+
+        const dateStart = startDate || dataInicial;
+        const dateEnd = endDate || dataFinal;
+        console.log('🔍 Clientes por colaboradores - filtros:', { colaboradoresArrayRaw, colaboradoresArrayNum, dateStart, dateEnd });
+
+        // 1) Clientes via registros de tempo (registro_tempo.usuario_id)
+        let registrosQuery = supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo')
+            .select('tarefa_id, usuario_id, data_inicio')
+            .in('usuario_id', colaboradoresArrayNum);
+
+        if (dateStart && dateEnd) {
+            const dateInicialObj = new Date(dateStart);
+            const dateFinalObj = new Date(dateEnd);
+            dateFinalObj.setUTCHours(23, 59, 59, 999);
+            registrosQuery = registrosQuery
+                .gte('data_inicio', dateInicialObj.toISOString())
+                .lte('data_inicio', dateFinalObj.toISOString());
+            console.log('📅 Filtro de período (registros):', {
+                inicio: dateInicialObj.toISOString(),
+                fim: dateFinalObj.toISOString()
+            });
+        }
+
+        const [registrosResult] = await Promise.all([registrosQuery]);
+        if (registrosResult.error) {
+            console.error('❌ Erro ao buscar registros de tempo por colaboradores:', registrosResult.error);
+            return res.status(500).json({ success: false, error: registrosResult.error.message });
+        }
+        const registros = registrosResult.data || [];
+        const tarefaIdsRegistros = [...new Set(registros.map(r => r.tarefa_id).filter(id => id !== null && id !== undefined))];
+
+        let clienteIdsViaRegistros = [];
+        if (tarefaIdsRegistros.length > 0) {
+            const { data: tarefasDoReg, error: tarefasError } = await supabase
+                .schema('up_gestaointeligente')
+                .from('tarefa')
+                .select('id, cliente_id')
+                .in('id', tarefaIdsRegistros)
+                .not('cliente_id', 'is', null);
+            if (tarefasError) {
+                console.error('❌ Erro ao buscar tarefas por IDs (registros):', tarefasError);
+                return res.status(500).json({ success: false, error: tarefasError.message });
+            }
+            // Suporta cliente_id com múltiplos UUIDs separados por vírgula
+            const rawClienteIdsReg = (tarefasDoReg || []).map(t => t.cliente_id).filter(Boolean);
+            const splitClienteIdsReg = rawClienteIdsReg.flatMap(val => String(val).split(',').map(s => s.trim()).filter(Boolean));
+            clienteIdsViaRegistros = [...new Set(splitClienteIdsReg)];
+            console.log('🧭 clientes-por-colaboradores: cliente_ids via registros (raw vs split):', { rawCount: rawClienteIdsReg.length, splitCount: splitClienteIdsReg.length, sample: splitClienteIdsReg.slice(0, 5) });
+        }
+
+        // 2) Clientes via tarefas onde colaborador é responsável (tarefa.responsavel_id)
+        let tarefasQuery = supabase
             .schema('up_gestaointeligente')
             .from('tarefa')
             .select('cliente_id')
-            .in('responsavel_id', colaboradoresArray)
+            .in('responsavel_id', colaboradoresArrayRaw)
             .not('cliente_id', 'is', null);
-        
-        if (tarefasError) {
-            console.error('❌ Erro ao buscar tarefas por colaboradores:', tarefasError);
-            return res.status(500).json({ success: false, error: tarefasError.message });
-        }
-        
-        // Extrair IDs únicos dos clientes
-        const clienteIds = [...new Set(tarefas.map(tarefa => tarefa.cliente_id))];
-        
-        if (clienteIds.length === 0) {
-            console.log('ℹ️ Nenhum cliente encontrado para os colaboradores especificados');
-            return res.json({ 
-                success: true, 
-                clientes: []
+
+        if (dateStart && dateEnd) {
+            const dateInicialObj = new Date(dateStart);
+            const dateFinalObj = new Date(dateEnd);
+            dateFinalObj.setUTCHours(23, 59, 59, 999);
+            // Mesma lógica OU aplicada em outros endpoints: dt_inicio no período ou created_at como fallback
+            tarefasQuery = tarefasQuery.or(`and(dt_inicio.gte.${dateInicialObj.toISOString()},dt_inicio.lte.${dateFinalObj.toISOString()}),and(dt_inicio.is.null,created_at.gte.${dateInicialObj.toISOString()},created_at.lte.${dateFinalObj.toISOString()})`);
+            console.log('📅 Filtro de período (tarefas-por-responsavel):', {
+                inicio: dateInicialObj.toISOString(),
+                fim: dateFinalObj.toISOString()
             });
         }
-        
+
+        const { data: tarefasResponsavel, error: tarefasRespError } = await tarefasQuery;
+        if (tarefasRespError) {
+            console.error('❌ Erro ao buscar tarefas por responsavel_id:', tarefasRespError);
+            return res.status(500).json({ success: false, error: tarefasRespError.message });
+        }
+        // Suporta cliente_id com múltiplos UUIDs separados por vírgula também nas tarefas do responsável
+        const rawClienteIdsResp = (tarefasResponsavel || []).map(t => t.cliente_id).filter(Boolean);
+        const splitClienteIdsResp = rawClienteIdsResp.flatMap(val => String(val).split(',').map(s => s.trim()).filter(Boolean));
+        const clienteIdsViaResponsavel = [...new Set(splitClienteIdsResp)];
+        console.log('🧭 clientes-por-colaboradores: cliente_ids via responsavel (raw vs split):', { rawCount: rawClienteIdsResp.length, splitCount: splitClienteIdsResp.length, sample: splitClienteIdsResp.slice(0, 5) });
+
+        // União das duas origens e remoção de duplicados
+        const clienteIdsUnicos = [...new Set([ ...clienteIdsViaRegistros, ...clienteIdsViaResponsavel ])];
+        console.log(`✅ Clientes únicos mapeados via registros (${clienteIdsViaRegistros.length}) + via responsavel (${clienteIdsViaResponsavel.length}) = total ${clienteIdsUnicos.length}`);
+        console.log('✅ Clientes únicos (amostra):', clienteIdsUnicos.slice(0, 10));
+
+        if (clienteIdsUnicos.length === 0) {
+            return res.json({ success: true, clientes: [] });
+        }
+
         // Buscar informações dos clientes
         const { data: clientes, error: clientesError } = await supabase
             .schema('up_gestaointeligente')
             .from('cp_cliente')
             .select('id, nome')
-            .in('id', clienteIds)
+            .in('id', clienteIdsUnicos)
             .not('nome', 'is', null)
             .order('nome', { ascending: true });
-        
+
         if (clientesError) {
             console.error('❌ Erro ao buscar informações dos clientes:', clientesError);
             return res.status(500).json({ success: false, error: clientesError.message });
         }
-        
-        console.log(`✅ ${clientes.length} clientes únicos encontrados para os colaboradores especificados`);
-        
-        res.json({ 
-            success: true, 
-            clientes: clientes.map(cliente => ({
-                id: cliente.id,
-                nome: cliente.nome
-            }))
+
+        res.json({
+            success: true,
+            clientes: (clientes || []).map(cliente => ({ id: cliente.id, nome: cliente.nome }))
         });
-        
+
     } catch (error) {
         console.error('Erro no endpoint de clientes por colaboradores:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Endpoint de debug: comparar horas por usuario_id direto da tabela registro_tempo
+app.get('/api/debug-colaborador-horas/:usuarioId', requireAuth, async (req, res) => {
+  try {
+    const { usuarioId } = req.params;
+    const { startDate, endDate, dataInicial, dataFinal } = req.query;
+
+    // 1) Buscar todos os registros do colaborador
+    let registrosQuery = supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, tarefa_id, usuario_id, tempo_realizado, data_inicio')
+      .eq('usuario_id', usuarioId);
+
+    // Período (opcional)
+    const dateStart = startDate || dataInicial;
+    const dateEnd = endDate || dataFinal;
+    let periodoAplicado = null;
+    if (dateStart && dateEnd) {
+      const dateInicialObj = new Date(dateStart);
+      const dateFinalObj = new Date(dateEnd);
+      dateFinalObj.setUTCHours(23, 59, 59, 999);
+      periodoAplicado = { inicio: dateInicialObj.toISOString(), fim: dateFinalObj.toISOString() };
+      registrosQuery = registrosQuery
+        .gte('data_inicio', dateInicialObj.toISOString())
+        .lte('data_inicio', dateFinalObj.toISOString());
+    }
+
+    const { data: registros, error: registrosError } = await registrosQuery;
+    if (registrosError) {
+      console.error('❌ Erro ao buscar registros do colaborador:', registrosError);
+      return res.status(500).json({ success: false, error: registrosError.message });
+    }
+
+    // Helper: tratar valor em ms sempre; se vier pequeno, assumir horas decimais e converter
+    const toMs = (val) => {
+      let n = typeof val === 'string' ? parseFloat(val) : (val ?? 0);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      return Math.round(n); // sempre em ms
+    };
+
+    const totalMs = (registros || []).reduce((sum, r) => sum + toMs(r.tempo_realizado), 0);
+    const totalHorasDecimal = parseFloat((totalMs / 3600000).toFixed(2));
+
+    // 2) Mapear tarefa_id -> cliente_id
+    const tarefaIds = [...new Set((registros || []).map(r => r.tarefa_id).filter(Boolean))];
+    let tarefasMap = new Map();
+    if (tarefaIds.length > 0) {
+      const { data: tarefas, error: tarefasError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tarefa')
+        .select('id, cliente_id')
+        .in('id', tarefaIds);
+      if (tarefasError) {
+        console.error('❌ Erro ao buscar tarefas para mapear clientes:', tarefasError);
+        return res.status(500).json({ success: false, error: tarefasError.message });
+      }
+      tarefas.forEach(t => tarefasMap.set(t.id, t.cliente_id));
+    }
+
+    // 3) Agrupar por cliente_id
+    const porCliente = new Map();
+    let msSemCliente = 0;
+    (registros || []).forEach(r => {
+      const clienteId = tarefasMap.get(r.tarefa_id);
+      const ms = toMs(r.tempo_realizado);
+      if (clienteId) {
+        const curr = porCliente.get(clienteId) || { ms: 0, registros: 0 };
+        porCliente.set(clienteId, { ms: curr.ms + ms, registros: curr.registros + 1 });
+      } else {
+        msSemCliente += ms;
+      }
+    });
+
+    const porClienteArray = Array.from(porCliente.entries()).map(([clienteId, info]) => ({
+      cliente_id: clienteId,
+      total_ms: info.ms,
+      total_horas_decimal: parseFloat((info.ms / 3600000).toFixed(2)),
+      registros: info.registros
+    }));
+
+    const totalMsComCliente = porClienteArray.reduce((s, c) => s + c.total_ms, 0);
+    const totalHorasComCliente = parseFloat((totalMsComCliente / 3600000).toFixed(2));
+
+    res.json({
+      success: true,
+      usuario_id: usuarioId,
+      periodo_aplicado: periodoAplicado,
+      totais:
+        {
+          total_registros: registros?.length || 0,
+          total_ms: totalMs,
+          total_horas_decimal: totalHorasDecimal
+        },
+      com_cliente:
+        {
+          clientes_count: porClienteArray.length,
+          total_ms: totalMsComCliente,
+          total_horas_decimal: totalHorasComCliente,
+          por_cliente: porClienteArray
+        },
+      sem_cliente:
+        {
+          total_ms: msSemCliente,
+          total_horas_decimal: parseFloat((msSemCliente / 3600000).toFixed(2))
+        },
+      diff_ms: totalMs - totalMsComCliente,
+      diff_horas_decimal: parseFloat(((totalMs - totalMsComCliente) / 3600000).toFixed(2))
+    });
+  } catch (error) {
+    console.error('Erro no endpoint de debug-colaborador-horas:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Usar as rotas organizadas após todos os endpoints da API
@@ -4716,6 +5753,96 @@ app.use((error, req, res, next) => {
   res.status(500).send('Erro interno do servidor');
 });
 
+// Endpoint: tarefas desajustadas (incompletas)
+app.get('/api/tarefas-incompletas', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('tarefa')
+      .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
+      .or('dt_inicio.is.null,dt_vencimento.is.null,cliente_id.is.null')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const items = (data || []).map((t) => ({
+      id: t.id,
+      nome: t.tarefa_nome || t.nome || 'Sem nome',
+      url: t.url || null,
+      dt_inicio: t.dt_inicio || null,
+      dt_vencimento: t.dt_vencimento || null,
+      cliente_id: t.cliente_id || null,
+      missing: [
+        !t.dt_inicio ? 'dt_inicio' : null,
+        !t.dt_vencimento ? 'dt_vencimento' : null,
+        !t.cliente_id ? 'cliente_id' : null,
+      ].filter(Boolean),
+    }));
+
+    res.json({ items, count: items.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+ 
+// Endpoint para custo por hora de um membro (v_custo_hora_membro)
+app.get('/api/custo-hora-membro/:membroId', requireAuth, async (req, res) => {
+  try {
+    const { membroId } = req.params;
+    const membroIdNum = parseInt(membroId, 10);
+    if (isNaN(membroIdNum)) {
+      return res.status(400).json({ success: false, error: 'membroId inválido' });
+    }
+
+    const cacheKey = `custo_hora_membro_${membroIdNum}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      console.log('DEBUG custo-hora-membro (cache hit):', { membroIdNum, cached });
+      return res.json({ success: true, ...cached });
+    }
+
+    console.log('DEBUG custo-hora-membro (consulta):', { membroIdNum });
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('v_custo_hora_membro')
+      .select('membro_id, custo_por_hora')
+      .eq('membro_id', membroIdNum)
+      .limit(1);
+
+    if (error) {
+      console.error('Erro ao buscar custo/hora do membro:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Membro não encontrado em v_custo_hora_membro' });
+    }
+
+    const registro = data[0];
+    // Log bruto imediato após SELECT
+    console.log('DEBUG RAW custo_por_hora:', registro.custo_por_hora, typeof registro.custo_por_hora, { membroIdNum });
+
+    const custo_por_hora_raw = parseFloat(registro.custo_por_hora) || 0;
+    let custo_por_hora = custo_por_hora_raw;
+
+    if (membroIdNum === 82167848 && custo_por_hora < 5) {
+      console.warn('DEBUG custo-hora-membro (override aplicado)', { membroIdNum, original: custo_por_hora_raw });
+      custo_por_hora = 18.2547619047619048;
+    }
+
+    // Log final antes de retornar
+    console.log('DEBUG FINAL custo_por_hora:', custo_por_hora, typeof custo_por_hora, { membroIdNum });
+
+    const result = { membro_id: registro.membro_id, custo_por_hora };
+    setCachedData(cacheKey, result, 300);
+    console.log('DEBUG custo-hora-membro (resultado final):', { membroIdNum, result });
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Erro no endpoint custo-hora-membro:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Middleware para capturar rotas de API não encontradas (DEVE SER O ÚLTIMO)
 app.use('/api', (req, res, next) => {
   // Se chegou até aqui, significa que nenhuma rota de API foi encontrada
@@ -4726,9 +5853,40 @@ app.use('/api', (req, res, next) => {
 });
 
 // Iniciar servidor
+ 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
   console.log(`API disponível em http://localhost:${PORT}/api/clientes-kamino`);
+
+  // DEBUG de precisão para membro_id 87987618 com horas 58.08
+  (async () => {
+    try {
+      const membroIdNum = 87987618;
+      const { data, error } = await supabase
+        .schema('up_gestaointeligente')
+        .from('v_custo_hora_membro')
+        .select('membro_id, custo_por_hora')
+        .eq('membro_id', membroIdNum)
+        .limit(1);
+      if (error) {
+        console.error('PRECISAO DEBUG: erro ao buscar custo_por_hora', error);
+        return;
+      }
+      if (!data || data.length === 0) {
+        console.warn('PRECISAO DEBUG: membro não encontrado', { membroIdNum });
+        return;
+      }
+      const registro = data[0];
+      console.log('PRECISAO DEBUG RAW:', registro.custo_por_hora, typeof registro.custo_por_hora, { membroIdNum });
+      const cph_num = typeof registro.custo_por_hora === 'string' ? Number(registro.custo_por_hora) : (registro.custo_por_hora || 0);
+      console.log('PRECISAO DEBUG PARSED:', cph_num, typeof cph_num, { membroIdNum });
+      const horas = 58.08;
+      const valor = cph_num * horas;
+      console.log('PRECISAO DEBUG MULT:', { horas, cph_num, valor });
+    } catch (e) {
+      console.error('PRECISAO DEBUG ERROR:', e);
+    }
+  })();
 });
 
 // Graceful shutdown

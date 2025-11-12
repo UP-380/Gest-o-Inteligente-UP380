@@ -1,19 +1,11 @@
- node_modules/
-*.log
+node_modules/
 .env
-.env.local
-.env.production
-.DS_Store
-Thumbs.db
-desktop.ini
-.cache/
+*.log
 dist/
 build/
-*.tmp
-*.temp
-*.bak
-# Adicionar também:
-*.env.test
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
 .vscode/
-.idea/
-.cursor/
+*.temp

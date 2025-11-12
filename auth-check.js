@@ -29,7 +29,7 @@ function requireAuth() {
 // Executar verificação automaticamente em páginas protegidas
 document.addEventListener('DOMContentLoaded', function() {
   // Lista de páginas que requerem autenticação
-  const protectedPages = ['/painel', '/clientes'];
+  const protectedPages = ['/painel', '/clientes', '/dashboard.html', '/clientes.html', '/cadastro-cliente.html'];
   const currentPath = window.location.pathname;
   
   // Se estiver em uma página protegida, verificar autenticação

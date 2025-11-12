@@ -8,10 +8,52 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inicializar filtros
     initializeExposedFilters();
+
+    // Diagnóstico: verificar presença do filtro de período no DOM
+    try {
+        const hasModernClass = !!document.querySelector('.modern-periodo-filter');
+        const periodoTriggerEl = document.getElementById('periodoTrigger');
+        const periodoCalendarCardEl = document.getElementById('periodoCalendarCard');
+        console.log('🔎 DOM após ExposedFilters:', {
+            hasModernClass,
+            periodoTriggerEl: !!periodoTriggerEl,
+            periodoCalendarCardEl: !!periodoCalendarCardEl
+        });
+        // Fallback: anexar clique para abrir calendário se inicialização moderna falhar
+        if (periodoTriggerEl) {
+            periodoTriggerEl.addEventListener('click', () => {
+                if (window.__modernPeriodoInitialized) return;
+                console.log('🖱️ Fallback: clique em #periodoTrigger');
+                const card = document.getElementById('periodoCalendarCard');
+                if (card) {
+                    card.style.display = 'block';
+                    periodoTriggerEl.classList.add('active');
+                }
+            });
+        }
+    } catch (e) {
+        console.warn('⚠️ Diagnóstico do filtro de período falhou:', e);
+    }
     
     // Carregar clientes
     try {
-        loadClients();
+        if (filtrosAplicados) {
+            loadClients();
+        } else {
+            // Mostrar mensagem para aplicar filtros
+            const clientsGrid = document.getElementById('clientsGrid');
+            if (clientsGrid) {
+                clientsGrid.innerHTML = `
+                    <div class="apply-filters-prompt" style="display:flex;align-items:center;justify-content:center;min-height:240px;color:#555;font-size:20px;font-weight:600;letter-spacing:0.5px;text-align:center;">
+                        PORFAVOR APLIQUE OS FILTROS
+                    </div>
+                `;
+            }
+            const totalCardsContainer = document.getElementById('totalCardsContainer');
+            if (totalCardsContainer) totalCardsContainer.style.display = 'none';
+            const paginationContainer = document.getElementById('paginationContainer');
+            if (paginationContainer) paginationContainer.style.display = 'none';
+        }
     } catch (error) {
         console.error('❌ ERRO ao chamar loadClients():', error);
     }
@@ -36,6 +78,8 @@ let activeStatusFilters = [];
 let activeClienteFilters = [];
 let activeColaboradorFilters = [];
 let activePeriodoFilter = null;
+// Flag para controlar exibição inicial sem filtros
+let filtrosAplicados = false;
 
 // ========================================
 // 🚀 FUNÇÕES DE PAGINAÇÃO
@@ -107,6 +151,10 @@ let selectedStartDate = null;
 let selectedEndDate = null;
 let isSelectingEndDate = false;
 
+// Tentativas para inicializar filtro de período moderno quando DOM ainda não está pronto
+let modernPeriodoInitAttempts = 0;
+const MODERN_PERIODO_MAX_ATTEMPTS = 10;
+
 // Função para inicializar os filtros expostos
 function initializeExposedFilters() {
     const applyFiltersBtn = document.getElementById('applyFiltersBtn');
@@ -116,9 +164,15 @@ function initializeExposedFilters() {
     initializeStatusFilter();
     initializeClienteFilter();
     initializeColaboradorFilter();
-    initializePeriodoFilter();
+    
+    // Inicializar filtro de período: moderno se existir, senão legado
+    try {
+        console.log('➡️ Filtro de período desativado; mantendo apenas o botão visual.');
+    } catch (e) {
+        console.error('Erro ao inicializar filtro de período:', e);
+    }
 
-    // Aplicar todos os filtros
+    // Aplicar todos os filtros sem bloqueio
     applyFiltersBtn.addEventListener('click', () => {
         applyAllFilters();
     });
@@ -131,9 +185,17 @@ function initializeExposedFilters() {
         activeColaboradorFilters = [];
         activePeriodoFilter = null;
         
+        // Limpar filtro de período moderno
+        if (typeof clearModernPeriodoFilter === 'function') {
+            clearModernPeriodoFilter();
+        }
+        
         // Recarregar página para limpar todos os filtros
         location.reload();
     });
+
+    // Ajustar visibilidade inicial dos botões conforme estado dos filtros
+    try { updateFilterButtonsVisibility(); } catch (_) {}
 }
 
 // Função para inicializar filtro de status exposto
@@ -280,6 +342,30 @@ let exposedSelectedColaboradores = [];
 
 // Variável global para armazenar tarefas carregadas por cliente
 let clienteTarefasCarregadas = new Map();
+
+// Helper: contar colaboradores únicos a partir das tarefas em cache
+function countCollaboratorsFromTasks(clienteId) {
+    try {
+        const tarefas = clienteTarefasCarregadas.get(clienteId) || [];
+        const unicos = new Set();
+        tarefas.forEach(tarefa => {
+            const colaboradores = tarefa && tarefa.colaboradores ? tarefa.colaboradores : [];
+            colaboradores.forEach(colab => {
+                const uid = parseInt(colab.usuario_id, 10);
+                if (!isNaN(uid)) unicos.add(uid);
+            });
+        });
+        return unicos.size;
+    } catch (e) {
+        return 0;
+    }
+}
+
+// Atualiza o card com a contagem de colaboradores vinda das tarefas em cache
+function updateCollaboratorsCountFromTasks(clienteId) {
+    const count = countCollaboratorsFromTasks(clienteId);
+    updateClientCard(clienteId, { colaboradores: count, colaboradores_loaded: true });
+}
 
 // Função para inicializar filtro de cliente exposto
 function initializeClienteFilter() {
@@ -618,204 +704,20 @@ function initializeColaboradorFilter() {
     };
 }
 
-// Função para inicializar filtro de período exposto
+// Função para inicializar filtro de período exposto (desativado)
 function initializePeriodoFilter() {
-
-    
-    const periodoSelectField = document.getElementById('periodoSelectField');
-    const periodoSelectDisplay = document.getElementById('periodoSelectDisplay');
-    const periodoDropdown = document.getElementById('periodoDropdown');
-    const periodoSelectText = document.getElementById('periodoSelectText');
-    const periodoSelectArrow = document.getElementById('periodoSelectArrow');
-    const monthSelector = document.getElementById('monthSelector');
-    
-
-    
-    if (!periodoSelectField || !periodoSelectDisplay || !periodoDropdown || !monthSelector) {
-        console.error('❌ Elementos do filtro de período não encontrados:', {
-            periodoSelectField: !!periodoSelectField,
-            periodoSelectDisplay: !!periodoSelectDisplay,
-            periodoDropdown: !!periodoDropdown,
-            monthSelector: !!monthSelector
-        });
-        return;
-    }
-    
-    // Configurar seletor de mês com localização em português
-    monthSelector.addEventListener('change', (e) => {
-        const selectedMonth = e.target.value;
-        if (selectedMonth) {
-            convertMonthToPeriod(selectedMonth);
-            updatePeriodoDisplay();
-        }
-    });
-    
-    // Configurar localização em português para o seletor de mês
-    monthSelector.setAttribute('lang', 'pt-BR');
-    
-    // Controlar abertura/fechamento do dropdown
-    periodoSelectDisplay.addEventListener('click', (e) => {
-        e.stopPropagation();
-        togglePeriodoDropdown();
-    });
-    
-    function togglePeriodoDropdown() {
-        const isOpen = periodoDropdown.style.display === 'block';
-        
-        // Fechar outros dropdowns
-        document.querySelectorAll('.status-dropdown, .cliente-dropdown').forEach(dropdown => {
-            dropdown.style.display = 'none';
-        });
-        
-        if (isOpen) {
-            closePeriodoDropdown();
-        } else {
-            openPeriodoDropdown();
-        }
-    }
-    
-    function openPeriodoDropdown() {
-        periodoDropdown.style.display = 'block';
-        periodoSelectDisplay.classList.add('active');
-        periodoSelectArrow.classList.add('rotated');
-    }
-    
-    function closePeriodoDropdown() {
-        periodoDropdown.style.display = 'none';
-        periodoSelectDisplay.classList.remove('active');
-        periodoSelectArrow.classList.remove('rotated');
-    }
-    
-    // Fechar dropdown ao clicar fora
-    document.addEventListener('click', (e) => {
-        const isClickOutside = !periodoSelectField.contains(e.target);
-        
-        if (isClickOutside) {
-            closePeriodoDropdown();
-        }
-    });
-    
-    // Atualizar display inicial
-    updatePeriodoDisplay();
+    // No-op: filtro de período desativado completamente
+    return;
 }
 
 // Função para inicializar o calendário principal do filtro de período
-function initializeMainCalendar() {
-    const calendar = document.getElementById('mainCalendar');
-    
-    if (!calendar) {
-        return;
-    }
-    
-    const prevBtn = calendar.querySelector('.prev-month');
-    const nextBtn = calendar.querySelector('.next-month');
-    const monthYearSpan = calendar.querySelector('.calendar-month-year');
-    const daysContainer = calendar.querySelector('.calendar-days');
-    
-    if (!prevBtn || !nextBtn || !monthYearSpan || !daysContainer) {
-        return;
-    }
-    
-    // Limpar event listeners anteriores
-    const newPrevBtn = prevBtn.cloneNode(true);
-    const newNextBtn = nextBtn.cloneNode(true);
-    prevBtn.parentNode.replaceChild(newPrevBtn, prevBtn);
-    nextBtn.parentNode.replaceChild(newNextBtn, nextBtn);
-    
-    newPrevBtn.addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-        renderMainCalendar();
-    });
-    
-    newNextBtn.addEventListener('click', () => {
-        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-        renderMainCalendar();
-    });
-    
-    // Renderizar calendário inicial
-    renderMainCalendar();
-}
+function initializeMainCalendar() { return; }
 
 // Função para renderizar o calendário principal
-function renderMainCalendar() {
-    const calendar = document.getElementById('mainCalendar');
-    const monthYearSpan = calendar.querySelector('.calendar-month-year');
-    const daysContainer = calendar.querySelector('.calendar-days');
-    
-    const year = currentCalendarDate.getFullYear();
-    const month = currentCalendarDate.getMonth();
-    
-    monthYearSpan.textContent = `${currentCalendarDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}`;
-    
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startingDayOfWeek = firstDay.getDay();
-    const daysInMonth = lastDay.getDate();
-    
-    daysContainer.innerHTML = '';
-    
-    // Dias vazios do início
-    for (let i = 0; i < startingDayOfWeek; i++) {
-        const emptyDay = document.createElement('div');
-        emptyDay.className = 'calendar-day empty';
-        daysContainer.appendChild(emptyDay);
-    }
-    
-    // Dias do mês
-    for (let day = 1; day <= daysInMonth; day++) {
-        const dayElement = document.createElement('div');
-        dayElement.className = 'calendar-day';
-        dayElement.textContent = day;
-        
-        const currentDateObj = new Date(year, month, day);
-        
-        // Adicionar classes para datas selecionadas
-        if (selectedStartDate && isSameDay(currentDateObj, selectedStartDate)) {
-            dayElement.classList.add('selected', 'start-date');
-        }
-        if (selectedEndDate && isSameDay(currentDateObj, selectedEndDate)) {
-            dayElement.classList.add('selected', 'end-date');
-        }
-        // Adicionar classe in-range para datas entre início e fim (excluindo as próprias datas de início e fim)
-        if (selectedStartDate && selectedEndDate && 
-            currentDateObj > selectedStartDate && currentDateObj < selectedEndDate) {
-            dayElement.classList.add('in-range');
-        }
-        
-        dayElement.addEventListener('click', () => {
-            handleMainCalendarDateClick(currentDateObj);
-        });
-        
-        daysContainer.appendChild(dayElement);
-    }
-}
+function renderMainCalendar() { return; }
 
 // Função para lidar com clique em data no calendário principal
-function handleMainCalendarDateClick(clickedDate) {
-    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
-        // Selecionar data de início
-        selectedStartDate = clickedDate;
-        selectedEndDate = null;
-        isSelectingEndDate = true;
-    } else if (selectedStartDate && !selectedEndDate) {
-        // Selecionar data de fim
-        if (clickedDate >= selectedStartDate) {
-            selectedEndDate = clickedDate;
-            isSelectingEndDate = false;
-        } else {
-            // Se a data clicada é anterior à data de início, trocar
-            selectedEndDate = selectedStartDate;
-            selectedStartDate = clickedDate;
-            isSelectingEndDate = false;
-        }
-    }
-    
-    // Atualizar display e calendário
-    updatePeriodoDisplay();
-    renderMainCalendar();
-    
-    // Não fechar automaticamente - deixar o usuário clicar em "Aplicar Filtros"
-}
+function handleMainCalendarDateClick(clickedDate) { return; }
 
 // Função para converter mês selecionado em período (primeiro e último dia do mês)
 function convertMonthToPeriod(monthValue) {
@@ -838,6 +740,8 @@ function updatePeriodoDisplay() {
     const periodoSelectText = document.getElementById('periodoSelectText');
     
     if (!periodoSelectText) {
+        // Ainda assim atualizar botões de filtro
+        try { updateFilterButtonsVisibility(); } catch (_) {}
         return;
     }
     
@@ -857,14 +761,18 @@ function updatePeriodoDisplay() {
         }
         
         periodoSelectText.classList.add('has-selection');
+        // Remover marcação de validação quando período está completo
+        periodoSelectText.classList.remove('validation-required');
     } else if (selectedStartDate) {
         const startStr = selectedStartDate.toLocaleDateString('pt-BR');
-        periodoSelectText.textContent = `${startStr} - Selecione fim`;
+        periodoSelectText.textContent = `${startStr} - Selecione vencimento`;
         periodoSelectText.classList.add('has-selection');
     } else {
         periodoSelectText.textContent = 'Selecionar período';
         periodoSelectText.classList.remove('has-selection');
     }
+    // Atualizar estado dos botões ao alterar período
+    try { updateFilterButtonsVisibility(); } catch (_) {}
 }
 
 // Função para obter período selecionado (usada por outras funções)
@@ -880,13 +788,13 @@ window.clearPeriodoSelection = function() {
     selectedStartDate = null;
     selectedEndDate = null;
     isSelectingEndDate = false;
-    
-    // Limpar também o seletor de mês
-    const monthSelector = document.getElementById('monthSelector');
-    if (monthSelector) {
-        monthSelector.value = '';
-    }
-    
+
+    // Limpar inputs de data do novo filtro
+    const startDateInput = document.getElementById('startDateInput');
+    const endDateInput = document.getElementById('endDateInput');
+    if (startDateInput) startDateInput.value = '';
+    if (endDateInput) endDateInput.value = '';
+
     updatePeriodoDisplay();
 };
 
@@ -1102,6 +1010,8 @@ function handleDateClickForFilter(filterId, clickedDate, calendar) {
             startDateSpan.textContent = formatDateForDisplay(clickedDate);
             endDateSpan.textContent = 'Selecione';
             isSelectingEndDate = true;
+            // Atualizar texto do campo de período
+            updatePeriodoDisplay();
         } else {
             // Selecionar data de fim
             if (clickedDate < selectedStartDate) {
@@ -1115,6 +1025,16 @@ function handleDateClickForFilter(filterId, clickedDate, calendar) {
                 endDateSpan.textContent = formatDateForDisplay(clickedDate);
             }
             isSelectingEndDate = false;
+            // Atualizar texto do campo de período
+            updatePeriodoDisplay();
+
+            // Autoaplicar quando fim selecionado
+            if (selectedStartDate && selectedEndDate) {
+                // Normalizar fim do dia
+                selectedEndDate.setHours(23, 59, 59, 999);
+                applyAllFilters();
+                // Não fechar aqui: manter aberto até clique fora
+            }
         }
         
         // Re-renderizar calendário com as variáveis globais
@@ -1157,7 +1077,7 @@ function handleDateClickForFilter(filterId, clickedDate, calendar) {
     updateFilterButtons();
     
     console.log('📅 Data selecionada para filtro', filterId, ':', formatDateForDisplay(clickedDate));
-    console.log('📋 Estado atual - Início:', selectedStartDate ? formatDateForDisplay(selectedStartDate) : 'null', 'Fim:', selectedEndDate ? formatDateForDisplay(selectedEndDate) : 'null');
+    console.log('📋 Estado atual - Início:', selectedStartDate ? formatDateForDisplay(selectedStartDate) : 'null', 'Vencimento:', selectedEndDate ? formatDateForDisplay(selectedEndDate) : 'null');
 }
 
 // Inicializar calendário customizado
@@ -1307,7 +1227,7 @@ function updatePeriodoDisplayOld() {
     if (selectedStartDate && selectedEndDate) {
         periodoDisplayText.textContent = `${formatDateForDisplay(selectedStartDate)} - ${formatDateForDisplay(selectedEndDate)}`;
     } else if (selectedStartDate) {
-        periodoDisplayText.textContent = `${formatDateForDisplay(selectedStartDate)} - Selecione fim`;
+        periodoDisplayText.textContent = `${formatDateForDisplay(selectedStartDate)} - Selecione vencimento`;
     } else {
         periodoDisplayText.textContent = 'Selecionar período';
     }
@@ -1617,6 +1537,21 @@ function formatDateForAPI(date) {
     return date.toISOString().split('T')[0];
 }
 
+// Atualizar UI com total global de horas no período
+function updateGlobalPeriodHoursUI(totalHoras) {
+    const el = document.getElementById('periodoGlobalHoursText');
+    if (!el) return;
+    // Ocultar sempre para evitar duplicidade com o card principal
+    el.style.display = 'none';
+}
+
+// Chamar backend para somar horas realizadas por período selecionado
+async function updateGlobalPeriodHoursFromSelection() {
+    // Tornar no-op: card principal já reflete período; ocultamos UI global
+    try { updateGlobalPeriodHoursUI(null); } catch (_) {}
+    return;
+}
+
 // Converter data para formato timestamptz (PostgreSQL)
 function formatDateForTimestamptz(date) {
     // Para filtros de data, queremos o início do dia (00:00:00) em UTC
@@ -1654,6 +1589,23 @@ function parseDateFromDisplay(dateString) {
 // 🚀 FUNÇÃO LOAD CLIENTS (OTIMIZADA COM PAGINAÇÃO)
 // ========================================
 async function loadClients() {
+    // Gate inicial: se filtros não foram aplicados, não buscar clientes
+    if (!filtrosAplicados) {
+        const clientsGrid = document.getElementById('clientsGrid');
+        if (clientsGrid) {
+            clientsGrid.innerHTML = `
+                <div class="apply-filters-prompt" style="display:flex;align-items:center;justify-content:center;min-height:240px;color:#555;font-size:20px;font-weight:600;letter-spacing:0.5px;text-align:center;">
+                    PORFAVOR APLIQUE OS FILTROS
+                </div>
+            `;
+        }
+        const totalCardsContainer = document.getElementById('totalCardsContainer');
+        if (totalCardsContainer) totalCardsContainer.style.display = 'none';
+        const paginationContainer = document.getElementById('paginationContainer');
+        if (paginationContainer) paginationContainer.style.display = 'none';
+        return;
+    }
+
     console.log(`🔄 Carregando clientes - Página ${currentPage}, Limite ${itemsPerPage}`);
 
     const loadingMessage = document.getElementById('loadingMessage');
@@ -1846,6 +1798,7 @@ async function loadClients() {
                 loadContractCountsAsync(clientesFormatados);
                 loadEstimatedHoursAsync(clientesFormatados);
                 loadRealizedHoursAsync(clientesFormatados);
+                // Reativar colaboradores com lógica simples
                 loadCollaboratorsAsync(clientesFormatados);
                 loadCustosTotaisAsync(clientesFormatados);
                 loadProdutosAsync(clientesFormatados);
@@ -1889,7 +1842,9 @@ async function loadTaskCounts(clientes) {
         // Buscar contagem de tarefas para cada cliente em paralelo
         const taskCountPromises = clientes.map(async (cliente) => {
             try {
-                const response = await fetch(`/api/tarefas-count/${cliente.id}`);
+                const filterParams = buildTaskFilterParams();
+                const url = `/api/tarefas-count/${cliente.id}${filterParams ? '?' + filterParams : ''}`;
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (data && data.success) {
@@ -1941,6 +1896,8 @@ async function loadTaskCountsAsync(clientes) {
                     if (activePeriodoFilter.endDate) {
                         params.append('endDate', activePeriodoFilter.endDate);
                     }
+                    const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+                    params.append('periodoLogica', logic);
                 }
                 
                 const queryString = params.toString();
@@ -2002,6 +1959,9 @@ async function loadTaskCountsAsync(clientes) {
     updateTasksCount();
     updateEstimatedHoursCount();
     updateRealizedHoursCount();
+
+    // Atualizar contagem de colaboradores usando tarefas em cache
+    updateCollaboratorsAfterRender(clientesParaRenderizar);
 }
 
 // Carregar contagens de contratos de forma assíncrona (em lotes)
@@ -2117,15 +2077,29 @@ function buildTaskFilterParams() {
         console.log('👥 Incluindo colaboradores nos filtros de horas:', activeColaboradorFilters);
     }
     
-    // Adicionar filtros de período usando a variável global
+    // Adicionar filtros de período usando a variável global + lógica E/OU
     if (activePeriodoFilter) {
-        if (activePeriodoFilter.startDate) {
-            queryParams.append('startDate', activePeriodoFilter.startDate);
+        // Garantir datas válidas como yyyy-mm-dd
+        const start = activePeriodoFilter.startDate || (typeof window !== 'undefined' ? window.selectedStartDate : null);
+        const end = activePeriodoFilter.endDate || (typeof window !== 'undefined' ? window.selectedEndDate : null);
+        if (start) {
+            queryParams.append('inicio', formatDateForAPI(start));
         }
-        if (activePeriodoFilter.endDate) {
-            queryParams.append('endDate', activePeriodoFilter.endDate);
+        if (end) {
+            queryParams.append('fim', formatDateForAPI(end));
         }
-        console.log('📅 Incluindo período nos filtros de horas:', activePeriodoFilter);
+        // Incluir lógica E/OU
+        const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+        queryParams.append('periodoLogica', logic);
+        console.log('📅 Incluindo período nos filtros de horas:', { inicio: start, fim: end, periodoLogica: logic });
+    } else {
+        // Fallback: usar seleção global do calendário
+        const start = (typeof window !== 'undefined' ? window.selectedStartDate : null) || selectedStartDate;
+        const end = (typeof window !== 'undefined' ? window.selectedEndDate : null) || selectedEndDate;
+        if (start) queryParams.append('inicio', formatDateForAPI(start));
+        if (end) queryParams.append('fim', formatDateForAPI(end));
+        const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+        queryParams.append('periodoLogica', logic);
     }
     
     // FALLBACK: Obter de activeFilters se as variáveis globais não tiverem dados
@@ -2175,13 +2149,19 @@ function buildFilterParamsWithoutPeriod() {
 
 // Carregar horas estimadas de forma assíncrona (em lotes)
 async function loadEstimatedHoursAsync(clientes) {
+    // INATIVO: horas/custos estimados
+    try {
+        const estimatedHoursCountCard = document.getElementById('estimatedHoursCountCard');
+        if (estimatedHoursCountCard) estimatedHoursCountCard.style.display = 'none';
+    } catch (_) {}
+    return; // não carregar estimados
     const BATCH_SIZE = 10; // Processar 10 clientes por vez
     const DELAY_BETWEEN_BATCHES = 100; // 100ms de delay entre lotes
     
 
     
-    // Construir parâmetros de filtro uma vez para todo o lote (apenas filtros de tarefas, não de contratos)
-    const filterParams = buildTaskFilterParams();
+    // Usar os parâmetros atuais (compatíveis com timestamps e lógica de período)
+    const filterParams = getCurrentFilterParams();
     const queryString = filterParams ? `?${filterParams}` : '';
 
     
@@ -2244,53 +2224,54 @@ async function loadRealizedHoursAsync(clientes) {
     
 
     
-    // Construir parâmetros de filtro uma vez para todo o lote (apenas filtros de tarefas, não de contratos)
-    const filterParams = buildTaskFilterParams();
-    const queryString = filterParams ? `?${filterParams}` : '';
+    // Usar os filtros atuais (inclui período, status e colaboradores)
+    const queryParams = getCurrentFilterParams();
+    const queryString = queryParams ? `?${queryParams}` : '';
 
-    
     for (let i = 0; i < clientes.length; i += BATCH_SIZE) {
         const batch = clientes.slice(i, i + BATCH_SIZE);
-        
+
         // Processar lote atual
         const batchPromises = batch.map(async (cliente) => {
             try {
-                const response = await fetch(`/api/tempo-realizado/${cliente.id}${queryString}`);
+                // Buscar colaboradores com suas horas realizadas/estimadas e somar conforme a regra
+                const response = await fetch(`/api/colaboradores-nomes/${cliente.id}${queryString}`);
                 const data = await response.json();
-                
-                if (data && data.success) {
-                    // O backend já retorna o valor em horas decimais
-                    cliente.horas_realizadas = (data.tempo_decimal || 0).toFixed(2);
-                    cliente.horas_realizadas_loaded = true;
-                    
-                    // Calcular diferença se horas estimadas já estão carregadas
-                    let updateData = { horas_realizadas: cliente.horas_realizadas, horas_realizadas_loaded: true };
-                    if (cliente.horas_loaded) {
-                        const diferenca = calculateTimeDifference(cliente.horas_estimadas, cliente.horas_realizadas);
-                        cliente.diferenca = diferenca;
-                        cliente.diferenca_loaded = true;
-                        updateData.diferenca = diferenca;
-                        updateData.diferenca_loaded = true;
+
+                let totalRealizadas = 0;
+                if (data && data.success && Array.isArray(data.colaboradores)) {
+                    if (data.colaboradores.length === 1) {
+                        totalRealizadas = parseFloat(data.colaboradores[0].horas_realizadas) || 0;
+                    } else {
+                        totalRealizadas = data.colaboradores.reduce((sum, c) => sum + (parseFloat(c.horas_realizadas) || 0), 0);
                     }
-                    
-                    updateClientCard(cliente.id, updateData);
-                } else {
-                    console.warn(`Erro ao buscar horas realizadas para cliente ${cliente.nome}:`, data);
-                    cliente.horas_realizadas = '0.00';
-                    cliente.horas_realizadas_loaded = true;
-                    updateClientCard(cliente.id, { horas_realizadas: '0.00', horas_realizadas_loaded: true });
                 }
+
+                cliente.horas_realizadas = totalRealizadas.toFixed(2);
+                cliente.horas_realizadas_loaded = true;
+
+                // Calcular diferença se horas estimadas já estão carregadas
+                let updateData = { horas_realizadas: cliente.horas_realizadas, horas_realizadas_loaded: true };
+                if (cliente.horas_loaded) {
+                    const diferenca = calculateTimeDifference(cliente.horas_estimadas, cliente.horas_realizadas);
+                    cliente.diferenca = diferenca;
+                    cliente.diferenca_loaded = true;
+                    updateData.diferenca = diferenca;
+                    updateData.diferenca_loaded = true;
+                }
+
+                updateClientCard(cliente.id, updateData);
             } catch (error) {
-                console.error(`Erro ao buscar horas realizadas para cliente ${cliente.nome}:`, error);
+                console.error(`Erro ao somar horas realizadas por colaboradores do cliente ${cliente.nome}:`, error);
                 cliente.horas_realizadas = '0.00';
                 cliente.horas_realizadas_loaded = true;
                 updateClientCard(cliente.id, { horas_realizadas: '0.00', horas_realizadas_loaded: true });
             }
         });
-        
+
         // Aguardar lote atual
         await Promise.all(batchPromises);
-        
+
         // Pequeno delay antes do próximo lote (exceto no último)
         if (i + BATCH_SIZE < clientes.length) {
             await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
@@ -2306,61 +2287,175 @@ async function loadRealizedHoursAsync(clientes) {
 async function loadCustosTotaisAsync(clientes) {
     const BATCH_SIZE = 10; // Processar 10 clientes por vez
     const DELAY_BETWEEN_BATCHES = 100; // 100ms de delay entre lotes
-    
 
-    
-    // Construir parâmetros de filtro uma vez para todo o lote (apenas filtros de tarefas, não de contratos)
-    const filterParams = buildTaskFilterParams();
-    
+    // Parâmetros de filtro atuais
+    const filterParams = getCurrentFilterParams();
+    const queryString = filterParams ? `?${filterParams}` : '';
+
+    // Buscar lista de colaboradores uma vez para mapear nome → membroId
+    let colaboradoresLista = [];
+    try {
+        const respColabs = await fetch('/api/colaboradores', { credentials: 'include' });
+        if (respColabs.ok) {
+            const dColabs = await respColabs.json();
+            colaboradoresLista = Array.isArray(dColabs.colaboradores) ? dColabs.colaboradores : [];
+        }
+    } catch (_) {}
+
+    const normalize = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const findMemberByName = (nome) => {
+        const alvo = normalize(nome || '');
+        if (!alvo) return null;
+        // Primeiro correspondência EXATA
+        let match = colaboradoresLista.find(c => normalize(c.nome) === alvo);
+        // Senão, aproximação por includes
+        if (!match) {
+            match = colaboradoresLista.find(c => {
+                const cn = normalize(c.nome);
+                return cn.includes(alvo) || alvo.includes(cn);
+            });
+        }
+        return match && match.id ? match.id : null;
+    };
+
     for (let i = 0; i < clientes.length; i += BATCH_SIZE) {
         const batch = clientes.slice(i, i + BATCH_SIZE);
-        
-        // Processar lote atual
+
         const batchPromises = batch.map(async (cliente) => {
             try {
-                const url = `/api/custos-totais/${cliente.id}${filterParams ? '?' + filterParams : ''}`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data && data.success) {
-                    
-                    updateClientCard(cliente.id, { 
-                        custo_estimado: data.custo_estimado_formatado,
-                        custo_estimado_loaded: true,
-                        custo: data.custo_realizado_formatado,
-                        custo_loaded: true 
+                // Tarefas do cliente: usar cache, senão buscar
+                let tarefas = clienteTarefasCarregadas.get(cliente.id) || [];
+                if (!tarefas || tarefas.length === 0) {
+                    try {
+                        const resp = await fetch(`/api/tarefas-detalhes/${cliente.id}${queryString}`, { credentials: 'include' });
+                        const json = await resp.json();
+                        tarefas = (json && json.success) ? (json.tarefas || []) : [];
+                        clienteTarefasCarregadas.set(cliente.id, tarefas);
+                        updateCollaboratorsCountFromTasks(cliente.id);
+                    } catch (_) {
+                        tarefas = [];
+                        clienteTarefasCarregadas.set(cliente.id, tarefas);
+                        updateCollaboratorsCountFromTasks(cliente.id);
+                    }
+                }
+
+                // Agregar ms por usuário a partir das tarefas e registros
+                const msPorUsuario = new Map();
+                const nomePorUsuario = new Map();
+                const toMs = (val) => {
+                    let n = typeof val === 'string' ? parseFloat(val) : Number(val);
+                    if (!Number.isFinite(n) || n <= 0) return 0;
+                    // Se parecer horas decimais (ex.: 0.15), converter para ms
+                    if (n < 1000) return Math.round(n * 3600000);
+                    // Caso contrário, já está em ms
+                    return Math.round(n);
+                };
+
+                const fetchRegPromises = [];
+                tarefas.forEach(t => {
+                    const usuarios = Array.isArray(t.colaboradores) ? t.colaboradores : [];
+                    usuarios.forEach(u => {
+                        const uid = parseInt(u.usuario_id, 10);
+                        if (!isNaN(uid) && u.nome) nomePorUsuario.set(uid, u.nome);
                     });
-                } else {
-                    console.warn(`💰💡 Erro ao buscar custos totais para cliente ${cliente.id}:`, data);
-                    updateClientCard(cliente.id, { 
+
+                    const registrosLocais = (t.registros && Array.isArray(t.registros)) ? t.registros : null;
+                    if (registrosLocais) {
+                        registrosLocais.forEach(r => {
+                            const uid = parseInt(r.usuario_id, 10);
+                            if (!isNaN(uid)) {
+                                const ms = toMs(r.tempo_realizado);
+                                msPorUsuario.set(uid, (msPorUsuario.get(uid) || 0) + ms);
+                            }
+                        });
+                    } else if (t.id != null) {
+                        // Buscar registros quando não estão no cache
+                        fetchRegPromises.push(
+                            fetch(`/api/tarefa-registros-tempo/${t.id}`, { credentials: 'include' })
+                                .then(resp => resp.json())
+                                .then(data => {
+                                    const regs = (data && data.success) ? (data.registros || []) : [];
+                                    regs.forEach(r => {
+                                        const uid = parseInt(r.usuario_id, 10);
+                                        if (!isNaN(uid)) {
+                                            const ms = toMs(r.tempo_realizado);
+                                            msPorUsuario.set(uid, (msPorUsuario.get(uid) || 0) + ms);
+                                        }
+                                    });
+                                })
+                                .catch(() => {})
+                        );
+                    }
+                });
+
+                await Promise.all(fetchRegPromises);
+
+                const usuariosDetalhados = Array.from(msPorUsuario.keys()).map(uid => {
+                    const horas = parseFloat(((msPorUsuario.get(uid) || 0) / 3600000).toFixed(2));
+                    const nome = nomePorUsuario.get(uid) || `Usuário ${uid}`;
+                    return { usuario_id: uid, nome, horas };
+                });
+
+                // Somar custo realizado: horas × custo_por_hora por colaborador
+                let custoRealizadoTotal = 0;
+                for (const u of usuariosDetalhados) {
+                    const membroId = findMemberByName(u.nome);
+                    if (!membroId) {
+                        // Se não resolver membroId com segurança, ignorar para evitar valor incorreto
+                        continue;
+                    }
+                    try {
+                        const respCPH = await fetch(`/api/custo-hora-membro/${membroId}`, { credentials: 'include' });
+                        if (respCPH.ok) {
+                            const d3 = await respCPH.json();
+                            const cph = parseFloat(d3?.custo_por_hora) || 0;
+                            if (cph > 0) {
+                                custoRealizadoTotal += (cph * u.horas);
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                const custoRealizadoFormatado = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(custoRealizadoTotal);
+
+                // Atualizar custo realizado no card (novo cálculo somado por colaborador)
+                updateClientCard(cliente.id, {
+                    custo: custoRealizadoFormatado,
+                    custo_loaded: true
+                });
+
+                // Manter custo estimado via endpoint dedicado (sem alterar a lógica atual)
+                try {
+                    const respEst = await fetch(`/api/custo-estimado/${cliente.id}${queryString}`, { credentials: 'include' });
+                    const jEst = await respEst.json();
+                    const custoEstimadoFormatado = jEst && jEst.success ? (jEst.custo_estimado_formatado || 'R$ 0,00') : 'R$ 0,00';
+                    updateClientCard(cliente.id, {
+                        custo_estimado: custoEstimadoFormatado,
+                        custo_estimado_loaded: true
+                    });
+                } catch (_) {
+                    updateClientCard(cliente.id, {
                         custo_estimado: 'R$ 0,00',
-                        custo_estimado_loaded: true,
-                        custo: 'R$ 0,00',
-                        custo_loaded: true 
+                        custo_estimado_loaded: true
                     });
                 }
             } catch (error) {
-                console.error(`💰💡 Erro ao buscar custos totais para cliente ${cliente.id}:`, error);
-                updateClientCard(cliente.id, { 
-                    custo_estimado: 'R$ 0,00',
-                    custo_estimado_loaded: true,
+                console.error(`💰💡 Erro ao calcular custo realizado somado para cliente ${cliente.id}:`, error);
+                updateClientCard(cliente.id, {
                     custo: 'R$ 0,00',
-                    custo_loaded: true 
+                    custo_loaded: true
                 });
             }
         });
-        
+
         // Aguardar conclusão do lote atual
         await Promise.all(batchPromises);
-        
+
         // Delay entre lotes para não sobrecarregar o servidor
         if (i + BATCH_SIZE < clientes.length) {
             await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
         }
     }
-    
-
 }
 
 
@@ -2377,8 +2472,8 @@ async function loadProdutosAsync(clientes) {
     // Verificar se 7 MARES está na lista
     const cliente7Mares = clientes.find(c => c.nome === '7 MARES');
     
-    // Construir parâmetros de filtro uma vez para todo o lote (apenas filtros de tarefas, não de contratos)
-    const filterParams = buildTaskFilterParams();
+    // Usar parâmetros atuais (inclui colaboradores, período com timestamps e periodoLogica)
+    const filterParams = getCurrentFilterParams();
     const queryString = filterParams ? `?${filterParams}` : '';
     
     for (let i = 0; i < clientes.length; i += BATCH_SIZE) {
@@ -2433,71 +2528,43 @@ async function loadProdutosAsync(clientes) {
 
 // Carregar colaboradores de forma assíncrona (em lotes)
 async function loadCollaboratorsAsync(clientes) {
-    const BATCH_SIZE = 10; // Processar 10 clientes por vez
-    const DELAY_BETWEEN_BATCHES = 100; // 100ms de delay entre lotes
-    
+    try {
+        for (let i = 0; i < clientes.length; i += BATCH_SIZE) {
+            const batch = clientes.slice(i, i + BATCH_SIZE);
 
-    
-    // Construir parâmetros de filtro uma vez para todo o lote (apenas filtros de tarefas, não de contratos)
-    const filterParams = buildTaskFilterParams();
-    const queryString = filterParams ? `?${filterParams}` : '';
-
-    
-    for (let i = 0; i < clientes.length; i += BATCH_SIZE) {
-        const batch = clientes.slice(i, i + BATCH_SIZE);
-        
-        // Processar lote atual
-        const batchPromises = batch.map(async (cliente) => {
-            try {
-                const url = `/api/colaboradores-count/${cliente.id}${queryString}`;
-
-                
-
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data && data.success) {
-                    cliente.colaboradores = data.count || 0;
-                    cliente.colaboradores_loaded = true;
-                    
-                    updateClientCard(cliente.id, { colaboradores: cliente.colaboradores, colaboradores_loaded: true });
-                    
-                    // Verificar se o elemento foi realmente atualizado (apenas se o card existe no DOM)
-                    setTimeout(() => {
-                        const clientCard = document.querySelector(`[data-client-id="${cliente.id}"]`);
-                        if (clientCard && document.body.contains(clientCard)) {
-                            const cardElement = clientCard.querySelector('.colaboradores-value');
-                            // Verificação silenciosa - não loggar
-                        }
-                        // Card não existe no DOM (provavelmente foi filtrado) - não loggar erro
-                    }, 100);
-                } else {
-                    console.warn(`❌ Erro ao buscar colaboradores para cliente ${cliente.nome}:`, data);
-                    cliente.colaboradores = 0;
-                    cliente.colaboradores_loaded = true;
+            const batchPromises = batch.map(async (cliente) => {
+                try {
+                    // Usar dados de tarefas em cache para contar colaboradores únicos
+                    const count = countCollaboratorsFromTasks(cliente.id);
+                    updateClientCard(cliente.id, { colaboradores: count, colaboradores_loaded: true });
+                } catch (error) {
+                    console.warn('💥 Erro na busca de colaboradores (simples):', error);
                     updateClientCard(cliente.id, { colaboradores: 0, colaboradores_loaded: true });
                 }
-            } catch (error) {
-                console.error(`💥 Erro ao buscar colaboradores para cliente ${cliente.nome}:`, error);
-                cliente.colaboradores = 0;
-                cliente.colaboradores_loaded = true;
-                updateClientCard(cliente.id, { colaboradores: 0, colaboradores_loaded: true });
+            });
+
+            await Promise.all(batchPromises);
+
+            // Delay entre lotes para não sobrecarregar o servidor
+            if (i + BATCH_SIZE < clientes.length) {
+                await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
             }
-        });
-        
-        // Aguardar lote atual
-        await Promise.all(batchPromises);
-        
-        // Pequeno delay antes do próximo lote (exceto no último)
-        if (i + BATCH_SIZE < clientes.length) {
-            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
         }
-        
-
+    } catch (error) {
+        console.error('👥 ERRO na função loadCollaboratorsAsync:', error);
     }
-    
+}
 
+// Atualizar contagem de colaboradores imediatamente após renderizar os cards, sem backend
+function updateCollaboratorsAfterRender(clientes) {
+    try {
+        clientes.forEach(c => {
+            const count = countCollaboratorsFromTasks(c.id);
+            updateClientCard(c.id, { colaboradores: count, colaboradores_loaded: true });
+        });
+    } catch (e) {
+        console.warn('Falha ao atualizar colaboradores após render:', e);
+    }
 }
 
 
@@ -2539,6 +2606,14 @@ function renderClientCards(clientes, highlightedClientIds = []) {
     
     // Gerar HTML apenas dos cards necessários
     const cardsHTML = clientesParaRenderizar.map(cliente => createClientCard(cliente)).join('');
+
+    // Substituir "Carregando..." de colaboradores por 0 imediatamente
+    try {
+        clientesParaRenderizar.forEach(c => {
+            updateClientCard(c.id, { colaboradores: 0, colaboradores_loaded: true });
+        });
+    } catch (_) {}
+
     clientsGrid.innerHTML = cardsHTML;
     
     // Atualizar contador de clientes e tarefas
@@ -2590,31 +2665,37 @@ function createClientCard(cliente) {
                     </div>
                     <div class="client-info-item">
                         <i class="fas fa-box"></i>
-                        <span class="value produtos-value">Produto: <span class="loading-text">Carregando...</span></span>
+                        <span class="value produtos-value">Produtos: <span class="loading-text">Carregando...</span></span>
                     </div>
                     <div class="client-info-item">
                         <i class="fas fa-users"></i>
-                        <span class="value colaboradores-value">Colaboradores: <span class="loading-text">Carregando...</span></span>
+                        <span class="value colaboradores-value">Colaboradores: 0</span>
                     </div>
+                    <!-- INATIVO: Hrs estimadas
                     <div class="client-info-item">
                         <i class="fas fa-clock"></i>
                         <span class="value horas-estimadas-value">Hrs estimadas: <span class="loading-text">Carregando...</span></span>
                     </div>
+                    -->
                     <div class="client-info-item">
                         <i class="fas fa-stopwatch"></i>
                         <span class="value horas-realizadas-value">Hrs realizadas: <span class="loading-text">Carregando...</span></span>
                     </div>
+                    <!-- INATIVO: Diferença
                     <div class="client-info-item">
                         <i class="fas fa-calculator"></i>
                         <span class="value diferenca-value">Diferença: <span class="loading-text">Carregando...</span></span>
                     </div>
+                    -->
+                    <!-- INATIVO: Custo Estimado
                     <div class="client-info-item">
                         <i class="fas fa-coins"></i>
                         <span class="value custo-estimado-value">Custo Estimado: <span class="loading-text">Carregando...</span></span>
                     </div>
+                    -->
                     <div class="client-info-item">
                         <i class="fas fa-dollar-sign"></i>
-                        <span class="value custo-value">Custo Realizado: <span class="loading-text">Carregando...</span></span>
+                        <span class="value custo-value">Realizado: <span class="loading-text">Carregando...</span></span>
                     </div>
                     <div class="client-info-item">
                         <i class="fas fa-dollar-sign"></i>
@@ -2682,15 +2763,20 @@ function updateClientCard(clienteId, updates) {
                     const margemFormatada = formatCurrency(margem);
                     margemValue.innerHTML = `Margem: <span class="margin-loaded">${margemFormatada}</span>`;
                 } else {
-                    // Verificar se ambos os valores são zero ou se contêm "R$ 0,00"
-                    const isFaturamentoZero = faturamentoText.includes('R$ 0,00') || faturamentoText.includes('0');
-                    const isCustoZero = custoText.includes('R$ 0,00') || custoText.includes('0');
-                    
-                    if (isFaturamentoZero && isCustoZero) {
-                        // Se ambos são zero, mostrar margem zero
+                    // Fallbacks robustos para zero
+                    const faturamentoZero = /R\$\s*0,00/i.test(faturamentoText) || /\b0\s*registro(s)?\b/i.test(faturamentoText);
+                    const custoZero = /R\$\s*0,00/i.test(custoText);
+
+                    if (faturamentoZero) {
+                        // Quando faturamento for zero/ausente, considerar margem como zero
                         margemValue.innerHTML = 'Margem: <span class="margin-loaded">R$ 0,00</span>';
+                    } else if (custoZero && faturamentoMatch) {
+                        // Se custo for zero e faturamento presente numérico, margem = faturamento
+                        const faturamentoValue = parseFloat(faturamentoMatch[1].replace(/\./g, '').replace(',', '.'));
+                        const margemFormatada = formatCurrency(faturamentoValue);
+                        margemValue.innerHTML = `Margem: <span class="margin-loaded">${margemFormatada}</span>`;
                     } else {
-                        // Se não conseguir extrair os valores, mostrar carregando
+                        // Dados ainda não prontos
                         margemValue.innerHTML = 'Margem: <span class="loading-text">Carregando...</span>';
                     }
                 }
@@ -2775,22 +2861,18 @@ function updateClientCard(clienteId, updates) {
     
     // Atualizar colaboradores se fornecido
     if (updates.colaboradores !== undefined) {
-        // Verificar se o card ainda existe no DOM antes de procurar elementos filhos
-        if (!document.body.contains(clientCard)) {
-            return; // Card foi removido/filtrado, não processar
-        }
-        
         const colaboradoresValueSpan = clientCard.querySelector('.colaboradores-value');
         if (colaboradoresValueSpan) {
             if (updates.colaboradores_loaded) {
-                const hasColaboradores = updates.colaboradores && updates.colaboradores > 0;
-                const arrowIcon = hasColaboradores ? '<span class="colaboradores-arrow" onclick="toggleColaboradoresDetails(\'' + clienteId + '\')" title="Ver detalhes dos colaboradores">></span>' : '';
-                colaboradoresValueSpan.innerHTML = `Colaboradores: <span class="collaborators-loaded">${updates.colaboradores}</span>${arrowIcon}`;
+                const hasColabs = (updates.colaboradores || 0) > 0;
+                const arrowIcon = hasColabs ? '<span class="colaboradores-arrow" onclick="toggleColaboradoresDetailsSimples(\'' + clienteId + '\')" title="Ver detalhes dos colaboradores">></span>' : '';
+                colaboradoresValueSpan.innerHTML = `Colaboradores: <span class="collaborators-loaded">${updates.colaboradores || 0}</span>${arrowIcon}`;
             } else {
-                colaboradoresValueSpan.innerHTML = `Colaboradores: ${updates.colaboradores}`;
+                colaboradoresValueSpan.innerHTML = `Colaboradores: ${updates.colaboradores || 0}`;
             }
         }
     }
+
     
     // Atualizar custo se fornecido
     if (updates.custo !== undefined) {
@@ -2802,9 +2884,9 @@ function updateClientCard(clienteId, updates) {
         const custoValueSpan = clientCard.querySelector('.custo-value');
         if (custoValueSpan) {
             if (updates.custo_loaded) {
-                custoValueSpan.innerHTML = `Custo Realizado: <span class="cost-loaded">${updates.custo}</span>`;
+                custoValueSpan.innerHTML = `Realizado: <span class="cost-loaded">${updates.custo}</span>`;
             } else {
-                custoValueSpan.innerHTML = `Custo Realizado: ${updates.custo}`;
+                custoValueSpan.innerHTML = `Realizado: ${updates.custo}`;
             }
             
             // Forçar refresh visual
@@ -2816,7 +2898,7 @@ function updateClientCard(clienteId, updates) {
             setTimeout(() => {
                 const verificacao = document.querySelector(`[data-client-id="${clienteId}"] .custo-value`);
                 if (verificacao && !verificacao.innerHTML.includes(updates.custo)) {
-                    verificacao.innerHTML = `Custo Realizado: <span class="cost-loaded">${updates.custo}</span>`;
+                    verificacao.innerHTML = `Realizado: <span class="cost-loaded">${updates.custo}</span>`;
                 }
             }, 100);
         }
@@ -3010,8 +3092,21 @@ function updateMargemVisibilityInAllCards() {
                         const margemFormatada = formatCurrency(margem);
                         margemValue.innerHTML = `Margem: <span class="margin-loaded">${margemFormatada}</span>`;
                     } else {
-                        // Se não conseguir extrair os valores, mostrar carregando
-                        margemValue.innerHTML = 'Margem: <span class="loading-text">Carregando...</span>';
+                        // Fallbacks robustos para zero
+                        const faturamentoText = faturamentoValueSpan.textContent || '';
+                        const custoText = custoValueSpan.textContent || '';
+                        const faturamentoZero = /R\$\s*0,00/i.test(faturamentoText) || /\b0\s*registro(s)?\b/i.test(faturamentoText);
+                        const custoZero = /R\$\s*0,00/i.test(custoText);
+
+                        if (faturamentoZero) {
+                            margemValue.innerHTML = 'Margem: <span class="margin-loaded">R$ 0,00</span>';
+                        } else if (custoZero && faturamentoMatch) {
+                            const faturamentoValue = parseFloat(faturamentoMatch[1].replace(/\./g, '').replace(',', '.'));
+                            const margemFormatada = formatCurrency(faturamentoValue);
+                            margemValue.innerHTML = `Margem: <span class="margin-loaded">${margemFormatada}</span>`;
+                        } else {
+                            margemValue.innerHTML = 'Margem: <span class="loading-text">Carregando...</span>';
+                        }
                     }
                 }
                 
@@ -3422,11 +3517,14 @@ function collectStatusFilterData() {
 
 function collectPeriodoFilterData() {
 
-    
-    // Usar as variáveis globais diretamente em vez de ler do DOM
-    const startDate = selectedStartDate;
-    const endDate = selectedEndDate;
-    
+    // Ler do calendário moderno (window.*) com fallback para variáveis globais
+    const startDate = (typeof window !== 'undefined' && typeof window.selectedStartDate !== 'undefined')
+        ? window.selectedStartDate
+        : selectedStartDate;
+    const endDate = (typeof window !== 'undefined' && typeof window.selectedEndDate !== 'undefined')
+        ? window.selectedEndDate
+        : selectedEndDate;
+
 
     return { startDate, endDate };
 }
@@ -3494,6 +3592,26 @@ function applyAllFilters() {
         clientes: clienteData,
         colaboradores: colaboradorData
     });
+
+    // Regra: se houver colaboradores OU clientes selecionados, período (início e fim) é obrigatório
+    const hasColabs = Array.isArray(colaboradorData) && colaboradorData.length > 0;
+    const hasClientes = Array.isArray(clienteData) && clienteData.length > 0;
+    const hasValidPeriod = !!(periodoData && periodoData.startDate && periodoData.endDate);
+    if ((hasColabs || hasClientes) && !hasValidPeriod) {
+        // Notificação no topo e foco no seletor de período
+        showTopNotification('Por favor, selecione um período para aplicar os filtros.', 'error');
+        try {
+            const periodoSelectText = document.getElementById('periodoSelectText') || document.getElementById('periodoText');
+            if (periodoSelectText) periodoSelectText.classList.add('validation-required');
+
+            const periodoTrigger = document.getElementById('periodoTrigger');
+            if (periodoTrigger) {
+                periodoTrigger.classList.add('active');
+                periodoTrigger.click();
+            }
+        } catch (_) {}
+        return; // Não aplicar filtros sem período
+    }
     
     // Atualizar variáveis globais de filtros para uso na paginação
     activeStatusFilters = statusData;
@@ -3556,8 +3674,61 @@ function applyAllFilters() {
     
     console.log('✅ Filtros configurados! Carregando clientes...');
     
-    // Chamar loadClients() que agora já envia os filtros para o backend
-        loadClients();
+    // Marcar que filtros foram aplicados e carregar
+    filtrosAplicados = true;
+    loadClients();
+
+    // Esconder qualquer UI de Global período; card principal cuidará do período
+    try {
+        const el = document.getElementById('periodoGlobalHoursText');
+        if (el) el.style.display = 'none';
+    } catch (_) {}
+
+    // Garantir que fecha o card flutuante de período ao aplicar filtros
+    if (typeof closePeriodoFloatingCard === 'function') {
+        try { closePeriodoFloatingCard(); } catch (_) {}
+    }
+}
+
+// Notificação simples no topo da tela
+function showTopNotification(message, type = 'info') {
+    try {
+        const notification = document.createElement('div');
+        notification.className = `top-notification top-notification-${type}`;
+        notification.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        notification.style.cssText = `
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#d93025' : '#2196F3'};
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 6px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+            z-index: 10000;
+            font-size: 14px;
+            font-weight: 500;
+            min-width: 280px;
+            max-width: 640px;
+            text-align: center;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 200ms ease-in';
+            setTimeout(() => {
+                if (notification.parentNode) notification.parentNode.removeChild(notification);
+            }, 220);
+        }, 2800);
+    } catch (e) {
+        console.warn('Falha ao exibir notificação:', e);
+    }
 }
 
 // Função para carregar clientes com destaque
@@ -3697,8 +3868,37 @@ async function loadClientsWithColaboradorHighlight(selectedColaboradorIds) {
         
         if (data.success && data.clientes) {
             const clienteIds = data.clientes.map(cliente => cliente.id);
-
-            highlightSelectedClients(clienteIds);
+            console.log('✅ Cliente IDs dos colaboradores:', clienteIds);
+            
+            // Carregar apenas esses clientes do backend para evitar paginação ocultar cards
+            const respClientes = await fetch(`/api/clientes?clienteIds=${clienteIds.join(',')}`);
+            const clientesData = await respClientes.json();
+            const clientes = (clientesData && clientesData.data) ? clientesData.data : [];
+            
+            // Mapear para o formato dos cards
+            const clientesFormatados = clientes.map(cliente => {
+                const nomeExtraido = cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || 'Nome não informado';
+                return {
+                    id: cliente.id,
+                    nome: nomeExtraido,
+                    razao_social: cliente.razao_social,
+                    nome_fantasia: cliente.nome_fantasia,
+                    status: cliente.status || 'ativo',
+                    created_at: cliente.created_at,
+                    faturamento_registros: cliente.faturamento_registros || [],
+                    faturamento_total_registros: cliente.faturamento_total_registros || 0,
+                    tarefas_count: 'loading',
+                    tarefas_loaded: false,
+                    contratos_count: 'loading',
+                    contratos_loaded: false,
+                    horas_estimadas: 'loading',
+                    horas_loaded: false
+                };
+            });
+            
+            // Atualizar lista global e renderizar somente os clientes destacados
+            allClients = clientesFormatados;
+            renderClientCards(clientesFormatados, clienteIds);
         } else {
             console.log('Nenhum cliente encontrado para os colaboradores selecionados');
             // Mostrar todos os clientes sem destaque
@@ -3886,7 +4086,8 @@ function filterClientsByContractStatus(queryParams) {
                     // Recarregar todas as informações dos clientes visíveis
                     loadEstimatedHoursAsync(clientesVisiveis);
                     loadRealizedHoursAsync(clientesVisiveis);
-                    loadCollaboratorsAsync(clientesVisiveis);
+                    // Colaboradores desativados
+// loadCollaboratorsAsync(clientesVisiveis);
                     loadCustosTotaisAsync(clientesVisiveis);
                     loadProdutosAsync(clientesVisiveis);
                     loadFaturamentoAsync(clientesVisiveis);
@@ -3966,7 +4167,18 @@ function filterClients(queryParams) {
     
     return Promise.all(allClients.map(async (client) => {
         try {
-            const url = `/api/tarefas-count/${client.id}?${queryParams.toString()}`;
+            // Garantir que colaboradorIds e periodoLogica estejam presentes
+            const params = new URLSearchParams(queryParams.toString());
+            if (Array.isArray(activeColaboradorFilters) && activeColaboradorFilters.length > 0 && !params.has('colaboradorIds')) {
+                params.append('colaboradorIds', activeColaboradorFilters.join(','));
+            }
+            // Se houver período mas não lógica, incluir a lógica atual (E/OU)
+            const hasPeriodo = params.has('inicio') || params.has('fim') || params.has('startDate') || params.has('endDate') || (selectedStartDate && selectedEndDate);
+            if (hasPeriodo && !params.has('periodoLogica')) {
+                const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+                params.append('periodoLogica', logic);
+            }
+            const url = `/api/tarefas-count/${client.id}?${params.toString()}`;
 
             const response = await fetch(url);
              const data = await response.json();
@@ -4004,7 +4216,14 @@ function filterClients(queryParams) {
                 // Não carregar loadTaskCountsAsync aqui para não sobrescrever valores filtrados
                 loadEstimatedHoursAsync(clientes);
                 loadRealizedHoursAsync(clientes);
-                loadCollaboratorsAsync(clientes);
+                // Colaboradores desativados
+// // Colaboradores desativados
+// // Colaboradores desativados
+// // Colaboradores desativados
+// // Colaboradores desativados
+// // Colaboradores desativados
+// // Colaboradores desativados
+// loadCollaboratorsAsync(clientes);
                 loadCustosTotaisAsync(clientes);
                 loadProdutosAsync(clientes); // Adicionar carregamento de produtos
                 
@@ -4115,11 +4334,12 @@ function updateFilterButtons() {
     
     // Verificar se há filtros ativos (incluindo os filtros expostos)
     const hasActiveFilters = activeFilters.length > 0;
-    const hasExposedStatusFilter = document.querySelectorAll('#exposedStatusFilter input[type="checkbox"]:checked').length > 0;
-    const hasExposedClientFilter = document.querySelectorAll('#exposedClientFilter input[type="checkbox"]:checked').length > 0;
-    const hasExposedPeriodFilter = selectedStartDate || selectedEndDate;
+    const hasExposedStatusFilter = (typeof window.getSelectedStatuses === 'function') ? window.getSelectedStatuses().length > 0 : false;
+    const hasExposedClientFilter = (typeof window.getSelectedClientes === 'function') ? window.getSelectedClientes().length > 0 : false;
+    const hasExposedColabFilter = (typeof window.getSelectedColaboradores === 'function') ? window.getSelectedColaboradores().length > 0 : false;
+    const hasExposedPeriodFilter = !!(selectedStartDate || selectedEndDate);
     
-    const hasFilters = hasActiveFilters || hasExposedStatusFilter || hasExposedClientFilter || hasExposedPeriodFilter;
+    const hasFilters = hasActiveFilters || hasExposedStatusFilter || hasExposedClientFilter || hasExposedColabFilter || hasExposedPeriodFilter;
     
     console.log('updateFilterButtons chamada:', { 
         hasFilters, 
@@ -4132,7 +4352,9 @@ function updateFilterButtons() {
     });
     
     if (applyFiltersBtn) {
-        applyFiltersBtn.style.display = hasFilters ? 'inline-block' : 'none';
+        // Botão sempre visível e habilitado (sem bloqueio)
+        applyFiltersBtn.style.display = 'inline-block';
+        applyFiltersBtn.disabled = false;
 
     } else {
         console.error('Botão applyFiltersBtn não encontrado');
@@ -4228,7 +4450,20 @@ async function filterClientsByStatus(selectedStatuses) {
         const filteredClients = await Promise.all(
             allClients.map(async (cliente) => {
                 try {
-                    const response = await fetch(`/api/tarefas-count/${cliente.id}?status=${selectedStatuses.join(',')}`);
+                    const params = new URLSearchParams();
+                    params.append('status', selectedStatuses.join(','));
+                    if (Array.isArray(activeColaboradorFilters) && activeColaboradorFilters.length > 0) {
+                        params.append('colaboradorIds', activeColaboradorFilters.join(','));
+                    }
+                    const start = (typeof window !== 'undefined' && window.selectedStartDate) ? window.selectedStartDate : selectedStartDate;
+                    const end = (typeof window !== 'undefined' && window.selectedEndDate) ? window.selectedEndDate : selectedEndDate;
+                    if (start && end) {
+                        params.append('inicio', formatDateForAPI(start));
+                        params.append('fim', formatDateForAPI(end));
+                        const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+                        params.append('periodoLogica', logic);
+                    }
+                    const response = await fetch(`/api/tarefas-count/${cliente.id}?${params.toString()}`);
                     const data = await response.json();
                     
                     if (data && data.success) {
@@ -4276,6 +4511,7 @@ async function filterClientsByStatus(selectedStatuses) {
                 // Não carregar loadTaskCountsAsync aqui para não sobrescrever valores filtrados
                 loadEstimatedHoursAsync(clientes);
                 loadRealizedHoursAsync(clientes);
+                // Reativar colaboradores com lógica simples de contagem
                 loadCollaboratorsAsync(clientes);
                 loadCustosTotaisAsync(clientes);
                 loadProdutosAsync(clientes); // Adicionar carregamento de produtos
@@ -4332,11 +4568,22 @@ async function filterClientsByPeriod(dataInicial, dataFinal) {
             `;
         }
         
+        const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+        
         // Buscar contagem de tarefas filtradas por período para cada cliente
         const filteredClients = await Promise.all(
             allClients.map(async (cliente) => {
                 try {
-                    const response = await fetch(`/api/tarefas-count/${cliente.id}?dataInicial=${encodeURIComponent(dataInicial)}&dataFinal=${encodeURIComponent(dataFinal)}`);
+                    // Incluir colaboradores filtrados na contagem, se houver
+                    const selectedColaboradores = (typeof getSelectedColaboradores === 'function') ? getSelectedColaboradores() : [];
+                    const colaboradores = (selectedColaboradores && selectedColaboradores.length > 0)
+                        ? selectedColaboradores
+                        : (Array.isArray(activeColaboradorFilters) && activeColaboradorFilters.length > 0 ? activeColaboradorFilters : []);
+                    const colabParam = (colaboradores && colaboradores.length > 0) 
+                        ? `&colaboradorIds=${encodeURIComponent(colaboradores.join(','))}` 
+                        : '';
+
+                    const response = await fetch(`/api/tarefas-count/${cliente.id}?dataInicial=${encodeURIComponent(dataInicial)}&dataFinal=${encodeURIComponent(dataFinal)}&periodoLogica=${encodeURIComponent(logic)}${colabParam}`);
                     const data = await response.json();
                     
                     if (data && data.success) {
@@ -4384,7 +4631,8 @@ async function filterClientsByPeriod(dataInicial, dataFinal) {
                 // Não carregar loadTaskCountsAsync aqui para não sobrescrever valores filtrados
                 loadEstimatedHoursAsync(clientes);
                 loadRealizedHoursAsync(clientes);
-                loadCollaboratorsAsync(clientes);
+                // Colaboradores desativados
+                // loadCollaboratorsAsync(clientes);
                 loadCustosTotaisAsync(clientes);
                 loadProdutosAsync(clientes); // Adicionar carregamento de produtos
                 
@@ -4430,15 +4678,27 @@ function updateFilterButtonsVisibility() {
     const hasClienteFilter = (typeof window.getSelectedClientes === 'function') ? 
         window.getSelectedClientes().length > 0 : false;
     
-    // Verificar filtro de período usando as variáveis globais selectedStartDate e selectedEndDate
-    const hasPeriodoFilter = selectedStartDate !== null || selectedEndDate !== null;
+    // Incluir colaboradores
+    const hasColabFilter = (typeof window.getSelectedColaboradores === 'function') ?
+        window.getSelectedColaboradores().length > 0 : false;
     
-    const hasFilters = hasStatusFilter || hasClienteFilter || hasPeriodoFilter;
+    // Verificar filtro de período usando window.* com fallback
+    const periodoStart = (typeof window !== 'undefined' && typeof window.selectedStartDate !== 'undefined')
+        ? window.selectedStartDate
+        : selectedStartDate;
+    const periodoEnd = (typeof window !== 'undefined' && typeof window.selectedEndDate !== 'undefined')
+        ? window.selectedEndDate
+        : selectedEndDate;
+    const hasPeriodoFilter = periodoStart != null || periodoEnd != null;
+    
+    const hasFilters = hasStatusFilter || hasClienteFilter || hasColabFilter || hasPeriodoFilter;
     
 
     
     if (applyFiltersBtn) {
-        applyFiltersBtn.style.display = hasFilters ? 'inline-block' : 'none';
+        // Botão sempre visível e habilitado (sem bloqueio)
+        applyFiltersBtn.style.display = 'inline-block';
+        applyFiltersBtn.disabled = false;
     }
     
     if (clearFiltersBtn) {
@@ -4450,34 +4710,239 @@ function updateFilterButtonsVisibility() {
 // A inicialização já é feita no início do arquivo
 
 // Função para mostrar/ocultar detalhes dos colaboradores
-function toggleColaboradoresDetails(clienteId) {
-    
-    // Verificar se já existe um mini card aberto
+// Versão simples: abre mini-card com agregação local do cache de tarefas
+function toggleColaboradoresDetailsSimples(clienteId) {
     const existingMiniCard = document.querySelector('.colaboradores-mini-card');
     if (existingMiniCard) {
         existingMiniCard.remove();
         return;
     }
-    
-    // Buscar nomes dos colaboradores
-    const queryParams = getCurrentFilterParams();
-    const queryString = queryParams ? `?${queryParams}` : '';
-    const url = `/api/colaboradores-nomes/${clienteId}${queryString}`;
-        
-    fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.success) {
-                showColaboradoresMiniCard(clienteId, data.colaboradores);
-            } else {
-                console.error('Erro ao buscar nomes dos colaboradores:', data);
-                showColaboradoresMiniCard(clienteId, []);
+    // Buscar tarefas do cliente no cache
+    const tarefas = clienteTarefasCarregadas.get(clienteId) || [];
+    showColaboradoresSimplesMiniCard(clienteId, tarefas);
+}
+
+async function showColaboradoresSimplesMiniCard(clienteId, tarefas) {
+    // Verificar existência do card
+    const clientCard = document.querySelector(`[data-client-id="${clienteId}"]`);
+    if (!clientCard) return;
+
+    // Encontrar a arrow de colaboradores
+    const colabsArrow = clientCard.querySelector('.colaboradores-arrow');
+    if (!colabsArrow) return;
+
+    // Cache global de colaboradores e custo-hora
+    window.colaboradoresCache = window.colaboradoresCache || null;
+    window.colaboradoresCachePromise = window.colaboradoresCachePromise || null;
+    window.custoHoraCache = window.custoHoraCache || {};
+
+    const ensureColaboradoresCache = () => {
+        if (!window.colaboradoresCachePromise) {
+            window.colaboradoresCachePromise = fetch('/api/colaboradores', { credentials: 'include' })
+                .then(r => r.ok ? r.json() : { colaboradores: [] })
+                .then(j => {
+                    const lista = Array.isArray(j.colaboradores) ? j.colaboradores : [];
+                    window.colaboradoresCache = lista;
+                    return lista;
+                })
+                .catch(() => {
+                    window.colaboradoresCache = [];
+                    return [];
+                });
+        }
+        return window.colaboradoresCachePromise;
+    };
+
+    const normalize = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+    const findMemberIdByName = (nome) => {
+        const alvo = normalize(nome || '');
+        if (!alvo) return null;
+        const lista = window.colaboradoresCache || [];
+        let match = lista.find(c => normalize(c.nome) === alvo);
+        if (!match) {
+            match = lista.find(c => {
+                const cn = normalize(c.nome);
+                return cn.includes(alvo) || alvo.includes(cn);
+            });
+        }
+        return match && match.id ? match.id : null;
+    };
+
+    const getCustoHora = async (membroId) => {
+        if (!membroId) return 0;
+        if (window.custoHoraCache[membroId] != null) return window.custoHoraCache[membroId];
+        try {
+            const resp = await fetch(`/api/custo-hora-membro/${membroId}`, { credentials: 'include' });
+            if (resp.ok) {
+                const j = await resp.json();
+                const cph = parseFloat(j?.custo_por_hora) || 0;
+                window.custoHoraCache[membroId] = cph;
+                return cph;
             }
-        })
-        .catch(error => {
-            console.error('Erro ao buscar nomes dos colaboradores:', error);
-            showColaboradoresMiniCard(clienteId, []);
+        } catch (_) {}
+        window.custoHoraCache[membroId] = 0;
+        return 0;
+    };
+
+    // Agregar horas por colaborador a partir das tarefas, sem bloquear renderização
+    const msPorUsuario = new Map();
+    const nomePorUsuario = new Map();
+    const fetchPromises = [];
+
+    const toMs = (val) => {
+        let n = typeof val === 'string' ? parseFloat(val) : Number(val);
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        if (n < 1000) return Math.round(n * 3600000); // horas decimais → ms
+        return Math.round(n); // já em ms
+    };
+
+    tarefas.forEach(t => {
+        const usuarios = Array.isArray(t.colaboradores) ? t.colaboradores : [];
+        usuarios.forEach(u => {
+            const uid = parseInt(u.usuario_id, 10);
+            if (!isNaN(uid) && u.nome) nomePorUsuario.set(uid, u.nome);
         });
+        const registrosLocais = (t.registros && Array.isArray(t.registros)) ? t.registros : null;
+        if (registrosLocais) {
+            registrosLocais.forEach(r => {
+                const uid = parseInt(r.usuario_id, 10);
+                if (!isNaN(uid)) {
+                    const ms = toMs(r.tempo_realizado);
+                    msPorUsuario.set(uid, (msPorUsuario.get(uid) || 0) + ms);
+                }
+            });
+        } else if (t.id != null) {
+            // Lazy loading: buscar registros em background
+            fetchPromises.push(
+                fetch(`/api/tarefa-registros-tempo/${t.id}`)
+                    .then(resp => resp.json())
+                    .then(data => {
+                        const regs = (data && data.success) ? (data.registros || []) : [];
+                        regs.forEach(r => {
+                            const uid = parseInt(r.usuario_id, 10);
+                            if (!isNaN(uid)) {
+                                const ms = toMs(r.tempo_realizado);
+                                msPorUsuario.set(uid, (msPorUsuario.get(uid) || 0) + ms);
+                            }
+                        });
+                    })
+                    .catch(() => {})
+            );
+        }
+    });
+
+    // Renderizar imediatamente com dados parciais (sem await)
+    const usuariosParciais = Array.from(nomePorUsuario.keys()).map(uid => {
+        const nome = nomePorUsuario.get(uid) || `Usuário ${uid}`;
+        const horas = parseFloat(((msPorUsuario.get(uid) || 0) / 3600000).toFixed(2));
+        return { usuario_id: uid, nome, horas };
+    }).sort((a, b) => b.horas - a.horas);
+
+    const miniCard = document.createElement('div');
+    miniCard.className = 'colaboradores-mini-card';
+    miniCard.innerHTML = `
+        <button class="mini-card-close" onclick="closeColaboradoresMiniCard()">
+            <i class="fas fa-times"></i>
+        </button>
+        <div class="mini-card-content">
+            ${usuariosParciais.length > 0 ? usuariosParciais.map(u => `
+                <div class="colaborador-item" data-colaborador-id="${u.usuario_id}">
+                    <i class="fas fa-user"></i>
+                    <div class="colaborador-info">
+                        <div class="colaborador-header">
+                            <span class="colaborador-nome">${u.nome}</span>
+                            <span class="colaborador-tarefas-arrow" onclick="toggleColaboradorTarefas('${clienteId}', '${u.usuario_id}', this)" title="Ver tarefas do colaborador">
+                                <i class="fas fa-chevron-right"></i>
+                            </span>
+                        </div>
+                        <div class="colaborador-realizadas-card">
+                            <div class="realizadas-top">
+                                Realizadas: <span class="colaborador-horas" data-uid="${u.usuario_id}">${u.horas.toFixed(2)}h</span>
+                            </div>
+                            <small class="colaborador-custo-realizado" data-uid="${u.usuario_id}">Realizado: Carregando...</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('') : '<div class="no-colaboradores">Nenhum colaborador com tempo registrado</div>'}
+        </div>
+    `;
+    document.body.appendChild(miniCard);
+
+    // Posicionar próximo da arrow
+    const rect = colabsArrow.getBoundingClientRect();
+    const mrect = miniCard.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    let left = rect.left + scrollLeft + rect.width + 10;
+    let top = rect.top + scrollTop;
+    const vw = window.innerWidth; const vh = window.innerHeight;
+    if ((left - scrollLeft) + mrect.width > vw) left = rect.left + scrollLeft - mrect.width - 10;
+    if ((left - scrollLeft) < 10) left = scrollLeft + 10;
+    if ((top - scrollTop) + mrect.height > vh) top = scrollTop + vh - mrect.height - 10;
+    if ((top - scrollTop) < 10) top = scrollTop + 10;
+    miniCard.style.position = 'absolute';
+    miniCard.style.left = `${left}px`;
+    miniCard.style.top = `${top}px`;
+    miniCard.style.zIndex = '1000';
+    setTimeout(() => miniCard.classList.add('show'), 10);
+
+    // Handler para preencher custos e horas quando dados chegarem
+    const custoBRL = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+    const updateHorasECustos = async () => {
+        // Recalcular horas
+        const horasSpans = miniCard.querySelectorAll('.colaborador-horas');
+        horasSpans.forEach(span => {
+            const uid = parseInt(span.getAttribute('data-uid'), 10);
+            const horas = parseFloat(((msPorUsuario.get(uid) || 0) / 3600000).toFixed(2));
+            span.textContent = `${horas.toFixed(2)}h`;
+        });
+        // Garantir cache de colaboradores
+        await ensureColaboradoresCache();
+        // Preencher custos
+        const custoSpans = miniCard.querySelectorAll('.colaborador-custo-realizado');
+        await Promise.all(Array.from(custoSpans).map(async span => {
+            const uid = parseInt(span.getAttribute('data-uid'), 10);
+            const nome = nomePorUsuario.get(uid) || `Usuário ${uid}`;
+            const horas = parseFloat(((msPorUsuario.get(uid) || 0) / 3600000).toFixed(2));
+            const membroId = findMemberIdByName(nome);
+            if (!membroId) {
+                span.textContent = 'Realizado: —';
+                return;
+            }
+            const cph = await getCustoHora(membroId);
+            if (cph > 0 && horas > 0) {
+                span.textContent = `Realizado: ${custoBRL(cph * horas)}`;
+            } else {
+                span.textContent = 'Realizado: —';
+            }
+        }));
+    };
+
+    // Disparar atualizações em background, sem bloquear abertura
+    Promise.all(fetchPromises)
+        .then(updateHorasECustos)
+        .catch(() => updateHorasECustos());
+    ensureColaboradoresCache().then(() => updateHorasECustos());
+
+    // Fechar ao clicar fora
+    setTimeout(() => {
+        if (window.colaboradoresOutsideClickHandler) {
+            document.removeEventListener('click', window.colaboradoresOutsideClickHandler);
+        }
+        window.colaboradoresOutsideClickHandler = function(event) {
+            if (!miniCard.contains(event.target) && !event.target.closest('.colaboradores-arrow')) {
+                closeColaboradoresMiniCard();
+                document.removeEventListener('click', window.colaboradoresOutsideClickHandler);
+                window.colaboradoresOutsideClickHandler = null;
+            }
+        };
+        document.addEventListener('click', window.colaboradoresOutsideClickHandler);
+    }, 100);
+}
+
+function closeColaboradoresMiniCard() {
+    const miniCard = document.querySelector('.colaboradores-mini-card');
+    if (miniCard) miniCard.remove();
 }
 
 // Função para exibir o mini card com os detalhes dos produtos
@@ -4644,38 +5109,33 @@ window.toggleProdutosDetails = function(clienteId) {
 
 // Função para alternar detalhes das tarefas
 function toggleTarefasDetails(clienteId) {
-    
-    // Verificar se já existe um mini card aberto
+    // Fechar mini-card se já estiver aberto
     const existingMiniCard = document.querySelector('.tarefas-mini-card');
     if (existingMiniCard) {
         existingMiniCard.remove();
         return;
     }
     
-    // Buscar detalhes das tarefas
+    // Buscar detalhes das tarefas com filtros atuais (inclui colaboradorIds e período)
     const queryParams = getCurrentFilterParams();
     const queryString = queryParams ? `?${queryParams}` : '';
     const url = `/api/tarefas-detalhes/${clienteId}${queryString}`;
     
-    
     fetch(url)
-        .then(response => {
-
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-
-            if (data && data.success) {
-
-                showTarefasMiniCard(clienteId, data.tarefas);
-            } else {
-                console.error('❌ Erro ao buscar detalhes das tarefas:', data);
-                showTarefasMiniCard(clienteId, []);
-            }
+            const tarefas = (data && data.success) ? (data.tarefas || []) : [];
+            showTarefasMiniCard(clienteId, tarefas);
+            // Atualizar contagem de colaboradores no card a partir das tarefas recebidas
+            clienteTarefasCarregadas.set(clienteId, tarefas);
+            updateCollaboratorsCountFromTasks(clienteId);
         })
         .catch(error => {
             console.error('❌ Erro na requisição:', error);
             showTarefasMiniCard(clienteId, []);
+            // Mesmo em erro, garantir que não fique "Carregando..."
+            clienteTarefasCarregadas.set(clienteId, []);
+            updateCollaboratorsCountFromTasks(clienteId);
         });
 }
 
@@ -4703,50 +5163,51 @@ async function toggleColaboradorTarefas(clienteId, colaboradorId, arrowElement) 
 // Função para carregar tarefas para o cache automaticamente
 async function loadTarefasParaCache(clienteId, useFilters = true) {
     try {
-
-        
         let url = `/api/tarefas-detalhes/${clienteId}`;
         
         // Aplicar filtros atuais se solicitado
         if (useFilters) {
             const filterParams = getCurrentFilterParams();
             if (filterParams) {
-                url += `?${filterParams}`;
-
+                // Converter em URLSearchParams para manipular
+                const qs = new URLSearchParams(filterParams);
+                // Remover compat de responsavel_id (não usamos mais aqui)
+                qs.delete('responsavel_id');
+                // Incluir periodoLogica se disponível
+                const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : null;
+                if (logic) qs.set('periodoLogica', logic);
+                url += `?${qs.toString()}`;
             }
         }
         
         const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         const tarefas = data.tarefas || [];
         
         // Armazenar no cache
         clienteTarefasCarregadas.set(clienteId, tarefas);
-        
-        
+        // Atualizar contador de colaboradores no card
+        updateCollaboratorsCountFromTasks(clienteId);
     } catch (error) {
         console.error('❌ Erro ao carregar tarefas para cache:', error);
         clienteTarefasCarregadas.set(clienteId, []);
+        // Garantir que não fique "Carregando..." mesmo em erro
+        updateCollaboratorsCountFromTasks(clienteId);
     }
 }
 
 function loadColaboradorTarefas(clienteId, colaboradorId, container) {
-    
-    
     // Mostrar loading
     container.innerHTML = '<div class="loading-tarefas"><i class="fas fa-spinner fa-spin"></i> Carregando tarefas...</div>';
     
     // Buscar tarefas já carregadas do cliente no cache
     const tarefasDoCliente = clienteTarefasCarregadas.get(clienteId) || [];
     
-    // Filtrar apenas as tarefas onde o colaborador é responsável
+    // Filtrar tarefas onde o colaborador aparece nos registros de tempo
     const tarefasDoColaborador = tarefasDoCliente.filter(tarefa => {
-        return tarefa.responsavel_id && tarefa.responsavel_id.toString() === colaboradorId.toString();
+        const usuarios = Array.isArray(tarefa.colaboradores) ? tarefa.colaboradores : [];
+        return usuarios.some(u => String(u.usuario_id) === String(colaboradorId));
     });
     
     // Exibir as tarefas
@@ -4773,17 +5234,21 @@ function showColaboradorTarefasContent(container, tarefas) {
                         <i class="fas fa-external-link-alt"></i>
                     </button>
                 ` : ''}
+                <button class="colaborador-tarefa-expand-btn" data-tarefa-id="${tarefa.id}" title="Expandir registros">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
             <div class="colaborador-tarefa-details">
                 <div class="colaborador-tempo-item">
                     <i class="fas fa-clock"></i>
-                    <span>Estimado: ${tarefa.tempo_estimado}h</span>
+                    <span>Estimado: ${Number(tarefa.tempo_estimado).toFixed(2)}h</span>
                 </div>
                 <div class="colaborador-tempo-item">
                     <i class="fas fa-stopwatch"></i>
-                    <span>Realizado: ${tarefa.tempo_realizado}h</span>
+                    <span>Realizado: ${Number(tarefa.tempo_realizado).toFixed(2)}h</span>
                 </div>
             </div>
+            <div class="colaborador-tarefa-registros" data-tarefa-id="${tarefa.id}" style="display:none"></div>
         </div>
     `).join('');
     
@@ -4799,6 +5264,73 @@ function showColaboradorTarefasContent(container, tarefas) {
             if (url && url.trim() !== '') {
                 window.open(url, '_blank');
 
+            }
+        });
+    });
+
+    // Adicionar eventos para expandir registros
+    const expandButtons = container.querySelectorAll('.colaborador-tarefa-expand-btn');
+    expandButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const tarefaId = btn.getAttribute('data-tarefa-id');
+            const registrosContainer = container.querySelector(`.colaborador-tarefa-registros[data-tarefa-id="${tarefaId}"]`);
+            if (!registrosContainer) return;
+
+            const toggleDisplay = () => {
+                const icon = btn.querySelector('i');
+                const willShow = registrosContainer.style.display === 'none';
+                registrosContainer.style.display = willShow ? 'block' : 'none';
+                icon.className = willShow ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+            };
+
+            // Se já tem conteúdo, apenas alterna visibilidade
+            if (registrosContainer.innerHTML && registrosContainer.innerHTML.trim() !== '') {
+                toggleDisplay();
+                return;
+            }
+
+            // Buscar registros de tempo da tarefa
+            try {
+                const resp = await fetch(`/api/tarefa-registros-tempo/${tarefaId}`);
+                const json = await resp.json();
+                if (!json.success) {
+                    registrosContainer.innerHTML = '<div class="registro-erro">Erro ao carregar registros</div>';
+                    registrosContainer.style.display = 'block';
+                    return;
+                }
+
+                const toHoras = (n) => {
+                    const num = Number(n);
+                    if (!Number.isFinite(num) || num <= 0) return 0;
+                    if (num < 1000) return num; // já em horas
+                    return parseFloat((num / 3600000).toFixed(2));
+                };
+
+                const formatDate = (iso) => {
+                    if (!iso) return '-';
+                    const d = new Date(iso);
+                    const pad = (v) => String(v).padStart(2, '0');
+                    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
+
+                const registros = json.registros || [];
+                if (registros.length === 0) {
+                    registrosContainer.innerHTML = '<div class="registro-vazio">Sem registros de tempo</div>';
+                } else {
+                    const items = registros.map(r => `
+                        <div class="registro-item">
+                            <span class="registro-inicio">${formatDate(r.data_inicio)}</span>
+                            <span class="registro-duracao">${toHoras(r.tempo_realizado).toFixed(2)}h</span>
+                        </div>
+                    `).join('');
+                    registrosContainer.innerHTML = `<div class="registros-list">${items}</div>`;
+                }
+                registrosContainer.style.display = 'block';
+            } catch (err) {
+                console.error('Erro ao carregar registros da tarefa', tarefaId, err);
+                registrosContainer.innerHTML = '<div class="registro-erro">Erro ao carregar registros</div>';
+                registrosContainer.style.display = 'block';
             }
         });
     });
@@ -4938,9 +5470,10 @@ function loadColaboradorTarefasLateral(clienteId, colaboradorId, container) {
     // Buscar tarefas já carregadas do cliente no cache
     const tarefasDoCliente = clienteTarefasCarregadas.get(clienteId) || [];
     
-    // Filtrar apenas as tarefas onde o colaborador é responsável
+    // Filtrar tarefas onde o colaborador aparece nos registros de tempo
     const tarefasDoColaborador = tarefasDoCliente.filter(tarefa => {
-        return tarefa.responsavel_id && tarefa.responsavel_id.toString() === colaboradorId.toString();
+        const usuarios = Array.isArray(tarefa.colaboradores) ? tarefa.colaboradores : [];
+        return usuarios.some(u => String(u.usuario_id) === String(colaboradorId));
     });
     
     // Exibir as tarefas no card lateral
@@ -4969,17 +5502,21 @@ function showColaboradorTarefasContentLateral(container, tarefas) {
                         <i class="fas fa-external-link-alt"></i>
                     </button>
                 ` : ''}
+                <button class="colaborador-tarefa-expand-btn-lateral" data-tarefa-id="${tarefa.id}" title="Mostrar registros">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
             <div class="colaborador-tarefa-details-lateral">
                 <div class="colaborador-tempo-item-lateral">
                     <i class="fas fa-clock"></i>
-                    <span>Estimado: ${tarefa.tempo_estimado}h</span>
+                    <span>Estimado: ${Number(tarefa.tempo_estimado).toFixed(2)}h</span>
                 </div>
                 <div class="colaborador-tempo-item-lateral">
                     <i class="fas fa-stopwatch"></i>
-                    <span>Realizado: ${tarefa.tempo_realizado}h</span>
+                    <span>Realizado: ${Number(tarefa.tempo_realizado).toFixed(2)}h</span>
                 </div>
             </div>
+            <div class="colaborador-tarefa-registros-lateral" data-tarefa-id="${tarefa.id}" style="display:none"></div>
         </div>
     `).join('');
     
@@ -4998,10 +5535,140 @@ function showColaboradorTarefasContentLateral(container, tarefas) {
             }
         });
     });
+
+    // Expandir registros no card lateral
+    const expandButtons = container.querySelectorAll('.colaborador-tarefa-expand-btn-lateral');
+    expandButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const tarefaId = btn.getAttribute('data-tarefa-id');
+            const registrosContainer = container.querySelector(`.colaborador-tarefa-registros-lateral[data-tarefa-id="${tarefaId}"]`);
+            if (!registrosContainer) return;
+
+            const toggleDisplay = () => {
+                registrosContainer.style.display = registrosContainer.style.display === 'none' ? 'block' : 'none';
+            };
+
+            if (registrosContainer.innerHTML && registrosContainer.innerHTML.trim() !== '') {
+                toggleDisplay();
+                return;
+            }
+
+            try {
+                // Montar query string com filtros atuais, se disponível
+                let qs = '';
+                try {
+                    if (typeof getCurrentFilterParams === 'function') {
+                        const paramsStr = getCurrentFilterParams();
+                        qs = paramsStr ? `?${paramsStr}` : '';
+                    }
+                } catch (e) {}
+
+                // Buscar usuários com tempo para a tarefa
+                const resp = await fetch(`/api/tarefa-usuarios-tempo/${tarefaId}${qs}`);
+                const json = await resp.json();
+                if (!json.success) {
+                    registrosContainer.innerHTML = '<div class="registro-erro">Erro ao carregar usuários</div>';
+                    registrosContainer.style.display = 'block';
+                    return;
+                }
+
+                const usuarios = json.usuarios || [];
+                if (usuarios.length === 0) {
+                    registrosContainer.innerHTML = '<div class="registro-vazio">Nenhum usuário com registros</div>';
+                    registrosContainer.style.display = 'block';
+                    return;
+                }
+
+                // Funções utilitárias
+                const toHoursDisplay = (val) => {
+                    if (val == null) return '0.00';
+                    if (typeof val === 'string' && val.includes(':')) {
+                        const parts = val.split(':').map(p => parseInt(p, 10) || 0);
+                        const h = parts[0] || 0, m = parts[1] || 0, s = parts[2] || 0;
+                        const ms = ((h * 60 + m) * 60 + s) * 1000;
+                        return (ms / 3600000).toFixed(2);
+                    }
+                    const num = parseFloat(val);
+                    if (!Number.isFinite(num) || num <= 0) return '0.00';
+                    const horas = num < 1000 ? num : (num / 3600000);
+                    return horas.toFixed(2);
+                };
+                const formatDate = (iso) => {
+                    if (!iso) return '-';
+                    const d = new Date(iso);
+                    const pad = (v) => String(v).padStart(2, '0');
+                    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                };
+
+                // Renderizar usuários com botão de expandir registros
+                registrosContainer.innerHTML = `<div class="usuarios-list">
+                    ${usuarios.map(u => `
+                        <div class="usuario-item" data-usuario-id="${u.usuario_id}">
+                            <div class="usuario-header">
+                                <i class="fas fa-user usuario-icon"></i>
+                                <span class="usuario-nome">${u.nome || 'Usuário'}</span>
+                                <span class="usuario-tempo-pill">${toHoursDisplay(u.tempo_total)}h</span>
+                                <button class="usuario-toggle-btn" title="Mostrar registros"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <div class="registros-list" style="display:none"></div>
+                        </div>
+                    `).join('')}
+                </div>`;
+
+                // Adicionar listeners para expandir registros por usuário
+                const userItems = registrosContainer.querySelectorAll('.usuario-item');
+                userItems.forEach(userItem => {
+                    const usuarioId = parseInt(userItem.getAttribute('data-usuario-id'), 10);
+                    const toggleBtn = userItem.querySelector('.usuario-toggle-btn');
+                    const registrosList = userItem.querySelector('.registros-list');
+                    toggleBtn.addEventListener('click', async (ev) => {
+                        ev.stopPropagation();
+                        const ic = toggleBtn.querySelector('i');
+                        if (registrosList.style.display === 'none') {
+                            ic.className = 'fas fa-chevron-down';
+                            try {
+                                const resp2 = await fetch(`/api/tarefa-registros-tempo/${tarefaId}`);
+                                const data2 = await resp2.json();
+                                const registros = (data2 && data2.success) ? (data2.registros || []) : [];
+                                const registrosUsuario = registros.filter(r => parseInt(r.usuario_id, 10) === usuarioId);
+                                registrosList.innerHTML = registrosUsuario.length > 0 ? registrosUsuario.map(r => `
+                                    <div class="registro-item">
+                                        <i class="fas fa-stopwatch registro-icon"></i>
+                                        <span class="registro-tempo-pill">${toHoursDisplay(r.tempo_realizado)}h</span>
+                                        <span class="registro-data">${formatDate(r.data_inicio)}</span>
+                                    </div>
+                                `).join('') : '<div class="no-registros">Sem registros deste usuário</div>';
+                                registrosList.style.display = '';
+                            } catch (e2) {
+                                registrosList.innerHTML = '<div class="no-registros">Erro ao carregar registros</div>';
+                                registrosList.style.display = '';
+                            }
+                        } else {
+                            ic.className = 'fas fa-chevron-right';
+                            registrosList.style.display = 'none';
+                        }
+                    });
+                });
+
+                registrosContainer.style.display = 'block';
+            } catch (err) {
+                console.error('Erro ao carregar registros da tarefa (lateral)', tarefaId, err);
+                registrosContainer.innerHTML = '<div class="registro-erro">Erro ao carregar registros</div>';
+                registrosContainer.style.display = 'block';
+            }
+        });
+    });
 }
 
 // Função para exibir o mini card com os nomes dos colaboradores
 async function showColaboradoresMiniCard(clienteId, colaboradores) {
+    console.log('👥 Mini-card de colaboradores desativado para o card.');
+    // Remover qualquer mini-card aberto
+    const existingMiniCard = document.querySelector('.colaboradores-mini-card');
+    if (existingMiniCard) existingMiniCard.remove();
+    return;
+
 
     
     // Verificar se o card do cliente existe no DOM (pode ter sido filtrado)
@@ -5014,6 +5681,14 @@ async function showColaboradoresMiniCard(clienteId, colaboradores) {
     // Verificar se o card ainda existe no DOM antes de procurar elementos filhos
     if (!document.body.contains(clientCard)) {
         return; // Card foi removido/filtrado, não processar
+    }
+
+    // Calcular Hrs realizadas dos colaboradores (apenas exibição no mini-card; card é atualizado por loadRealizedHoursAsync)
+    try {
+        // Sem atualização do card aqui para evitar duplicidade/confusão.
+        // Dados exibidos seguem abaixo no mini-card.
+    } catch (e) {
+        console.warn('Falha ao calcular horas realizadas dos colaboradores:', e);
     }
     
     // Carregar tarefas automaticamente se não estiverem no cache
@@ -5043,7 +5718,7 @@ async function showColaboradoresMiniCard(clienteId, colaboradores) {
             ${colaboradores.length > 0 ? 
                 colaboradores.map((colaborador, index) => `
                     <div class="colaborador-item" data-colaborador-id="${colaborador.id}">
-                        <i class="fas fa-user"></i>
+                        <i class="fas fa-user usuario-icon"></i>
                         <div class="colaborador-info">
                             <div class="colaborador-header">
                                 <span class="colaborador-nome">${colaborador.nome}</span>
@@ -5051,20 +5726,13 @@ async function showColaboradoresMiniCard(clienteId, colaboradores) {
                                     <i class="fas fa-chevron-right"></i>
                                 </span>
                             </div>
-                            <div class="colaborador-horas-grid">
-                                <span class="hora-item">
-                                    Estimadas: ${colaborador.horas_estimadas_formatadas || colaborador.horas_estimadas + 'h' || '0h'}<br>
-                                    <small><strong>Custo:</strong> ${colaborador.custo_estimado_formatado || 'R$ 0,00'}</small>
-                                </span>
-                                <span class="hora-item">
-                                    Realizadas: ${colaborador.horas_realizadas || 0}h<br>
-                                    <small><strong>Custo:</strong> ${colaborador.custo_realizacao_formatado || 'R$ 0,00'}</small>
-                                </span>
-                                <span class="hora-item">
-                                    Contratadas: ${colaborador.horas_contratadas || 0}h<br>
-                                    <small><strong>Custo:</strong> ${colaborador.custo_contratado_formatado || 'R$ 0,00'}</small>
-                                </span>
-                                <span class="hora-item">Disponíveis: ${colaborador.horas_disponiveis || 0}h</span>
+                            <div class="colaborador-realizadas-card">
+                                <div class="colaborador-realizadas-top-text">
+                                    Realizadas: ${(parseFloat(colaborador.horas_realizadas) || 0).toFixed(2)}h
+                                </div>
+                                <div class="colaborador-realizadas-cost-text">
+                                    Realizado: ${colaborador.custo_realizacao_formatado || 'R$ 0,00'}
+                                </div>
                             </div>
                             <div class="colaborador-tarefas-container" id="colaborador-tarefas-${colaborador.id}" style="display: none;">
                                 <!-- Tarefas do colaborador serão inseridas aqui -->
@@ -5163,7 +5831,7 @@ function showTarefasMiniCard(clienteId, tarefas) {
     }
     
     // Encontrar especificamente o ícone de tarefas que foi clicado
-    const tarefasArrow = clientCard.querySelector('.tarefas-arrow');
+    const tarefasArrow = clientCard.querySelector('.tarefas-expand-btn') || clientCard.querySelector('.tarefas-arrow');
     if (!tarefasArrow) {
         // Não loggar erro - pode ter sido filtrado
         return;
@@ -5220,6 +5888,128 @@ function showTarefasMiniCard(clienteId, tarefas) {
             if (url && url.trim() !== '') {
                 window.open(url, '_blank');
 
+            }
+        });
+    });
+
+    // Inserir expansão por usuários e registros por usuário
+    const tarefaItems = miniCard.querySelectorAll('.tarefa-item');
+    tarefaItems.forEach(item => {
+        const idx = parseInt(item.getAttribute('data-tarefa-index'), 10);
+        const tarefa = Array.isArray(tarefas) ? tarefas[idx] : null;
+        const tarefaId = tarefa ? tarefa.id : null;
+        if (!tarefaId) return;
+
+        const headerEl = item.querySelector('.tarefa-header');
+        const usuariosToggleBtn = document.createElement('button');
+        usuariosToggleBtn.className = 'tarefa-expand-btn';
+        usuariosToggleBtn.title = 'Mostrar usuários com tempo';
+        usuariosToggleBtn.style.marginLeft = '8px';
+        usuariosToggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        headerEl.appendChild(usuariosToggleBtn);
+
+        const usuariosList = document.createElement('div');
+        usuariosList.className = 'usuarios-list';
+        usuariosList.style.display = 'none';
+        usuariosList.style.marginTop = '6px';
+        item.appendChild(usuariosList);
+
+        usuariosToggleBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const icon = usuariosToggleBtn.querySelector('i');
+            if (usuariosList.style.display === 'none') {
+                icon.className = 'fas fa-chevron-down';
+                let qs = '';
+                try {
+                    if (typeof getCurrentFilterParams === 'function') {
+                        const paramsStr = getCurrentFilterParams();
+                        qs = paramsStr ? `?${paramsStr}` : '';
+                    }
+                } catch (e) {}
+                const url = `/api/tarefa-usuarios-tempo/${tarefaId}${qs}`;
+                try {
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    const usuarios = (data && data.success) ? (data.usuarios || []) : [];
+                    usuariosList.innerHTML = usuarios.length > 0 ? usuarios.map(u => `
+                        <div class="usuario-item" data-usuario-id="${u.usuario_id}">
+                            <div class="usuario-header">
+                                <i class="fas fa-user usuario-icon"></i>
+                                <span class="usuario-nome">${u.nome || 'Usuário'}</span>
+                                <span class="usuario-tempo-pill">${u.tempo_total}h</span>
+                                <button class="usuario-toggle-btn" title="Mostrar registros"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                            <div class="registros-list" style="display:none"></div>
+                        </div>
+                    `).join('') : '<div class="no-usuarios">Nenhum registro de tempo</div>';
+
+                    const userItems = usuariosList.querySelectorAll('.usuario-item');
+                    userItems.forEach(userItem => {
+                        const usuarioId = parseInt(userItem.getAttribute('data-usuario-id'), 10);
+                        const toggleBtn = userItem.querySelector('.usuario-toggle-btn');
+                        const registrosList = userItem.querySelector('.registros-list');
+                        toggleBtn.addEventListener('click', async (ev) => {
+                            ev.stopPropagation();
+                            const ic = toggleBtn.querySelector('i');
+                            if (registrosList.style.display === 'none') {
+                                ic.className = 'fas fa-chevron-down';
+                                try {
+                                    let qs2 = '';
+                                    try {
+                                        if (typeof getCurrentFilterParams === 'function') {
+                                            const paramsStr = getCurrentFilterParams();
+                                            qs2 = paramsStr ? `?${paramsStr}` : '';
+                                        }
+                                    } catch (e) {}
+                                    const resp2 = await fetch(`/api/tarefa-registros-tempo/${tarefaId}${qs2}`);
+                                    const data2 = await resp2.json();
+                                    const registros = (data2 && data2.success) ? (data2.registros || []) : [];
+                                    const registrosUsuario = registros.filter(r => parseInt(r.usuario_id, 10) === usuarioId);
+                                    const toHoursDisplay = (val) => {
+                                        if (val == null) return '0.00';
+                                        if (typeof val === 'string' && val.includes(':')) {
+                                            const parts = val.split(':').map(p => parseInt(p, 10) || 0);
+                                            const h = parts[0] || 0, m = parts[1] || 0, s = parts[2] || 0;
+                                            const ms = ((h * 60 + m) * 60 + s) * 1000;
+                                            return (ms / 3600000).toFixed(2);
+                                        }
+                                        const num = parseFloat(val);
+                                        if (!Number.isFinite(num) || num <= 0) return '0.00';
+                                        const horas = num < 1000 ? num : (num / 3600000);
+                                        return horas.toFixed(2);
+                                    };
+                                    const formatDate = (iso) => {
+                                        if (!iso) return '-';
+                                        const d = new Date(iso);
+                                        const pad = (v) => String(v).padStart(2, '0');
+                                        return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                                    };
+                                    registrosList.innerHTML = registrosUsuario.length > 0 ? registrosUsuario.map(r => `
+                                        <div class="registro-item">
+                                            <i class="fas fa-stopwatch registro-icon"></i>
+                                            <span class="registro-tempo-pill">${toHoursDisplay(r.tempo_realizado)}h</span>
+                                            <span class="registro-data">${formatDate(r.data_inicio)}</span>
+                                        </div>
+                                    `).join('') : '<div class="no-registros">Sem registros deste usuário</div>';
+                                    registrosList.style.display = '';
+                                } catch (e2) {
+                                    registrosList.innerHTML = '<div class="no-registros">Erro ao carregar registros</div>';
+                                    registrosList.style.display = '';
+                                }
+                            } else {
+                                ic.className = 'fas fa-chevron-right';
+                                registrosList.style.display = 'none';
+                            }
+                        });
+                    });
+                } catch (e1) {
+                    usuariosList.innerHTML = '<div class="no-usuarios">Erro ao carregar usuários</div>';
+                }
+                usuariosList.style.display = '';
+            } else {
+                icon.className = 'fas fa-chevron-right';
+                usuariosList.style.display = 'none';
+                usuariosList.innerHTML = '';
             }
         });
     });
@@ -5286,7 +6076,7 @@ function showTarefasMiniCard(clienteId, tarefas) {
         }
         
         // Fechar apenas se clicou fora do mini card e não na seta de tarefas
-        if (!miniCard.contains(event.target) && !event.target.closest('.tarefas-arrow')) {
+        if (!miniCard.contains(event.target) && !event.target.closest('.tarefas-expand-btn')) {
     
             closeTarefasMiniCard();
             document.removeEventListener('click', handleOutsideClick);
@@ -5328,12 +6118,10 @@ function closeTarefasMiniCard() {
 
 // Função para fechar o mini card
 function closeColaboradoresMiniCard() {
+    // Colaboradores desativados: garantir que mini-card não permaneça
     const miniCard = document.querySelector('.colaboradores-mini-card');
     if (miniCard) {
-        miniCard.classList.add('hide');
-        setTimeout(() => {
-            miniCard.remove();
-        }, 200);
+        miniCard.remove();
     }
 }
 
@@ -5411,28 +6199,34 @@ function showFaturamentoMiniCard(clienteId, faturamentoRegistros) {
     // Adicionar ao DOM
     document.body.appendChild(miniCard);
     
-    // Posicionar o mini card
+    // Posicionar o mini card AO LADO da setinha
     const arrowRect = faturamentoArrow.getBoundingClientRect();
     const miniCardRect = miniCard.getBoundingClientRect();
-    
-    let left = arrowRect.left + (arrowRect.width / 2) - (miniCardRect.width / 2);
-    let top = arrowRect.bottom + 8;
-    
-    // Ajustar se sair da tela
+    const scrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    const gap = 8;
+
+    // Posição padrão: à direita da seta, centralizado verticalmente
+    let left = arrowRect.right + scrollX + gap;
+    let top = arrowRect.top + scrollY + (arrowRect.height / 2) - (miniCardRect.height / 2);
+
+    // Limites da viewport
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
-    
-    if (left < 10) left = 10;
-    if (left + miniCardRect.width > windowWidth - 10) {
-        left = windowWidth - miniCardRect.width - 10;
+
+    // Se estourar à direita, posicionar à esquerda da seta
+    if (left + miniCardRect.width > scrollX + windowWidth - 10) {
+        left = arrowRect.left + scrollX - miniCardRect.width - gap;
     }
-    
-    if (top + miniCardRect.height > windowHeight - 10) {
-        top = arrowRect.top - miniCardRect.height - 8;
-    }
-    
-    miniCard.style.left = left + 'px';
-    miniCard.style.top = top + 'px';
+
+    // Clamp vertical para evitar overflow
+    const minTop = scrollY + 10;
+    const maxTop = scrollY + windowHeight - miniCardRect.height - 10;
+    if (top < minTop) top = minTop;
+    if (top > maxTop) top = maxTop;
+
+    miniCard.style.left = `${left}px`;
+    miniCard.style.top = `${top}px`;
     
     // Mostrar com animação
     setTimeout(() => {
@@ -5499,6 +6293,16 @@ function getCurrentFilterParamsWithStatus() {
     return paramsString;
 }
 
+// Ajustar URL de detalhes para incluir periodoLogica quando presente
+function buildDetalhesQueryString(baseQueryString) {
+    const qs = new URLSearchParams(baseQueryString);
+    const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : null;
+    if (logic) {
+        qs.append('periodoLogica', logic);
+    }
+    return `?${qs.toString()}`;
+}
+
 // Função auxiliar para obter parâmetros de filtro atuais (SEM status de contrato - para visualizações detalhadas)
 function getCurrentFilterParams() {
 
@@ -5513,6 +6317,45 @@ function getCurrentFilterParams() {
             params.append('clienteIds', clienteIds.join(','));
         }
     }
+
+    // Adicionar filtros de colaboradores: enviar TODOS como colaboradorIds
+    let colaboradorIdsToSend = [];
+
+    // Preferir activeColaboradorFilters
+    if (typeof activeColaboradorFilters !== 'undefined' && Array.isArray(activeColaboradorFilters) && activeColaboradorFilters.length > 0) {
+        colaboradorIdsToSend = [...new Set(activeColaboradorFilters.map(id => id.toString()))];
+    }
+
+    // Fallback: getSelectedColaboradores()
+    if (colaboradorIdsToSend.length === 0 && typeof getSelectedColaboradores === 'function') {
+        const selected = getSelectedColaboradores();
+        if (Array.isArray(selected) && selected.length > 0) {
+            colaboradorIdsToSend = [...new Set(selected.map(id => id.toString()))];
+        }
+    }
+
+    // Fallback: activeFilters com type==='colaborador'
+    if (colaboradorIdsToSend.length === 0 && Array.isArray(activeFilters)) {
+        const colaboradorFilters = activeFilters.filter(f => f.type === 'colaborador');
+        if (colaboradorFilters.length > 0) {
+            const allColaboradorIds = [];
+            colaboradorFilters.forEach(filter => {
+                if (filter.colaboradores) {
+                    allColaboradorIds.push(...filter.colaboradores);
+                }
+            });
+            colaboradorIdsToSend = [...new Set(allColaboradorIds.map(id => id.toString()))];
+        }
+    }
+
+    if (colaboradorIdsToSend.length > 0) {
+        params.append('colaboradorIds', colaboradorIdsToSend.join(','));
+        if (typeof console !== 'undefined') {
+            console.log('👥 Incluindo colaboradorIds nos detalhes:', colaboradorIdsToSend);
+        }
+        // Manter compatibilidade com endpoints que aceitam apenas um responsavel_id
+        params.append('responsavel_id', colaboradorIdsToSend[0]);
+    }
     
     // Adicionar filtros de período se existirem
     if (selectedStartDate && selectedEndDate) {
@@ -5521,6 +6364,9 @@ function getCurrentFilterParams() {
         const dataFinalTimestamp = formatDateForTimestamptz(selectedEndDate);
         params.append('dataInicial', dataInicialTimestamp);
         params.append('dataFinal', dataFinalTimestamp);
+        // Incluir lógica E/OU
+        const logic = (typeof window !== 'undefined' && window.periodoAndOr) ? window.periodoAndOr : 'E';
+        params.append('periodoLogica', logic);
     }
     
     const paramsString = params.toString();
@@ -5536,7 +6382,7 @@ function saveOpenMiniCardsState() {
     const tarefasMiniCard = document.querySelector('.tarefas-mini-card');
     if (tarefasMiniCard) {
         // Encontrar o cliente ID baseado na posição da mini-card
-        const tarefasArrows = document.querySelectorAll('.tarefas-arrow');
+        const tarefasArrows = document.querySelectorAll('.tarefas-expand-btn, .tarefas-arrow');
         for (let arrow of tarefasArrows) {
             const clientCard = arrow.closest('[data-client-id]');
             if (clientCard) {
@@ -5551,21 +6397,10 @@ function saveOpenMiniCardsState() {
     }
     
     // Verificar se há mini-card de colaboradores aberto
+    // Colaboradores desativados: não salvar estado de mini-card de colaboradores
     const colaboradoresMiniCard = document.querySelector('.colaboradores-mini-card');
     if (colaboradoresMiniCard) {
-        // Encontrar o cliente ID baseado na posição da mini-card
-        const colaboradoresArrows = document.querySelectorAll('.colaboradores-arrow');
-        for (let arrow of colaboradoresArrows) {
-            const clientCard = arrow.closest('[data-client-id]');
-            if (clientCard) {
-                const clienteId = clientCard.getAttribute('data-client-id');
-                openMiniCards.push({
-                    type: 'colaboradores',
-                    clienteId: clienteId
-                });
-                break;
-            }
-        }
+        colaboradoresMiniCard.remove();
     }
     
 
@@ -5586,8 +6421,8 @@ function restoreOpenMiniCardsState(openMiniCards) {
             // Reabrir mini-card de tarefas
             toggleTarefasDetails(miniCard.clienteId);
         } else if (miniCard.type === 'colaboradores') {
-            // Reabrir mini-card de colaboradores
-            toggleColaboradoresDetails(miniCard.clienteId);
+            // Colaboradores desativados: não reabrir mini-card
+            console.log('👥 Mini-card de colaboradores desativado; ignorando restauração.');
         }
     });
 }
@@ -6114,6 +6949,120 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
             background: #0056b3;
             transform: scale(1.05);
         }
+
+        /* Botões de expandir registros */
+        .colaborador-tarefa-expand-btn,
+        .colaborador-tarefa-expand-btn-lateral,
+        .tarefas-expand-btn {
+            background: #f1f3f5;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            margin-left: 6px;
+            transition: all 0.2s ease;
+        }
+        .colaborador-tarefa-expand-btn:hover,
+        .colaborador-tarefa-expand-btn-lateral:hover,
+        .tarefas-expand-btn:hover {
+            background: #e9ecef;
+            transform: scale(1.02);
+        }
+
+        /* Container e itens dos registros */
+        .colaborador-tarefa-registros,
+        .colaborador-tarefa-registros-lateral {
+            margin-top: 8px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        .registros-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        /* Indentação suave para registros dentro de cada usuário */
+        .usuario-item .registros-list {
+            margin-left: 18px;
+            margin-top: 6px;
+        }
+        .registro-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+        .registro-icon {
+            color: #6c757d;
+        }
+        .registro-tempo-pill {
+            background: #e7f1ff;
+            color: #0b5ed7;
+            border: 1px solid #cfe2ff;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .registro-data {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .registro-inicio {
+            color: #495057;
+            font-size: 12px;
+        }
+        .registro-duracao {
+            color: #007bff;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .registro-vazio {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 12px;
+        }
+        .registro-erro {
+            color: #dc3545;
+            font-size: 12px;
+        }
+        /* Cabeçalho e estilo do bloco por usuário */
+        .usuario-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .usuario-icon { color: #0d6efd; }
+        .usuario-tempo-pill {
+            margin-left: auto;
+            background: #f1f3f5;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .usuario-item { padding: 6px 0; border-bottom: 1px dashed #e9ecef; }
+        .usuario-item:last-child { border-bottom: none; }
+        .usuario-toggle-btn, .usuarios-toggle-btn {
+            background: #f1f3f5;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .usuario-toggle-btn:hover, .usuarios-toggle-btn:hover { background: #e9ecef; }
         
         .colaborador-tarefa-details {
             display: flex;
@@ -6155,6 +7104,27 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
             margin-bottom: 2px;
         }
         
+        /* Quadradinho de Realizadas para colaborador */
+        .colaborador-realizadas-card {
+            margin-top: 6px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: rgba(253, 126, 20, 0.1);
+            color: #fd7e14;
+            display: inline-block;
+        }
+        .colaborador-realizadas-card .realizadas-top {
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+        .colaborador-realizadas-card .colaborador-custo-realizado {
+            display: block;
+            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
         .colaborador-horas-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -6190,15 +7160,15 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
             background: rgba(253, 126, 20, 0.1);
         }
         
-        .hora-item:nth-child(3) { /* Contratadas */
-            color: #28a745;
-            background: rgba(40, 167, 69, 0.1);
+        .hora-item:nth-child(3), .hora-item.diferenca-item { /* Diferença */
+            color: #17a2b8; /* azul esverdeado para destacar */
+            background: rgba(23, 162, 184, 0.1);
         }
         
-        .hora-item:nth-child(4) { /* Disponível */
-            color: #6f42c1;
-            background: rgba(111, 66, 193, 0.1);
-        }
+        /* Estados opcionais, se quiser diferenciar por sinal */
+        .hora-item.diferenca-item.positivo { color: #28a745; background: rgba(40,167,69,0.1); }
+        .hora-item.diferenca-item.negativo { color: #dc3545; background: rgba(220,53,69,0.1); }
+        .hora-item.diferenca-item.neutro { color: #0d6efd; background: rgba(13,110,253,0.12); }
         
         .no-colaboradores, .no-tarefas, .no-produtos {
             text-align: center;
@@ -6313,6 +7283,24 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
             font-size: 10px;
         }
         
+        /* Botão de expandir dentro do mini-card da tarefa */
+        .tarefa-expand-btn {
+            background: #f1f3f5;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            margin-left: 6px;
+            transition: all 0.2s ease;
+        }
+        .tarefa-expand-btn:hover {
+            background: #e9ecef;
+            transform: scale(1.02);
+        }
+        }
+        
         .tarefa-details {
             display: flex;
             flex-direction: column;
@@ -6344,7 +7332,7 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
         
         /* Responsividade para diferentes tamanhos de tela */
         @media (max-width: 768px) {
-            .colaboradores-mini-card, .tarefas-mini-card, .produtos-mini-card {
+            .tarefas-mini-card, .produtos-mini-card {
                 min-width: 240px;
                 max-width: calc(100vw - 40px);
                 margin: 10px;
@@ -6358,7 +7346,7 @@ if (!document.getElementById('colaboradores-mini-card-styles')) {
         }
         
         @media (max-width: 480px) {
-            .colaboradores-mini-card, .tarefas-mini-card, .produtos-mini-card {
+            .tarefas-mini-card, .produtos-mini-card {
                 min-width: 200px;
                 max-width: calc(100vw - 20px);
                 margin: 10px;
@@ -6545,8 +7533,20 @@ function startTotalTasksMonitoring(filteredClients) {
     totalTasksCardMonitor.isMonitoring = true;
     totalTasksCardMonitor.filteredClientIds = filteredClients.map(c => c.id);
     totalTasksCardMonitor.loadedClients = new Set();
+
+    // Pré-carregar detalhes de tarefas no cache para clientes filtrados (com filtros atuais)
+    try {
+        filteredClients.forEach(c => {
+            const cached = clienteTarefasCarregadas.get(c.id);
+            if (!cached) {
+                loadTarefasParaCache(c.id, true).catch(() => {});
+            }
+        });
+    } catch (e) {
+        // Silenciar erros de prefetch para não interromper monitoramento
+    }
     
-    // Verificar a cada 300ms se todas as tarefas dos clientes filtrados carregaram
+    // Verificar a cada 300ms se todas as tarefas dos clientes filtrados carregaram (via cache)
     totalTasksCardMonitor.intervalId = setInterval(() => {
         checkFilteredClientsTasksLoaded();
     }, 300);
@@ -6564,27 +7564,14 @@ function startTotalTasksMonitoring(filteredClients) {
 function checkFilteredClientsTasksLoaded() {
     const filteredClients = getFilteredClients();
     let allLoaded = true;
-    let totalTasks = 0;
     
     filteredClients.forEach(client => {
-        const tarefasValueElement = client.card.querySelector('.tarefas-value');
-        
-        if (tarefasValueElement) {
-            const taskText = tarefasValueElement.textContent || '0';
-            
-            // Verificar se ainda está carregando (contém "...")
-            if (taskText.includes('...')) {
-                allLoaded = false;
-
-            } else {
-                // Cliente carregou, adicionar ao conjunto de carregados
-                totalTasksCardMonitor.loadedClients.add(client.id);
-                const taskNumber = parseInt(taskText.replace(/\D/g, '')) || 0;
-                totalTasks += taskNumber;
-
-            }
-        } else {
+        // Considerar carregado quando existir cache de tarefas (mesmo que vazio)
+        const hasCache = clienteTarefasCarregadas.has(client.id);
+        if (!hasCache) {
             allLoaded = false;
+        } else {
+            totalTasksCardMonitor.loadedClients.add(client.id);
         }
     });
     
@@ -6606,24 +7593,85 @@ function finalizeTotalTasksCount() {
     }
     totalTasksCardMonitor.isMonitoring = false;
     
-    // Calcular total final
+    // Calcular total final deduplicando por ID de tarefa
     const filteredClients = getFilteredClients();
-    let totalTasks = 0;
+    const uniqueTaskIds = new Set();
+    const allTaskIdsRaw = [];
+    const taskIdToClients = new Map();
+    const fallbackClientsMissingCache = [];
     
     filteredClients.forEach(client => {
-        const tarefasValueElement = client.card.querySelector('.tarefas-value');
-        if (tarefasValueElement) {
-            const taskText = tarefasValueElement.textContent || '0';
-            const taskNumber = parseInt(taskText.replace(/\D/g, '')) || 0;
-            totalTasks += taskNumber;
+        const hasCache = clienteTarefasCarregadas.has(client.id);
+        const tarefas = clienteTarefasCarregadas.get(client.id) || [];
+        // Se ainda não há cache, tentar fallback para o número exibido no card
+        if (!hasCache) {
+            const tarefasValueElement = client.card.querySelector('.tarefas-value');
+            if (tarefasValueElement) {
+                const taskText = tarefasValueElement.textContent || '0';
+                const taskNumber = parseInt(taskText.replace(/\D/g, '')) || 0;
+                // Fallback: adicionar N elementos fictícios distintos para não mostrar 0
+                for (let i = 0; i < taskNumber; i++) {
+                    uniqueTaskIds.add(`fallback-${client.id}-${i}`);
+                }
+            }
+            fallbackClientsMissingCache.push(client.id);
+            return; // seguir para próximo cliente
         }
+        tarefas.forEach(t => {
+            if (t && t.id !== undefined && t.id !== null) {
+                allTaskIdsRaw.push(t.id);
+                uniqueTaskIds.add(t.id);
+                if (!taskIdToClients.has(t.id)) {
+                    taskIdToClients.set(t.id, new Set());
+                }
+                taskIdToClients.get(t.id).add(client.id);
+            }
+        });
     });
+    
+    const totalTasks = uniqueTaskIds.size;
+
+    // DEBUG: Logar IDs de tarefas e clientes quando colaborador 82167848 estiver filtrado
+    try {
+        let selectedColabs = [];
+        if (typeof activeColaboradorFilters !== 'undefined' && Array.isArray(activeColaboradorFilters) && activeColaboradorFilters.length > 0) {
+            selectedColabs = [...new Set(activeColaboradorFilters.map(id => id.toString()))];
+        }
+        if (selectedColabs.length === 0 && typeof getSelectedColaboradores === 'function') {
+            const selected = getSelectedColaboradores();
+            if (Array.isArray(selected) && selected.length > 0) {
+                selectedColabs = [...new Set(selected.map(id => id.toString()))];
+            }
+        }
+        if (selectedColabs.length === 0 && Array.isArray(activeFilters)) {
+            const colaboradorFilters = activeFilters.filter(f => f.type === 'colaborador' && Array.isArray(f.colaboradores));
+            const allIds = [];
+            colaboradorFilters.forEach(filter => { allIds.push(...filter.colaboradores); });
+            selectedColabs = [...new Set(allIds.map(id => id.toString()))];
+        }
+        if (selectedColabs.length === 1 && selectedColabs[0] === '82167848') {
+            const taskIdToClientsObj = {};
+            taskIdToClients.forEach((set, taskId) => { taskIdToClientsObj[taskId] = Array.from(set); });
+            console.group('🧪 DEBUG Tarefas totais para colaborador 82167848');
+            console.log('Clientes filtrados:', filteredClients.map(c => c.id));
+            console.log('IDs de tarefas (raw, com duplicatas):', allTaskIdsRaw);
+            console.log('Total antes da deduplicação:', allTaskIdsRaw.length);
+            console.log('IDs de tarefas únicos:', Array.from(uniqueTaskIds));
+            console.log('Total após deduplicação:', totalTasks);
+            console.log('Mapa Tarefa -> Clientes:', taskIdToClientsObj);
+            if (fallbackClientsMissingCache.length > 0) {
+                console.warn('Clientes sem cache, fallback aplicado (IDs reais não disponíveis):', fallbackClientsMissingCache);
+            }
+            console.groupEnd();
+        }
+    } catch (e) {
+        // não interromper fluxo por erro de logging
+    }
     
     // Atualizar o card com o total final
     const tasksCountText = document.getElementById('tasksCountText');
     if (tasksCountText) {
         tasksCountText.textContent = `Tarefas: ${totalTasks}`;
-
     }
     
     // Atualizar visibilidade do container
@@ -6643,47 +7691,21 @@ let totalEstimatedHoursCardMonitor = {
 
 // Função principal para gerenciar o card de total de horas estimadas
 function updateEstimatedHoursCount() {
-    
+    // INATIVO: esconder card de estimados e cancelar monitoramento
     const estimatedHoursCountCard = document.getElementById('estimatedHoursCountCard');
-    const estimatedHoursCountText = document.getElementById('estimatedHoursCountText');
-    const estimatedCostCountText = document.getElementById('estimatedCostCountText');
-    
-    if (!estimatedHoursCountCard || !estimatedHoursCountText || !estimatedCostCountText) {
-        console.warn('⏰ Elementos do card de horas estimadas não encontrados');
-        return;
-    }
-    
-    // Verificar se há filtros ativos - CORREÇÃO: verificar também as variáveis globais de período
-    const hasActiveFilters = checkIfFiltersActive();
-    const hasPeriodFilterGlobal = selectedStartDate !== null || selectedEndDate !== null;
-    
-
-    
-    if (!hasActiveFilters && !hasPeriodFilterGlobal) {
-        // Se não há filtros, ocultar o card
+    if (estimatedHoursCountCard) {
         estimatedHoursCountCard.style.display = 'none';
-
-        return;
     }
-    
-    // Obter clientes filtrados/destacados
-    const filteredClients = getFilteredClients();
-    
-    if (filteredClients.length === 0) {
-        // Se não há clientes filtrados, ocultar o card
-        estimatedHoursCountCard.style.display = 'none';
-
-        return;
+    if (totalEstimatedHoursCardMonitor && totalEstimatedHoursCardMonitor.intervalId) {
+        clearInterval(totalEstimatedHoursCardMonitor.intervalId);
+        totalEstimatedHoursCardMonitor.intervalId = null;
     }
-    
-    // Mostrar o card com "Carregando horas..." e "Carregando custo..."
-    estimatedHoursCountCard.style.display = 'flex';
-    estimatedHoursCountText.textContent = 'Carregando horas...';
-    estimatedCostCountText.textContent = 'Custo: Carregando...';
-
-    
-    // Iniciar monitoramento dos clientes filtrados
-    startTotalEstimatedHoursMonitoring(filteredClients);
+    if (totalEstimatedHoursCardMonitor) {
+        totalEstimatedHoursCardMonitor.isMonitoring = false;
+        totalEstimatedHoursCardMonitor.filteredClientIds = [];
+        totalEstimatedHoursCardMonitor.loadedClients = new Set();
+    }
+    return;
 }
 
 // Função para iniciar monitoramento dos clientes filtrados para horas estimadas
@@ -6971,6 +7993,40 @@ function updateRealizedHoursCount() {
         return;
     }
     
+    // NOVA LÓGICA: se houver filtro de colaborador, ignorar outros filtros e calcular direto pelo usuario_id
+    if (activeColaboradorFilters && activeColaboradorFilters.length > 0) {
+        const start = (typeof window !== 'undefined' && window.selectedStartDate) ? window.selectedStartDate : selectedStartDate;
+        const end = (typeof window !== 'undefined' && window.selectedEndDate) ? window.selectedEndDate : selectedEndDate;
+        realizedHoursCountCard.style.display = 'flex';
+        realizedHoursCountText.textContent = 'Carregando...';
+        realizedCostCountText.textContent = 'Custo: R$ 0,00';
+        const filteredClients = getFilteredClients();
+        (async () => {
+            try {
+                if (start && end) {
+                    // Colaborador + período: se há clientes filtrados, somar pelas APIs por cliente; senão, usar período global
+                    const totalHoras = (filteredClients && filteredClients.length > 0)
+                        ? await computeTotalRealizedHoursViaAPI(filteredClients)
+                        : await computeTotalRealizedHoursByColaboradorPeriodo(start, end);
+                    realizedHoursCountText.textContent = `Hrs Realizadas (período): ${totalHoras.toFixed(2)}`;
+                    // Iniciar monitoramento para sincronizar com valores exibidos nos cards
+                    startTotalRealizedHoursMonitoring(filteredClients);
+                } else {
+                    // Apenas colaborador: manter lógica atual
+                    const totalHoras = await computeTotalRealizedHoursByColaboradorOnly();
+                    realizedHoursCountText.textContent = `Hrs Realizadas: ${totalHoras.toFixed(2)}`;
+                }
+                realizedCostCountText.textContent = `Custo: R$ 0,00`;
+                updateTotalCardsContainer();
+                setTimeout(() => { updateDifferenceCard(); }, 100);
+            } catch (e) {
+                realizedHoursCountText.textContent = 'Hrs Realizadas: 0.00';
+                realizedCostCountText.textContent = `Custo: R$ 0,00`;
+            }
+        })();
+        return;
+    }
+
     // Obter clientes filtrados/destacados
     const filteredClients = getFilteredClients();
     
@@ -6986,6 +8042,18 @@ function updateRealizedHoursCount() {
     realizedHoursCountText.textContent = 'Carregando...';
     realizedCostCountText.textContent = 'Custo: Carregando...';
 
+    // Se houver período, podemos calcular direto via API sem esperar monitoramento
+    const start = (typeof window !== 'undefined' && window.selectedStartDate) ? window.selectedStartDate : selectedStartDate;
+    const end = (typeof window !== 'undefined' && window.selectedEndDate) ? window.selectedEndDate : selectedEndDate;
+    if (start && end) {
+        (async () => {
+            const totalRealizedHours = await computeTotalRealizedHoursViaAPI(filteredClients);
+            realizedHoursCountText.textContent = `Hrs Realizadas (período): ${totalRealizedHours.toFixed(2)}`;
+            // custo permanece vindo do monitoramento por cliente
+            startTotalRealizedHoursMonitoring(filteredClients);
+        })();
+        return;
+    }
     
     // Iniciar monitoramento dos clientes filtrados
     startTotalRealizedHoursMonitoring(filteredClients);
@@ -7062,7 +8130,100 @@ function checkFilteredClientsRealizedHoursLoaded() {
 }
 
 // Função para finalizar o monitoramento e exibir o total final de horas realizadas
-function finalizeTotalRealizedHoursCount() {
+// Função utilitária para calcular total de horas realizadas via API nova
+async function computeTotalRealizedHoursViaAPI(filteredClients) {
+    try {
+        if (!filteredClients || filteredClients.length === 0) return 0;
+
+        const params = new URLSearchParams();
+        if (activeColaboradorFilters && activeColaboradorFilters.length > 0) {
+            params.append('colaboradorIds', activeColaboradorFilters.join(','));
+        }
+        const periodStart = (typeof window !== 'undefined' && window.selectedStartDate) ? window.selectedStartDate : selectedStartDate;
+        const periodEnd = (typeof window !== 'undefined' && window.selectedEndDate) ? window.selectedEndDate : selectedEndDate;
+        if (periodStart && periodEnd) {
+            // Enviar como YYYY-MM-DD usando inicio/fim (novo padrão)
+            const inicio = formatDateForAPI(periodStart);
+            const fim = formatDateForAPI(periodEnd);
+            params.append('inicio', inicio);
+            params.append('fim', fim);
+        }
+
+        const requests = filteredClients.map(async (client) => {
+            try {
+                const url = `/api/tempo-realizado/${client.id}?${params.toString()}`;
+                const resp = await fetch(url, { credentials: 'include' });
+                if (!resp.ok) return 0;
+                const json = await resp.json();
+                if (!json || json.success !== true) return 0;
+                return parseFloat(json.tempo_decimal) || 0;
+            } catch (e) {
+                return 0;
+            }
+        });
+
+        const results = await Promise.all(requests);
+        const total = results.reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+        return parseFloat(total.toFixed(2));
+    } catch (error) {
+        return 0;
+    }
+}
+
+// Nova função: somar horas realizadas (global) por colaborador + período
+async function computeTotalRealizedHoursByColaboradorPeriodo(start, end) {
+    try {
+        const params = new URLSearchParams();
+        const inicio = formatDateForAPI(start);
+        const fim = formatDateForAPI(end);
+        params.append('inicio', inicio);
+        params.append('fim', fim);
+        if (activeColaboradorFilters && activeColaboradorFilters.length > 0) {
+            params.append('colaboradorIds', activeColaboradorFilters.join(','));
+        }
+        const url = `/api/horas-realizadas-por-periodo?${params.toString()}`;
+        const resp = await fetch(url, { credentials: 'include' });
+        if (!resp.ok) return 0;
+        const json = await resp.json();
+        const total = parseFloat(json?.totalTempo) || 0;
+        return parseFloat(total.toFixed(2));
+    } catch (e) {
+        return 0;
+    }
+}
+
+// Nova função: somar horas realizadas direto da tabela registro_tempo, apenas por colaborador
+async function computeTotalRealizedHoursByColaboradorOnly() {
+    try {
+        const ids = (activeColaboradorFilters && activeColaboradorFilters.length > 0)
+            ? activeColaboradorFilters
+            : (typeof getSelectedColaboradores === 'function' ? getSelectedColaboradores() : []);
+        if (!ids || ids.length === 0) return 0;
+
+        const requests = ids.map(async (id) => {
+            try {
+                const resp = await fetch(`/api/debug-colaborador-horas/${id}`, { credentials: 'include' });
+                if (!resp.ok) return 0;
+                const json = await resp.json();
+                if (!json || json.success !== true) return 0;
+                const horas = parseFloat(json?.totais?.total_horas_decimal) || 0;
+                return horas;
+            } catch (e) {
+                return 0;
+            }
+        });
+
+        const results = await Promise.all(requests);
+        const total = results.reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+        return parseFloat(total.toFixed(2));
+    } catch (error) {
+        console.error('❌ Erro ao calcular horas por colaborador:', error);
+        return 0;
+    }
+}
+
+// Função para finalizar o monitoramento e exibir o total final de horas realizadas
+async function finalizeTotalRealizedHoursCount() {
     // Parar monitoramento
     if (totalRealizedHoursCardMonitor.intervalId) {
         clearInterval(totalRealizedHoursCardMonitor.intervalId);
@@ -7072,33 +8233,47 @@ function finalizeTotalRealizedHoursCount() {
     
     // Calcular totais finais
     const filteredClients = getFilteredClients();
-    let totalRealizedHours = 0;
     let totalRealizedCost = 0;
+    let totalRealizedHours = 0;
     
     filteredClients.forEach(client => {
-        const horasRealizadasValueElement = client.card.querySelector('.horas-realizadas-value');
         const custoRealizadoValueElement = client.card.querySelector('.cost-loaded');
-        
-        if (horasRealizadasValueElement) {
-            const hoursText = horasRealizadasValueElement.textContent || '0';
-            const hoursNumber = parseFloat(hoursText.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
-            totalRealizedHours += hoursNumber;
-        }
-        
+        const horasRealizadasValueElement = client.card.querySelector('.hours-realized-loaded');
+        // Somar custo agregado exibido no card
         if (custoRealizadoValueElement) {
             const costText = custoRealizadoValueElement.textContent || 'R$ 0,00';
             const costNumber = parseFloat(costText.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
             totalRealizedCost += costNumber;
         }
+        // Somar horas realizadas exibidas no card
+        if (horasRealizadasValueElement) {
+            const hoursText = horasRealizadasValueElement.textContent || '0';
+            const hoursNumber = parseFloat(hoursText.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+            totalRealizedHours += hoursNumber;
+        } else {
+            const horasContainer = client.card.querySelector('.horas-realizadas-value');
+            if (horasContainer) {
+                const raw = horasContainer.textContent || '0';
+                const num = parseFloat(raw.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+                totalRealizedHours += num;
+            }
+        }
     });
+    
+    // Fallback: se não conseguiu somar pelas views, usar API
+    if (!Number.isFinite(totalRealizedHours) || totalRealizedHours <= 0) {
+        totalRealizedHours = await computeTotalRealizedHoursViaAPI(filteredClients);
+    }
     
     // Atualizar o card com os totais finais
     const realizedHoursCountText = document.getElementById('realizedHoursCountText');
     const realizedCostCountText = document.getElementById('realizedCostCountText');
     
     if (realizedHoursCountText) {
-        realizedHoursCountText.textContent = `Hrs Realizadas: ${totalRealizedHours.toFixed(2)}`;
-
+        const hasPeriod = (typeof window !== 'undefined' && window.selectedStartDate) || selectedStartDate || (typeof window !== 'undefined' && window.selectedEndDate) || selectedEndDate;
+        realizedHoursCountText.textContent = hasPeriod 
+            ? `Hrs Realizadas (período): ${totalRealizedHours.toFixed(2)}`
+            : `Hrs Realizadas: ${totalRealizedHours.toFixed(2)}`;
     }
     
     if (realizedCostCountText) {
@@ -7122,6 +8297,8 @@ setTimeout(() => {
 
 setTimeout(() => {
     updateRealizedHoursCount();
+    // Não precisamos mais de updateGlobalPeriodHoursFromSelection como fonte principal do período
+    // O próprio card de horas realizadas reflete o período quando selecionado
 }, 3500);
 
 // ===== NOVA LÓGICA DO CARD DE DIFERENÇA =====
@@ -7137,42 +8314,19 @@ let differenceCardMonitor = {
 
 // Função principal para gerenciar o card de diferença
 function updateDifferenceCard() {
-    
+    // INATIVO: esconder card de diferença e cancelar monitoramento
     const differenceCard = document.getElementById('differenceCountCard');
-    const differenceHoursText = document.getElementById('differenceHoursText');
-    const differenceCostText = document.getElementById('differenceCostText');
-    
-    if (!differenceCard || !differenceHoursText || !differenceCostText) {
-        console.warn('📊 Elementos do card de diferença não encontrados');
-        return;
+    if (differenceCard) differenceCard.style.display = 'none';
+    if (differenceCardMonitor && differenceCardMonitor.intervalId) {
+        clearInterval(differenceCardMonitor.intervalId);
+        differenceCardMonitor.intervalId = null;
     }
-    
-    // Verificar se há filtros ativos
-    const hasActiveFilters = checkIfFiltersActive();
-    const hasPeriodFilterGlobal = selectedStartDate !== null || selectedEndDate !== null;
-    
-    if (!hasActiveFilters && !hasPeriodFilterGlobal) {
-        // Se não há filtros, ocultar o card
-        differenceCard.style.display = 'none';
-        return;
+    if (differenceCardMonitor) {
+        differenceCardMonitor.isMonitoring = false;
+        differenceCardMonitor.estimatedLoaded = false;
+        differenceCardMonitor.realizedLoaded = false;
     }
-    
-    // Obter clientes filtrados/destacados
-    const filteredClients = getFilteredClients();
-    
-    if (filteredClients.length === 0) {
-        // Se não há clientes filtrados, ocultar o card
-        differenceCard.style.display = 'none';
-        return;
-    }
-    
-    // Mostrar o card com "Carregando..."
-    differenceCard.style.display = 'flex';
-    differenceHoursText.textContent = 'Carregando...';
-    differenceCostText.textContent = 'Custo: Carregando...';
-    
-    // Iniciar monitoramento dos dados de diferença
-    startDifferenceMonitoring();
+    return;
 }
 
 // Função para iniciar monitoramento dos dados de diferença
@@ -7315,6 +8469,273 @@ setTimeout(() => {
     updateDifferenceCard();
 }, 4000);
 
+// ===== FILTRO DE PERÍODO MODERNO =====
+function initializeModernPeriodoFilter() {
+    console.log('📅 Inicializando filtro de período moderno (modal dinâmico)...');
+    window.__modernPeriodoInitialized = false;
+
+    const periodoTrigger = document.getElementById('periodoTrigger');
+    const periodoText = document.getElementById('periodoText');
+
+    // Se não houver trigger ainda, tentar novamente
+    if (!periodoTrigger || !periodoText) {
+        console.error('❌ Elementos do filtro de período não encontrados');
+        if (modernPeriodoInitAttempts < MODERN_PERIODO_MAX_ATTEMPTS) {
+            modernPeriodoInitAttempts++;
+            setTimeout(() => {
+                console.log(`🔁 Tentativa ${modernPeriodoInitAttempts} de inicializar filtro de período moderno...`);
+                // initializeModernPeriodoFilter(); // desativado temporariamente
+            }, 300);
+        }
+        return;
+    }
+
+    // Estado do calendário
+    let currentCalendarDate = new Date();
+    let selectedStartDate = null;
+    let selectedEndDate = null;
+    let isSelectingEndDate = false;
+    let periodoCalendarModal = null; // Elemento criado dinamicamente
+
+    // Helpers: criar modal
+    function createCalendarModal() {
+        const modal = document.createElement('div');
+        modal.className = 'periodo-calendar-card periodo-calendar-modal';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+            <div class="calendar-header">
+                <button type="button" class="calendar-nav prev-month" aria-label="Mês anterior">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="calendar-month-year"></span>
+                <button type="button" class="calendar-nav next-month" aria-label="Próximo mês">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="calendar-weekdays">
+                <div class="weekday">Dom</div>
+                <div class="weekday">Seg</div>
+                <div class="weekday">Ter</div>
+                <div class="weekday">Qua</div>
+                <div class="weekday">Qui</div>
+                <div class="weekday">Sex</div>
+                <div class="weekday">Sáb</div>
+            </div>
+            <div class="calendar-days"></div>
+        `;
+        return modal;
+    }
+
+    // Obter refs internas do modal
+    function getModalRefs() {
+        if (!periodoCalendarModal) return null;
+        const monthYearEl = periodoCalendarModal.querySelector('.calendar-month-year');
+        const daysContainer = periodoCalendarModal.querySelector('.calendar-days');
+        const prevBtn = periodoCalendarModal.querySelector('.prev-month');
+        const nextBtn = periodoCalendarModal.querySelector('.next-month');
+        return { monthYearEl, daysContainer, prevBtn, nextBtn };
+    }
+
+    // Toggle pelo trigger
+    periodoTrigger.addEventListener('click', () => {
+        window.__closeReason = 'trigger-click';
+        const isOpen = !!periodoCalendarModal;
+        if (isOpen) {
+            closeCalendar();
+        } else {
+            openCalendar();
+        }
+    });
+
+    // Fechar ao clicar fora
+    document.addEventListener('click', (e) => {
+        const isOpen = !!periodoCalendarModal;
+        if (!isOpen) return;
+        const clickedInsideCard = periodoCalendarModal.contains(e.target);
+        const clickedTrigger = e.target.closest && e.target.closest('#periodoTrigger');
+        if (clickedInsideCard || clickedTrigger) return;
+        window.__closeReason = 'outside-click';
+        closeCalendar();
+    });
+
+    function openCalendar() {
+        if (!periodoCalendarModal) {
+            periodoCalendarModal = createCalendarModal();
+            document.body.appendChild(periodoCalendarModal);
+            // Bloquear propagação dentro do modal
+            periodoCalendarModal.addEventListener('click', (e) => e.stopPropagation());
+            // Navegação de meses
+            const { prevBtn, nextBtn } = getModalRefs();
+            if (prevBtn) prevBtn.addEventListener('click', () => changeMonth(-1));
+            if (nextBtn) nextBtn.addEventListener('click', () => changeMonth(1));
+        }
+
+        // Posicionar relativo ao trigger
+        const rect = periodoTrigger.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        const left = rect.left + scrollLeft;
+        const top = rect.bottom + scrollTop + 8;
+        periodoCalendarModal.style.position = 'absolute';
+        periodoCalendarModal.style.zIndex = '1000';
+        periodoCalendarModal.style.left = `${left}px`;
+        periodoCalendarModal.style.top = `${top}px`;
+        periodoCalendarModal.style.display = 'block';
+        periodoTrigger.classList.add('active');
+
+        renderCalendar();
+    }
+
+    function closeCalendar() {
+        console.log('🔒 closeCalendar()', {
+            reason: window.__closeReason || 'unknown',
+            state: { selectedStartDate, selectedEndDate, isSelectingEndDate }
+        });
+        periodoTrigger.classList.remove('active');
+        if (periodoCalendarModal) {
+            periodoCalendarModal.remove(); // remover completamente do DOM
+            periodoCalendarModal = null;
+        }
+        window.__closeReason = null;
+    }
+
+    function changeMonth(direction) {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + direction);
+        renderCalendar();
+    }
+
+    function renderCalendar() {
+        const refs = getModalRefs();
+        if (!refs) return;
+        const { monthYearEl, daysContainer } = refs;
+        if (!monthYearEl || !daysContainer) return;
+
+        const year = currentCalendarDate.getFullYear();
+        const month = currentCalendarDate.getMonth();
+        const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+        monthYearEl.textContent = `${monthNames[month]} ${year}`;
+
+        daysContainer.innerHTML = '';
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const firstDayWeekday = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+
+        const prevMonth = new Date(year, month - 1, 0);
+        const daysInPrevMonth = prevMonth.getDate();
+        for (let i = firstDayWeekday - 1; i >= 0; i--) {
+            const day = daysInPrevMonth - i;
+            const dayElement = createDayElement(day, true, new Date(year, month - 1, day));
+            daysContainer.appendChild(dayElement);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month, day);
+            const dayElement = createDayElement(day, false, date);
+            daysContainer.appendChild(dayElement);
+        }
+
+        const totalCells = daysContainer.children.length;
+        const remainingCells = 42 - totalCells; // 6x7 grade
+        for (let day = 1; day <= remainingCells; day++) {
+            const dayElement = createDayElement(day, true, new Date(year, month + 1, day));
+            daysContainer.appendChild(dayElement);
+        }
+    }
+
+    function createDayElement(day, isOtherMonth, date) {
+        const el = document.createElement('div');
+        el.className = 'calendar-day';
+        el.textContent = day;
+
+        if (isOtherMonth) el.classList.add('other-month');
+
+        const today = new Date();
+        if (date.toDateString() === today.toDateString()) el.classList.add('today');
+
+        if (selectedStartDate && date.toDateString() === selectedStartDate.toDateString()) el.classList.add('selected-start');
+        if (selectedEndDate && date.toDateString() === selectedEndDate.toDateString()) el.classList.add('selected-end');
+        if (selectedStartDate && selectedEndDate && date > selectedStartDate && date < selectedEndDate) el.classList.add('in-range');
+
+        if (!isOtherMonth) {
+            el.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                ev.stopImmediatePropagation();
+                selectDate(date);
+            });
+        }
+        return el;
+    }
+
+    function selectDate(date) {
+        console.log('📅 selectDate()', { date, selectedStartDate, selectedEndDate, isSelectingEndDate });
+        if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
+            selectedStartDate = date;
+            selectedEndDate = null;
+            isSelectingEndDate = true;
+        } else if (isSelectingEndDate) {
+            if (date >= selectedStartDate) {
+                selectedEndDate = date;
+                isSelectingEndDate = false;
+            } else {
+                selectedEndDate = selectedStartDate;
+                selectedStartDate = date;
+                isSelectingEndDate = false;
+            }
+        }
+
+        // Sincronizar com variáveis globais usadas em outras rotinas
+        window.selectedStartDate = selectedStartDate;
+        window.selectedEndDate = selectedEndDate;
+
+        updatePeriodoDisplay();
+        renderCalendar();
+
+        // Atualizar filtro global e cards
+        activePeriodoFilter = { startDate: selectedStartDate, endDate: selectedEndDate };
+        updateTotalCards();
+    }
+
+    function updatePeriodoDisplay() {
+        if (selectedStartDate && selectedEndDate) {
+            const startStr = formatDate(selectedStartDate);
+            const endStr = formatDate(selectedEndDate);
+            periodoText.textContent = `${startStr} – ${endStr}`;
+        } else if (selectedStartDate) {
+            const startStr = formatDate(selectedStartDate);
+            periodoText.textContent = `${startStr} – ...`;
+        } else {
+            periodoText.textContent = 'Selecionar período';
+        }
+        // Atualizar estado dos botões ao alterar período
+        try { updateFilterButtonsVisibility(); } catch (_) {}
+    }
+
+    function formatDate(date) {
+        const d = date.getDate().toString().padStart(2, '0');
+        const m = (date.getMonth() + 1).toString().padStart(2, '0');
+        const y = date.getFullYear();
+        return `${d}/${m}/${y}`;
+    }
+
+    // Limpar seleção
+    window.clearModernPeriodoFilter = function() {
+        selectedStartDate = null;
+        selectedEndDate = null;
+        isSelectingEndDate = false;
+        activePeriodoFilter = null;
+        window.selectedStartDate = null;
+        window.selectedEndDate = null;
+        updatePeriodoDisplay();
+        renderCalendar();
+    };
+
+    console.log('✅ Filtro de período moderno inicializado (modal dinâmico)');
+    window.__modernPeriodoInitialized = true;
+}
+
 // ===== NOVA LÓGICA DO CARD DE TOTAL DE FATURAMENTO =====
 // Função para atualizar o card de faturamento total
 function updateFaturamentoCount() {
@@ -7411,3 +8832,318 @@ function updateFaturamentoCount() {
     
     console.log('✅ Card de faturamento atualizado');
 }
+
+// ===== CARD FLUTUANTE SIMPLES DO FILTRO DE PERÍODO =====
+// Abre um pequeno card flutuante ao clicar em "Selecionar período"
+document.addEventListener('DOMContentLoaded', function() {
+    const periodoSelectField = document.getElementById('periodoSelectField');
+    const periodoSelectDisplay = document.getElementById('periodoSelectDisplay');
+    const periodoSelectText = document.getElementById('periodoSelectText');
+    const periodoSelectArrow = document.getElementById('periodoSelectArrow');
+
+    if (!periodoSelectField || !periodoSelectDisplay) {
+        return; // Elementos não existem na página atual
+    }
+
+    let periodoFloatingCard = null;
+
+    function openPeriodoFloatingCard() {
+        if (periodoFloatingCard) return;
+
+        periodoFloatingCard = document.createElement('div');
+        periodoFloatingCard.id = 'periodoFloatingCard';
+        periodoFloatingCard.setAttribute('role', 'dialog');
+        periodoFloatingCard.setAttribute('aria-label', 'Filtro de período');
+
+        // Estilo inline para evitar alterar styles.css
+        periodoFloatingCard.style.position = 'absolute';
+        periodoFloatingCard.style.zIndex = '2000';
+        periodoFloatingCard.style.width = '320px';
+        periodoFloatingCard.style.maxWidth = '90vw';
+        periodoFloatingCard.style.background = '#ffffff';
+        periodoFloatingCard.style.border = '1px solid #e5e7eb';
+        periodoFloatingCard.style.borderRadius = '12px';
+        periodoFloatingCard.style.boxShadow = '0 10px 30px rgba(0,0,0,0.12)';
+        periodoFloatingCard.style.padding = '16px';
+        periodoFloatingCard.style.display = 'block';
+
+        periodoFloatingCard.innerHTML = `
+            <div style="font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-calendar-alt" style="color:#4b5563;"></i>
+                Filtro de período
+            </div>
+            <div class="periodo-cal-selected" style="display:flex; gap:8px; margin-bottom:8px;">
+                <div style="flex:1; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:8px;">
+                    <div style="font-size:11px; color:#6b7280;">Início</div>
+                    <div id="periodoCalInicioText" style="font-size:13px; color:#111827;">Selecione</div>
+                </div>
+                <div class="andor-separator" style="flex:0; display:flex; align-items:center; justify-content:center;">
+                    <select id="periodoAndOrSelect" class="andor-select" aria-label="Operador entre início e vencimento">
+                        <option value="E">E</option>
+                        <option value="OU">OU</option>
+                    </select>
+                </div>
+                <div style="flex:1; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:8px;">
+                    <div style="font-size:11px; color:#6b7280;">Vencimento</div>
+                    <div id="periodoCalVencimentoText" style="font-size:13px; color:#111827;">Selecione</div>
+                </div>
+            </div>
+            <div class="periodo-cal-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <button type="button" class="periodo-cal-prev" aria-label="Mês anterior" style="border:none; background:#f3f4f6; color:#374151; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="periodo-cal-month" style="font-weight:600; color:#111827;">Mês Ano</div>
+                <button type="button" class="periodo-cal-next" aria-label="Próximo mês" style="border:none; background:#f3f4f6; color:#374151; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="periodo-cal-weekdays" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; font-size:12px; color:#6b7280; margin-bottom:6px;">
+                <div style="text-align:center;">D</div>
+                <div style="text-align:center;">S</div>
+                <div style="text-align:center;">T</div>
+                <div style="text-align:center;">Q</div>
+                <div style="text-align:center;">Q</div>
+                <div style="text-align:center;">S</div>
+                <div style="text-align:center;">S</div>
+            </div>
+            <div class="periodo-cal-days" style="display:grid; grid-template-columns: repeat(7, 1fr); gap:6px;"></div>
+        `;
+
+        document.body.appendChild(periodoFloatingCard);
+
+        // Inicializa seletor E/OU (default "E") e persiste escolha
+        const andOrSelectEl = periodoFloatingCard.querySelector('#periodoAndOrSelect');
+        if (andOrSelectEl) {
+            try {
+                const saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('periodoAndOr') : null;
+                const initial = saved === 'OU' ? 'OU' : 'E';
+                andOrSelectEl.value = initial;
+                if (typeof window !== 'undefined') {
+                    window.periodoAndOr = initial;
+                }
+                andOrSelectEl.addEventListener('change', () => {
+                    const val = andOrSelectEl.value === 'OU' ? 'OU' : 'E';
+                    if (typeof window !== 'undefined') {
+                        window.periodoAndOr = val;
+                    }
+                    try { if (typeof localStorage !== 'undefined') localStorage.setItem('periodoAndOr', val); } catch (_) {}
+                });
+            } catch (_) {}
+        }
+
+        // Instalar handler para fechar ao clicar fora
+        const onDocClick = (ev) => {
+            const clickedInsideCard = ev.target.closest('#periodoFloatingCard');
+            const clickedTrigger = ev.target.closest('#periodoSelectDisplay') || ev.target.closest('#periodoSelectField');
+            if (clickedInsideCard || clickedTrigger) return;
+            closePeriodoFloatingCard();
+        };
+        document.addEventListener('click', onDocClick, { capture: true });
+        // Guardar referência para remoção posterior
+        periodoFloatingCard._outsideHandler = onDocClick;
+
+        // Estado visual ativo no campo de período
+        periodoSelectDisplay.classList.add('active');
+        if (periodoSelectArrow) periodoSelectArrow.classList.add('rotated');
+
+        // Posicionamento relativo ao campo do período
+        const rect = periodoSelectField.getBoundingClientRect();
+        const left = rect.left + window.scrollX;
+        const top = rect.bottom + window.scrollY + 8; // 8px de espaçamento
+        periodoFloatingCard.style.left = `${left}px`;
+        periodoFloatingCard.style.top = `${top}px`;
+
+        // ===== Calendário básico dentro do card =====
+        const monthYearEl = periodoFloatingCard.querySelector('.periodo-cal-month');
+        const daysContainerEl = periodoFloatingCard.querySelector('.periodo-cal-days');
+        const prevBtnEl = periodoFloatingCard.querySelector('.periodo-cal-prev');
+        const nextBtnEl = periodoFloatingCard.querySelector('.periodo-cal-next');
+
+        let calDate = new Date();
+        let cardStartDate = null;
+        let cardEndDate = null;
+        let selectingEnd = false; // controla se próximo clique é o Vencimento
+
+        function formatMonthYear(date) {
+            const txt = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            return txt.charAt(0).toUpperCase() + txt.slice(1);
+        }
+
+        function isSameDay(a, b) {
+            return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+        }
+
+        function formatDateDDMMYYYY(date) {
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const y = date.getFullYear();
+            return `${d}/${m}/${y}`;
+        }
+
+        function updateSelectedLabels() {
+            const inicioEl = periodoFloatingCard.querySelector('#periodoCalInicioText');
+            const vencEl = periodoFloatingCard.querySelector('#periodoCalVencimentoText');
+            inicioEl.textContent = cardStartDate ? formatDateDDMMYYYY(cardStartDate) : 'Selecione';
+            vencEl.textContent = cardEndDate ? formatDateDDMMYYYY(cardEndDate) : 'Selecione';
+            // Atualiza o texto do campo "Selecionar período"
+            if (periodoSelectText) {
+                if (cardStartDate && cardEndDate) {
+                    periodoSelectText.textContent = `${formatDateDDMMYYYY(cardStartDate)} – ${formatDateDDMMYYYY(cardEndDate)}`;
+                    periodoSelectText.classList.add('has-selection');
+                } else if (cardStartDate && !cardEndDate) {
+                    periodoSelectText.textContent = `Início: ${formatDateDDMMYYYY(cardStartDate)}`;
+                    periodoSelectText.classList.add('has-selection');
+                } else {
+                    periodoSelectText.textContent = 'Selecionar período';
+                    periodoSelectText.classList.remove('has-selection');
+                }
+            }
+        }
+
+        function renderPeriodoCalendar() {
+            const year = calDate.getFullYear();
+            const month = calDate.getMonth();
+            monthYearEl.textContent = formatMonthYear(calDate);
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startWeekday = firstDay.getDay();
+            const daysInMonth = lastDay.getDate();
+
+            daysContainerEl.innerHTML = '';
+
+            // Espaços vazios antes do primeiro dia
+            for (let i = 0; i < startWeekday; i++) {
+                const empty = document.createElement('div');
+                empty.style.height = '36px';
+                daysContainerEl.appendChild(empty);
+            }
+
+            // Dias do mês
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dayEl = document.createElement('button');
+                dayEl.type = 'button';
+                dayEl.textContent = String(d);
+                dayEl.style.height = '36px';
+                dayEl.style.border = '1px solid #e5e7eb';
+                dayEl.style.background = '#fff';
+                dayEl.style.borderRadius = '8px';
+                dayEl.style.cursor = 'pointer';
+                dayEl.style.color = '#111827';
+
+                const current = new Date(year, month, d);
+                // Hoje
+                if (isSameDay(current, new Date())) {
+                    dayEl.style.borderColor = '#9ca3af';
+                }
+                // Início e vencimento
+                if (isSameDay(current, cardStartDate)) {
+                    dayEl.style.background = '#144577';
+                    dayEl.style.borderColor = '#0e3b6f';
+                    dayEl.style.color = '#ffffff';
+                    dayEl.style.fontWeight = '600';
+                }
+                if (isSameDay(current, cardEndDate)) {
+                    dayEl.style.background = '#144577';
+                    dayEl.style.borderColor = '#0e3b6f';
+                    dayEl.style.color = '#ffffff';
+                    dayEl.style.fontWeight = '600';
+                }
+                // Intervalo
+                if (cardStartDate && cardEndDate) {
+                    const startTime = new Date(cardStartDate.getFullYear(), cardStartDate.getMonth(), cardStartDate.getDate()).getTime();
+                    const endTime = new Date(cardEndDate.getFullYear(), cardEndDate.getMonth(), cardEndDate.getDate()).getTime();
+                    const curTime = current.getTime();
+                    if (curTime > startTime && curTime < endTime) {
+                        dayEl.style.background = '#dbeafe';
+                    }
+                }
+
+                dayEl.addEventListener('click', () => {
+                    if (!cardStartDate || (cardStartDate && cardEndDate)) {
+                        // Primeiro clique: define INÍCIO
+                        cardStartDate = new Date(current);
+                        cardEndDate = null;
+                        selectingEnd = true;
+                    } else if (selectingEnd) {
+                        // Segundo clique: define VENCIMENTO
+                        const clicked = new Date(current);
+                        if (clicked < cardStartDate) {
+                            // Troca para manter ordem cronológica
+                            cardEndDate = new Date(cardStartDate);
+                            cardStartDate = clicked;
+                        } else {
+                            cardEndDate = clicked;
+                        }
+                        selectingEnd = false;
+                    } else {
+                        // Reinicia seleção
+                        cardStartDate = new Date(current);
+                        cardEndDate = null;
+                        selectingEnd = true;
+                    }
+                    updateSelectedLabels();
+                    renderPeriodoCalendar();
+
+                    // Persistir seleção global quando houver início e vencimento
+                    if (cardStartDate && cardEndDate) {
+                        try {
+                            selectedStartDate = new Date(cardStartDate);
+                            selectedEndDate = new Date(cardEndDate);
+                            if (typeof window !== 'undefined') {
+                                window.selectedStartDate = selectedStartDate;
+                                window.selectedEndDate = selectedEndDate;
+                            }
+                            activePeriodoFilter = { startDate: selectedStartDate, endDate: selectedEndDate };
+                            // Atualizar indicadores e cards
+                            try { updateGlobalPeriodHoursFromSelection(); } catch (err) {}
+                            try { updateTotalCards(); } catch (err) {}
+                        } catch (err) {
+                            console.warn('Falha ao persistir seleção de período global:', err);
+                        }
+                    }
+                });
+
+                daysContainerEl.appendChild(dayEl);
+            }
+            updateSelectedLabels();
+        }
+
+        prevBtnEl.addEventListener('click', () => {
+            calDate.setMonth(calDate.getMonth() - 1);
+            renderPeriodoCalendar();
+        });
+
+        nextBtnEl.addEventListener('click', () => {
+            calDate.setMonth(calDate.getMonth() + 1);
+            renderPeriodoCalendar();
+        });
+
+        renderPeriodoCalendar();
+    }
+
+    function closePeriodoFloatingCard() {
+        if (!periodoFloatingCard) return;
+        // Remover listener global de clique fora se existir
+        if (periodoFloatingCard._outsideHandler) {
+            document.removeEventListener('click', periodoFloatingCard._outsideHandler, { capture: true });
+            periodoFloatingCard._outsideHandler = null;
+        }
+        periodoFloatingCard.remove();
+        periodoFloatingCard = null;
+        // Remove estado visual ativo
+        periodoSelectDisplay.classList.remove('active');
+        if (periodoSelectArrow) periodoSelectArrow.classList.remove('rotated');
+    }
+
+    // Toggle ao clicar no display do período
+    periodoSelectDisplay.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (periodoFloatingCard) {
+            closePeriodoFloatingCard();
+        } else {
+            openPeriodoFloatingCard();
+        }
+    });
+});
