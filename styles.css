@@ -541,6 +541,13 @@
     font-weight: 500;
 }
 
+/* Validação: destacar seletor de período quando obrigatório */
+.periodo-select-text.validation-required,
+.periodo-trigger.validation-required {
+    color: #d93025;
+    font-weight: 600;
+}
+
 .periodo-select-arrow {
     font-size: 12px;
     color: #6c757d;
@@ -551,30 +558,11 @@
     transform: rotate(180deg);
 }
 
-.periodo-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    margin-top: 4px;
-}
-
-.periodo-dropdown-content {
-    padding: 15px;
-}
-
+.periodo-dropdown {}
+.periodo-dropdown-content {}
 .month-selector-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: center;
+    display: none;
 }
-
 .month-selector-label {
     font-size: 14px;
     font-weight: 500;
@@ -727,6 +715,29 @@
     text-overflow: ellipsis;
     font-size: 12px;
     color: #374151;
+}
+
+/* Minimal AND/OR select inside period card */
+.andor-select {
+    appearance: none;
+    -webkit-appearance: none;
+    font-size: 12px;
+    color: #374151; /* neutral dark */
+    background: #f9fafb; /* subtle gray */
+    border: 1px solid #e5e7eb; /* light border */
+    border-radius: 6px;
+    padding: 4px 8px;
+    height: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+.andor-select:focus {
+    outline: none;
+    border-color: #cbd5e1;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+}
+.andor-separator {
+    min-width: 52px;
 }
 
 /* Estilos do mini modal de filtros */
@@ -1002,6 +1013,14 @@
     border-color: #144577;
 }
 
+/* Estado desabilitado: segue visível porém com aparência atenuada */
+.apply-filters-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #0e3b6f;
+    border-color: #0e3b6f;
+}
+
 .apply-filter-btn {
     background: #3b82f6;
     color: white;
@@ -1160,6 +1179,26 @@
 .selected-cliente-tag:hover {
     background: #dbeafe;
     border-color: #93c5fd;
+}
+
+/* Tags de cliente na lista de tarefas desajustadas */
+.cliente-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.cliente-tag-orange {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(253, 126, 20, 0.1);
+    color: #fd7e14;
+    border: 1px solid #fd7e14;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .remove-cliente-tag {
@@ -1335,14 +1374,14 @@
 }
 
 .calendar-day.start-date {
-    background-color: #2563eb;
+    background-color: #1e40af;
     color: white;
     font-weight: 600;
     border-radius: 6px;
 }
 
 .calendar-day.end-date {
-    background-color: #2563eb;
+    background-color: #1e40af;
     color: white;
     font-weight: 600;
     border-radius: 6px;
@@ -1401,6 +1440,255 @@
 
 .grupo-button.active i {
     transform: rotate(180deg);
+}
+
+/* ===== FILTRO DE PERÍODO MODERNO ===== */
+.modern-periodo-filter {
+    position: relative;
+    width: 100%;
+}
+
+.periodo-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    color: #374151;
+    min-height: 42px;
+}
+
+.periodo-trigger:hover {
+    border-color: #9ca3af;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.periodo-trigger.active {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.periodo-text {
+    font-weight: 500;
+    color: #374151;
+}
+
+.periodo-icon {
+    color: #6b7280;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+.periodo-trigger.active .periodo-icon {
+    transform: rotate(180deg);
+}
+
+/* Card do Calendário */
+.periodo-calendar-card {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 1000;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    min-width: 320px;
+    max-width: 360px;
+    animation: calendarSlideIn 0.2s ease-out;
+}
+
+@keyframes calendarSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Cabeçalho do Calendário */
+.calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 0 4px;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #6b7280;
+}
+
+.calendar-nav:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.calendar-nav:active {
+    background: #e5e7eb;
+}
+
+.calendar-month-year {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    text-align: center;
+    flex: 1;
+    letter-spacing: -0.025em;
+}
+
+/* Dias da Semana */
+.calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 8px;
+    padding: 0 2px;
+}
+
+.weekday {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
+    padding: 8px 0;
+    text-transform: lowercase;
+}
+
+/* Grade de Dias */
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #374151;
+    background: transparent;
+    min-height: 36px;
+    position: relative;
+}
+
+.calendar-day:hover {
+    background: #f3f4f6;
+}
+
+.calendar-day.other-month {
+    color: #d1d5db;
+    cursor: default;
+}
+
+.calendar-day.other-month:hover {
+    background: transparent;
+}
+
+.calendar-day.today {
+    color: #3b82f6;
+    font-weight: 600;
+}
+
+.calendar-day.today::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background: #3b82f6;
+    border-radius: 50%;
+}
+
+/* Dias Selecionados */
+.calendar-day.selected-start,
+.calendar-day.selected-end {
+    background: #1e40af;
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.selected-start:hover,
+.calendar-day.selected-end:hover {
+    background: #1e3a8a;
+}
+
+/* Intervalo Selecionado */
+.calendar-day.in-range {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.calendar-day.in-range:hover {
+    background: #bfdbfe;
+}
+
+/* Estados de Seleção */
+.calendar-day.selecting-start {
+    background: #3b82f6;
+    color: white;
+}
+
+.calendar-day.selecting-end {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Animações */
+.calendar-day {
+    animation: dayFadeIn 0.3s ease-out;
+}
+
+@keyframes dayFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+    .periodo-calendar-card {
+        min-width: 280px;
+        max-width: calc(100vw - 32px);
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .calendar-day {
+        min-height: 32px;
+        font-size: 12px;
+    }
 }
 
 /* Estilos para o modal */
@@ -4770,6 +5058,34 @@ body {
     margin-bottom: 1.5rem;
 }
 
+#clientFormSection .form-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 1rem;
+}
+
+#clientFormSection .form-header-top {
+    align-self: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+#clientFormSection .form-title {
+    margin: 0;
+}
+
+#clientFormSection .form-subtitle {
+    margin: 0;
+}
+
+/* Agrupa os botões à direita para evitar espaçamento central */
+.form-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .add-client-btn {
     display: flex;
     align-items: center;
@@ -5877,4 +6193,14 @@ body {
 
 .toggle-slider-minimal:hover {
     opacity: 0.8;
+}
+/* Ícone de informação minimalista ao lado de rótulos */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  color: #fd7e14;
+  font-size: 0.9em;
+  cursor: help;
 }

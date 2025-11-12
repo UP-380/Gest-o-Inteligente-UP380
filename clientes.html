@@ -43,10 +43,12 @@
         <main class="main-content">
             <div class="form-header">
                 <h2 class="form-title">Clientes</h2>
-                <button class="add-client-btn" onclick="window.location.href='cadastro-cliente.html'">
-                    <i class="fas fa-plus"></i>
-                    Adicionar Clientes
-                </button>
+                <div class="form-header-actions">
+                    <button class="add-client-btn" onclick="window.location.href='/portifolio-clientes'">
+                        <i class="fas fa-gear"></i>
+                        Clientes
+                    </button>
+                </div>
             </div>
             
             <!-- Seção de Filtros Expostos -->
@@ -125,14 +127,6 @@
                                     <span class="periodo-select-text" id="periodoSelectText">Selecionar período</span>
                                     <i class="fas fa-chevron-down periodo-select-arrow" id="periodoSelectArrow"></i>
                                 </div>
-                                <div class="periodo-dropdown" id="periodoDropdown" style="display: none;">
-                                    <div class="periodo-dropdown-content">
-                                        <div class="month-selector-container">
-                                            <label for="monthSelector" class="month-selector-label">Selecione o mês:</label>
-                                            <input type="month" id="monthSelector" class="month-selector-input" lang="pt-BR" />
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -142,6 +136,7 @@
                 <div class="filter-actions">
                     <button id="applyFiltersBtn" class="apply-filters-btn">Aplicar Filtros</button>
                     <button id="clearFiltersBtn" class="clear-filters-btn">Limpar Filtros</button>
+                    <span id="periodoGlobalHoursText" style="margin-left: 12px; display: none; font-size: 13px; color: #444;">Global período: 0,00 h</span>
                 </div>
             </div>
             
@@ -167,7 +162,7 @@
                     </div>
                 </div>
                 
-                <!-- Mini Card de Total de Horas Estimadas Filtradas -->
+                <!-- INATIVO: Mini Card de Total de Horas Estimadas Filtradas
                 <div class="estimated-hours-count-card" id="estimatedHoursCountCard" style="display: none;">
                     <div class="estimated-hours-count-content">
                         <i class="fas fa-clock"></i>
@@ -177,6 +172,7 @@
                         </div>
                     </div>
                 </div>
+                -->
                 
                 <!-- Mini Card de Total de Horas Realizadas Filtradas -->
                 <div class="realized-hours-count-card" id="realizedHoursCountCard" style="display: none;">
@@ -189,7 +185,7 @@
                     </div>
                 </div>
                 
-                <!-- Mini Card de Diferença entre Horas Realizadas e Estimadas -->
+                <!-- INATIVO: Mini Card de Diferença entre Horas Realizadas e Estimadas
                 <div class="difference-count-card" id="differenceCountCard" style="display: none;">
                     <div class="difference-count-content">
                         <i class="fas fa-balance-scale"></i>
@@ -199,6 +195,7 @@
                         </div>
                     </div>
                 </div>
+                -->
                 
                 <!-- Mini Card de Total de Faturamento Filtrado -->
                 <div class="faturamento-count-card" id="faturamentoCountCard" style="display: none;">
@@ -219,7 +216,7 @@
                         <select class="filter-type-select">
                             <option value="">Selecionar filtro</option>
                             <option value="status">Status</option>
-                            <option value="periodo">Período</option>
+
                             <option value="cliente">Cliente</option>
                         </select>
                     </div>
@@ -246,44 +243,7 @@
                 </div>
             </template>
             
-            <!-- Template para opções de Período -->
-            <template id="periodoOptionsTemplate">
-                <div class="periodo-filter-options">
-                    <div class="selected-dates-display">
-                        <div class="selected-date-item">
-                            <span class="date-label">Início:</span>
-                            <span class="selected-start-date date-value">Selecione</span>
-                        </div>
-                        <div class="selected-date-item">
-                            <span class="date-label">Vencimento:</span>
-                            <span class="selected-end-date date-value">Selecione</span>
-                        </div>
-                    </div>
-                    <div class="custom-calendar">
-                        <div class="calendar-header">
-                            <button type="button" class="calendar-nav-btn prev-month">
-                                <i class="fas fa-chevron-left"></i>
-                            </button>
-                            <span class="calendar-month-year"></span>
-                            <button type="button" class="calendar-nav-btn next-month">
-                                <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
-                        <div class="calendar-weekdays">
-                            <div class="calendar-weekday">Dom</div>
-                            <div class="calendar-weekday">Seg</div>
-                            <div class="calendar-weekday">Ter</div>
-                            <div class="calendar-weekday">Qua</div>
-                            <div class="calendar-weekday">Qui</div>
-                            <div class="calendar-weekday">Sex</div>
-                            <div class="calendar-weekday">Sáb</div>
-                        </div>
-                        <div class="calendar-days">
-                            <!-- Days will be generated by JavaScript -->
-                        </div>
-                    </div>
-                </div>
-            </template>
+>
             
             <!-- Template para opções de Cliente -->
             <template id="clienteOptionsTemplate">
@@ -364,6 +324,242 @@
 
     <script src="auth-check.js"></script>
     <script src="clientes.js?v=99999999999999"></script>
-    <!-- <script src="debug_tarefa_redirect.js"></script> -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      const addBtn = document.querySelector('.add-client-btn');
+      const actions = document.querySelector('.form-header-actions');
+      if (addBtn && actions) {
+        const alertBtn = document.createElement('button');
+        alertBtn.id = 'alertTasksBtn';
+        alertBtn.className = 'incomplete-clients-btn';
+        alertBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Tarefas Desajustadas';
+        // Inserir o alerta antes do botão Clientes dentro do container de ações
+        actions.insertBefore(alertBtn, addBtn);
+        alertBtn.addEventListener('click', toggleTarefasDesajustadasPanel);
+      }
+      setupTarefasDesajustadasPanel();
+    } catch (e) {
+      console.error('Falha ao inicializar botão de alerta de tarefas:', e);
+    }
+  });
+
+  function setupTarefasDesajustadasPanel() {
+    // Criar contêiner logo abaixo dos botões de filtro
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    if (!applyBtn) return;
+    if (document.getElementById('tarefasDesajustadasPanel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'tarefasDesajustadasPanel';
+    panel.style.display = 'none';
+    panel.style.marginTop = '12px';
+    panel.style.border = '1px solid #eee';
+    panel.style.borderRadius = '8px';
+    panel.style.padding = '12px';
+    panel.style.background = '#fff';
+
+    const info = document.createElement('div');
+    info.style.marginBottom = '8px';
+    info.style.color = '#555';
+    info.style.fontSize = '14px';
+    info.textContent = 'Listando tarefas com campos faltando.';
+
+    const listContainer = document.createElement('div');
+    listContainer.id = 'tarefas-desajustadas-list';
+
+    panel.appendChild(info);
+    panel.appendChild(listContainer);
+    // Inserir logo abaixo do contêiner dos botões
+    applyBtn.parentNode.insertAdjacentElement('afterend', panel);
+
+    // Fechar automaticamente ao aplicar filtros
+    applyBtn.addEventListener('click', closeTarefasDesajustadasPanel);
+  }
+
+  function toggleTarefasDesajustadasPanel() {
+    const panel = document.getElementById('tarefasDesajustadasPanel');
+    const alertBtn = document.getElementById('alertTasksBtn');
+    if (!panel || !alertBtn) return;
+    const isOpen = panel.style.display !== 'none';
+    if (isOpen) {
+      panel.style.display = 'none';
+      alertBtn.classList.remove('active');
+    } else {
+      panel.style.display = 'block';
+      alertBtn.classList.add('active');
+      renderIncompleteTasksLoading();
+      fetchIncompleteTasks();
+    }
+  }
+
+  function closeTarefasDesajustadasPanel() {
+    const panel = document.getElementById('tarefasDesajustadasPanel');
+    const alertBtn = document.getElementById('alertTasksBtn');
+    if (!panel) return;
+    panel.style.display = 'none';
+    if (alertBtn) alertBtn.classList.remove('active');
+  }
+
+  function renderIncompleteTasksLoading() {
+    const list = document.getElementById('tarefas-desajustadas-list');
+    if (!list) return;
+    // Spinner discreto, apenas ícone
+    list.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:12px;color:#999"></i>';
+  }
+
+  async function fetchIncompleteTasks() {
+    try {
+      const resp = await fetch('/api/tarefas-incompletas', { credentials: 'include' });
+      if (!resp.ok) throw new Error('Falha ao buscar tarefas desajustadas');
+      const payload = await resp.json();
+      await renderIncompleteTasks(payload.items || []);
+    } catch (err) {
+      const list = document.getElementById('tarefas-desajustadas-list');
+      if (list) list.innerHTML = `<div class=\"error\">${err.message}</div>`;
+      console.error(err);
+    }
+  }
+
+  let __clientesMap = null;
+  async function ensureClientesMap() {
+    if (__clientesMap) return __clientesMap;
+    try {
+      const resp = await fetch('/api/clientes-filtro');
+      const data = await resp.json();
+      const map = {};
+      if (data && data.success && Array.isArray(data.clientes)) {
+        data.clientes.forEach(c => { if (c && c.id) map[String(c.id)] = c.nome || String(c.id); });
+      }
+      __clientesMap = map;
+      return map;
+    } catch (_) {
+      __clientesMap = {};
+      return __clientesMap;
+    }
+  }
+
+  async function renderIncompleteTasks(items) {
+    const clientesMap = await ensureClientesMap();
+    const list = document.getElementById('tarefas-desajustadas-list');
+    if (!list) return;
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">Nenhuma tarefa desajustada encontrada.</div>';
+      return;
+    }
+
+    const formatDate = (v) => {
+      if (!v) return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('pt-BR');
+    };
+
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    const headers = ['ID', 'Data Início', 'Data Vencimento', 'Cliente', 'Abrir'];
+    headers.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      th.style.textAlign = 'left';
+      th.style.borderBottom = '1px solid #ddd';
+      th.style.padding = '8px';
+      th.style.fontWeight = '600';
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+
+    const tbody = document.createElement('tbody');
+    items.forEach(t => {
+      const tr = document.createElement('tr');
+      const missing = Array.isArray(t.missing) ? t.missing : [
+        !t.dt_inicio ? 'dt_inicio' : null,
+        !t.dt_vencimento ? 'dt_vencimento' : null,
+        !t.cliente_id ? 'cliente_id' : null,
+      ].filter(Boolean);
+
+      const tdId = document.createElement('td');
+      tdId.textContent = t.id;
+      tdId.style.padding = '8px';
+      tdId.style.borderBottom = '1px solid #f0f0f0';
+      tr.appendChild(tdId);
+
+      const tdInicio = document.createElement('td');
+      const inicioVal = formatDate(t.dt_inicio);
+      tdInicio.textContent = inicioVal || 'X';
+      tdInicio.style.color = inicioVal ? '#333' : '#fd7e14';
+      tdInicio.style.fontWeight = inicioVal ? '400' : '600';
+      tdInicio.style.textAlign = inicioVal ? 'left' : 'center';
+      tdInicio.style.padding = '8px';
+      tdInicio.style.borderBottom = '1px solid #f0f0f0';
+      tr.appendChild(tdInicio);
+
+      const tdVenc = document.createElement('td');
+      const vencVal = formatDate(t.dt_vencimento);
+      tdVenc.textContent = vencVal || 'X';
+      tdVenc.style.color = vencVal ? '#333' : '#fd7e14';
+      tdVenc.style.fontWeight = vencVal ? '400' : '600';
+      tdVenc.style.textAlign = vencVal ? 'left' : 'center';
+      tdVenc.style.padding = '8px';
+      tdVenc.style.borderBottom = '1px solid #f0f0f0';
+      tr.appendChild(tdVenc);
+
+      const tdCliente = document.createElement('td');
+      tdCliente.style.padding = '8px';
+      tdCliente.style.borderBottom = '1px solid #f0f0f0';
+      const clienteRaw = t.cliente_id ? String(t.cliente_id) : '';
+      if (!clienteRaw) {
+        tdCliente.style.textAlign = 'center';
+        const x = document.createElement('span');
+        x.textContent = 'X';
+        x.style.color = '#fd7e14';
+        x.style.fontWeight = '600';
+        tdCliente.appendChild(x);
+      } else {
+        const ids = clienteRaw.split(',').map(s => s.trim()).filter(Boolean);
+        const wrap = document.createElement('div');
+        wrap.className = 'cliente-tags';
+        ids.forEach(id => {
+          const name = clientesMap[id] || id;
+          const tag = document.createElement('span');
+          tag.className = 'cliente-tag-orange';
+          tag.textContent = name;
+          wrap.appendChild(tag);
+        });
+        tdCliente.appendChild(wrap);
+      }
+      tr.appendChild(tdCliente);
+
+      const tdAbrir = document.createElement('td');
+      tdAbrir.style.padding = '8px';
+      tdAbrir.style.borderBottom = '1px solid #f0f0f0';
+      if (t.url && String(t.url).trim() !== '') {
+        const btn = document.createElement('button');
+        btn.className = 'tarefa-redirect-btn';
+        btn.title = 'Abrir tarefa';
+        btn.setAttribute('data-url', t.url);
+        btn.innerHTML = '<i class="fas fa-external-link-alt"></i>';
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openTarefaUrl(t.url);
+        });
+        tdAbrir.appendChild(btn);
+      } else {
+        tdAbrir.textContent = '-';
+        tdAbrir.style.color = '#999';
+      }
+      tr.appendChild(tdAbrir);
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    list.innerHTML = '';
+    list.appendChild(table);
+  }
+</script>
 </body>
 </html>
