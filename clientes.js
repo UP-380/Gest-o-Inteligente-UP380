@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (clientsGrid) {
                 clientsGrid.innerHTML = `
                     <div class="apply-filters-prompt" style="display:flex;align-items:center;justify-content:center;min-height:240px;color:#555;font-size:20px;font-weight:600;letter-spacing:0.5px;text-align:center;">
-                        PORFAVOR APLIQUE OS FILTROS
+                        POR FAVOR APLIQUE OS FILTROS
                     </div>
                 `;
             }
@@ -1595,7 +1595,7 @@ async function loadClients() {
         if (clientsGrid) {
             clientsGrid.innerHTML = `
                 <div class="apply-filters-prompt" style="display:flex;align-items:center;justify-content:center;min-height:240px;color:#555;font-size:20px;font-weight:600;letter-spacing:0.5px;text-align:center;">
-                    PORFAVOR APLIQUE OS FILTROS
+                    POR FAVOR APLIQUE OS FILTROS
                 </div>
             `;
         }

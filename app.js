@@ -2254,6 +2254,64 @@ function setupSearchableDropdownKamino() {
     });
 }
 
+// Versão genérica do dropdown Kamino para reutilização em formulários inline
+function setupSearchableDropdownKaminoGeneric(containerId, searchId, listId, hiddenId) {
+    try {
+        const container = document.getElementById(containerId);
+        const searchInput = document.getElementById(searchId);
+        const optionsList = document.getElementById(listId);
+        const hiddenInput = document.getElementById(hiddenId);
+        const dropdownArrow = container ? container.querySelector('.dropdown-arrow') : null;
+        if (!container || !searchInput || !optionsList || !hiddenInput) return;
+
+        const render = (term) => {
+            optionsList.innerHTML = '';
+            if (!Array.isArray(allClientesKamino)) return;
+            const lower = String(term || '').toLowerCase();
+            const filtered = allClientesKamino.filter(c => {
+                const nf = (c.nome_fantasia || '').toLowerCase();
+                const rs = (c.razao_social || '').toLowerCase();
+                const no = (c.nome || '').toLowerCase();
+                return nf.includes(lower) || rs.includes(lower) || no.includes(lower);
+            });
+            filtered.forEach(c => {
+                const item = document.createElement('li');
+                item.className = 'dropdown-item';
+                const nomeExibicao = c.nome_fantasia || c.razao_social || c.nome || 'Cliente sem nome';
+                item.textContent = nomeExibicao;
+                item.addEventListener('click', () => {
+                    searchInput.value = nomeExibicao;
+                    const idMap = (clientesKaminoMap && clientesKaminoMap.get) ? clientesKaminoMap.get(c.nome_fantasia || nomeExibicao) : c.id;
+                    hiddenInput.value = idMap || c.id || '';
+                    optionsList.style.display = 'none';
+                });
+                optionsList.appendChild(item);
+            });
+        };
+
+        searchInput.addEventListener('input', (e) => {
+            render(e.target.value || '');
+            optionsList.style.display = 'block';
+        });
+        searchInput.addEventListener('focus', () => {
+            render(searchInput.value || '');
+            optionsList.style.display = 'block';
+        });
+        if (dropdownArrow) {
+            dropdownArrow.addEventListener('click', () => {
+                const visible = optionsList.style.display === 'block';
+                if (!visible) render(searchInput.value || '');
+                optionsList.style.display = visible ? 'none' : 'block';
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest(`#${containerId}`)) {
+                optionsList.style.display = 'none';
+            }
+        });
+    } catch (_) {}
+}
+
 // Funcao para configurar eventos do dropdown ClickUp
 function setupSearchableDropdownClickup() {
     const searchInput = document.getElementById('clienteClickup-search');

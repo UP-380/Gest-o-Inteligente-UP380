@@ -121,14 +121,40 @@
                     <!-- Filtro de Período -->
                     <div class="filter-group">
                         <label class="filter-label">Período</label>
-                        <div class="periodo-filter-container">
-                            <div class="periodo-select-field" id="periodoSelectField">
-                                <div class="periodo-select-display" id="periodoSelectDisplay">
-                                    <span class="periodo-select-text" id="periodoSelectText">Selecionar período</span>
-                                    <i class="fas fa-chevron-down periodo-select-arrow" id="periodoSelectArrow"></i>
+                    <div class="periodo-filter-container">
+                        <div class="periodo-select-field" id="periodoSelectField">
+                            <div class="periodo-select-display" id="periodoSelectDisplay">
+                                <span class="periodo-select-text" id="periodoSelectText">Selecionar período</span>
+                                <i class="fas fa-chevron-down periodo-select-arrow" id="periodoSelectArrow"></i>
+                            </div>
+                            <div class="periodo-dropdown" id="periodoDropdown" style="display: none; margin-top: 8px;">
+                                <div class="periodo-dropdown-content">
+                                    <div class="month-selector-container">
+                                        <label class="month-selector-label" for="monthSelector">Selecionar mês</label>
+                                        <input type="month" id="monthSelector" class="month-selector-input" />
+                                    </div>
+                                    <div class="selected-dates-display">
+                                        <div class="selected-date-item">
+                                            <span class="date-label">Início</span>
+                                            <span class="date-value" id="selectedStartDate">Selecione</span>
+                                        </div>
+                                        <div class="selected-date-item">
+                                            <span class="date-label">Fim</span>
+                                            <span class="date-value" id="selectedEndDate">Selecione</span>
+                                        </div>
+                                    </div>
+                                    <div id="mainCalendar" class="calendar" style="margin-top: 6px;">
+                                        <div class="calendar-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                            <button type="button" class="prev-month" title="Mês anterior"><i class="fas fa-chevron-left"></i></button>
+                                            <span class="calendar-month-year"></span>
+                                            <button type="button" class="next-month" title="Próximo mês"><i class="fas fa-chevron-right"></i></button>
+                                        </div>
+                                        <div class="calendar-days"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
                 
@@ -333,16 +359,40 @@
         const alertBtn = document.createElement('button');
         alertBtn.id = 'alertTasksBtn';
         alertBtn.className = 'incomplete-clients-btn';
-        alertBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Tarefas Desajustadas';
+        alertBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Tarefas Desajustadas <span class="incomplete-badge" id="desajustadasBadge">0</span>';
         // Inserir o alerta antes do botão Clientes dentro do container de ações
         actions.insertBefore(alertBtn, addBtn);
         alertBtn.addEventListener('click', toggleTarefasDesajustadasPanel);
       }
+      loadTarefasDesajustadasCount();
       setupTarefasDesajustadasPanel();
     } catch (e) {
       console.error('Falha ao inicializar botão de alerta de tarefas:', e);
     }
   });
+
+  async function loadTarefasDesajustadasCount() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const resp = await fetch('/api/tarefas-incompletas', { credentials: 'include', signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!resp.ok) {
+        if (resp.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        return;
+      }
+      const payload = await resp.json();
+      const count = parseInt(payload.count) || (Array.isArray(payload.items) ? payload.items.length : 0) || 0;
+      const badge = document.getElementById('desajustadasBadge');
+      if (badge) {
+        badge.textContent = String(count);
+        badge.style.display = count === 0 ? 'none' : 'flex';
+      }
+    } catch (error) {}
+  }
 
   function setupTarefasDesajustadasPanel() {
     // Criar contêiner logo abaixo dos botões de filtro
@@ -412,6 +462,12 @@
       const resp = await fetch('/api/tarefas-incompletas', { credentials: 'include' });
       if (!resp.ok) throw new Error('Falha ao buscar tarefas desajustadas');
       const payload = await resp.json();
+      const badge = document.getElementById('desajustadasBadge');
+      if (badge) {
+        const c = parseInt(payload.count) || (Array.isArray(payload.items) ? payload.items.length : 0) || 0;
+        badge.textContent = String(c);
+        badge.style.display = c === 0 ? 'none' : 'flex';
+      }
       await renderIncompleteTasks(payload.items || []);
     } catch (err) {
       const list = document.getElementById('tarefas-desajustadas-list');
@@ -491,7 +547,7 @@
       tdInicio.textContent = inicioVal || 'X';
       tdInicio.style.color = inicioVal ? '#333' : '#fd7e14';
       tdInicio.style.fontWeight = inicioVal ? '400' : '600';
-      tdInicio.style.textAlign = inicioVal ? 'left' : 'center';
+      tdInicio.style.textAlign = 'left';
       tdInicio.style.padding = '8px';
       tdInicio.style.borderBottom = '1px solid #f0f0f0';
       tr.appendChild(tdInicio);
@@ -501,7 +557,7 @@
       tdVenc.textContent = vencVal || 'X';
       tdVenc.style.color = vencVal ? '#333' : '#fd7e14';
       tdVenc.style.fontWeight = vencVal ? '400' : '600';
-      tdVenc.style.textAlign = vencVal ? 'left' : 'center';
+      tdVenc.style.textAlign = 'left';
       tdVenc.style.padding = '8px';
       tdVenc.style.borderBottom = '1px solid #f0f0f0';
       tr.appendChild(tdVenc);
@@ -511,7 +567,7 @@
       tdCliente.style.borderBottom = '1px solid #f0f0f0';
       const clienteRaw = t.cliente_id ? String(t.cliente_id) : '';
       if (!clienteRaw) {
-        tdCliente.style.textAlign = 'center';
+        tdCliente.style.textAlign = 'left';
         const x = document.createElement('span');
         x.textContent = 'X';
         x.style.color = '#fd7e14';

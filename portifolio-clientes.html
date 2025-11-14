@@ -427,6 +427,24 @@
                                placeholder="Digite a razão social" 
                                required>
                     </div>
+
+                    <div class="form-group">
+                                <label for="teste" class="form-label">CNPJ|CONTRATO <span class="info-icon" title="O contrato é Cadastrado no CLICKUP"><i class="fas fa-info-circle"></i></span></label>
+                                <div class="searchable-select" id="cnpj-container">
+                                    <input type="text" 
+                                           id="teste" 
+                                           name="teste" 
+                                           class="form-input searchable-input" 
+                                           placeholder="Digite o CNPJ" 
+                                           autocomplete="off">
+                                    <div class="dropdown-arrow">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <ul class="dropdown-list" id="cnpj-list"></ul>
+                                </div>
+                                <div id="teste-error" class="error-message"></div>
+                            </div>
+                            
                     
                     <div class="form-group">
                         <label for="edit-nomeFantasia" class="form-label">Nome Fantasia *</label>
@@ -449,7 +467,8 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="edit-teste" class="form-label">CNPJ|CONTRATO</label>
+                        <label for="edit-teste" class="form-label">CNPJ|CONTRATO <span class="info-icon" title="O contrato é Cadastrado no CLICKUP"><i class="fas fa-info-circle"></i></span></label>
+                        <!-- <label for="text" class="form-label">CNPJ|CONTRATO <span class="info-icon" title="O contrato é Cadastrado no CLICKUP"><i class="fas fa-info-circle"></i></span></label> -->
                         <input type="text" 
                                id="edit-teste" 
                                name="teste" 
@@ -594,7 +613,8 @@
                         id: cliente.id,
                         nome: nomeExtraido,
                         status: cliente.status || 'ativo',
-                        clickupNome: cliente.nome || ''
+                        clickupNome: cliente.nome || '',
+                        raw: cliente
                     };
                 });
                 
@@ -773,7 +793,70 @@
                         <i class="fas fa-check-circle"></i>
                     </button>
                 `;
-                
+                const renderInlineForm = () => {
+                    const c = client.raw || {};
+                    const razao = c.razao_social || '';
+                    const fantasia = c.nome_fantasia || '';
+                    const amigavel = c.nome_amigavel || '';
+                    const cnpj = c.cpf_cnpj || c.cnpj_cpf || '';
+                    const statusVal = c.status || '';
+                    const kamino = c.nome_cli_kamino || c.cli_kamino || '';
+                    const id = client.id;
+                    return `
+                        <div class="section-fields" style="margin-top:8px;font-size:12px;">
+                            <div class="form-grid" style="grid-template-columns: repeat(3, minmax(140px, 1fr)); align-items: center; gap: 6px; margin-bottom:6px;">
+                                <div class="form-group">
+                                    <label class="form-label">Razão Social*</label>
+                                    <input type="text" class="form-input" id="inline-razao-${id}" placeholder="Digite a razão social" value="${razao}" style="max-width:160px;">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">N. Fantasia *</label>
+                                    <input type="text" class="form-input" id="inline-fantasia-${id}" placeholder="Digite o nome fantasia" value="${fantasia}" style="max-width:160px;">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">N. Amigável *</label>
+                                    <input type="text" class="form-input" id="inline-amigavel-${id}" placeholder="Digite o nome amigável" value="${amigavel}" style="max-width:160px;">
+                                </div>
+                            </div>
+                            <div class="form-grid" style="grid-template-columns: repeat(3, minmax(140px, 1fr)); align-items: center; gap: 6px;">
+                                <div class="form-group">
+                                    <label class="form-label">CNPJ|Contrato</label>
+                                    <div class="searchable-select" id="inline-cnpj-container-${id}">
+                                        <input type="text" class="form-input searchable-input" id="inline-cnpj-${id}" placeholder="Digite o CNPJ" autocomplete="off" value="${cnpj}" style="max-width:160px;">
+                                        <div class="dropdown-arrow"><i class="fas fa-chevron-down"></i></div>
+                                        <ul class="dropdown-list" id="inline-cnpj-list-${id}" style="display:none;"></ul>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Status</label>
+                                    <div class="select-wrapper">
+                                        <select class="form-input select-with-icon" id="inline-status-${id}" style="max-width:160px;">
+                                            <option value="">Selecione o status</option>
+                                            <option value="ativo" ${statusVal==='ativo'?'selected':''}>Ativo</option>
+                                            <option value="inativo" ${statusVal==='inativo'?'selected':''}>Inativo</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down select-icon"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Cliente Kamino *</label>
+                                    <div class="searchable-select" id="inline-kamino-container-${id}">
+                                        <input type="text" class="form-input searchable-input" id="inline-kamino-search-${id}" placeholder="Digite para pesquisar..." autocomplete="off" value="${kamino}" style="max-width:160px;">
+                                        <input type="hidden" id="inline-kamino-hidden-${id}">
+                                        <div class="dropdown-arrow"><i class="fas fa-chevron-down"></i></div>
+                                        <ul class="dropdown-list" id="inline-kamino-list-${id}" style="display:none;"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button class="client-action-btn activate-btn" type="button" title="Salvar cliente" onclick="salvarClienteInline('${id}')"><i class="fas fa-check"></i></button>
+                        </div>
+                        </div>
+                    `;
+                };
+
+                const inlineFormHTML = showIncompleteClients ? renderInlineForm() : '';
+
                 return `
                     <div class="client-list-item ${statusClass}" data-client-id="${client.id}" data-client-status="${client.status}">
                         <p class="client-name">${clientName}</p>
@@ -783,12 +866,223 @@
                             </button>
                             ${statusButton}
                         </div>
+                        ${inlineFormHTML}
                     </div>
                 `;
             }).join('');
             
             clientsSimpleList.innerHTML = clientsHTML;
+            initInlineCnpjForClients();
+            initInlineKaminoForClients();
             updatePaginationUI();
+        }
+
+        async function salvarClienteInline(id) {
+            try {
+                const razao = document.getElementById(`inline-razao-${id}`)?.value || '';
+                const fantasia = document.getElementById(`inline-fantasia-${id}`)?.value || '';
+                const amigavel = document.getElementById(`inline-amigavel-${id}`)?.value || '';
+                const cnpj = document.getElementById(`inline-cnpj-${id}`)?.value || '';
+                const status = document.getElementById(`inline-status-${id}`)?.value || '';
+                const kaminoNome = document.getElementById(`inline-kamino-search-${id}`)?.value || '';
+                const kaminoId = document.getElementById(`inline-kamino-hidden-${id}`)?.value || '';
+
+                const body = {
+                    razao_social: razao,
+                    nome_fantasia: fantasia,
+                    nome_amigavel: amigavel,
+                    cpf_cnpj: cnpj,
+                    status: status || null,
+                    nome_cli_kamino: kaminoNome,
+                    id_cli_kamino: kaminoId || null
+                };
+
+                const resp = await fetch(`/api/clientes/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    credentials: 'include'
+                });
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    alert(`Erro ao salvar: ${txt}`);
+                    return;
+                }
+                await loadClients();
+                showMessage('Cliente atualizado com sucesso!', 'success');
+            } catch (err) {
+                alert(`Falha ao salvar: ${err.message}`);
+            }
+        }
+
+        function initInlineCnpjForClients() {
+            if (!showIncompleteClients) return;
+            (filteredClients || []).forEach(client => {
+                const id = client.id;
+                const clickupName = client.clickupNome || '';
+                const container = document.getElementById(`inline-cnpj-container-${id}`);
+                const input = document.getElementById(`inline-cnpj-${id}`);
+                const list = document.getElementById(`inline-cnpj-list-${id}`);
+                if (!container || !input || !list) return;
+
+                if (clickupName && clickupName.trim() !== '') {
+                    loadInlineCnpjOptionsFromContratos(clickupName, id);
+                } else {
+                    list.innerHTML = '';
+                    list.style.display = 'none';
+                }
+
+                input.addEventListener('input', function(e) {
+                    if (typeof aplicarMascaraCpfCnpj === 'function') {
+                        const valorFormatado = aplicarMascaraCpfCnpj(e.target.value || '');
+                        e.target.value = valorFormatado;
+                    }
+                });
+                input.addEventListener('keypress', function(e) {
+                    if (!/[0-9]/.test(e.key) && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight'].includes(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+                input.addEventListener('focus', function() {
+                    if (list && list.children.length > 0) list.style.display = 'block';
+                });
+                input.addEventListener('blur', function() {
+                    setTimeout(() => { if (list) list.style.display = 'none'; }, 150);
+                });
+                const arrow = container.querySelector('.dropdown-arrow');
+                if (arrow) {
+                    arrow.addEventListener('click', function() {
+                        if (list) {
+                            const isVisible = list.style.display === 'block';
+                            list.style.display = isVisible ? 'none' : 'block';
+                        }
+                    });
+                }
+            });
+        }
+
+        async function loadInlineCnpjOptionsFromContratos(clickupName, id) {
+            try {
+                const list = document.getElementById(`inline-cnpj-list-${id}`);
+                if (!list) return;
+                list.innerHTML = '';
+                const url = `/api/contratos-cliente/${encodeURIComponent(String(clickupName).trim())}`;
+                const response = await fetch(url, { credentials: 'include' });
+                if (!response.ok) {
+                    list.style.display = 'none';
+                    return;
+                }
+                const result = await response.json();
+                const valores = (result && result.success && Array.isArray(result.data))
+                    ? Array.from(new Set(result.data.map(c => c.cpf_cnpj).filter(v => v && v !== 'N/A')))
+                    : [];
+                valores.forEach(valor => {
+                    const item = document.createElement('li');
+                    item.className = 'dropdown-item';
+                    item.textContent = valor;
+                    item.addEventListener('click', () => {
+                        const input = document.getElementById(`inline-cnpj-${id}`);
+                        if (!input) return;
+                        if (typeof aplicarMascaraCpfCnpj === 'function') {
+                            input.value = aplicarMascaraCpfCnpj(valor);
+                        } else {
+                            input.value = valor;
+                        }
+                        list.style.display = 'none';
+                    });
+                    list.appendChild(item);
+                });
+                list.style.display = 'none';
+            } catch (_) {
+                const list = document.getElementById(`inline-cnpj-list-${id}`);
+                if (list) {
+                    list.innerHTML = '';
+                    list.style.display = 'none';
+                }
+            }
+        }
+
+        function initInlineKaminoForClients() {
+            if (!showIncompleteClients) return;
+            (filteredClients || []).forEach(client => {
+                const id = client.id;
+                const container = document.getElementById(`inline-kamino-container-${id}`);
+                const input = document.getElementById(`inline-kamino-search-${id}`);
+                const hidden = document.getElementById(`inline-kamino-hidden-${id}`);
+                const list = document.getElementById(`inline-kamino-list-${id}`);
+                if (!container || !input || !list) return;
+                if (window.setupSearchableDropdownKaminoGeneric) {
+                    window.setupSearchableDropdownKaminoGeneric(
+                        `inline-kamino-container-${id}`,
+                        `inline-kamino-search-${id}`,
+                        `inline-kamino-list-${id}`,
+                        `inline-kamino-hidden-${id}`
+                    );
+                } else {
+                    input.addEventListener('input', function(e) {
+                        filterInlineKaminoOptions(id, e.target.value || '');
+                        list.style.display = 'block';
+                    });
+                    input.addEventListener('focus', function() {
+                        filterInlineKaminoOptions(id, input.value || '');
+                        list.style.display = 'block';
+                    });
+                    const arrow = container.querySelector('.dropdown-arrow');
+                    if (arrow) {
+                        arrow.addEventListener('click', function() {
+                            if (list) {
+                                const isVisible = list.style.display === 'block';
+                                if (!isVisible) filterInlineKaminoOptions(id, input.value || '');
+                                list.style.display = isVisible ? 'none' : 'block';
+                            }
+                        });
+                    }
+                    document.addEventListener('click', function(e) {
+                        if (!e.target.closest(`#inline-kamino-container-${id}`)) {
+                            list.style.display = 'none';
+                        }
+                    });
+                }
+            });
+        }
+
+        function renderInlineKaminoOptions(id, searchTerm) {
+            try {
+                const list = document.getElementById(`inline-kamino-list-${id}`);
+                const input = document.getElementById(`inline-kamino-search-${id}`);
+                const hidden = document.getElementById(`inline-kamino-hidden-${id}`);
+                if (!list || !input || !hidden) return;
+                list.innerHTML = '';
+                if (!Array.isArray(window.allClientesKamino)) return;
+                const lower = String(searchTerm || '').toLowerCase();
+                const filtered = window.allClientesKamino.filter(c => {
+                    const nomeFantasia = (c.nome_fantasia || '').toLowerCase();
+                    const razaoSocial = (c.razao_social || '').toLowerCase();
+                    const nome = (c.nome || '').toLowerCase();
+                    return nomeFantasia.includes(lower) || razaoSocial.includes(lower) || nome.includes(lower);
+                });
+                filtered.forEach(c => {
+                    const item = document.createElement('li');
+                    item.className = 'dropdown-item';
+                    const nomeExibicao = c.nome_fantasia || c.razao_social || c.nome || 'Cliente sem nome';
+                    item.textContent = nomeExibicao;
+                    item.addEventListener('click', () => {
+                        input.value = nomeExibicao;
+                        const idMap = (window.clientesKaminoMap && window.clientesKaminoMap.get) ? window.clientesKaminoMap.get(c.nome_fantasia || nomeExibicao) : c.id;
+                        hidden.value = idMap || c.id || '';
+                        list.style.display = 'none';
+                    });
+                    list.appendChild(item);
+                });
+            } catch (_) {}
+        }
+
+        function filterInlineKaminoOptions(id, searchTerm) {
+            try {
+                const list = document.getElementById(`inline-kamino-list-${id}`);
+                if (!list) return;
+                renderInlineKaminoOptions(id, searchTerm || '');
+            } catch (_) {}
         }
         
         // Variáveis para o modal de inativação
