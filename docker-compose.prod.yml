@@ -43,7 +43,7 @@ services:
     image: nginx:alpine
     container_name: upgi-nginx
     ports:
-      - "3000:3000"
+      - "4000:4000"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontEnd/dist:/usr/share/nginx/html:ro
