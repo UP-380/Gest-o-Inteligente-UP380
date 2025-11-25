@@ -1,0 +1,111 @@
+/* Status Filter Styles - Extraído de styles.css */
+.status-filter-container {
+  position: relative;
+  width: 100%;
+}
+
+.status-select-field {
+  position: relative;
+  width: 100%;
+}
+
+.status-select-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 40px;
+}
+
+.status-select-display:hover:not(.disabled) {
+  border-color: #007bff;
+}
+
+.status-select-display.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status-select-text {
+  font-size: 14px;
+  color: #6c757d;
+  flex: 1;
+}
+
+.status-select-text.has-selection {
+  color: #333;
+  font-weight: 500;
+}
+
+.status-select-arrow {
+  font-size: 12px;
+  color: #6c757d;
+  transition: transform 0.3s ease;
+}
+
+.status-select-arrow.open {
+  transform: rotate(180deg);
+}
+
+.status-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  margin-top: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.status-dropdown-content {
+  padding: 8px 0;
+}
+
+.status-option {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.status-option:hover {
+  background: #f8f9fa;
+}
+
+.status-option.selected {
+  background: #e7f3ff;
+}
+
+.status-option-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.status-option.selected .status-option-checkbox {
+  background: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
+.status-option-checkbox i {
+  font-size: 12px;
+}
+

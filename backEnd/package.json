@@ -1,0 +1,25 @@
+{
+  "name": "up-gestao-inteligente-backend",
+  "version": "1.0.0",
+  "description": "Backend API - UP Gestão Inteligente",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "dashboard-clientes": "node src/servers/dashboard-clientes.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.75.0",
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "express-session": "^1.18.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
+    "bcryptjs": "^3.0.2",
+    "node-cache": "^5.1.2",
+    "express-rate-limit": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^13.0.0"
+  }
+}
+

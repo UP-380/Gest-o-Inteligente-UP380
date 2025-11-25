@@ -1,11 +1,61 @@
+# Dependências
 node_modules/
+package-lock.json
+
+# Variáveis de ambiente
 .env
+.env.local
+.env.production
+.env.development
+
+# Logs
 *.log
+logs/
+*.log.*
+
+# Build e dist
 dist/
 build/
+.next/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+.npm/
+.eslintcache
+
+# Sistema operacional
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos temporários
+*.temp
+*.tmp
+*.bak
+*.backup
+
+# Python (se houver)
 __pycache__/
 *.pyc
-.vscode/
-*.temp
+*.pyo
+*.pyd
+.Python
+
+# Arquivos de teste
+coverage/
+.nyc_output/
+*.test.js.snap
+
+# Arquivos de produção
+*.pem
+*.key
+*.cert

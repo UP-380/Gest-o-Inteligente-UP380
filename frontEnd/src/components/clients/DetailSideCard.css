@@ -1,0 +1,98 @@
+/* Detail Side Card - Estilo igual ao servidor original */
+.detail-side-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    max-width: 90vw;
+    min-width: 420px;
+    max-width: 560px;
+    max-height: 50vh;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    z-index: 2000;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.detail-side-card-header {
+    padding: 0;
+    border-bottom: none;
+    background: transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.detail-side-card-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-side-card-close {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: auto;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.detail-side-card-close:hover {
+    background: transparent;
+    color: #333;
+}
+
+.detail-side-card-body {
+    padding: 0;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: 10px;
+    color: #6b7280;
+}
+
+.loading i {
+    font-size: 24px;
+    color: #ff9800;
+}
+

@@ -1,0 +1,61 @@
+/* Client Card */
+.client-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    min-height: 200px;
+}
+
+.client-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: #0e3b6f;
+}
+
+.client-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #0e3b6f, #144577);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.client-card:hover::before {
+    opacity: 1;
+}
+
+/* Client Card Header */
+.client-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.client-card-header h3,
+.client-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #0e3b6f;
+    margin: 0;
+    line-height: 1.4;
+    flex: 1;
+    margin-right: 1rem;
+}
+
+/* Client Card Body */
+.client-card-body {
+    margin-bottom: 1.5rem;
+}
+
+
