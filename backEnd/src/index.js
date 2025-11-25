@@ -15,9 +15,18 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-// Desabilitar logs em produção
+// Desabilitar logs em produção (mas manter console.error para debug)
+// IMPORTANTE: Não desabilitar console.error para poder ver erros críticos
 if (IS_PROD) {
-  console.log = function() {};
+  // Manter apenas console.error ativo para logs de erro
+  const originalLog = console.log;
+  console.log = function() {
+    // Em produção, ainda logar erros e informações críticas
+    if (arguments[0] && typeof arguments[0] === 'string' && 
+        (arguments[0].includes('❌') || arguments[0].includes('🚀') || arguments[0].includes('✅'))) {
+      originalLog.apply(console, arguments);
+    }
+  };
 }
 
 // ========================================
@@ -64,13 +73,13 @@ app.use(express.static(path.join(__dirname, '../../')));
 // Em produção, o nginx serve os arquivos estáticos, mas mantemos como fallback
 app.use(express.static(path.join(__dirname, '../../frontEnd/dist')));
 
-// Registrar rotas
-app.use('/', routes);
-
-// Rota de health check
+// Rota de health check (ANTES das outras rotas para garantir acesso)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Registrar rotas
+app.use('/', routes);
 
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
@@ -83,8 +92,10 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
+// IMPORTANTE: Em Docker, deve escutar em 0.0.0.0 para aceitar conexões de outros containers
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Servidor rodando em http://${HOST}:${PORT}`);
   console.log(`📡 Ambiente: ${IS_PROD ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}`);
   console.log(`✅ Sistema de Cache ativo`);
 });
