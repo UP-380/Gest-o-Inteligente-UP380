@@ -55,11 +55,11 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: IS_PROD, // true em produção (HTTPS), false em desenvolvimento
+    secure: false, // false porque estamos usando HTTP (sem HTTPS)
     httpOnly: true,
-    sameSite: IS_PROD ? 'none' : 'lax', // 'none' em produção para funcionar com nginx proxy
+    sameSite: 'lax', // 'lax' funciona com HTTP e nginx proxy
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
-    domain: IS_PROD ? undefined : undefined // Deixar undefined para funcionar com qualquer domínio
+    domain: undefined // Deixar undefined para funcionar com qualquer domínio
   }
 }));
 
