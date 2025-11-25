@@ -1,0 +1,62 @@
+# =============================================================
+# === .dockerignore - UP GESTÃO INTELIGENTE ===
+# =============================================================
+
+# Node modules
+node_modules/
+backEnd/node_modules/
+frontEnd/node_modules/
+
+# Logs
+*.log
+logs/
+backEnd/logs/
+*.log.*
+
+# Arquivos de ambiente
+.env
+.env.*
+!.env.production.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentação
+README.md
+*.md
+docs/
+
+# Arquivos de desenvolvimento
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos temporários
+*.tmp
+*.temp
+.cache/
+.DS_Store
+Thumbs.db
+
+# Frontend (não precisa no build do backend)
+frontEnd/
+!frontEnd/dist/
+
+# Scripts de desenvolvimento
+*.bat
+*.sh
+!deploy.sh
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Outros
+*.backup
+.git.backup/
+
