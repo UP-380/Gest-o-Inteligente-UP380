@@ -2091,11 +2091,12 @@ body {
 .header-container {
     width: 100%;
     margin: 0;
-    padding: 1rem 0;
+    padding: 0;
     padding-left: 60px;
     display: flex;
     justify-content: flex-start;
     align-items: center;
+    height: 64px;
 }
 
 .header-left {
@@ -2111,9 +2112,11 @@ body {
 }
 
 .header-logo-img {
-    height: 2rem;
+    height: 2.5rem;
     width: auto;
+    max-width: 200px;
     object-fit: contain;
+    transition: all 0.3s ease;
 }
 
 .header-title {
@@ -5036,6 +5039,15 @@ body {
         padding-left: 50px;
     }
     
+    .header-left {
+        padding-left: 0.75rem;
+    }
+    
+    .header-logo-img {
+        height: 2rem;
+        max-width: 150px;
+    }
+    
     .sidebar-item {
         padding: 12px 10px;
     }
@@ -5074,6 +5086,15 @@ body {
     
     .header-container {
         padding-left: 45px;
+    }
+    
+    .header-left {
+        padding-left: 0.5rem;
+    }
+    
+    .header-logo-img {
+        height: 1.75rem;
+        max-width: 120px;
     }
     
     .sidebar-item {

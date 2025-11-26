@@ -64,22 +64,28 @@ const DashboardClientes = () => {
   const [todosClientes, setTodosClientes] = useState([]);
   const [todosColaboradores, setTodosColaboradores] = useState([]);
 
-  // Debug: log quando todosClientes mudar
-  useEffect(() => {
-    console.log('📊 Estado todosClientes atualizado:', todosClientes.length, 'clientes');
-    if (todosClientes.length > 0) {
-      console.log('📋 Primeiros 5 clientes:', todosClientes.slice(0, 5));
-    }
-  }, [todosClientes]);
 
   // Limpar seleção de cliente se ele não estiver mais na lista de clientes disponíveis
   useEffect(() => {
     if (filtroCliente && todosClientes.length > 0) {
-      const clienteIdStr = String(filtroCliente).trim();
-      const clienteExiste = todosClientes.some(c => String(c.id).trim() === clienteIdStr);
-      if (!clienteExiste) {
-        console.log('⚠️ Cliente selecionado não está mais na lista. Limpando seleção de cliente.');
-        setFiltroCliente(null);
+      const clienteIds = Array.isArray(filtroCliente) 
+        ? filtroCliente.map(id => String(id).trim())
+        : [String(filtroCliente).trim()];
+      
+      // Verificar se todos os clientes selecionados ainda existem
+      const clientesValidos = clienteIds.filter(clienteId => 
+        todosClientes.some(c => String(c.id).trim() === clienteId)
+      );
+      
+      // Se algum cliente foi removido, atualizar o filtro
+      if (clientesValidos.length !== clienteIds.length) {
+        if (clientesValidos.length === 0) {
+          setFiltroCliente(null);
+        } else if (Array.isArray(filtroCliente)) {
+          setFiltroCliente(clientesValidos.length === 1 ? clientesValidos[0] : clientesValidos);
+        } else {
+          setFiltroCliente(clientesValidos.length === 1 ? clientesValidos[0] : clientesValidos);
+        }
       }
     }
   }, [todosClientes, filtroCliente]);
@@ -95,6 +101,9 @@ const DashboardClientes = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalClients, setTotalClients] = useState(0);
+  
+  // Estado para rastrear se os filtros foram aplicados
+  const [filtrosAplicados, setFiltrosAplicados] = useState(false);
 
   // Estado do card lateral
   const [detailCard, setDetailCard] = useState(null);
@@ -150,7 +159,6 @@ const DashboardClientes = () => {
       const cached = cache.get(cacheKey);
       
       if (cached) {
-        console.log('📦 Clientes do cache:', cached.length);
         setTodosClientes(cached);
         return;
       }
@@ -159,9 +167,6 @@ const DashboardClientes = () => {
       if (status) {
         url += `?status=${encodeURIComponent(status)}`;
       }
-
-      console.log('📡 Buscando clientes:', url);
-      console.log('🌐 URL completa:', window.location.origin + url);
       
       const response = await fetch(url, {
         credentials: 'include',
@@ -169,9 +174,6 @@ const DashboardClientes = () => {
           'Accept': 'application/json',
         },
       });
-      
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
       
       // Verificar se a resposta é HTML (erro)
       const contentType = response.headers.get('content-type') || '';
@@ -187,13 +189,9 @@ const DashboardClientes = () => {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const result = await response.json();
-      console.log('📥 Resultado da API clientes:', result);
       if (result.success && result.data && Array.isArray(result.data)) {
-        console.log('✅ Clientes carregados:', result.data.length);
         setTodosClientes(result.data);
         cache.set(cacheKey, result.data);
-      } else {
-        console.warn('⚠️ Formato de resposta inesperado:', result);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar clientes:', error);
@@ -211,18 +209,12 @@ const DashboardClientes = () => {
         return;
       }
 
-      console.log('📡 Buscando colaboradores:', `${API_BASE_URL}/membros-id-nome`);
-      console.log('🌐 URL completa:', window.location.origin + `${API_BASE_URL}/membros-id-nome`);
-      
       const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
         },
       });
-      
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
       
       // Verificar se a resposta é HTML (erro)
       const contentType = response.headers.get('content-type') || '';
@@ -247,27 +239,77 @@ const DashboardClientes = () => {
     }
   }, []);
 
-  // Carregar colaboradores por cliente
-  const carregarColaboradoresPorCliente = useCallback(async (clienteId) => {
+  // Carregar colaboradores por cliente(s) - aceita array ou valor único
+  // REPLICANDO A LÓGICA DE carregarClientesPorColaborador, mas invertida
+  const carregarColaboradoresPorCliente = useCallback(async (clienteId, periodoInicio = null, periodoFim = null) => {
     try {
       if (!clienteId) {
         await carregarColaboradores();
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/membros-por-cliente?clienteId=${clienteId}`, {
+      // Normalizar para array (suporta tanto array quanto valor único) - MESMA LÓGICA DE carregarClientesPorColaborador
+      const clienteIds = Array.isArray(clienteId) 
+        ? clienteId 
+        : [clienteId];
+
+      // Obter período se estiver selecionado - MESMA LÓGICA DE carregarClientesPorColaborador
+      const params = [];
+      
+      // Enviar múltiplos clientes como parâmetros repetidos - MESMA LÓGICA DE carregarClientesPorColaborador
+      clienteIds.forEach(id => {
+        params.push(`clienteId=${encodeURIComponent(id)}`);
+      });
+      
+      if (periodoInicio && periodoFim) {
+        params.push(`periodoInicio=${encodeURIComponent(periodoInicio)}`);
+        params.push(`periodoFim=${encodeURIComponent(periodoFim)}`);
+      }
+      
+      const url = `${API_BASE_URL}/membros-por-cliente?${params.join('&')}`;
+
+      console.log('🔍 [FRONTEND] Buscando colaboradores por cliente:', {
+        clienteIds,
+        periodoInicio,
+        periodoFim,
+        url
+      });
+
+      const response = await fetch(url, {
         credentials: 'include',
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const result = await response.json();
+      
+      console.log('📊 [FRONTEND] Resultado da busca:', {
+        success: result.success,
+        count: result.data?.length || 0,
+        data: result.data
+      });
+      
       if (result.success && result.data && Array.isArray(result.data)) {
-        setTodosColaboradores(result.data.map(m => ({ id: m.id, nome: m.nome })));
+        // Garantir que todos os colaboradores sejam incluídos, mesmo sem nome
+        // Remover duplicatas baseado no ID
+        const colaboradoresUnicos = new Map();
+        result.data.forEach(m => {
+          const idStr = String(m.id).trim();
+          if (!colaboradoresUnicos.has(idStr)) {
+            colaboradoresUnicos.set(idStr, { 
+              id: m.id, 
+              nome: m.nome || `Colaborador #${m.id}` // Fallback para nome se não tiver
+            });
+          }
+        });
+        const colaboradoresArray = Array.from(colaboradoresUnicos.values());
+        console.log(`✅ [FRONTEND] Colaboradores únicos encontrados: ${colaboradoresArray.length}`);
+        setTodosColaboradores(colaboradoresArray);
       } else {
+        console.warn('⚠️ [FRONTEND] Nenhum colaborador retornado ou formato inválido');
         setTodosColaboradores([]);
       }
     } catch (error) {
-      console.error('Erro ao carregar colaboradores por cliente:', error);
+      console.error('❌ [FRONTEND] Erro ao carregar colaboradores por cliente:', error);
       setTodosColaboradores([]);
     }
   }, [carregarColaboradores]);
@@ -299,8 +341,6 @@ const DashboardClientes = () => {
       }
       
       const url = `${API_BASE_URL}/clientes-por-colaborador?${params.join('&')}`;
-      
-      console.log('📡 [CARREGAR-CLIENTES-POR-COLABORADOR] URL:', url);
 
       const response = await fetch(url, {
         credentials: 'include',
@@ -310,9 +350,6 @@ const DashboardClientes = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
-        console.log(`✅ [CARREGAR-CLIENTES-POR-COLABORADOR] Clientes encontrados: ${result.data.length}`);
-        console.log(`📋 [CARREGAR-CLIENTES-POR-COLABORADOR] Primeiros clientes:`, result.data.slice(0, 5).map(c => ({ id: c.id, nome: c.nome })));
-        
         // Se houver filtro de status, aplicar aqui também
         let clientesFiltrados = result.data;
         if (filtroStatus) {
@@ -337,7 +374,6 @@ const DashboardClientes = () => {
         }
         
         const novosClientes = clientesFiltrados.map(c => ({ id: c.id, nome: c.nome }));
-        console.log(`📊 [CARREGAR-CLIENTES-POR-COLABORADOR] Atualizando todosClientes com ${novosClientes.length} clientes`);
         setTodosClientes(novosClientes);
       } else {
         setTodosClientes([]);
@@ -358,8 +394,18 @@ const DashboardClientes = () => {
       if (filtroStatus && (typeof filtroStatus === 'string' ? filtroStatus.trim() !== '' : true)) {
         url += `&status=${encodeURIComponent(filtroStatus)}`;
       }
-      if (filtroCliente && (typeof filtroCliente === 'string' ? filtroCliente.trim() !== '' : true)) {
-        url += `&clienteId=${encodeURIComponent(filtroCliente)}`;
+      // Suportar array de clientes
+      if (filtroCliente) {
+        const clienteIds = Array.isArray(filtroCliente) 
+          ? filtroCliente 
+          : (typeof filtroCliente === 'string' && filtroCliente.trim() !== '' ? [filtroCliente] : null);
+        
+        if (clienteIds && clienteIds.length > 0) {
+          // Enviar múltiplos clientes como parâmetros repetidos
+          clienteIds.forEach(id => {
+            url += `&clienteId=${encodeURIComponent(id)}`;
+          });
+        }
       }
       // Suportar array de colaboradores
       if (filtroColaborador) {
@@ -381,21 +427,11 @@ const DashboardClientes = () => {
         url += `&dataFim=${encodeURIComponent(filtroDataFim)}`;
       }
       
-      console.log('📡 Buscando clientes paginados:', url);
-      console.log('🔍 URL completa:', window.location.origin + url);
-      
       const response = await fetch(url, {
         credentials: 'include', // Importante para enviar cookies de sessão
         headers: {
           'Content-Type': 'application/json',
         },
-      });
-      
-      console.log('📥 Resposta recebida:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries())
       });
       
       if (!response.ok) {
@@ -408,106 +444,98 @@ const DashboardClientes = () => {
       }
       
       const result = await response.json();
-      console.log('✅ Resultado recebido:', result);
       if (!result.success) {
         throw new Error(result.error || 'Erro ao buscar clientes');
       }
       
       const clientesComResumos = result.data || [];
       
-      // Coletar todos os registros e contratos para cálculos gerais
-      // Usar Map para evitar duplicação por ID de registro
-      const registrosMap = new Map();
-      const contratosMap = new Map();
-      
-      clientesComResumos.forEach(item => {
-        // Se há filtro de cliente, coletar apenas registros desse cliente
-        if (filtroCliente && (typeof filtroCliente === 'string' ? filtroCliente.trim() !== '' : true)) {
-          const clienteIdFiltro = String(filtroCliente).trim();
-          const clienteIdItem = item.cliente?.id ? String(item.cliente.id).trim() : '';
+      // Usar os totais gerais retornados pelo backend (de TODAS as páginas)
+      if (result.totaisGerais) {
+        const { todosRegistros, todosContratos } = result.totaisGerais;
+        
+        // Aplicar filtros adicionais nos registros para garantir que estamos contando apenas os corretos
+        let registrosFiltrados = todosRegistros || [];
+        
+        // Se há filtro de colaborador(es), garantir que apenas registros desses colaboradores sejam contados
+        if (filtroColaborador) {
+          const colaboradorIds = Array.isArray(filtroColaborador) 
+            ? filtroColaborador.map(id => String(id).trim())
+            : (typeof filtroColaborador === 'string' && filtroColaborador.trim() !== '' ? [String(filtroColaborador).trim()] : []);
           
-          // Pular se não for o cliente filtrado
-          if (clienteIdItem !== clienteIdFiltro) {
-            return;
+          if (colaboradorIds.length > 0) {
+            registrosFiltrados = registrosFiltrados.filter(reg => {
+              const regUsuarioId = reg.usuario_id ? String(reg.usuario_id).trim() : '';
+              return colaboradorIds.includes(regUsuarioId);
+            });
           }
         }
         
-        // Coletar registros únicos por ID
-        if (item.registros && Array.isArray(item.registros)) {
-          item.registros.forEach(registro => {
-            // Usar ID do registro como chave para evitar duplicação
-            const registroId = registro.id || `${registro.tarefa_id}_${registro.usuario_id}_${registro.data_inicio}_${registro.data_fim || ''}`;
-            if (!registrosMap.has(registroId)) {
-              registrosMap.set(registroId, registro);
-            }
-          });
+        // Se há filtro de cliente(s), garantir que apenas registros desses clientes sejam contados (dupla verificação)
+        if (filtroCliente) {
+          const clienteIds = Array.isArray(filtroCliente) 
+            ? filtroCliente.map(id => String(id).trim())
+            : (typeof filtroCliente === 'string' && filtroCliente.trim() !== '' ? [String(filtroCliente).trim()] : []);
+          
+          if (clienteIds.length > 0) {
+            registrosFiltrados = registrosFiltrados.filter(reg => {
+              if (!reg.cliente_id) return false;
+              // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
+              // Verificar se algum dos clienteIds está entre os IDs do registro
+              const regClienteIds = String(reg.cliente_id)
+                .split(',')
+                .map(id => id.trim())
+                .filter(id => id.length > 0);
+              // Verificar se algum dos IDs do filtro está presente nos IDs do registro
+              return clienteIds.some(clienteId => regClienteIds.includes(clienteId));
+            });
+          }
         }
         
-        // Coletar contratos únicos por ID
-        if (item.contratos && Array.isArray(item.contratos)) {
-          item.contratos.forEach(contrato => {
-            const contratoId = contrato.id || `${contrato.id_cliente}_${contrato.status}`;
-            if (!contratosMap.has(contratoId)) {
-              contratosMap.set(contratoId, contrato);
-            }
-          });
-        }
-      });
-      
-      // Converter Map para Array
-      let registros = Array.from(registrosMap.values());
-      const contratos = Array.from(contratosMap.values());
-      
-      // Aplicar filtros adicionais nos registros para garantir que estamos contando apenas os corretos
-      let registrosFiltrados = registros;
-      
-      // Se há filtro de colaborador(es), garantir que apenas registros desses colaboradores sejam contados
-      if (filtroColaborador) {
-        const colaboradorIds = Array.isArray(filtroColaborador) 
-          ? filtroColaborador.map(id => String(id).trim())
-          : (typeof filtroColaborador === 'string' && filtroColaborador.trim() !== '' ? [String(filtroColaborador).trim()] : []);
-        
-        if (colaboradorIds.length > 0) {
+        // Se há filtro de período, garantir que apenas registros nesse período sejam contados
+        if (filtroDataInicio && filtroDataFim) {
+          const inicio = new Date(filtroDataInicio);
+          const fim = new Date(filtroDataFim);
+          fim.setUTCHours(23, 59, 59, 999);
+          
           registrosFiltrados = registrosFiltrados.filter(reg => {
-            const regUsuarioId = reg.usuario_id ? String(reg.usuario_id).trim() : '';
-            return colaboradorIds.includes(regUsuarioId);
+            if (!reg.data_inicio) return false;
+            const regData = new Date(reg.data_inicio);
+            return regData >= inicio && regData <= fim;
           });
         }
-      }
-      
-      // Se há filtro de cliente, garantir que apenas registros desse cliente sejam contados (dupla verificação)
-      if (filtroCliente && (typeof filtroCliente === 'string' ? filtroCliente.trim() !== '' : true)) {
-        const clienteId = String(filtroCliente).trim();
-        registrosFiltrados = registrosFiltrados.filter(reg => {
-          const regClienteId = reg.cliente_id ? String(reg.cliente_id).trim() : '';
-          return regClienteId === clienteId;
-        });
-      }
-      
-      // Se há filtro de período, garantir que apenas registros nesse período sejam contados
-      if (filtroDataInicio && filtroDataFim) {
-        const inicio = new Date(filtroDataInicio);
-        const fim = new Date(filtroDataFim);
-        fim.setUTCHours(23, 59, 59, 999);
         
-        registrosFiltrados = registrosFiltrados.filter(reg => {
-          if (!reg.data_inicio) return false;
-          const regData = new Date(reg.data_inicio);
-          return regData >= inicio && regData <= fim;
+        setAllRegistrosTempo(registrosFiltrados);
+        setAllContratos(todosContratos || []);
+      } else {
+        // Fallback: se o backend não retornar totais gerais, usar os dados da página atual
+        // Coletar todos os registros e contratos para cálculos gerais
+        const registrosMap = new Map();
+        const contratosMap = new Map();
+        
+        clientesComResumos.forEach(item => {
+          if (item.registros && Array.isArray(item.registros)) {
+            item.registros.forEach(registro => {
+              const registroId = registro.id || `${registro.tarefa_id}_${registro.usuario_id}_${registro.data_inicio}_${registro.data_fim || ''}`;
+              if (!registrosMap.has(registroId)) {
+                registrosMap.set(registroId, registro);
+              }
+            });
+          }
+          
+          if (item.contratos && Array.isArray(item.contratos)) {
+            item.contratos.forEach(contrato => {
+              const contratoId = contrato.id || `${contrato.id_cliente}_${contrato.status}`;
+              if (!contratosMap.has(contratoId)) {
+                contratosMap.set(contratoId, contrato);
+              }
+            });
+          }
         });
+        
+        setAllRegistrosTempo(Array.from(registrosMap.values()));
+        setAllContratos(Array.from(contratosMap.values()));
       }
-      
-      // Debug: log dos registros filtrados
-      console.log('📊 Registros filtrados para dashboard:', {
-        total: registrosFiltrados.length,
-        filtroCliente: filtroCliente || 'nenhum',
-        filtroColaborador: filtroColaborador || 'nenhum',
-        filtroPeriodo: filtroDataInicio && filtroDataFim ? `${filtroDataInicio} - ${filtroDataFim}` : 'nenhum',
-        totalTempo: registrosFiltrados.reduce((sum, r) => sum + (Number(r.tempo_realizado) || 0), 0)
-      });
-      
-      setAllRegistrosTempo(registrosFiltrados);
-      setAllContratos(contratos);
       
       // Armazenar dados no cache para os cards laterais
       clientesComResumos.forEach(item => {
@@ -533,15 +561,6 @@ const DashboardClientes = () => {
 
   // Aplicar filtros
   const aplicarFiltros = useCallback(() => {
-    // Debug: mostrar valores dos filtros
-    console.log('🔍 Aplicando filtros:', {
-      status: filtroStatus,
-      cliente: filtroCliente,
-      colaborador: filtroColaborador,
-      dataInicio: filtroDataInicio,
-      dataFim: filtroDataFim
-    });
-
     // Validar dependências
     const valores = {
       status: filtroStatus,
@@ -594,6 +613,7 @@ const DashboardClientes = () => {
     }
 
     setCurrentPage(1);
+    setFiltrosAplicados(true);
     carregarClientesPaginados();
   }, [filtroStatus, filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, carregarClientesPaginados]);
 
@@ -612,7 +632,7 @@ const DashboardClientes = () => {
       sessionStorage.removeItem('status_all');
       sessionStorage.removeItem('colaboradores_all');
     } catch (e) {
-      console.warn('⚠️ Erro ao limpar cache:', e);
+      // Ignore cache errors
     }
     
     // Recarregar todos os dados sem filtros
@@ -625,6 +645,7 @@ const DashboardClientes = () => {
     setAllContratos([]);
     setAllRegistrosTempo([]);
     setCurrentPage(1);
+    setFiltrosAplicados(false);
   }, [carregarStatus, carregarClientes, carregarColaboradores]);
 
   // Handlers dos filtros
@@ -642,13 +663,30 @@ const DashboardClientes = () => {
     const value = e.target.value || null;
     setFiltroCliente(value);
     if (value) {
-      await carregarStatus(value);
-      await carregarColaboradoresPorCliente(value);
+      // Se for array, usar o primeiro cliente para carregar status
+      // Mas passar todos os clientes para carregar colaboradores
+      const clienteId = Array.isArray(value) ? value[0] : value;
+      await carregarStatus(clienteId);
+      // Passar todos os clientes selecionados e o período (se houver) para buscar colaboradores
+      await carregarColaboradoresPorCliente(value, filtroDataInicio, filtroDataFim);
     } else {
       await carregarStatus();
       await carregarColaboradores();
     }
-  }, [carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores]);
+  }, [carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores, filtroDataInicio, filtroDataFim]);
+
+  // Recarregar colaboradores quando o período mudar e houver cliente selecionado
+  useEffect(() => {
+    if (filtroCliente && (filtroDataInicio || filtroDataFim)) {
+      // Se ambos os períodos estiverem preenchidos, recarregar colaboradores
+      if (filtroDataInicio && filtroDataFim) {
+        carregarColaboradoresPorCliente(filtroCliente, filtroDataInicio, filtroDataFim);
+      }
+    } else if (filtroCliente && !filtroDataInicio && !filtroDataFim) {
+      // Se cliente está selecionado mas período foi removido, recarregar sem período
+      carregarColaboradoresPorCliente(filtroCliente);
+    }
+  }, [filtroDataInicio, filtroDataFim, filtroCliente, carregarColaboradoresPorCliente]);
 
   const handleColaboradorChange = useCallback(async (e) => {
     // value pode ser null, um array, ou um único valor (para compatibilidade)
@@ -659,13 +697,6 @@ const DashboardClientes = () => {
     const colaboradorIds = Array.isArray(value) 
       ? value.map(normalizeId).filter(Boolean)
       : (value ? [normalizeId(value)] : null);
-    
-    console.log('🔍 handleColaboradorChange:', {
-      valueRecebido: value,
-      colaboradorIdsNormalizados: colaboradorIds,
-      tipo: typeof value,
-      isArray: Array.isArray(value)
-    });
     
     setFiltroColaborador(colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null);
     
@@ -740,54 +771,231 @@ const DashboardClientes = () => {
   }, []);
 
   // Handlers de dashboard cards
-  const handleShowTarefas = useCallback((e) => {
+  const handleShowTarefas = useCallback(async (e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
       alert('Nenhuma tarefa encontrada');
       return;
     }
 
     const tarefasMap = new Map();
+    const tarefasIdsParaBuscar = [];
+
+    // Primeiro, coletar todas as tarefas e identificar quais precisam buscar o nome
     allRegistrosTempo.forEach(registro => {
-      if (registro.tarefa_id && registro.tarefa) {
+      if (registro.tarefa_id) {
         const tarefaId = String(registro.tarefa_id).trim();
         if (!tarefasMap.has(tarefaId)) {
-          const nomeTarefa = registro.tarefa.nome || 
-                            registro.tarefa.tarefa_nome ||
-                            registro.tarefa.titulo || 
-                            registro.tarefa.descricao || 
-                            `Tarefa #${tarefaId}`;
-          tarefasMap.set(tarefaId, nomeTarefa);
+          // Tentar buscar nome da tarefa do objeto tarefa, se existir
+          const nomeTarefa = registro.tarefa?.tarefa_nome || 
+                            registro.tarefa?.nome ||
+                            registro.tarefa?.titulo || 
+                            registro.tarefa?.descricao;
+          
+          if (nomeTarefa) {
+            // Nome encontrado, usar diretamente
+            tarefasMap.set(tarefaId, nomeTarefa);
+          } else {
+            // Nome não encontrado, marcar para buscar na API
+            tarefasIdsParaBuscar.push(tarefaId);
+          }
         }
       }
     });
 
+    // Se houver tarefas sem nome, buscar na API
+    if (tarefasIdsParaBuscar.length > 0) {
+      try {
+        const idsParam = tarefasIdsParaBuscar.join(',');
+        const response = await fetch(`${API_BASE_URL}/tarefas-por-ids?ids=${encodeURIComponent(idsParam)}`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            // Atualizar o mapa com os nomes encontrados
+            Object.entries(result.data).forEach(([id, nome]) => {
+              if (nome) {
+                tarefasMap.set(id, nome);
+              } else {
+                // Se não encontrou o nome, usar o ID como fallback
+                tarefasMap.set(id, `Tarefa #${id}`);
+              }
+            });
+          }
+        } else {
+          // Se a resposta não foi OK, tentar ler o erro
+          const errorText = await response.text().catch(() => 'Erro desconhecido');
+          console.error(`Erro ao buscar tarefas: ${response.status} - ${errorText}`);
+        }
+        
+        // Para IDs que não foram retornados pela API ou não tiveram nome, usar fallback
+        tarefasIdsParaBuscar.forEach(id => {
+          if (!tarefasMap.has(id)) {
+            tarefasMap.set(id, `Tarefa #${id}`);
+          }
+        });
+      } catch (error) {
+        console.error('Erro ao buscar nomes das tarefas:', error);
+        // Em caso de erro, usar fallback com ID
+        tarefasIdsParaBuscar.forEach(id => {
+          if (!tarefasMap.has(id)) {
+            tarefasMap.set(id, `Tarefa #${id}`);
+          }
+        });
+      }
+    }
+
     const itens = Array.from(tarefasMap.values());
+    
+    if (itens.length === 0) {
+      alert('Nenhuma tarefa encontrada');
+      return;
+    }
+    
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Tarefas', itens });
     setMiniCardPosition(position);
   }, [allRegistrosTempo]);
 
-  const handleShowColaboradores = useCallback((e) => {
+  const handleShowColaboradores = useCallback(async (e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
       alert('Nenhum colaborador encontrado');
       return;
     }
 
     const colaboradoresMap = new Map();
+    
+    // Criar um mapa de colaboradores para busca mais eficiente
+    const colaboradoresMapById = new Map();
+    if (todosColaboradores && todosColaboradores.length > 0) {
+      todosColaboradores.forEach(colab => {
+        const idStr = String(colab.id).trim();
+        const idNum = parseInt(idStr, 10);
+        // Armazenar por string e número para garantir que encontre
+        if (!colaboradoresMapById.has(idStr)) {
+          colaboradoresMapById.set(idStr, colab);
+        }
+        if (!isNaN(idNum) && !colaboradoresMapById.has(idNum)) {
+          colaboradoresMapById.set(idNum, colab);
+        }
+      });
+    }
+    
+    // Coletar IDs de colaboradores que precisam de nome
+    const idsSemNome = [];
+    
     allRegistrosTempo.forEach(registro => {
-      if (registro.usuario_id && registro.membro) {
+      if (registro.usuario_id) {
         const colaboradorId = String(registro.usuario_id).trim();
+        const colaboradorIdNum = parseInt(colaboradorId, 10);
+        
         if (!colaboradoresMap.has(colaboradorId)) {
-          colaboradoresMap.set(colaboradorId, registro.membro.nome || `Colaborador #${colaboradorId}`);
+          let nomeColaborador = null;
+          
+          // 1. Tentar buscar nome do colaborador do objeto membro (vem do backend)
+          if (registro.membro && registro.membro.nome) {
+            nomeColaborador = registro.membro.nome;
+          }
+          
+          // 2. Se não encontrou, buscar na lista de todosColaboradores
+          if (!nomeColaborador && colaboradoresMapById.size > 0) {
+            const colaboradorEncontrado = colaboradoresMapById.get(colaboradorId) || 
+                                         colaboradoresMapById.get(colaboradorIdNum) ||
+                                         colaboradoresMapById.get(registro.usuario_id);
+            nomeColaborador = colaboradorEncontrado?.nome;
+          }
+          
+          // 3. Se ainda não encontrou, tentar busca mais flexível na lista
+          if (!nomeColaborador && todosColaboradores && todosColaboradores.length > 0) {
+            const colaboradorEncontrado = todosColaboradores.find(c => {
+              const cIdStr = String(c.id).trim();
+              const cIdNum = parseInt(cIdStr, 10);
+              return cIdStr === colaboradorId || 
+                     cIdNum === colaboradorIdNum ||
+                     cIdStr === String(registro.usuario_id).trim() ||
+                     cIdNum === registro.usuario_id;
+            });
+            nomeColaborador = colaboradorEncontrado?.nome;
+          }
+          
+          // Se não encontrou nome, adicionar à lista para buscar no backend
+          if (!nomeColaborador) {
+            idsSemNome.push(colaboradorId);
+            colaboradoresMap.set(colaboradorId, null); // Placeholder
+          } else {
+            colaboradoresMap.set(colaboradorId, nomeColaborador);
+          }
         }
       }
     });
 
-    const itens = Array.from(colaboradoresMap.values());
+    // Se houver IDs sem nome, buscar no backend
+    if (idsSemNome.length > 0) {
+      try {
+        // Buscar membros faltantes do backend
+        const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && Array.isArray(result.data)) {
+            // Criar mapa dos membros retornados
+            const membrosBackendMap = new Map();
+            result.data.forEach(m => {
+              const idStr = String(m.id).trim();
+              const idNum = parseInt(idStr, 10);
+              membrosBackendMap.set(idStr, m);
+              if (!isNaN(idNum)) {
+                membrosBackendMap.set(idNum, m);
+              }
+            });
+            
+            // Atualizar nomes dos colaboradores que não foram encontrados
+            idsSemNome.forEach(id => {
+              const idStr = String(id).trim();
+              const idNum = parseInt(idStr, 10);
+              const membro = membrosBackendMap.get(idStr) || membrosBackendMap.get(idNum);
+              if (membro && membro.nome) {
+                colaboradoresMap.set(idStr, membro.nome);
+              } else {
+                colaboradoresMap.set(idStr, `Colaborador #${idStr}`);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar membros faltantes:', error);
+        // Se der erro, usar fallback
+        idsSemNome.forEach(id => {
+          colaboradoresMap.set(String(id).trim(), `Colaborador #${id}`);
+        });
+      }
+    }
+
+    // Aplicar fallback para qualquer colaborador que ainda não tenha nome
+    colaboradoresMap.forEach((nome, id) => {
+      if (!nome) {
+        colaboradoresMap.set(id, `Colaborador #${id}`);
+      }
+    });
+
+    const itens = Array.from(colaboradoresMap.values()).sort();
+    
+    if (itens.length === 0) {
+      alert('Nenhum colaborador encontrado');
+      return;
+    }
+    
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Colaboradores', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo]);
+  }, [allRegistrosTempo, todosColaboradores]);
 
   const handleShowClientes = useCallback((e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
@@ -798,13 +1006,21 @@ const DashboardClientes = () => {
     const clientesMap = new Map();
     allRegistrosTempo.forEach(registro => {
       if (registro.cliente_id) {
-        const clienteId = String(registro.cliente_id).trim();
-        if (!clientesMap.has(clienteId)) {
-          const nomeCliente = registro.cliente?.nome || 
-                             (todosClientes && todosClientes.find(c => String(c.id) === clienteId)?.nome) ||
-                             `Cliente #${clienteId}`;
-          clientesMap.set(clienteId, nomeCliente);
-        }
+        // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
+        // Fazer split para tratar cada ID como um cliente separado
+        const clienteIds = String(registro.cliente_id)
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+        
+        clienteIds.forEach(clienteId => {
+          if (!clientesMap.has(clienteId)) {
+            const nomeCliente = registro.cliente?.nome || 
+                               (todosClientes && todosClientes.find(c => String(c.id) === clienteId)?.nome) ||
+                               `Cliente #${clienteId}`;
+            clientesMap.set(clienteId, nomeCliente);
+          }
+        });
       }
     });
 
@@ -869,15 +1085,12 @@ const DashboardClientes = () => {
   const carregarTarefasIncompletas = useCallback(async () => {
     setLoadingIncompletas(true);
     try {
-      console.log('📡 Buscando tarefas incompletas:', `${API_BASE_URL}/tarefas-incompletas`);
       const response = await fetch(`${API_BASE_URL}/tarefas-incompletas`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
         },
       });
-
-      console.log('📥 Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -886,18 +1099,9 @@ const DashboardClientes = () => {
       }
 
       const result = await response.json();
-      console.log('📥 Resultado recebido:', result);
-      console.log('📥 result.success:', result.success);
-      console.log('📥 result.data:', result.data);
-      console.log('📥 result.count:', result.count);
       
       // Aceitar tanto result.data quanto result.items (compatibilidade)
       const tarefas = result.data || result.items || [];
-      console.log('📋 Tarefas processadas:', tarefas.length);
-      
-      if (tarefas.length > 0) {
-        console.log('✅ Primeiras 3 tarefas:', tarefas.slice(0, 3));
-      }
       
       setTarefasIncompletas(tarefas);
     } catch (error) {
@@ -937,21 +1141,23 @@ const DashboardClientes = () => {
 
   // Carregar dados iniciais
   useEffect(() => {
-    console.log('🚀 Carregando dados iniciais...');
     // Limpar cache de clientes para garantir dados atualizados
     try {
       sessionStorage.removeItem('clientes_all');
-      console.log('🗑️ Cache de clientes limpo');
     } catch (e) {
-      console.warn('⚠️ Erro ao limpar cache:', e);
+      // Ignore cache errors
     }
     carregarStatus();
     carregarClientes();
     carregarColaboradores();
   }, [carregarStatus, carregarClientes, carregarColaboradores]);
 
-  // Calcular número de colunas do grid
-  const numCols = Math.min(4, clientes.length);
+  // Recarregar dados quando a página ou itens por página mudarem (apenas se filtros já foram aplicados)
+  useEffect(() => {
+    if (filtrosAplicados) {
+      carregarClientesPaginados();
+    }
+  }, [currentPage, itemsPerPage, filtrosAplicados, carregarClientesPaginados]);
 
   return (
     <Layout>
@@ -1160,7 +1366,7 @@ const DashboardClientes = () => {
                   <p>Carregando resultados...</p>
                 </div>
               ) : clientes.length > 0 ? (
-                <div className="clientes-grid" style={{ gridTemplateColumns: `repeat(${numCols}, 1fr)` }}>
+                <div className="clientes-grid">
                   {clientes.map((item) => (
                     <ClientCard
                       key={item.cliente.id}

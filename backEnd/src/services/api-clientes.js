@@ -531,44 +531,125 @@ async function getMembrosPorIds(membroIds) {
     return [];
   }
   
-  // Buscar apenas os membros necessários usando .in() ou .or()
-  const membroIdsUnicos = [...new Set(membroIds.map(id => String(id).trim()).filter(Boolean))];
+  // Normalizar IDs: tentar converter para número quando possível, mas manter string também
+  const membroIdsNormalizados = membroIds.map(id => {
+    const idStr = String(id).trim();
+    const idNum = parseInt(idStr, 10);
+    return { original: id, string: idStr, number: isNaN(idNum) ? null : idNum };
+  });
   
-  if (membroIdsUnicos.length === 0) {
+  // Criar lista única de IDs para buscar (tentar número primeiro, depois string)
+  const idsParaBuscar = [];
+  membroIdsNormalizados.forEach(({ string, number }) => {
+    if (number !== null && !idsParaBuscar.includes(number)) {
+      idsParaBuscar.push(number);
+    } else if (!idsParaBuscar.includes(string)) {
+      idsParaBuscar.push(string);
+    }
+  });
+  
+  if (idsParaBuscar.length === 0) {
     return [];
   }
   
-  // Tentar usar .in() primeiro (mais rápido)
-  // Se falhar, fazer queries individuais
   let membros = [];
   
   try {
-    // Tentar com .in() (pode não funcionar se coluna for text)
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .select('id, nome')
-      .in('id', membroIdsUnicos);
+    // Tentar com .in() usando números (se todos forem números)
+    const todosNumeros = idsParaBuscar.every(id => typeof id === 'number' || !isNaN(parseInt(String(id), 10)));
     
-    if (!error && data) {
-      membros = data;
-    } else {
-      // Fallback: buscar individualmente
-      const membrosPromises = membroIdsUnicos.map(async (id) => {
+    if (todosNumeros) {
+      // Converter todos para números
+      const idsNumeros = idsParaBuscar.map(id => typeof id === 'number' ? id : parseInt(String(id), 10)).filter(id => !isNaN(id));
+      
+      if (idsNumeros.length > 0) {
         const { data, error } = await supabase
           .schema('up_gestaointeligente')
           .from('membro')
           .select('id, nome')
-          .eq('id', id)
-          .maybeSingle();
-        return error ? null : data;
+          .in('id', idsNumeros);
+        
+        if (!error && data && data.length > 0) {
+          membros = data;
+        }
+      }
+    }
+    
+    // Se não encontrou todos ou não são todos números, buscar também como string
+    if (membros.length < idsParaBuscar.length) {
+      const idsStrings = idsParaBuscar.map(id => String(id).trim());
+      const { data, error } = await supabase
+        .schema('up_gestaointeligente')
+        .from('membro')
+        .select('id, nome')
+        .in('id', idsStrings);
+      
+      if (!error && data) {
+        // Combinar resultados, evitando duplicatas
+        const membrosMap = new Map();
+        membros.forEach(m => membrosMap.set(String(m.id).trim(), m));
+        data.forEach(m => {
+          const key = String(m.id).trim();
+          if (!membrosMap.has(key)) {
+            membrosMap.set(key, m);
+          }
+        });
+        membros = Array.from(membrosMap.values());
+      }
+    }
+    
+    // Se ainda faltar membros, buscar individualmente (fallback robusto)
+    if (membros.length < idsParaBuscar.length) {
+      const membrosEncontrados = new Map();
+      membros.forEach(m => membrosEncontrados.set(String(m.id).trim(), m));
+      
+      const membrosFaltantes = idsParaBuscar.filter(id => {
+        const idStr = String(id).trim();
+        const idNum = parseInt(idStr, 10);
+        return !membrosEncontrados.has(idStr) && 
+               !membrosEncontrados.has(String(idNum)) &&
+               !Array.from(membrosEncontrados.keys()).some(key => String(key) === idStr || String(key) === String(idNum));
       });
       
-      const resultados = await Promise.all(membrosPromises);
-      membros = resultados.filter(Boolean);
+      if (membrosFaltantes.length > 0) {
+        const membrosPromises = membrosFaltantes.map(async (id) => {
+          const idStr = String(id).trim();
+          const idNum = parseInt(idStr, 10);
+          
+          // Tentar como número primeiro
+          if (!isNaN(idNum)) {
+            const { data, error } = await supabase
+              .schema('up_gestaointeligente')
+              .from('membro')
+              .select('id, nome')
+              .eq('id', idNum)
+              .maybeSingle();
+            if (!error && data) return data;
+          }
+          
+          // Tentar como string
+          const { data, error } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id, nome')
+            .eq('id', idStr)
+            .maybeSingle();
+          return error ? null : data;
+        });
+        
+        const resultados = await Promise.all(membrosPromises);
+        resultados.filter(Boolean).forEach(m => {
+          const key = String(m.id).trim();
+          if (!membrosEncontrados.has(key)) {
+            membrosEncontrados.set(key, m);
+          }
+        });
+        
+        membros = Array.from(membrosEncontrados.values());
+      }
     }
   } catch (err) {
-    // Se der erro, retornar array vazio
+    console.error('Erro ao buscar membros por IDs:', err);
     return [];
   }
   
@@ -578,43 +659,85 @@ async function getMembrosPorIds(membroIds) {
     if (!membro) return;
     const membroId = membro.id;
     const membroIdStr = String(membroId).trim();
+    const membroIdNum = parseInt(membroIdStr, 10);
     
+    // Armazenar em todos os formatos possíveis
     membrosMap[membroId] = membro;
     membrosMap[membroIdStr] = membro;
-    
-    const membroIdNum = parseInt(membroIdStr, 10);
     if (!isNaN(membroIdNum)) {
       membrosMap[membroIdNum] = membro;
     }
   });
   
   // Retornar membros encontrados na ordem dos IDs solicitados
-  return membroIds
+  const membrosRetornados = membroIds
     .map(id => {
       const idStr = String(id).trim();
-      return membrosMap[id] || membrosMap[idStr] || membrosMap[parseInt(idStr, 10)] || null;
+      const idNum = parseInt(idStr, 10);
+      
+      // Tentar todos os formatos possíveis
+      return membrosMap[id] || 
+             membrosMap[idStr] || 
+             (isNaN(idNum) ? null : membrosMap[idNum]) ||
+             null;
     })
     .filter(Boolean);
+  
+  // Log para debug (apenas se faltar algum membro)
+  if (membrosRetornados.length < membroIds.length) {
+    const idsNaoEncontrados = membroIds.filter(id => {
+      const idStr = String(id).trim();
+      const idNum = parseInt(idStr, 10);
+      return !membrosMap[id] && !membrosMap[idStr] && (isNaN(idNum) || !membrosMap[idNum]);
+    });
+    console.warn(`⚠️ [getMembrosPorIds] Alguns membros não foram encontrados:`, idsNaoEncontrados);
+  }
+  
+  return membrosRetornados;
 }
 
 //===================== FUNÇÕES REUTILIZÁVEIS - MEMBROS POR CLIENTE =====================
+//===================== FUNÇÕES REUTILIZÁVEIS - MEMBROS POR CLIENTE =====================
+// COPIADO EXATAMENTE DE getClientesPorColaborador, MAS INVERTIDO
 async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim = null) {
   try {
     if (!clienteId) {
       return [];
     }
 
-    const clienteIdStr = String(clienteId).trim();
+    // Suportar múltiplos clientes (array ou valor único) - MESMA LÓGICA DE getClientesPorColaborador
+    let clienteIds = [];
+    if (Array.isArray(clienteId)) {
+      // Para clientes, manter como string (não converter para número)
+      clienteIds = clienteId.map(id => String(id).trim()).filter(Boolean);
+    } else {
+      clienteIds = [String(clienteId).trim()];
+    }
+    
+    if (clienteIds.length === 0) {
+      return [];
+    }
 
-    // Buscar registros de tempo desse cliente
+    console.log(`🔍 [GET-MEMBROS-POR-CLIENTE] Buscando colaboradores para clientes:`, {
+      clienteIds,
+      periodoInicio,
+      periodoFim,
+      temPeriodo: !!(periodoInicio && periodoFim)
+    });
+
+    // Buscar registros de tempo desses clientes
+    // NOTA: cliente_id pode conter múltiplos IDs separados por ", ", então não podemos usar .eq() diretamente
+    // Vamos buscar todos os registros e filtrar manualmente (igual getClientesPorColaborador faz)
+    // IMPORTANTE: Sem limite para garantir que pegamos todos os registros
     let query = supabase
       .schema('up_gestaointeligente')
       .from('v_registro_tempo_vinculado')
-      .select('usuario_id')
-      .eq('cliente_id', clienteIdStr)
-      .not('usuario_id', 'is', null);
-
-    // Se houver período, filtrar por ele
+      .select('usuario_id, cliente_id')  // INVERTIDO: buscar usuario_id e cliente_id para filtrar
+      .not('usuario_id', 'is', null)
+      .not('cliente_id', 'is', null)
+      .limit(10000); // Limite alto para garantir que pegamos todos os registros
+    
+    // Se houver período, filtrar por ele - MESMA LÓGICA DE getClientesPorColaborador
     if (periodoInicio && periodoFim) {
       const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
       const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
@@ -633,25 +756,102 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
     const { data: registros, error } = await query;
 
     if (error) {
+      console.error(`❌ [GET-MEMBROS-POR-CLIENTE] Erro na query:`, error);
       throw error;
     }
 
-    // Extrair IDs únicos de usuários
-    const usuarioIds = [...new Set((registros || []).map(r => r.usuario_id).filter(Boolean))];
+    console.log(`📊 [GET-MEMBROS-POR-CLIENTE] Registros encontrados: ${(registros || []).length}`);
+
+    // Filtrar registros que pertencem a qualquer um dos clientes (cliente_id pode conter múltiplos IDs separados por ", ")
+    // INVERTIDO: filtrar por cliente_id ao invés de usuario_id
+    const registrosFiltrados = (registros || []).filter(r => {
+      if (!r.cliente_id) return false;
+      const ids = String(r.cliente_id)
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+      // Verificar se algum dos IDs do registro está na lista de clientes
+      return clienteIds.some(clienteIdStr => ids.includes(clienteIdStr));
+    });
+
+    console.log(`📊 [GET-MEMBROS-POR-CLIENTE] Registros filtrados por cliente: ${registrosFiltrados.length}`);
+
+    // Extrair IDs únicos de colaboradores - INVERTIDO: extrair usuario_id ao invés de cliente_id
+    const todosUsuarioIdsDosRegistros = [];
+    registrosFiltrados.forEach(r => {
+      if (r.usuario_id) {
+        todosUsuarioIdsDosRegistros.push(r.usuario_id);
+      }
+    });
+    const usuarioIds = [...new Set(todosUsuarioIdsDosRegistros.filter(Boolean))];
+
+    console.log(`📋 [GET-MEMBROS-POR-CLIENTE] IDs únicos de colaboradores: ${usuarioIds.length}`);
 
     if (usuarioIds.length === 0) {
+      console.log(`⚠️ [GET-MEMBROS-POR-CLIENTE] Nenhum colaborador encontrado`);
       return [];
     }
 
-    // Buscar membros por esses IDs usando a função já existente
-    const membros = await getMembrosPorIds(usuarioIds);
-    
-    // Ordenar por nome
-    membros.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    // Buscar membros por esses IDs - MESMA LÓGICA DE getClientesPorColaborador (busca individual)
+    const membros = [];
+    for (const usuarioId of usuarioIds) {
+      try {
+        // Tentar como número primeiro
+        const idNum = parseInt(usuarioId, 10);
+        if (!isNaN(idNum)) {
+          const { data, error } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id, nome')
+            .eq('id', idNum)
+            .maybeSingle();
+          
+          if (!error && data) {
+            membros.push(data);
+            continue;
+          }
+        }
+        
+        // Tentar como string
+        const { data, error } = await supabase
+          .schema('up_gestaointeligente')
+          .from('membro')
+          .select('id, nome')
+          .eq('id', String(usuarioId).trim())
+          .maybeSingle();
+        
+        if (!error && data) {
+          membros.push(data);
+        } else {
+          // Se não encontrou, adicionar com nome null (frontend vai tratar)
+          membros.push({
+            id: usuarioId,
+            nome: null
+          });
+        }
+      } catch (err) {
+        console.error(`Erro ao buscar membro "${usuarioId}":`, err);
+        // Adicionar mesmo sem nome
+        membros.push({
+          id: usuarioId,
+          nome: null
+        });
+      }
+    }
+
+    // Ordenar por nome - MESMA LÓGICA DE getClientesPorColaborador
+    membros.sort((a, b) => {
+      if (!a.nome && !b.nome) return 0;
+      if (!a.nome) return 1;
+      if (!b.nome) return -1;
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+
+    console.log(`✅ [GET-MEMBROS-POR-CLIENTE] Retornando ${membros.length} colaboradores`);
     
     return membros || [];
   } catch (error) {
-    console.error('Erro ao buscar membros por cliente:', error);
+    console.error('❌ [GET-MEMBROS-POR-CLIENTE] Erro ao buscar membros por cliente:', error);
     return [];
   }
 }
@@ -728,7 +928,18 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
     console.log(`📊 [GET-CLIENTES-POR-COLABORADOR] Registros encontrados: ${(registros || []).length}`);
 
     // Extrair IDs únicos de clientes
-    const clienteIds = [...new Set((registros || []).map(r => String(r.cliente_id).trim()).filter(Boolean))];
+    // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
+    const todosClienteIdsDosRegistros = [];
+    (registros || []).forEach(r => {
+      if (r.cliente_id) {
+        const ids = String(r.cliente_id)
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+        todosClienteIdsDosRegistros.push(...ids);
+      }
+    });
+    const clienteIds = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
 
     console.log(`📋 [GET-CLIENTES-POR-COLABORADOR] IDs únicos de clientes: ${clienteIds.length}`);
 

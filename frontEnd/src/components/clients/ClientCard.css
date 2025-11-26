@@ -10,6 +10,33 @@
     overflow: hidden;
     width: 100%;
     min-height: 200px;
+    box-sizing: border-box;
+    min-width: 0; /* Permite que o card encolha */
+}
+
+/* Responsividade para client-card */
+@media (max-width: 768px) {
+    .client-card {
+        padding: 1.25rem;
+        min-height: 180px;
+    }
+    
+    .client-card-header h3,
+    .client-card-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .client-card {
+        padding: 1rem;
+        min-height: 160px;
+    }
+    
+    .client-card-header h3,
+    .client-card-title {
+        font-size: 0.9375rem;
+    }
 }
 
 .client-card:hover {

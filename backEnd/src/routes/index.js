@@ -31,6 +31,7 @@ router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCli
 
 // Rotas de tarefas
 router.get('/api/tarefas-incompletas', requireAuth, tarefasController.getTarefasIncompletas);
+router.get('/api/tarefas-por-ids', requireAuth, tarefasController.getTarefasPorIds);
 
 // Rotas de dashboard
 router.get('/api/dashboard-clientes', requireAuth, dashboardController.getDashboardClientes);
@@ -62,7 +63,27 @@ router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
       });
     }
 
-    const membros = await apiClientes.getMembrosPorCliente(clienteId, periodoInicio || null, periodoFim || null);
+    // Processar clienteId - pode vir como array (múltiplos parâmetros) ou valor único
+    let clienteIdsParaBuscar = [];
+    if (Array.isArray(clienteId)) {
+      clienteIdsParaBuscar = clienteId.map(id => String(id).trim()).filter(Boolean);
+    } else if (typeof clienteId === 'string' && clienteId.includes(',')) {
+      // Fallback: se for string com vírgulas
+      clienteIdsParaBuscar = clienteId.split(',').map(id => id.trim()).filter(Boolean);
+    } else {
+      clienteIdsParaBuscar = [String(clienteId).trim()];
+    }
+
+    if (clienteIdsParaBuscar.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'ID do cliente é obrigatório' 
+      });
+    }
+
+    // Usar array se múltiplos, ou valor único se apenas um
+    const clienteIdParam = clienteIdsParaBuscar.length === 1 ? clienteIdsParaBuscar[0] : clienteIdsParaBuscar;
+    const membros = await apiClientes.getMembrosPorCliente(clienteIdParam, periodoInicio || null, periodoFim || null);
 
     res.json({ 
       success: true, 

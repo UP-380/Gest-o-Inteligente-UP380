@@ -1,16 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import './FilterStatus.css';
 
 const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   const selectedText = value ? (options.find(s => s === value) || 'Selecionar status') : 'Selecionar status';
+
+  // Filtrar opções baseado na busca
+  const filteredOptions = options.filter(status =>
+    status.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Ordenar: selecionados primeiro, depois os não selecionados
+  const sortedOptions = useMemo(() => {
+    const selected = filteredOptions.filter(status => value === status);
+    const notSelected = filteredOptions.filter(status => value !== status);
+    return [...selected, ...notSelected];
+  }, [filteredOptions, value]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false);
+        setSearchQuery('');
       }
     };
 
@@ -23,6 +38,13 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
     };
   }, [isOpen]);
 
+  // Focar no input quando o dropdown abrir
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
+
   const handleSelect = (status) => {
     if (!disabled) {
       if (onChange) {
@@ -33,6 +55,23 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
         onChange(fakeEvent);
       }
       setIsOpen(false);
+      setSearchQuery('');
+    }
+  };
+
+  const handleOpen = () => {
+    if (!disabled) {
+      setIsOpen(!isOpen);
+      if (!isOpen) {
+        // Focar no input quando abrir
+        setTimeout(() => {
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }, 0);
+      } else {
+        setSearchQuery('');
+      }
     }
   };
 
@@ -42,18 +81,37 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
       <div className="status-filter-container" ref={containerRef}>
         <div className="status-select-field">
           <div 
-            className={`status-select-display ${disabled ? 'disabled' : ''}`}
-            onClick={() => !disabled && setIsOpen(!isOpen)}
+            className={`status-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
+            onClick={!isOpen ? handleOpen : undefined}
           >
-            <span className={`status-select-text ${value ? 'has-selection' : ''}`}>
-              {selectedText}
-            </span>
+            {isOpen ? (
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="status-select-input"
+                placeholder="Buscar status..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }
+                }}
+                autoComplete="off"
+              />
+            ) : (
+              <span className={`status-select-text ${value ? 'has-selection' : ''}`}>
+                {selectedText}
+              </span>
+            )}
             <i className={`fas fa-chevron-down status-select-arrow ${isOpen ? 'open' : ''}`}></i>
           </div>
           {isOpen && !disabled && (
             <div className="status-dropdown">
               <div className="status-dropdown-content">
-                {options.map((status) => (
+                {sortedOptions.map((status) => (
                   <div
                     key={status}
                     className={`status-option ${value === status ? 'selected' : ''}`}
@@ -65,6 +123,11 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
                     <span>{status}</span>
                   </div>
                 ))}
+                {sortedOptions.length === 0 && (
+                  <div className="status-option no-results">
+                    <span>Nenhum status encontrado</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

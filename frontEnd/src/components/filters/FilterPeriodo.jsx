@@ -210,29 +210,29 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           {isOpen && !disabled && (
             <div className="periodo-dropdown" onClick={(e) => e.stopPropagation()}>
               <div className="periodo-dropdown-content">
-                <div style={{ padding: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563' }}></i>
-                    <span style={{ fontWeight: 600, color: '#111827' }}>Filtro de período</span>
+                <div style={{ padding: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: '14px' }}></i>
+                    <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>Filtro de período</span>
                   </div>
                   
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', maxWidth: '240px', marginLeft: 'auto', marginRight: 'auto' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', color: '#6c757d', fontWeight: 500, marginBottom: '6px' }}>Início</label>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
                       <input 
                         type="text" 
                         readOnly 
                         value={formatarData(localInicio)} 
-                        style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', background: '#f9fafb', cursor: 'pointer' }}
+                        style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '12px', color: '#6c757d', fontWeight: 500, marginBottom: '6px' }}>Vencimento</label>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
                       <input 
                         type="text" 
                         readOnly 
                         value={formatarData(localFim)} 
-                        style={{ width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', background: '#f9fafb', cursor: 'pointer' }}
+                        style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
                       />
                     </div>
                   </div>
