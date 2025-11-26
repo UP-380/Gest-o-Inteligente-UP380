@@ -111,9 +111,10 @@ const TarefasContent = ({ registros }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 'calc(50vh - 80px)', overflowY: 'auto', paddingRight: '8px' }}>
       {Array.from(tarefasMap.entries()).map(([tarefaId, tarefa]) => {
-        const ini = formatDate(tarefa.dtInicio);
-        const ven = formatDate(tarefa.dtVencimento);
-        const range = (ini !== '—' || ven !== '—') ? `${ini !== '—' ? ini : ''}${ini !== '—' && ven !== '—' ? ' - ' : ''}${ven !== '—' ? ven : ''}` : '—';
+        // Formatar datas: se não tiver, mostrar "Sem Inicio" ou "Sem vencimento"
+        const ini = tarefa.dtInicio ? formatDate(tarefa.dtInicio) : 'Sem Início';
+        const ven = tarefa.dtVencimento ? formatDate(tarefa.dtVencimento) : 'Sem vencimento';
+        const range = `${ini} - ${ven}`;
         
         const estVal = parseFloat(tarefa.tempoEstimado) || 0;
         const estMs = estVal > 1000 ? estVal : Math.round(estVal * 3600000);

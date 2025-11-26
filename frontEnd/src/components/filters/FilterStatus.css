@@ -26,6 +26,11 @@
   border-color: #007bff;
 }
 
+.status-select-display.active {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
 .status-select-display.disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -40,6 +45,22 @@
 .status-select-text.has-selection {
   color: #333;
   font-weight: 500;
+}
+
+.status-select-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #495057;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.status-select-input::placeholder {
+  color: #6c757d;
 }
 
 .status-select-arrow {
@@ -85,6 +106,8 @@
 
 .status-option.selected {
   background: #e7f3ff;
+  border-left: 3px solid #007bff;
+  font-weight: 500;
 }
 
 .status-option-checkbox {
@@ -107,5 +130,15 @@
 
 .status-option-checkbox i {
   font-size: 12px;
+}
+
+.status-option.no-results {
+  color: #6c757d;
+  font-style: italic;
+  cursor: default;
+}
+
+.status-option.no-results:hover {
+  background-color: transparent;
 }
 

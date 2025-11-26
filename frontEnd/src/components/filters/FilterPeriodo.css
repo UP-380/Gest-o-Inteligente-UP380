@@ -70,6 +70,9 @@
   z-index: 1000;
   margin-top: 4px;
   min-width: 280px;
+  max-width: 320px;
+  max-height: 85vh;
+  overflow-y: auto;
 }
 
 .periodo-dropdown-content {
@@ -78,23 +81,26 @@
 
 /* Estilos do calendário do date range picker */
 .periodo-calendar-container {
-  margin-top: 12px;
+  margin-top: 8px;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 6px;
   background-color: #fafafa;
+  max-width: 240px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .periodo-calendar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-  padding: 0 4px;
+  margin-bottom: 6px;
+  padding: 0 2px;
 }
 
 .periodo-calendar-month-year {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #111827;
   text-transform: capitalize;
@@ -104,8 +110,8 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
   color: #6b7280;
   transition: all 0.2s ease;
   display: flex;
@@ -119,28 +125,28 @@
 }
 
 .periodo-calendar-nav i {
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .periodo-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 8px;
+  gap: 2px;
+  margin-bottom: 4px;
 }
 
 .periodo-calendar-weekdays > div {
   text-align: center;
-  font-size: 12px;
+  font-size: 9px;
   font-weight: 600;
   color: #6b7280;
-  padding: 8px 0;
+  padding: 2px 0;
 }
 
 .periodo-calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
 }
 
 .periodo-calendar-day {
@@ -148,13 +154,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 11px;
   color: #374151;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 3px;
   transition: all 0.2s ease;
   background: transparent;
   border: 1px solid transparent;
+  min-height: 22px;
+  max-height: 22px;
+  width: 100%;
+  padding: 0;
 }
 
 .periodo-calendar-day:hover:not(.empty):not(.selected) {

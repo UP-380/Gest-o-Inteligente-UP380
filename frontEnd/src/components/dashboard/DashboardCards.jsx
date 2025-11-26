@@ -35,13 +35,7 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
       totalHrs += tempo;
     });
     
-    // Debug log
-    console.log('📊 DashboardCards - Cálculo de horas:', {
-      totalRegistros: registrosTempo.length,
-      registrosUnicos: registrosUnicos.size,
-      totalHrsMs: totalHrs,
-      totalHrsDecimal: (totalHrs / (1000 * 60 * 60)).toFixed(2)
-    });
+    
 
     // Colaboradores únicos (geral)
     const colaboradoresUnicos = new Set();
@@ -53,10 +47,16 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
     totalColaboradores = colaboradoresUnicos.size;
 
     // Clientes únicos (geral)
+    // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
     const clientesUnicos = new Set();
     registrosTempo.forEach(registro => {
       if (registro.cliente_id) {
-        clientesUnicos.add(String(registro.cliente_id).trim());
+        // Fazer split por ", " para extrair todos os IDs
+        const ids = String(registro.cliente_id)
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+        ids.forEach(id => clientesUnicos.add(id));
       }
     });
     totalClientes = clientesUnicos.size;
@@ -71,15 +71,17 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
     totalClientes = clientesUnicos.size;
   }
 
-  // Formatar horas em h min (sem segundos para dashboard)
+  // Formatar horas em h min s (com segundos para dashboard)
   const formatarHrsHM = (milissegundos) => {
     if (!milissegundos || milissegundos === 0) return '0min';
     const horas = Math.floor(milissegundos / (1000 * 60 * 60));
     const minutos = Math.floor((milissegundos % (1000 * 60 * 60)) / (1000 * 60));
+    const segundos = Math.floor((milissegundos % (1000 * 60)) / 1000);
 
     let resultado = '';
     if (horas > 0) resultado += `${horas}h `;
-    if (minutos > 0 || horas === 0) resultado += `${minutos}min`;
+    if (minutos > 0 || horas === 0) resultado += `${minutos}min `;
+    if (segundos > 0 || (horas === 0 && minutos === 0)) resultado += `${segundos}s`;
     return resultado.trim();
   };
 
@@ -139,7 +141,10 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
         <div className="dashboard-card-content">
           <div className="dashboard-card-label">Hrs Realizadas</div>
           <div className="dashboard-card-value">
-            {tempoHM} <i className="fas fa-info-circle" style={{ marginLeft: '4px', fontSize: '0.75rem', color: '#ff9800', cursor: 'help' }} title={`${tempoDecimal} horas`}></i>
+            {tempoHM}
+          </div>
+          <div className="dashboard-card-decimal">
+            {tempoDecimal} horas
           </div>
         </div>
       </div>

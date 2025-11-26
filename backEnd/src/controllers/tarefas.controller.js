@@ -228,7 +228,75 @@ async function getTarefasIncompletas(req, res) {
   }
 }
 
+// ========================================
+// === GET /api/tarefas-por-ids ===
+// ========================================
+async function getTarefasPorIds(req, res) {
+  try {
+    const { ids } = req.query;
+    
+    if (!ids) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "ids" é obrigatório. Use: ?ids=id1,id2,id3'
+      });
+    }
+
+    // Converter string de IDs separados por vírgula em array e remover duplicatas
+    const tarefaIds = [...new Set(
+      String(ids)
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0)
+    )];
+
+    if (tarefaIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {},
+        count: 0
+      });
+    }
+
+    // Usar a mesma abordagem que funciona no dashboard-clientes.js
+    const { data: tarefas, error: tarefasError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tarefa')
+      .select('id, tarefa_nome')
+      .in('id', tarefaIds);
+
+    if (tarefasError) {
+      console.error('Erro ao buscar tarefas por IDs:', tarefasError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tarefas',
+        details: tarefasError.message
+      });
+    }
+
+    // Criar mapa de ID -> tarefa_nome (igual ao dashboard-clientes.js)
+    const tarefasMap = {};
+    (tarefas || []).forEach(tarefa => {
+      tarefasMap[tarefa.id] = tarefa.tarefa_nome || null;
+    });
+
+    res.json({
+      success: true,
+      data: tarefasMap,
+      count: Object.keys(tarefasMap).length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tarefas por IDs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
-  getTarefasIncompletas
+  getTarefasIncompletas,
+  getTarefasPorIds
 };
 

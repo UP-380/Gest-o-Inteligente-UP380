@@ -5,6 +5,7 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // Normalizar IDs para string para comparação consistente
   const normalizeId = useCallback((id) => String(id).trim(), []);
@@ -24,7 +25,8 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
     if (selectedColaboradores.length === 0) {
       return 'Selecionar colaboradores';
     } else if (selectedColaboradores.length === 1) {
-      return selectedColaboradores[0].nome;
+      const nome = selectedColaboradores[0].nome;
+      return nome || `Colaborador #${selectedColaboradores[0].id}`;
     } else {
       return `${selectedColaboradores.length} colaboradores selecionados`;
     }
@@ -33,9 +35,21 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
   const selectedText = getSelectedText();
 
   // Filtrar opções baseado na busca
-  const filteredOptions = options.filter(colaborador =>
-    colaborador.nome.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOptions = options.filter(colaborador => {
+    if (!colaborador || !colaborador.nome) return true; // Incluir colaboradores sem nome
+    return colaborador.nome.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  // Ordenar: selecionados primeiro, depois os não selecionados
+  const sortedOptions = useMemo(() => {
+    const selected = filteredOptions.filter(colaborador => 
+      selectedIds.includes(normalizeId(colaborador.id))
+    );
+    const notSelected = filteredOptions.filter(colaborador => 
+      !selectedIds.includes(normalizeId(colaborador.id))
+    );
+    return [...selected, ...notSelected];
+  }, [filteredOptions, selectedIds, normalizeId]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -56,13 +70,6 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
 
   // Debug: log quando value mudar
   useEffect(() => {
-    console.log('🔍 FilterColaborador - value mudou:', {
-      value,
-      tipo: typeof value,
-      isArray: Array.isArray(value),
-      selectedIds,
-      selectedColaboradores: selectedColaboradores.map(c => ({ id: c.id, nome: c.nome }))
-    });
   }, [value, selectedIds, selectedColaboradores]);
 
   const handleSelect = (colaboradorId) => {
@@ -98,8 +105,25 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
   const handleOpen = () => {
     if (!disabled) {
       setIsOpen(!isOpen);
+      if (!isOpen) {
+        // Focar no input quando abrir
+        setTimeout(() => {
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }, 0);
+      } else {
+        setSearchQuery('');
+      }
     }
   };
+
+  // Focar no input quando o dropdown abrir
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
 
   return (
     <>
@@ -108,28 +132,37 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
         <div className="colaborador-select-field">
           <div 
             className={`colaborador-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
-            onClick={handleOpen}
+            onClick={!isOpen ? handleOpen : undefined}
           >
-            <span className={`colaborador-select-text ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
-              {selectedText}
-            </span>
+            {isOpen ? (
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="colaborador-select-input"
+                placeholder="Buscar colaborador..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }
+                }}
+                autoComplete="off"
+              />
+            ) : (
+              <span className={`colaborador-select-text ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
+                {selectedText}
+              </span>
+            )}
             <i className={`fas fa-chevron-down colaborador-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
           </div>
           {isOpen && !disabled && (
             <div className="colaborador-dropdown">
               <div className="colaborador-dropdown-content">
-                <div className="colaborador-search-container">
-                  <input
-                    type="text"
-                    className="colaborador-search-input"
-                    placeholder="Buscar colaborador..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
                 <div className="colaborador-options-container">
-                  {filteredOptions.map((colaborador) => {
+                  {sortedOptions.map((colaborador) => {
                     const normalizedColabId = normalizeId(colaborador.id);
                     const isSelected = selectedIds.includes(normalizedColabId);
                     return (
@@ -146,11 +179,11 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
                         <div className="colaborador-option-checkbox">
                           {isSelected && <i className="fas fa-check"></i>}
                         </div>
-                        <span>{colaborador.nome}</span>
+                        <span>{colaborador.nome || `Colaborador #${colaborador.id}`}</span>
                       </div>
                     );
                   })}
-                  {filteredOptions.length === 0 && (
+                  {sortedOptions.length === 0 && (
                     <div className="colaborador-option no-results">
                       <span>Nenhum colaborador encontrado</span>
                     </div>

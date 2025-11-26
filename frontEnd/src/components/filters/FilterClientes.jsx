@@ -1,26 +1,53 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './FilterClientes.css';
 
 const FilterClientes = ({ value, options = [], onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
+  const searchInputRef = useRef(null);
 
-  // Debug: log quando options mudar
-  useEffect(() => {
-    console.log('📋 [FILTER-CLIENTES] Opções atualizadas:', {
-      total: options.length,
-      primeiros: options.slice(0, 5).map(c => ({ id: c.id, nome: c.nome }))
-    });
-  }, [options]);
+  // Normalizar IDs para string para comparação consistente
+  const normalizeId = useCallback((id) => String(id).trim(), []);
+  
+  // Converter value para array (suporta tanto string quanto array)
+  const selectedIds = useMemo(() => {
+    return Array.isArray(value) 
+      ? value.map(normalizeId) 
+      : (value ? [normalizeId(value)] : []);
+  }, [value, normalizeId]);
+  
+  // Obter clientes selecionados
+  const selectedClientes = options.filter(c => selectedIds.includes(normalizeId(c.id)));
+  
+  // Texto de exibição
+  const getSelectedText = () => {
+    if (selectedClientes.length === 0) {
+      return 'Selecionar clientes';
+    } else if (selectedClientes.length === 1) {
+      return selectedClientes[0].nome;
+    } else {
+      return `${selectedClientes.length} clientes selecionados`;
+    }
+  };
 
-  const selectedCliente = options.find(c => c.id === value);
-  const selectedText = selectedCliente ? selectedCliente.nome : 'Selecionar clientes';
+  const selectedText = getSelectedText();
 
   // Filtrar opções baseado na busca
   const filteredOptions = options.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Ordenar: selecionados primeiro, depois os não selecionados
+  const sortedOptions = useMemo(() => {
+    const selected = filteredOptions.filter(cliente => 
+      selectedIds.includes(normalizeId(cliente.id))
+    );
+    const notSelected = filteredOptions.filter(cliente => 
+      !selectedIds.includes(normalizeId(cliente.id))
+    );
+    return [...selected, ...notSelected];
+  }, [filteredOptions, selectedIds, normalizeId]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -41,22 +68,48 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
 
   const handleSelect = (clienteId) => {
     if (!disabled) {
+      // Normalizar ID para comparação
+      const normalizedId = normalizeId(clienteId);
+      
+      // Toggle do cliente selecionado
+      const newSelectedIds = selectedIds.includes(normalizedId)
+        ? selectedIds.filter(id => id !== normalizedId)
+        : [...selectedIds, normalizedId];
+      
       if (onChange) {
         const fakeEvent = {
-          target: { value: clienteId === value ? '' : clienteId }
+          target: { value: newSelectedIds.length > 0 ? newSelectedIds : null }
         };
         onChange(fakeEvent);
       }
-      setIsOpen(false);
-      setSearchQuery('');
+      // Não fechar o dropdown automaticamente para permitir múltiplas seleções
+      // setIsOpen(false);
+      // setSearchQuery('');
     }
   };
 
   const handleOpen = () => {
     if (!disabled) {
       setIsOpen(!isOpen);
+      if (!isOpen) {
+        // Focar no input quando abrir
+        setTimeout(() => {
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }, 0);
+      } else {
+        setSearchQuery('');
+      }
     }
   };
+
+  // Focar no input quando o dropdown abrir
+  useEffect(() => {
+    if (isOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen]);
 
   return (
     <>
@@ -65,40 +118,58 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
         <div className="cliente-select-field">
           <div 
             className={`cliente-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
-            onClick={handleOpen}
+            onClick={!isOpen ? handleOpen : undefined}
           >
-            <span className={`cliente-select-text ${value ? 'has-selection' : ''}`}>
-              {selectedText}
-            </span>
+            {isOpen ? (
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="cliente-select-input"
+                placeholder="Buscar cliente..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsOpen(false);
+                    setSearchQuery('');
+                  }
+                }}
+                autoComplete="off"
+              />
+            ) : (
+              <span className={`cliente-select-text ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
+                {selectedText}
+              </span>
+            )}
             <i className={`fas fa-chevron-down cliente-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
           </div>
           {isOpen && !disabled && (
             <div className="cliente-dropdown">
               <div className="cliente-dropdown-content">
-                <div className="cliente-search-container">
-                  <input
-                    type="text"
-                    className="cliente-search-input"
-                    placeholder="Buscar cliente..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
                 <div className="cliente-options-container">
-                  {filteredOptions.map((cliente) => (
-                    <div
-                      key={cliente.id}
-                      className={`cliente-option ${value === cliente.id ? 'selected' : ''}`}
-                      onClick={() => handleSelect(cliente.id)}
-                    >
-                      <div className="cliente-option-checkbox">
-                        {value === cliente.id && <i className="fas fa-check"></i>}
+                  {sortedOptions.map((cliente) => {
+                    const normalizedClienteId = normalizeId(cliente.id);
+                    const isSelected = selectedIds.includes(normalizedClienteId);
+                    return (
+                      <div
+                        key={cliente.id}
+                        className={`cliente-option ${isSelected ? 'selected' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleSelect(cliente.id);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <div className="cliente-option-checkbox">
+                          {isSelected && <i className="fas fa-check"></i>}
+                        </div>
+                        <span>{cliente.nome}</span>
                       </div>
-                      <span>{cliente.nome}</span>
-                    </div>
-                  ))}
-                  {filteredOptions.length === 0 && (
+                    );
+                  })}
+                  {sortedOptions.length === 0 && (
                     <div className="cliente-option no-results">
                       <span>Nenhum cliente encontrado</span>
                     </div>

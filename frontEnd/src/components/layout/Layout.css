@@ -124,7 +124,7 @@
 .header-left {
     display: flex;
     align-items: center;
-    padding-left: 0rem;
+    padding-left: 1rem;
 }
 
 .header-logo {
@@ -136,7 +136,9 @@
 .header-logo-img {
     height: 2.5rem;
     width: auto;
+    max-width: 200px;
     object-fit: contain;
+    transition: all 0.3s ease;
 }
 
 
@@ -159,6 +161,15 @@
   
   .header-container {
     padding-left: 50px;
+  }
+  
+  .header-left {
+    padding-left: 0.75rem;
+  }
+  
+  .header-logo-img {
+    height: 2rem;
+    max-width: 150px;
   }
   
   .sidebar-item {
@@ -199,6 +210,15 @@
   
   .header-container {
     padding-left: 45px;
+  }
+  
+  .header-left {
+    padding-left: 0.5rem;
+  }
+  
+  .header-logo-img {
+    height: 1.75rem;
+    max-width: 120px;
   }
   
   .sidebar-item {

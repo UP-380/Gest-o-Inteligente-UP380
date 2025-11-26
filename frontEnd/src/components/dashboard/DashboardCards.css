@@ -4,6 +4,37 @@
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
     margin-top: 30px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Responsividade para dashboard-cards-container */
+@media (max-width: 1200px) {
+    .dashboard-cards-container {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+    }
+}
+
+@media (max-width: 900px) {
+    .dashboard-cards-container {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-cards-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-cards-container {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
 }
 
 /* Individual Dashboard Card */
@@ -20,6 +51,50 @@
     cursor: default;
     position: relative;
     overflow: visible;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0; /* Permite que o card encolha */
+}
+
+/* Responsividade para cards individuais */
+@media (max-width: 768px) {
+    .dashboard-cards-container .dashboard-card {
+        padding: 16px;
+        gap: 12px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-icon {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-icon i {
+        font-size: 20px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-label {
+        font-size: 11px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-value {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-cards-container .dashboard-card {
+        padding: 14px;
+        gap: 10px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-icon {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .dashboard-cards-container .dashboard-card-icon i {
+        font-size: 18px;
+    }
 }
 
 .dashboard-cards-container .dashboard-card:hover {
@@ -75,6 +150,20 @@
     font-size: 18px;
     font-weight: 700;
     color: #ff9800;
+}
+
+.dashboard-cards-container .dashboard-card-decimal {
+    font-size: 10px;
+    font-weight: 400;
+    color: #ff9800;
+    margin-top: 2px;
+    opacity: 0.8;
+}
+
+.dashboard-cards-container .dashboard-card-value {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .dashboard-card-arrow-small {
