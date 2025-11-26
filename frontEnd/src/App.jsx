@@ -5,6 +5,7 @@ import Painel from './pages/Painel/Painel';
 import DashboardClientes from './pages/DashboardClientes/DashboardClientes';
 import CarteiraClientes from './pages/CarteiraClientes/CarteiraClientes';
 import CadastroColaboradores from './pages/CadastroColaboradores/CadastroColaboradores';
+import CustoMembroVigencia from './pages/CustoMembroVigencia/CustoMembroVigencia';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -51,6 +52,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroColaboradores />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/custo-membro-vigencia"
+          element={
+            <ProtectedRoute>
+              <CustoMembroVigencia />
             </ProtectedRoute>
           }
         />
