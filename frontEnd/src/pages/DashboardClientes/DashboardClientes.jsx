@@ -63,6 +63,12 @@ const DashboardClientes = () => {
   const [todosStatus, setTodosStatus] = useState([]);
   const [todosClientes, setTodosClientes] = useState([]);
   const [todosColaboradores, setTodosColaboradores] = useState([]);
+  
+  // Estado para mensagem quando não há clientes após filtros combinados
+  const [mensagemFiltroCliente, setMensagemFiltroCliente] = useState(null);
+  
+  // Estado para indicar se está carregando clientes
+  const [loadingClientes, setLoadingClientes] = useState(false);
 
 
   // Limpar seleção de cliente se ele não estiver mais na lista de clientes disponíveis
@@ -89,6 +95,30 @@ const DashboardClientes = () => {
       }
     }
   }, [todosClientes, filtroCliente]);
+
+  // Preservar seleção de colaborador mesmo quando a lista de colaboradores mudar
+  // Não limpar automaticamente - apenas validar se o colaborador ainda existe
+  useEffect(() => {
+    if (filtroColaborador && todosColaboradores.length > 0) {
+      const colaboradorIds = Array.isArray(filtroColaborador) 
+        ? filtroColaborador.map(id => String(id).trim())
+        : [String(filtroColaborador).trim()];
+      
+      // Verificar se todos os colaboradores selecionados ainda existem na lista
+      const colaboradoresValidos = colaboradorIds.filter(colaboradorId => 
+        todosColaboradores.some(c => String(c.id).trim() === colaboradorId)
+      );
+      
+      // Se algum colaborador foi removido da lista, manter a seleção mesmo assim
+      // (não limpar automaticamente, pois pode ser uma lista filtrada temporariamente)
+      // Só limpar se realmente não houver nenhum colaborador válido E a lista não estiver vazia
+      if (colaboradoresValidos.length === 0 && todosColaboradores.length > 0) {
+        // Não limpar - pode ser que o colaborador esteja em uma lista filtrada
+        // A seleção será preservada mesmo que não apareça na lista atual
+        console.log('⚠️ [FILTRO] Colaborador selecionado não está na lista atual, mas mantendo seleção');
+      }
+    }
+  }, [todosColaboradores, filtroColaborador]);
 
   // Estado dos resultados
   const [clientes, setClientes] = useState([]);
@@ -120,6 +150,9 @@ const DashboardClientes = () => {
 
   // Cache de dados dos clientes para os cards laterais
   const clienteDataCacheRef = useRef({});
+  
+  // Ref para controlar requisições em andamento e evitar race conditions
+  const requestControllerRef = useRef(null);
 
   // Carregar status
   const carregarStatus = useCallback(async (clienteId = null) => {
@@ -160,9 +193,14 @@ const DashboardClientes = () => {
       
       if (cached) {
         setTodosClientes(cached);
+        setMensagemFiltroCliente(null); // Limpar mensagem ao carregar do cache
+        setLoadingClientes(false); // Não está carregando se veio do cache
         return;
       }
 
+      // Iniciar loading apenas se não veio do cache
+      setLoadingClientes(true);
+      
       let url = `${API_BASE_URL}/clientes`;
       if (status) {
         url += `?status=${encodeURIComponent(status)}`;
@@ -192,9 +230,15 @@ const DashboardClientes = () => {
       if (result.success && result.data && Array.isArray(result.data)) {
         setTodosClientes(result.data);
         cache.set(cacheKey, result.data);
+        setMensagemFiltroCliente(null); // Limpar mensagem ao carregar com sucesso
+        setLoadingClientes(false); // Finalizar loading
+      } else {
+        setLoadingClientes(false); // Finalizar loading mesmo se não houver dados
       }
     } catch (error) {
       console.error('❌ Erro ao carregar clientes:', error);
+      setMensagemFiltroCliente(null);
+      setLoadingClientes(false); // Finalizar loading em caso de erro
     }
   }, []);
 
@@ -315,22 +359,36 @@ const DashboardClientes = () => {
   }, [carregarColaboradores]);
 
   // Carregar clientes por colaborador(es) - aceita array ou valor único
-  const carregarClientesPorColaborador = useCallback(async (colaboradorId) => {
+  const carregarClientesPorColaborador = useCallback(async (colaboradorId, statusAtual = null) => {
     try {
+      // Usar status passado ou o estado atual
+      const statusParaUsar = statusAtual !== null ? statusAtual : filtroStatus;
+
       if (!colaboradorId) {
-        await carregarClientes(filtroStatus);
+        // Se não há colaborador, carregar apenas por status (se houver)
+        await carregarClientes(statusParaUsar);
+        setMensagemFiltroCliente(null);
         return;
       }
+
+      // Limpar lista imediatamente para evitar mostrar dados antigos
+      setTodosClientes([]);
+      setMensagemFiltroCliente(null);
+      setLoadingClientes(true); // Iniciar loading
 
       // Normalizar para array (suporta tanto array quanto valor único)
       const colaboradorIds = Array.isArray(colaboradorId) 
         ? colaboradorId 
         : [colaboradorId];
 
+      console.log(`🔍 [FILTRO] Buscando clientes para ${colaboradorIds.length} colaborador(es):`, colaboradorIds);
+      console.log(`🔍 [FILTRO] Status a aplicar: ${statusParaUsar || 'nenhum'}`);
+
       // Obter período se estiver selecionado
       const params = [];
       
       // Enviar múltiplos colaboradores como parâmetros repetidos
+      // Isso retorna clientes de QUALQUER UM dos colaboradores (OR lógico)
       colaboradorIds.forEach(id => {
         params.push(`colaboradorId=${encodeURIComponent(id)}`);
       });
@@ -341,49 +399,237 @@ const DashboardClientes = () => {
       }
       
       const url = `${API_BASE_URL}/clientes-por-colaborador?${params.join('&')}`;
-
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
       
-      if (result.success && result.data) {
-        // Se houver filtro de status, aplicar aqui também
-        let clientesFiltrados = result.data;
-        if (filtroStatus) {
-          // Buscar clientes que têm contratos com esse status
-          try {
-            const responseStatus = await fetch(`${API_BASE_URL}/clientes?status=${encodeURIComponent(filtroStatus)}`, {
+      console.log(`🔍 [FILTRO] URL da requisição:`, url);
+      console.log(`🔍 [FILTRO] Parâmetros enviados:`, params);
+
+      // Usar o controller atual se existir (para cancelamento)
+      const controller = requestControllerRef.current;
+      const signal = controller ? controller.signal : null;
+
+      // OTIMIZAÇÃO: Se houver status, fazer ambas as requisições em paralelo
+      if (statusParaUsar) {
+        // Verificar cache primeiro para status
+        const cacheKeyStatus = `clientes_${statusParaUsar}`;
+        const cachedStatus = cache.get(cacheKeyStatus);
+        
+        try {
+          // Fazer requisições em paralelo para melhor performance
+          const [responseColaborador, responseStatus] = await Promise.all([
+            fetch(url, {
               credentials: 'include',
-            });
-            if (responseStatus.ok) {
-              const resultStatus = await responseStatus.json();
-              if (resultStatus.success && resultStatus.data) {
-                const clienteIdsComStatus = new Set(resultStatus.data.map(c => String(c.id).trim().toLowerCase()));
-                clientesFiltrados = clientesFiltrados.filter(c => {
-                  const cId = String(c.id).trim().toLowerCase();
-                  return clienteIdsComStatus.has(cId);
-                });
+              signal: signal,
+            }),
+            cachedStatus 
+              ? Promise.resolve({ cached: true, data: cachedStatus }) 
+              : fetch(`${API_BASE_URL}/clientes?status=${encodeURIComponent(statusParaUsar)}`, {
+                  credentials: 'include',
+                  signal: signal,
+                })
+          ]);
+
+          // Processar resposta dos colaboradores
+          if (!responseColaborador.ok) throw new Error(`HTTP error! status: ${responseColaborador.status}`);
+          const result = await responseColaborador.json();
+          
+          // Processar resposta do status (do cache ou da requisição)
+          let resultStatus = null;
+          if (responseStatus.cached) {
+            resultStatus = { success: true, data: responseStatus.data };
+          } else {
+            if (!responseStatus.ok) throw new Error(`HTTP error! status: ${responseStatus.status}`);
+            resultStatus = await responseStatus.json();
+            // Salvar no cache se não estava em cache
+            if (resultStatus.success && resultStatus.data) {
+              cache.set(cacheKeyStatus, resultStatus.data);
+            }
+          }
+          
+          console.log(`🔍 [FILTRO] Clientes encontrados dos colaboradores: ${result.data?.length || 0} clientes`);
+          
+          if (result.success && result.data) {
+          // Remover duplicatas de clientes (caso algum cliente apareça para múltiplos colaboradores)
+          const clientesUnicos = new Map();
+          result.data.forEach(c => {
+            if (c && c.id !== null && c.id !== undefined) {
+              const cId = String(c.id).trim().toLowerCase();
+              if (!clientesUnicos.has(cId)) {
+                clientesUnicos.set(cId, c);
               }
             }
-          } catch (err) {
-            console.error('❌ Erro ao aplicar filtro de status:', err);
+          });
+          let clientesFiltrados = Array.from(clientesUnicos.values());
+          
+          console.log(`🔍 [FILTRO] Após remover duplicatas: ${clientesFiltrados.length} clientes únicos`);
+          
+          // Aplicar filtro de status usando interseção otimizada
+          if (resultStatus.success && resultStatus.data) {
+            // Normalizar IDs para comparação consistente (string, trim, lowercase)
+            // OTIMIZAÇÃO: Usar Set para busca O(1) ao invés de O(n)
+            const clienteIdsComStatus = new Set(
+              resultStatus.data.map(c => {
+                const id = c.id !== null && c.id !== undefined ? String(c.id).trim() : '';
+                return id.toLowerCase();
+              })
+            );
+            
+            // OTIMIZAÇÃO: Filtrar usando Set.has() que é O(1) ao invés de array.includes() que é O(n)
+            const clientesAntes = clientesFiltrados.length;
+            const clientesComStatus = clientesFiltrados.filter(c => {
+              if (!c || (c.id === null || c.id === undefined)) return false;
+              const cId = String(c.id).trim().toLowerCase();
+              return clienteIdsComStatus.has(cId);
+            });
+            
+            console.log(`🔍 [FILTRO] ${colaboradorIds.length} colaborador(es) têm ${clientesAntes} clientes únicos no total`);
+            console.log(`🔍 [FILTRO] Clientes com status "${statusParaUsar}": ${clienteIdsComStatus.size} clientes`);
+            console.log(`🔍 [FILTRO] Após filtrar por status "${statusParaUsar}": ${clientesComStatus.length} clientes`);
+            console.log(`✅ [FILTRO] Lógica: Clientes com status "${statusParaUsar}" E que pertencem a QUALQUER UM dos ${colaboradorIds.length} colaborador(es)`);
+            
+            if (clientesComStatus.length > 0) {
+            }
+            
+            clientesFiltrados = clientesComStatus;
+          } else {
+            console.log(`⚠️ [FILTRO] Nenhum cliente encontrado com status "${statusParaUsar}"`);
+            clientesFiltrados = [];
           }
+          
+          const novosClientes = clientesFiltrados.map(c => ({ id: c.id, nome: c.nome }));
+          console.log(`✅ [FILTRO] Resultado final: ${novosClientes.length} clientes após aplicar ambos os filtros`);
+          if (novosClientes.length > 0) {
+          }
+          setTodosClientes(novosClientes);
+          setLoadingClientes(false); // Finalizar loading
+          
+          // Verificar se não há clientes após aplicar os filtros combinados
+          if (statusParaUsar && novosClientes.length === 0 && colaboradorId) {
+            const textoColaboradores = colaboradorIds.length === 1 
+              ? 'Colaborador sem clientes do status aplicado'
+              : `${colaboradorIds.length} colaboradores sem clientes do status aplicado`;
+            console.log(`⚠️ [FILTRO] ${textoColaboradores}`);
+            setMensagemFiltroCliente(textoColaboradores);
+          } else {
+            setMensagemFiltroCliente(null);
+          }
+        } else {
+          setTodosClientes([]);
+          setLoadingClientes(false); // Finalizar loading
+          if (statusParaUsar && colaboradorId) {
+            const textoColaboradores = colaboradorIds.length === 1 
+              ? 'Colaborador sem clientes do status aplicado'
+              : `${colaboradorIds.length} colaboradores sem clientes do status aplicado`;
+            setMensagemFiltroCliente(textoColaboradores);
+          } else {
+            setMensagemFiltroCliente(null);
+          }
+          }
+        } catch (err) {
+          // Ignorar erros de cancelamento
+          if (err.name === 'AbortError') {
+            console.log('⚠️ [FILTRO] Requisição cancelada');
+            setLoadingClientes(false); // Finalizar loading mesmo em caso de cancelamento
+            return;
+          }
+          console.error('❌ Erro ao aplicar filtro de status:', err);
+          // Em caso de erro, limpar a lista
+          setTodosClientes([]);
+          setMensagemFiltroCliente(null);
+          setLoadingClientes(false); // Finalizar loading
         }
-        
-        const novosClientes = clientesFiltrados.map(c => ({ id: c.id, nome: c.nome }));
-        setTodosClientes(novosClientes);
       } else {
-        setTodosClientes([]);
+        // Sem status, apenas buscar por colaborador (código original otimizado)
+        const response = await fetch(url, {
+          credentials: 'include',
+          signal: signal,
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const result = await response.json();
+        
+        console.log(`🔍 [FILTRO] Clientes encontrados dos colaboradores: ${result.data?.length || 0} clientes`);
+        
+        if (result.success && result.data) {
+          // Remover duplicatas de clientes (caso algum cliente apareça para múltiplos colaboradores)
+          const clientesUnicos = new Map();
+          result.data.forEach(c => {
+            if (c && c.id !== null && c.id !== undefined) {
+              const cId = String(c.id).trim().toLowerCase();
+              if (!clientesUnicos.has(cId)) {
+                clientesUnicos.set(cId, c);
+              }
+            }
+          });
+          const clientesFiltrados = Array.from(clientesUnicos.values());
+          
+          const novosClientes = clientesFiltrados.map(c => ({ id: c.id, nome: c.nome }));
+          setTodosClientes(novosClientes);
+          setMensagemFiltroCliente(null);
+          setLoadingClientes(false); // Finalizar loading
+        } else {
+          setTodosClientes([]);
+          setMensagemFiltroCliente(null);
+          setLoadingClientes(false); // Finalizar loading
+        }
       }
     } catch (error) {
+      // Ignorar erros de cancelamento (AbortError)
+      if (error.name === 'AbortError') {
+        console.log('⚠️ [FILTRO] Requisição cancelada');
+        setLoadingClientes(false); // Finalizar loading mesmo em caso de cancelamento
+        return;
+      }
       console.error('❌ Erro ao carregar clientes por colaborador:', error);
       // Em caso de erro, recarregar todos os clientes (respeitando status)
-      await carregarClientes(filtroStatus);
+      await carregarClientes(statusParaUsar);
+      setMensagemFiltroCliente(null);
+      setLoadingClientes(false); // Finalizar loading
     }
   }, [filtroStatus, filtroDataInicio, filtroDataFim, carregarClientes]);
+
+  // Função central para carregar clientes considerando TODOS os filtros ativos (incremental)
+  const carregarClientesComFiltros = useCallback(async (statusAtual = null, colaboradorAtual = null) => {
+    // Cancelar requisição anterior se existir (evitar race conditions)
+    if (requestControllerRef.current) {
+      requestControllerRef.current.abort();
+    }
+    
+    // Criar novo controller para esta requisição
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+
+    // Usar valores passados ou os estados atuais
+    const status = statusAtual !== null ? statusAtual : filtroStatus;
+    const colaborador = colaboradorAtual !== null ? colaboradorAtual : filtroColaborador;
+
+    // Limpar lista imediatamente para evitar mostrar dados antigos
+    setTodosClientes([]);
+    setMensagemFiltroCliente(null);
+    // O loading será iniciado dentro de carregarClientes ou carregarClientesPorColaborador
+
+    try {
+      // Se não há colaborador selecionado, usar a função simples
+      if (!colaborador) {
+        await carregarClientes(status);
+        return;
+      }
+
+      // Se há colaborador, buscar clientes do colaborador e aplicar filtro de status se houver
+      // IMPORTANTE: sempre passar o status para garantir que ambos os filtros sejam aplicados
+      await carregarClientesPorColaborador(colaborador, status);
+    } catch (error) {
+      // Ignorar erros de cancelamento (AbortError)
+      if (error.name !== 'AbortError') {
+        console.error('❌ Erro ao carregar clientes com filtros:', error);
+        setLoadingClientes(false); // Garantir que o loading seja finalizado em caso de erro
+      }
+    } finally {
+      // Limpar controller se esta ainda for a requisição atual
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
+    }
+  }, [filtroStatus, filtroColaborador, carregarClientes, carregarClientesPorColaborador]);
 
   // Carregar clientes paginados
   const carregarClientesPaginados = useCallback(async () => {
@@ -577,22 +823,10 @@ const DashboardClientes = () => {
       }
     }
 
-    // Validar dependências
-    if (filtroCliente && !filtroDataInicio && !filtroDataFim) {
-      alert('O filtro "Cliente" requer que o filtro "Período" esteja selecionado');
-      return;
-    }
-
-    // Validar se há colaboradores selecionados e se requer período
-    const temColaboradores = Array.isArray(filtroColaborador) 
-      ? filtroColaborador.length > 0 
-      : (filtroColaborador && filtroColaborador.toString().trim() !== '');
+    // Validar dependências - NOTA: Removendo validação obrigatória de período para Cliente e Colaborador
+    // pois os handlers já permitem seleção sem período, e o backend pode processar sem período
+    // A validação será feita apenas se o usuário tentar aplicar filtros sem dados suficientes
     
-    if (temColaboradores && !filtroDataInicio && !filtroDataFim) {
-      alert('O filtro "Colaborador" requer que o filtro "Período" esteja selecionado');
-      return;
-    }
-
     // Verificar se tem pelo menos um filtro
     const temAlgumFiltro = Object.values(valores).some(valor => {
       if (valor === null || valor === undefined) return false;
@@ -625,6 +859,7 @@ const DashboardClientes = () => {
     setFiltroColaborador(null);
     setFiltroDataInicio(null);
     setFiltroDataFim(null);
+    setMensagemFiltroCliente(null);
     
     // Limpar cache para garantir dados atualizados
     try {
@@ -651,13 +886,15 @@ const DashboardClientes = () => {
   // Handlers dos filtros
   const handleStatusChange = useCallback(async (e) => {
     const value = e.target.value || null;
+    
+    // Atualizar estado primeiro
     setFiltroStatus(value);
-    if (value) {
-      await carregarClientes(value);
-    } else {
-      await carregarClientes();
-    }
-  }, [carregarClientes]);
+    
+    // Sempre usar a função central que considera TODOS os filtros ativos
+    // Passar o novo valor diretamente para evitar problemas de timing
+    // Usar o valor atual de filtroColaborador do estado (será atualizado no próximo render)
+    await carregarClientesComFiltros(value, filtroColaborador);
+  }, [filtroColaborador, carregarClientesComFiltros]);
 
   const handleClienteChange = useCallback(async (e) => {
     const value = e.target.value || null;
@@ -667,16 +904,29 @@ const DashboardClientes = () => {
       // Mas passar todos os clientes para carregar colaboradores
       const clienteId = Array.isArray(value) ? value[0] : value;
       await carregarStatus(clienteId);
-      // Passar todos os clientes selecionados e o período (se houver) para buscar colaboradores
-      await carregarColaboradoresPorCliente(value, filtroDataInicio, filtroDataFim);
+      // Só recarregar colaboradores se NÃO houver colaborador selecionado
+      // Isso evita que a seleção do colaborador seja perdida quando um cliente é selecionado
+      if (!filtroColaborador) {
+        // Passar todos os clientes selecionados e o período (se houver) para buscar colaboradores
+        await carregarColaboradoresPorCliente(value, filtroDataInicio, filtroDataFim);
+      }
     } else {
       await carregarStatus();
-      await carregarColaboradores();
+      // Só recarregar colaboradores se NÃO houver colaborador selecionado
+      if (!filtroColaborador) {
+        await carregarColaboradores();
+      }
     }
-  }, [carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores, filtroDataInicio, filtroDataFim]);
+  }, [filtroColaborador, carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores, filtroDataInicio, filtroDataFim]);
 
   // Recarregar colaboradores quando o período mudar e houver cliente selecionado
+  // IMPORTANTE: Só recarregar se NÃO houver colaborador selecionado (para preservar a seleção)
   useEffect(() => {
+    // Não recarregar colaboradores se já houver um colaborador selecionado
+    if (filtroColaborador) {
+      return; // Preservar a seleção do colaborador
+    }
+
     if (filtroCliente && (filtroDataInicio || filtroDataFim)) {
       // Se ambos os períodos estiverem preenchidos, recarregar colaboradores
       if (filtroDataInicio && filtroDataFim) {
@@ -686,7 +936,7 @@ const DashboardClientes = () => {
       // Se cliente está selecionado mas período foi removido, recarregar sem período
       carregarColaboradoresPorCliente(filtroCliente);
     }
-  }, [filtroDataInicio, filtroDataFim, filtroCliente, carregarColaboradoresPorCliente]);
+  }, [filtroDataInicio, filtroDataFim, filtroCliente, filtroColaborador, carregarColaboradoresPorCliente]);
 
   const handleColaboradorChange = useCallback(async (e) => {
     // value pode ser null, um array, ou um único valor (para compatibilidade)
@@ -698,15 +948,16 @@ const DashboardClientes = () => {
       ? value.map(normalizeId).filter(Boolean)
       : (value ? [normalizeId(value)] : null);
     
-    setFiltroColaborador(colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null);
+    const novosColaboradorIds = colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null;
     
-    if (colaboradorIds && colaboradorIds.length > 0) {
-      // Se houver colaboradores selecionados, carregar clientes de todos eles
-      await carregarClientesPorColaborador(colaboradorIds);
-    } else {
-      await carregarClientes(filtroStatus);
-    }
-  }, [filtroStatus, carregarClientes, carregarClientesPorColaborador]);
+    // Atualizar estado primeiro
+    setFiltroColaborador(novosColaboradorIds);
+    
+    // Sempre usar a função central que considera TODOS os filtros ativos
+    // Passar o novo valor diretamente para evitar problemas de timing
+    // Usar o valor atual de filtroStatus do estado (será atualizado no próximo render)
+    await carregarClientesComFiltros(filtroStatus, novosColaboradorIds);
+  }, [filtroStatus, carregarClientesComFiltros]);
 
   // Abrir card lateral
   const handleOpenDetail = useCallback((clienteId, tipo, event) => {
@@ -998,37 +1249,25 @@ const DashboardClientes = () => {
   }, [allRegistrosTempo, todosColaboradores]);
 
   const handleShowClientes = useCallback((e) => {
-    if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
+    // Usar os clientes que estão sendo exibidos nos cards (já filtrados)
+    // Isso garante que a listagem corresponda à contagem no dashboard
+    if (!clientes || clientes.length === 0) {
       alert('Nenhum cliente encontrado');
       return;
     }
 
-    const clientesMap = new Map();
-    allRegistrosTempo.forEach(registro => {
-      if (registro.cliente_id) {
-        // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
-        // Fazer split para tratar cada ID como um cliente separado
-        const clienteIds = String(registro.cliente_id)
-          .split(',')
-          .map(id => id.trim())
-          .filter(id => id.length > 0);
-        
-        clienteIds.forEach(clienteId => {
-          if (!clientesMap.has(clienteId)) {
-            const nomeCliente = registro.cliente?.nome || 
-                               (todosClientes && todosClientes.find(c => String(c.id) === clienteId)?.nome) ||
-                               `Cliente #${clienteId}`;
-            clientesMap.set(clienteId, nomeCliente);
-          }
-        });
-      }
-    });
+    // Extrair nomes dos clientes dos cards exibidos
+    const itens = clientes.map(item => item.cliente.nome || `Cliente #${item.cliente.id}`);
 
-    const itens = Array.from(clientesMap.values());
+    if (itens.length === 0) {
+      alert('Nenhum cliente encontrado');
+      return;
+    }
+
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Clientes', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosClientes]);
+  }, [clientes]);
 
   // Função para calcular posição do mini card
   const calcularPosicaoMiniCard = useCallback((event) => {
@@ -1212,6 +1451,8 @@ const DashboardClientes = () => {
                     onChange={handleClienteChange}
                     options={todosClientes}
                     disabled={false}
+                    emptyMessage={mensagemFiltroCliente}
+                    loading={loadingClientes}
                   />
                 </div>
 
@@ -1269,6 +1510,8 @@ const DashboardClientes = () => {
                 onShowTarefas={handleShowTarefas}
                 onShowColaboradores={handleShowColaboradores}
                 onShowClientes={handleShowClientes}
+                clientesFiltrados={clientes.map(item => item.cliente)}
+                totalClientes={totalClients}
               />
             )}
           </>

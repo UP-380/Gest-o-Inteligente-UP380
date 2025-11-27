@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './FilterClientes.css';
 
-const FilterClientes = ({ value, options = [], onChange, disabled = false }) => {
+const FilterClientes = ({ value, options = [], onChange, disabled = false, emptyMessage = null, loading = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
@@ -22,6 +22,10 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
   
   // Texto de exibição
   const getSelectedText = () => {
+    // Se houver mensagem e não houver opções, exibir a mensagem
+    if (emptyMessage && options.length === 0) {
+      return emptyMessage;
+    }
     if (selectedClientes.length === 0) {
       return 'Selecionar clientes';
     } else if (selectedClientes.length === 1) {
@@ -171,7 +175,14 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
                   })}
                   {sortedOptions.length === 0 && (
                     <div className="cliente-option no-results">
-                      <span>Nenhum cliente encontrado</span>
+                      {loading ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                          <i className="fas fa-spinner fa-spin" style={{ color: '#ff9800' }}></i>
+                          <span>Carregando clientes...</span>
+                        </span>
+                      ) : (
+                        <span>{emptyMessage || 'Nenhum cliente encontrado'}</span>
+                      )}
                     </div>
                   )}
                 </div>

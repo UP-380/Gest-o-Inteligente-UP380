@@ -1,12 +1,12 @@
 import React from 'react';
 import './DashboardCards.css';
 
-const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, onShowColaboradores, onShowClientes }) => {
+const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, onShowColaboradores, onShowClientes, clientesFiltrados = null, totalClientes = null }) => {
   // Calcular totais gerais
   let totalTarefas = 0;
   let totalHrs = 0;
   let totalColaboradores = 0;
-  let totalClientes = 0;
+  let totalClientesCalculado = 0;
 
   if (registrosTempo && registrosTempo.length > 0) {
     // Tarefas únicas (geral)
@@ -47,28 +47,75 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
     totalColaboradores = colaboradoresUnicos.size;
 
     // Clientes únicos (geral)
-    // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
-    const clientesUnicos = new Set();
-    registrosTempo.forEach(registro => {
-      if (registro.cliente_id) {
-        // Fazer split por ", " para extrair todos os IDs
-        const ids = String(registro.cliente_id)
-          .split(',')
-          .map(id => id.trim())
-          .filter(id => id.length > 0);
-        ids.forEach(id => clientesUnicos.add(id));
+    // IMPORTANTE: Se totalClientes foi passado explicitamente (do backend), usar esse valor
+    // Isso garante que contamos todos os clientes de todas as páginas, não apenas da página atual
+    if (totalClientes !== null && totalClientes !== undefined) {
+      // Usar o total passado pelo backend (já considera todas as páginas)
+      totalClientesCalculado = totalClientes;
+    } else {
+      // Se não foi passado totalClientes, calcular dos registros (fallback)
+      // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
+      const clientesUnicos = new Set();
+      registrosTempo.forEach(registro => {
+        if (registro.cliente_id) {
+          // Fazer split por ", " para extrair todos os IDs
+          const ids = String(registro.cliente_id)
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id.length > 0);
+          ids.forEach(id => clientesUnicos.add(id));
+        }
+      });
+      
+      // Se há lista de clientes filtrados, contar apenas os clientes que estão nessa lista
+      if (clientesFiltrados && Array.isArray(clientesFiltrados) && clientesFiltrados.length > 0) {
+        const clientesFiltradosIds = new Set(
+          clientesFiltrados.map(c => String(c.id || c).trim().toLowerCase())
+        );
+        // Filtrar apenas os clientes únicos que estão na lista filtrada
+        const clientesFiltradosUnicos = Array.from(clientesUnicos).filter(clienteId => 
+          clientesFiltradosIds.has(String(clienteId).trim().toLowerCase())
+        );
+        totalClientesCalculado = clientesFiltradosUnicos.length;
+      } else {
+        totalClientesCalculado = clientesUnicos.size;
       }
-    });
-    totalClientes = clientesUnicos.size;
+    }
   } else if (contratos && contratos.length > 0) {
     // Se não há registros de tempo, usar contratos para contar clientes
-    const clientesUnicos = new Set();
-    contratos.forEach(contrato => {
-      if (contrato.id_cliente) {
-        clientesUnicos.add(String(contrato.id_cliente).trim());
+    // Mas se totalClientes foi passado, usar esse valor (prioridade)
+    if (totalClientes === null || totalClientes === undefined) {
+      const clientesUnicos = new Set();
+      contratos.forEach(contrato => {
+        if (contrato.id_cliente) {
+          clientesUnicos.add(String(contrato.id_cliente).trim());
+        }
+      });
+      
+      // Se há lista de clientes filtrados, contar apenas os clientes que estão nessa lista
+      if (clientesFiltrados && Array.isArray(clientesFiltrados) && clientesFiltrados.length > 0) {
+        const clientesFiltradosIds = new Set(
+          clientesFiltrados.map(c => String(c.id || c).trim().toLowerCase())
+        );
+        // Filtrar apenas os clientes únicos que estão na lista filtrada
+        const clientesFiltradosUnicos = Array.from(clientesUnicos).filter(clienteId => 
+          clientesFiltradosIds.has(String(clienteId).trim().toLowerCase())
+        );
+        totalClientesCalculado = clientesFiltradosUnicos.length;
+      } else {
+        totalClientesCalculado = clientesUnicos.size;
       }
-    });
-    totalClientes = clientesUnicos.size;
+    } else {
+      totalClientesCalculado = totalClientes;
+    }
+  }
+  
+  // Garantir que totalClientesCalculado seja um número válido
+  if (totalClientes !== null && totalClientes !== undefined) {
+    totalClientesCalculado = totalClientes;
+  }
+  if (totalClientesCalculado === null || totalClientesCalculado === undefined || isNaN(totalClientesCalculado)) {
+    totalClientesCalculado = 0;
   }
 
   // Formatar horas em h min s (com segundos para dashboard)
@@ -96,7 +143,7 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
   const tempoDecimal = formatarHrsDecimal(totalHrs);
 
   // Mostrar cards se houver dados
-  if (totalTarefas === 0 && totalHrs === 0 && totalColaboradores === 0 && totalClientes === 0) {
+  if (totalTarefas === 0 && totalHrs === 0 && totalColaboradores === 0 && totalClientesCalculado === 0) {
     return null;
   }
 
@@ -188,7 +235,7 @@ const DashboardCards = ({ contratos = [], registrosTempo = [], onShowTarefas, on
         <div className="dashboard-card-content">
           <div className="dashboard-card-label">Clientes</div>
           <div className="dashboard-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{totalClientes}</span>
+            <span>{totalClientesCalculado}</span>
             <span
               className="dashboard-card-arrow-small"
               onClick={(e) => {
