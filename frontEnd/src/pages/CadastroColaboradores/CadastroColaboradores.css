@@ -172,6 +172,15 @@
   color: #4f46e5;
 }
 
+.btn-vigencia {
+  color: #10b981;
+}
+
+.btn-vigencia:hover:not(:disabled) {
+  background: #ecfdf5;
+  color: #059669;
+}
+
 .btn-delete {
   color: #ef4444;
 }
@@ -539,5 +548,142 @@
     transform: translateX(100%);
     opacity: 0;
   }
+}
+
+/* Toggle Switch Minimalista */
+.status-toggle-minimal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-option-minimal {
+  font-size: 12px;
+  color: #64748b;
+  transition: color 0.2s ease;
+  user-select: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.toggle-option-minimal.active {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.toggle-switch-minimal {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-input-minimal {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider-minimal {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #cbd5e0;
+  transition: all 0.3s ease;
+  border-radius: 20px;
+}
+
+.toggle-slider-minimal:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  transition: all 0.3s ease;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-input-minimal:checked + .toggle-slider-minimal {
+  background: #6366f1;
+}
+
+.toggle-input-minimal:checked + .toggle-slider-minimal:before {
+  transform: translateX(16px);
+}
+
+.toggle-slider-minimal:hover {
+  opacity: 0.8;
+}
+
+/* Filtros (para vigências) */
+.filters-card {
+  background: white;
+  border: 1px solid #e0e7ff;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.filters-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 16px;
+  align-items: end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.filter-input {
+  padding: 10px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+}
+
+.filter-select {
+  padding: 10px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+  cursor: pointer;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
 }
 

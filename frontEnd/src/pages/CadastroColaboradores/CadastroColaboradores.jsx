@@ -1,8 +1,28 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import './CadastroColaboradores.css';
 
 const API_BASE_URL = '/api';
+
+// Função auxiliar para formatar data em formato brasileiro (DD/MM/YYYY) - para exibição
+const formatarDataBR = (data) => {
+  if (!data) return '';
+  const d = new Date(data);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Função auxiliar para formatar número monetário
+const formatarMoeda = (valor) => {
+  if (!valor && valor !== 0) return '';
+  return parseFloat(valor).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
 
 // Função auxiliar para aplicar máscara de CPF
 const aplicarMascaraCpf = (valor) => {
@@ -15,6 +35,11 @@ const aplicarMascaraCpf = (valor) => {
 };
 
 const CadastroColaboradores = () => {
+  const navigate = useNavigate();
+  
+  // Estado para toggle de detalhes (vigências)
+  const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
+  
   // Estados principais
   const [colaboradores, setColaboradores] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -37,6 +62,120 @@ const CadastroColaboradores = () => {
   // Estados para modal de confirmação de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [colaboradorToDelete, setColaboradorToDelete] = useState(null);
+  
+  // Estados para modal de confirmação de exclusão de vigência
+  const [showDeleteModalVigencia, setShowDeleteModalVigencia] = useState(false);
+  const [vigenciaToDelete, setVigenciaToDelete] = useState(null);
+
+  // Estados para vigências (quando mostrarDetalhes está ativo)
+  const [vigencias, setVigencias] = useState([]);
+  const [membros, setMembros] = useState([]);
+  const [loadingVigencias, setLoadingVigencias] = useState(false);
+  const [loadingMembros, setLoadingMembros] = useState(false);
+  const [currentPageVigencias, setCurrentPageVigencias] = useState(1);
+  const [itemsPerPageVigencias, setItemsPerPageVigencias] = useState(20);
+  const [totalPagesVigencias, setTotalPagesVigencias] = useState(1);
+  const [totalVigencias, setTotalVigencias] = useState(0);
+  const [filtroDataAPartirDe, setFiltroDataAPartirDe] = useState('');
+  const [filtroColaboradorId, setFiltroColaboradorId] = useState('');
+
+  // Carregar membros para exibir nomes nas vigências
+  const loadMembros = useCallback(async () => {
+    setLoadingMembros(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setMembros(result.data || []);
+      } else {
+        throw new Error(result.error || 'Erro ao carregar membros');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar membros:', error);
+      showMessage('Erro ao carregar membros. Tente novamente.', 'error');
+      setMembros([]);
+    } finally {
+      setLoadingMembros(false);
+    }
+  }, []);
+
+  // Carregar vigências (quando mostrarDetalhes está ativo)
+  const loadVigencias = useCallback(async () => {
+    if (!mostrarDetalhes) return;
+    
+    setLoadingVigencias(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPageVigencias.toString(),
+        limit: itemsPerPageVigencias.toString()
+      });
+
+      // Filtro por colaborador
+      if (filtroColaboradorId) {
+        params.append('membro_id', filtroColaboradorId);
+      }
+
+      // Filtro "A partir de" - busca vigências com dt_vigencia >= data selecionada
+      if (filtroDataAPartirDe) {
+        params.append('dt_vigencia_inicio', filtroDataAPartirDe);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/custo-membro-vigencia?${params}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setVigencias(result.data || []);
+        setTotalVigencias(result.total || 0);
+        setTotalPagesVigencias(Math.ceil((result.total || 0) / itemsPerPageVigencias));
+      } else {
+        throw new Error(result.error || 'Erro ao carregar vigências');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar vigências:', error);
+      showMessage(error.message || 'Erro ao carregar vigências. Tente novamente.', 'error');
+      setVigencias([]);
+    } finally {
+      setLoadingVigencias(false);
+    }
+  }, [mostrarDetalhes, currentPageVigencias, itemsPerPageVigencias, filtroDataAPartirDe, filtroColaboradorId]);
+
+  // Obter nome do membro
+  const getNomeMembro = (membroId) => {
+    const membro = membros.find(m => m.id === membroId);
+    return membro ? membro.nome : `ID: ${membroId}`;
+  };
 
   // Carregar colaboradores
   const loadColaboradores = useCallback(async () => {
@@ -291,6 +430,58 @@ const CadastroColaboradores = () => {
     setShowDeleteModal(true);
   };
 
+  // Redirecionar para vigências do membro
+  const handleVerVigencias = (colaborador) => {
+    // Redireciona para a tela de vigências com o filtro do membro aplicado
+    navigate(`/custo-membro-vigencia?membro_id=${colaborador.id}`);
+  };
+
+  // Editar vigência - redireciona para a tela de vigências
+  const handleEditVigencia = (vigencia) => {
+    navigate(`/custo-membro-vigencia?id=${vigencia.id}`);
+  };
+
+  // Confirmar exclusão de vigência
+  const confirmDeleteVigencia = (vigencia) => {
+    setVigenciaToDelete(vigencia);
+    setShowDeleteModalVigencia(true);
+  };
+
+  // Deletar vigência
+  const handleDeleteVigencia = useCallback(async () => {
+    if (!vigenciaToDelete) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/custo-membro-vigencia/${vigenciaToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage('Vigência deletada com sucesso!', 'success');
+        setShowDeleteModalVigencia(false);
+        setVigenciaToDelete(null);
+        await loadVigencias();
+      } else {
+        throw new Error(result.error || 'Erro ao deletar vigência');
+      }
+    } catch (error) {
+      console.error('Erro ao deletar vigência:', error);
+      showMessage(error.message || 'Erro ao deletar vigência. Tente novamente.', 'error');
+      setShowDeleteModalVigencia(false);
+    }
+  }, [vigenciaToDelete, loadVigencias]);
+
   // Mostrar mensagem
   const showMessage = useCallback((message, type = 'info') => {
     const notification = document.createElement('div');
@@ -344,6 +535,13 @@ const CadastroColaboradores = () => {
     loadColaboradores();
   }, [loadColaboradores]);
 
+  useEffect(() => {
+    if (mostrarDetalhes) {
+      loadMembros();
+      loadVigencias();
+    }
+  }, [mostrarDetalhes, loadMembros, loadVigencias]);
+
   // Calcular range de itens exibidos
   const startItem = totalColaboradores === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
   const endItem = Math.min(startItem + Math.min(itemsPerPage, colaboradores.length) - 1, totalColaboradores);
@@ -374,6 +572,24 @@ const CadastroColaboradores = () => {
               </div>
             </div>
             <div className="listing-controls-right">
+              {/* Toggle Detalhes */}
+              <div className="status-toggle-minimal" style={{ marginRight: '16px' }}>
+                <span className={`toggle-option-minimal ${!mostrarDetalhes ? 'active' : ''}`}>Lista</span>
+                <div className="toggle-switch-minimal">
+                  <input
+                    type="checkbox"
+                    id="detalhesToggleInput"
+                    className="toggle-input-minimal"
+                    checked={mostrarDetalhes}
+                    onChange={(e) => {
+                      setMostrarDetalhes(e.target.checked);
+                      setCurrentPageVigencias(1);
+                    }}
+                  />
+                  <label htmlFor="detalhesToggleInput" className="toggle-slider-minimal"></label>
+                </div>
+                <span className={`toggle-option-minimal ${mostrarDetalhes ? 'active' : ''}`}>Detalhes</span>
+              </div>
               <button
                 className="btn-primary"
                 onClick={handleNewColaborador}
@@ -476,99 +692,255 @@ const CadastroColaboradores = () => {
             </div>
           )}
 
-          {/* Lista de colaboradores */}
-          <div className="listing-table-container">
-            {loading ? (
-              <div className="loading-container">
-                <i className="fas fa-spinner fa-spin"></i>
-                <span>Carregando colaboradores...</span>
-              </div>
-            ) : colaboradores.length === 0 ? (
-              <div className="empty-state">
-                <i className="fas fa-users"></i>
-                <p>Nenhum colaborador encontrado</p>
-              </div>
-            ) : (
-              <>
-                <table className="listing-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Nome</th>
-                      <th>CPF</th>
-                      <th className="actions-column">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {colaboradores.map((colaborador) => (
-                      <tr key={colaborador.id}>
-                        <td>{colaborador.id}</td>
-                        <td>{colaborador.nome || '-'}</td>
-                        <td>
-                          {colaborador.cpf 
-                            ? aplicarMascaraCpf(colaborador.cpf)
-                            : '-'
-                          }
-                        </td>
-                        <td className="actions-column">
-                          <div className="action-buttons">
-                            <button
-                              className="btn-icon btn-edit"
-                              onClick={() => handleEdit(colaborador)}
-                              title="Editar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              className="btn-icon btn-delete"
-                              onClick={() => confirmDelete(colaborador)}
-                              title="Deletar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Paginação */}
-                {totalPages > 1 && (
-                  <div className="pagination">
-                    <button
-                      className="pagination-btn"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1 || loading}
+          {/* Filtros quando mostrarDetalhes está ativo */}
+          {mostrarDetalhes && (
+            <div className="filters-card" style={{ marginBottom: '24px' }}>
+              <div className="filters-content">
+                <div className="filter-row">
+                  <div className="filter-group">
+                    <label className="filter-label">Colaborador</label>
+                    <select
+                      className="filter-select"
+                      value={filtroColaboradorId}
+                      onChange={(e) => {
+                        setFiltroColaboradorId(e.target.value);
+                        setCurrentPageVigencias(1);
+                      }}
                     >
-                      <i className="fas fa-chevron-left"></i>
-                    </button>
-                    <span className="pagination-info">
-                      Página {currentPage} de {totalPages}
-                    </span>
+                      <option value="">Todos os colaboradores</option>
+                      {colaboradores.map((colaborador) => (
+                        <option key={colaborador.id} value={colaborador.id}>
+                          {colaborador.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="filter-group">
+                    <label className="filter-label">A partir de</label>
+                    <input
+                      type="date"
+                      className="filter-input"
+                      value={filtroDataAPartirDe}
+                      onChange={(e) => {
+                        setFiltroDataAPartirDe(e.target.value);
+                        setCurrentPageVigencias(1);
+                      }}
+                    />
+                  </div>
+                  <div className="filter-actions">
                     <button
-                      className="pagination-btn"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages || loading}
+                      className="btn-secondary"
+                      onClick={() => {
+                        setFiltroDataAPartirDe('');
+                        setFiltroColaboradorId('');
+                        setCurrentPageVigencias(1);
+                      }}
                     >
-                      <i className="fas fa-chevron-right"></i>
+                      Limpar
                     </button>
                   </div>
-                )}
-
-                {/* Info de paginação */}
-                <div className="pagination-info-bottom">
-                  Mostrando {startItem} a {endItem} de {totalColaboradores} colaboradores
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
+
+          {/* Lista de colaboradores ou vigências */}
+          {!mostrarDetalhes ? (
+            <div className="listing-table-container">
+              {loading ? (
+                <div className="loading-container">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <span>Carregando colaboradores...</span>
+                </div>
+              ) : colaboradores.length === 0 ? (
+                <div className="empty-state">
+                  <i className="fas fa-users"></i>
+                  <p>Nenhum colaborador encontrado</p>
+                </div>
+              ) : (
+                <>
+                  <table className="listing-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>CPF</th>
+                        <th className="actions-column">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {colaboradores.map((colaborador) => (
+                        <tr key={colaborador.id}>
+                          <td>{colaborador.id}</td>
+                          <td>{colaborador.nome || '-'}</td>
+                          <td>
+                            {colaborador.cpf 
+                              ? aplicarMascaraCpf(colaborador.cpf)
+                              : '-'
+                            }
+                          </td>
+                          <td className="actions-column">
+                            <div className="action-buttons">
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEdit(colaborador)}
+                                title="Editar"
+                                disabled={showForm}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-vigencia"
+                                onClick={() => handleVerVigencias(colaborador)}
+                                title="Ver Vigências"
+                                disabled={showForm}
+                              >
+                                <i className="fas fa-calendar-alt"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => confirmDelete(colaborador)}
+                                title="Deletar"
+                                disabled={showForm}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Paginação */}
+                  {totalPages > 1 && (
+                    <div className="pagination">
+                      <button
+                        className="pagination-btn"
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1 || loading}
+                      >
+                        <i className="fas fa-chevron-left"></i>
+                      </button>
+                      <span className="pagination-info">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <button
+                        className="pagination-btn"
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages || loading}
+                      >
+                        <i className="fas fa-chevron-right"></i>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Info de paginação */}
+                  <div className="pagination-info-bottom">
+                    Mostrando {startItem} a {endItem} de {totalColaboradores} colaboradores
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            /* Lista de vigências */
+            <div className="listing-table-container">
+              {loadingVigencias ? (
+                <div className="loading-container">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <span>Carregando vigências...</span>
+                </div>
+              ) : vigencias.length === 0 ? (
+                <div className="empty-state">
+                  <i className="fas fa-calendar-alt"></i>
+                  <p>Nenhuma vigência encontrada</p>
+                </div>
+              ) : (
+                <>
+                  <table className="listing-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Membro</th>
+                        <th>Data Vigência</th>
+                        <th>Salário Base</th>
+                        <th>Dias Úteis</th>
+                        <th>Horas/Dia</th>
+                        <th className="actions-column">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vigencias.map((vigencia) => (
+                        <tr key={vigencia.id}>
+                          <td>{vigencia.id}</td>
+                          <td>{getNomeMembro(vigencia.membro_id)}</td>
+                          <td>{formatarDataBR(vigencia.dt_vigencia)}</td>
+                          <td>
+                            {vigencia.salariobase 
+                              ? `R$ ${formatarMoeda(vigencia.salariobase)}`
+                              : '-'
+                            }
+                          </td>
+                          <td>{vigencia.diasuteis || '-'}</td>
+                          <td>{vigencia.horascontratadasdia || '-'}</td>
+                          <td className="actions-column">
+                            <div className="action-buttons">
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditVigencia(vigencia)}
+                                title="Editar"
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => confirmDeleteVigencia(vigencia)}
+                                title="Deletar"
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Paginação */}
+                  {totalPagesVigencias > 1 && (
+                    <div className="pagination">
+                      <button
+                        className="pagination-btn"
+                        onClick={() => setCurrentPageVigencias(prev => Math.max(1, prev - 1))}
+                        disabled={currentPageVigencias === 1 || loadingVigencias}
+                      >
+                        <i className="fas fa-chevron-left"></i>
+                      </button>
+                      <span className="pagination-info">
+                        Página {currentPageVigencias} de {totalPagesVigencias}
+                      </span>
+                      <button
+                        className="pagination-btn"
+                        onClick={() => setCurrentPageVigencias(prev => Math.min(totalPagesVigencias, prev + 1))}
+                        disabled={currentPageVigencias === totalPagesVigencias || loadingVigencias}
+                      >
+                        <i className="fas fa-chevron-right"></i>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Info de paginação */}
+                  <div className="pagination-info-bottom">
+                    Mostrando {totalVigencias === 0 ? 0 : ((currentPageVigencias - 1) * itemsPerPageVigencias) + 1} a {Math.min(currentPageVigencias * itemsPerPageVigencias, totalVigencias)} de {totalVigencias} vigências
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
-      {/* Modal de confirmação de exclusão */}
+      {/* Modal de confirmação de exclusão de colaborador */}
       {showDeleteModal && colaboradorToDelete && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -603,6 +975,49 @@ const CadastroColaboradores = () => {
               >
                 <i className="fas fa-trash"></i>
                 Deletar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmação de exclusão de vigência */}
+      {showDeleteModalVigencia && vigenciaToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteModalVigencia(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Confirmar Exclusão</h3>
+              <button
+                className="btn-icon"
+                onClick={() => setShowDeleteModalVigencia(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>
+                Tem certeza que deseja excluir a vigência do colaborador <strong>{getNomeMembro(vigenciaToDelete.membro_id)}</strong>?
+              </p>
+              <p>
+                Data: <strong>{formatarDataBR(vigenciaToDelete.dt_vigencia)}</strong>
+              </p>
+              <p className="warning-text">
+                Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowDeleteModalVigencia(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-danger"
+                onClick={handleDeleteVigencia}
+              >
+                <i className="fas fa-trash"></i>
+                Excluir
               </button>
             </div>
           </div>

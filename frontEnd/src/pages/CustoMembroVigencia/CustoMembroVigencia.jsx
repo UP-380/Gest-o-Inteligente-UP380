@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import './CustoMembroVigencia.css';
 
 const API_BASE_URL = '/api';
 
-// Função auxiliar para formatar data (YYYY-MM-DD)
+// Função auxiliar para formatar data (YYYY-MM-DD) - para inputs e envio ao backend
 const formatarData = (data) => {
   if (!data) return '';
   const d = new Date(data);
@@ -12,6 +13,16 @@ const formatarData = (data) => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// Função auxiliar para formatar data em formato brasileiro (DD/MM/YYYY) - para exibição
+const formatarDataBR = (data) => {
+  if (!data) return '';
+  const d = new Date(data);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
 };
 
 // Função auxiliar para formatar número monetário
@@ -25,12 +36,15 @@ const formatarMoeda = (valor) => {
 
 // Função para remover formatação de moeda (formato brasileiro: 1.234,56)
 const removerFormatacaoMoeda = (valor) => {
-  if (!valor && valor !== '0') return '0';
+  if (!valor || valor === '' || valor === null || valor === undefined) return '0';
   // Remove pontos (separadores de milhar) e substitui vírgula por ponto
-  return valor.toString().replace(/\./g, '').replace(',', '.');
+  const valorLimpo = valor.toString().replace(/\./g, '').replace(',', '.');
+  return valorLimpo || '0';
 };
 
 const CustoMembroVigencia = () => {
+  const [searchParams] = useSearchParams();
+  
   // Estados principais
   const [vigencias, setVigencias] = useState([]);
   const [membros, setMembros] = useState([]);
@@ -43,8 +57,15 @@ const CustoMembroVigencia = () => {
 
   // Filtros
   const [filtroMembroId, setFiltroMembroId] = useState('');
-  const [filtroDataInicio, setFiltroDataInicio] = useState('');
-  const [filtroDataFim, setFiltroDataFim] = useState('');
+  const [filtroDataAPartirDe, setFiltroDataAPartirDe] = useState('');
+  
+  // Ler parâmetro membro_id da URL se existir (quando redirecionado da tela de colaboradores)
+  useEffect(() => {
+    const membroIdFromUrl = searchParams.get('membro_id');
+    if (membroIdFromUrl) {
+      setFiltroMembroId(membroIdFromUrl);
+    }
+  }, [searchParams]);
 
   // Estados para formulário
   const [showForm, setShowForm] = useState(false);
@@ -113,14 +134,14 @@ const CustoMembroVigencia = () => {
         limit: itemsPerPage.toString()
       });
 
+      // Filtro por membro
       if (filtroMembroId) {
         params.append('membro_id', filtroMembroId);
       }
-      if (filtroDataInicio) {
-        params.append('dt_vigencia_inicio', filtroDataInicio);
-      }
-      if (filtroDataFim) {
-        params.append('dt_vigencia_fim', filtroDataFim);
+
+      // Filtro "A partir de" - busca vigências com dt_vigencia >= data selecionada
+      if (filtroDataAPartirDe) {
+        params.append('dt_vigencia_inicio', filtroDataAPartirDe);
       }
 
       const response = await fetch(`${API_BASE_URL}/custo-membro-vigencia?${params}`, {
@@ -156,7 +177,7 @@ const CustoMembroVigencia = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, filtroMembroId, filtroDataInicio, filtroDataFim]);
+  }, [currentPage, itemsPerPage, filtroMembroId, filtroDataAPartirDe]);
 
   // Carregar vigência por ID para edição
   const loadVigenciaParaEdicao = useCallback(async (id) => {
@@ -251,22 +272,35 @@ const CustoMembroVigencia = () => {
     setSubmitting(true);
 
     try {
+      // Função auxiliar para converter para número válido ou null
+      const toNumberOrNull = (value) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? null : num;
+      };
+
+      // Função auxiliar para converter para número válido ou 0
+      const toNumberOrZero = (value) => {
+        if (!value || value === '') return 0;
+        const num = parseFloat(value);
+        return isNaN(num) ? 0 : num;
+      };
+
+      // NOTA: ferias, decimoterceiro, insspatronal, insscolaborador, fgts, horas_mensal
+      // são colunas geradas (generated columns) calculadas automaticamente pelo banco
       const payload = {
         membro_id: parseInt(formData.membro_id, 10),
         dt_vigencia: formData.dt_vigencia.trim(),
-        diasuteis: formData.diasuteis ? parseFloat(formData.diasuteis) : null,
-        horascontratadasdia: formData.horascontratadasdia ? parseFloat(formData.horascontratadasdia) : null,
-        salariobase: formData.salariobase ? parseFloat(removerFormatacaoMoeda(formData.salariobase)) : null,
-        ajudacusto: formData.ajudacusto ? parseFloat(removerFormatacaoMoeda(formData.ajudacusto)) : 0,
-        valetransporte: formData.valetransporte ? parseFloat(removerFormatacaoMoeda(formData.valetransporte)) : 0,
-        ferias: formData.ferias ? parseFloat(removerFormatacaoMoeda(formData.ferias)) : 0,
-        decimoterceiro: formData.decimoterceiro ? parseFloat(removerFormatacaoMoeda(formData.decimoterceiro)) : 0,
-        insspatronal: formData.insspatronal ? parseFloat(removerFormatacaoMoeda(formData.insspatronal)) : 0,
-        insscolaborador: formData.insscolaborador ? parseFloat(removerFormatacaoMoeda(formData.insscolaborador)) : 0,
-        fgts: formData.fgts ? parseFloat(removerFormatacaoMoeda(formData.fgts)) : 0,
-        horas_mensal: formData.horas_mensal ? parseFloat(formData.horas_mensal) : null,
+        diasuteis: toNumberOrNull(formData.diasuteis),
+        horascontratadasdia: toNumberOrNull(formData.horascontratadasdia),
+        salariobase: formData.salariobase ? toNumberOrNull(removerFormatacaoMoeda(formData.salariobase)) : null,
+        ajudacusto: formData.ajudacusto ? toNumberOrZero(removerFormatacaoMoeda(formData.ajudacusto)) : 0,
+        valetransporte: formData.valetransporte ? toNumberOrZero(removerFormatacaoMoeda(formData.valetransporte)) : 0,
+        // ferias, decimoterceiro, insspatronal, insscolaborador, fgts, horas_mensal são calculados automaticamente
         descricao: formData.descricao?.trim() || null
       };
+
+      console.log('📤 Payload sendo enviado:', JSON.stringify(payload, null, 2));
 
       const url = editingId 
         ? `${API_BASE_URL}/custo-membro-vigencia/${editingId}`
@@ -289,6 +323,8 @@ const CustoMembroVigencia = () => {
       }
 
       const result = await response.json();
+      
+      console.log('📥 Resposta do servidor:', result);
 
       if (result.success) {
         showMessage(
@@ -300,11 +336,25 @@ const CustoMembroVigencia = () => {
         resetForm();
         await loadVigencias();
       } else {
-        throw new Error(result.error || 'Erro ao salvar vigência');
+        // Mostrar erro detalhado
+        const errorMsg = result.details 
+          ? `${result.error}: ${result.details}`
+          : result.error || 'Erro ao salvar vigência';
+        throw new Error(errorMsg);
       }
     } catch (error) {
-      console.error('Erro ao salvar vigência:', error);
-      showMessage(error.message || 'Erro ao salvar vigência. Tente novamente.', 'error');
+      console.error('❌ Erro ao salvar vigência:', error);
+      console.error('❌ Detalhes:', error);
+      
+      // Mostrar mensagem de erro mais detalhada
+      let errorMessage = 'Erro ao salvar vigência. Tente novamente.';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response) {
+        errorMessage = `Erro ${error.response.status}: ${error.response.statusText}`;
+      }
+      
+      showMessage(errorMessage, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -436,8 +486,7 @@ const CustoMembroVigencia = () => {
   // Limpar filtros
   const limparFiltros = () => {
     setFiltroMembroId('');
-    setFiltroDataInicio('');
-    setFiltroDataFim('');
+    setFiltroDataAPartirDe('');
     setCurrentPage(1);
   };
 
@@ -484,7 +533,10 @@ const CustoMembroVigencia = () => {
                   <select
                     className="filter-select"
                     value={filtroMembroId}
-                    onChange={(e) => setFiltroMembroId(e.target.value)}
+                    onChange={(e) => {
+                      setFiltroMembroId(e.target.value);
+                      setCurrentPage(1);
+                    }}
                   >
                     <option value="">Todos os membros</option>
                     {membros.map((membro) => (
@@ -495,21 +547,15 @@ const CustoMembroVigencia = () => {
                   </select>
                 </div>
                 <div className="filter-group">
-                  <label className="filter-label">Data Início</label>
+                  <label className="filter-label">A partir de</label>
                   <input
                     type="date"
                     className="filter-input"
-                    value={filtroDataInicio}
-                    onChange={(e) => setFiltroDataInicio(e.target.value)}
-                  />
-                </div>
-                <div className="filter-group">
-                  <label className="filter-label">Data Fim</label>
-                  <input
-                    type="date"
-                    className="filter-input"
-                    value={filtroDataFim}
-                    onChange={(e) => setFiltroDataFim(e.target.value)}
+                    value={filtroDataAPartirDe}
+                    onChange={(e) => {
+                      setFiltroDataAPartirDe(e.target.value);
+                      setCurrentPage(1);
+                    }}
                   />
                 </div>
                 <div className="filter-actions">
@@ -918,7 +964,7 @@ const CustoMembroVigencia = () => {
                       <tr key={vigencia.id}>
                         <td>{vigencia.id}</td>
                         <td>{getNomeMembro(vigencia.membro_id)}</td>
-                        <td>{formatarData(vigencia.dt_vigencia)}</td>
+                        <td>{formatarDataBR(vigencia.dt_vigencia)}</td>
                         <td>
                           {vigencia.salariobase 
                             ? `R$ ${formatarMoeda(vigencia.salariobase)}`
@@ -1002,7 +1048,7 @@ const CustoMembroVigencia = () => {
               <p>
                 Tem certeza que deseja deletar a vigência do membro{' '}
                 <strong>{getNomeMembro(vigenciaToDelete.membro_id)}</strong> de{' '}
-                <strong>{formatarData(vigenciaToDelete.dt_vigencia)}</strong>?
+                <strong>{formatarDataBR(vigenciaToDelete.dt_vigencia)}</strong>?
               </p>
               <p className="warning-text">
                 Esta ação não pode ser desfeita.
