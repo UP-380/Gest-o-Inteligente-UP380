@@ -110,7 +110,30 @@ router.get('/api/clientes-por-colaborador', requireAuth, async (req, res) => {
       });
     }
 
-    const clientes = await apiClientes.getClientesPorColaborador(colaboradorId, periodoInicio || null, periodoFim || null);
+    // Processar colaboradorId - pode vir como array (múltiplos parâmetros na query string) ou valor único
+    let colaboradorIdsParaBuscar = [];
+    if (Array.isArray(colaboradorId)) {
+      // Múltiplos colaboradores enviados como parâmetros repetidos
+      colaboradorIdsParaBuscar = colaboradorId;
+      console.log(`🔍 [ROTA] Múltiplos colaboradores recebidos:`, colaboradorIdsParaBuscar);
+    } else if (typeof colaboradorId === 'string' && colaboradorId.includes(',')) {
+      // String separada por vírgulas (fallback)
+      colaboradorIdsParaBuscar = colaboradorId.split(',').map(id => id.trim()).filter(Boolean);
+      console.log(`🔍 [ROTA] Colaboradores recebidos como string separada por vírgulas:`, colaboradorIdsParaBuscar);
+    } else {
+      // Valor único
+      colaboradorIdsParaBuscar = [colaboradorId];
+      console.log(`🔍 [ROTA] Colaborador único recebido:`, colaboradorIdsParaBuscar);
+    }
+
+    // Usar array se múltiplos, ou valor único se apenas um (para compatibilidade com a função)
+    const colaboradorIdParam = colaboradorIdsParaBuscar.length === 1 ? colaboradorIdsParaBuscar[0] : colaboradorIdsParaBuscar;
+    
+    console.log(`🔍 [ROTA] Buscando clientes para ${colaboradorIdsParaBuscar.length} colaborador(es)`);
+    
+    const clientes = await apiClientes.getClientesPorColaborador(colaboradorIdParam, periodoInicio || null, periodoFim || null);
+
+    console.log(`✅ [ROTA] Retornando ${(clientes || []).length} clientes para ${colaboradorIdsParaBuscar.length} colaborador(es)`);
 
     res.json({ 
       success: true, 
