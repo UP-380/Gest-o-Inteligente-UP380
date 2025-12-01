@@ -1,63 +1,97 @@
 import React, { useState, useEffect } from 'react';
 
-const ProdutosContent = ({ clienteId, registros }) => {
+const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
   const [produtos, setProdutos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const carregarProdutos = async () => {
       if (!registros || registros.length === 0) {
+        setProdutos([]);
         setLoading(false);
         return;
       }
 
-      const produtosMap = new Map();
+      // Coletar clickup_ids únicos dos produtos
+      const clickupIdsSet = new Set();
       registros.forEach(registro => {
         if (registro.tarefa && registro.tarefa.produto_id) {
-          const produtoId = String(registro.tarefa.produto_id).trim();
-          if (registro.tarefa.produto) {
-            if (!produtosMap.has(produtoId)) {
-              produtosMap.set(produtoId, registro.tarefa.produto);
-            }
-          } else if (!produtosMap.has(produtoId)) {
-            produtosMap.set(produtoId, { id: produtoId, nome: null });
+          const clickupId = String(registro.tarefa.produto_id).trim();
+          if (clickupId) {
+            clickupIdsSet.add(clickupId);
           }
         }
       });
 
-      if (produtosMap.size === 0) {
+      if (clickupIdsSet.size === 0) {
+        setProdutos([]);
         setLoading(false);
         return;
       }
 
-      // Buscar nomes dos produtos se necessário
-      const produtosParaBuscar = Array.from(produtosMap.entries()).filter(([id, produto]) => !produto.nome);
-      if (produtosParaBuscar.length > 0) {
-        try {
-          const urlCliente = `${window.location.hostname === 'localhost' ? 'http://localhost:4001' : ''}/api/produtos-cliente/${clienteId}`;
-          const responseCliente = await fetch(urlCliente);
-          const resultCliente = await responseCliente.json();
-
-          if (resultCliente.success && resultCliente.produtos && Array.isArray(resultCliente.produtos)) {
-            resultCliente.produtos.forEach((nomeProduto, index) => {
-              if (index < produtosParaBuscar.length) {
-                const [produtoId] = produtosParaBuscar[index];
-                const produtoAtual = produtosMap.get(produtoId);
-                produtosMap.set(produtoId, { ...produtoAtual, id: produtoId, nome: nomeProduto });
-              }
-            });
+      // Buscar nomes dos produtos usando clickup_id
+      try {
+        const clickupIds = Array.from(clickupIdsSet);
+        const idsParam = clickupIds.join(',');
+        
+        const getApiBaseUrl = () => {
+          if (typeof window !== 'undefined' && window.ApiConfig) {
+            return window.ApiConfig.baseURL;
           }
-        } catch (error) {
-          console.error('Erro ao buscar nomes dos produtos:', error);
-        }
-      }
+          return '/api';
+        };
+        
+        const API_BASE_URL = getApiBaseUrl();
+        const url = `${API_BASE_URL}/produtos-por-ids?ids=${encodeURIComponent(idsParam)}`;
+        
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
 
-      setProdutos(Array.from(produtosMap.values()));
-      setLoading(false);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            // Criar array de produtos com clickup_id e nome
+            const produtosArray = clickupIds.map(clickupId => ({
+              clickup_id: clickupId,
+              nome: result.data[clickupId] || `Produto #${clickupId}`
+            }));
+            setProdutos(produtosArray);
+          } else {
+            // Se não encontrou nomes, usar apenas os IDs
+            const produtosArray = clickupIds.map(clickupId => ({
+              clickup_id: clickupId,
+              nome: `Produto #${clickupId}`
+            }));
+            setProdutos(produtosArray);
+          }
+        } else {
+          // Se der erro, usar apenas os IDs
+          const produtosArray = clickupIds.map(clickupId => ({
+            clickup_id: clickupId,
+            nome: `Produto #${clickupId}`
+          }));
+          setProdutos(produtosArray);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar nomes dos produtos:', error);
+        // Em caso de erro, usar apenas os IDs
+        const clickupIds = Array.from(clickupIdsSet);
+        const produtosArray = clickupIds.map(clickupId => ({
+          clickup_id: clickupId,
+          nome: `Produto #${clickupId}`
+        }));
+        setProdutos(produtosArray);
+      } finally {
+        setLoading(false);
+      }
     };
 
     carregarProdutos();
-  }, [clienteId, registros]);
+  }, [clienteId, colaboradorId, registros]);
 
   if (loading) {
     return <div style={{ color: '#6b7280', fontSize: '13px' }}>Carregando produtos...</div>;
@@ -70,10 +104,9 @@ const ProdutosContent = ({ clienteId, registros }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 'calc(50vh - 80px)', overflowY: 'auto', paddingRight: '8px' }}>
       {produtos.map((produto, index) => {
-        const nomeProduto = produto.nome || `Produto #${produto.id}`;
         return (
           <div
-            key={produto.id || index}
+            key={produto.clickup_id || index}
             className="produto-item"
             style={{
               display: 'flex',
@@ -91,7 +124,7 @@ const ProdutosContent = ({ clienteId, registros }) => {
           >
             <i className="fas fa-folder" style={{ color: '#ff9800', fontSize: '18px' }}></i>
             <div style={{ flex: 1 }}>
-              <span style={{ fontWeight: 500, color: '#ff9800', fontSize: '14px' }}>{nomeProduto}</span>
+              <span style={{ fontWeight: 500, color: '#ff9800', fontSize: '14px' }}>{produto.nome}</span>
             </div>
           </div>
         );

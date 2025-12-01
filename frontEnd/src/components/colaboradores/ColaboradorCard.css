@@ -1,0 +1,87 @@
+/* Colaborador Card */
+.colaborador-card {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    min-height: 200px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+/* Responsividade para colaborador-card */
+@media (max-width: 768px) {
+    .colaborador-card {
+        padding: 1.25rem;
+        min-height: 180px;
+    }
+    
+    .colaborador-card-header h3,
+    .colaborador-card-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .colaborador-card {
+        padding: 1rem;
+        min-height: 160px;
+    }
+    
+    .colaborador-card-header h3,
+    .colaborador-card-title {
+        font-size: 0.9375rem;
+    }
+}
+
+.colaborador-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: #0e3b6f;
+}
+
+.colaborador-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #0e3b6f, #144577);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.colaborador-card:hover::before {
+    opacity: 1;
+}
+
+/* Colaborador Card Header */
+.colaborador-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.colaborador-card-header h3,
+.colaborador-card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #0e3b6f;
+    margin: 0;
+    line-height: 1.4;
+    flex: 1;
+    margin-right: 1rem;
+}
+
+/* Colaborador Card Body */
+.colaborador-card-body {
+    margin-bottom: 1.5rem;
+}
+

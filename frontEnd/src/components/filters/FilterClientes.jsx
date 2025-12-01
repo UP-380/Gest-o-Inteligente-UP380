@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './FilterClientes.css';
 
-const FilterClientes = ({ value, options = [], onChange, disabled = false, emptyMessage = null, loading = false }) => {
+// Função para remover acentos e normalizar texto para busca
+const removerAcentos = (texto) => {
+  if (!texto) return '';
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
+const FilterClientes = ({ value, options = [], onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
@@ -22,10 +31,6 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false, empty
   
   // Texto de exibição
   const getSelectedText = () => {
-    // Se houver mensagem e não houver opções, exibir a mensagem
-    if (emptyMessage && options.length === 0) {
-      return emptyMessage;
-    }
     if (selectedClientes.length === 0) {
       return 'Selecionar clientes';
     } else if (selectedClientes.length === 1) {
@@ -37,20 +42,38 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false, empty
 
   const selectedText = getSelectedText();
 
-  // Filtrar opções baseado na busca
-  const filteredOptions = options.filter(cliente =>
-    cliente.nome.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filtrar opções baseado na busca - sem considerar acentos
+  const filteredOptions = options.filter(cliente => {
+    if (!searchQuery.trim()) return true;
+    const queryNormalizado = removerAcentos(searchQuery.trim());
+    const nomeNormalizado = removerAcentos(cliente.nome || '');
+    return nomeNormalizado.includes(queryNormalizado);
+  });
 
-  // Ordenar: selecionados primeiro, depois os não selecionados
+  // Ordenar: "SEM CLIENTE" primeiro, depois selecionados, depois os não selecionados
   const sortedOptions = useMemo(() => {
-    const selected = filteredOptions.filter(cliente => 
+    // Separar "SEM CLIENTE" dos demais
+    const semCliente = filteredOptions.find(cliente => 
+      cliente.nome && cliente.nome.toUpperCase().trim() === 'SEM CLIENTE'
+    );
+    const outrosClientes = filteredOptions.filter(cliente => 
+      !cliente.nome || cliente.nome.toUpperCase().trim() !== 'SEM CLIENTE'
+    );
+    
+    // Separar outros clientes em selecionados e não selecionados
+    const selected = outrosClientes.filter(cliente => 
       selectedIds.includes(normalizeId(cliente.id))
     );
-    const notSelected = filteredOptions.filter(cliente => 
+    const notSelected = outrosClientes.filter(cliente => 
       !selectedIds.includes(normalizeId(cliente.id))
     );
-    return [...selected, ...notSelected];
+    
+    // Retornar: "SEM CLIENTE" primeiro (se existir), depois selecionados, depois não selecionados
+    const result = [...selected, ...notSelected];
+    if (semCliente) {
+      return [semCliente, ...result];
+    }
+    return result;
   }, [filteredOptions, selectedIds, normalizeId]);
 
   useEffect(() => {
@@ -175,14 +198,7 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false, empty
                   })}
                   {sortedOptions.length === 0 && (
                     <div className="cliente-option no-results">
-                      {loading ? (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                          <i className="fas fa-spinner fa-spin" style={{ color: '#ff9800' }}></i>
-                          <span>Carregando clientes...</span>
-                        </span>
-                      ) : (
-                        <span>{emptyMessage || 'Nenhum cliente encontrado'}</span>
-                      )}
+                      <span>Nenhum cliente encontrado</span>
                     </div>
                   )}
                 </div>

@@ -1,98 +1,5 @@
-/* Layout Styles - Sidebar e Header */
-/* Estes estilos já estão no styles.css global, mas incluímos aqui para referência */
-
-.sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  height: 100vh;
-  width: 60px;
-  background: #ffffff;
-  border-right: 2px solid #d1d5db;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-  transition: width 0.3s ease;
-  z-index: 998;
-  overflow: hidden;
-}
-
-.sidebar:hover {
-  width: 250px;
-}
-
-.sidebar-content {
-  padding: 20px 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  background: #ffffff;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  padding: 15px 10px;
-  color: #374151;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
-  white-space: nowrap;
-  border-radius: 8px;
-  margin: 0 10px;
-  justify-content: flex-start;
-}
-
-.sidebar:not(:hover) .sidebar-item {
-  justify-content: flex-start;
-  padding: 15px 8px;
-}
-
-.sidebar-item:hover {
-  background: #f3f4f6;
-  color: #1f2937;
-  transform: translateX(5px);
-}
-
-.sidebar-item.active {
-  background: #e5e7eb;
-  color: #1f2937;
-  border-left: 4px solid #0e3b6f;
-}
-
-.sidebar-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: #0e3b6f;
-  border-radius: 0 4px 4px 0;
-}
-
-.sidebar-item i {
-  font-size: 1.2rem;
-  width: 20px;
-  text-align: center;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
-}
-
-.sidebar:not(:hover) .sidebar-item i {
-  margin: 0;
-}
-
-.sidebar-text {
-  margin-left: 15px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  opacity: 0;
-  transition: opacity 0.3s ease 0.1s;
-}
-
-.sidebar:hover .sidebar-text {
-  opacity: 1;
-}
+/* Layout Styles - Header */
+/* Sidebar styles estão em Sidebar.css */
 
 /* Header azul escuro no topo */
 .top-header {
@@ -141,20 +48,7 @@
     transition: all 0.3s ease;
 }
 
-
 @media (max-width: 768px) {
-  .sidebar {
-    width: 50px;
-  }
-  
-  .sidebar:hover {
-    width: 200px;
-  }
-  
-  body {
-    margin-left: 50px;
-  }
-  
   .top-header {
     margin-left: -50px;
   }
@@ -171,41 +65,11 @@
     height: 2rem;
     max-width: 150px;
   }
-  
-  .sidebar-item {
-    padding: 12px 10px;
-  }
-  
-  .sidebar:not(:hover) .sidebar-item {
-    justify-content: center;
-    padding: 12px 5px;
-  }
-  
-  .sidebar-item i {
-    font-size: 1.1rem;
-  }
-  
-  .sidebar-text {
-    font-size: 0.85rem;
-    margin-left: 12px;
-  }
 }
 
 @media (max-width: 480px) {
-  .sidebar {
-    width: 45px;
-  }
-  
-  .sidebar:hover {
-    width: 180px;
-  }
-  
-  body {
-    margin-left: 45px;
-  }
-  
   .top-header {
-    margin-left: -50px;
+    margin-left: -45px;
   }
   
   .header-container {
@@ -220,18 +84,4 @@
     height: 1.75rem;
     max-width: 120px;
   }
-  
-  .sidebar-item {
-    padding: 10px 8px;
-  }
-  
-  .sidebar:not(:hover) .sidebar-item {
-    justify-content: center;
-    padding: 10px 5px;
-  }
-  
-  .sidebar-item i {
-    font-size: 1rem;
-  }
 }
-

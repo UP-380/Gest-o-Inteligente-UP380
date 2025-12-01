@@ -26,6 +26,7 @@ router.get('/api/auth/check', authController.checkAuth);
 router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKamino);
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 router.get('/api/carteira-clientes', requireAuth, clientesController.getCarteiraClientes);
+router.get('/api/gestao-clientes', requireAuth, clientesController.getCarteiraClientes);
 router.put('/api/clientes/:id/inativar', requireAuth, clientesController.inativarCliente);
 router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCliente);
 
@@ -33,13 +34,22 @@ router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCli
 router.get('/api/tarefas-incompletas', requireAuth, tarefasController.getTarefasIncompletas);
 router.get('/api/tarefas-por-ids', requireAuth, tarefasController.getTarefasPorIds);
 
+// Rotas de produtos
+router.get('/api/produtos-por-ids', requireAuth, tarefasController.getProdutosPorIdsEndpoint);
+
 // Rotas de dashboard
 router.get('/api/dashboard-clientes', requireAuth, dashboardController.getDashboardClientes);
+router.get('/api/relatorios-clientes', requireAuth, dashboardController.getDashboardClientes);
+router.get('/api/dashboard-colaboradores', requireAuth, dashboardController.getDashboardColaboradores);
+router.get('/api/relatorios-colaboradores', requireAuth, dashboardController.getDashboardColaboradores);
+router.get('/api/debug-tarefa/:tarefaId', requireAuth, dashboardController.debugTarefa);
 
 // Rotas de Colaboradores (CRUD completo)
+// IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
 router.post('/api/colaboradores', requireAuth, colaboradoresController.criarColaborador);
+router.put('/api/colaboradores/:id/inativar', requireAuth, colaboradoresController.inativarColaborador);
 router.put('/api/colaboradores/:id', requireAuth, colaboradoresController.atualizarColaborador);
 router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.deletarColaborador);
 
@@ -180,6 +190,9 @@ router.get('/painel', requireAuth, (req, res) => {
 
 // Rota para a página de carteira de clientes - COM autenticação
 router.get('/carteira-clientes', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+});
+router.get('/gestao-clientes', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 });
 

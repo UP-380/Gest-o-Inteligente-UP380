@@ -64,15 +64,21 @@ const TarefasContent = ({ registros }) => {
     tarefa.registros.push(registro);
     
     const tempoRealizado = Number(registro.tempo_realizado) || 0;
-    const tempoMs = tempoRealizado > 1000 ? tempoRealizado : Math.round(tempoRealizado * 3600000);
+    // Se valor < 1 (decimal), está em horas -> converter para ms
+    // Se valor >= 1, já está em ms
+    // Se resultado < 1 segundo, arredondar para 1 segundo
+    let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+    if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
     tarefa.tempoTotal += tempoMs;
     
     const colaboradorId = registro.usuario_id || registro.membro?.id || 'desconhecido';
     const colaboradorNome = registro.membro?.nome || `Colaborador ${colaboradorId}`;
+    const colaboradorStatus = registro.membro?.status || 'ativo';
     
     if (!tarefa.colaboradores.has(colaboradorId)) {
       tarefa.colaboradores.set(colaboradorId, {
         nome: colaboradorNome,
+        status: colaboradorStatus,
         registros: [],
         tempoTotal: 0
       });
@@ -243,6 +249,8 @@ const TarefasContent = ({ registros }) => {
                   const tempoDecimal = (colaborador.tempoTotal / 3600000).toFixed(2);
                   const colKey = `${tarefaId}-${colaboradorId}`;
                   const isColExpanded = expandedColaboradores.has(colKey);
+                  const isInativo = colaborador.status === 'inativo';
+                  const iconColor = isInativo ? '#ef4444' : '#ff9800';
 
                   return (
                     <div
@@ -256,7 +264,7 @@ const TarefasContent = ({ registros }) => {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                          <i className="fas fa-user" style={{ color: '#ff9800', fontSize: '14px' }}></i>
+                          <i className="fas fa-user" style={{ color: iconColor, fontSize: '14px' }}></i>
                           <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>{colaborador.nome}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -311,7 +319,11 @@ const TarefasContent = ({ registros }) => {
                         >
                           {colaborador.registros.map((registro, idx) => {
                             const tempoRealizado = Number(registro.tempo_realizado) || 0;
-                            const tempoMs = tempoRealizado > 1000 ? tempoRealizado : Math.round(tempoRealizado * 3600000);
+                            // Se valor < 1 (decimal), está em horas -> converter para ms
+                            // Se valor >= 1, já está em ms
+                            // Se resultado < 1 segundo, arredondar para 1 segundo
+                            let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+                            if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
                             const tempoText = fmtMs(tempoMs);
                             const tempoDecimal = (tempoMs / 3600000).toFixed(2);
 

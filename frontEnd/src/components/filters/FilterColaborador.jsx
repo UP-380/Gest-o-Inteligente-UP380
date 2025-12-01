@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './FilterColaborador.css';
 
+// Função para remover acentos e normalizar texto para busca
+const removerAcentos = (texto) => {
+  if (!texto) return '';
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
 const FilterColaborador = ({ value, options = [], onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,8 +34,9 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
     if (selectedColaboradores.length === 0) {
       return 'Selecionar colaboradores';
     } else if (selectedColaboradores.length === 1) {
-      const nome = selectedColaboradores[0].nome;
-      return nome || `Colaborador #${selectedColaboradores[0].id}`;
+      const colaborador = selectedColaboradores[0];
+      const nome = colaborador.nome || `Colaborador #${colaborador.id}`;
+      return colaborador.cpf ? `${nome} (${colaborador.cpf})` : nome;
     } else {
       return `${selectedColaboradores.length} colaboradores selecionados`;
     }
@@ -34,10 +44,20 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
 
   const selectedText = getSelectedText();
 
-  // Filtrar opções baseado na busca
+  // Filtrar opções baseado na busca (nome ou CPF) - sem considerar acentos
   const filteredOptions = options.filter(colaborador => {
-    if (!colaborador || !colaborador.nome) return true; // Incluir colaboradores sem nome
-    return colaborador.nome.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!colaborador) return false;
+    
+    if (!searchQuery.trim()) return true;
+    
+    const queryNormalizado = removerAcentos(searchQuery.trim());
+    const nomeNormalizado = removerAcentos(colaborador.nome || '');
+    const nomeMatch = nomeNormalizado.includes(queryNormalizado);
+    
+    // Buscar por CPF (remover formatação para comparação)
+    const cpfMatch = colaborador.cpf && colaborador.cpf.replace(/\D/g, '').includes(queryNormalizado.replace(/\D/g, ''));
+    
+    return nomeMatch || cpfMatch;
   });
 
   // Ordenar: selecionados primeiro, depois os não selecionados
@@ -132,7 +152,7 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
                 ref={searchInputRef}
                 type="text"
                 className="colaborador-select-input"
-                placeholder="Buscar colaborador..."
+                placeholder="Buscar colaborador por nome ou CPF..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
@@ -155,30 +175,40 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
             <div className="colaborador-dropdown">
               <div className="colaborador-dropdown-content">
                 <div className="colaborador-options-container">
-                  {sortedOptions.map((colaborador) => {
-                    const normalizedColabId = normalizeId(colaborador.id);
-                    const isSelected = selectedIds.includes(normalizedColabId);
-                    return (
-                      <div
-                        key={colaborador.id}
-                        className={`colaborador-option ${isSelected ? 'selected' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleSelect(colaborador.id);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <div className="colaborador-option-checkbox">
-                          {isSelected && <i className="fas fa-check"></i>}
+                  {sortedOptions.length > 0 ? (
+                    sortedOptions.map((colaborador) => {
+                      const normalizedColabId = normalizeId(colaborador.id);
+                      const isSelected = selectedIds.includes(normalizedColabId);
+                      return (
+                        <div
+                          key={colaborador.id}
+                          className={`colaborador-option ${isSelected ? 'selected' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleSelect(colaborador.id);
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        >
+                          <div className="colaborador-option-checkbox">
+                            {isSelected && <i className="fas fa-check"></i>}
+                          </div>
+                          <span>
+                            {colaborador.nome || `Colaborador #${colaborador.id}`}
+                            {colaborador.cpf && ` (${colaborador.cpf})`}
+                          </span>
                         </div>
-                        <span>{colaborador.nome || `Colaborador #${colaborador.id}`}</span>
-                      </div>
-                    );
-                  })}
-                  {sortedOptions.length === 0 && (
+                      );
+                    })
+                  ) : (
                     <div className="colaborador-option no-results">
-                      <span>Nenhum colaborador encontrado</span>
+                      <span>
+                        {options.length === 0 
+                          ? 'Carregando colaboradores...' 
+                          : searchQuery.trim() 
+                            ? 'Nenhum colaborador encontrado' 
+                            : 'Nenhum colaborador disponível'}
+                      </span>
                     </div>
                   )}
                 </div>

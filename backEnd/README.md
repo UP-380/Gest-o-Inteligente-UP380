@@ -15,7 +15,8 @@ backend/
 │   ├── routes/
 │   │   └── index.js          # Rotas principais
 │   ├── services/
-│   │   └── api-clientes.service.js # Serviços de API (durante migração)
+│   │   ├── api-clientes.js # Serviços de API (clientes, membros, contratos, etc.)
+│   │   └── custo-membro-vigencia.service.js # Service de vigências de custo
 │   ├── servers/
 │   │   └── dashboard-clientes.js # Servidor separado (porta 4001)
 │   └── index.js              # Ponto de entrada principal

@@ -1,0 +1,70 @@
+/* Colaborador Info */
+.colaborador-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.colaborador-info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Estilo especial para produtos - ícone alinhado no topo */
+.colaborador-info-item:has(.produtos-value) {
+    align-items: flex-start;
+}
+
+.colaborador-info-item i {
+    width: 1rem;
+    color: var(--gray-400);
+    font-size: 0.875rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.colaborador-info-item span {
+    color: var(--gray-600);
+    line-height: 1.2;
+}
+
+/* Estilo para itens clicáveis com seta */
+.colaborador-info-item.resumo-item-tarefas,
+.colaborador-info-item.resumo-item-produtos,
+.colaborador-info-item.resumo-item-clientes {
+    position: relative;
+}
+
+/* Remover hover dos itens de resumo - apenas a setinha terá hover */
+.colaborador-info-item.resumo-item-tarefas:hover,
+.colaborador-info-item.resumo-item-produtos:hover,
+.colaborador-info-item.resumo-item-clientes:hover {
+    background-color: transparent;
+}
+
+/* Estilo da setinha de resumo */
+.resumo-arrow.produtos-arrow {
+    margin-left: 4px;
+    color: #6b7280;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    display: inline-block;
+}
+
+/* Hover apenas na setinha - destaque azul */
+.resumo-arrow.produtos-arrow:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.resumo-item:hover {
+    transform: none;
+    box-shadow: none;
+}
+

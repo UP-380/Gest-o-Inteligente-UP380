@@ -2,10 +2,10 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login/Login';
 import Painel from './pages/Painel/Painel';
-import DashboardClientes from './pages/DashboardClientes/DashboardClientes';
-import CarteiraClientes from './pages/CarteiraClientes/CarteiraClientes';
-import CadastroColaboradores from './pages/CadastroColaboradores/CadastroColaboradores';
-import CustoMembroVigencia from './pages/CustoMembroVigencia/CustoMembroVigencia';
+import RelatoriosClientes from './pages/DashboardClientes/DashboardClientes';
+import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardColaboradores';
+import GestaoClientes from './pages/CarteiraClientes/CarteiraClientes';
+import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -27,7 +27,7 @@ function App() {
           path="/clientes"
           element={
             <ProtectedRoute>
-              <Navigate to="/dashboard-clientes" replace />
+              <Navigate to="/relatorios-clientes" replace />
             </ProtectedRoute>
           }
         />
@@ -35,7 +35,31 @@ function App() {
           path="/dashboard-clientes"
           element={
             <ProtectedRoute>
-              <DashboardClientes />
+              <Navigate to="/relatorios-clientes" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relatorios-clientes"
+          element={
+            <ProtectedRoute>
+              <RelatoriosClientes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard-colaboradores"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/relatorios-colaboradores" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relatorios-colaboradores"
+          element={
+            <ProtectedRoute>
+              <RelatoriosColaboradores />
             </ProtectedRoute>
           }
         />
@@ -43,7 +67,15 @@ function App() {
           path="/carteira-clientes"
           element={
             <ProtectedRoute>
-              <CarteiraClientes />
+              <Navigate to="/gestao-clientes" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao-clientes"
+          element={
+            <ProtectedRoute>
+              <GestaoClientes />
             </ProtectedRoute>
           }
         />
@@ -51,15 +83,15 @@ function App() {
           path="/cadastro-colaboradores"
           element={
             <ProtectedRoute>
-              <CadastroColaboradores />
+              <Navigate to="/gestao-colaboradores" replace />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/custo-membro-vigencia"
+          path="/gestao-colaboradores"
           element={
             <ProtectedRoute>
-              <CustoMembroVigencia />
+              <GestaoColaboradores />
             </ProtectedRoute>
           }
         />

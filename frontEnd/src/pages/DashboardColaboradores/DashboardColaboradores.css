@@ -1,0 +1,32 @@
+/* Este arquivo mantém os estilos que já estão no global.css */
+/* Os estilos específicos estão nos componentes individuais */
+
+/* Grid de colaboradores - reutiliza estilos de clientes-grid */
+.colaboradores-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+}
+
+/* Responsividade para colaboradores-grid */
+@media (max-width: 1200px) {
+    .colaboradores-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .colaboradores-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .colaboradores-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+}
+

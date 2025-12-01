@@ -2,7 +2,7 @@
 // === CONTROLLER DE CUSTO MEMBRO VIGÊNCIA ===
 // =============================================================
 
-const { supabase } = require('../services/api-clientes');
+const vigenciaService = require('../services/custo-membro-vigencia.service');
 
 // GET - Listar todas as vigências (com filtros opcionais)
 async function getCustosMembroVigencia(req, res) {
@@ -12,38 +12,52 @@ async function getCustosMembroVigencia(req, res) {
       limit = 50, 
       membro_id,
       dt_vigencia_inicio,
-      dt_vigencia_fim
+      dt_vigencia_fim,
+      status
     } = req.query;
     
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
-    const offset = (pageNum - 1) * limitNum;
 
-    let query = supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .select('*', { count: 'exact' })
-      .order('dt_vigencia', { ascending: false });
-
-    // Filtro por membro_id
-    if (membro_id) {
-      query = query.eq('membro_id', membro_id);
+    // Processar membro_id - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
+    let membroIdsArray = [];
+    const membroIdsFromQuery = req.query.membro_id;
+    
+    if (membroIdsFromQuery) {
+      let idsParaProcessar = [];
+      
+      // Se for array (múltiplos parâmetros na query string)
+      if (Array.isArray(membroIdsFromQuery)) {
+        idsParaProcessar = membroIdsFromQuery;
+      } 
+      // Se for string que contém vírgulas (fallback)
+      else if (typeof membroIdsFromQuery === 'string' && membroIdsFromQuery.includes(',')) {
+        idsParaProcessar = membroIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      // Valor único
+      else {
+        idsParaProcessar = [membroIdsFromQuery];
+      }
+      
+      // Converter para números válidos
+      membroIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
+      
+      console.log('🔍 [CONTROLLER] Processamento membro_id:', {
+        original: membroIdsFromQuery,
+        processado: membroIdsArray,
+        tipo: typeof membroIdsFromQuery,
+        isArray: Array.isArray(membroIdsFromQuery)
+      });
     }
 
-    // Filtro por período de vigência
-    if (dt_vigencia_inicio) {
-      query = query.gte('dt_vigencia', dt_vigencia_inicio);
-    }
-    if (dt_vigencia_fim) {
-      query = query.lte('dt_vigencia', dt_vigencia_fim);
-    }
+    const filters = {
+      membro_id: membroIdsArray.length > 0 ? membroIdsArray : undefined,
+      dt_vigencia_inicio: dt_vigencia_inicio || undefined,
+      dt_vigencia_fim: dt_vigencia_fim || undefined,
+      status: status || undefined
+    };
 
-    // Aplicar paginação
-    if (limitNum > 0) {
-      query = query.range(offset, offset + limitNum - 1);
-    }
-
-    const { data, error, count } = await query;
+    const { data, count, error } = await vigenciaService.buscarVigencias(filters, pageNum, limitNum);
 
     if (error) {
       console.error('Erro ao buscar custos membro vigência:', error);
@@ -84,12 +98,7 @@ async function getCustoMembroVigenciaPorId(req, res) {
       });
     }
 
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    const { data, error } = await vigenciaService.buscarVigenciaPorId(id);
 
     if (error) {
       console.error('Erro ao buscar custo membro vigência:', error);
@@ -133,12 +142,7 @@ async function getCustosPorMembro(req, res) {
       });
     }
 
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .select('*')
-      .eq('membro_id', membro_id)
-      .order('dt_vigencia', { ascending: false });
+    const { data, error } = await vigenciaService.buscarVigenciasPorMembro(membro_id);
 
     if (error) {
       console.error('Erro ao buscar custos por membro:', error);
@@ -175,12 +179,6 @@ async function criarCustoMembroVigencia(req, res) {
       salariobase,
       ajudacusto = 0,
       valetransporte = 0,
-      ferias = 0,
-      decimoterceiro = 0,
-      insspatronal = 0,
-      insscolaborador = 0,
-      fgts = 0,
-      horas_mensal,
       descricao = null
     } = req.body;
 
@@ -209,12 +207,7 @@ async function criarCustoMembroVigencia(req, res) {
     }
 
     // Verificar se membro existe
-    const { data: membroExiste, error: errorMembro } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .select('id')
-      .eq('id', membro_id)
-      .maybeSingle();
+    const { exists, error: errorMembro } = await vigenciaService.verificarMembroExiste(membro_id);
 
     if (errorMembro) {
       console.error('Erro ao verificar membro:', errorMembro);
@@ -225,41 +218,44 @@ async function criarCustoMembroVigencia(req, res) {
       });
     }
 
-    if (!membroExiste) {
+    if (!exists) {
       return res.status(404).json({
         success: false,
         error: 'Membro não encontrado'
       });
     }
 
+    // Função auxiliar para converter valor para número ou null
+    const toNumberOrNull = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? null : num;
+    };
+
+    // Função auxiliar para converter valor para número ou 0
+    const toNumberOrZero = (value) => {
+      if (value === null || value === undefined || value === '') return 0;
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? 0 : num;
+    };
+
     // Preparar dados para inserção
     const dadosInsert = {
       membro_id: parseInt(membro_id, 10),
       dt_vigencia: dt_vigencia,
-      diasuteis: diasuteis ? parseFloat(diasuteis) : null,
-      horascontratadasdia: horascontratadasdia ? parseFloat(horascontratadasdia) : null,
-      salariobase: salariobase ? parseFloat(salariobase) : null,
-      ajudacusto: ajudacusto ? parseFloat(ajudacusto) : 0,
-      valetransporte: valetransporte ? parseFloat(valetransporte) : 0,
-      ferias: ferias ? parseFloat(ferias) : 0,
-      decimoterceiro: decimoterceiro ? parseFloat(decimoterceiro) : 0,
-      insspatronal: insspatronal ? parseFloat(insspatronal) : 0,
-      insscolaborador: insscolaborador ? parseFloat(insscolaborador) : 0,
-      fgts: fgts ? parseFloat(fgts) : 0,
-      horas_mensal: horas_mensal ? parseFloat(horas_mensal) : null,
+      diasuteis: toNumberOrNull(diasuteis),
+      horascontratadasdia: toNumberOrNull(horascontratadasdia),
+      salariobase: toNumberOrNull(salariobase),
+      ajudacusto: toNumberOrZero(ajudacusto),
+      valetransporte: toNumberOrZero(valetransporte),
       descricao: descricao || null
     };
 
-    // Inserir no banco
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .insert([dadosInsert])
-      .select()
-      .single();
+    // Criar vigência
+    const { data, error } = await vigenciaService.criarVigencia(dadosInsert);
 
     if (error) {
-      console.error('Erro ao criar custo membro vigência:', error);
+      console.error('❌ Erro ao criar custo membro vigência:', error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar custo membro vigência',
@@ -294,12 +290,6 @@ async function atualizarCustoMembroVigencia(req, res) {
       salariobase,
       ajudacusto,
       valetransporte,
-      ferias,
-      decimoterceiro,
-      insspatronal,
-      insscolaborador,
-      fgts,
-      horas_mensal,
       descricao
     } = req.body;
 
@@ -311,12 +301,7 @@ async function atualizarCustoMembroVigencia(req, res) {
     }
 
     // Verificar se vigência existe
-    const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .select('id, membro_id')
-      .eq('id', id)
-      .maybeSingle();
+    const { data: existente, error: errorCheck } = await vigenciaService.verificarVigenciaExiste(id);
 
     if (errorCheck) {
       console.error('Erro ao verificar vigência:', errorCheck);
@@ -339,12 +324,7 @@ async function atualizarCustoMembroVigencia(req, res) {
 
     if (membro_id !== undefined) {
       // Verificar se novo membro existe
-      const { data: membroExiste, error: errorMembro } = await supabase
-        .schema('up_gestaointeligente')
-        .from('membro')
-        .select('id')
-        .eq('id', membro_id)
-        .maybeSingle();
+      const { exists, error: errorMembro } = await vigenciaService.verificarMembroExiste(membro_id);
 
       if (errorMembro) {
         console.error('Erro ao verificar membro:', errorMembro);
@@ -355,7 +335,7 @@ async function atualizarCustoMembroVigencia(req, res) {
         });
       }
 
-      if (!membroExiste) {
+      if (!exists) {
         return res.status(404).json({
           success: false,
           error: 'Membro não encontrado'
@@ -377,18 +357,26 @@ async function atualizarCustoMembroVigencia(req, res) {
       dadosUpdate.dt_vigencia = dt_vigencia;
     }
 
+    // Função auxiliar para converter valor para número ou null
+    const toNumberOrNull = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? null : num;
+    };
+
+    // Função auxiliar para converter valor para número ou 0
+    const toNumberOrZero = (value) => {
+      if (value === null || value === undefined || value === '') return 0;
+      const num = typeof value === 'number' ? value : parseFloat(value);
+      return isNaN(num) ? 0 : num;
+    };
+
     // Campos numéricos opcionais
-    if (diasuteis !== undefined) dadosUpdate.diasuteis = diasuteis ? parseFloat(diasuteis) : null;
-    if (horascontratadasdia !== undefined) dadosUpdate.horascontratadasdia = horascontratadasdia ? parseFloat(horascontratadasdia) : null;
-    if (salariobase !== undefined) dadosUpdate.salariobase = salariobase ? parseFloat(salariobase) : null;
-    if (ajudacusto !== undefined) dadosUpdate.ajudacusto = ajudacusto ? parseFloat(ajudacusto) : 0;
-    if (valetransporte !== undefined) dadosUpdate.valetransporte = valetransporte ? parseFloat(valetransporte) : 0;
-    if (ferias !== undefined) dadosUpdate.ferias = ferias ? parseFloat(ferias) : 0;
-    if (decimoterceiro !== undefined) dadosUpdate.decimoterceiro = decimoterceiro ? parseFloat(decimoterceiro) : 0;
-    if (insspatronal !== undefined) dadosUpdate.insspatronal = insspatronal ? parseFloat(insspatronal) : 0;
-    if (insscolaborador !== undefined) dadosUpdate.insscolaborador = insscolaborador ? parseFloat(insscolaborador) : 0;
-    if (fgts !== undefined) dadosUpdate.fgts = fgts ? parseFloat(fgts) : 0;
-    if (horas_mensal !== undefined) dadosUpdate.horas_mensal = horas_mensal ? parseFloat(horas_mensal) : null;
+    if (diasuteis !== undefined) dadosUpdate.diasuteis = toNumberOrNull(diasuteis);
+    if (horascontratadasdia !== undefined) dadosUpdate.horascontratadasdia = toNumberOrNull(horascontratadasdia);
+    if (salariobase !== undefined) dadosUpdate.salariobase = toNumberOrNull(salariobase);
+    if (ajudacusto !== undefined) dadosUpdate.ajudacusto = toNumberOrZero(ajudacusto);
+    if (valetransporte !== undefined) dadosUpdate.valetransporte = toNumberOrZero(valetransporte);
     if (descricao !== undefined) dadosUpdate.descricao = descricao || null;
 
     // Se não há nada para atualizar
@@ -399,14 +387,8 @@ async function atualizarCustoMembroVigencia(req, res) {
       });
     }
 
-    // Atualizar no banco
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .update(dadosUpdate)
-      .eq('id', id)
-      .select()
-      .single();
+    // Atualizar vigência
+    const { data, error } = await vigenciaService.atualizarVigencia(id, dadosUpdate);
 
     if (error) {
       console.error('Erro ao atualizar custo membro vigência:', error);
@@ -445,12 +427,7 @@ async function deletarCustoMembroVigencia(req, res) {
     }
 
     // Verificar se vigência existe
-    const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .select('id, membro_id, dt_vigencia')
-      .eq('id', id)
-      .maybeSingle();
+    const { data: existente, error: errorCheck } = await vigenciaService.verificarVigenciaExiste(id);
 
     if (errorCheck) {
       console.error('Erro ao verificar vigência:', errorCheck);
@@ -468,12 +445,8 @@ async function deletarCustoMembroVigencia(req, res) {
       });
     }
 
-    // Deletar do banco
-    const { error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('custo_membro_vigencia')
-      .delete()
-      .eq('id', id);
+    // Deletar vigência
+    const { success, error } = await vigenciaService.deletarVigencia(id);
 
     if (error) {
       console.error('Erro ao deletar custo membro vigência:', error);
@@ -511,4 +484,3 @@ module.exports = {
   atualizarCustoMembroVigencia,
   deletarCustoMembroVigencia
 };
-
