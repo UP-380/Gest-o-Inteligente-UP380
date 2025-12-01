@@ -4,6 +4,7 @@ import FilterStatus from '../../components/filters/FilterStatus';
 import FilterClientes from '../../components/filters/FilterClientes';
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import FilterColaborador from '../../components/filters/FilterColaborador';
+import FiltersCard from '../../components/filters/FiltersCard';
 import DashboardCards from '../../components/dashboard/DashboardCards';
 import { ClientCard } from '../../components/clients';
 import DetailSideCard from '../../components/clients/DetailSideCard';
@@ -51,13 +52,14 @@ const cache = {
   }
 };
 
-const DashboardClientes = () => {
+const RelatoriosClientes = () => {
   // Estado dos filtros
   const [filtroStatus, setFiltroStatus] = useState(null);
   const [filtroCliente, setFiltroCliente] = useState(null);
   const [filtroDataInicio, setFiltroDataInicio] = useState(null);
   const [filtroDataFim, setFiltroDataFim] = useState(null);
   const [filtroColaborador, setFiltroColaborador] = useState(null);
+  const [mostrarInativos, setMostrarInativos] = useState(false);
 
   // Estado dos dados
   const [todosStatus, setTodosStatus] = useState([]);
@@ -67,10 +69,21 @@ const DashboardClientes = () => {
 
   // Limpar seleção de cliente se ele não estiver mais na lista de clientes disponíveis
   useEffect(() => {
-    if (filtroCliente && todosClientes.length > 0) {
+    // Se filtroCliente for null, undefined, array vazio ou string vazia, não fazer nada
+    if (!filtroCliente || (Array.isArray(filtroCliente) && filtroCliente.length === 0)) {
+      return;
+    }
+    
+    if (todosClientes.length > 0) {
       const clienteIds = Array.isArray(filtroCliente) 
-        ? filtroCliente.map(id => String(id).trim())
-        : [String(filtroCliente).trim()];
+        ? filtroCliente.map(id => String(id).trim()).filter(Boolean)
+        : [String(filtroCliente).trim()].filter(Boolean);
+      
+      // Se após filtrar não há IDs válidos, limpar o filtro
+      if (clienteIds.length === 0) {
+        setFiltroCliente(null);
+        return;
+      }
       
       // Verificar se todos os clientes selecionados ainda existem
       const clientesValidos = clienteIds.filter(clienteId => 
@@ -205,7 +218,12 @@ const DashboardClientes = () => {
       const cached = cache.get(cacheKey);
       
       if (cached) {
-        setTodosColaboradores(cached);
+        // Garantir que colaboradores do cache tenham status
+        const colaboradoresComStatus = cached.map(colab => ({
+          ...colab,
+          status: colab.status || 'ativo'
+        }));
+        setTodosColaboradores(colaboradoresComStatus);
         return;
       }
 
@@ -231,8 +249,13 @@ const DashboardClientes = () => {
 
       const result = await response.json();
       if (result.success && result.data && Array.isArray(result.data)) {
-        setTodosColaboradores(result.data);
-        cache.set(cacheKey, result.data);
+        // Garantir que todos os colaboradores tenham status (assumir 'ativo' se não estiver definido)
+        const colaboradoresComStatus = result.data.map(colab => ({
+          ...colab,
+          status: colab.status || 'ativo'
+        }));
+        setTodosColaboradores(colaboradoresComStatus);
+        cache.set(cacheKey, colaboradoresComStatus);
       }
     } catch (error) {
       console.error('Erro ao carregar colaboradores:', error);
@@ -268,12 +291,7 @@ const DashboardClientes = () => {
       
       const url = `${API_BASE_URL}/membros-por-cliente?${params.join('&')}`;
 
-      console.log('🔍 [FRONTEND] Buscando colaboradores por cliente:', {
-        clienteIds,
-        periodoInicio,
-        periodoFim,
-        url
-      });
+
 
       const response = await fetch(url, {
         credentials: 'include',
@@ -282,11 +300,7 @@ const DashboardClientes = () => {
 
       const result = await response.json();
       
-      console.log('📊 [FRONTEND] Resultado da busca:', {
-        success: result.success,
-        count: result.data?.length || 0,
-        data: result.data
-      });
+
       
       if (result.success && result.data && Array.isArray(result.data)) {
         // Garantir que todos os colaboradores sejam incluídos, mesmo sem nome
@@ -297,19 +311,17 @@ const DashboardClientes = () => {
           if (!colaboradoresUnicos.has(idStr)) {
             colaboradoresUnicos.set(idStr, { 
               id: m.id, 
-              nome: m.nome || `Colaborador #${m.id}` // Fallback para nome se não tiver
+              nome: m.nome || `Colaborador #${m.id}`, // Fallback para nome se não tiver
+              status: m.status || 'ativo' // Incluir status
             });
           }
         });
         const colaboradoresArray = Array.from(colaboradoresUnicos.values());
-        console.log(`✅ [FRONTEND] Colaboradores únicos encontrados: ${colaboradoresArray.length}`);
         setTodosColaboradores(colaboradoresArray);
       } else {
-        console.warn('⚠️ [FRONTEND] Nenhum colaborador retornado ou formato inválido');
         setTodosColaboradores([]);
       }
     } catch (error) {
-      console.error('❌ [FRONTEND] Erro ao carregar colaboradores por cliente:', error);
       setTodosColaboradores([]);
     }
   }, [carregarColaboradores]);
@@ -385,11 +397,43 @@ const DashboardClientes = () => {
     }
   }, [filtroStatus, filtroDataInicio, filtroDataFim, carregarClientes]);
 
+  // Função helper para verificar se um colaborador está inativo
+  const isColaboradorInativo = useCallback((colaboradorId, registro = null) => {
+    if (mostrarInativos) return false; // Se inativos estão habilitados, não filtrar
+    
+    // 1. Tentar buscar status do registro.membro (vem do backend)
+    if (registro && registro.membro && registro.membro.status) {
+      return registro.membro.status === 'inativo';
+    }
+    
+    // 2. Buscar na lista de todosColaboradores
+    if (colaboradorId && todosColaboradores && todosColaboradores.length > 0) {
+      const colaborador = todosColaboradores.find(c => {
+        const cIdStr = String(c.id).trim();
+        const cIdNum = parseInt(cIdStr, 10);
+        const colaboradorIdStr = String(colaboradorId).trim();
+        const colaboradorIdNum = parseInt(colaboradorIdStr, 10);
+        return cIdStr === colaboradorIdStr || 
+               cIdNum === colaboradorIdNum ||
+               cIdStr === colaboradorIdStr ||
+               cIdNum === colaboradorIdNum;
+      });
+      
+      if (colaborador) {
+        const status = colaborador.status || 'ativo';
+        return status === 'inativo';
+      }
+    }
+    
+    // 3. Se não encontrou, assumir ativo (compatibilidade)
+    return false;
+  }, [mostrarInativos, todosColaboradores]);
+
   // Carregar clientes paginados
   const carregarClientesPaginados = useCallback(async () => {
     setLoading(true);
     try {
-      let url = `${API_BASE_URL}/dashboard-clientes?page=${currentPage}&limit=${itemsPerPage}`;
+      let url = `${API_BASE_URL}/relatorios-clientes?page=${currentPage}&limit=${itemsPerPage}`;
       
       if (filtroStatus && (typeof filtroStatus === 'string' ? filtroStatus.trim() !== '' : true)) {
         url += `&status=${encodeURIComponent(filtroStatus)}`;
@@ -505,6 +549,14 @@ const DashboardClientes = () => {
           });
         }
         
+        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+        if (!mostrarInativos) {
+          registrosFiltrados = registrosFiltrados.filter(reg => {
+            if (!reg.usuario_id) return false;
+            return !isColaboradorInativo(reg.usuario_id, reg);
+          });
+        }
+        
         setAllRegistrosTempo(registrosFiltrados);
         setAllContratos(todosContratos || []);
       } else {
@@ -516,6 +568,11 @@ const DashboardClientes = () => {
         clientesComResumos.forEach(item => {
           if (item.registros && Array.isArray(item.registros)) {
             item.registros.forEach(registro => {
+              // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+              if (!mostrarInativos && registro.usuario_id && isColaboradorInativo(registro.usuario_id, registro)) {
+                return; // Pular colaboradores inativos
+              }
+              
               const registroId = registro.id || `${registro.tarefa_id}_${registro.usuario_id}_${registro.data_inicio}_${registro.data_fim || ''}`;
               if (!registrosMap.has(registroId)) {
                 registrosMap.set(registroId, registro);
@@ -533,22 +590,82 @@ const DashboardClientes = () => {
           }
         });
         
-        setAllRegistrosTempo(Array.from(registrosMap.values()));
+        let registrosArray = Array.from(registrosMap.values());
+        
+        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+        if (!mostrarInativos) {
+          registrosArray = registrosArray.filter(reg => {
+            if (!reg.usuario_id) return false;
+            return !isColaboradorInativo(reg.usuario_id, reg);
+          });
+        }
+        
+        setAllRegistrosTempo(registrosArray);
         setAllContratos(Array.from(contratosMap.values()));
       }
       
       // Armazenar dados no cache para os cards laterais
       clientesComResumos.forEach(item => {
+        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+        let registrosFiltrados = item.registros || [];
+        if (!mostrarInativos && registrosFiltrados.length > 0) {
+          registrosFiltrados = registrosFiltrados.filter(reg => {
+            if (!reg.usuario_id) return false;
+            return !isColaboradorInativo(reg.usuario_id, reg);
+          });
+        }
+        
+        // Filtrar tempoPorColaborador para remover colaboradores inativos
+        let tempoPorColaborador = item.resumo.tempoPorColaborador || {};
+        if (!mostrarInativos && tempoPorColaborador) {
+          const tempoPorColaboradorFiltrado = {};
+          Object.keys(tempoPorColaborador).forEach(colabId => {
+            if (!isColaboradorInativo(colabId)) {
+              // Preservar todos os campos do colaborador, incluindo status
+              tempoPorColaboradorFiltrado[colabId] = {
+                ...tempoPorColaborador[colabId],
+                status: tempoPorColaborador[colabId].status || 'ativo'
+              };
+            }
+          });
+          tempoPorColaborador = tempoPorColaboradorFiltrado;
+        } else {
+          // Garantir que todos os colaboradores tenham status mesmo quando mostrarInativos está ativado
+          const tempoPorColaboradorComStatus = {};
+          Object.keys(tempoPorColaborador).forEach(colabId => {
+            tempoPorColaboradorComStatus[colabId] = {
+              ...tempoPorColaborador[colabId],
+              status: tempoPorColaborador[colabId].status || 'ativo'
+            };
+          });
+          tempoPorColaborador = tempoPorColaboradorComStatus;
+        }
+        
         clienteDataCacheRef.current[item.cliente.id] = {
           contratos: item.contratos || [],
-          registros: item.registros || [],
-          tempoPorColaborador: item.resumo.tempoPorColaborador,
+          registros: registrosFiltrados,
+          tempoPorColaborador: tempoPorColaborador,
           tarefasUnicas: item.resumo.totalTarefasUnicas,
           produtosUnicos: item.resumo.totalProdutosUnicos
         };
       });
       
-      setClientes(clientesComResumos);
+      // Filtrar registros de colaboradores inativos nos dados de cada cliente antes de setar
+      const clientesComResumosFiltrados = clientesComResumos.map(item => {
+        if (!mostrarInativos && item.registros && Array.isArray(item.registros)) {
+          const registrosFiltrados = item.registros.filter(reg => {
+            if (!reg.usuario_id) return false;
+            return !isColaboradorInativo(reg.usuario_id, reg);
+          });
+          return {
+            ...item,
+            registros: registrosFiltrados
+          };
+        }
+        return item;
+      });
+      
+      setClientes(clientesComResumosFiltrados);
       setTotalClients(result.total || 0);
       setTotalPages(result.totalPages || 1);
     } catch (error) {
@@ -557,7 +674,7 @@ const DashboardClientes = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, filtroStatus, filtroCliente, filtroColaborador, filtroDataInicio, filtroDataFim]);
+  }, [currentPage, itemsPerPage, filtroStatus, filtroCliente, filtroColaborador, filtroDataInicio, filtroDataFim, mostrarInativos, isColaboradorInativo]);
 
   // Aplicar filtros
   const aplicarFiltros = useCallback(() => {
@@ -625,6 +742,7 @@ const DashboardClientes = () => {
     setFiltroColaborador(null);
     setFiltroDataInicio(null);
     setFiltroDataFim(null);
+    setMostrarInativos(false);
     
     // Limpar cache para garantir dados atualizados
     try {
@@ -650,18 +768,42 @@ const DashboardClientes = () => {
 
   // Handlers dos filtros
   const handleStatusChange = useCallback(async (e) => {
-    const value = e.target.value || null;
+    // Tratar string vazia como null para limpar o filtro
+    const value = e.target.value && e.target.value.trim() !== '' ? e.target.value : null;
     setFiltroStatus(value);
-    if (value) {
-      await carregarClientes(value);
+    
+    // Atualizar lista de clientes disponíveis baseado no status selecionado
+    // Isso atualiza apenas as OPÇÕES do filtro, não aplica os resultados
+    // IMPORTANTE: Se houver colaborador selecionado, respeitar esse filtro também
+    if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
+      // Se há colaborador selecionado, atualizar clientes baseado no colaborador (que já respeita o status)
+      await carregarClientesPorColaborador(filtroColaborador);
     } else {
-      await carregarClientes();
+      // Se não há colaborador selecionado, atualizar clientes baseado apenas no status
+      if (value) {
+        await carregarClientes(value);
+      } else {
+        await carregarClientes();
+      }
     }
-  }, [carregarClientes]);
+  }, [carregarClientes, filtroColaborador, carregarClientesPorColaborador]);
 
   const handleClienteChange = useCallback(async (e) => {
-    const value = e.target.value || null;
+    // Tratar arrays vazios e null como limpeza do filtro
+    let value = e.target.value;
+    if (value === null || value === undefined || value === '') {
+      value = null;
+    } else if (Array.isArray(value)) {
+      // Se for array vazio, tratar como null
+      if (value.length === 0) {
+        value = null;
+      }
+    }
+    
     setFiltroCliente(value);
+    
+    // Atualizar listas de opções baseado no cliente selecionado
+    // Isso atualiza apenas as OPÇÕES dos filtros, não aplica os resultados
     if (value) {
       // Se for array, usar o primeiro cliente para carregar status
       // Mas passar todos os clientes para carregar colaboradores
@@ -670,48 +812,114 @@ const DashboardClientes = () => {
       // Passar todos os clientes selecionados e o período (se houver) para buscar colaboradores
       await carregarColaboradoresPorCliente(value, filtroDataInicio, filtroDataFim);
     } else {
+      // Limpar filtro - recarregar todos os status e colaboradores
       await carregarStatus();
       await carregarColaboradores();
     }
   }, [carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores, filtroDataInicio, filtroDataFim]);
 
-  // Recarregar colaboradores quando o período mudar e houver cliente selecionado
-  useEffect(() => {
-    if (filtroCliente && (filtroDataInicio || filtroDataFim)) {
-      // Se ambos os períodos estiverem preenchidos, recarregar colaboradores
-      if (filtroDataInicio && filtroDataFim) {
-        carregarColaboradoresPorCliente(filtroCliente, filtroDataInicio, filtroDataFim);
-      }
-    } else if (filtroCliente && !filtroDataInicio && !filtroDataFim) {
-      // Se cliente está selecionado mas período foi removido, recarregar sem período
-      carregarColaboradoresPorCliente(filtroCliente);
-    }
-  }, [filtroDataInicio, filtroDataFim, filtroCliente, carregarColaboradoresPorCliente]);
 
   const handleColaboradorChange = useCallback(async (e) => {
     // value pode ser null, um array, ou um único valor (para compatibilidade)
-    const value = e.target.value || null;
+    let value = e.target.value;
+    
+    // Tratar arrays vazios e null como limpeza do filtro
+    if (value === null || value === undefined || value === '') {
+      value = null;
+    } else if (Array.isArray(value)) {
+      // Se for array vazio, tratar como null
+      if (value.length === 0) {
+        value = null;
+      }
+    }
     
     // Normalizar IDs para garantir consistência
     const normalizeId = (id) => String(id).trim();
-    const colaboradorIds = Array.isArray(value) 
+    const colaboradorIds = value && Array.isArray(value)
       ? value.map(normalizeId).filter(Boolean)
       : (value ? [normalizeId(value)] : null);
     
-    setFiltroColaborador(colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null);
+    // Se após normalização o array estiver vazio, tratar como null
+    const finalValue = colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null;
+    setFiltroColaborador(finalValue);
     
-    if (colaboradorIds && colaboradorIds.length > 0) {
+    // Atualizar lista de clientes disponíveis baseado no colaborador selecionado
+    // Isso atualiza apenas as OPÇÕES do filtro, não aplica os resultados
+    if (finalValue && finalValue.length > 0) {
       // Se houver colaboradores selecionados, carregar clientes de todos eles
-      await carregarClientesPorColaborador(colaboradorIds);
+      await carregarClientesPorColaborador(finalValue);
     } else {
+      // Limpar filtro - recarregar todos os clientes (respeitando status se houver)
       await carregarClientes(filtroStatus);
     }
   }, [filtroStatus, carregarClientes, carregarClientesPorColaborador]);
+
+  // Atualizar listas de opções quando o período mudar (apenas para atualizar dropdowns, não aplica filtros)
+  useEffect(() => {
+    // Se período está completo, atualizar listas de opções baseadas nos filtros atuais
+    if (filtroDataInicio && filtroDataFim) {
+      // Atualizar colaboradores se houver cliente selecionado
+      if (filtroCliente) {
+        carregarColaboradoresPorCliente(filtroCliente, filtroDataInicio, filtroDataFim);
+      }
+      // Atualizar clientes se houver colaborador selecionado
+      if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
+        carregarClientesPorColaborador(filtroColaborador);
+      }
+    } else if (!filtroDataInicio && !filtroDataFim) {
+      // Se período foi removido, recarregar listas sem período
+      if (filtroCliente) {
+        carregarColaboradoresPorCliente(filtroCliente);
+      }
+      if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
+        carregarClientesPorColaborador(filtroColaborador);
+      }
+    }
+  }, [filtroDataInicio, filtroDataFim, filtroCliente, filtroColaborador, carregarColaboradoresPorCliente, carregarClientesPorColaborador]);
 
   // Abrir card lateral
   const handleOpenDetail = useCallback((clienteId, tipo, event) => {
     const dados = clienteDataCacheRef.current[clienteId];
     if (!dados) return;
+    
+    // Se há filtro de cliente, filtrar os registros e tempoPorColaborador
+    let dadosFiltrados = { ...dados };
+    if (filtroCliente) {
+      const clienteIds = Array.isArray(filtroCliente) 
+        ? filtroCliente.map(id => String(id).trim().toLowerCase())
+        : [String(filtroCliente).trim().toLowerCase()];
+      
+      // Filtrar registros por cliente
+      if (dadosFiltrados.registros && Array.isArray(dadosFiltrados.registros)) {
+        dadosFiltrados.registros = dadosFiltrados.registros.filter(registro => {
+          if (!registro.cliente_id) return false;
+          const idsExtraidos = String(registro.cliente_id)
+            .split(',')
+            .map(id => id.trim().toLowerCase())
+            .filter(id => id.length > 0);
+          return idsExtraidos.some(id => clienteIds.includes(id));
+        });
+      }
+      
+      // Filtrar tempoPorColaborador - recalcular apenas com registros filtrados
+      if (dadosFiltrados.registros && Array.isArray(dadosFiltrados.registros)) {
+        const tempoPorColaboradorFiltrado = {};
+        dadosFiltrados.registros.forEach(registro => {
+          if (registro.usuario_id && registro.membro) {
+            const colaboradorId = String(registro.usuario_id).trim();
+            if (!tempoPorColaboradorFiltrado[colaboradorId]) {
+              tempoPorColaboradorFiltrado[colaboradorId] = {
+                nome: registro.membro.nome || `Colaborador ${colaboradorId}`,
+                status: registro.membro.status || 'ativo',
+                total: 0
+              };
+            }
+            tempoPorColaboradorFiltrado[colaboradorId].total += Number(registro.tempo_realizado) || 0;
+          }
+        });
+        dadosFiltrados.tempoPorColaborador = tempoPorColaboradorFiltrado;
+      }
+    }
 
     // Calcular posição ao lado do botão clicado (igual ao servidor original)
     let left = '50%';
@@ -761,8 +969,8 @@ const DashboardClientes = () => {
     }
 
     setDetailCardPosition({ left, top });
-    setDetailCard({ clienteId, tipo, dados });
-  }, []);
+    setDetailCard({ clienteId, tipo, dados: dadosFiltrados });
+  }, [filtroCliente]);
 
   // Fechar card lateral
   const handleCloseDetail = useCallback(() => {
@@ -781,24 +989,46 @@ const DashboardClientes = () => {
     const tarefasIdsParaBuscar = [];
 
     // Primeiro, coletar todas as tarefas e identificar quais precisam buscar o nome
+    // Agrupar registros por tarefa_id para verificar se a tarefa só tem colaboradores inativos
+    const tarefasPorId = new Map();
+    
     allRegistrosTempo.forEach(registro => {
       if (registro.tarefa_id) {
         const tarefaId = String(registro.tarefa_id).trim();
-        if (!tarefasMap.has(tarefaId)) {
-          // Tentar buscar nome da tarefa do objeto tarefa, se existir
-          const nomeTarefa = registro.tarefa?.tarefa_nome || 
-                            registro.tarefa?.nome ||
-                            registro.tarefa?.titulo || 
-                            registro.tarefa?.descricao;
-          
-          if (nomeTarefa) {
-            // Nome encontrado, usar diretamente
-            tarefasMap.set(tarefaId, nomeTarefa);
-          } else {
-            // Nome não encontrado, marcar para buscar na API
-            tarefasIdsParaBuscar.push(tarefaId);
-          }
+        
+        if (!tarefasPorId.has(tarefaId)) {
+          tarefasPorId.set(tarefaId, []);
         }
+        tarefasPorId.get(tarefaId).push(registro);
+      }
+    });
+    
+    // Filtrar tarefas: remover tarefas que só têm colaboradores inativos (se mostrarInativos estiver desativado)
+    tarefasPorId.forEach((registros, tarefaId) => {
+      if (!mostrarInativos) {
+        // Verificar se todos os registros são de colaboradores inativos
+        const todosInativos = registros.every(reg => {
+          if (!reg.usuario_id) return false;
+          return isColaboradorInativo(reg.usuario_id, reg);
+        });
+        
+        // Se todos são inativos, não incluir a tarefa
+        if (todosInativos) {
+          return;
+        }
+      }
+      
+      // Se chegou aqui, a tarefa tem pelo menos um colaborador ativo (ou inativos estão habilitados)
+      const primeiroRegistro = registros[0];
+      const nomeTarefa = primeiroRegistro.tarefa?.tarefa_nome || 
+                        primeiroRegistro.tarefa?.nome ||
+                        primeiroRegistro.tarefa?.titulo || 
+                        primeiroRegistro.tarefa?.descricao;
+      
+      if (nomeTarefa) {
+        tarefasMap.set(tarefaId, nomeTarefa);
+      } else {
+        tarefasIdsParaBuscar.push(tarefaId);
       }
     });
 
@@ -860,7 +1090,7 @@ const DashboardClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Tarefas', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo]);
+  }, [allRegistrosTempo, mostrarInativos, isColaboradorInativo]);
 
   const handleShowColaboradores = useCallback(async (e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
@@ -891,15 +1121,22 @@ const DashboardClientes = () => {
     
     allRegistrosTempo.forEach(registro => {
       if (registro.usuario_id) {
+        // Filtrar colaboradores inativos se mostrarInativos estiver desativado
+        if (!mostrarInativos && isColaboradorInativo(registro.usuario_id, registro)) {
+          return; // Pular colaboradores inativos
+        }
+        
         const colaboradorId = String(registro.usuario_id).trim();
         const colaboradorIdNum = parseInt(colaboradorId, 10);
         
         if (!colaboradoresMap.has(colaboradorId)) {
           let nomeColaborador = null;
+          let statusColaborador = 'ativo';
           
-          // 1. Tentar buscar nome do colaborador do objeto membro (vem do backend)
+          // 1. Tentar buscar nome e status do colaborador do objeto membro (vem do backend)
           if (registro.membro && registro.membro.nome) {
             nomeColaborador = registro.membro.nome;
+            statusColaborador = registro.membro.status || 'ativo';
           }
           
           // 2. Se não encontrou, buscar na lista de todosColaboradores
@@ -908,6 +1145,7 @@ const DashboardClientes = () => {
                                          colaboradoresMapById.get(colaboradorIdNum) ||
                                          colaboradoresMapById.get(registro.usuario_id);
             nomeColaborador = colaboradorEncontrado?.nome;
+            statusColaborador = colaboradorEncontrado?.status || 'ativo';
           }
           
           // 3. Se ainda não encontrou, tentar busca mais flexível na lista
@@ -921,6 +1159,7 @@ const DashboardClientes = () => {
                      cIdNum === registro.usuario_id;
             });
             nomeColaborador = colaboradorEncontrado?.nome;
+            statusColaborador = colaboradorEncontrado?.status || 'ativo';
           }
           
           // Se não encontrou nome, adicionar à lista para buscar no backend
@@ -928,7 +1167,7 @@ const DashboardClientes = () => {
             idsSemNome.push(colaboradorId);
             colaboradoresMap.set(colaboradorId, null); // Placeholder
           } else {
-            colaboradoresMap.set(colaboradorId, nomeColaborador);
+            colaboradoresMap.set(colaboradorId, { nome: nomeColaborador, status: statusColaborador });
           }
         }
       }
@@ -962,9 +1201,15 @@ const DashboardClientes = () => {
               const idNum = parseInt(idStr, 10);
               const membro = membrosBackendMap.get(idStr) || membrosBackendMap.get(idNum);
               if (membro && membro.nome) {
-                colaboradoresMap.set(idStr, membro.nome);
+                colaboradoresMap.set(idStr, { 
+                  nome: membro.nome, 
+                  status: membro.status || 'ativo' 
+                });
               } else {
-                colaboradoresMap.set(idStr, `Colaborador #${idStr}`);
+                colaboradoresMap.set(idStr, { 
+                  nome: `Colaborador #${idStr}`, 
+                  status: 'ativo' 
+                });
               }
             });
           }
@@ -979,13 +1224,25 @@ const DashboardClientes = () => {
     }
 
     // Aplicar fallback para qualquer colaborador que ainda não tenha nome
-    colaboradoresMap.forEach((nome, id) => {
-      if (!nome) {
-        colaboradoresMap.set(id, `Colaborador #${id}`);
+    colaboradoresMap.forEach((dados, id) => {
+      if (!dados || (typeof dados === 'string' && !dados)) {
+        colaboradoresMap.set(id, { 
+          nome: `Colaborador #${id}`, 
+          status: 'ativo' 
+        });
+      } else if (typeof dados === 'string') {
+        // Converter string antiga para objeto
+        colaboradoresMap.set(id, { 
+          nome: dados, 
+          status: 'ativo' 
+        });
       }
     });
 
-    const itens = Array.from(colaboradoresMap.values()).sort();
+    // Converter para array e ordenar por nome
+    const itens = Array.from(colaboradoresMap.values())
+      .map(item => typeof item === 'string' ? { nome: item, status: 'ativo' } : item)
+      .sort((a, b) => a.nome.localeCompare(b.nome));
     
     if (itens.length === 0) {
       alert('Nenhum colaborador encontrado');
@@ -995,13 +1252,20 @@ const DashboardClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Colaboradores', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosColaboradores]);
+  }, [allRegistrosTempo, todosColaboradores, mostrarInativos, isColaboradorInativo]);
 
   const handleShowClientes = useCallback((e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
       alert('Nenhum cliente encontrado');
       return;
     }
+
+    // Se há filtro de cliente, considerar apenas os clientes filtrados
+    const clienteIdsFiltro = filtroCliente 
+      ? (Array.isArray(filtroCliente) 
+          ? filtroCliente.map(id => String(id).trim().toLowerCase())
+          : [String(filtroCliente).trim().toLowerCase()])
+      : null;
 
     const clientesMap = new Map();
     allRegistrosTempo.forEach(registro => {
@@ -1014,6 +1278,13 @@ const DashboardClientes = () => {
           .filter(id => id.length > 0);
         
         clienteIds.forEach(clienteId => {
+          const clienteIdNormalizado = String(clienteId).trim().toLowerCase();
+          
+          // Se há filtro, considerar apenas os clientes que estão no filtro
+          if (clienteIdsFiltro && !clienteIdsFiltro.includes(clienteIdNormalizado)) {
+            return; // Pular clientes que não estão no filtro
+          }
+          
           if (!clientesMap.has(clienteId)) {
             const nomeCliente = registro.cliente?.nome || 
                                (todosClientes && todosClientes.find(c => String(c.id) === clienteId)?.nome) ||
@@ -1028,7 +1299,7 @@ const DashboardClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Clientes', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosClientes]);
+  }, [allRegistrosTempo, todosClientes, filtroCliente]);
 
   // Função para calcular posição do mini card
   const calcularPosicaoMiniCard = useCallback((event) => {
@@ -1141,9 +1412,10 @@ const DashboardClientes = () => {
 
   // Carregar dados iniciais
   useEffect(() => {
-    // Limpar cache de clientes para garantir dados atualizados
+    // Limpar cache de clientes e colaboradores para garantir dados atualizados
     try {
       sessionStorage.removeItem('clientes_all');
+      sessionStorage.removeItem('colaboradores_all');
     } catch (e) {
       // Ignore cache errors
     }
@@ -1152,19 +1424,21 @@ const DashboardClientes = () => {
     carregarColaboradores();
   }, [carregarStatus, carregarClientes, carregarColaboradores]);
 
-  // Recarregar dados quando a página ou itens por página mudarem (apenas se filtros já foram aplicados)
+  // Recarregar dados quando a página, itens por página ou mostrarInativos mudarem (apenas se filtros já foram aplicados)
+  // IMPORTANTE: Não incluir carregarClientesPaginados nas dependências para evitar recarregamento automático quando filtros mudam
   useEffect(() => {
     if (filtrosAplicados) {
       carregarClientesPaginados();
     }
-  }, [currentPage, itemsPerPage, filtrosAplicados, carregarClientesPaginados]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados]);
 
   return (
     <Layout>
       <div className="container">
         <main className="main-content">
         <div className="form-header">
-          <h2 className="form-title">{mostrarIncompletas ? 'Tarefas Desajustadas' : 'Clientes'}</h2>
+          <h2 className="form-title">{mostrarIncompletas ? 'Tarefas Desajustadas' : 'Relatórios de Clientes'}</h2>
           <div className="form-header-actions">
             <button 
               className={`incomplete-clients-btn ${mostrarIncompletas ? 'active' : ''}`}
@@ -1182,11 +1456,11 @@ const DashboardClientes = () => {
                 if (mostrarIncompletas) {
                   setMostrarIncompletas(false);
                 } else {
-                  window.location.href = '/carteira-clientes';
+                  window.location.href = '/gestao-clientes';
                 }
               }}
             >
-              <i className="fas fa-gear"></i>
+              <i className="fas fa-briefcase"></i>
               Clientes
             </button>
           </div>
@@ -1195,77 +1469,110 @@ const DashboardClientes = () => {
         {/* Seção de Filtros Expostos - Oculto quando mostrarIncompletas */}
         {!mostrarIncompletas && (
           <>
-            <div className="exposed-filters-section">
-              <div className="filters-row">
-                <div className="filter-group">
-                  <FilterStatus
-                    value={filtroStatus}
-                    onChange={handleStatusChange}
-                    options={todosStatus}
-                    disabled={false}
-                  />
-                </div>
-                
-                <div className="filter-group">
-                  <FilterClientes
-                    value={filtroCliente}
-                    onChange={handleClienteChange}
-                    options={todosClientes}
-                    disabled={false}
-                  />
-                </div>
-
-                <div className="filter-group">
-                  <FilterColaborador
-                    value={filtroColaborador}
-                    onChange={handleColaboradorChange}
-                    options={todosColaboradores}
-                    disabled={false}
-                  />
-                </div>
-
-                <div className="filter-group">
-                  <FilterPeriodo
-                    dataInicio={filtroDataInicio}
-                    dataFim={filtroDataFim}
-                    onInicioChange={(e) => {
-                      const value = e.target.value;
-                      setFiltroDataInicio(value && value.trim() !== '' ? value : null);
-                    }}
-                    onFimChange={(e) => {
-                      const value = e.target.value;
-                      setFiltroDataFim(value && value.trim() !== '' ? value : null);
-                    }}
-                    disabled={false}
-                  />
-                </div>
+            <FiltersCard
+              onApply={aplicarFiltros}
+              onClear={limparFiltros}
+              loading={loading}
+            >
+              <div className="filter-group">
+                <FilterStatus
+                  value={filtroStatus}
+                  onChange={handleStatusChange}
+                  options={todosStatus}
+                  disabled={false}
+                />
               </div>
               
-              {/* Botões de Ação dos Filtros */}
-              <div className="filter-actions">
-                <button 
-                  id="btnAplicarFiltros" 
-                  className="apply-filters-btn" 
-                  onClick={aplicarFiltros}
-                  disabled={loading}
-                >
-                  Aplicar Filtros
-                </button>
-                <button 
-                  id="btnLimparFiltros" 
-                  className="clear-filters-btn" 
-                  onClick={limparFiltros}
-                >
-                  Limpar Filtros
-                </button>
+              <div className="filter-group">
+                <FilterClientes
+                  value={filtroCliente}
+                  onChange={handleClienteChange}
+                  options={todosClientes}
+                  disabled={false}
+                />
               </div>
-            </div>
+
+              <div className="filter-group">
+                <FilterColaborador
+                  value={filtroColaborador}
+                  onChange={handleColaboradorChange}
+                  options={todosColaboradores.filter(colab => {
+                    // Se mostrarInativos estiver desativado, filtrar colaboradores inativos
+                    if (!mostrarInativos) {
+                      // Se status não estiver definido, assumir 'ativo' (compatibilidade com cache antigo)
+                      const status = colab.status || 'ativo';
+                      return status !== 'inativo';
+                    }
+                    // Se mostrarInativos estiver ativado, mostrar todos os colaboradores
+                    return true;
+                  })}
+                  disabled={false}
+                />
+              </div>
+
+              <div className="filter-group">
+                <FilterPeriodo
+                  dataInicio={filtroDataInicio}
+                  dataFim={filtroDataFim}
+                  onInicioChange={(e) => {
+                    const value = e.target.value;
+                    setFiltroDataInicio(value && value.trim() !== '' ? value : null);
+                  }}
+                  onFimChange={(e) => {
+                    const value = e.target.value;
+                    setFiltroDataFim(value && value.trim() !== '' ? value : null);
+                  }}
+                  disabled={false}
+                />
+              </div>
+
+              <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto', minWidth: 'auto' }}>
+                <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                  Inativos:
+                </label>
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <input
+                    type="checkbox"
+                    id="toggleInativos"
+                    checked={mostrarInativos}
+                    onChange={(e) => setMostrarInativos(e.target.checked)}
+                    style={{
+                      width: '44px',
+                      height: '24px',
+                      appearance: 'none',
+                      backgroundColor: mostrarInativos ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                      borderRadius: '12px',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s',
+                      outline: 'none'
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      left: mostrarInativos ? '22px' : '2px',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: '#fff',
+                      transition: 'left 0.2s',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </FiltersCard>
 
             {/* Cards de Dashboard */}
             {(allContratos.length > 0 || allRegistrosTempo.length > 0) && (
               <DashboardCards
+                filtroCliente={filtroCliente}
                 contratos={allContratos}
                 registrosTempo={allRegistrosTempo}
+                clientesExibidos={null}
                 onShowTarefas={handleShowTarefas}
                 onShowColaboradores={handleShowColaboradores}
                 onShowClientes={handleShowClientes}
@@ -1373,7 +1680,17 @@ const DashboardClientes = () => {
                       cliente={item.cliente}
                       resumo={item.resumo}
                       contratos={item.contratos || []}
-                      registros={item.registros || []}
+                      registros={(() => {
+                        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+                        let registros = item.registros || [];
+                        if (!mostrarInativos && registros.length > 0) {
+                          registros = registros.filter(reg => {
+                            if (!reg.usuario_id) return false;
+                            return !isColaboradorInativo(reg.usuario_id, reg);
+                          });
+                        }
+                        return registros;
+                      })()}
                       onOpenDetail={handleOpenDetail}
                     />
                   ))}
@@ -1493,5 +1810,5 @@ const DashboardClientes = () => {
   );
 };
 
-export default DashboardClientes;
+export default RelatoriosClientes;
 

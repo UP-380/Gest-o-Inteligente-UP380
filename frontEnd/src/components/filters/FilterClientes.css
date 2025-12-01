@@ -23,13 +23,13 @@
 }
 
 .cliente-select-display:hover:not(.disabled) {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
 .cliente-select-display.active {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
 .cliente-select-display.disabled {
@@ -44,7 +44,7 @@
 }
 
 .cliente-select-text.has-selection {
-  color: #007bff;
+  color: #0e3b6f;
   font-weight: 500;
 }
 
@@ -121,9 +121,9 @@
 
 .cliente-option.selected {
   background-color: #e3f2fd;
-  color: #007bff;
+  color: #0e3b6f;
   font-weight: 500;
-  border-left: 3px solid #007bff;
+  border-left: 3px solid #0e3b6f;
 }
 
 .cliente-option.selected:hover {
@@ -153,8 +153,8 @@
 }
 
 .cliente-option.selected .cliente-option-checkbox {
-  background-color: #007bff;
-  border-color: #007bff;
+  background-color: #0e3b6f;
+  border-color: #0e3b6f;
   color: white;
 }
 

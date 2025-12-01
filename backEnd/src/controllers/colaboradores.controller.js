@@ -8,7 +8,7 @@ const { supabase } = apiClientes;
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
   try {
-    const { page = 1, limit = 50, search = '' } = req.query;
+    const { page = 1, limit = 50, search = '', status } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
@@ -16,8 +16,17 @@ async function getColaboradores(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome, cpf', { count: 'exact' })
-      .order('nome', { ascending: true });
+      .select('id, nome, cpf', { count: 'exact' });
+    
+    // Se status for 'inativo', filtrar apenas inativos
+    // Caso contrário, mostrar apenas ativos (comportamento padrão)
+    if (status === 'inativo') {
+      query = query.eq('status', 'inativo');
+    } else {
+      query = query.or('status.is.null,status.eq.ativo');
+    }
+    
+    query = query.order('nome', { ascending: true });
 
     // Busca por nome ou CPF
     if (search && search.trim()) {
@@ -57,6 +66,55 @@ async function getColaboradores(req, res) {
         error: 'Erro ao buscar colaboradores',
         details: error.message
       });
+    }
+
+    // Buscar salário base mais recente de cada colaborador
+    if (data && data.length > 0) {
+      const membroIds = data.map(m => m.id);
+      
+      // Buscar todas as vigências dos membros com salário base
+      const { data: vigencias, error: errorVigencias } = await supabase
+        .schema('up_gestaointeligente')
+        .from('custo_membro_vigencia')
+        .select('membro_id, salariobase, dt_vigencia, id')
+        .in('membro_id', membroIds)
+        .not('salariobase', 'is', null);
+
+      if (!errorVigencias && vigencias && vigencias.length > 0) {
+        // Ordenar vigências por dt_vigencia (mais recente primeiro) e depois por id (desempate)
+        vigencias.sort((a, b) => {
+          // Comparar por data de vigência (mais recente primeiro)
+          const dataA = new Date(a.dt_vigencia);
+          const dataB = new Date(b.dt_vigencia);
+          if (dataB.getTime() !== dataA.getTime()) {
+            return dataB.getTime() - dataA.getTime(); // Descendente
+          }
+          // Se as datas forem iguais, usar id como critério de desempate (maior id = mais recente)
+          return (b.id || 0) - (a.id || 0);
+        });
+
+        // Criar um mapa com o salário base mais recente de cada membro
+        // Como o array está ordenado por dt_vigencia descendente, a primeira ocorrência
+        // de cada membro_id será a mais recente
+        const salarioPorMembro = new Map();
+        vigencias.forEach(v => {
+          // Só adiciona se ainda não tiver um registro para este membro_id
+          // Isso garante que pegamos apenas o primeiro (mais recente) de cada membro
+          if (!salarioPorMembro.has(v.membro_id)) {
+            salarioPorMembro.set(v.membro_id, v.salariobase);
+          }
+        });
+
+        // Adicionar salário base a cada colaborador
+        data.forEach(colaborador => {
+          colaborador.salariobase = salarioPorMembro.get(colaborador.id) || null;
+        });
+      } else {
+        // Se não houver vigências ou houver erro, definir salariobase como null para todos
+        data.forEach(colaborador => {
+          colaborador.salariobase = null;
+        });
+      }
     }
 
     console.log(`✅ Colaboradores encontrados: ${data?.length || 0} de ${count || 0} total`);
@@ -274,10 +332,10 @@ async function atualizarColaborador(req, res) {
     if (cpf !== undefined) {
       if (cpf && cpf.trim()) {
         const cpfLimpo = cpf.replace(/\D/g, '');
-        if (cpfLimpo.length !== 11) {
+        if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
           return res.status(400).json({
             success: false,
-            error: 'CPF deve conter 11 dígitos'
+            error: 'CPF/CNPJ deve conter 11 ou 14 dígitos'
           });
         }
 
@@ -349,6 +407,86 @@ async function atualizarColaborador(req, res) {
     });
   } catch (error) {
     console.error('Erro inesperado ao atualizar colaborador:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// PUT - Inativar colaborador
+async function inativarColaborador(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do colaborador é obrigatório'
+      });
+    }
+
+    // Verificar se colaborador existe
+    const { data: existente, error: errorCheck } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .select('id, nome, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (errorCheck) {
+      console.error('Erro ao verificar colaborador:', errorCheck);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao verificar colaborador',
+        details: errorCheck.message
+      });
+    }
+
+    if (!existente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Colaborador não encontrado'
+      });
+    }
+
+    // Verificar se já está inativo
+    if (existente.status === 'inativo') {
+      return res.status(400).json({
+        success: false,
+        error: 'Colaborador já está inativo'
+      });
+    }
+
+    // Atualizar status para inativo
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .update({ 
+        status: 'inativo',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao inativar colaborador:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao inativar colaborador',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Colaborador inativado com sucesso',
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao inativar colaborador:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -453,6 +591,7 @@ module.exports = {
   getColaboradorPorId,
   criarColaborador,
   atualizarColaborador,
+  inativarColaborador,
   deletarColaborador
 };
 

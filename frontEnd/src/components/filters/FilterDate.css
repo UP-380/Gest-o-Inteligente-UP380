@@ -1,15 +1,15 @@
-/* Período Filter Styles - Extraído de styles.css */
-.periodo-filter-container {
+/* Date Filter Styles - Baseado no FilterPeriodo */
+.date-filter-container {
   position: relative;
   width: 100%;
 }
 
-.periodo-select-field {
+.date-select-field {
   position: relative;
   width: 100%;
 }
 
-.periodo-select-display {
+.date-select-display {
   background: white;
   border: 1px solid #dee2e6;
   border-radius: 6px;
@@ -22,43 +22,43 @@
   min-height: 44px;
 }
 
-.periodo-select-display:hover:not(.disabled) {
-  border-color: #0e3b6f;
+.date-select-display:hover:not(.disabled) {
+  border-color: var(--primary-blue, #0e3b6f);
   box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
-.periodo-select-display.active {
-  border-color: #0e3b6f;
+.date-select-display.active {
+  border-color: var(--primary-blue, #0e3b6f);
   box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
-.periodo-select-display.disabled {
+.date-select-display.disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.periodo-select-text {
+.date-select-text {
   font-size: 14px;
   color: #495057;
   flex: 1;
 }
 
-.periodo-select-text.has-selection {
-  color: #0e3b6f;
+.date-select-text.has-selection {
+  color: var(--primary-blue, #0e3b6f);
   font-weight: 500;
 }
 
-.periodo-select-arrow {
+.date-select-arrow {
   font-size: 12px;
   color: #6c757d;
   transition: transform 0.2s ease;
 }
 
-.periodo-select-arrow.rotated {
+.date-select-arrow.rotated {
   transform: rotate(180deg);
 }
 
-.periodo-dropdown {
+.date-dropdown {
   position: absolute;
   top: 100%;
   left: 0;
@@ -75,12 +75,12 @@
   overflow-y: auto;
 }
 
-.periodo-dropdown-content {
+.date-dropdown-content {
   padding: 0;
 }
 
-/* Estilos do calendário do date range picker */
-.periodo-calendar-container {
+/* Estilos do calendário */
+.date-calendar-container {
   margin-top: 8px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
@@ -91,7 +91,7 @@
   margin-right: auto;
 }
 
-.periodo-calendar-header {
+.date-calendar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -99,14 +99,14 @@
   padding: 0 2px;
 }
 
-.periodo-calendar-month-year {
+.date-calendar-month-year {
   font-size: 12px;
   font-weight: 600;
   color: #111827;
   text-transform: capitalize;
 }
 
-.periodo-calendar-nav {
+.date-calendar-nav {
   background: transparent;
   border: none;
   cursor: pointer;
@@ -119,23 +119,23 @@
   justify-content: center;
 }
 
-.periodo-calendar-nav:hover {
+.date-calendar-nav:hover {
   background: #f3f4f6;
   color: #374151;
 }
 
-.periodo-calendar-nav i {
+.date-calendar-nav i {
   font-size: 10px;
 }
 
-.periodo-calendar-weekdays {
+.date-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
   margin-bottom: 4px;
 }
 
-.periodo-calendar-weekdays > div {
+.date-calendar-weekdays > div {
   text-align: center;
   font-size: 9px;
   font-weight: 600;
@@ -143,13 +143,13 @@
   padding: 2px 0;
 }
 
-.periodo-calendar-days {
+.date-calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
 }
 
-.periodo-calendar-day {
+.date-calendar-day {
   aspect-ratio: 1;
   display: flex;
   align-items: center;
@@ -167,44 +167,20 @@
   padding: 0;
 }
 
-.periodo-calendar-day:hover:not(.empty):not(.selected) {
+.date-calendar-day:hover:not(.empty):not(.selected) {
   background: #f3f4f6;
   border-color: #e5e7eb;
 }
 
-.periodo-calendar-day.empty {
+.date-calendar-day.empty {
   cursor: default;
   pointer-events: none;
 }
 
-.periodo-calendar-day.selected {
-  background: #0e3b6f;
+.date-calendar-day.selected {
+  background: var(--primary-blue, #0e3b6f);
   color: white;
   font-weight: 600;
-  border-color: #0e3b6f;
+  border-color: var(--primary-blue, #0e3b6f);
 }
 
-.periodo-calendar-day.start-date {
-  background: #0e3b6f;
-  color: white;
-  font-weight: 600;
-  border-color: #0e3b6f;
-}
-
-.periodo-calendar-day.end-date {
-  background: #0e3b6f;
-  color: white;
-  font-weight: 600;
-  border-color: #0e3b6f;
-}
-
-.periodo-calendar-day.in-range {
-  background: #e3f2fd;
-  color: #0e3b6f;
-  font-weight: 500;
-  border-color: #90caf9;
-}
-
-.periodo-calendar-day.in-range:hover {
-  background: #bfdbfe;
-}

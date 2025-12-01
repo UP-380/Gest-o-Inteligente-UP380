@@ -12,16 +12,49 @@ async function getCustosMembroVigencia(req, res) {
       limit = 50, 
       membro_id,
       dt_vigencia_inicio,
-      dt_vigencia_fim
+      dt_vigencia_fim,
+      status
     } = req.query;
     
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
 
+    // Processar membro_id - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
+    let membroIdsArray = [];
+    const membroIdsFromQuery = req.query.membro_id;
+    
+    if (membroIdsFromQuery) {
+      let idsParaProcessar = [];
+      
+      // Se for array (múltiplos parâmetros na query string)
+      if (Array.isArray(membroIdsFromQuery)) {
+        idsParaProcessar = membroIdsFromQuery;
+      } 
+      // Se for string que contém vírgulas (fallback)
+      else if (typeof membroIdsFromQuery === 'string' && membroIdsFromQuery.includes(',')) {
+        idsParaProcessar = membroIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      // Valor único
+      else {
+        idsParaProcessar = [membroIdsFromQuery];
+      }
+      
+      // Converter para números válidos
+      membroIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
+      
+      console.log('🔍 [CONTROLLER] Processamento membro_id:', {
+        original: membroIdsFromQuery,
+        processado: membroIdsArray,
+        tipo: typeof membroIdsFromQuery,
+        isArray: Array.isArray(membroIdsFromQuery)
+      });
+    }
+
     const filters = {
-      membro_id: membro_id || undefined,
+      membro_id: membroIdsArray.length > 0 ? membroIdsArray : undefined,
       dt_vigencia_inicio: dt_vigencia_inicio || undefined,
-      dt_vigencia_fim: dt_vigencia_fim || undefined
+      dt_vigencia_fim: dt_vigencia_fim || undefined,
+      status: status || undefined
     };
 
     const { data, count, error } = await vigenciaService.buscarVigencias(filters, pageNum, limitNum);
@@ -146,9 +179,6 @@ async function criarCustoMembroVigencia(req, res) {
       salariobase,
       ajudacusto = 0,
       valetransporte = 0,
-      // ferias, decimoterceiro, insspatronal, insscolaborador, fgts são calculados automaticamente
-      // não devem ser recebidos do req.body
-      horas_mensal,
       descricao = null
     } = req.body;
 
@@ -210,8 +240,6 @@ async function criarCustoMembroVigencia(req, res) {
     };
 
     // Preparar dados para inserção
-    // NOTA: Algumas colunas são calculadas automaticamente (generated columns) e não podem ser inseridas:
-    // - ferias, decimoterceiro, insspatronal, insscolaborador, fgts, horas_mensal
     const dadosInsert = {
       membro_id: parseInt(membro_id, 10),
       dt_vigencia: dt_vigencia,
@@ -222,38 +250,16 @@ async function criarCustoMembroVigencia(req, res) {
       valetransporte: toNumberOrZero(valetransporte),
       descricao: descricao || null
     };
-    
-    // Garantir que colunas calculadas não sejam incluídas
-    const colunasCalculadas = ['ferias', 'decimoterceiro', 'insspatronal', 'insscolaborador', 'fgts', 'horas_mensal'];
-    colunasCalculadas.forEach(col => {
-      delete dadosInsert[col];
-    });
-
-    // Log para debug
-    console.log('📝 Dados para inserção:', JSON.stringify(dadosInsert, null, 2));
 
     // Criar vigência
     const { data, error } = await vigenciaService.criarVigencia(dadosInsert);
 
     if (error) {
       console.error('❌ Erro ao criar custo membro vigência:', error);
-      console.error('❌ Detalhes do erro:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-      
-      // Retornar mensagem mais detalhada
-      const errorMessage = error.message || 'Erro desconhecido';
-      const errorDetails = error.details || error.hint || '';
-      
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar custo membro vigência',
-        details: errorMessage,
-        hint: errorDetails,
-        code: error.code
+        details: error.message
       });
     }
 
@@ -284,12 +290,6 @@ async function atualizarCustoMembroVigencia(req, res) {
       salariobase,
       ajudacusto,
       valetransporte,
-      ferias,
-      decimoterceiro,
-      insspatronal,
-      insscolaborador,
-      fgts,
-      horas_mensal,
       descricao
     } = req.body;
 
@@ -377,12 +377,6 @@ async function atualizarCustoMembroVigencia(req, res) {
     if (salariobase !== undefined) dadosUpdate.salariobase = toNumberOrNull(salariobase);
     if (ajudacusto !== undefined) dadosUpdate.ajudacusto = toNumberOrZero(ajudacusto);
     if (valetransporte !== undefined) dadosUpdate.valetransporte = toNumberOrZero(valetransporte);
-    if (ferias !== undefined) dadosUpdate.ferias = toNumberOrZero(ferias);
-    if (decimoterceiro !== undefined) dadosUpdate.decimoterceiro = toNumberOrZero(decimoterceiro);
-    if (insspatronal !== undefined) dadosUpdate.insspatronal = toNumberOrZero(insspatronal);
-    if (insscolaborador !== undefined) dadosUpdate.insscolaborador = toNumberOrZero(insscolaborador);
-    if (fgts !== undefined) dadosUpdate.fgts = toNumberOrZero(fgts);
-    if (horas_mensal !== undefined) dadosUpdate.horas_mensal = toNumberOrNull(horas_mensal);
     if (descricao !== undefined) dadosUpdate.descricao = descricao || null;
 
     // Se não há nada para atualizar

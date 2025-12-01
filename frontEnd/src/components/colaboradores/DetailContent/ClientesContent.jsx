@@ -1,11 +1,101 @@
 import React, { useState } from 'react';
 
-const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => {
-  const [expandedColaboradores, setExpandedColaboradores] = useState(new Set());
+const ClientesContent = ({ colaboradorId, registros, filtroCliente }) => {
+  const [expandedClientes, setExpandedClientes] = useState(new Set());
   const [expandedTarefas, setExpandedTarefas] = useState(new Set());
 
-  if (!tempoPorColaborador || Object.keys(tempoPorColaborador).length === 0) {
-    return <div className="empty-state"><p>Nenhum colaborador encontrado</p></div>;
+  if (!registros || registros.length === 0) {
+    return <div className="empty-state"><p>Nenhum cliente encontrado</p></div>;
+  }
+
+  // Filtrar registros por cliente se houver filtro
+  let registrosFiltrados = registros;
+  if (filtroCliente) {
+    const clienteIds = Array.isArray(filtroCliente) 
+      ? filtroCliente.map(id => String(id).trim().toLowerCase())
+      : [String(filtroCliente).trim().toLowerCase()];
+    
+    registrosFiltrados = registros.filter(registro => {
+      if (!registro.cliente_id) return false;
+      const idsExtraidos = String(registro.cliente_id)
+        .split(',')
+        .map(id => id.trim().toLowerCase())
+        .filter(id => id.length > 0);
+      return idsExtraidos.some(id => clienteIds.includes(id));
+    });
+  }
+
+  if (registrosFiltrados.length === 0) {
+    return <div className="empty-state"><p>Nenhum cliente encontrado</p></div>;
+  }
+
+  // Agrupar registros por cliente e calcular tempo total
+  // IMPORTANTE: Cada cliente deve aparecer apenas uma vez com o tempo total
+  // Se há filtro de cliente, considerar apenas os clientes filtrados
+  const clientesMap = new Map();
+  const clienteIdsFiltro = filtroCliente 
+    ? (Array.isArray(filtroCliente) 
+        ? filtroCliente.map(id => String(id).trim().toLowerCase())
+        : [String(filtroCliente).trim().toLowerCase()])
+    : null;
+  
+  registrosFiltrados.forEach(registro => {
+    if (registro.cliente_id) {
+      // cliente_id pode conter múltiplos IDs separados por ", "
+      const clienteIds = String(registro.cliente_id)
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+      
+      // Se há filtro, considerar apenas os clientes que estão no filtro
+      const clienteIdsParaProcessar = clienteIdsFiltro
+        ? clienteIds.filter(id => clienteIdsFiltro.includes(String(id).trim().toLowerCase()))
+        : clienteIds;
+      
+      clienteIdsParaProcessar.forEach(clienteId => {
+        const clienteIdNormalizado = String(clienteId).trim().toLowerCase();
+        
+        if (!clientesMap.has(clienteIdNormalizado)) {
+          // Buscar nome do cliente do primeiro registro que tiver esse cliente
+          const nomeCliente = registro.cliente?.nome || `Cliente #${clienteId}`;
+          clientesMap.set(clienteIdNormalizado, {
+            id: clienteId, // Manter ID original para referência
+            idNormalizado: clienteIdNormalizado,
+            nome: nomeCliente,
+            registros: [],
+            tempoTotal: 0
+          });
+        }
+        const cliente = clientesMap.get(clienteIdNormalizado);
+        
+        // Adicionar registro apenas se ainda não foi adicionado (evitar duplicatas)
+        // Usar ID do registro ou combinação única de campos
+        const registroId = registro.id || `${registro.tarefa_id}_${registro.usuario_id}_${registro.data_inicio}_${registro.data_fim || ''}`;
+        const registroJaExiste = cliente.registros.some(r => {
+          const rId = r.id || `${r.tarefa_id}_${r.usuario_id}_${r.data_inicio}_${r.data_fim || ''}`;
+          return rId === registroId;
+        });
+        
+        if (!registroJaExiste) {
+          cliente.registros.push(registro);
+          // Calcular tempo apenas uma vez por registro
+          // IMPORTANTE: Se o registro tem múltiplos cliente_id, dividir o tempo proporcionalmente
+          // ou contar o tempo completo para cada cliente (dependendo da regra de negócio)
+          // Por enquanto, vamos contar o tempo completo para cada cliente filtrado
+          const tempoRealizado = Number(registro.tempo_realizado) || 0;
+          // Se valor < 1 (decimal), está em horas -> converter para ms
+          // Se valor >= 1, já está em ms
+          // Se resultado < 1 segundo, arredondar para 1 segundo
+          let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+          if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
+          cliente.tempoTotal += tempoMs;
+        }
+      });
+    }
+  });
+
+  if (clientesMap.size === 0) {
+    return <div className="empty-state"><p>Nenhum cliente encontrado</p></div>;
   }
 
   const fmtMs = (ms) => {
@@ -20,18 +110,18 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
     return `${s}s`;
   };
 
-  const toggleColaborador = (colaboradorId) => {
-    const newExpanded = new Set(expandedColaboradores);
-    if (newExpanded.has(colaboradorId)) {
-      newExpanded.delete(colaboradorId);
+  const toggleCliente = (clienteId) => {
+    const newExpanded = new Set(expandedClientes);
+    if (newExpanded.has(clienteId)) {
+      newExpanded.delete(clienteId);
     } else {
-      newExpanded.add(colaboradorId);
+      newExpanded.add(clienteId);
     }
-    setExpandedColaboradores(newExpanded);
+    setExpandedClientes(newExpanded);
   };
 
-  const toggleTarefa = (colaboradorId, tarefaId) => {
-    const key = `${colaboradorId}-${tarefaId}`;
+  const toggleTarefa = (clienteId, tarefaId) => {
+    const key = `${clienteId}-${tarefaId}`;
     const newExpanded = new Set(expandedTarefas);
     if (newExpanded.has(key)) {
       newExpanded.delete(key);
@@ -41,36 +131,19 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
     setExpandedTarefas(newExpanded);
   };
 
+  // Converter Map para array e ordenar por tempo total (maior primeiro)
+  const clientesArray = Array.from(clientesMap.values()).sort((a, b) => b.tempoTotal - a.tempoTotal);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: 'calc(50vh - 80px)', overflowY: 'auto', paddingRight: '8px' }}>
-      {Object.entries(tempoPorColaborador).map(([colaboradorId, colaborador]) => {
-        const tempoRealizado = Number(colaborador.total) || 0;
-        // Se valor < 1 (decimal), está em horas -> converter para ms
-        // Se valor >= 1, já está em ms
-        // Se resultado < 1 segundo, arredondar para 1 segundo
-        let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
-        if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
-        const tempoText = fmtMs(tempoMs);
-        const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-
-        const registrosColaborador = registros.filter(r => {
-          const rId = r.usuario_id || r.membro?.id;
-          return String(rId) === String(colaboradorId);
-        });
-
-        // Verificar se o colaborador está inativo
-        // Primeiro tentar pegar do tempoPorColaborador, depois dos registros
-        const colaboradorStatus = colaborador.status || 
-                                  registrosColaborador[0]?.membro?.status || 
-                                  'ativo';
-        const isInativo = colaboradorStatus === 'inativo';
-        const iconColor = isInativo ? '#ef4444' : '#2563eb';
-
-        const isExpanded = expandedColaboradores.has(colaboradorId);
+      {clientesArray.map((cliente) => {
+        const tempoText = fmtMs(cliente.tempoTotal);
+        const tempoDecimal = (cliente.tempoTotal / 3600000).toFixed(2);
+        const isExpanded = expandedClientes.has(cliente.id);
 
         // Agrupar registros por tarefa
         const tarefasMap = new Map();
-        registrosColaborador.forEach(registro => {
+        cliente.registros.forEach(registro => {
           const tarefaId = registro.tarefa_id ? String(registro.tarefa_id).trim() : 'sem-tarefa';
           const nomeTarefa = registro.tarefa?.nome || 
                             registro.tarefa?.tarefa_nome ||
@@ -102,11 +175,11 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
         });
 
         return (
-          <div key={colaboradorId} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div key={cliente.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px', color: '#374151' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fas fa-user" style={{ color: iconColor, fontSize: '14px' }}></i>
-                <span>{colaborador.nome}</span>
+                <i className="fas fa-user-friends" style={{ color: '#2563eb', fontSize: '14px' }}></i>
+                <span>{cliente.nome}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span
@@ -123,9 +196,9 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
                   {tempoText}
                 </span>
                 <button
-                  className="tt-user-toggle"
+                  className="tt-cliente-toggle"
                   title="Expandir"
-                  onClick={() => toggleColaborador(colaboradorId)}
+                  onClick={() => toggleCliente(cliente.id)}
                   style={{
                     background: '#f1f5f9',
                     border: '1px solid #e5e7eb',
@@ -149,7 +222,7 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
             </div>
             {isExpanded && (
               <div
-                className="tt-user-records"
+                className="tt-cliente-tarefas"
                 style={{
                   display: 'flex',
                   marginLeft: '8px',
@@ -163,13 +236,13 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
                   const estText = fmtMs(estMs);
                   const rastText = fmtMs(tarefa.tempoTotal);
                   const rastDecimal = (tarefa.tempoTotal / 3600000).toFixed(2);
-                  const tarefaKey = `${colaboradorId}-${tarefaId}`;
+                  const tarefaKey = `${cliente.id}-${tarefaId}`;
                   const isTarefaExpanded = expandedTarefas.has(tarefaKey);
 
                   return (
                     <div
                       key={tarefaId}
-                      className="tt-colaborador-tarefa"
+                      className="tt-cliente-tarefa"
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -239,9 +312,9 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
                           </span>
                         </span>
                         <button
-                          className="tt-colaborador-tarefa-arrow"
+                          className="tt-cliente-tarefa-arrow"
                           title="Expandir registros"
-                          onClick={() => toggleTarefa(colaboradorId, tarefaId)}
+                          onClick={() => toggleTarefa(cliente.id, tarefaId)}
                           style={{
                             background: 'transparent',
                             border: 'none',
@@ -264,7 +337,7 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
                       </div>
                       {isTarefaExpanded && (
                         <div
-                          className="tt-colaborador-registros-tarefa"
+                          className="tt-cliente-registros-tarefa"
                           style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -351,5 +424,5 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
   );
 };
 
-export default ColaboradoresContent;
+export default ClientesContent;
 

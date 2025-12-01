@@ -253,7 +253,7 @@ async function getMembrosIdNome(req, res) {
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome')
+      .select('id, nome, status')
       .not('id', 'is', null)
       .order('nome', { ascending: true });
 
@@ -266,7 +266,8 @@ async function getMembrosIdNome(req, res) {
 
     const membros = (data || []).map(row => ({
       id: row.id,
-      nome: row.nome
+      nome: row.nome,
+      status: row.status || 'ativo' // Incluir status, assumir 'ativo' se não estiver definido
     }));
 
     return res.json({
@@ -507,6 +508,43 @@ async function getProdutosPorIds(produtoIds) {
   console.log(`📦 Total de produtos encontrados: ${produtos.length} de ${produtoIds.length}`);
   return produtos;
 }
+
+async function getProdutosPorClickupIds(clickupIds) {
+  // Buscar produtos pela coluna clickup_id (não id)
+  const produtos = [];
+  
+  for (const clickupId of clickupIds) {
+    try {
+      console.log(`🔍 Buscando produto por clickup_id: "${clickupId}" (tipo: ${typeof clickupId})`);
+      
+      const { data, error } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_produto')
+        .select('id, clickup_id, nome')
+        .eq('clickup_id', clickupId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error(`❌ Erro ao buscar produto por clickup_id "${clickupId}":`, error);
+      } else if (data) {
+        console.log(`✅ Produto encontrado: clickup_id="${data.clickup_id}", Nome="${data.nome}"`);
+        produtos.push({
+          clickup_id: data.clickup_id,
+          nome: data.nome,
+          id: data.id
+        });
+      } else {
+        console.log(`⚠️ Produto não encontrado para clickup_id: "${clickupId}"`);
+      }
+    } catch (err) {
+      // Continuar para próximo produto se der erro
+      console.error(`❌ Exceção ao buscar produto por clickup_id "${clickupId}":`, err);
+    }
+  }
+  
+  console.log(`📦 Total de produtos encontrados por clickup_id: ${produtos.length} de ${clickupIds.length}`);
+  return produtos;
+}
 //====================================
 
 //===================== FUNÇÕES REUTILIZÁVEIS - MEMBROS =====================
@@ -515,7 +553,7 @@ async function getAllMembros() {
   const { data, error } = await supabase
     .schema('up_gestaointeligente')
     .from('membro')
-    .select('id, nome')
+    .select('id, nome, status')
     .not('id', 'is', null)
     .order('nome', { ascending: true });
 
@@ -523,7 +561,12 @@ async function getAllMembros() {
     throw error;
   }
   
-  return data || [];
+  // Garantir que todos os membros tenham status (assumir 'ativo' se não estiver definido)
+  return (data || []).map(row => ({
+    id: row.id,
+    nome: row.nome,
+    status: row.status || 'ativo'
+  }));
 }
 
 async function getMembrosPorIds(membroIds) {
@@ -566,11 +609,14 @@ async function getMembrosPorIds(membroIds) {
         const { data, error } = await supabase
           .schema('up_gestaointeligente')
           .from('membro')
-          .select('id, nome')
+          .select('id, nome, status')
           .in('id', idsNumeros);
         
         if (!error && data && data.length > 0) {
-          membros = data;
+          membros = data.map(m => ({
+            ...m,
+            status: m.status || 'ativo'
+          }));
         }
       }
     }
@@ -581,7 +627,7 @@ async function getMembrosPorIds(membroIds) {
       const { data, error } = await supabase
         .schema('up_gestaointeligente')
         .from('membro')
-        .select('id, nome')
+        .select('id, nome, status')
         .in('id', idsStrings);
       
       if (!error && data) {
@@ -591,7 +637,10 @@ async function getMembrosPorIds(membroIds) {
         data.forEach(m => {
           const key = String(m.id).trim();
           if (!membrosMap.has(key)) {
-            membrosMap.set(key, m);
+            membrosMap.set(key, {
+              ...m,
+              status: m.status || 'ativo'
+            });
           }
         });
         membros = Array.from(membrosMap.values());
@@ -621,20 +670,29 @@ async function getMembrosPorIds(membroIds) {
             const { data, error } = await supabase
               .schema('up_gestaointeligente')
               .from('membro')
-              .select('id, nome')
+              .select('id, nome, status')
               .eq('id', idNum)
               .maybeSingle();
-            if (!error && data) return data;
+            if (!error && data) {
+              return {
+                ...data,
+                status: data.status || 'ativo'
+              };
+            }
           }
           
           // Tentar como string
           const { data, error } = await supabase
             .schema('up_gestaointeligente')
             .from('membro')
-            .select('id, nome')
+            .select('id, nome, status')
             .eq('id', idStr)
             .maybeSingle();
-          return error ? null : data;
+          if (error) return null;
+          return data ? {
+            ...data,
+            status: data.status || 'ativo'
+          } : null;
         });
         
         const resultados = await Promise.all(membrosPromises);
@@ -676,10 +734,19 @@ async function getMembrosPorIds(membroIds) {
       const idNum = parseInt(idStr, 10);
       
       // Tentar todos os formatos possíveis
-      return membrosMap[id] || 
-             membrosMap[idStr] || 
-             (isNaN(idNum) ? null : membrosMap[idNum]) ||
-             null;
+      const membro = membrosMap[id] || 
+                     membrosMap[idStr] || 
+                     (isNaN(idNum) ? null : membrosMap[idNum]) ||
+                     null;
+      
+      // Garantir que o membro tenha status
+      if (membro) {
+        return {
+          ...membro,
+          status: membro.status || 'ativo'
+        };
+      }
+      return null;
     })
     .filter(Boolean);
   
@@ -802,12 +869,16 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
           const { data, error } = await supabase
             .schema('up_gestaointeligente')
             .from('membro')
-            .select('id, nome')
+            .select('id, nome, status')
             .eq('id', idNum)
             .maybeSingle();
           
           if (!error && data) {
-            membros.push(data);
+            membros.push({
+              id: data.id,
+              nome: data.nome,
+              status: data.status || 'ativo'
+            });
             continue;
           }
         }
@@ -816,17 +887,22 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
         const { data, error } = await supabase
           .schema('up_gestaointeligente')
           .from('membro')
-          .select('id, nome')
+          .select('id, nome, status')
           .eq('id', String(usuarioId).trim())
           .maybeSingle();
         
         if (!error && data) {
-          membros.push(data);
+          membros.push({
+            id: data.id,
+            nome: data.nome,
+            status: data.status || 'ativo'
+          });
         } else {
           // Se não encontrou, adicionar com nome null (frontend vai tratar)
           membros.push({
             id: usuarioId,
-            nome: null
+            nome: null,
+            status: 'ativo' // Assumir ativo se não encontrou
           });
         }
       } catch (err) {
@@ -834,7 +910,8 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
         // Adicionar mesmo sem nome
         membros.push({
           id: usuarioId,
-          nome: null
+          nome: null,
+          status: 'ativo' // Assumir ativo se não encontrou
         });
       }
     }
@@ -1049,6 +1126,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getTarefasPorCliente,
     getProdutoPorId,
     getProdutosPorIds,
+    getProdutosPorClickupIds,
     getMembrosPorIds,
     getMembrosPorCliente,
     getClientesPorColaborador,

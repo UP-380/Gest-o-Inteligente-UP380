@@ -7,11 +7,13 @@ export const calculateResumo = (registrosDoCliente, contratosDoCliente) => {
   registrosDoCliente.forEach(registro => {
     const colaboradorId = registro.usuario_id || registro.membro?.id || 'desconhecido';
     const colaboradorNome = registro.membro?.nome || `Colaborador ${colaboradorId}`;
+    const colaboradorStatus = registro.membro?.status || 'ativo';
     const tempo = Number(registro.tempo_realizado) || 0;
     
     if (!tempoPorColaborador[colaboradorId]) {
       tempoPorColaborador[colaboradorId] = {
         nome: colaboradorNome,
+        status: colaboradorStatus,
         total: 0
       };
     }

@@ -23,12 +23,12 @@
 }
 
 .status-select-display:hover:not(.disabled) {
-  border-color: #007bff;
+  border-color: #0e3b6f;
 }
 
 .status-select-display.active {
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
 .status-select-display.disabled {
@@ -106,7 +106,7 @@
 
 .status-option.selected {
   background: #e7f3ff;
-  border-left: 3px solid #007bff;
+  border-left: 3px solid #0e3b6f;
   font-weight: 500;
 }
 
@@ -123,8 +123,8 @@
 }
 
 .status-option.selected .status-option-checkbox {
-  background: #007bff;
-  border-color: #007bff;
+  background: #0e3b6f;
+  border-color: #0e3b6f;
   color: white;
 }
 

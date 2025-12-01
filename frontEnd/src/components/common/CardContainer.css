@@ -1,0 +1,22 @@
+/* Card container genérico - apenas fundo, tamanho e posição */
+.card-container {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Quando usado dentro de main-content, não adiciona fundo/borda extra */
+.main-content .card-container {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .card-container {
+    padding: 0;
+  }
+}
+

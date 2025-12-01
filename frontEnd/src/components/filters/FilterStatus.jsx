@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import './FilterStatus.css';
 
+// Função para remover acentos e normalizar texto para busca
+const removerAcentos = (texto) => {
+  if (!texto) return '';
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+};
+
 const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -9,10 +18,13 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
 
   const selectedText = value ? (options.find(s => s === value) || 'Selecionar status') : 'Selecionar status';
 
-  // Filtrar opções baseado na busca
-  const filteredOptions = options.filter(status =>
-    status.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filtrar opções baseado na busca - sem considerar acentos
+  const filteredOptions = options.filter(status => {
+    if (!searchQuery.trim()) return true;
+    const queryNormalizado = removerAcentos(searchQuery.trim());
+    const statusNormalizado = removerAcentos(status || '');
+    return statusNormalizado.includes(queryNormalizado);
+  });
 
   // Ordenar: selecionados primeiro, depois os não selecionados
   const sortedOptions = useMemo(() => {
@@ -49,8 +61,10 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
     if (!disabled) {
       if (onChange) {
         // Simular evento para compatibilidade
+        // Se clicar no mesmo status selecionado, limpar (enviar null)
+        // Caso contrário, selecionar o novo status
         const fakeEvent = {
-          target: { value: status === value ? '' : status }
+          target: { value: status === value ? null : status }
         };
         onChange(fakeEvent);
       }
@@ -77,7 +91,7 @@ const FilterStatus = ({ value, options = [], onChange, disabled = false }) => {
 
   return (
     <>
-      <label className="filter-label">Status</label>
+      <label className="filter-label">Status contrato</label>
       <div className="status-filter-container" ref={containerRef}>
         <div className="status-select-field">
           <div 

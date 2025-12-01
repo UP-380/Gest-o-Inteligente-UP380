@@ -107,20 +107,28 @@ const MiniCardLista = ({ titulo, itens, onClose, position }) => {
         {itens.length === 0 ? (
           <div style={{ color: '#6b7280', fontSize: '13px' }}>Nenhum item encontrado</div>
         ) : (
-          itens.map((item, index) => (
-            <div
-              key={index}
-              style={{
-                padding: '8px',
-                background: '#f9fafb',
-                borderRadius: '6px',
-                fontSize: '13px',
-                color: '#111827',
-              }}
-            >
-              {index + 1}. {item}
-            </div>
-          ))
+          itens.map((item, index) => {
+            // Suportar tanto string quanto objeto { nome, status }
+            const nome = typeof item === 'string' ? item : item.nome;
+            const status = typeof item === 'string' ? 'ativo' : (item.status || 'ativo');
+            const isInativo = status === 'inativo';
+            const nomeColor = isInativo ? '#ef4444' : '#111827';
+            
+            return (
+              <div
+                key={index}
+                style={{
+                  padding: '8px',
+                  background: '#f9fafb',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  color: '#111827',
+                }}
+              >
+                {index + 1}. <span style={{ color: nomeColor }}>{nome}</span>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

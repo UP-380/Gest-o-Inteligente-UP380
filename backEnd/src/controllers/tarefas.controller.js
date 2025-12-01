@@ -3,6 +3,8 @@
 // =============================================================
 
 const supabase = require('../config/database');
+const apiClientes = require('../services/api-clientes');
+const { getProdutosPorIds, getProdutosPorClickupIds } = apiClientes;
 
 // ========================================
 // === GET /api/tarefas-incompletas ===
@@ -295,8 +297,65 @@ async function getTarefasPorIds(req, res) {
   }
 }
 
+// ========================================
+// === GET /api/produtos-por-ids ===
+// ========================================
+async function getProdutosPorIdsEndpoint(req, res) {
+  try {
+    const { ids } = req.query;
+    
+    if (!ids) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "ids" é obrigatório. Use: ?ids=id1,id2,id3'
+      });
+    }
+
+    // Converter string de IDs separados por vírgula em array e remover duplicatas
+    const clickupIds = [...new Set(
+      String(ids)
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0)
+    )];
+
+    if (clickupIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {},
+        count: 0
+      });
+    }
+
+    // Buscar produtos por clickup_id (não por id)
+    const produtos = await getProdutosPorClickupIds(clickupIds);
+
+    // Criar mapa de clickup_id -> nome
+    const produtosMap = {};
+    produtos.forEach(produto => {
+      if (produto && produto.clickup_id) {
+        produtosMap[String(produto.clickup_id).trim()] = produto.nome || null;
+      }
+    });
+
+    res.json({
+      success: true,
+      data: produtosMap,
+      count: Object.keys(produtosMap).length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar produtos por clickup_ids:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getTarefasIncompletas,
-  getTarefasPorIds
+  getTarefasPorIds,
+  getProdutosPorIdsEndpoint
 };
 
