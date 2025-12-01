@@ -101,14 +101,7 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false }) 
       const newSelectedIds = selectedIds.includes(normalizedId)
         ? selectedIds.filter(id => id !== normalizedId)
         : [...selectedIds, normalizedId];
-      
-      console.log('🔍 FilterColaborador - Seleção:', {
-        colaboradorId,
-        normalizedId,
-        selectedIdsAntes: selectedIds,
-        newSelectedIds,
-        totalSelecionados: newSelectedIds.length
-      });
+
       
       if (onChange) {
         const fakeEvent = {

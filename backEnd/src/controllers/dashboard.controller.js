@@ -155,11 +155,118 @@ async function getDashboardClientes(req, res) {
     let clienteIds = [];
 
     if (clienteIdsArray.length > 0) {
-      // Se tem clienteId(s) específico(s), usar apenas ele(s)
-      clienteIds = clienteIdsArray;
-      console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados: ${clienteIds.length} cliente(s) - [${clienteIds.join(', ')}]`);
-    } else if (status) {
-      // PRIORIDADE 1: Se tem status, buscar clientes pelos contratos com aquele status
+      // Se tem clienteId(s) específico(s), verificar se têm registros no período (se período foi fornecido)
+      if (dataInicio && dataFim) {
+        // Filtrar apenas os clientes selecionados que têm registros no período
+        const dateInicialObj = new Date(dataInicio);
+        const dateFinalObj = new Date(dataFim);
+        dateInicialObj.setUTCHours(0, 0, 0, 0);
+        dateFinalObj.setUTCHours(23, 59, 59, 999);
+        const inicioStr = dateInicialObj.toISOString();
+        const fimStr = dateFinalObj.toISOString();
+
+        let registrosQuery = supabase
+          .schema('up_gestaointeligente')
+          .from('v_registro_tempo_vinculado')
+          .select('cliente_id')
+          .not('cliente_id', 'is', null)
+          .not('data_inicio', 'is', null)
+          .gte('data_inicio', inicioStr)
+          .lte('data_inicio', fimStr);
+
+        // Filtro de colaborador(es) - usar array já processado
+        if (colaboradorIdsArray.length > 0) {
+          if (colaboradorIdsArray.length === 1) {
+            registrosQuery = registrosQuery.eq('usuario_id', colaboradorIdsArray[0]);
+          } else {
+            registrosQuery = registrosQuery.in('usuario_id', colaboradorIdsArray);
+          }
+        }
+
+        const { data: registros, error: registrosError } = await registrosQuery;
+        if (registrosError) {
+          console.error('Erro ao buscar registros:', registrosError);
+          return res.status(500).json({ success: false, error: 'Erro ao buscar registros de tempo' });
+        }
+
+        // Extrair todos os IDs de clientes dos registros
+        const todosClienteIdsDosRegistros = [];
+        (registros || []).forEach(r => {
+          if (r.cliente_id) {
+            const idsExtraidos = extrairClienteIds(r.cliente_id);
+            todosClienteIdsDosRegistros.push(...idsExtraidos);
+          }
+        });
+        let clienteIdsComRegistros = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
+        
+        // Se há filtro de status, também filtrar por status
+        if (status) {
+          const { data: contratos, error: contratosError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('contratos_clientes')
+            .select('id_cliente')
+            .eq('status', status)
+            .not('id_cliente', 'is', null);
+
+          if (contratosError) {
+            console.error('Erro ao buscar contratos:', contratosError);
+            return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
+          }
+
+          const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
+          
+          // Interseção: clientes que têm registros no período E têm contratos com o status
+          clienteIdsComRegistros = clienteIdsComRegistros.filter(clienteId => {
+            const clienteIdStr = String(clienteId).trim();
+            return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
+          });
+          
+          console.log(`✅ [DASHBOARD-CLIENTES] Clientes com status "${status}": ${clienteIdsComStatus.length} cliente(s)`);
+        }
+        
+        // Filtrar apenas os clientes selecionados que têm registros no período (e status, se aplicável)
+        clienteIds = clienteIdsArray.filter(clienteId => {
+          const clienteIdStr = String(clienteId).trim();
+          return clienteIdsComRegistros.some(id => String(id).trim() === clienteIdStr);
+        });
+        
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados: ${clienteIdsArray.length} cliente(s)`);
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes com registros no período${status ? ` e status "${status}"` : ''}: ${clienteIdsComRegistros.length} cliente(s)`);
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados COM registros: ${clienteIds.length} cliente(s) - [${clienteIds.join(', ')}]`);
+      } else {
+        // Se não há período, mas há status, filtrar por status
+        if (status) {
+          const { data: contratos, error: contratosError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('contratos_clientes')
+            .select('id_cliente')
+            .eq('status', status)
+            .not('id_cliente', 'is', null);
+
+          if (contratosError) {
+            console.error('Erro ao buscar contratos:', contratosError);
+            return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
+          }
+
+          const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
+          
+          // Filtrar apenas os clientes selecionados que têm o status
+          clienteIds = clienteIdsArray.filter(clienteId => {
+            const clienteIdStr = String(clienteId).trim();
+            return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
+          });
+          
+          console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados: ${clienteIdsArray.length} cliente(s)`);
+          console.log(`✅ [DASHBOARD-CLIENTES] Clientes com status "${status}": ${clienteIdsComStatus.length} cliente(s)`);
+          console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados COM status: ${clienteIds.length} cliente(s) - [${clienteIds.join(', ')}]`);
+        } else {
+          // Se não há período nem status, usar todos os clientes selecionados
+          clienteIds = clienteIdsArray;
+          console.log(`✅ [DASHBOARD-CLIENTES] Clientes selecionados (sem período nem status): ${clienteIds.length} cliente(s) - [${clienteIds.join(', ')}]`);
+        }
+      }
+    } else if (status && !dataInicio && !dataFim) {
+      // PRIORIDADE 1: Se tem status MAS NÃO tem período, buscar clientes pelos contratos com aquele status
       const { data: contratos, error: contratosError } = await supabase
         .schema('up_gestaointeligente')
         .from('contratos_clientes')
@@ -219,6 +326,34 @@ async function getDashboardClientes(req, res) {
       });
       clienteIds = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
       console.log(`✅ [DASHBOARD-CLIENTES] Filtro de período aplicado: ${clienteIds.length} clientes encontrados no período`);
+      
+      // Se há status, filtrar também por status (interseção: clientes com registros no período E com status)
+      if (status) {
+        const { data: contratos, error: contratosError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('contratos_clientes')
+          .select('id_cliente')
+          .eq('status', status)
+          .not('id_cliente', 'is', null);
+
+        if (contratosError) {
+          console.error('Erro ao buscar contratos:', contratosError);
+          return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
+        }
+
+        const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
+        
+        // Interseção: apenas clientes que têm registros no período E têm contratos com o status
+        const clientesAntes = clienteIds.length;
+        clienteIds = clienteIds.filter(clienteId => {
+          const clienteIdStr = String(clienteId).trim();
+          return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
+        });
+        
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes com registros no período: ${clientesAntes} cliente(s)`);
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes com status "${status}": ${clienteIdsComStatus.length} cliente(s)`);
+        console.log(`✅ [DASHBOARD-CLIENTES] Clientes com registros no período E status "${status}": ${clienteIds.length} cliente(s)`);
+      }
     }
 
     // Se não há clientes encontrados, mas há filtros de período e/ou colaborador,
