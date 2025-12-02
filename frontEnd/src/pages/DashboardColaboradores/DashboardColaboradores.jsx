@@ -37,6 +37,7 @@ const RelatoriosColaboradores = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
+  const [emptyMessage, setEmptyMessage] = useState(null);
 
   // Estado do card lateral
   const [detailCard, setDetailCard] = useState(null);
@@ -135,6 +136,28 @@ const RelatoriosColaboradores = () => {
       }
       
       const colaboradoresComResumos = result.data || [];
+      
+      // Armazenar mensagem se houver (para casos sem registros)
+      if (result.message) {
+        setColaboradores([]);
+        setAllRegistrosTempo([]);
+        setTotalColaboradores(0);
+        setEmptyMessage(result.message);
+        setLoading(false);
+        return;
+      } else {
+        setEmptyMessage(null);
+      }
+      
+      // Se não há colaboradores retornados, limpar tudo e retornar
+      if (colaboradoresComResumos.length === 0) {
+        setColaboradores([]);
+        setAllRegistrosTempo([]);
+        setTotalColaboradores(0);
+        setTotalPages(0);
+        setLoading(false);
+        return;
+      }
       
       // Usar os totais gerais retornados pelo backend
       if (result.totaisGerais) {
@@ -642,16 +665,32 @@ const RelatoriosColaboradores = () => {
             ) : (
               <div className="empty-state" style={{ 
                 display: 'flex', 
+                flexDirection: 'column',
                 alignItems: 'center', 
                 justifyContent: 'center', 
                 minHeight: '240px', 
                 color: '#555', 
-                fontSize: '20px', 
-                fontWeight: 600, 
+                fontSize: emptyMessage ? '16px' : '20px', 
+                fontWeight: emptyMessage ? 400 : 600, 
                 letterSpacing: '0.5px', 
-                textAlign: 'center' 
+                textAlign: 'center',
+                padding: '20px'
               }}>
-                POR FAVOR APLIQUE OS FILTROS
+                {emptyMessage ? (
+                  <div style={{ 
+                    backgroundColor: '#fef3c7', 
+                    border: '1px solid #fbbf24', 
+                    borderRadius: '8px', 
+                    padding: '16px 20px',
+                    maxWidth: '600px',
+                    color: '#92400e'
+                  }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
+                    {emptyMessage}
+                  </div>
+                ) : (
+                  'POR FAVOR APLIQUE OS FILTROS'
+                )}
               </div>
             )}
           </div>
