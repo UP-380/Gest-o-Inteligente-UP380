@@ -77,6 +77,7 @@ const RelatoriosClientes = () => {
   
   // Estado para rastrear se os filtros foram aplicados
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
+  const [emptyMessage, setEmptyMessage] = useState(null);
 
   // Estado do card lateral
   const [detailCard, setDetailCard] = useState(null);
@@ -209,6 +210,30 @@ const RelatoriosClientes = () => {
       
       const clientesComResumos = result.data || [];
       
+      // Armazenar mensagem se houver (para casos sem registros)
+      if (result.message) {
+        setClientes([]);
+        setAllRegistrosTempo([]);
+        setAllContratos([]);
+        setTotalClients(0);
+        setEmptyMessage(result.message);
+        setLoading(false);
+        return;
+      } else {
+        setEmptyMessage(null);
+      }
+      
+      // Se não há clientes retornados, limpar tudo
+      if (clientesComResumos.length === 0) {
+        setClientes([]);
+        setAllRegistrosTempo([]);
+        setAllContratos([]);
+        setTotalClients(0);
+        setEmptyMessage(null);
+        setLoading(false);
+        return;
+      }
+      
       // Usar os totais gerais retornados pelo backend (de TODAS as páginas)
       if (result.totaisGerais) {
         const { todosRegistros, todosContratos } = result.totaisGerais;
@@ -272,6 +297,7 @@ const RelatoriosClientes = () => {
           });
         }
         
+        // Sempre atualizar, mesmo que vazio (para limpar dados antigos)
         setAllRegistrosTempo(registrosFiltrados);
         setAllContratos(todosContratos || []);
       } else {
@@ -315,8 +341,17 @@ const RelatoriosClientes = () => {
           });
         }
         
-        setAllRegistrosTempo(registrosArray);
-        setAllContratos(Array.from(contratosMap.values()));
+        // Só atualizar se houver dados, senão limpar
+        const contratosArray = Array.from(contratosMap.values());
+        
+        if (registrosArray.length > 0 || contratosArray.length > 0) {
+          setAllRegistrosTempo(registrosArray);
+          setAllContratos(contratosArray);
+        } else {
+          // Se não há registros nem contratos, limpar tudo
+          setAllRegistrosTempo([]);
+          setAllContratos([]);
+        }
       }
       
       // Armazenar dados no cache para os cards laterais
@@ -393,6 +428,12 @@ const RelatoriosClientes = () => {
 
   // Aplicar filtros - só executa quando o botão for clicado
   const aplicarFiltros = useCallback(() => {
+    // Limpar dados anteriores antes de aplicar novos filtros
+    setClientes([]);
+    setAllRegistrosTempo([]);
+    setAllContratos([]);
+    setEmptyMessage(null);
+    
     // Validar período (obrigatório)
     if (!filtroDataInicio || !filtroDataFim) {
       alert('Selecione o período TimeTrack');
@@ -452,6 +493,7 @@ const RelatoriosClientes = () => {
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
+    setEmptyMessage(null);
     // Limpar todos os filtros
     setFiltroStatus(null);
     setFiltroCliente(null);
@@ -1358,16 +1400,32 @@ const RelatoriosClientes = () => {
               ) : (
                 <div className="empty-state" style={{ 
                   display: 'flex', 
+                  flexDirection: 'column',
                   alignItems: 'center', 
                   justifyContent: 'center', 
                   minHeight: '240px', 
                   color: '#555', 
-                  fontSize: '20px', 
-                  fontWeight: 600, 
+                  fontSize: emptyMessage ? '16px' : '20px', 
+                  fontWeight: emptyMessage ? 400 : 600, 
                   letterSpacing: '0.5px', 
-                  textAlign: 'center' 
+                  textAlign: 'center',
+                  padding: '20px'
                 }}>
-                  POR FAVOR APLIQUE OS FILTROS
+                  {emptyMessage ? (
+                    <div style={{ 
+                      backgroundColor: '#fef3c7', 
+                      border: '1px solid #fbbf24', 
+                      borderRadius: '8px', 
+                      padding: '16px 20px',
+                      maxWidth: '600px',
+                      color: '#92400e'
+                    }}>
+                      <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
+                      {emptyMessage}
+                    </div>
+                  ) : (
+                    'POR FAVOR APLIQUE OS FILTROS'
+                  )}
                 </div>
               )}
             </div>

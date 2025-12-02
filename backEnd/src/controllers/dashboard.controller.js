@@ -401,6 +401,29 @@ async function getDashboardClientes(req, res) {
         return res.status(500).json({ success: false, error: 'Erro ao buscar clientes' });
       }
       clientes = clientesData || [];
+      
+      // Se não encontrou nenhum cliente, retornar vazio
+      if (clientes.length === 0) {
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          total: 0,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: 0,
+          message: 'Nenhum cliente encontrado com os filtros selecionados.',
+          totaisGerais: {
+            totalTarefas: 0,
+            totalRegistros: 0,
+            totalColaboradores: 0,
+            totalClientes: 0,
+            totalTempo: 0,
+            todosRegistros: [],
+            todosContratos: []
+          }
+        });
+      }
     }
 
     // 4. Buscar todos os dados em paralelo
@@ -560,21 +583,25 @@ async function getDashboardClientes(req, res) {
       ...registrosParaBuscarTarefasEMembros.map(r => r.usuario_id).filter(Boolean)
     ])];
 
-    const [tarefasData, membrosData] = await Promise.all([
-      todosTarefaIds.length > 0 ? (async () => {
-        const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
-        const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
-        const { data: tarefas } = await supabase
-          .schema('up_gestaointeligente')
-          .from('tarefa')
-          .select('*')
-          .or(orConditions);
-        return tarefas || [];
-      })() : Promise.resolve([]),
-      todosUsuarioIds.length > 0 ? getMembrosPorIds(todosUsuarioIds) : Promise.resolve([])
-    ]);
+    // Buscar membros primeiro para poder usar na validação de interseção
+    const membrosData = colaboradorIdsArray.length > 0 
+      ? await getMembrosPorIds(colaboradorIdsArray)
+      : (todosUsuarioIds.length > 0 ? await getMembrosPorIds(todosUsuarioIds) : []);
+    
+    const tarefasData = todosTarefaIds.length > 0 ? (async () => {
+      const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
+      const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
+      const { data: tarefas } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tarefa')
+        .select('*')
+        .or(orConditions);
+      return tarefas || [];
+    })() : Promise.resolve([]);
+    
+    const tarefasDataResolved = await tarefasData;
 
-    const todosProdutoIds = [...new Set(tarefasData.map(t => t.produto_id).filter(Boolean))];
+    const todosProdutoIds = [...new Set(tarefasDataResolved.map(t => t.produto_id).filter(Boolean))];
     const produtosData = todosProdutoIds.length > 0 ? await getProdutosPorIds(todosProdutoIds) : [];
 
     const produtosMapGlobal = {};
@@ -583,7 +610,7 @@ async function getDashboardClientes(req, res) {
     });
 
     const tarefasMapGlobal = {};
-    tarefasData.forEach(tarefa => {
+    tarefasDataResolved.forEach(tarefa => {
       const tarefaComProduto = { ...tarefa };
       if (tarefa.produto_id) {
         const produtoId = String(tarefa.produto_id).trim();
@@ -609,10 +636,59 @@ async function getDashboardClientes(req, res) {
       ? registrosPaginaRaw
       : todosRegistrosRaw;
     
+    // Validar interseção entre colaborador e cliente quando ambos estão filtrados
+    if (colaboradorIdsArray.length > 0 && clienteIds.length > 0) {
+      const colaboradorIdsNumericos = colaboradorIdsArray.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
+      const registrosComInterseccao = registrosParaFiltrarPorCliente.filter(r => {
+        const pertenceAoCliente = registroPertenceAosClientes(r, clienteIds);
+        const pertenceAoColaborador = r.usuario_id && colaboradorIdsNumericos.includes(parseInt(String(r.usuario_id).trim(), 10));
+        return pertenceAoCliente && pertenceAoColaborador;
+      });
+      
+      if (registrosComInterseccao.length === 0) {
+        const clienteNomes = clientes.map(c => c.nome || c.id).join(', ');
+        const colaboradorNomes = membrosData.length > 0 
+          ? colaboradorIdsArray.map(id => {
+              const membro = membrosData.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+              return membro ? membro.nome : `Colaborador ${id}`;
+            }).join(', ')
+          : colaboradorIdsArray.join(', ');
+        
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          total: 0,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: 0,
+          message: `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`,
+          totaisGerais: {
+            totalTarefas: 0,
+            totalRegistros: 0,
+            totalColaboradores: 0,
+            totalClientes: 0,
+            totalTempo: 0,
+            todosRegistros: [],
+            todosContratos: []
+          }
+        });
+      }
+    }
+    
     const clientesComResumos = (clientes || []).map(cliente => {
       const clienteIdStr = String(cliente.id).trim();
       const contratos = contratosPagina.filter(c => String(c.id_cliente).trim() === clienteIdStr);
-      const registrosTempo = registrosParaFiltrarPorCliente.filter(r => registroPertenceAosClientes(r, [clienteIdStr]));
+      const registrosTempo = registrosParaFiltrarPorCliente.filter(r => {
+        const pertenceAoCliente = registroPertenceAosClientes(r, [clienteIdStr]);
+        // Se há filtro de colaborador, também verificar se o registro pertence ao colaborador
+        if (colaboradorIdsArray.length > 0 && r.usuario_id) {
+          const colaboradorIdsNumericos = colaboradorIdsArray.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
+          const pertenceAoColaborador = colaboradorIdsNumericos.includes(parseInt(String(r.usuario_id).trim(), 10));
+          return pertenceAoCliente && pertenceAoColaborador;
+        }
+        return pertenceAoCliente;
+      });
 
       const registrosCompletos = registrosTempo.map(registro => {
         const registroRetorno = { ...registro };
@@ -1005,6 +1081,37 @@ async function getDashboardColaboradores(req, res) {
         const idsExtraidos = extrairClienteIds(r.cliente_id);
         return idsExtraidos.some(id => clienteIdsArray.includes(id));
       });
+      
+      // Validar interseção: se há filtro de colaborador E cliente, verificar se há registros
+      if (colaboradorIdsArray.length > 0 && todosRegistros.length === 0) {
+        const colaboradorNomes = await (async () => {
+          const membros = await getMembrosPorIds(colaboradorIdsArray);
+          return colaboradorIdsArray.map(id => {
+            const membro = membros.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+            return membro ? membro.nome : `Colaborador ${id}`;
+          }).join(', ');
+        })();
+        
+        const clienteNomes = await (async () => {
+          const { data: clientes } = await supabase
+            .schema('up_gestaointeligente')
+            .from('cp_cliente')
+            .select('id, nome')
+            .in('id', clienteIdsArray);
+          return (clientes || []).map(c => c.nome || c.id).join(', ');
+        })();
+        
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          total: 0,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: 0,
+          message: `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`
+        });
+      }
     }
 
     // Buscar tarefas, produtos, clientes e membros
