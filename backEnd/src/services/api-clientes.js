@@ -192,6 +192,70 @@ async function getContratosByStatusAndCliente(status, idCliente) {
   }
   return data || [];
 }
+
+// Buscar contratos por ID do cliente
+async function getContratosByClienteId(idCliente) {
+  try {
+    // Normalizar o ID (pode vir como string ou número)
+    const idNormalizado = String(idCliente).trim();
+    
+    console.log('🔍 [GET-CONTRATOS-CLIENTE-ID] Buscando contratos para id_cliente:', idNormalizado);
+    
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('contratos_clientes')
+      .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
+      .eq('id_cliente', idNormalizado);
+
+    if (error) {
+      console.error('❌ Erro ao buscar contratos por ID do cliente:', error);
+      throw error;
+    }
+
+    console.log(`✅ [GET-CONTRATOS-CLIENTE-ID] Encontrados ${(data || []).length} contratos`);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro em getContratosByClienteId:', error);
+    return [];
+  }
+}
+
+// Buscar contratos por nome do cliente no ClickUp
+async function getContratosByClickupNome(nomeClienteClickup) {
+  try {
+    const nomeNormalizado = String(nomeClienteClickup).trim();
+    console.log('🔍 [GET-CONTRATOS-CLICKUP] Buscando cliente por nome:', nomeNormalizado);
+    
+    // Primeiro, buscar o cliente pelo nome no ClickUp
+    const { data: clienteData, error: clienteError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('id')
+      .eq('nome', nomeNormalizado)
+      .maybeSingle();
+
+    if (clienteError) {
+      console.error('❌ [GET-CONTRATOS-CLICKUP] Erro ao buscar cliente por nome:', clienteError);
+      return [];
+    }
+
+    if (!clienteData || !clienteData.id) {
+      console.log(`⚠️ [GET-CONTRATOS-CLICKUP] Cliente não encontrado com nome: ${nomeNormalizado}`);
+      return [];
+    }
+
+    console.log(`✅ [GET-CONTRATOS-CLICKUP] Cliente encontrado com ID: ${clienteData.id}`);
+
+    // Buscar contratos usando o id_cliente
+    const contratos = await getContratosByClienteId(clienteData.id);
+    console.log(`✅ [GET-CONTRATOS-CLICKUP] Retornando ${contratos.length} contratos`);
+    
+    return contratos;
+  } catch (error) {
+    console.error('❌ [GET-CONTRATOS-CLICKUP] Erro em getContratosByClickupNome:', error);
+    return [];
+  }
+}
 //====================================
 
 //===================== FUNÇÕES REUTILIZÁVEIS - TAREFAS =====================
@@ -344,6 +408,64 @@ async function getContratosEndpoint(req, res) {
       details: error.details,
       hint: error.hint
     });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao buscar contratos',
+      details: error.message || 'Erro desconhecido'
+    });
+  }
+}
+
+// GET /api/contratos-cliente/:nomeClienteClickup
+async function getContratosClienteEndpoint(req, res) {
+  try {
+    const { nomeClienteClickup } = req.params;
+    
+    if (!nomeClienteClickup) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nome do cliente é obrigatório'
+      });
+    }
+
+    console.log('🔍 [CONTRATOS-CLIENTE] Buscando contratos para cliente:', nomeClienteClickup);
+
+    const contratos = await getContratosByClickupNome(nomeClienteClickup);
+
+    console.log('✅ [CONTRATOS-CLIENTE] Contratos encontrados:', contratos.length);
+
+    res.json({ success: true, data: contratos, count: contratos.length });
+  } catch (error) {
+    console.error('❌ [CONTRATOS-CLIENTE] Erro ao buscar contratos:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro ao buscar contratos',
+      details: error.message || 'Erro desconhecido'
+    });
+  }
+}
+
+// GET /api/contratos-cliente-id/:idCliente
+async function getContratosClienteIdEndpoint(req, res) {
+  try {
+    const { idCliente } = req.params;
+    
+    if (!idCliente) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
+      });
+    }
+
+    console.log('🔍 [CONTRATOS-CLIENTE-ID] Buscando contratos para cliente ID:', idCliente);
+
+    const contratos = await getContratosByClienteId(idCliente);
+
+    console.log('✅ [CONTRATOS-CLIENTE-ID] Contratos encontrados:', contratos.length);
+
+    res.json({ success: true, data: contratos, count: contratos.length });
+  } catch (error) {
+    console.error('❌ [CONTRATOS-CLIENTE-ID] Erro ao buscar contratos:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Erro ao buscar contratos',
@@ -1099,6 +1221,8 @@ function registrarRotasAPI(app, requireAuth = null) {
   app.get('/api/clientes', requireAuth ? requireAuth : (_req,_res,next)=>next(), getClientesEndpoint);
   app.get('/api/status', requireAuth ? requireAuth : (_req,_res,next)=>next(), getStatusEndpoint);
   app.get('/api/contratos', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosEndpoint);
+  app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteEndpoint);
+  app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteIdEndpoint);
   app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req,_res,next)=>next(), getTarefasEndpoint);
   app.get('/api/registro-tempo', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempo);
   
@@ -1123,6 +1247,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getAllDistinctStatus,
     getDistinctStatusByCliente,
     getContratosByStatusAndCliente,
+    getContratosByClienteId,
+    getContratosByClickupNome,
     getTarefasPorCliente,
     getProdutoPorId,
     getProdutosPorIds,
@@ -1134,6 +1260,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getClientesEndpoint,
     getStatusEndpoint,
     getContratosEndpoint,
+    getContratosClienteEndpoint,
+    getContratosClienteIdEndpoint,
     getTarefasEndpoint,
     getRegistrosTempo,
     getcp_clientesIdNome,

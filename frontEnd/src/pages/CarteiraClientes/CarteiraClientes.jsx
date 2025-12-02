@@ -325,6 +325,9 @@ const GestaoClientes = () => {
   const [currentClientId, setCurrentClientId] = useState(null);
   const [currentClientName, setCurrentClientName] = useState('');
 
+  // Estado para armazenar quais clientes têm contratos não inativos
+  const [clientesComContratosAtivos, setClientesComContratosAtivos] = useState(new Set());
+
   // Refs para dados externos
   const allClientesKaminoRef = useRef([]);
   const clientesKaminoMapRef = useRef(new Map());
@@ -382,6 +385,59 @@ const GestaoClientes = () => {
       }
     }
   }, []);
+
+  // Verificar quais clientes têm contratos não inativos
+  const verificarContratosAtivos = useCallback(async (clientesList) => {
+    if (!showIncompleteClients || !clientesList || clientesList.length === 0) {
+      setClientesComContratosAtivos(new Set());
+      return;
+    }
+
+    try {
+      console.log('🔍 Verificando contratos ativos para', clientesList.length, 'clientes');
+      const clientesComContratos = new Set();
+      
+      // Verificar contratos de cada cliente em paralelo
+      const promises = clientesList.map(async (cliente) => {
+        try {
+          const url = `${API_BASE_URL}/contratos-cliente-id/${encodeURIComponent(String(cliente.id).trim())}`;
+          const response = await fetch(url, { credentials: 'include' });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result && result.success && Array.isArray(result.data) && result.data.length > 0) {
+              // Verificar se há pelo menos um contrato com status diferente de "inativo"
+              const temContratoAtivo = result.data.some(contrato => {
+                const status = String(contrato.status || '').toLowerCase().trim();
+                return status !== 'inativo' && status !== '';
+              });
+              
+              if (temContratoAtivo) {
+                return String(cliente.id);
+              }
+            }
+          }
+          return null;
+        } catch (error) {
+          console.error(`❌ Erro ao verificar contratos do cliente ${cliente.id}:`, error);
+          return null;
+        }
+      });
+      
+      const resultados = await Promise.all(promises);
+      resultados.forEach(id => {
+        if (id) {
+          clientesComContratos.add(id);
+        }
+      });
+      
+      console.log('✅ Clientes com contratos ativos:', Array.from(clientesComContratos));
+      setClientesComContratosAtivos(clientesComContratos);
+    } catch (error) {
+      console.error('❌ Erro ao verificar contratos ativos:', error);
+      setClientesComContratosAtivos(new Set());
+    }
+  }, [showIncompleteClients]);
 
   // Carregar clientes
   const loadClients = useCallback(async () => {
@@ -448,6 +504,11 @@ const GestaoClientes = () => {
       setClientes(processedClients);
       setTotalClients(data.total || 0);
       setTotalPages(data.totalPages || 1);
+      
+      // Se estiver mostrando pendentes, verificar contratos ativos
+      if (showIncompleteClients) {
+        verificarContratosAtivos(processedClients);
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
         return;
@@ -461,7 +522,7 @@ const GestaoClientes = () => {
       setLoading(false);
       currentRequestControllerRef.current = null;
     }
-  }, [currentPage, itemsPerPage, searchTerm, currentStatusFilter, showIncompleteClients]);
+  }, [currentPage, itemsPerPage, searchTerm, currentStatusFilter, showIncompleteClients, verificarContratosAtivos]);
 
   // Carregar opções de CNPJ para um cliente
   const loadCnpjOptions = useCallback(async (clientId, clickupName) => {
@@ -469,21 +530,45 @@ const GestaoClientes = () => {
       let url;
       if (clickupName && clickupName.trim() !== '') {
         url = `${API_BASE_URL}/contratos-cliente/${encodeURIComponent(String(clickupName).trim())}`;
+        console.log('🔍 [LOAD-CNPJ] Buscando contratos por nome ClickUp:', clickupName);
       } else {
         url = `${API_BASE_URL}/contratos-cliente-id/${encodeURIComponent(String(clientId).trim())}`;
+        console.log('🔍 [LOAD-CNPJ] Buscando contratos por ID do cliente:', clientId);
       }
       
+      console.log('🔍 [LOAD-CNPJ] URL:', url);
+      
       const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) return [];
+      
+      if (!response.ok) {
+        console.error('❌ [LOAD-CNPJ] Erro na resposta:', response.status, response.statusText);
+        const errorText = await response.text().catch(() => '');
+        console.error('❌ [LOAD-CNPJ] Detalhes do erro:', errorText);
+        return [];
+      }
       
       const result = await response.json();
-      const valores = (result && result.success && Array.isArray(result.data))
-        ? Array.from(new Set(result.data.map(c => c.cpf_cnpj).filter(v => v && v !== 'N/A')))
-        : [];
+      console.log('✅ [LOAD-CNPJ] Resposta da API:', result);
+      
+      if (!result || !result.success) {
+        console.warn('⚠️ [LOAD-CNPJ] Resposta não tem success=true:', result);
+        return [];
+      }
+      
+      if (!Array.isArray(result.data)) {
+        console.warn('⚠️ [LOAD-CNPJ] result.data não é um array:', result.data);
+        return [];
+      }
+      
+      console.log('📋 [LOAD-CNPJ] Contratos encontrados:', result.data.length);
+      
+      const valores = Array.from(new Set(result.data.map(c => c.cpf_cnpj).filter(v => v && v !== 'N/A' && v && v.trim() !== '')));
+      
+      console.log('✅ [LOAD-CNPJ] CNPJs únicos extraídos:', valores.length, valores);
       
       return valores;
     } catch (error) {
-      console.error('Erro ao carregar opções de CNPJ:', error);
+      console.error('❌ [LOAD-CNPJ] Erro ao carregar opções de CNPJ:', error);
       return [];
     }
   }, []);
@@ -746,6 +831,13 @@ const GestaoClientes = () => {
     }, 500);
   }, []);
 
+  // Limpar estado de contratos ativos quando sair da visualização de pendentes
+  useEffect(() => {
+    if (!showIncompleteClients) {
+      setClientesComContratosAtivos(new Set());
+    }
+  }, [showIncompleteClients]);
+
   // Efeitos
   useEffect(() => {
     loadClientesKamino();
@@ -858,10 +950,23 @@ const GestaoClientes = () => {
                   const statusClass = isAtivo ? 'status-ativo' : 'status-inativo';
                   const isExpanded = expandedClientId === client.id;
                   const editData = editingData[client.id] || {};
+                  
+                  // Verificar se o cliente tem contratos não inativos (apenas quando mostrar pendentes)
+                  const temContratosAtivos = showIncompleteClients && clientesComContratosAtivos.has(String(client.id));
+                  const highlightClass = temContratosAtivos ? 'has-active-contracts' : '';
 
                   return (
                     <React.Fragment key={client.id}>
-                      <div className={`client-list-item ${statusClass}`} data-client-id={client.id} data-client-status={client.status}>
+                      <div 
+                        className={`client-list-item ${statusClass} ${highlightClass}`} 
+                        data-client-id={client.id} 
+                        data-client-status={client.status}
+                        style={temContratosAtivos ? {
+                          border: '2px solid #10b981',
+                          borderRadius: '8px',
+                          boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.1)'
+                        } : {}}
+                      >
                         <div className="client-header">
                           <p className="client-name">{client.nome}</p>
                           <div className="client-actions">
