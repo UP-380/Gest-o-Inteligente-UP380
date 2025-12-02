@@ -421,6 +421,9 @@ const RelatoriosClientes = () => {
     } catch (error) {
       console.error('Erro ao carregar clientes paginados:', error);
       setClientes([]);
+      setAllRegistrosTempo([]);
+      setAllContratos([]);
+      setEmptyMessage(null);
     } finally {
       setLoading(false);
     }
