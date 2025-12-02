@@ -370,6 +370,59 @@ async function getDashboardClientes(req, res) {
         page: pageNum,
         limit: limitNum,
         totalPages: 0,
+        message: 'Nenhum cliente encontrado com os filtros selecionados.',
+        totaisGerais: {
+          totalTarefas: 0,
+          totalRegistros: 0,
+          totalColaboradores: 0,
+          totalClientes: 0,
+          totalTempo: 0,
+          todosRegistros: [],
+          todosContratos: []
+        }
+      });
+    }
+    
+    // Se há filtros de colaborador e cliente, mas não há clientes identificados, construir mensagem específica
+    if (clienteIds.length === 0 && colaboradorIdsArray.length > 0 && clienteIdsArray.length > 0) {
+      // Buscar nomes dos colaboradores
+      let colaboradorNomes = '';
+      try {
+        const membrosFiltro = await getMembrosPorIds(colaboradorIdsArray);
+        colaboradorNomes = colaboradorIdsArray.map(id => {
+          const membro = membrosFiltro.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+          return membro ? membro.nome : `Colaborador ${id}`;
+        }).join(', ');
+      } catch (error) {
+        colaboradorNomes = colaboradorIdsArray.join(', ');
+      }
+      
+      // Buscar nomes dos clientes
+      let clienteNomes = '';
+      try {
+        const { data: clientesFiltro } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id, nome')
+          .in('id', clienteIdsArray);
+        clienteNomes = (clientesFiltro || []).map(c => c.nome || c.id).join(', ');
+      } catch (error) {
+        clienteNomes = clienteIdsArray.join(', ');
+      }
+      
+      const mensagem = clienteNomes && colaboradorNomes
+        ? `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`
+        : 'Nenhum cliente encontrado com os filtros selecionados.';
+      
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: 0,
+        message: mensagem,
         totaisGerais: {
           totalTarefas: 0,
           totalRegistros: 0,
@@ -389,6 +442,59 @@ async function getDashboardClientes(req, res) {
 
     // 3. Buscar dados dos clientes da página atual (apenas se houver clientes)
     let clientes = [];
+    
+    // Se não há clientes para a página atual, mas há filtros de colaborador e cliente, retornar mensagem
+    if (clienteIdsPaginated.length === 0 && clienteIds.length === 0 && colaboradorIdsArray.length > 0 && clienteIdsArray.length > 0) {
+      // Buscar nomes dos colaboradores
+      let colaboradorNomes = '';
+      try {
+        const membrosFiltro = await getMembrosPorIds(colaboradorIdsArray);
+        colaboradorNomes = colaboradorIdsArray.map(id => {
+          const membro = membrosFiltro.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+          return membro ? membro.nome : `Colaborador ${id}`;
+        }).join(', ');
+      } catch (error) {
+        colaboradorNomes = colaboradorIdsArray.join(', ');
+      }
+      
+      // Buscar nomes dos clientes
+      let clienteNomes = '';
+      try {
+        const { data: clientesFiltro } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id, nome')
+          .in('id', clienteIdsArray);
+        clienteNomes = (clientesFiltro || []).map(c => c.nome || c.id).join(', ');
+      } catch (error) {
+        clienteNomes = clienteIdsArray.join(', ');
+      }
+      
+      const mensagem = clienteNomes && colaboradorNomes
+        ? `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`
+        : 'Nenhum cliente encontrado com os filtros selecionados.';
+      
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: 0,
+        message: mensagem,
+        totaisGerais: {
+          totalTarefas: 0,
+          totalRegistros: 0,
+          totalColaboradores: 0,
+          totalClientes: 0,
+          totalTempo: 0,
+          todosRegistros: [],
+          todosContratos: []
+        }
+      });
+    }
+    
     if (clienteIdsPaginated.length > 0) {
       const { data: clientesData, error: clientesError } = await supabase
         .schema('up_gestaointeligente')
@@ -402,8 +508,51 @@ async function getDashboardClientes(req, res) {
       }
       clientes = clientesData || [];
       
-      // Se não encontrou nenhum cliente, retornar vazio
+      // Se não encontrou nenhum cliente, construir mensagem específica
       if (clientes.length === 0) {
+        let mensagem = 'Nenhum cliente encontrado com os filtros selecionados.';
+        
+        // Se há filtros de colaborador e/ou cliente, construir mensagem mais específica
+        if (colaboradorIdsArray.length > 0 || clienteIds.length > 0) {
+          // Buscar nomes dos colaboradores se houver filtro
+          let colaboradorNomes = '';
+          if (colaboradorIdsArray.length > 0) {
+            try {
+              const membrosFiltro = await getMembrosPorIds(colaboradorIdsArray);
+              colaboradorNomes = colaboradorIdsArray.map(id => {
+                const membro = membrosFiltro.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+                return membro ? membro.nome : `Colaborador ${id}`;
+              }).join(', ');
+            } catch (error) {
+              colaboradorNomes = colaboradorIdsArray.join(', ');
+            }
+          }
+          
+          // Buscar nomes dos clientes se houver filtro
+          let clienteNomes = '';
+          if (clienteIds.length > 0) {
+            try {
+              const { data: clientesFiltro } = await supabase
+                .schema('up_gestaointeligente')
+                .from('cp_cliente')
+                .select('id, nome')
+                .in('id', clienteIds);
+              clienteNomes = (clientesFiltro || []).map(c => c.nome || c.id).join(', ');
+            } catch (error) {
+              clienteNomes = clienteIds.join(', ');
+            }
+          }
+          
+          // Construir mensagem específica
+          if (colaboradorNomes && clienteNomes) {
+            mensagem = `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`;
+          } else if (colaboradorNomes) {
+            mensagem = `Sem registros para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`;
+          } else if (clienteNomes) {
+            mensagem = `Sem registros do(s) cliente(s) "${clienteNomes}" no período selecionado.`;
+          }
+        }
+        
         return res.json({
           success: true,
           data: [],
@@ -412,7 +561,7 @@ async function getDashboardClientes(req, res) {
           page: pageNum,
           limit: limitNum,
           totalPages: 0,
-          message: 'Nenhum cliente encontrado com os filtros selecionados.',
+          message: mensagem,
           totaisGerais: {
             totalTarefas: 0,
             totalRegistros: 0,

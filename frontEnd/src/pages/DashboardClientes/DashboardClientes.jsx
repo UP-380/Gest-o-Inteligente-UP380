@@ -9,6 +9,7 @@ import DashboardCards from '../../components/dashboard/DashboardCards';
 import { ClientCard } from '../../components/clients';
 import DetailSideCard from '../../components/clients/DetailSideCard';
 import MiniCardLista from '../../components/dashboard/MiniCardLista';
+import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
 import { statusAPI, clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI } from '../../services/api';
 import './DashboardClientes.css';
 
@@ -211,28 +212,30 @@ const RelatoriosClientes = () => {
       const clientesComResumos = result.data || [];
       
       // Armazenar mensagem se houver (para casos sem registros)
+      // Não usar a mensagem específica do backend, usar mensagem padrão
       if (result.message) {
         setClientes([]);
         setAllRegistrosTempo([]);
         setAllContratos([]);
         setTotalClients(0);
-        setEmptyMessage(result.message);
+        setEmptyMessage(null); // Usar mensagem padrão do componente
         setLoading(false);
         return;
-      } else {
-        setEmptyMessage(null);
       }
       
-      // Se não há clientes retornados, limpar tudo
+      // Se não há clientes retornados, usar mensagem padrão
       if (clientesComResumos.length === 0) {
         setClientes([]);
         setAllRegistrosTempo([]);
         setAllContratos([]);
         setTotalClients(0);
-        setEmptyMessage(null);
+        setEmptyMessage(null); // Usar mensagem padrão do componente
         setLoading(false);
         return;
       }
+      
+      // Se chegou aqui, há clientes, então limpar mensagem
+      setEmptyMessage(null);
       
       // Usar os totais gerais retornados pelo backend (de TODAS as páginas)
       if (result.totaisGerais) {
@@ -1401,35 +1404,10 @@ const RelatoriosClientes = () => {
                   ))}
                 </div>
               ) : (
-                <div className="empty-state" style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  minHeight: '240px', 
-                  color: '#555', 
-                  fontSize: emptyMessage ? '16px' : '20px', 
-                  fontWeight: emptyMessage ? 400 : 600, 
-                  letterSpacing: '0.5px', 
-                  textAlign: 'center',
-                  padding: '20px'
-                }}>
-                  {emptyMessage ? (
-                    <div style={{ 
-                      backgroundColor: '#fef3c7', 
-                      border: '1px solid #fbbf24', 
-                      borderRadius: '8px', 
-                      padding: '16px 20px',
-                      maxWidth: '600px',
-                      color: '#92400e'
-                    }}>
-                      <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
-                      {emptyMessage}
-                    </div>
-                  ) : (
-                    'POR FAVOR APLIQUE OS FILTROS'
-                  )}
-                </div>
+                <SemResultadosFiltros 
+                  mensagem={emptyMessage} 
+                  filtrosAplicados={filtrosAplicados}
+                />
               )}
             </div>
           

@@ -1,0 +1,39 @@
+.sem-resultados-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  padding: 60px 20px;
+}
+
+.sem-resultados-mensagem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6c757d;
+  font-size: 16px;
+  font-weight: 400;
+  text-align: center;
+  max-width: 600px;
+}
+
+.sem-resultados-mensagem i {
+  font-size: 20px;
+  color: #6c757d;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.sem-resultados-mensagem span {
+  line-height: 1.5;
+}
+
+.sem-resultados-padrao {
+  color: #6c757d;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
