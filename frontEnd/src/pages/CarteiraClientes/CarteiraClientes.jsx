@@ -629,11 +629,19 @@ const GestaoClientes = () => {
       if (!resp.ok) {
         let msg = 'Erro ao salvar';
         try {
-          const data = await resp.json();
-          msg = data && (data.error || data.message || msg);
-        } catch (_) {
-          const txt = await resp.text();
-          msg = txt || msg;
+          // Clonar a resposta antes de ler o body para evitar erro "body stream already read"
+          const clonedResponse = resp.clone();
+          const data = await clonedResponse.json().catch(() => null);
+          if (data) {
+            msg = data.error || data.message || msg;
+          } else {
+            // Se não conseguir parsear JSON, tentar texto
+            const txt = await resp.text().catch(() => 'Erro desconhecido');
+            msg = txt || msg;
+          }
+        } catch (error) {
+          console.error('Erro ao processar resposta:', error);
+          msg = `Erro HTTP ${resp.status}: ${resp.statusText}`;
         }
         alert(msg);
         return;

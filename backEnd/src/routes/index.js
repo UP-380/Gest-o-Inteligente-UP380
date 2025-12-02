@@ -27,8 +27,11 @@ router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKa
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 router.get('/api/carteira-clientes', requireAuth, clientesController.getCarteiraClientes);
 router.get('/api/gestao-clientes', requireAuth, clientesController.getCarteiraClientes);
+// IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.put('/api/clientes/:id/inativar', requireAuth, clientesController.inativarCliente);
 router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCliente);
+router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
+router.put('/api/cliente-dados/:nomeClienteClickup', requireAuth, clientesController.atualizarClientePorNomeClickup);
 
 // Rotas de tarefas
 router.get('/api/tarefas-incompletas', requireAuth, tarefasController.getTarefasIncompletas);
