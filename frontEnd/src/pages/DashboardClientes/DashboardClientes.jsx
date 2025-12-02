@@ -9,48 +9,8 @@ import DashboardCards from '../../components/dashboard/DashboardCards';
 import { ClientCard } from '../../components/clients';
 import DetailSideCard from '../../components/clients/DetailSideCard';
 import MiniCardLista from '../../components/dashboard/MiniCardLista';
+import { statusAPI, clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI } from '../../services/api';
 import './DashboardClientes.css';
-
-// API Base URL - usa proxy do Vite em desenvolvimento
-const getApiBaseUrl = () => {
-  if (typeof window !== 'undefined' && window.ApiConfig) {
-    return window.ApiConfig.baseURL;
-  }
-  // Em desenvolvimento, usa o proxy do Vite que redireciona /api para localhost:4000
-  // Em produção, usa /api diretamente
-  return '/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
-
-// Cache helper
-const cache = {
-  get(key) {
-    try {
-      const cached = sessionStorage.getItem(key);
-      if (!cached) return null;
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp > CACHE_DURATION) {
-        sessionStorage.removeItem(key);
-        return null;
-      }
-      return data;
-    } catch (e) {
-      return null;
-    }
-  },
-  set(key, data) {
-    try {
-      sessionStorage.setItem(key, JSON.stringify({
-        data,
-        timestamp: Date.now()
-      }));
-    } catch (e) {
-      // Ignore cache errors
-    }
-  }
-};
 
 const RelatoriosClientes = () => {
   // Estado dos filtros
@@ -134,77 +94,24 @@ const RelatoriosClientes = () => {
   // Cache de dados dos clientes para os cards laterais
   const clienteDataCacheRef = useRef({});
 
-  // Carregar status
-  const carregarStatus = useCallback(async (clienteId = null) => {
+  // Carregar status - sempre carrega todas as opções
+  const carregarStatus = useCallback(async () => {
     try {
-      const cacheKey = `status_${clienteId || 'all'}`;
-      const cached = cache.get(cacheKey);
-      
-      if (cached) {
-        setTodosStatus(cached);
-        return;
-      }
-
-      let url = `${API_BASE_URL}/status`;
-      if (clienteId) {
-        url += `?clienteId=${clienteId}`;
-      }
-
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
+      const result = await statusAPI.getAll(null);
       if (result.success && result.data && Array.isArray(result.data)) {
         setTodosStatus(result.data);
-        cache.set(cacheKey, result.data);
       }
     } catch (error) {
       console.error('Erro ao carregar status:', error);
     }
   }, []);
 
-  // Carregar clientes
-  const carregarClientes = useCallback(async (status = null) => {
+  // Carregar clientes - sempre carrega todas as opções
+  const carregarClientes = useCallback(async () => {
     try {
-      const cacheKey = `clientes_${status || 'all'}`;
-      const cached = cache.get(cacheKey);
-      
-      if (cached) {
-        setTodosClientes(cached);
-        return;
-      }
-
-      let url = `${API_BASE_URL}/clientes`;
-      if (status) {
-        url += `?status=${encodeURIComponent(status)}`;
-      }
-      
-      const response = await fetch(url, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      // Verificar se a resposta é HTML (erro)
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('❌ Resposta não é JSON! Content-Type:', contentType);
-        console.error('❌ Status:', response.status);
-        console.error('❌ URL:', url);
-        console.error('❌ Primeiros 500 caracteres da resposta:', text.substring(0, 500));
-        throw new Error(`Resposta não é JSON. Status: ${response.status}. Content-Type: ${contentType}. Verifique se o servidor backend está rodando na porta 4000 e se o proxy do Vite está configurado.`);
-      }
-      
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
+      const result = await clientesAPI.getAll(null);
       if (result.success && result.data && Array.isArray(result.data)) {
         setTodosClientes(result.data);
-        cache.set(cacheKey, result.data);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar clientes:', error);
@@ -214,188 +121,17 @@ const RelatoriosClientes = () => {
   // Carregar colaboradores
   const carregarColaboradores = useCallback(async () => {
     try {
-      const cacheKey = 'colaboradores_all';
-      const cached = cache.get(cacheKey);
-      
-      if (cached) {
-        // Garantir que colaboradores do cache tenham status
-        const colaboradoresComStatus = cached.map(colab => ({
-          ...colab,
-          status: colab.status || 'ativo'
-        }));
-        setTodosColaboradores(colaboradoresComStatus);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      // Verificar se a resposta é HTML (erro)
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('❌ Resposta não é JSON! Content-Type:', contentType);
-        console.error('❌ Status:', response.status);
-        console.error('❌ URL:', `${API_BASE_URL}/membros-id-nome`);
-        console.error('❌ Primeiros 500 caracteres da resposta:', text.substring(0, 500));
-        throw new Error(`Resposta não é JSON. Status: ${response.status}. Content-Type: ${contentType}. Verifique se o servidor backend está rodando na porta 4000 e se o proxy do Vite está configurado.`);
-      }
-      
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
+      const result = await colaboradoresAPI.getAll();
       if (result.success && result.data && Array.isArray(result.data)) {
-        // Garantir que todos os colaboradores tenham status (assumir 'ativo' se não estiver definido)
-        const colaboradoresComStatus = result.data.map(colab => ({
-          ...colab,
-          status: colab.status || 'ativo'
-        }));
-        setTodosColaboradores(colaboradoresComStatus);
-        cache.set(cacheKey, colaboradoresComStatus);
+        setTodosColaboradores(result.data);
       }
     } catch (error) {
       console.error('Erro ao carregar colaboradores:', error);
     }
   }, []);
 
-  // Carregar colaboradores por cliente(s) - aceita array ou valor único
-  // REPLICANDO A LÓGICA DE carregarClientesPorColaborador, mas invertida
-  const carregarColaboradoresPorCliente = useCallback(async (clienteId, periodoInicio = null, periodoFim = null) => {
-    try {
-      if (!clienteId) {
-        await carregarColaboradores();
-        return;
-      }
-
-      // Normalizar para array (suporta tanto array quanto valor único) - MESMA LÓGICA DE carregarClientesPorColaborador
-      const clienteIds = Array.isArray(clienteId) 
-        ? clienteId 
-        : [clienteId];
-
-      // Obter período se estiver selecionado - MESMA LÓGICA DE carregarClientesPorColaborador
-      const params = [];
-      
-      // Enviar múltiplos clientes como parâmetros repetidos - MESMA LÓGICA DE carregarClientesPorColaborador
-      clienteIds.forEach(id => {
-        params.push(`clienteId=${encodeURIComponent(id)}`);
-      });
-      
-      if (periodoInicio && periodoFim) {
-        params.push(`periodoInicio=${encodeURIComponent(periodoInicio)}`);
-        params.push(`periodoFim=${encodeURIComponent(periodoFim)}`);
-      }
-      
-      const url = `${API_BASE_URL}/membros-por-cliente?${params.join('&')}`;
-
-
-
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
-      
-
-      
-      if (result.success && result.data && Array.isArray(result.data)) {
-        // Garantir que todos os colaboradores sejam incluídos, mesmo sem nome
-        // Remover duplicatas baseado no ID
-        const colaboradoresUnicos = new Map();
-        result.data.forEach(m => {
-          const idStr = String(m.id).trim();
-          if (!colaboradoresUnicos.has(idStr)) {
-            colaboradoresUnicos.set(idStr, { 
-              id: m.id, 
-              nome: m.nome || `Colaborador #${m.id}`, // Fallback para nome se não tiver
-              status: m.status || 'ativo' // Incluir status
-            });
-          }
-        });
-        const colaboradoresArray = Array.from(colaboradoresUnicos.values());
-        setTodosColaboradores(colaboradoresArray);
-      } else {
-        setTodosColaboradores([]);
-      }
-    } catch (error) {
-      setTodosColaboradores([]);
-    }
-  }, [carregarColaboradores]);
-
-  // Carregar clientes por colaborador(es) - aceita array ou valor único
-  const carregarClientesPorColaborador = useCallback(async (colaboradorId) => {
-    try {
-      if (!colaboradorId) {
-        await carregarClientes(filtroStatus);
-        return;
-      }
-
-      // Normalizar para array (suporta tanto array quanto valor único)
-      const colaboradorIds = Array.isArray(colaboradorId) 
-        ? colaboradorId 
-        : [colaboradorId];
-
-      // Obter período se estiver selecionado
-      const params = [];
-      
-      // Enviar múltiplos colaboradores como parâmetros repetidos
-      colaboradorIds.forEach(id => {
-        params.push(`colaboradorId=${encodeURIComponent(id)}`);
-      });
-      
-      if (filtroDataInicio && filtroDataFim) {
-        params.push(`periodoInicio=${encodeURIComponent(filtroDataInicio)}`);
-        params.push(`periodoFim=${encodeURIComponent(filtroDataFim)}`);
-      }
-      
-      const url = `${API_BASE_URL}/clientes-por-colaborador?${params.join('&')}`;
-
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        // Se houver filtro de status, aplicar aqui também
-        let clientesFiltrados = result.data;
-        if (filtroStatus) {
-          // Buscar clientes que têm contratos com esse status
-          try {
-            const responseStatus = await fetch(`${API_BASE_URL}/clientes?status=${encodeURIComponent(filtroStatus)}`, {
-              credentials: 'include',
-            });
-            if (responseStatus.ok) {
-              const resultStatus = await responseStatus.json();
-              if (resultStatus.success && resultStatus.data) {
-                const clienteIdsComStatus = new Set(resultStatus.data.map(c => String(c.id).trim().toLowerCase()));
-                clientesFiltrados = clientesFiltrados.filter(c => {
-                  const cId = String(c.id).trim().toLowerCase();
-                  return clienteIdsComStatus.has(cId);
-                });
-              }
-            }
-          } catch (err) {
-            console.error('❌ Erro ao aplicar filtro de status:', err);
-          }
-        }
-        
-        const novosClientes = clientesFiltrados.map(c => ({ id: c.id, nome: c.nome }));
-        setTodosClientes(novosClientes);
-      } else {
-        setTodosClientes([]);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar clientes por colaborador:', error);
-      // Em caso de erro, recarregar todos os clientes (respeitando status)
-      await carregarClientes(filtroStatus);
-    }
-  }, [filtroStatus, filtroDataInicio, filtroDataFim, carregarClientes]);
+  // Funções removidas: carregarColaboradoresPorCliente e carregarClientesPorColaborador
+  // Agora cada filtro sempre mostra todas as opções disponíveis, sem relações entre eles
 
   // Função helper para verificar se um colaborador está inativo
   const isColaboradorInativo = useCallback((colaboradorId, registro = null) => {
@@ -429,65 +165,44 @@ const RelatoriosClientes = () => {
     return false;
   }, [mostrarInativos, todosColaboradores]);
 
-  // Carregar clientes paginados
-  const carregarClientesPaginados = useCallback(async () => {
+  // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
+  const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
+
+  // Carregar clientes paginados - recebe os filtros como parâmetros
+  const carregarClientesPaginados = useCallback(async (filtrosAplicados = {}) => {
     setLoading(true);
     try {
-      let url = `${API_BASE_URL}/relatorios-clientes?page=${currentPage}&limit=${itemsPerPage}`;
+      // Só envia filtros que foram preenchidos
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage
+      };
       
-      if (filtroStatus && (typeof filtroStatus === 'string' ? filtroStatus.trim() !== '' : true)) {
-        url += `&status=${encodeURIComponent(filtroStatus)}`;
-      }
-      // Suportar array de clientes
-      if (filtroCliente) {
-        const clienteIds = Array.isArray(filtroCliente) 
-          ? filtroCliente 
-          : (typeof filtroCliente === 'string' && filtroCliente.trim() !== '' ? [filtroCliente] : null);
-        
-        if (clienteIds && clienteIds.length > 0) {
-          // Enviar múltiplos clientes como parâmetros repetidos
-          clienteIds.forEach(id => {
-            url += `&clienteId=${encodeURIComponent(id)}`;
-          });
-        }
-      }
-      // Suportar array de colaboradores
-      if (filtroColaborador) {
-        const colaboradorIds = Array.isArray(filtroColaborador) 
-          ? filtroColaborador 
-          : (typeof filtroColaborador === 'string' && filtroColaborador.trim() !== '' ? [filtroColaborador] : null);
-        
-        if (colaboradorIds && colaboradorIds.length > 0) {
-          // Enviar múltiplos colaboradores como parâmetros repetidos ou como array JSON
-          colaboradorIds.forEach(id => {
-            url += `&colaboradorId=${encodeURIComponent(id)}`;
-          });
-        }
-      }
-      if (filtroDataInicio && (typeof filtroDataInicio === 'string' ? filtroDataInicio.trim() !== '' : true)) {
-        url += `&dataInicio=${encodeURIComponent(filtroDataInicio)}`;
-      }
-      if (filtroDataFim && (typeof filtroDataFim === 'string' ? filtroDataFim.trim() !== '' : true)) {
-        url += `&dataFim=${encodeURIComponent(filtroDataFim)}`;
+      // Adicionar filtros apenas se estiverem preenchidos
+      if (filtrosAplicados.status) {
+        params.status = filtrosAplicados.status;
       }
       
-      const response = await fetch(url, {
-        credentials: 'include', // Importante para enviar cookies de sessão
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Erro na resposta:', errorText);
-        if (response.status === 404) {
-          throw new Error('Endpoint não encontrado. Verifique se o servidor backend está rodando na porta 4000.');
-        }
-        throw new Error(`Erro HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+      if (filtrosAplicados.clienteId) {
+        params.clienteId = filtrosAplicados.clienteId;
       }
       
-      const result = await response.json();
+      // IMPORTANTE: Só envia colaboradorId se estiver explicitamente preenchido
+      // Se não estiver preenchido, não envia o parâmetro para trazer TODOS os colaboradores
+      if (filtrosAplicados.colaboradorId) {
+        params.colaboradorId = filtrosAplicados.colaboradorId;
+      }
+      
+      if (filtrosAplicados.dataInicio) {
+        params.dataInicio = filtrosAplicados.dataInicio;
+      }
+      
+      if (filtrosAplicados.dataFim) {
+        params.dataFim = filtrosAplicados.dataFim;
+      }
+      
+      const result = await clientesAPI.getRelatorios(params);
+      
       if (!result.success) {
         throw new Error(result.error || 'Erro ao buscar clientes');
       }
@@ -674,29 +389,18 @@ const RelatoriosClientes = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, filtroStatus, filtroCliente, filtroColaborador, filtroDataInicio, filtroDataFim, mostrarInativos, isColaboradorInativo]);
+  }, [currentPage, itemsPerPage, mostrarInativos, isColaboradorInativo]);
 
-  // Aplicar filtros
+  // Aplicar filtros - só executa quando o botão for clicado
   const aplicarFiltros = useCallback(() => {
-    // Validar dependências
-    const valores = {
-      status: filtroStatus,
-      cliente: filtroCliente,
-      periodo: { inicio: filtroDataInicio, fim: filtroDataFim },
-      colaborador: filtroColaborador
-    };
-
-    // Validar período
-    if (filtroDataInicio && filtroDataFim) {
-      if (new Date(filtroDataInicio) > new Date(filtroDataFim)) {
-        alert('A data de início deve ser anterior ou igual à data de fim');
-        return;
-      }
+    // Validar período (obrigatório)
+    if (!filtroDataInicio || !filtroDataFim) {
+      alert('Selecione o período TimeTrack');
+      return;
     }
 
-    // Validar dependências
-    if (filtroCliente && !filtroDataInicio && !filtroDataFim) {
-      alert('O filtro "Cliente" requer que o filtro "Período" esteja selecionado');
+    if (new Date(filtroDataInicio) > new Date(filtroDataFim)) {
+      alert('A data de início deve ser anterior ou igual à data de fim');
       return;
     }
 
@@ -704,34 +408,46 @@ const RelatoriosClientes = () => {
     const temColaboradores = Array.isArray(filtroColaborador) 
       ? filtroColaborador.length > 0 
       : (filtroColaborador && filtroColaborador.toString().trim() !== '');
+
+    // Preparar filtros para enviar (apenas os preenchidos)
+    const filtrosParaEnviar = {};
     
-    if (temColaboradores && !filtroDataInicio && !filtroDataFim) {
-      alert('O filtro "Colaborador" requer que o filtro "Período" esteja selecionado');
-      return;
+    // Período é obrigatório
+    filtrosParaEnviar.dataInicio = filtroDataInicio.trim();
+    filtrosParaEnviar.dataFim = filtroDataFim.trim();
+    
+    // Status (opcional - só envia se preenchido)
+    if (filtroStatus && filtroStatus.toString().trim() !== '') {
+      filtrosParaEnviar.status = filtroStatus;
     }
-
-    // Verificar se tem pelo menos um filtro
-    const temAlgumFiltro = Object.values(valores).some(valor => {
-      if (valor === null || valor === undefined) return false;
-      if (typeof valor === 'object') {
-        // Se for array, verificar se tem elementos
-        if (Array.isArray(valor)) {
-          return valor.length > 0;
-        }
-        // Se for objeto de período, verificar inicio e fim
-        return valor.inicio && valor.fim;
+    
+    // Cliente (opcional - só envia se preenchido)
+    if (filtroCliente) {
+      const clienteValido = Array.isArray(filtroCliente) 
+        ? filtroCliente.filter(c => c && c.toString().trim() !== '').length > 0
+        : filtroCliente.toString().trim() !== '';
+      
+      if (clienteValido) {
+        filtrosParaEnviar.clienteId = filtroCliente;
       }
-      return valor && valor.toString().trim() !== '';
-    });
-
-    if (!temAlgumFiltro) {
-      alert('Selecione pelo menos um filtro');
-      return;
     }
+    
+    // IMPORTANTE: Colaborador (opcional - só envia se EXPLICITAMENTE preenchido)
+    // Se não estiver preenchido, NÃO envia o parâmetro para trazer TODOS os colaboradores
+    // Quando não há colaborador selecionado, o backend deve retornar TODOS os colaboradores
+    // que trabalharam no cliente/período, como se todos estivessem selecionados
+    if (temColaboradores) {
+      filtrosParaEnviar.colaboradorId = filtroColaborador;
+    }
+    // Se não tem colaboradores selecionados, NÃO adiciona colaboradorId ao objeto
+    // Isso garante que o backend retorne TODOS os colaboradores do cliente/período
+    // O backend já trata isso corretamente: quando colaboradorId não é enviado,
+    // ele não aplica filtro de colaborador e retorna todos os registros de todos os colaboradores
 
     setCurrentPage(1);
     setFiltrosAplicados(true);
-    carregarClientesPaginados();
+    setFiltrosAplicadosAtuais(filtrosParaEnviar);
+    carregarClientesPaginados(filtrosParaEnviar);
   }, [filtroStatus, filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, carregarClientesPaginados]);
 
   // Limpar filtros
@@ -743,15 +459,12 @@ const RelatoriosClientes = () => {
     setFiltroDataInicio(null);
     setFiltroDataFim(null);
     setMostrarInativos(false);
+    setFiltrosAplicadosAtuais({});
     
     // Limpar cache para garantir dados atualizados
-    try {
-      sessionStorage.removeItem('clientes_all');
-      sessionStorage.removeItem('status_all');
-      sessionStorage.removeItem('colaboradores_all');
-    } catch (e) {
-      // Ignore cache errors
-    }
+    cacheAPI.remove('api_cache_clientes_all');
+    cacheAPI.remove('api_cache_status_all');
+    cacheAPI.remove('api_cache_colaboradores_all');
     
     // Recarregar todos os dados sem filtros
     await carregarStatus();
@@ -766,29 +479,14 @@ const RelatoriosClientes = () => {
     setFiltrosAplicados(false);
   }, [carregarStatus, carregarClientes, carregarColaboradores]);
 
-  // Handlers dos filtros
-  const handleStatusChange = useCallback(async (e) => {
+  // Handlers dos filtros - apenas atualiza o estado, sem filtrar opções
+  const handleStatusChange = useCallback((e) => {
     // Tratar string vazia como null para limpar o filtro
     const value = e.target.value && e.target.value.trim() !== '' ? e.target.value : null;
     setFiltroStatus(value);
-    
-    // Atualizar lista de clientes disponíveis baseado no status selecionado
-    // Isso atualiza apenas as OPÇÕES do filtro, não aplica os resultados
-    // IMPORTANTE: Se houver colaborador selecionado, respeitar esse filtro também
-    if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
-      // Se há colaborador selecionado, atualizar clientes baseado no colaborador (que já respeita o status)
-      await carregarClientesPorColaborador(filtroColaborador);
-    } else {
-      // Se não há colaborador selecionado, atualizar clientes baseado apenas no status
-      if (value) {
-        await carregarClientes(value);
-      } else {
-        await carregarClientes();
-      }
-    }
-  }, [carregarClientes, filtroColaborador, carregarClientesPorColaborador]);
+  }, []);
 
-  const handleClienteChange = useCallback(async (e) => {
+  const handleClienteChange = useCallback((e) => {
     // Tratar arrays vazios e null como limpeza do filtro
     let value = e.target.value;
     if (value === null || value === undefined || value === '') {
@@ -801,25 +499,10 @@ const RelatoriosClientes = () => {
     }
     
     setFiltroCliente(value);
-    
-    // Atualizar listas de opções baseado no cliente selecionado
-    // Isso atualiza apenas as OPÇÕES dos filtros, não aplica os resultados
-    if (value) {
-      // Se for array, usar o primeiro cliente para carregar status
-      // Mas passar todos os clientes para carregar colaboradores
-      const clienteId = Array.isArray(value) ? value[0] : value;
-      await carregarStatus(clienteId);
-      // Passar todos os clientes selecionados e o período (se houver) para buscar colaboradores
-      await carregarColaboradoresPorCliente(value, filtroDataInicio, filtroDataFim);
-    } else {
-      // Limpar filtro - recarregar todos os status e colaboradores
-      await carregarStatus();
-      await carregarColaboradores();
-    }
-  }, [carregarStatus, carregarColaboradoresPorCliente, carregarColaboradores, filtroDataInicio, filtroDataFim]);
+  }, []);
 
 
-  const handleColaboradorChange = useCallback(async (e) => {
+  const handleColaboradorChange = useCallback((e) => {
     // value pode ser null, um array, ou um único valor (para compatibilidade)
     let value = e.target.value;
     
@@ -842,40 +525,10 @@ const RelatoriosClientes = () => {
     // Se após normalização o array estiver vazio, tratar como null
     const finalValue = colaboradorIds && colaboradorIds.length > 0 ? colaboradorIds : null;
     setFiltroColaborador(finalValue);
-    
-    // Atualizar lista de clientes disponíveis baseado no colaborador selecionado
-    // Isso atualiza apenas as OPÇÕES do filtro, não aplica os resultados
-    if (finalValue && finalValue.length > 0) {
-      // Se houver colaboradores selecionados, carregar clientes de todos eles
-      await carregarClientesPorColaborador(finalValue);
-    } else {
-      // Limpar filtro - recarregar todos os clientes (respeitando status se houver)
-      await carregarClientes(filtroStatus);
-    }
-  }, [filtroStatus, carregarClientes, carregarClientesPorColaborador]);
+  }, []);
 
-  // Atualizar listas de opções quando o período mudar (apenas para atualizar dropdowns, não aplica filtros)
-  useEffect(() => {
-    // Se período está completo, atualizar listas de opções baseadas nos filtros atuais
-    if (filtroDataInicio && filtroDataFim) {
-      // Atualizar colaboradores se houver cliente selecionado
-      if (filtroCliente) {
-        carregarColaboradoresPorCliente(filtroCliente, filtroDataInicio, filtroDataFim);
-      }
-      // Atualizar clientes se houver colaborador selecionado
-      if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
-        carregarClientesPorColaborador(filtroColaborador);
-      }
-    } else if (!filtroDataInicio && !filtroDataFim) {
-      // Se período foi removido, recarregar listas sem período
-      if (filtroCliente) {
-        carregarColaboradoresPorCliente(filtroCliente);
-      }
-      if (filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true)) {
-        carregarClientesPorColaborador(filtroColaborador);
-      }
-    }
-  }, [filtroDataInicio, filtroDataFim, filtroCliente, filtroColaborador, carregarColaboradoresPorCliente, carregarClientesPorColaborador]);
+  // Removido: useEffect que atualizava listas baseado em relações entre filtros
+  // Agora cada filtro mostra todas as opções disponíveis
 
   // Abrir card lateral
   const handleOpenDetail = useCallback((clienteId, tipo, event) => {
@@ -1035,32 +688,17 @@ const RelatoriosClientes = () => {
     // Se houver tarefas sem nome, buscar na API
     if (tarefasIdsParaBuscar.length > 0) {
       try {
-        const idsParam = tarefasIdsParaBuscar.join(',');
-        const response = await fetch(`${API_BASE_URL}/tarefas-por-ids?ids=${encodeURIComponent(idsParam)}`, {
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            // Atualizar o mapa com os nomes encontrados
-            Object.entries(result.data).forEach(([id, nome]) => {
-              if (nome) {
-                tarefasMap.set(id, nome);
-              } else {
-                // Se não encontrou o nome, usar o ID como fallback
-                tarefasMap.set(id, `Tarefa #${id}`);
-              }
-            });
-          }
-        } else {
-          // Se a resposta não foi OK, tentar ler o erro
-          const errorText = await response.text().catch(() => 'Erro desconhecido');
-          console.error(`Erro ao buscar tarefas: ${response.status} - ${errorText}`);
+        const result = await tarefasAPI.getByIds(tarefasIdsParaBuscar);
+        if (result.success && result.data) {
+          // Atualizar o mapa com os nomes encontrados
+          Object.entries(result.data).forEach(([id, nome]) => {
+            if (nome) {
+              tarefasMap.set(id, nome);
+            } else {
+              // Se não encontrou o nome, usar o ID como fallback
+              tarefasMap.set(id, `Tarefa #${id}`);
+            }
+          });
         }
         
         // Para IDs que não foram retornados pela API ou não tiveram nome, usar fallback
@@ -1177,13 +815,8 @@ const RelatoriosClientes = () => {
     if (idsSemNome.length > 0) {
       try {
         // Buscar membros faltantes do backend
-        const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
-          credentials: 'include',
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data && Array.isArray(result.data)) {
+        const result = await colaboradoresAPI.getAll();
+        if (result.success && result.data && Array.isArray(result.data)) {
             // Criar mapa dos membros retornados
             const membrosBackendMap = new Map();
             result.data.forEach(m => {
@@ -1213,12 +846,11 @@ const RelatoriosClientes = () => {
               }
             });
           }
-        }
       } catch (error) {
         console.error('Erro ao buscar membros faltantes:', error);
         // Se der erro, usar fallback
         idsSemNome.forEach(id => {
-          colaboradoresMap.set(String(id).trim(), `Colaborador #${id}`);
+          colaboradoresMap.set(String(id).trim(), { nome: `Colaborador #${id}`, status: 'ativo' });
         });
       }
     }
@@ -1356,20 +988,7 @@ const RelatoriosClientes = () => {
   const carregarTarefasIncompletas = useCallback(async () => {
     setLoadingIncompletas(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/tarefas-incompletas`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Erro na resposta:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = await tarefasAPI.getIncompletas();
       
       // Aceitar tanto result.data quanto result.items (compatibilidade)
       const tarefas = result.data || result.items || [];
@@ -1413,12 +1032,8 @@ const RelatoriosClientes = () => {
   // Carregar dados iniciais
   useEffect(() => {
     // Limpar cache de clientes e colaboradores para garantir dados atualizados
-    try {
-      sessionStorage.removeItem('clientes_all');
-      sessionStorage.removeItem('colaboradores_all');
-    } catch (e) {
-      // Ignore cache errors
-    }
+    cacheAPI.remove('api_cache_clientes_all');
+    cacheAPI.remove('api_cache_colaboradores_all');
     carregarStatus();
     carregarClientes();
     carregarColaboradores();
@@ -1427,11 +1042,11 @@ const RelatoriosClientes = () => {
   // Recarregar dados quando a página, itens por página ou mostrarInativos mudarem (apenas se filtros já foram aplicados)
   // IMPORTANTE: Não incluir carregarClientesPaginados nas dependências para evitar recarregamento automático quando filtros mudam
   useEffect(() => {
-    if (filtrosAplicados) {
-      carregarClientesPaginados();
+    if (filtrosAplicados && Object.keys(filtrosAplicadosAtuais).length > 0) {
+      carregarClientesPaginados(filtrosAplicadosAtuais);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados]);
+  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados, filtrosAplicadosAtuais]);
 
   return (
     <Layout>
@@ -1474,42 +1089,7 @@ const RelatoriosClientes = () => {
               onClear={limparFiltros}
               loading={loading}
             >
-              <div className="filter-group">
-                <FilterStatus
-                  value={filtroStatus}
-                  onChange={handleStatusChange}
-                  options={todosStatus}
-                  disabled={false}
-                />
-              </div>
-              
-              <div className="filter-group">
-                <FilterClientes
-                  value={filtroCliente}
-                  onChange={handleClienteChange}
-                  options={todosClientes}
-                  disabled={false}
-                />
-              </div>
-
-              <div className="filter-group">
-                <FilterColaborador
-                  value={filtroColaborador}
-                  onChange={handleColaboradorChange}
-                  options={todosColaboradores.filter(colab => {
-                    // Se mostrarInativos estiver desativado, filtrar colaboradores inativos
-                    if (!mostrarInativos) {
-                      // Se status não estiver definido, assumir 'ativo' (compatibilidade com cache antigo)
-                      const status = colab.status || 'ativo';
-                      return status !== 'inativo';
-                    }
-                    // Se mostrarInativos estiver ativado, mostrar todos os colaboradores
-                    return true;
-                  })}
-                  disabled={false}
-                />
-              </div>
-
+              {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
               <div className="filter-group">
                 <FilterPeriodo
                   dataInicio={filtroDataInicio}
@@ -1526,44 +1106,124 @@ const RelatoriosClientes = () => {
                 />
               </div>
 
-              <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto', minWidth: 'auto' }}>
-                <label style={{ fontSize: '14px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
-                  Inativos:
-                </label>
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <input
-                    type="checkbox"
-                    id="toggleInativos"
-                    checked={mostrarInativos}
-                    onChange={(e) => setMostrarInativos(e.target.checked)}
-                    style={{
-                      width: '44px',
-                      height: '24px',
-                      appearance: 'none',
-                      backgroundColor: mostrarInativos ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                      borderRadius: '12px',
-                      position: 'relative',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.2s',
-                      outline: 'none'
-                    }}
-                  />
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: '2px',
-                      left: mostrarInativos ? '22px' : '2px',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#fff',
-                      transition: 'left 0.2s',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      pointerEvents: 'none'
-                    }}
-                  />
-                </div>
-              </div>
+              {/* Verificar se período está preenchido */}
+              {(() => {
+                const periodoPreenchido = filtroDataInicio && filtroDataFim;
+                
+                return (
+                  <>
+                    <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
+                      <FilterStatus
+                        value={filtroStatus}
+                        onChange={handleStatusChange}
+                        options={todosStatus}
+                        disabled={!periodoPreenchido}
+                      />
+                      {!periodoPreenchido && (
+                        <div className="filter-tooltip">
+                          Selecione período TimeTrack
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
+                      <FilterClientes
+                        value={filtroCliente}
+                        onChange={handleClienteChange}
+                        options={todosClientes}
+                        disabled={!periodoPreenchido}
+                      />
+                      {!periodoPreenchido && (
+                        <div className="filter-tooltip">
+                          Selecione período TimeTrack
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
+                      <FilterColaborador
+                        value={filtroColaborador}
+                        onChange={handleColaboradorChange}
+                        options={todosColaboradores.filter(colab => {
+                          // Se mostrarInativos estiver desativado, filtrar colaboradores inativos
+                          if (!mostrarInativos) {
+                            // Se status não estiver definido, assumir 'ativo' (compatibilidade com cache antigo)
+                            const status = colab.status || 'ativo';
+                            return status !== 'inativo';
+                          }
+                          // Se mostrarInativos estiver ativado, mostrar todos os colaboradores
+                          return true;
+                        })}
+                        disabled={!periodoPreenchido}
+                      />
+                      {!periodoPreenchido && (
+                        <div className="filter-tooltip">
+                          Selecione período TimeTrack
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {(() => {
+                const periodoPreenchido = filtroDataInicio && filtroDataFim;
+                
+                return (
+                  <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto', minWidth: 'auto', position: 'relative' }}>
+                    <label style={{ fontSize: '14px', fontWeight: '500', color: periodoPreenchido ? '#374151' : '#9ca3af', whiteSpace: 'nowrap', opacity: periodoPreenchido ? 1 : 0.5 }}>
+                      Inativos:
+                    </label>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <input
+                        type="checkbox"
+                        id="toggleInativos"
+                        checked={mostrarInativos}
+                        onChange={(e) => {
+                          if (periodoPreenchido) {
+                            setMostrarInativos(e.target.checked);
+                          }
+                        }}
+                        disabled={!periodoPreenchido}
+                        style={{
+                          width: '44px',
+                          height: '24px',
+                          appearance: 'none',
+                          backgroundColor: periodoPreenchido 
+                            ? (mostrarInativos ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1')
+                            : '#f3f4f6',
+                          borderRadius: '12px',
+                          position: 'relative',
+                          cursor: periodoPreenchido ? 'pointer' : 'not-allowed',
+                          transition: 'background-color 0.2s',
+                          outline: 'none',
+                          opacity: periodoPreenchido ? 1 : 0.5,
+                          border: periodoPreenchido ? 'none' : '1px solid #d1d5db'
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '2px',
+                          left: mostrarInativos ? '22px' : '2px',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          backgroundColor: '#fff',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    </div>
+                    {!periodoPreenchido && (
+                      <div className="filter-tooltip">
+                        Selecione período TimeTrack
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </FiltersCard>
 
             {/* Cards de Dashboard */}

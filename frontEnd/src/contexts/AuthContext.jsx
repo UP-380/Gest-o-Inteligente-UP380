@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -21,23 +22,13 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      // Verificar sessão no servidor (usando cookies)
-      const response = await fetch('/api/auth/check', {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.authenticated) {
-          setIsAuthenticated(true);
-          // Salvar dados do usuário no localStorage se disponível
-          if (data.usuario) {
-            localStorage.setItem('usuario', JSON.stringify(data.usuario));
-          }
-        } else {
-          setIsAuthenticated(false);
-          localStorage.removeItem('usuario');
+      const data = await authAPI.checkAuth();
+      
+      if (data.authenticated) {
+        setIsAuthenticated(true);
+        // Salvar dados do usuário no localStorage se disponível
+        if (data.usuario) {
+          localStorage.setItem('usuario', JSON.stringify(data.usuario));
         }
       } else {
         setIsAuthenticated(false);
@@ -54,18 +45,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, senha) => {
     try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ email, senha }),
-      });
+      const data = await authAPI.login(email, senha);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         setIsAuthenticated(true);
         // Salvar dados do usuário no localStorage (opcional)
         if (data.usuario) {
@@ -77,20 +59,20 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: data.error || data.message || 'Email ou senha incorretos.' };
       }
     } catch (error) {
-      return { success: false, error: 'Erro de conexão. Tente novamente.' };
+      return { success: false, error: error.message || 'Erro de conexão. Tente novamente.' };
     }
   };
 
   const logout = async () => {
     try {
-      await fetch('/api/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
+      await authAPI.logout();
       setIsAuthenticated(false);
       window.location.href = '/login';
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
+      // Mesmo com erro, fazer logout local
+      setIsAuthenticated(false);
+      window.location.href = '/login';
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { produtosAPI } from '../../../services/api';
 
 const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
   const [produtos, setProdutos] = useState([]);
@@ -32,44 +33,17 @@ const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
       // Buscar nomes dos produtos usando clickup_id
       try {
         const clickupIds = Array.from(clickupIdsSet);
-        const idsParam = clickupIds.join(',');
+        const result = await produtosAPI.getByIds(clickupIds);
         
-        const getApiBaseUrl = () => {
-          if (typeof window !== 'undefined' && window.ApiConfig) {
-            return window.ApiConfig.baseURL;
-          }
-          return '/api';
-        };
-        
-        const API_BASE_URL = getApiBaseUrl();
-        const url = `${API_BASE_URL}/produtos-por-ids?ids=${encodeURIComponent(idsParam)}`;
-        
-        const response = await fetch(url, {
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            // Criar array de produtos com clickup_id e nome
-            const produtosArray = clickupIds.map(clickupId => ({
-              clickup_id: clickupId,
-              nome: result.data[clickupId] || `Produto #${clickupId}`
-            }));
-            setProdutos(produtosArray);
-          } else {
-            // Se não encontrou nomes, usar apenas os IDs
-            const produtosArray = clickupIds.map(clickupId => ({
-              clickup_id: clickupId,
-              nome: `Produto #${clickupId}`
-            }));
-            setProdutos(produtosArray);
-          }
+        if (result.success && result.data) {
+          // Criar array de produtos com clickup_id e nome
+          const produtosArray = clickupIds.map(clickupId => ({
+            clickup_id: clickupId,
+            nome: result.data[clickupId] || `Produto #${clickupId}`
+          }));
+          setProdutos(produtosArray);
         } else {
-          // Se der erro, usar apenas os IDs
+          // Se não encontrou nomes, usar apenas os IDs
           const produtosArray = clickupIds.map(clickupId => ({
             clickup_id: clickupId,
             nome: `Produto #${clickupId}`
