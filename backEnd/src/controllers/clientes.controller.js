@@ -332,11 +332,239 @@ async function ativarCliente(req, res) {
   }
 }
 
+// ========================================
+// === PUT /api/clientes/:id ===
+// ========================================
+async function atualizarClientePorId(req, res) {
+  try {
+    const { id } = req.params;
+    const { 
+      razao_social, 
+      nome_fantasia, 
+      nome_amigavel, 
+      cpf_cnpj, 
+      status, 
+      nome_cli_kamino, 
+      id_cli_kamino 
+    } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
+      });
+    }
+    
+    console.log('📝 Atualizando cliente por ID:', id);
+    
+    // Verificar se o cliente existe
+    const { data: clienteExistente, error: checkError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('id, nome')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('❌ Erro ao buscar cliente:', checkError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+    
+    if (!clienteExistente) {
+      return res.status(404).json({
+        success: false,
+        error: `Cliente não encontrado com ID: ${id}`
+      });
+    }
+    
+    // Preparar dados para atualização
+    const dadosUpdate = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (razao_social !== undefined && razao_social !== null) {
+      dadosUpdate.razao_social = razao_social.trim() || null;
+    }
+    if (nome_fantasia !== undefined && nome_fantasia !== null) {
+      dadosUpdate.nome_fantasia = nome_fantasia.trim() || null;
+    }
+    if (nome_amigavel !== undefined && nome_amigavel !== null) {
+      dadosUpdate.nome_amigavel = nome_amigavel.trim() || null;
+    }
+    if (cpf_cnpj !== undefined && cpf_cnpj !== null) {
+      dadosUpdate.cpf_cnpj = cpf_cnpj.trim() || null;
+    }
+    if (status !== undefined && status !== null) {
+      dadosUpdate.status = status.trim() || null;
+    }
+    if (nome_cli_kamino !== undefined && nome_cli_kamino !== null) {
+      dadosUpdate.nome_cli_kamino = nome_cli_kamino.trim() || null;
+    }
+    if (id_cli_kamino !== undefined && id_cli_kamino !== null) {
+      dadosUpdate.id_cli_kamino = id_cli_kamino.trim() || null;
+    }
+    
+    // Atualizar cliente
+    const { data: clienteAtualizado, error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .update(dadosUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error('❌ Erro ao atualizar cliente:', updateError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao atualizar cliente',
+        details: updateError.message
+      });
+    }
+    
+    // Limpar cache relacionado
+    clearCache('clientes');
+    
+    console.log('✅ Cliente atualizado com sucesso:', clienteExistente.nome);
+    
+    res.json({
+      success: true,
+      message: 'Cliente atualizado com sucesso',
+      data: clienteAtualizado
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao atualizar cliente:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// ========================================
+// === PUT /api/cliente-dados/:nomeClienteClickup ===
+// ========================================
+async function atualizarClientePorNomeClickup(req, res) {
+  try {
+    const { nomeClienteClickup } = req.params;
+    const { 
+      razao_social, 
+      nome_fantasia, 
+      nome_amigavel, 
+      cpf_cnpj, 
+      status, 
+      clienteKamino, 
+      idCliKamino 
+    } = req.body;
+    
+    if (!nomeClienteClickup || nomeClienteClickup.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Nome do cliente ClickUp é obrigatório'
+      });
+    }
+    
+    console.log('📝 Atualizando cliente por nome ClickUp:', nomeClienteClickup);
+    
+    // Buscar cliente pelo nome (campo "nome" na tabela cp_cliente)
+    const { data: clienteExistente, error: checkError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('id, nome')
+      .eq('nome', nomeClienteClickup.trim())
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('❌ Erro ao buscar cliente:', checkError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
+      });
+    }
+    
+    if (!clienteExistente) {
+      return res.status(404).json({
+        success: false,
+        error: `Cliente não encontrado com nome: ${nomeClienteClickup}`
+      });
+    }
+    
+    // Preparar dados para atualização
+    const dadosUpdate = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (razao_social !== undefined && razao_social !== null) {
+      dadosUpdate.razao_social = razao_social.trim() || null;
+    }
+    if (nome_fantasia !== undefined && nome_fantasia !== null) {
+      dadosUpdate.nome_fantasia = nome_fantasia.trim() || null;
+    }
+    if (nome_amigavel !== undefined && nome_amigavel !== null) {
+      dadosUpdate.nome_amigavel = nome_amigavel.trim() || null;
+    }
+    if (cpf_cnpj !== undefined && cpf_cnpj !== null) {
+      dadosUpdate.cpf_cnpj = cpf_cnpj.trim() || null;
+    }
+    if (status !== undefined && status !== null) {
+      dadosUpdate.status = status.trim() || null;
+    }
+    if (clienteKamino !== undefined && clienteKamino !== null) {
+      dadosUpdate.nome_cli_kamino = clienteKamino.trim() || null;
+    }
+    if (idCliKamino !== undefined && idCliKamino !== null) {
+      dadosUpdate.id_cli_kamino = idCliKamino.trim() || null;
+    }
+    
+    // Atualizar cliente
+    const { data: clienteAtualizado, error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .update(dadosUpdate)
+      .eq('id', clienteExistente.id)
+      .select()
+      .single();
+    
+    if (updateError) {
+      console.error('❌ Erro ao atualizar cliente:', updateError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao atualizar cliente',
+        details: updateError.message
+      });
+    }
+    
+    // Limpar cache relacionado
+    clearCache('clientes');
+    
+    console.log('✅ Cliente atualizado com sucesso:', clienteExistente.nome);
+    
+    res.json({
+      success: true,
+      message: 'Cliente atualizado com sucesso',
+      data: clienteAtualizado
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao atualizar cliente:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getClientesKamino,
   getClientesIncompletosCount,
   getCarteiraClientes,
   inativarCliente,
-  ativarCliente
+  ativarCliente,
+  atualizarClientePorId,
+  atualizarClientePorNomeClickup
 };
 
