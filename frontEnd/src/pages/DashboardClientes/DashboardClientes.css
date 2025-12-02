@@ -1,3 +1,65 @@
 /* Este arquivo mantém os estilos que já estão no global.css */
 /* Os estilos específicos estão nos componentes individuais */
 
+/* Estilos para filtros desabilitados e tooltips */
+.filter-group-disabled-wrapper {
+  position: relative;
+}
+
+.filter-group-disabled-wrapper.has-tooltip:hover .filter-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.filter-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 8px 12px;
+  background-color: #1f2937;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.filter-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: #1f2937;
+}
+
+/* Estilos para filtros desabilitados - deixar mais cinza */
+.filter-group-disabled-wrapper .status-filter-container .status-select-display.disabled,
+.filter-group-disabled-wrapper .cliente-filter-container .cliente-select-display.disabled,
+.filter-group-disabled-wrapper .colaborador-filter-container .colaborador-select-display.disabled {
+  opacity: 0.5;
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  border-color: #d1d5db;
+}
+
+.filter-group-disabled-wrapper .status-filter-container .status-select-display.disabled:hover,
+.filter-group-disabled-wrapper .cliente-filter-container .cliente-select-display.disabled:hover,
+.filter-group-disabled-wrapper .colaborador-filter-container .colaborador-select-display.disabled:hover {
+  border-color: #d1d5db;
+  box-shadow: none;
+}
+
+.filter-group-disabled-wrapper .filter-label {
+  opacity: 0.5;
+  color: #9ca3af;
+}
+
