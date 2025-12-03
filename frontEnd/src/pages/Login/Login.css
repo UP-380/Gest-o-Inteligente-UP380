@@ -47,11 +47,19 @@
     margin-bottom: 20px;
 }
 
+.form-group:first-of-type {
+    margin-bottom: 20px;
+}
+
 .form-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: #333;
     font-weight: 500;
+}
+
+.form-group:last-of-type label {
+    margin-bottom: 8px;
 }
 
 .form-group input {
@@ -98,6 +106,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
+    margin-top: 20px;
 }
 
 .login-btn:hover:not(:disabled) {

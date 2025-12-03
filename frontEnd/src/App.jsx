@@ -6,6 +6,7 @@ import RelatoriosClientes from './pages/DashboardClientes/DashboardClientes';
 import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardColaboradores';
 import GestaoClientes from './pages/CarteiraClientes/CarteiraClientes';
 import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
+import ConfigCustoMembro from './pages/ConfigCustoMembro/ConfigCustoMembro';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -92,6 +93,14 @@ function App() {
           element={
             <ProtectedRoute>
               <GestaoColaboradores />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/configuracoes/custo-membro"
+          element={
+            <ProtectedRoute>
+              <ConfigCustoMembro />
             </ProtectedRoute>
           }
         />

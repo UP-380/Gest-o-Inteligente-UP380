@@ -239,8 +239,6 @@ const GestaoColaboradores = () => {
     { key: 'valetransporte', label: 'Vale Transporte' },
     { key: 'ferias', label: 'Férias' },
     { key: 'decimoterceiro', label: '13º Salário' },
-    { key: 'insspatronal', label: 'INSS Patronal' },
-    { key: 'insscolaborador', label: 'INSS Colaborador' },
     { key: 'fgts', label: 'FGTS' },
     { key: 'horas_mensal', label: 'Horas Mensal' },
     { key: 'descricao', label: 'Descrição' }
@@ -791,6 +789,50 @@ const GestaoColaboradores = () => {
     }
   }, [colaboradorToDelete, loadColaboradores]);
 
+  // Ativar colaborador
+  const handleAtivar = useCallback(async () => {
+    if (!colaboradorToDelete) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/colaboradores/${colaboradorToDelete.id}/ativar`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Resposta não é JSON:', text);
+        throw new Error(`Erro ao ativar colaborador. Resposta do servidor: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage('Colaborador ativado com sucesso!', 'success');
+        setShowDeleteModal(false);
+        setColaboradorToDelete(null);
+        await loadColaboradores();
+      } else {
+        throw new Error(result.error || 'Erro ao ativar colaborador');
+      }
+    } catch (error) {
+      console.error('Erro ao ativar colaborador:', error);
+      showMessage(error.message || 'Erro ao ativar colaborador. Tente novamente.', 'error');
+      setShowDeleteModal(false);
+    }
+  }, [colaboradorToDelete, loadColaboradores]);
+
   // Resetar formulário
   const resetForm = () => {
     setFormData({
@@ -904,6 +946,12 @@ const GestaoColaboradores = () => {
     setShowDeleteModal(true);
   };
 
+  // Confirmar ativação
+  const confirmAtivar = (colaborador) => {
+    setColaboradorToDelete(colaborador);
+    setShowDeleteModal(true);
+  };
+
   // Redirecionar para vigências do membro
   const handleVerVigencias = (colaborador) => {
     // Ativa o toggle de detalhes e filtra automaticamente pelo colaborador selecionado
@@ -916,6 +964,30 @@ const GestaoColaboradores = () => {
   const handleNovaVigencia = (colaborador) => {
     setMembroIdParaVigencia(colaborador.id);
     setNomeMembroParaVigencia(colaborador.nome || '');
+    setVigenciaFormData({
+      dt_vigencia: '',
+      diasuteis: '',
+      horascontratadasdia: '',
+      salariobase: '',
+      ajudacusto: '0',
+      valetransporte: '0',
+      descricao: '',
+      ferias: '0',
+      decimoterceiro: '0',
+      insspatronal: '0',
+      insscolaborador: '0',
+      fgts: '0',
+      descricao_beneficios: ''
+    });
+    setVigenciaFormErrors({});
+    setShowModalNovaVigencia(true);
+  };
+
+  // Abrir modal de nova vigência a partir do filtro (quando está na visualização de Vigência)
+  const handleNovaVigenciaDoFiltro = () => {
+    // Inicializar sem colaborador selecionado - o usuário escolherá no modal
+    setMembroIdParaVigencia(null);
+    setNomeMembroParaVigencia('');
     setVigenciaFormData({
       dt_vigencia: '',
       diasuteis: '',
@@ -1139,10 +1211,6 @@ const GestaoColaboradores = () => {
         return vigencia.ferias ? `R$ ${formatarMoeda(vigencia.ferias)}` : '-';
       case 'decimoterceiro':
         return vigencia.decimoterceiro ? `R$ ${formatarMoeda(vigencia.decimoterceiro)}` : '-';
-      case 'insspatronal':
-        return vigencia.insspatronal ? `R$ ${formatarMoeda(vigencia.insspatronal)}` : '-';
-      case 'insscolaborador':
-        return vigencia.insscolaborador ? `R$ ${formatarMoeda(vigencia.insscolaborador)}` : '-';
       case 'fgts':
         return vigencia.fgts ? `R$ ${formatarMoeda(vigencia.fgts)}` : '-';
       case 'horas_mensal':
@@ -1164,8 +1232,18 @@ const GestaoColaboradores = () => {
   const handleSalvarNovaVigencia = useCallback(async (e) => {
     e.preventDefault();
 
+    const errors = {};
+
+    if (!membroIdParaVigencia) {
+      errors.membro_id = 'Colaborador é obrigatório';
+    }
+
     if (!vigenciaFormData.dt_vigencia || !vigenciaFormData.dt_vigencia.trim()) {
-      setVigenciaFormErrors({ dt_vigencia: 'Data de Vigência é obrigatória' });
+      errors.dt_vigencia = 'Data de Vigência é obrigatória';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setVigenciaFormErrors(errors);
       return;
     }
 
@@ -1661,6 +1739,40 @@ const GestaoColaboradores = () => {
                   Gerencie os colaboradores do sistema
                 </p>
               </div>
+              <button
+                onClick={() => navigate('/configuracoes/custo-membro')}
+                className="custo-colaborador-btn"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: 0.7
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f1f5f9';
+                  e.currentTarget.style.color = '#475569';
+                  e.currentTarget.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#64748b';
+                  e.currentTarget.style.opacity = '0.7';
+                }}
+                title="Configurações de Custo Membro"
+              >
+                <i className="fas fa-cog custo-colaborador-icon" style={{ 
+                  fontSize: '16px'
+                }}></i>
+                <span>Custo Colaborador</span>
+              </button>
             </div>
           </div>
 
@@ -1724,12 +1836,12 @@ const GestaoColaboradores = () => {
                     label="Inativos"
                   />
                   <ButtonPrimary
-                    onClick={handleNewColaborador}
+                    onClick={mostrarDetalhes ? handleNovaVigenciaDoFiltro : handleNewColaborador}
                     disabled={showForm}
                     icon="fas fa-plus"
                     style={{ marginLeft: '12px' }}
                   >
-                    Novo Colaborador
+                    {mostrarDetalhes ? 'Nova Vigência' : 'Novo Colaborador'}
                   </ButtonPrimary>
                 </div>
               </div>
@@ -1749,20 +1861,22 @@ const GestaoColaboradores = () => {
             </>
           )}
 
-          {/* Formulário de cadastro/edição */}
+          {/* Modal de Novo/Editar Colaborador */}
           {showForm && (
-            <div className="form-card">
-              <div className="form-card-header">
-                <h3 style={{ fontSize: '16px' }}>{editingId ? 'Editar Colaborador' : 'Novo Colaborador'}</h3>
-                <button
-                  className="btn-icon"
-                  onClick={resetForm}
-                  title="Fechar"
-                >
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
-              <form onSubmit={handleSubmit} className="colaborador-form">
+            <div className="modal-overlay" onClick={resetForm}>
+              <div className="modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3 style={{ fontSize: '16px' }}>{editingId ? 'Editar Colaborador' : 'Novo Colaborador'}</h3>
+                  <button
+                    className="btn-icon"
+                    onClick={resetForm}
+                    title="Fechar"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <form onSubmit={handleSubmit} className="colaborador-form">
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label-small">
@@ -1895,10 +2009,8 @@ const GestaoColaboradores = () => {
                                 disabled={submitting}
                               />
                             </div>
-                          </div>
 
-                          <div className="form-row-vigencia">
-                            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <div className="form-group" style={{ gridColumn: 'span 1' }}>
                               <label className="form-label-small">Descrição</label>
                               <input
                                 type="text"
@@ -1993,34 +2105,6 @@ const GestaoColaboradores = () => {
 
                             <div className="form-row-vigencia">
                               <div className="form-group">
-                                <label className="form-label-small">INSS Patronal</label>
-                                <input
-                                  type="text"
-                                  className="form-input-small"
-                                  value={formData.insspatronal}
-                                  readOnly
-                                  style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                                  placeholder="0,00"
-                                  disabled={submitting}
-                                  title="Calculado automaticamente"
-                                />
-                              </div>
-
-                              <div className="form-group">
-                                <label className="form-label-small">INSS Colaborador</label>
-                                <input
-                                  type="text"
-                                  className="form-input-small"
-                                  value={formData.insscolaborador}
-                                  readOnly
-                                  style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                                  placeholder="0,00"
-                                  disabled={submitting}
-                                  title="Calculado automaticamente"
-                                />
-                              </div>
-
-                              <div className="form-group">
                                 <label className="form-label-small">FGTS</label>
                                 <input
                                   type="text"
@@ -2053,34 +2137,36 @@ const GestaoColaboradores = () => {
                   </>
                 )}
 
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={resetForm}
-                    disabled={submitting}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <>
-                        <i className="fas fa-spinner fa-spin"></i>
-                        Salvando...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-save"></i>
-                        {editingId ? 'Atualizar' : 'Salvar'}
-                      </>
-                    )}
-                  </button>
+                    <div className="modal-footer">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={resetForm}
+                        disabled={submitting}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={submitting}
+                      >
+                        {submitting ? (
+                          <>
+                            <i className="fas fa-spinner fa-spin"></i>
+                            Salvando...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-save"></i>
+                            {editingId ? 'Atualizar' : 'Salvar'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
-              </form>
+              </div>
             </div>
           )}
 
@@ -2140,12 +2226,12 @@ const GestaoColaboradores = () => {
                     label="Inativos"
                   />
                   <ButtonPrimary
-                    onClick={handleNewColaborador}
-                    disabled={showForm}
+                    onClick={mostrarDetalhes ? handleNovaVigenciaDoFiltro : handleNewColaborador}
+                    disabled={showForm || showModalNovaVigencia}
                     icon="fas fa-plus"
                     style={{ marginLeft: '12px' }}
                   >
-                    Novo Colaborador
+                    {mostrarDetalhes ? 'Nova Vigência' : 'Novo Colaborador'}
                   </ButtonPrimary>
                 </div>
               </div>
@@ -2207,7 +2293,7 @@ const GestaoColaboradores = () => {
                         <th>Nome</th>
                         <th>CPF</th>
                         <th>Salário Base</th>
-                        <th className="actions-column">Ações</th>
+                        <th className="actions-column">Ações Colaborador/Vigência</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2242,11 +2328,40 @@ const GestaoColaboradores = () => {
                                   <path d="M410.3 231l11.3-11.3-33.9-33.9-62.1-62.1L291.7 89.8l-11.3 11.3-22.6 22.6L58.6 322.9c-10.4 10.4-18 23.3-22.2 37.4L1 480.7c-2.5 8.4-.2 17.5 6.1 23.7s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L387.7 253.7 410.3 231zM160 399.4l-9.1 22.7c-4 3.1-8.5 5.4-13.3 6.9L59.4 452l23-78.1c1.4-4.9 3.8-9.4 6.9-13.3l22.7-9.1v32c0 8.8 7.2 16 16 16h32zM362.7 18.7L348.3 33.2 325.7 55.8 314.3 67.1l33.9 33.9 62.1 62.1 33.9 33.9 11.3-11.3 22.6-22.6 14.5-14.5c25-25 25-65.5 0-90.5L453.3 18.7c-25-25-65.5-25-90.5 0zm-47.4 168l-144 144c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6l144-144c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z"/>
                                 </svg>
                               </button>
+                              {mostrarInativos ? (
+                                <button
+                                  className="btn-icon activate-btn"
+                                  onClick={() => confirmAtivar(colaborador)}
+                                  title="Ativar"
+                                  disabled={showForm}
+                                  style={{ color: '#10b981' }}
+                                >
+                                  <svg viewBox="0 0 512 512" className="icon-check" width="22" height="22">
+                                    <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" fill="currentColor"/>
+                                  </svg>
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn-icon inactivate-btn"
+                                  onClick={() => confirmInativar(colaborador)}
+                                  title="Inativar"
+                                  disabled={showForm}
+                                  style={{ color: '#ef4444' }}
+                                >
+                                  <svg viewBox="0 0 512 512" className="icon-ban" width="22" height="22">
+                                    <circle cx="256" cy="256" r="200" fill="currentColor" opacity="0.1"/>
+                                    <circle cx="256" cy="256" r="200" fill="none" stroke="currentColor" strokeWidth="32"/>
+                                    <line x1="150" y1="150" x2="362" y2="362" stroke="currentColor" strokeWidth="32" strokeLinecap="round"/>
+                                  </svg>
+                                </button>
+                              )}
+                              <span className="action-divider"></span>
                               <button
                                 className="btn-icon btn-vigencia calendar-anim"
                                 onClick={() => handleVerVigencias(colaborador)}
                                 title="Ver Vigências"
                                 disabled={showForm}
+                                style={{ color: '#ed8936' }}
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
@@ -2278,11 +2393,10 @@ const GestaoColaboradores = () => {
                                 </svg>
                               </button>
                               <button
-                                className="btn-icon"
+                                className="btn-icon btn-vigencia"
                                 onClick={() => handleNovaVigencia(colaborador)}
                                 title="Nova Vigência"
                                 disabled={showForm}
-                                style={{ color: '#ed8936' }}
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
@@ -2294,19 +2408,6 @@ const GestaoColaboradores = () => {
                                   <circle cx="12" cy="12" r="9" strokeWidth="1.5" fill="none"></circle>
                                   <line x1="8" y1="12" x2="16" y2="12" strokeWidth="1.5"></line>
                                   <line x1="12" y1="16" x2="12" y2="8" strokeWidth="1.5"></line>
-                                </svg>
-                              </button>
-                              <button
-                                className="btn-icon inactivate-btn"
-                                onClick={() => confirmInativar(colaborador)}
-                                title="Inativar"
-                                disabled={showForm}
-                                style={{ color: '#ef4444' }}
-                              >
-                                <svg viewBox="0 0 512 512" className="icon-ban" width="22" height="22">
-                                  <circle cx="256" cy="256" r="200" fill="currentColor" opacity="0.1"/>
-                                  <circle cx="256" cy="256" r="200" fill="none" stroke="currentColor" strokeWidth="32"/>
-                                  <line x1="150" y1="150" x2="362" y2="362" stroke="currentColor" strokeWidth="32" strokeLinecap="round"/>
                                 </svg>
                               </button>
                             </div>
@@ -2538,11 +2639,13 @@ const GestaoColaboradores = () => {
             </div>
             <div className="modal-body">
               <p>
-                Tem certeza que deseja inativar o colaborador{' '}
+                Tem certeza que deseja {mostrarInativos ? 'ativar' : 'inativar'} o colaborador{' '}
                 <strong>{colaboradorToDelete.nome}</strong>?
               </p>
               <p className="warning-text">
-                O colaborador será marcado como inativo e não aparecerá mais nas listagens ativas.
+                {mostrarInativos 
+                  ? 'O colaborador será marcado como ativo e aparecerá novamente nas listagens ativas.'
+                  : 'O colaborador será marcado como inativo e não aparecerá mais nas listagens ativas.'}
               </p>
             </div>
             <div className="modal-footer">
@@ -2553,15 +2656,26 @@ const GestaoColaboradores = () => {
                 Cancelar
               </button>
               <button
-                className="btn-danger btn-inativar"
-                onClick={handleInativar}
+                className={mostrarInativos ? "btn-success btn-ativar" : "btn-danger btn-inativar"}
+                onClick={mostrarInativos ? handleAtivar : handleInativar}
               >
-                <svg viewBox="0 0 512 512" className="icon-ban" width="18" height="18">
-                  <circle cx="256" cy="256" r="200" fill="currentColor" opacity="0.1"/>
-                  <circle cx="256" cy="256" r="200" fill="none" stroke="currentColor" strokeWidth="32"/>
-                  <line x1="150" y1="150" x2="362" y2="362" stroke="currentColor" strokeWidth="32" strokeLinecap="round"/>
-                </svg>
-                Inativar
+                {mostrarInativos ? (
+                  <>
+                    <svg viewBox="0 0 512 512" className="icon-check" width="18" height="18">
+                      <path d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" fill="currentColor"/>
+                    </svg>
+                    Ativar
+                  </>
+                ) : (
+                  <>
+                    <svg viewBox="0 0 512 512" className="icon-ban" width="18" height="18">
+                      <circle cx="256" cy="256" r="200" fill="currentColor" opacity="0.1"/>
+                      <circle cx="256" cy="256" r="200" fill="none" stroke="currentColor" strokeWidth="32"/>
+                      <line x1="150" y1="150" x2="362" y2="362" stroke="currentColor" strokeWidth="32" strokeLinecap="round"/>
+                    </svg>
+                    Inativar
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -2616,7 +2730,7 @@ const GestaoColaboradores = () => {
         <div className="modal-overlay" onClick={fecharModalNovaVigencia}>
           <div className="modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '16px' }}>Nova Vigência - {nomeMembroParaVigencia}</h3>
+              <h3 style={{ fontSize: '16px' }}>Nova Vigência</h3>
               <button
                 className="btn-icon"
                 onClick={fecharModalNovaVigencia}
@@ -2628,6 +2742,38 @@ const GestaoColaboradores = () => {
               <form onSubmit={handleSalvarNovaVigencia}>
                 <div style={{ marginBottom: '20px' }}>
                   <div className="form-row-vigencia">
+                    <div className="form-group">
+                      <label className="form-label-small">
+                        Colaborador <span className="required">*</span>
+                      </label>
+                      <select
+                        className={`form-input-small ${vigenciaFormErrors.membro_id ? 'error' : ''}`}
+                        value={membroIdParaVigencia || ''}
+                        onChange={(e) => {
+                          const colaboradorId = e.target.value ? parseInt(e.target.value) : null;
+                          const colaborador = todosColaboradoresParaFiltro.find(c => c.id === colaboradorId);
+                          setMembroIdParaVigencia(colaboradorId);
+                          setNomeMembroParaVigencia(colaborador ? colaborador.nome || '' : '');
+                          if (vigenciaFormErrors.membro_id) {
+                            setVigenciaFormErrors({ ...vigenciaFormErrors, membro_id: '' });
+                          }
+                        }}
+                        disabled={submittingVigencia}
+                        required
+                      >
+                        <option value="">Selecione um colaborador</option>
+                        {todosColaboradoresParaFiltro.map((colaborador) => (
+                          <option key={colaborador.id} value={colaborador.id}>
+                            {colaborador.nome || `Colaborador #${colaborador.id}`}
+                            {colaborador.cpf ? ` (${colaborador.cpf})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {vigenciaFormErrors.membro_id && (
+                        <span className="error-message">{vigenciaFormErrors.membro_id}</span>
+                      )}
+                    </div>
+
                     <div className="form-group">
                       <label className="form-label-small">
                         Data de Vigência <span className="required">*</span>
@@ -2686,7 +2832,7 @@ const GestaoColaboradores = () => {
                       />
                     </div>
 
-                    <div className="form-group">
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
                       <label className="form-label-small">Descrição</label>
                       <input
                         type="text"
@@ -2779,34 +2925,6 @@ const GestaoColaboradores = () => {
                       </div>
 
                       <div className="form-group">
-                        <label className="form-label-small">INSS Patronal</label>
-                        <input
-                          type="text"
-                          className="form-input-small"
-                          value={vigenciaFormData.insspatronal}
-                          readOnly
-                          style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                          placeholder="0,00"
-                          disabled={submittingVigencia}
-                          title="Calculado automaticamente"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label-small">INSS Colaborador</label>
-                        <input
-                          type="text"
-                          className="form-input-small"
-                          value={vigenciaFormData.insscolaborador}
-                          readOnly
-                          style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                          placeholder="0,00"
-                          disabled={submittingVigencia}
-                          title="Calculado automaticamente"
-                        />
-                      </div>
-
-                      <div className="form-group">
                         <label className="form-label-small">FGTS</label>
                         <input
                           type="text"
@@ -2820,7 +2938,7 @@ const GestaoColaboradores = () => {
                         />
                       </div>
 
-                      <div className="form-group">
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
                         <label className="form-label-small">Descrição</label>
                         <input
                           type="text"
@@ -3029,34 +3147,6 @@ const GestaoColaboradores = () => {
                           type="text"
                           className="form-input-small"
                           value={vigenciaEditFormData.decimoterceiro}
-                          readOnly
-                          style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                          placeholder="0,00"
-                          disabled={submittingEditVigencia}
-                          title="Calculado automaticamente"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label-small">INSS Patronal</label>
-                        <input
-                          type="text"
-                          className="form-input-small"
-                          value={vigenciaEditFormData.insspatronal}
-                          readOnly
-                          style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
-                          placeholder="0,00"
-                          disabled={submittingEditVigencia}
-                          title="Calculado automaticamente"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label-small">INSS Colaborador</label>
-                        <input
-                          type="text"
-                          className="form-input-small"
-                          value={vigenciaEditFormData.insscolaborador}
                           readOnly
                           style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                           placeholder="0,00"

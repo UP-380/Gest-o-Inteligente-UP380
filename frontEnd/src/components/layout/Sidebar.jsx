@@ -38,6 +38,7 @@ const Sidebar = () => {
     }
   ];
 
+
   return (
     <nav className="sidebar" id="sidebar">
       <div className="sidebar-content">
@@ -52,6 +53,7 @@ const Sidebar = () => {
             <span className="sidebar-text">{item.label}</span>
           </Link>
         ))}
+
         <button
           type="button"
           className="sidebar-item"

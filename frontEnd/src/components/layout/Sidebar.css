@@ -161,3 +161,52 @@
   }
 }
 
+/* Menu de Configurações com Sub-menus */
+.sidebar-menu-group {
+  position: relative;
+}
+
+.sidebar-menu-toggle {
+  position: relative;
+}
+
+.sidebar-chevron {
+  margin-left: auto;
+  font-size: 0.75rem;
+  transition: transform 0.3s ease;
+  opacity: 0;
+}
+
+.sidebar:hover .sidebar-chevron {
+  opacity: 1;
+}
+
+.sidebar-submenu {
+  margin-left: 20px;
+  margin-top: 5px;
+  padding-left: 10px;
+  border-left: 2px solid #e5e7eb;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-submenu-item {
+  padding: 12px 10px;
+  font-size: 0.85rem;
+}
+
+.sidebar-submenu-item i {
+  font-size: 1rem;
+}
+
+/* Mostrar submenu quando está aberto e o sidebar está em hover */
+.sidebar:hover .sidebar-submenu.open {
+  display: flex;
+}
+
+/* Quando o sidebar não está em hover, ocultar submenu */
+.sidebar:not(:hover) .sidebar-submenu {
+  display: none;
+}
+
