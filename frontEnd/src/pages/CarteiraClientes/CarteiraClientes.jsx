@@ -55,11 +55,24 @@ const InlineEditForm = memo(({
   useEffect(() => {
     if (isExpanded) {
       loadCnpjOptions(client.id, client.clickupNome).then(options => {
-        setCnpjOptions(options);
+        // Garantir que o CNPJ salvo no banco esteja nas opções
+        const cnpjSalvo = editData.cnpj || client.raw?.cpf_cnpj || client.raw?.cnpj_cpf || '';
+        if (cnpjSalvo) {
+          const cnpjLimpo = cnpjSalvo.replace(/\D/g, '');
+          const optionsLimpos = options.map(opt => opt.replace(/\D/g, ''));
+          if (!optionsLimpos.includes(cnpjLimpo)) {
+            // Adicionar o CNPJ salvo às opções se não estiver presente
+            setCnpjOptions([...options, cnpjSalvo.replace(/\D/g, '')]);
+          } else {
+            setCnpjOptions(options);
+          }
+        } else {
+          setCnpjOptions(options);
+        }
       });
       setKaminoSearchTerm(editData.kaminoNome || '');
     }
-  }, [isExpanded, client.id, client.clickupNome, editData.kaminoNome, loadCnpjOptions]);
+  }, [isExpanded, client.id, client.clickupNome, editData.kaminoNome, editData.cnpj, client.raw, loadCnpjOptions]);
 
   // Filtrar clientes Kamino
   const filteredKamino = React.useMemo(() => {
@@ -138,15 +151,18 @@ const InlineEditForm = memo(({
             <div className="select-wrapper">
               <select
                 className="form-input select-with-icon"
-                value={editData.cnpj || ''}
+                value={editData.cnpj ? editData.cnpj.replace(/\D/g, '') : ''}
                 onChange={(e) => onUpdateEditData({ ...editData, cnpj: e.target.value })}
               >
                 <option value="">Selecione o CNPJ</option>
-                {cnpjOptions.map((cnpj) => (
-                  <option key={cnpj} value={cnpj}>
-                    {aplicarMascaraCpfCnpj(cnpj)}
-                  </option>
-                ))}
+                {cnpjOptions.map((cnpj) => {
+                  const cnpjLimpo = cnpj.replace(/\D/g, '');
+                  return (
+                    <option key={cnpjLimpo} value={cnpjLimpo}>
+                      {aplicarMascaraCpfCnpj(cnpjLimpo)}
+                    </option>
+                  );
+                })}
               </select>
               <i className="fas fa-chevron-down select-icon"></i>
             </div>
@@ -174,8 +190,17 @@ const InlineEditForm = memo(({
                 className="form-input select-with-icon searchable-input"
                 value={kaminoSearchTerm}
                 onChange={(e) => {
-                  setKaminoSearchTerm(e.target.value);
+                  const newValue = e.target.value;
+                  setKaminoSearchTerm(newValue);
                   setShowKaminoDropdown(true);
+                  // Se o campo foi limpo, limpar também o kaminoId
+                  if (!newValue || newValue.trim() === '') {
+                    onUpdateEditData({
+                      ...editData,
+                      kaminoNome: '',
+                      kaminoId: '',
+                    });
+                  }
                 }}
                 onFocus={() => {
                   console.log('🔍 Campo Cliente Kamino focado');
@@ -580,13 +605,17 @@ const GestaoClientes = () => {
       if (!cliente) return;
 
       const editData = editingData[id] || {};
-      const razao = editData.razao || cliente.raw?.razao_social || '';
-      const fantasia = editData.fantasia || cliente.raw?.nome_fantasia || '';
-      const amigavel = editData.amigavel || cliente.raw?.nome_amigavel || '';
-      const cnpj = editData.cnpj || cliente.raw?.cpf_cnpj || cliente.raw?.cnpj_cpf || '';
-      const status = editData.status || cliente.raw?.status || '';
-      const kaminoNome = editData.kaminoNome || cliente.raw?.nome_cli_kamino || cliente.raw?.cli_kamino || '';
-      const kaminoId = editData.kaminoId || '';
+      // Se o campo existe em editData (mesmo que vazio), usar o valor de editData
+      // Caso contrário, usar o valor do cliente.raw para manter o valor existente
+      const razao = editData.hasOwnProperty('razao') ? editData.razao : (cliente.raw?.razao_social || '');
+      const fantasia = editData.hasOwnProperty('fantasia') ? editData.fantasia : (cliente.raw?.nome_fantasia || '');
+      const amigavel = editData.hasOwnProperty('amigavel') ? editData.amigavel : (cliente.raw?.nome_amigavel || '');
+      // CNPJ: se existe em editData, usar (já vem limpo), senão usar do raw (pode ter formatação)
+      const cnpjRaw = editData.hasOwnProperty('cnpj') ? editData.cnpj : (cliente.raw?.cpf_cnpj || cliente.raw?.cnpj_cpf || '');
+      const cnpj = cnpjRaw ? cnpjRaw.replace(/\D/g, '') : '';
+      const status = editData.hasOwnProperty('status') ? editData.status : (cliente.raw?.status || '');
+      const kaminoNome = editData.hasOwnProperty('kaminoNome') ? editData.kaminoNome : (cliente.raw?.nome_cli_kamino || cliente.raw?.cli_kamino || '');
+      const kaminoId = editData.hasOwnProperty('kaminoId') ? editData.kaminoId : (cliente.raw?.id_cli_kamino || cliente.raw?.id_kamino || '');
       const clickupName = cliente.clickupNome || '';
 
       const sanitize = (v) => {
@@ -595,11 +624,14 @@ const GestaoClientes = () => {
       };
       const onlyDigits = (v) => String(v || '').replace(/\D+/g, '');
 
+      // CNPJ já vem limpo, mas garantir que está apenas com números
+      const cnpjLimpo = onlyDigits(cnpj);
+
       const payloadClickup = {
         razao_social: sanitize(razao),
         nome_fantasia: sanitize(fantasia),
         nome_amigavel: sanitize(amigavel),
-        cpf_cnpj: sanitize(onlyDigits(cnpj)),
+        cpf_cnpj: sanitize(cnpjLimpo),
         status: sanitize(status),
         clienteKamino: sanitize(kaminoNome),
         idCliKamino: sanitize(kaminoId),
@@ -608,7 +640,7 @@ const GestaoClientes = () => {
         razao_social: sanitize(razao),
         nome_fantasia: sanitize(fantasia),
         nome_amigavel: sanitize(amigavel),
-        cpf_cnpj: sanitize(onlyDigits(cnpj)),
+        cpf_cnpj: sanitize(cnpjLimpo),
         status: sanitize(status),
         nome_cli_kamino: sanitize(kaminoNome),
         id_cli_kamino: sanitize(kaminoId),
@@ -798,12 +830,15 @@ const GestaoClientes = () => {
       setExpandedClientId(id);
       const cliente = clientes.find(c => String(c.id) === String(id));
       if (cliente) {
+        // Garantir que o CNPJ seja apenas números para comparação no select
+        const cnpjRaw = cliente.raw?.cpf_cnpj || cliente.raw?.cnpj_cpf || '';
+        const cnpjLimpo = cnpjRaw ? cnpjRaw.replace(/\D/g, '') : '';
         setEditingData({
           [id]: {
             razao: cliente.raw?.razao_social || '',
             fantasia: cliente.raw?.nome_fantasia || '',
             amigavel: cliente.raw?.nome_amigavel || '',
-            cnpj: cliente.raw?.cpf_cnpj || cliente.raw?.cnpj_cpf || '',
+            cnpj: cnpjLimpo,
             status: cliente.raw?.status || '',
             kaminoNome: cliente.raw?.nome_cli_kamino || cliente.raw?.cli_kamino || '',
             kaminoId: cliente.raw?.id_cli_kamino || cliente.raw?.id_kamino || '',
