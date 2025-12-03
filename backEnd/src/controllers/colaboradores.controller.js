@@ -495,6 +495,86 @@ async function inativarColaborador(req, res) {
   }
 }
 
+// PUT - Ativar colaborador
+async function ativarColaborador(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do colaborador é obrigatório'
+      });
+    }
+
+    // Verificar se colaborador existe
+    const { data: existente, error: errorCheck } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .select('id, nome, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (errorCheck) {
+      console.error('Erro ao verificar colaborador:', errorCheck);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao verificar colaborador',
+        details: errorCheck.message
+      });
+    }
+
+    if (!existente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Colaborador não encontrado'
+      });
+    }
+
+    // Verificar se já está ativo
+    if (existente.status === 'ativo' || existente.status === null) {
+      return res.status(400).json({
+        success: false,
+        error: 'Colaborador já está ativo'
+      });
+    }
+
+    // Atualizar status para ativo
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .update({ 
+        status: 'ativo',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao ativar colaborador:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao ativar colaborador',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Colaborador ativado com sucesso',
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao ativar colaborador:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // DELETE - Deletar colaborador
 async function deletarColaborador(req, res) {
   try {
@@ -592,6 +672,7 @@ module.exports = {
   criarColaborador,
   atualizarColaborador,
   inativarColaborador,
+  ativarColaborador,
   deletarColaborador
 };
 

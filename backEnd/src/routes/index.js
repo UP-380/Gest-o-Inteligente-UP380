@@ -12,6 +12,7 @@ const tarefasController = require('../controllers/tarefas.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
 const custoMembroVigenciaController = require('../controllers/custo-membro-vigencia.controller');
+const configCustoMembroController = require('../controllers/config-custo-membro.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -53,6 +54,7 @@ router.get('/api/colaboradores', requireAuth, colaboradoresController.getColabor
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
 router.post('/api/colaboradores', requireAuth, colaboradoresController.criarColaborador);
 router.put('/api/colaboradores/:id/inativar', requireAuth, colaboradoresController.inativarColaborador);
+router.put('/api/colaboradores/:id/ativar', requireAuth, colaboradoresController.ativarColaborador);
 router.put('/api/colaboradores/:id', requireAuth, colaboradoresController.atualizarColaborador);
 router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.deletarColaborador);
 
@@ -63,6 +65,13 @@ router.get('/api/custo-membro-vigencia/membro/:membro_id', requireAuth, custoMem
 router.post('/api/custo-membro-vigencia', requireAuth, custoMembroVigenciaController.criarCustoMembroVigencia);
 router.put('/api/custo-membro-vigencia/:id', requireAuth, custoMembroVigenciaController.atualizarCustoMembroVigencia);
 router.delete('/api/custo-membro-vigencia/:id', requireAuth, custoMembroVigenciaController.deletarCustoMembroVigencia);
+
+// Rotas de Configuração de Custo Membro (CRUD completo)
+router.get('/api/config-custo-membro', requireAuth, configCustoMembroController.getConfigCustoMembro);
+router.get('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.getConfigCustoMembroPorId);
+router.post('/api/config-custo-membro', requireAuth, configCustoMembroController.criarConfigCustoMembro);
+router.put('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.atualizarConfigCustoMembro);
+router.delete('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.deletarConfigCustoMembro);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {

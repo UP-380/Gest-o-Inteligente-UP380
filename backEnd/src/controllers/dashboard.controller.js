@@ -781,14 +781,14 @@ async function getDashboardClientes(req, res) {
       }
     });
 
-    const registrosParaFiltrarPorCliente = colaboradorIdsArray.length > 0 
-      ? registrosPaginaRaw
-      : todosRegistrosRaw;
+    // IMPORTANTE: Separar registros para exibição (página atual) e para cálculo de resumos (todos os registros)
+    // - registrosPagina: apenas da página atual (para exibição)
+    // - todosRegistros: todos os registros (para calcular resumos corretamente)
     
     // Validar interseção entre colaborador e cliente quando ambos estão filtrados
     if (colaboradorIdsArray.length > 0 && clienteIds.length > 0) {
       const colaboradorIdsNumericos = colaboradorIdsArray.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
-      const registrosComInterseccao = registrosParaFiltrarPorCliente.filter(r => {
+      const registrosComInterseccao = todosRegistrosRaw.filter(r => {
         const pertenceAoCliente = registroPertenceAosClientes(r, clienteIds);
         const pertenceAoColaborador = r.usuario_id && colaboradorIdsNumericos.includes(parseInt(String(r.usuario_id).trim(), 10));
         return pertenceAoCliente && pertenceAoColaborador;
@@ -828,7 +828,21 @@ async function getDashboardClientes(req, res) {
     const clientesComResumos = (clientes || []).map(cliente => {
       const clienteIdStr = String(cliente.id).trim();
       const contratos = contratosPagina.filter(c => String(c.id_cliente).trim() === clienteIdStr);
-      const registrosTempo = registrosParaFiltrarPorCliente.filter(r => {
+      
+      // Registros para exibição na página (apenas da página atual)
+      const registrosTempoPagina = registrosPagina.filter(r => {
+        const pertenceAoCliente = registroPertenceAosClientes(r, [clienteIdStr]);
+        // Se há filtro de colaborador, também verificar se o registro pertence ao colaborador
+        if (colaboradorIdsArray.length > 0 && r.usuario_id) {
+          const colaboradorIdsNumericos = colaboradorIdsArray.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
+          const pertenceAoColaborador = colaboradorIdsNumericos.includes(parseInt(String(r.usuario_id).trim(), 10));
+          return pertenceAoCliente && pertenceAoColaborador;
+        }
+        return pertenceAoCliente;
+      });
+      
+      // Registros para cálculo de resumos (TODOS os registros do cliente, não apenas da página)
+      const registrosTempoResumo = todosRegistros.filter(r => {
         const pertenceAoCliente = registroPertenceAosClientes(r, [clienteIdStr]);
         // Se há filtro de colaborador, também verificar se o registro pertence ao colaborador
         if (colaboradorIdsArray.length > 0 && r.usuario_id) {
@@ -839,7 +853,24 @@ async function getDashboardClientes(req, res) {
         return pertenceAoCliente;
       });
 
-      const registrosCompletos = registrosTempo.map(registro => {
+      // Completar registros da página com dados relacionados (tarefas, membros)
+      const registrosCompletos = registrosTempoPagina.map(registro => {
+        const registroRetorno = { ...registro };
+        if (registro.tarefa_id) {
+          registroRetorno.tarefa = tarefasMapGlobal[String(registro.tarefa_id).trim()] || null;
+        }
+        if (registro.usuario_id) {
+          const usuarioId = registro.usuario_id;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
+                                   membrosMapGlobal[String(usuarioId)] || 
+                                   membrosMapGlobal[parseInt(usuarioId)] || 
+                                   null;
+        }
+        return registroRetorno;
+      });
+
+      // Completar registros do resumo com dados relacionados (para cálculos corretos)
+      const registrosCompletosResumo = registrosTempoResumo.map(registro => {
         const registroRetorno = { ...registro };
         if (registro.tarefa_id) {
           registroRetorno.tarefa = tarefasMapGlobal[String(registro.tarefa_id).trim()] || null;
@@ -855,27 +886,42 @@ async function getDashboardClientes(req, res) {
       });
 
       const totalContratos = contratos.length;
-      const tarefasUnicas = new Set(registrosCompletos.map(r => r.tarefa_id).filter(Boolean));
+      
+      // Calcular resumos com base em TODOS os registros do cliente (não apenas da página)
+      const tarefasUnicas = new Set(registrosCompletosResumo.map(r => r.tarefa_id).filter(Boolean));
       const totalTarefasUnicas = tarefasUnicas.size;
       
       const produtosUnicos = new Set();
-      registrosCompletos.forEach(r => {
+      registrosCompletosResumo.forEach(r => {
         if (r.tarefa && r.tarefa.produto_id) {
           produtosUnicos.add(String(r.tarefa.produto_id).trim());
         }
       });
       const totalProdutosUnicos = produtosUnicos.size;
 
-      const colaboradoresUnicos = new Set(registrosCompletos.map(r => r.usuario_id).filter(Boolean));
+      const colaboradoresUnicos = new Set(registrosCompletosResumo.map(r => r.usuario_id).filter(Boolean));
       const totalColaboradoresUnicos = colaboradoresUnicos.size;
 
+      // Calcular tempo total usando TODOS os registros do cliente
       let tempoTotalGeral = 0;
-      registrosCompletos.forEach(r => {
-        tempoTotalGeral += Number(r.tempo_realizado) || 0;
+      registrosCompletosResumo.forEach(r => {
+        let tempoRealizado = Number(r.tempo_realizado) || 0;
+        
+        // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim
+        if (!tempoRealizado && r.data_inicio && r.data_fim) {
+          const inicio = new Date(r.data_inicio);
+          const fim = new Date(r.data_fim);
+          tempoRealizado = fim.getTime() - inicio.getTime();
+        }
+        
+        // Converter tempo para milissegundos usando a função auxiliar
+        const tempoMs = converterTempoParaMilissegundos(tempoRealizado);
+        tempoTotalGeral += tempoMs;
       });
 
+      // Calcular tempoPorColaborador usando TODOS os registros do cliente
       const tempoPorColaborador = {};
-      registrosCompletos.forEach(r => {
+      registrosCompletosResumo.forEach(r => {
         if (r.usuario_id) {
           const colaboradorId = String(r.usuario_id).trim();
           
@@ -888,7 +934,19 @@ async function getDashboardClientes(req, res) {
               total: 0
             };
           }
-          tempoPorColaborador[colaboradorId].total += Number(r.tempo_realizado) || 0;
+          
+          let tempoRealizado = Number(r.tempo_realizado) || 0;
+          
+          // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim
+          if (!tempoRealizado && r.data_inicio && r.data_fim) {
+            const inicio = new Date(r.data_inicio);
+            const fim = new Date(r.data_fim);
+            tempoRealizado = fim.getTime() - inicio.getTime();
+          }
+          
+          // Converter tempo para milissegundos usando a função auxiliar
+          const tempoMs = converterTempoParaMilissegundos(tempoRealizado);
+          tempoPorColaborador[colaboradorId].total += tempoMs;
         }
       });
 
@@ -1184,32 +1242,47 @@ async function getDashboardColaboradores(req, res) {
     const colaboradorIdsNumericos = colaboradorIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
     
     if (colaboradorIdsNumericos.length > 0) {
-      const criarQueryBuilderTodosRegistros = () => {
-        let query = supabase
-          .schema('up_gestaointeligente')
-          .from('v_registro_tempo_vinculado')
-          .select('*')
-          .not('usuario_id', 'is', null)
-          .not('cliente_id', 'is', null)
-          .in('usuario_id', colaboradorIdsNumericos);
-
-        if (dataInicio && dataFim) {
-          query = query
-            .gte('data_inicio', inicioStr)
-            .lte('data_inicio', fimStr);
-        }
-
-        return query;
-      };
+      // O Supabase tem limite de ~100 valores no .in(), então dividir em chunks se necessário
+      const CHUNK_SIZE = 100;
+      const chunks = [];
+      for (let i = 0; i < colaboradorIdsNumericos.length; i += CHUNK_SIZE) {
+        chunks.push(colaboradorIdsNumericos.slice(i, i + CHUNK_SIZE));
+      }
 
       try {
-        const todosRegistros = await buscarTodosComPaginacao(criarQueryBuilderTodosRegistros, { 
-          limit: 1000, 
-          logProgress: false 
+        const todasQueries = chunks.map((chunk, chunkIndex) => {
+          const criarQueryBuilderTodosRegistros = () => {
+            let query = supabase
+              .schema('up_gestaointeligente')
+              .from('v_registro_tempo_vinculado')
+              .select('*')
+              .not('usuario_id', 'is', null)
+              .not('cliente_id', 'is', null)
+              .in('usuario_id', chunk);
+
+            if (dataInicio && dataFim) {
+              query = query
+                .gte('data_inicio', inicioStr)
+                .lte('data_inicio', fimStr);
+            }
+
+            return query;
+          };
+
+          return buscarTodosComPaginacao(criarQueryBuilderTodosRegistros, { 
+            limit: 1000, 
+            logProgress: chunkIndex === 0 // Log apenas no primeiro chunk para não poluir
+          });
         });
+
+        // Executar todas as queries em paralelo e combinar resultados
+        const todosRegistrosArrays = await Promise.all(todasQueries);
+        const todosRegistros = todosRegistrosArrays.flat();
+        
+        console.log(`✅ [DASHBOARD-COLABORADORES] Total de registros buscados para ${colaboradorIdsNumericos.length} colaborador(es) em ${chunks.length} chunk(s): ${todosRegistros.length}`);
         todosRegistrosData = { data: todosRegistros, error: null };
       } catch (error) {
-        console.error('Erro ao buscar todos os registros com paginação:', error);
+        console.error('❌ Erro ao buscar todos os registros com paginação:', error);
         todosRegistrosData = { data: [], error };
       }
     }
@@ -1333,15 +1406,31 @@ async function getDashboardColaboradores(req, res) {
     });
 
     // 5. Agrupar dados por colaborador e calcular resumos
-    // IMPORTANTE: Se há filtro de cliente, os resumos devem considerar apenas os registros filtrados
+    // IMPORTANTE: 
+    // - Para os registros exibidos na página, usar registrosPagina (apenas da página atual)
+    // - Para calcular os resumos (H.R., tarefas, produtos, clientes), usar todosRegistros (todos os registros do colaborador)
     const colaboradoresComResumos = colaboradorIdsPaginated.map(colaboradorIdStr => {
       const colaborador = colaboradoresMap[colaboradorIdStr] || { id: colaboradorIdStr, nome: `Colaborador #${colaboradorIdStr}` };
-      let registrosTempo = registrosPagina.filter(r => String(r.usuario_id).trim() === colaboradorIdStr);
+      
+      // Registros para exibição na página (apenas da página atual)
+      let registrosTempoPagina = registrosPagina.filter(r => String(r.usuario_id).trim() === colaboradorIdStr);
+      
+      // Registros para cálculo de resumos (TODOS os registros do colaborador, não apenas da página)
+      let registrosTempoResumo = todosRegistros.filter(r => String(r.usuario_id).trim() === colaboradorIdStr);
 
       // Se há filtro de cliente, garantir que apenas registros dos clientes filtrados sejam considerados
       if (clienteIdsArray.length > 0) {
         const clienteIdsNormalizados = clienteIdsArray.map(id => String(id).trim().toLowerCase());
-        registrosTempo = registrosTempo.filter(r => {
+        registrosTempoPagina = registrosTempoPagina.filter(r => {
+          if (!r.cliente_id) return false;
+          const idsExtraidos = extrairClienteIds(r.cliente_id);
+          return idsExtraidos.some(id => {
+            const idNormalizado = String(id).trim().toLowerCase();
+            return clienteIdsNormalizados.includes(idNormalizado);
+          });
+        });
+        
+        registrosTempoResumo = registrosTempoResumo.filter(r => {
           if (!r.cliente_id) return false;
           const idsExtraidos = extrairClienteIds(r.cliente_id);
           return idsExtraidos.some(id => {
@@ -1351,7 +1440,8 @@ async function getDashboardColaboradores(req, res) {
         });
       }
 
-      const registrosCompletos = registrosTempo.map(registro => {
+      // Completar registros da página com dados relacionados (tarefas, membros, clientes)
+      const registrosCompletos = registrosTempoPagina.map(registro => {
         const registroRetorno = { ...registro };
         if (registro.tarefa_id) {
           registroRetorno.tarefa = tarefasMapGlobal[String(registro.tarefa_id).trim()] || null;
@@ -1372,12 +1462,34 @@ async function getDashboardColaboradores(req, res) {
         return registroRetorno;
       });
 
-      // Calcular resumos apenas com base nos registros filtrados
-      const tarefasUnicas = new Set(registrosCompletos.map(r => r.tarefa_id).filter(Boolean));
+      // Completar registros do resumo com dados relacionados (para cálculos corretos)
+      const registrosCompletosResumo = registrosTempoResumo.map(registro => {
+        const registroRetorno = { ...registro };
+        if (registro.tarefa_id) {
+          registroRetorno.tarefa = tarefasMapGlobal[String(registro.tarefa_id).trim()] || null;
+        }
+        if (registro.usuario_id) {
+          const usuarioId = registro.usuario_id;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
+                                   membrosMapGlobal[String(usuarioId)] || 
+                                   membrosMapGlobal[parseInt(usuarioId)] || 
+                                   null;
+        }
+        if (registro.cliente_id) {
+          const idsExtraidos = extrairClienteIds(registro.cliente_id);
+          registroRetorno.cliente = idsExtraidos.length > 0 
+            ? clientesMapGlobal[idsExtraidos[0]] || null
+            : null;
+        }
+        return registroRetorno;
+      });
+
+      // Calcular resumos com base em TODOS os registros do colaborador (não apenas da página)
+      const tarefasUnicas = new Set(registrosCompletosResumo.map(r => r.tarefa_id).filter(Boolean));
       const totalTarefasUnicas = tarefasUnicas.size;
       
       const produtosUnicos = new Set();
-      registrosCompletos.forEach(r => {
+      registrosCompletosResumo.forEach(r => {
         if (r.tarefa && r.tarefa.produto_id) {
           produtosUnicos.add(String(r.tarefa.produto_id).trim());
         }
@@ -1385,7 +1497,7 @@ async function getDashboardColaboradores(req, res) {
       const totalProdutosUnicos = produtosUnicos.size;
 
       const clientesUnicos = new Set();
-      registrosCompletos.forEach(r => {
+      registrosCompletosResumo.forEach(r => {
         if (r.cliente_id) {
           const idsExtraidos = extrairClienteIds(r.cliente_id);
           // Se há filtro de cliente, considerar apenas os clientes filtrados
@@ -1404,9 +1516,9 @@ async function getDashboardColaboradores(req, res) {
       });
       const totalClientesUnicos = clientesUnicos.size;
 
-      // Calcular tempo total realizado (horas realizadas)
+      // Calcular tempo total realizado (horas realizadas) usando TODOS os registros do colaborador
       let tempoTotalRealizado = 0;
-      registrosCompletos.forEach(r => {
+      registrosCompletosResumo.forEach(r => {
         let tempoRealizado = Number(r.tempo_realizado) || 0;
         
         // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim

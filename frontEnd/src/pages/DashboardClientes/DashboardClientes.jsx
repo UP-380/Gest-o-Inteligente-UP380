@@ -95,6 +95,10 @@ const RelatoriosClientes = () => {
 
   // Cache de dados dos clientes para os cards laterais
   const clienteDataCacheRef = useRef({});
+  
+  // Ref para controlar requisições em andamento e evitar race conditions
+  const requestIdRef = useRef(0);
+  const isRequestInProgressRef = useRef(false);
 
   // Carregar status - sempre carrega todas as opções
   const carregarStatus = useCallback(async () => {
@@ -172,6 +176,10 @@ const RelatoriosClientes = () => {
 
   // Carregar clientes paginados - recebe os filtros como parâmetros
   const carregarClientesPaginados = useCallback(async (filtrosAplicados = {}) => {
+    // Gerar ID único para esta requisição
+    const currentRequestId = ++requestIdRef.current;
+    isRequestInProgressRef.current = true;
+    
     setLoading(true);
     try {
       // Só envia filtros que foram preenchidos
@@ -204,6 +212,12 @@ const RelatoriosClientes = () => {
       }
       
       const result = await clientesAPI.getRelatorios(params);
+      
+      // Verificar se esta ainda é a requisição mais recente
+      if (currentRequestId !== requestIdRef.current) {
+        // Uma requisição mais nova foi iniciada, ignorar este resultado
+        return;
+      }
       
       if (!result.success) {
         throw new Error(result.error || 'Erro ao buscar clientes');
@@ -238,61 +252,14 @@ const RelatoriosClientes = () => {
       setEmptyMessage(null);
       
       // Usar os totais gerais retornados pelo backend (de TODAS as páginas)
+      // O backend já aplica todos os filtros corretamente, então não precisamos filtrar novamente aqui
       if (result.totaisGerais) {
         const { todosRegistros, todosContratos } = result.totaisGerais;
         
-        // Aplicar filtros adicionais nos registros para garantir que estamos contando apenas os corretos
+        // Apenas filtrar colaboradores inativos no frontend (se necessário)
+        // O backend não filtra inativos porque isso é uma opção do frontend
         let registrosFiltrados = todosRegistros || [];
         
-        // Se há filtro de colaborador(es), garantir que apenas registros desses colaboradores sejam contados
-        if (filtroColaborador) {
-          const colaboradorIds = Array.isArray(filtroColaborador) 
-            ? filtroColaborador.map(id => String(id).trim())
-            : (typeof filtroColaborador === 'string' && filtroColaborador.trim() !== '' ? [String(filtroColaborador).trim()] : []);
-          
-          if (colaboradorIds.length > 0) {
-            registrosFiltrados = registrosFiltrados.filter(reg => {
-              const regUsuarioId = reg.usuario_id ? String(reg.usuario_id).trim() : '';
-              return colaboradorIds.includes(regUsuarioId);
-            });
-          }
-        }
-        
-        // Se há filtro de cliente(s), garantir que apenas registros desses clientes sejam contados (dupla verificação)
-        if (filtroCliente) {
-          const clienteIds = Array.isArray(filtroCliente) 
-            ? filtroCliente.map(id => String(id).trim())
-            : (typeof filtroCliente === 'string' && filtroCliente.trim() !== '' ? [String(filtroCliente).trim()] : []);
-          
-          if (clienteIds.length > 0) {
-            registrosFiltrados = registrosFiltrados.filter(reg => {
-              if (!reg.cliente_id) return false;
-              // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
-              // Verificar se algum dos clienteIds está entre os IDs do registro
-              const regClienteIds = String(reg.cliente_id)
-                .split(',')
-                .map(id => id.trim())
-                .filter(id => id.length > 0);
-              // Verificar se algum dos IDs do filtro está presente nos IDs do registro
-              return clienteIds.some(clienteId => regClienteIds.includes(clienteId));
-            });
-          }
-        }
-        
-        // Se há filtro de período, garantir que apenas registros nesse período sejam contados
-        if (filtroDataInicio && filtroDataFim) {
-          const inicio = new Date(filtroDataInicio);
-          const fim = new Date(filtroDataFim);
-          fim.setUTCHours(23, 59, 59, 999);
-          
-          registrosFiltrados = registrosFiltrados.filter(reg => {
-            if (!reg.data_inicio) return false;
-            const regData = new Date(reg.data_inicio);
-            return regData >= inicio && regData <= fim;
-          });
-        }
-        
-        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
         if (!mostrarInativos) {
           registrosFiltrados = registrosFiltrados.filter(reg => {
             if (!reg.usuario_id) return false;
@@ -422,13 +389,26 @@ const RelatoriosClientes = () => {
       setTotalClients(result.total || 0);
       setTotalPages(result.totalPages || 1);
     } catch (error) {
+      // Verificar se esta ainda é a requisição mais recente antes de processar erro
+      if (currentRequestId !== requestIdRef.current) {
+        // Uma requisição mais nova foi iniciada, ignorar este erro
+        return;
+      }
+      
       console.error('Erro ao carregar clientes paginados:', error);
       setClientes([]);
       setAllRegistrosTempo([]);
       setAllContratos([]);
       setEmptyMessage(null);
     } finally {
-      setLoading(false);
+      // Limpar flag apenas se esta ainda for a requisição mais recente
+      if (currentRequestId === requestIdRef.current) {
+        isRequestInProgressRef.current = false;
+      }
+      // Só desativar loading se esta for a requisição mais recente
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentPage, itemsPerPage, mostrarInativos, isColaboradorInativo]);
 
@@ -1088,13 +1068,19 @@ const RelatoriosClientes = () => {
   }, [carregarStatus, carregarClientes, carregarColaboradores]);
 
   // Recarregar dados quando a página, itens por página ou mostrarInativos mudarem (apenas se filtros já foram aplicados)
-  // IMPORTANTE: Não incluir carregarClientesPaginados nas dependências para evitar recarregamento automático quando filtros mudam
+  // IMPORTANTE: Usar um único useEffect com todas as dependências para evitar múltiplos carregamentos
   useEffect(() => {
+    // Só carregar se filtros foram aplicados e há filtros atuais
     if (filtrosAplicados && Object.keys(filtrosAplicadosAtuais).length > 0) {
-      carregarClientesPaginados(filtrosAplicadosAtuais);
+      // Usar setTimeout para garantir que todas as mudanças de estado sejam processadas antes
+      const timeoutId = setTimeout(() => {
+        carregarClientesPaginados(filtrosAplicadosAtuais);
+      }, 0);
+      
+      return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados, filtrosAplicadosAtuais]);
+  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados, JSON.stringify(filtrosAplicadosAtuais)]);
 
   return (
     <Layout>
