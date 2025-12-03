@@ -74,6 +74,14 @@
 
 .password-container {
     position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.password-container input {
+    width: 100%;
+    padding-right: 40px;
+    box-sizing: border-box;
 }
 
 .password-toggle {
@@ -84,6 +92,8 @@
     cursor: pointer;
     color: #666;
     font-size: 16px;
+    z-index: 1;
+    pointer-events: auto;
 }
 
 .password-toggle:hover {
