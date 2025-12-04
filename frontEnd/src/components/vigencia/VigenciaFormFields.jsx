@@ -1,5 +1,4 @@
 import React from 'react';
-import DatePickerSingle from '../common/DatePickerSingle';
 
 /**
  * Componente reutilizável para campos de formulário de vigência
@@ -49,19 +48,18 @@ const VigenciaFormFields = ({
           <label className="form-label-small">
             Data de Vigência <span className="required">*</span>
           </label>
-          <div className={formErrors.dt_vigencia ? 'datepicker-error-wrapper' : ''}>
-            <DatePickerSingle
-              value={formData.dt_vigencia}
-              onChange={(e) => {
-                setFormData({ ...formData, dt_vigencia: e.target.value });
-                if (formErrors.dt_vigencia) {
-                  setFormErrors({ ...formErrors, dt_vigencia: '' });
-                }
-              }}
-              disabled={submitting}
-              placeholder="Selecione a data"
-            />
-          </div>
+          <input
+            type="date"
+            className={`form-input-small ${formErrors.dt_vigencia ? 'error' : ''}`}
+            value={formData.dt_vigencia}
+            onChange={(e) => {
+              setFormData({ ...formData, dt_vigencia: e.target.value });
+              if (formErrors.dt_vigencia) {
+                setFormErrors({ ...formErrors, dt_vigencia: '' });
+              }
+            }}
+            disabled={submitting}
+          />
           {formErrors.dt_vigencia && (
             <span className="error-message">{formErrors.dt_vigencia}</span>
           )}

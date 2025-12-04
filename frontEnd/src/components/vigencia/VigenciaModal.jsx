@@ -54,45 +54,27 @@ const VigenciaModal = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content vigencia-modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              borderRadius: '8px', 
-              background: 'linear-gradient(135deg, #0e3b6f 0%, #1e5aa0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '18px'
-            }}>
-              <i className="fas fa-calendar-check"></i>
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
-              {modalTitle}
-            </h3>
-          </div>
+          <h3 style={{ fontSize: '16px' }}>{modalTitle}</h3>
           <button
             type="button"
             className="btn-icon"
             onClick={onClose}
             disabled={submitting}
             aria-label="Fechar"
-            style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <i className="fas fa-times"></i>
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ padding: '24px' }}>
+          <div className="modal-body">
             {/* Campo de seleção de colaborador (apenas para criar nova vigência) */}
             {!isEdit && setMembroId && colaboradores.length > 0 && (
-              <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ marginBottom: '20px' }}>
                 <div className="form-row-vigencia">
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <div className="form-group">
                     <label className="form-label-small">
                       Colaborador <span className="required">*</span>
                     </label>
@@ -140,13 +122,12 @@ const VigenciaModal = ({
             />
           </div>
 
-          <div className="modal-footer" style={{ padding: '20px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <div className="modal-footer">
             <button
               type="button"
               className="btn-secondary"
               onClick={onClose}
               disabled={submitting}
-              style={{ padding: '10px 20px', fontSize: '14px', fontWeight: '500' }}
             >
               Cancelar
             </button>
@@ -154,7 +135,6 @@ const VigenciaModal = ({
               type="submit"
               className="btn-primary"
               disabled={submitting}
-              style={{ padding: '10px 20px', fontSize: '14px', fontWeight: '500' }}
             >
               {submitting ? (
                 <>
