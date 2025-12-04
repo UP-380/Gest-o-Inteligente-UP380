@@ -39,7 +39,6 @@ services:
     image: nginx:alpine
     container_name: upgi-nginx
     ports:
-      - "80:80"
       - "6032:6032"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
@@ -49,6 +48,12 @@ services:
       - upgi-app
     networks:
       - upgi-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.upgi-nginx.rule=Host(`upmap.up380.com.br`)"
+      - "traefik.http.routers.upgi-nginx.entrypoints=web"
+      - "traefik.http.services.upgi-nginx.loadbalancer.server.port=6032"
+      - "traefik.docker.network=upgi-network"
     restart: always
     logging:
       driver: "json-file"
