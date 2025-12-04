@@ -48,12 +48,14 @@ services:
       - upgi-app
     networks:
       - upgi-network
+      - easypanel
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.upgi-nginx.rule=Host(`upmap.up380.com.br`)"
       - "traefik.http.routers.upgi-nginx.entrypoints=web"
       - "traefik.http.services.upgi-nginx.loadbalancer.server.port=6032"
-      - "traefik.docker.network=upgi-network"
+      - "traefik.http.services.upgi-nginx.loadbalancer.server.scheme=http"
+      - "traefik.docker.network=easypanel"
     restart: always
     logging:
       driver: "json-file"
@@ -64,6 +66,9 @@ services:
 networks:
   upgi-network:
     driver: bridge
+  easypanel:
+    external: true
+    name: easypanel
 
 volumes:
   upgi-logs:
