@@ -39,6 +39,7 @@ services:
     image: nginx:alpine
     container_name: upgi-nginx
     ports:
+      - "80:80"
       - "6032:6032"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
