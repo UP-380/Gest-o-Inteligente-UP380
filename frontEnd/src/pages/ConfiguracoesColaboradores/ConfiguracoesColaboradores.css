@@ -1178,6 +1178,17 @@ select.form-input-small.error {
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .custo-colaborador-btn:hover .custo-colaborador-icon {
   animation: spin 0.6s linear;
 }
@@ -1415,5 +1426,47 @@ select.form-input-small.error {
 .filter-actions {
   display: flex;
   align-items: center;
+}
+
+/* Estilos melhorados para modais de colaborador e vigência */
+.colaborador-modal-content,
+.vigencia-modal-content {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.colaborador-modal-content .modal-header,
+.vigencia-modal-content .modal-header {
+  background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Melhorias visuais para seção de vigência no formulário */
+.form-section {
+  position: relative;
+}
+
+.form-section-title {
+  transition: color 0.2s ease;
+}
+
+/* Ajustes para o datepicker dentro do formulário */
+.datepicker-single-container {
+  width: 100%;
+}
+
+.datepicker-single-display {
+  height: 37px;
+  min-height: 37px;
+}
+
+/* Melhorias no layout do formulário de vigência */
+.form-row-vigencia {
+  margin-bottom: 16px;
+}
+
+/* Espaçamento melhorado entre seções */
+.form-section + .form-section {
+  margin-top: 24px;
 }
 

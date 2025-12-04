@@ -73,7 +73,7 @@ async function getAllClientes() {
   const { data, error } = await supabase
     .schema('up_gestaointeligente')
     .from('cp_cliente')
-    .select('id, nome')
+    .select('id, nome, status')
     .not('id', 'is', null)
     .not('nome', 'is', null)
     .order('nome', { ascending: true });
@@ -81,7 +81,13 @@ async function getAllClientes() {
   if (error) {
     throw error;
   }
-  return data || [];
+  
+  // Garantir que todos os clientes tenham status (assumir 'ativo' se não estiver definido)
+  return (data || []).map(row => ({
+    id: row.id,
+    nome: row.nome,
+    status: row.status || 'ativo'
+  }));
 }
 
 async function getClientesByStatus(status) {

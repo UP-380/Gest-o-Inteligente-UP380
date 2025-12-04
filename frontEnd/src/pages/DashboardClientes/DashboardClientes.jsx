@@ -115,9 +115,15 @@ const RelatoriosClientes = () => {
   // Carregar clientes - sempre carrega todas as opções
   const carregarClientes = useCallback(async () => {
     try {
-      const result = await clientesAPI.getAll(null);
+      // Desabilitar cache para garantir dados atualizados com status
+      const result = await clientesAPI.getAll(null, false);
       if (result.success && result.data && Array.isArray(result.data)) {
-        setTodosClientes(result.data);
+        // Garantir que todos os clientes tenham status
+        const clientesComStatus = result.data.map(cliente => ({
+          ...cliente,
+          status: cliente.status || 'ativo'
+        }));
+        setTodosClientes(clientesComStatus);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar clientes:', error);
@@ -170,6 +176,39 @@ const RelatoriosClientes = () => {
     // 3. Se não encontrou, assumir ativo (compatibilidade)
     return false;
   }, [mostrarInativos, todosColaboradores]);
+
+  // Função helper para verificar se um cliente está inativo
+  const isClienteInativo = useCallback((clienteId, registro = null) => {
+    if (mostrarInativos) return false; // Se inativos estão habilitados, não filtrar
+    
+    // 1. Tentar buscar status do registro.cliente (vem do backend)
+    if (registro && registro.cliente && registro.cliente.status) {
+      return registro.cliente.status === 'inativo';
+    }
+    
+    // 2. Buscar na lista de todosClientes
+    if (clienteId && todosClientes && todosClientes.length > 0) {
+      const clienteIdStr = String(clienteId).trim();
+      const clienteIdNum = parseInt(clienteIdStr, 10);
+      
+      const cliente = todosClientes.find(c => {
+        const cIdStr = String(c.id).trim();
+        const cIdNum = parseInt(cIdStr, 10);
+        return cIdStr === clienteIdStr || 
+               cIdNum === clienteIdNum ||
+               cIdStr === clienteIdStr ||
+               cIdNum === clienteIdNum;
+      });
+      
+      if (cliente) {
+        const status = cliente.status || 'ativo';
+        return status === 'inativo';
+      }
+    }
+    
+    // 3. Se não encontrou, assumir ativo (compatibilidade)
+    return false;
+  }, [mostrarInativos, todosClientes]);
 
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
@@ -256,14 +295,27 @@ const RelatoriosClientes = () => {
       if (result.totaisGerais) {
         const { todosRegistros, todosContratos } = result.totaisGerais;
         
-        // Apenas filtrar colaboradores inativos no frontend (se necessário)
+        // Apenas filtrar colaboradores e clientes inativos no frontend (se necessário)
         // O backend não filtra inativos porque isso é uma opção do frontend
         let registrosFiltrados = todosRegistros || [];
         
         if (!mostrarInativos) {
           registrosFiltrados = registrosFiltrados.filter(reg => {
-            if (!reg.usuario_id) return false;
-            return !isColaboradorInativo(reg.usuario_id, reg);
+            // Filtrar registros de colaboradores inativos
+            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+              return false;
+            }
+            
+            // Filtrar registros relacionados a clientes inativos
+            if (reg.cliente_id) {
+              const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+              const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
+              if (temClienteInativo) {
+                return false;
+              }
+            }
+            
+            return true;
           });
         }
         
@@ -282,6 +334,15 @@ const RelatoriosClientes = () => {
               // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
               if (!mostrarInativos && registro.usuario_id && isColaboradorInativo(registro.usuario_id, registro)) {
                 return; // Pular colaboradores inativos
+              }
+              
+              // Filtrar registros relacionados a clientes inativos se mostrarInativos estiver desativado
+              if (!mostrarInativos && registro.cliente_id) {
+                const clienteIds = String(registro.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+                const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, registro));
+                if (temClienteInativo) {
+                  return; // Pular registros de clientes inativos
+                }
               }
               
               const registroId = registro.id || `${registro.tarefa_id}_${registro.usuario_id}_${registro.data_inicio}_${registro.data_fim || ''}`;
@@ -303,11 +364,24 @@ const RelatoriosClientes = () => {
         
         let registrosArray = Array.from(registrosMap.values());
         
-        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+        // Filtrar registros de colaboradores e clientes inativos se mostrarInativos estiver desativado
         if (!mostrarInativos) {
           registrosArray = registrosArray.filter(reg => {
-            if (!reg.usuario_id) return false;
-            return !isColaboradorInativo(reg.usuario_id, reg);
+            // Filtrar registros de colaboradores inativos
+            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+              return false;
+            }
+            
+            // Filtrar registros relacionados a clientes inativos
+            if (reg.cliente_id) {
+              const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+              const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
+              if (temClienteInativo) {
+                return false;
+              }
+            }
+            
+            return true;
           });
         }
         
@@ -326,12 +400,25 @@ const RelatoriosClientes = () => {
       
       // Armazenar dados no cache para os cards laterais
       clientesComResumos.forEach(item => {
-        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+        // Filtrar registros de colaboradores e clientes inativos se mostrarInativos estiver desativado
         let registrosFiltrados = item.registros || [];
         if (!mostrarInativos && registrosFiltrados.length > 0) {
           registrosFiltrados = registrosFiltrados.filter(reg => {
-            if (!reg.usuario_id) return false;
-            return !isColaboradorInativo(reg.usuario_id, reg);
+            // Filtrar registros de colaboradores inativos
+            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+              return false;
+            }
+            
+            // Filtrar registros relacionados a clientes inativos
+            if (reg.cliente_id) {
+              const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+              const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
+              if (temClienteInativo) {
+                return false;
+              }
+            }
+            
+            return true;
           });
         }
         
@@ -370,20 +457,44 @@ const RelatoriosClientes = () => {
         };
       });
       
-      // Filtrar registros de colaboradores inativos nos dados de cada cliente antes de setar
-      const clientesComResumosFiltrados = clientesComResumos.map(item => {
-        if (!mostrarInativos && item.registros && Array.isArray(item.registros)) {
-          const registrosFiltrados = item.registros.filter(reg => {
-            if (!reg.usuario_id) return false;
-            return !isColaboradorInativo(reg.usuario_id, reg);
-          });
-          return {
-            ...item,
-            registros: registrosFiltrados
-          };
-        }
-        return item;
-      });
+      // Filtrar registros de colaboradores e clientes inativos nos dados de cada cliente antes de setar
+      // E também remover clientes inativos da lista quando mostrarInativos estiver desativado
+      const clientesComResumosFiltrados = clientesComResumos
+        .map(item => {
+          // Se mostrarInativos estiver desativado, verificar se o próprio cliente está inativo
+          if (!mostrarInativos) {
+            const clienteStatus = item.cliente?.status || 'ativo';
+            if (clienteStatus === 'inativo') {
+              return null; // Marcar para remover clientes inativos
+            }
+          }
+          
+          if (!mostrarInativos && item.registros && Array.isArray(item.registros)) {
+            const registrosFiltrados = item.registros.filter(reg => {
+              // Filtrar registros de colaboradores inativos
+              if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+                return false;
+              }
+              
+              // Filtrar registros relacionados a clientes inativos
+              if (reg.cliente_id) {
+                const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+                const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
+                if (temClienteInativo) {
+                  return false;
+                }
+              }
+              
+              return true;
+            });
+            return {
+              ...item,
+              registros: registrosFiltrados
+            };
+          }
+          return item;
+        })
+        .filter(item => item !== null); // Remover clientes inativos marcados
       
       setClientes(clientesComResumosFiltrados);
       setTotalClients(result.total || 0);
@@ -410,7 +521,7 @@ const RelatoriosClientes = () => {
         setLoading(false);
       }
     }
-  }, [currentPage, itemsPerPage, mostrarInativos, isColaboradorInativo]);
+  }, [currentPage, itemsPerPage, mostrarInativos, isColaboradorInativo, isClienteInativo]);
 
   // Aplicar filtros - só executa quando o botão for clicado
   const aplicarFiltros = useCallback(() => {
@@ -756,7 +867,7 @@ const RelatoriosClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Tarefas', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, mostrarInativos, isColaboradorInativo]);
+  }, [allRegistrosTempo, mostrarInativos, isColaboradorInativo, isClienteInativo]);
 
   const handleShowColaboradores = useCallback(async (e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
@@ -929,6 +1040,15 @@ const RelatoriosClientes = () => {
 
     const clientesMap = new Map();
     allRegistrosTempo.forEach(registro => {
+      // Filtrar registros relacionados a clientes inativos se mostrarInativos estiver desativado
+      if (!mostrarInativos && registro.cliente_id) {
+        const clienteIds = String(registro.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+        const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, registro));
+        if (temClienteInativo) {
+          return; // Pular registros de clientes inativos
+        }
+      }
+      
       if (registro.cliente_id) {
         // IMPORTANTE: cliente_id pode conter múltiplos IDs separados por ", "
         // Fazer split para tratar cada ID como um cliente separado
@@ -955,11 +1075,24 @@ const RelatoriosClientes = () => {
       }
     });
 
-    const itens = Array.from(clientesMap.values());
+    // Filtrar clientes inativos se mostrarInativos estiver desativado
+    let itens = Array.from(clientesMap.values());
+    if (!mostrarInativos) {
+      itens = itens.filter(clienteNome => {
+        // Buscar o cliente na lista de todosClientes para verificar status
+        const cliente = todosClientes.find(c => c.nome === clienteNome);
+        if (cliente) {
+          const status = cliente.status || 'ativo';
+          return status !== 'inativo';
+        }
+        return true; // Se não encontrou, assumir ativo (compatibilidade)
+      });
+    }
+    
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Clientes', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosClientes, filtroCliente]);
+  }, [allRegistrosTempo, todosClientes, filtroCliente, mostrarInativos, isClienteInativo]);
 
   // Função para calcular posição do mini card
   const calcularPosicaoMiniCard = useCallback((event) => {
@@ -1080,7 +1213,7 @@ const RelatoriosClientes = () => {
       return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, itemsPerPage, mostrarInativos, filtrosAplicados, JSON.stringify(filtrosAplicadosAtuais)]);
+  }, [currentPage, itemsPerPage, filtrosAplicados, JSON.stringify(filtrosAplicadosAtuais)]);
 
   return (
     <Layout>
@@ -1164,7 +1297,15 @@ const RelatoriosClientes = () => {
                       <FilterClientes
                         value={filtroCliente}
                         onChange={handleClienteChange}
-                        options={todosClientes}
+                        options={todosClientes.filter(cliente => {
+                          // Se mostrarInativos estiver desativado, filtrar clientes inativos
+                          if (!mostrarInativos) {
+                            const status = cliente.status || 'ativo';
+                            return status !== 'inativo';
+                          }
+                          // Se mostrarInativos estiver ativado, mostrar todos os clientes
+                          return true;
+                        })}
                         disabled={!periodoPreenchido}
                       />
                       {!periodoPreenchido && (

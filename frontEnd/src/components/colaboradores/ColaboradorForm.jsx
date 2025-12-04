@@ -71,31 +71,68 @@ const ColaboradorForm = ({
       {/* Campos de Vigência - apenas para criação de novo colaborador */}
       {!editingId && (
         <>
-          <div className="form-section" style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+          <div className="form-section" style={{ 
+            marginTop: '24px', 
+            paddingTop: '20px', 
+            borderTop: '1px solid #e2e8f0',
+            background: vigenciaAberta ? '#f8fafc' : 'transparent',
+            borderRadius: '8px',
+            padding: vigenciaAberta ? '20px' : '20px 20px 0 20px',
+            transition: 'all 0.3s ease'
+          }}>
             <div 
               style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                marginBottom: vigenciaAberta ? '12px' : '0'
+                padding: '12px',
+                margin: '-12px',
+                borderRadius: '6px',
+                transition: 'background 0.2s ease',
+                marginBottom: vigenciaAberta ? '16px' : '0'
               }}
               onClick={() => setVigenciaAberta(!vigenciaAberta)}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
-              <h4 className="form-section-title" style={{ fontSize: '14px', fontWeight: '600', color: '#374151', margin: 0 }}>Dados de Vigência</h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  background: vigenciaAberta ? '#0e3b6f' : '#e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: vigenciaAberta ? 'white' : '#64748b',
+                  fontSize: '14px',
+                  transition: 'all 0.2s ease'
+                }}>
+                  <i className="fas fa-calendar-alt"></i>
+                </div>
+                <h4 className="form-section-title" style={{ 
+                  fontSize: '15px', 
+                  fontWeight: '600', 
+                  color: vigenciaAberta ? '#0e3b6f' : '#374151', 
+                  margin: 0,
+                  transition: 'color 0.2s ease'
+                }}>
+                  Dados de Vigência
+                </h4>
+              </div>
               <i 
                 className={`fas fa-chevron-${vigenciaAberta ? 'down' : 'right'}`}
                 style={{ 
                   fontSize: '12px', 
                   color: '#64748b',
-                  transition: 'transform 0.2s',
-                  marginLeft: '8px'
+                  transition: 'transform 0.2s ease, color 0.2s ease'
                 }}
               ></i>
             </div>
             
             {vigenciaAberta && (
-              <div style={{ marginTop: '12px' }}>
+              <div style={{ marginTop: '16px', animation: 'fadeIn 0.3s ease' }}>
                 <VigenciaFormFields
                   formData={formData}
                   setFormData={setFormData}
