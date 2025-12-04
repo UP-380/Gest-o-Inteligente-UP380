@@ -6,15 +6,14 @@ const supabase = require('../config/database');
 
 async function login(req, res) {
   try {
-    console.log('🔍 DEBUG LOGIN - req.body completo:', JSON.stringify(req.body, null, 2));
+    
     
     const { email, senha } = req.body;
     
-    console.log('🔍 DEBUG LOGIN - email extraído:', email);
-    console.log('🔍 DEBUG LOGIN - senha extraída:', senha ? '[SENHA FORNECIDA]' : '[SENHA VAZIA]');
+    
     
     if (!email || !senha) {
-      console.log('❌ DEBUG LOGIN - Validação falhou: email=', email, 'senha=', senha ? '[FORNECIDA]' : '[VAZIA]');
+      
       return res.status(400).json({
         success: false,
         error: 'Email e senha são obrigatórios'
@@ -39,7 +38,7 @@ async function login(req, res) {
 
     // Verificar se usuário existe
     if (!usuarios || usuarios.length === 0) {
-      console.log('Usuário não encontrado:', email);
+      
       return res.status(401).json({
         success: false,
         error: 'Login não cadastrado, entre em contato com o desenvolvedor'
@@ -48,19 +47,18 @@ async function login(req, res) {
 
     const usuario = usuarios[0];
     
-    console.log('🔍 DEBUG LOGIN - Usuário encontrado:', JSON.stringify({ id: usuario.id, email: usuario.email_usuario, nome: usuario.nome_usuario }, null, 2));
+    
 
     // Verificar senha (comparação simples - em produção usar hash)
     if (usuario.senha_login !== senha) {
-      console.log('❌ DEBUG LOGIN - Senha incorreta para usuário:', email);
+      
       return res.status(401).json({
         success: false,
         error: 'Email ou senha incorretos'
       });
     }
 
-    // Login bem-sucedido - criar sessão
-    console.log('✅ DEBUG LOGIN - Login bem-sucedido para usuário:', email);
+    
 
     // Criar sessão do usuário
     req.session.usuario = {
@@ -87,28 +85,58 @@ async function login(req, res) {
 }
 
 function logout(req, res) {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Erro ao destruir sessão:', err);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao fazer logout'
-      });
+  try {
+    if (!req.session) {
+      return res.json({ success: true });
     }
-    res.json({ success: true });
-  });
+    
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Erro ao destruir sessão:', err);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao fazer logout'
+        });
+      }
+      res.json({ success: true });
+    });
+  } catch (error) {
+    console.error('Erro no logout:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
 }
 
 function checkAuth(req, res) {
-  if (req.session && req.session.usuario) {
-    res.json({
-      authenticated: true,
-      usuario: req.session.usuario
-    });
-  } else {
-    res.json({
-      authenticated: false
-    });
+  try {
+    
+    
+    if (req.session && req.session.usuario) {
+      
+      return res.json({
+        authenticated: true,
+        usuario: req.session.usuario
+      });
+    } else {
+     
+      return res.json({
+        authenticated: false
+      });
+    }
+  } catch (error) {
+   
+    
+    // Garantir que sempre retornamos JSON válido
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        authenticated: false,
+        error: 'Erro interno do servidor',
+        message: error.message
+      });
+    }
   }
 }
 

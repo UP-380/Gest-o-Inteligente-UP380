@@ -1110,7 +1110,7 @@ const RelatoriosClientes = () => {
               }}
             >
               <i className="fas fa-briefcase"></i>
-              Clientes
+              Gestão Clientes
             </button>
           </div>
         </div>

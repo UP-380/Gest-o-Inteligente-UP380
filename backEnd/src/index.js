@@ -94,9 +94,5 @@ app.use((err, req, res, next) => {
 // Iniciar servidor
 // IMPORTANTE: Em Docker, deve escutar em 0.0.0.0 para aceitar conexões de outros containers
 const HOST = process.env.HOST || '0.0.0.0';
-app.listen(PORT, HOST, () => {
-  console.log(`🚀 Servidor rodando em http://${HOST}:${PORT}`);
-  console.log(`📡 Ambiente: ${IS_PROD ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}`);
-  console.log(`✅ Sistema de Cache ativo`);
-});
+app.listen(PORT, HOST);
 

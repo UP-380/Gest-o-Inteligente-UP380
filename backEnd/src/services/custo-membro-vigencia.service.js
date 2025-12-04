@@ -28,19 +28,15 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
     if (filters.membro_id) {
       // Se for array, usar .in(), senão usar .eq()
       if (Array.isArray(filters.membro_id) && filters.membro_id.length > 0) {
-        console.log('🔍 [SERVICE] Filtrando por múltiplos membro_id:', filters.membro_id);
         // Converter para números se necessário
         const membroIds = filters.membro_id.map(id => {
           const numId = parseInt(id, 10);
           return isNaN(numId) ? id : numId;
         });
         query = query.in('membro_id', membroIds);
-        console.log('✅ [SERVICE] Query com filtro .in() aplicado');
       } else if (!Array.isArray(filters.membro_id)) {
-        console.log('🔍 [SERVICE] Filtrando por único membro_id:', filters.membro_id);
         const membroId = parseInt(filters.membro_id, 10);
         query = query.eq('membro_id', isNaN(membroId) ? filters.membro_id : membroId);
-        console.log('✅ [SERVICE] Query com filtro .eq() aplicado');
       }
     }
 
@@ -177,6 +173,8 @@ async function verificarVigenciaExiste(id) {
 // Criar vigência
 async function criarVigencia(dados) {
   try {
+    console.log('🔍 [SERVICE] Tentando inserir dados:', JSON.stringify(dados, null, 2));
+    
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
@@ -185,11 +183,20 @@ async function criarVigencia(dados) {
       .single();
 
     if (error) {
+      console.error('❌ [SERVICE] Erro ao inserir vigência:', error);
+      console.error('❌ [SERVICE] Código do erro:', error.code);
+      console.error('❌ [SERVICE] Mensagem:', error.message);
+      console.error('❌ [SERVICE] Hint:', error.hint);
+      console.error('❌ [SERVICE] Detalhes completos:', JSON.stringify(error, null, 2));
       return { data: null, error };
     }
 
+    console.log('✅ [SERVICE] Vigência criada com sucesso');
+    console.log('📊 [SERVICE] Dados retornados:', JSON.stringify(data, null, 2));
+    
     return { data, error: null };
   } catch (error) {
+    console.error('❌ [SERVICE] Erro inesperado ao criar vigência:', error);
     return { data: null, error };
   }
 }

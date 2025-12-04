@@ -11,8 +11,8 @@ const clientesController = require('../controllers/clientes.controller');
 const tarefasController = require('../controllers/tarefas.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
-const custoMembroVigenciaController = require('../controllers/custo-membro-vigencia.controller');
-const configCustoMembroController = require('../controllers/config-custo-membro.controller');
+const custoColaboradorVigenciaController = require('../controllers/custo-membro-vigencia.controller');
+const configCustoColaboradorController = require('../controllers/config-custo-membro.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -50,6 +50,7 @@ router.get('/api/debug-tarefa/:tarefaId', requireAuth, dashboardController.debug
 
 // Rotas de Colaboradores (CRUD completo)
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
+router.get('/api/tipos-contrato', requireAuth, colaboradoresController.getTiposContrato);
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
 router.post('/api/colaboradores', requireAuth, colaboradoresController.criarColaborador);
@@ -58,20 +59,21 @@ router.put('/api/colaboradores/:id/ativar', requireAuth, colaboradoresController
 router.put('/api/colaboradores/:id', requireAuth, colaboradoresController.atualizarColaborador);
 router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.deletarColaborador);
 
-// Rotas de Custo Membro Vigência (CRUD completo)
-router.get('/api/custo-membro-vigencia', requireAuth, custoMembroVigenciaController.getCustosMembroVigencia);
-router.get('/api/custo-membro-vigencia/:id', requireAuth, custoMembroVigenciaController.getCustoMembroVigenciaPorId);
-router.get('/api/custo-membro-vigencia/membro/:membro_id', requireAuth, custoMembroVigenciaController.getCustosPorMembro);
-router.post('/api/custo-membro-vigencia', requireAuth, custoMembroVigenciaController.criarCustoMembroVigencia);
-router.put('/api/custo-membro-vigencia/:id', requireAuth, custoMembroVigenciaController.atualizarCustoMembroVigencia);
-router.delete('/api/custo-membro-vigencia/:id', requireAuth, custoMembroVigenciaController.deletarCustoMembroVigencia);
+// Rotas de Custo Colaborador Vigência (CRUD completo)
+router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
+router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
+router.get('/api/custo-colaborador-vigencia/membro/:membro_id', requireAuth, custoColaboradorVigenciaController.getCustosPorMembro);
+router.post('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.criarCustoColaboradorVigencia);
+router.put('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.atualizarCustoColaboradorVigencia);
+router.delete('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.deletarCustoColaboradorVigencia);
 
-// Rotas de Configuração de Custo Membro (CRUD completo)
-router.get('/api/config-custo-membro', requireAuth, configCustoMembroController.getConfigCustoMembro);
-router.get('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.getConfigCustoMembroPorId);
-router.post('/api/config-custo-membro', requireAuth, configCustoMembroController.criarConfigCustoMembro);
-router.put('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.atualizarConfigCustoMembro);
-router.delete('/api/config-custo-membro/:id', requireAuth, configCustoMembroController.deletarConfigCustoMembro);
+// Rotas de Configuração de Custo Colaborador (CRUD completo)
+router.get('/api/config-custo-colaborador', requireAuth, configCustoColaboradorController.getConfigCustoColaborador);
+router.get('/api/config-custo-colaborador/mais-recente', requireAuth, configCustoColaboradorController.getConfigCustoColaboradorMaisRecente);
+router.get('/api/config-custo-colaborador/:id', requireAuth, configCustoColaboradorController.getConfigCustoColaboradorPorId);
+router.post('/api/config-custo-colaborador', requireAuth, configCustoColaboradorController.criarConfigCustoColaborador);
+router.put('/api/config-custo-colaborador/:id', requireAuth, configCustoColaboradorController.atualizarConfigCustoColaborador);
+router.delete('/api/config-custo-colaborador/:id', requireAuth, configCustoColaboradorController.deletarConfigCustoColaborador);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
@@ -137,25 +139,20 @@ router.get('/api/clientes-por-colaborador', requireAuth, async (req, res) => {
     if (Array.isArray(colaboradorId)) {
       // Múltiplos colaboradores enviados como parâmetros repetidos
       colaboradorIdsParaBuscar = colaboradorId;
-      console.log(`🔍 [ROTA] Múltiplos colaboradores recebidos:`, colaboradorIdsParaBuscar);
     } else if (typeof colaboradorId === 'string' && colaboradorId.includes(',')) {
       // String separada por vírgulas (fallback)
       colaboradorIdsParaBuscar = colaboradorId.split(',').map(id => id.trim()).filter(Boolean);
-      console.log(`🔍 [ROTA] Colaboradores recebidos como string separada por vírgulas:`, colaboradorIdsParaBuscar);
     } else {
       // Valor único
       colaboradorIdsParaBuscar = [colaboradorId];
-      console.log(`🔍 [ROTA] Colaborador único recebido:`, colaboradorIdsParaBuscar);
     }
 
     // Usar array se múltiplos, ou valor único se apenas um (para compatibilidade com a função)
     const colaboradorIdParam = colaboradorIdsParaBuscar.length === 1 ? colaboradorIdsParaBuscar[0] : colaboradorIdsParaBuscar;
     
-    console.log(`🔍 [ROTA] Buscando clientes para ${colaboradorIdsParaBuscar.length} colaborador(es)`);
     
     const clientes = await apiClientes.getClientesPorColaborador(colaboradorIdParam, periodoInicio || null, periodoFim || null);
 
-    console.log(`✅ [ROTA] Retornando ${(clientes || []).length} clientes para ${colaboradorIdsParaBuscar.length} colaborador(es)`);
 
     res.json({ 
       success: true, 

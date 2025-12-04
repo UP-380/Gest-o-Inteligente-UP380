@@ -31,16 +31,27 @@ function requireAuth(req, res, next) {
 
 // Middleware para bloquear acesso direto a páginas HTML protegidas
 function protectHTMLPages(req, res, next) {
-  // Verificar se é uma requisição direta para páginas HTML protegidas
-  if (req.path.endsWith('.html') && 
-      req.path.includes('dashboard.html')) {
-    
-    // Verificar se o usuário está autenticado
-    if (!req.session || !req.session.usuario) {
-      return res.redirect('/login');
+  try {
+    // Ignorar rotas de API completamente
+    if (req.path.startsWith('/api/')) {
+      return next();
     }
+    
+    // Verificar se é uma requisição direta para páginas HTML protegidas
+    if (req.path.endsWith('.html') && 
+        req.path.includes('dashboard.html')) {
+      
+      // Verificar se o usuário está autenticado
+      if (!req.session || !req.session.usuario) {
+        return res.redirect('/login');
+      }
+    }
+    next();
+  } catch (error) {
+    console.error('Erro no middleware protectHTMLPages:', error);
+    // Em caso de erro, permitir que a requisição continue
+    next();
   }
-  next();
 }
 
 module.exports = {

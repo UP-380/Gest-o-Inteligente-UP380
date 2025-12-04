@@ -57,7 +57,7 @@ const ConfigCustoMembro = () => {
   const carregarConfigs = async () => {
     setLoading(true);
     try {
-      const url = `${API_BASE_URL}/config-custo-membro`;
+      const url = `${API_BASE_URL}/config-custo-colaborador`;
 
       const response = await fetch(url, {
         credentials: 'include',
@@ -115,9 +115,12 @@ const ConfigCustoMembro = () => {
     // Formatar data de vigência para o input
     const formData = { ...rest };
     if (formData.vigencia) {
-      // Converter data ISO para formato YYYY-MM-DD
-      const date = new Date(formData.vigencia);
-      formData.vigencia = date.toISOString().split('T')[0];
+      // Converter data ISO para formato YYYY-MM-DD (formato do input type="date")
+      let dateOnly = formData.vigencia;
+      if (dateOnly.includes('T')) {
+        dateOnly = dateOnly.split('T')[0];
+      }
+      formData.vigencia = dateOnly;
     }
     // Formatar valores numéricos para exibição
     campos.forEach(campo => {
@@ -166,8 +169,8 @@ const ConfigCustoMembro = () => {
 
     try {
       const url = editingId
-        ? `${API_BASE_URL}/config-custo-membro/${editingId}`
-        : `${API_BASE_URL}/config-custo-membro`;
+        ? `${API_BASE_URL}/config-custo-colaborador/${editingId}`
+        : `${API_BASE_URL}/config-custo-colaborador`;
 
       const method = editingId ? 'PUT' : 'POST';
 
@@ -272,7 +275,7 @@ const ConfigCustoMembro = () => {
     if (!itemToDelete) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/config-custo-membro/${itemToDelete.id}`, {
+      const response = await fetch(`${API_BASE_URL}/config-custo-colaborador/${itemToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -326,14 +329,14 @@ const ConfigCustoMembro = () => {
       label: 'Férias (%)', 
       type: 'percent', 
       required: false,
-      description: 'Porcentagem das férias sobre o salário base (ex: 33.33 para 1/3)'
+      description: 'Porcentagem das férias (valor cheio) sobre o salário base (ex: 100 para 100%)'
     },
     { 
       key: 'terco_ferias', 
-      label: 'Terço de Férias (%)', 
+      label: '1/3 Férias (%)', 
       type: 'percent', 
       required: false,
-      description: 'Porcentagem do terço de férias sobre o salário base'
+      description: 'Porcentagem do 1/3 de férias sobre o salário base (ex: 33.33 para 33.33%)'
     },
     { 
       key: 'decimo_terceiro', 
@@ -363,7 +366,7 @@ const ConfigCustoMembro = () => {
       <div className="container">
         <main className="main-content">
           <div className="form-header">
-            <h2 className="form-title">Configuração de Custo Membro</h2>
+            <h2 className="form-title">Configuração de Custo Colaborador</h2>
             <p style={{ 
               fontSize: '14px', 
               color: '#6b7280', 
@@ -440,7 +443,25 @@ const ConfigCustoMembro = () => {
                             }}
                           >
                             {campo.type === 'date' && item[campo.key]
-                              ? new Date(item[campo.key]).toLocaleDateString('pt-BR')
+                              ? (() => {
+                                  // Formatar data usando a mesma lógica do input
+                                  const dateStr = item[campo.key];
+                                  if (!dateStr) return '-';
+                                  // Extrair apenas a parte YYYY-MM-DD da string ISO (mesma lógica do input)
+                                  let dateOnly = dateStr;
+                                  if (typeof dateStr === 'string' && dateStr.includes('T')) {
+                                    dateOnly = dateStr.split('T')[0];
+                                  }
+                                  // Se está no formato YYYY-MM-DD, formatar diretamente para DD/MM/YYYY
+                                  if (dateOnly.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                    const [ano, mes, dia] = dateOnly.split('-');
+                                    return `${dia}/${mes}/${ano}`;
+                                  }
+                                  // Fallback: tentar parsear como Date
+                                  const date = new Date(dateStr);
+                                  if (isNaN(date.getTime())) return '-';
+                                  return date.toISOString().split('T')[0].split('-').reverse().join('/');
+                                })()
                               : campo.type === 'percent' && (item[campo.key] !== null && item[campo.key] !== undefined)
                               ? `${parseFloat(item[campo.key]).toFixed(2).replace('.', ',')}%`
                               : campo.type === 'currency' && (item[campo.key] !== null && item[campo.key] !== undefined)
@@ -522,7 +543,7 @@ const ConfigCustoMembro = () => {
               <div className="modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h3 style={{ fontSize: '16px' }}>
-                    {editingId ? 'Editar Configuração de Custo Membro' : 'Nova Configuração de Custo Membro'}
+                    {editingId ? 'Editar Configuração de Custo Colaborador' : 'Nova Configuração de Custo Colaborador'}
                   </h3>
                   <button className="btn-icon" onClick={fecharForm}>
                     <i className="fas fa-times"></i>
@@ -544,6 +565,7 @@ const ConfigCustoMembro = () => {
                           </label>
                           <input
                             type="date"
+                            lang="pt-BR"
                             className={`form-input-small ${formErrors.vigencia ? 'error' : ''}`}
                             value={formData.vigencia || ''}
                             onChange={(e) => {
@@ -554,6 +576,9 @@ const ConfigCustoMembro = () => {
                             }}
                             disabled={submitting}
                             required
+                            style={{
+                              colorScheme: 'light'
+                            }}
                           />
                           {formErrors.vigencia && (
                             <span className="error-message">{formErrors.vigencia}</span>
@@ -705,4 +730,3 @@ const ConfigCustoMembro = () => {
 };
 
 export default ConfigCustoMembro;
-
