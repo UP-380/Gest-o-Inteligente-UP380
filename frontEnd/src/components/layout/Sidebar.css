@@ -175,10 +175,16 @@
   font-size: 0.75rem;
   transition: transform 0.3s ease;
   opacity: 0;
+  margin-right: 20px;
+  flex-shrink: 0;
 }
 
 .sidebar:hover .sidebar-chevron {
   opacity: 1;
+}
+
+.sidebar-chevron.expanded {
+  transform: rotate(90deg);
 }
 
 .sidebar-submenu {
@@ -189,24 +195,39 @@
   display: none;
   flex-direction: column;
   gap: 2px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  opacity: 0;
 }
 
-.sidebar-submenu-item {
-  padding: 12px 10px;
-  font-size: 0.85rem;
-}
-
-.sidebar-submenu-item i {
-  font-size: 1rem;
+.sidebar-submenu.open {
+  display: flex;
+  max-height: 500px;
+  opacity: 1;
 }
 
 /* Mostrar submenu quando está aberto e o sidebar está em hover */
 .sidebar:hover .sidebar-submenu.open {
   display: flex;
+  max-height: 500px;
+  opacity: 1;
 }
 
-/* Quando o sidebar não está em hover, ocultar submenu */
+/* Quando o sidebar não está em hover, ocultar submenu (mesmo se aberto) */
 .sidebar:not(:hover) .sidebar-submenu {
   display: none;
+  max-height: 0;
+  opacity: 0;
+}
+
+.sidebar-submenu-item {
+  padding: 12px 10px;
+  font-size: 0.85rem;
+  margin-left: 0;
+}
+
+.sidebar-submenu-item i {
+  font-size: 1rem;
 }
 

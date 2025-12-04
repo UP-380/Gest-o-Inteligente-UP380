@@ -77,7 +77,6 @@ const InlineEditForm = memo(({
   // Filtrar clientes Kamino
   const filteredKamino = React.useMemo(() => {
     if (!allClientesKamino || !Array.isArray(allClientesKamino) || allClientesKamino.length === 0) {
-      console.warn('⚠️ InlineEditForm - allClientesKamino está vazio ou inválido:', allClientesKamino);
       return [];
     }
     
@@ -93,18 +92,6 @@ const InlineEditForm = memo(({
     });
   }, [allClientesKamino, kaminoSearchTerm]);
 
-  // Debug: verificar dados
-  useEffect(() => {
-    if (isExpanded) {
-      console.log('🔍 InlineEditForm - allClientesKamino:', allClientesKamino);
-      console.log('🔍 InlineEditForm - allClientesKamino length:', allClientesKamino?.length);
-      console.log('🔍 InlineEditForm - filteredKamino:', filteredKamino);
-      console.log('🔍 InlineEditForm - filteredKamino length:', filteredKamino.length);
-      console.log('🔍 InlineEditForm - kaminoSearchTerm:', kaminoSearchTerm);
-      console.log('🔍 InlineEditForm - showKaminoDropdown:', showKaminoDropdown);
-      console.log('🔍 InlineEditForm - clientesKaminoMap size:', clientesKaminoMap?.size);
-    }
-  }, [isExpanded, allClientesKamino, filteredKamino, kaminoSearchTerm, showKaminoDropdown, clientesKaminoMap]);
 
   if (!isExpanded) return null;
 
@@ -203,7 +190,6 @@ const InlineEditForm = memo(({
                   }
                 }}
                 onFocus={() => {
-                  console.log('🔍 Campo Cliente Kamino focado');
                   setShowKaminoDropdown(true);
                 }}
                 onBlur={(e) => {
@@ -219,7 +205,6 @@ const InlineEditForm = memo(({
               <i 
                 className="fas fa-chevron-down select-icon" 
                 onClick={() => {
-                  console.log('🔍 Ícone clicado, showKaminoDropdown:', !showKaminoDropdown);
                   setShowKaminoDropdown(!showKaminoDropdown);
                 }}
                 style={{ cursor: 'pointer' }}
@@ -270,7 +255,6 @@ const InlineEditForm = memo(({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('✅ Cliente Kamino selecionado:', nomeExibicao, 'ID:', c.id);
                             const idMap = clientesKaminoMap.get(c.nome_fantasia) || c.id;
                             onUpdateEditData({
                               ...editData,
@@ -361,12 +345,10 @@ const GestaoClientes = () => {
   // Carregar clientes Kamino
   const loadClientesKamino = useCallback(async () => {
     try {
-      console.log('📡 Carregando clientes Kamino...');
       const response = await fetch(`${API_BASE_URL}/clientes-kamino`, {
         credentials: 'include',
       });
       const result = await response.json();
-      console.log('📡 Resultado da API clientes-kamino:', result);
       if (result && result.success && Array.isArray(result.clientes)) {
         allClientesKaminoRef.current = result.clientes;
         clientesKaminoMapRef.current.clear();
@@ -375,13 +357,9 @@ const GestaoClientes = () => {
             clientesKaminoMapRef.current.set(cliente.nome_fantasia, cliente.id);
           }
         });
-        console.log(`✅ ${result.clientes.length} clientes Kamino carregados`);
-        console.log('📋 Mapa de clientes:', Array.from(clientesKaminoMapRef.current.entries()));
-      } else {
-        console.warn('⚠️ Resposta da API não contém clientes válidos:', result);
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar clientes Kamino:', error);
+      // Erro silencioso ao carregar clientes Kamino
     }
   }, []);
 
@@ -405,9 +383,7 @@ const GestaoClientes = () => {
         }
       }
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Erro ao carregar contagem de incompletos:', error);
-      }
+      // Erro silencioso ao carregar contagem de incompletos
     }
   }, []);
 
@@ -419,7 +395,6 @@ const GestaoClientes = () => {
     }
 
     try {
-      console.log('🔍 Verificando contratos ativos para', clientesList.length, 'clientes');
       const clientesComContratos = new Set();
       
       // Verificar contratos de cada cliente em paralelo
@@ -444,7 +419,6 @@ const GestaoClientes = () => {
           }
           return null;
         } catch (error) {
-          console.error(`❌ Erro ao verificar contratos do cliente ${cliente.id}:`, error);
           return null;
         }
       });
@@ -456,10 +430,8 @@ const GestaoClientes = () => {
         }
       });
       
-      console.log('✅ Clientes com contratos ativos:', Array.from(clientesComContratos));
       setClientesComContratosAtivos(clientesComContratos);
     } catch (error) {
-      console.error('❌ Erro ao verificar contratos ativos:', error);
       setClientesComContratosAtivos(new Set());
     }
   }, [showIncompleteClients]);
@@ -542,7 +514,6 @@ const GestaoClientes = () => {
         window.location.href = '/login';
         return;
       }
-      console.error('Erro ao carregar clientes:', error);
     } finally {
       setLoading(false);
       currentRequestControllerRef.current = null;
@@ -555,45 +526,30 @@ const GestaoClientes = () => {
       let url;
       if (clickupName && clickupName.trim() !== '') {
         url = `${API_BASE_URL}/contratos-cliente/${encodeURIComponent(String(clickupName).trim())}`;
-        console.log('🔍 [LOAD-CNPJ] Buscando contratos por nome ClickUp:', clickupName);
       } else {
         url = `${API_BASE_URL}/contratos-cliente-id/${encodeURIComponent(String(clientId).trim())}`;
-        console.log('🔍 [LOAD-CNPJ] Buscando contratos por ID do cliente:', clientId);
       }
-      
-      console.log('🔍 [LOAD-CNPJ] URL:', url);
       
       const response = await fetch(url, { credentials: 'include' });
       
       if (!response.ok) {
-        console.error('❌ [LOAD-CNPJ] Erro na resposta:', response.status, response.statusText);
-        const errorText = await response.text().catch(() => '');
-        console.error('❌ [LOAD-CNPJ] Detalhes do erro:', errorText);
         return [];
       }
       
       const result = await response.json();
-      console.log('✅ [LOAD-CNPJ] Resposta da API:', result);
       
       if (!result || !result.success) {
-        console.warn('⚠️ [LOAD-CNPJ] Resposta não tem success=true:', result);
         return [];
       }
       
       if (!Array.isArray(result.data)) {
-        console.warn('⚠️ [LOAD-CNPJ] result.data não é um array:', result.data);
         return [];
       }
       
-      console.log('📋 [LOAD-CNPJ] Contratos encontrados:', result.data.length);
-      
       const valores = Array.from(new Set(result.data.map(c => c.cpf_cnpj).filter(v => v && v !== 'N/A' && v && v.trim() !== '')));
-      
-      console.log('✅ [LOAD-CNPJ] CNPJs únicos extraídos:', valores.length, valores);
       
       return valores;
     } catch (error) {
-      console.error('❌ [LOAD-CNPJ] Erro ao carregar opções de CNPJ:', error);
       return [];
     }
   }, []);
@@ -672,7 +628,6 @@ const GestaoClientes = () => {
             msg = txt || msg;
           }
         } catch (error) {
-          console.error('Erro ao processar resposta:', error);
           msg = `Erro HTTP ${resp.status}: ${resp.statusText}`;
         }
         alert(msg);

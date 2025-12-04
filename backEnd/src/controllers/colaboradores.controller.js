@@ -4,6 +4,7 @@
 
 const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
+const supabaseDirect = require('../config/database');
 
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
@@ -117,7 +118,7 @@ async function getColaboradores(req, res) {
       }
     }
 
-    console.log(`✅ Colaboradores encontrados: ${data?.length || 0} de ${count || 0} total`);
+
 
     return res.json({
       success: true,
@@ -666,7 +667,41 @@ async function deletarColaborador(req, res) {
   }
 }
 
+// GET - Buscar tipos de contrato
+async function getTiposContrato(req, res) {
+  try {
+    const { data, error } = await supabaseDirect
+      .schema('up_gestaointeligente')
+      .from('cp_tipo_contrato_membro')
+      .select('id, nome')
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar tipos de contrato:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tipos de contrato',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data || [],
+      count: data?.length || 0
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tipos de contrato:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
+  getTiposContrato,
   getColaboradores,
   getColaboradorPorId,
   criarColaborador,

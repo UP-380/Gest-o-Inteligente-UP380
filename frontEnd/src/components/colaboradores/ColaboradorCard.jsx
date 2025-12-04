@@ -22,3 +22,4 @@ const ColaboradorCard = ({ colaborador, resumo, registros, onOpenDetail }) => {
 
 export default ColaboradorCard;
 
+

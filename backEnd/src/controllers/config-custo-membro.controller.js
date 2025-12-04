@@ -1,11 +1,11 @@
 // =============================================================
-// === CONTROLLER DE CONFIGURAÇÃO DE CUSTO MEMBRO ===
+// === CONTROLLER DE CONFIGURAÇÃO DE CUSTO COLABORADOR ===
 // =============================================================
 
 const supabase = require('../config/database');
 
-// GET - Listar todas as configurações de custo membro (com paginação opcional)
-async function getConfigCustoMembro(req, res) {
+// GET - Listar todas as configurações de custo colaborador (com paginação opcional)
+async function getConfigCustoColaborador(req, res) {
   try {
     const { page = 1, limit = 50, search = '' } = req.query;
     const pageNum = parseInt(page, 10);
@@ -60,7 +60,6 @@ async function getConfigCustoMembro(req, res) {
       });
     }
 
-    console.log(`✅ Configurações encontradas: ${data?.length || 0} de ${count || 0} total`);
 
     return res.json({
       success: true,
@@ -81,7 +80,7 @@ async function getConfigCustoMembro(req, res) {
 }
 
 // GET - Buscar configuração por ID
-async function getConfigCustoMembroPorId(req, res) {
+async function getConfigCustoColaboradorPorId(req, res) {
   try {
     const { id } = req.params;
 
@@ -130,7 +129,7 @@ async function getConfigCustoMembroPorId(req, res) {
 }
 
 // POST - Criar nova configuração
-async function criarConfigCustoMembro(req, res) {
+async function criarConfigCustoColaborador(req, res) {
   try {
     const {
       vigencia,
@@ -210,7 +209,7 @@ async function criarConfigCustoMembro(req, res) {
 }
 
 // PUT - Atualizar configuração
-async function atualizarConfigCustoMembro(req, res) {
+async function atualizarConfigCustoColaborador(req, res) {
   try {
     const { id } = req.params;
     const {
@@ -329,7 +328,7 @@ async function atualizarConfigCustoMembro(req, res) {
 }
 
 // DELETE - Deletar configuração
-async function deletarConfigCustoMembro(req, res) {
+async function deletarConfigCustoColaborador(req, res) {
   try {
     const { id } = req.params;
 
@@ -397,11 +396,61 @@ async function deletarConfigCustoMembro(req, res) {
   }
 }
 
+// GET - Buscar configuração mais recente por data (para uso em cálculos de vigência)
+async function getConfigCustoColaboradorMaisRecente(req, res) {
+  try {
+    const { data_vigencia } = req.query; // Data da vigência para buscar a config mais recente até essa data
+
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('config_custo_membro')
+      .select('*')
+      .order('vigencia', { ascending: false })
+      .limit(1);
+
+    // Se fornecer data_vigencia, buscar a config mais recente até essa data
+    if (data_vigencia) {
+      const dataRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dataRegex.test(data_vigencia)) {
+        return res.status(400).json({
+          success: false,
+          error: 'data_vigencia deve estar no formato YYYY-MM-DD'
+        });
+      }
+      query = query.lte('vigencia', data_vigencia);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar configuração mais recente:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar configuração mais recente',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data || null
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar configuração mais recente:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
-  getConfigCustoMembro,
-  getConfigCustoMembroPorId,
-  criarConfigCustoMembro,
-  atualizarConfigCustoMembro,
-  deletarConfigCustoMembro
+  getConfigCustoColaborador,
+  getConfigCustoColaboradorPorId,
+  criarConfigCustoColaborador,
+  atualizarConfigCustoColaborador,
+  deletarConfigCustoColaborador,
+  getConfigCustoColaboradorMaisRecente
 };
 

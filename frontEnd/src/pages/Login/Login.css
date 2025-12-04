@@ -203,3 +203,47 @@
     animation: shake 0.3s ease;
 }
 
+/* Estilos para o easter egg tooltip */
+.login-header .has-tooltip {
+    position: relative;
+}
+
+.login-tooltip {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    padding: 10px 14px;
+    background-color: #1f2937;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 300px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.login-header .has-tooltip .login-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.login-tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-bottom-color: #1f2937;
+}
+

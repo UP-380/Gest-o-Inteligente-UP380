@@ -97,7 +97,7 @@ function App() {
           }
         />
         <Route
-          path="/configuracoes/custo-membro"
+          path="/configuracoes/custo-colaborador"
           element={
             <ProtectedRoute>
               <ConfigCustoMembro />

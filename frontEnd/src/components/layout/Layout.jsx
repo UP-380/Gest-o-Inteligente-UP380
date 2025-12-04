@@ -1,5 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
+import MarcaDagua from '../common/MarcaDagua';
+import { VERSAO_SISTEMA } from '../../config/versao';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -29,6 +31,9 @@ const Layout = ({ children }) => {
       
       {/* Conteúdo principal */}
       {children}
+
+      {/* Marca d'água de versão */}
+      <MarcaDagua version={VERSAO_SISTEMA} />
     </>
   );
 };

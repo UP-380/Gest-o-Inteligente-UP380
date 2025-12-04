@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './Login.css';
@@ -10,6 +10,11 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [showEasterEgg, setShowEasterEgg] = useState(false);
+  const logoRef = useRef(null);
+  const clickTimeoutRef = useRef(null);
+  const easterEggTimeoutRef = useRef(null);
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -99,22 +104,78 @@ const Login = () => {
     setShowPassword(!showPassword);
   };
 
+  // Easter egg: contar cliques na logo
+  const handleLogoClick = () => {
+    // Limpar timeout anterior se existir
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+    
+    const newCount = logoClickCount + 1;
+    setLogoClickCount(newCount);
+    
+    if (newCount >= 4) {
+      setShowEasterEgg(true);
+      setLogoClickCount(0); // Resetar contador
+      
+      // Esconder o tooltip após 5 segundos
+      if (easterEggTimeoutRef.current) {
+        clearTimeout(easterEggTimeoutRef.current);
+      }
+      easterEggTimeoutRef.current = setTimeout(() => {
+        setShowEasterEgg(false);
+      }, 5000);
+    } else {
+      // Resetar contador se não clicar novamente em 2 segundos
+      clickTimeoutRef.current = setTimeout(() => {
+        setLogoClickCount(0);
+      }, 2000);
+    }
+  };
+
+  // Limpar timeouts quando o componente desmontar
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+      if (easterEggTimeoutRef.current) {
+        clearTimeout(easterEggTimeoutRef.current);
+      }
+      setLogoClickCount(0);
+      setShowEasterEgg(false);
+    };
+  }, []);
+
   return (
     <>
       <div id="toastContainer" className="toast-container" aria-live="polite" aria-atomic="true"></div>
       <div className="login-container">
         <div className={`login-box ${shake ? 'shake' : ''}`}>
-          <div className="login-header">
-            <img 
-              src="/assets/images/LOGO SISTEMA LOGIN.png" 
-              alt="UP Gestão Inteligente"
-              onError={(e) => {
-                // Fallback se a imagem não carregar
-                e.target.src = '/assets/images/LOGO DO SISTEMA .png';
-                e.target.onerror = null; // Prevenir loop infinito
-              }}
-            />
-            <p>Acesse sua conta UP Gestão Inteligente</p>
+          <div className="login-header" style={{ position: 'relative' }}>
+            <div 
+              ref={logoRef}
+              style={{ position: 'relative', display: 'inline-block' }}
+              className={showEasterEgg ? 'has-tooltip' : ''}
+            >
+              <img 
+                src="/assets/images/LOGO SISTEMA LOGIN.png" 
+                alt="UP Gestão Inteligente"
+                onClick={handleLogoClick}
+                style={{ cursor: 'pointer' }}
+                onError={(e) => {
+                  // Fallback se a imagem não carregar
+                  e.target.src = '/assets/images/LOGO DO SISTEMA .png';
+                  e.target.onerror = null; // Prevenir loop infinito
+                }}
+              />
+              {showEasterEgg && (
+                <div className="login-tooltip">
+                  Desenvolvido inicialmente por João Pedro Guimarães do Vale
+                </div>
+              )}
+            </div>
+            <p>Acesse sua área de Gestão Inteligente</p>
           </div>
           
           <form onSubmit={handleSubmit}>

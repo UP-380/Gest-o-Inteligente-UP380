@@ -1,11 +1,11 @@
 // =============================================================
-// === CONTROLLER DE CUSTO MEMBRO VIGÊNCIA ===
+// === CONTROLLER DE CUSTO COLABORADOR VIGÊNCIA ===
 // =============================================================
 
 const vigenciaService = require('../services/custo-membro-vigencia.service');
 
 // GET - Listar todas as vigências (com filtros opcionais)
-async function getCustosMembroVigencia(req, res) {
+async function getCustosColaboradorVigencia(req, res) {
   try {
     const { 
       page = 1, 
@@ -60,10 +60,10 @@ async function getCustosMembroVigencia(req, res) {
     const { data, count, error } = await vigenciaService.buscarVigencias(filters, pageNum, limitNum);
 
     if (error) {
-      console.error('Erro ao buscar custos membro vigência:', error);
+      console.error('Erro ao buscar custos colaborador vigência:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar custos membro vigência',
+        error: 'Erro ao buscar custos colaborador vigência',
         details: error.message
       });
     }
@@ -77,7 +77,7 @@ async function getCustosMembroVigencia(req, res) {
       limit: limitNum
     });
   } catch (error) {
-    console.error('Erro inesperado ao buscar custos membro vigência:', error);
+    console.error('Erro inesperado ao buscar custos colaborador vigência:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -87,7 +87,7 @@ async function getCustosMembroVigencia(req, res) {
 }
 
 // GET - Buscar vigência por ID
-async function getCustoMembroVigenciaPorId(req, res) {
+async function getCustoColaboradorVigenciaPorId(req, res) {
   try {
     const { id } = req.params;
 
@@ -101,10 +101,10 @@ async function getCustoMembroVigenciaPorId(req, res) {
     const { data, error } = await vigenciaService.buscarVigenciaPorId(id);
 
     if (error) {
-      console.error('Erro ao buscar custo membro vigência:', error);
+      console.error('Erro ao buscar custo colaborador vigência:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar custo membro vigência',
+        error: 'Erro ao buscar custo colaborador vigência',
         details: error.message
       });
     }
@@ -121,7 +121,7 @@ async function getCustoMembroVigenciaPorId(req, res) {
       data: data
     });
   } catch (error) {
-    console.error('Erro inesperado ao buscar custo membro vigência:', error);
+    console.error('Erro inesperado ao buscar custo colaborador vigência:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -145,10 +145,10 @@ async function getCustosPorMembro(req, res) {
     const { data, error } = await vigenciaService.buscarVigenciasPorMembro(membro_id);
 
     if (error) {
-      console.error('Erro ao buscar custos por membro:', error);
+      console.error('Erro ao buscar custos por colaborador:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar custos por membro',
+        error: 'Erro ao buscar custos por colaborador',
         details: error.message
       });
     }
@@ -159,7 +159,7 @@ async function getCustosPorMembro(req, res) {
       count: data?.length || 0
     });
   } catch (error) {
-    console.error('Erro inesperado ao buscar custos por membro:', error);
+    console.error('Erro inesperado ao buscar custos por colaborador:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -169,17 +169,33 @@ async function getCustosPorMembro(req, res) {
 }
 
 // POST - Criar nova vigência
-async function criarCustoMembroVigencia(req, res) {
+// VERSÃO LIMPA: Salva exatamente o que vem do frontend, sem cálculos
+async function criarCustoColaboradorVigencia(req, res) {
   try {
+    console.log('🚀 [POST] Função criarCustoColaboradorVigencia chamada');
+    console.log('📥 [POST] Body recebido:', JSON.stringify(req.body, null, 2));
+    
+    // Pegar TODOS os campos do body
+    // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
       membro_id,
       dt_vigencia,
-      diasuteis,
       horascontratadasdia,
       salariobase,
-      ajudacusto = 0,
-      valetransporte = 0,
-      descricao = null
+      tipo_contrato,
+      ferias,
+      terco_ferias,
+      decimoterceiro,
+      fgts,
+      custo_hora,
+      insspatronal,
+      insscolaborador,
+      ajudacusto,
+      valetransporte,
+      vale_refeicao,
+      descricao
+      // descricao_beneficios - removido pois a coluna não existe na tabela
+      // diasuteis - removido pois a coluna não existe na tabela
     } = req.body;
 
     // Validações obrigatórias
@@ -225,72 +241,134 @@ async function criarCustoMembroVigencia(req, res) {
       });
     }
 
-    // Função auxiliar para converter valor para número ou null
-    const toNumberOrNull = (value) => {
+    // Função para converter para string (campos TEXT)
+    const toString = (value) => {
       if (value === null || value === undefined || value === '') return null;
-      const num = typeof value === 'number' ? value : parseFloat(value);
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number') return String(value);
+      return String(value);
+    };
+
+    // Função para converter para número (campos numéricos)
+    const toNumber = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'number') return value;
+      const num = parseFloat(value);
       return isNaN(num) ? null : num;
     };
 
-    // Função auxiliar para converter valor para número ou 0
-    const toNumberOrZero = (value) => {
-      if (value === null || value === undefined || value === '') return 0;
-      const num = typeof value === 'number' ? value : parseFloat(value);
-      return isNaN(num) ? 0 : num;
-    };
-
-    // Preparar dados para inserção
+    // Preparar dados - Campos TEXT agora recebem string diretamente
+    // NOTA: diasuteis não existe na tabela, então não incluímos no insert
     const dadosInsert = {
       membro_id: parseInt(membro_id, 10),
       dt_vigencia: dt_vigencia,
-      diasuteis: toNumberOrNull(diasuteis),
-      horascontratadasdia: toNumberOrNull(horascontratadasdia),
-      salariobase: toNumberOrNull(salariobase),
-      ajudacusto: toNumberOrZero(ajudacusto),
-      valetransporte: toNumberOrZero(valetransporte),
+      horascontratadasdia: toNumber(horascontratadasdia),
+      salariobase: toNumber(salariobase),
+      tipo_contrato: tipo_contrato ? (isNaN(parseInt(tipo_contrato, 10)) ? null : parseInt(tipo_contrato, 10)) : null,
+      ajudacusto: toString(ajudacusto) || '0',
+      valetransporte: toString(valetransporte) || '0',
+      vale_refeicao: toString(vale_refeicao) || '0',
       descricao: descricao || null
     };
 
-    // Criar vigência
-    const { data, error } = await vigenciaService.criarVigencia(dadosInsert);
+    // Campos TEXT - enviar como string
+    console.log('🔍 [POST] Valores recebidos do frontend:');
+    console.log('   - ferias:', ferias, 'tipo:', typeof ferias);
+    console.log('   - terco_ferias:', terco_ferias, 'tipo:', typeof terco_ferias);
+    console.log('   - decimoterceiro:', decimoterceiro, 'tipo:', typeof decimoterceiro);
+    console.log('   - fgts:', fgts, 'tipo:', typeof fgts);
+    
+    if (ferias !== null && ferias !== undefined && ferias !== '') {
+      dadosInsert.ferias = toString(ferias);
+      console.log('✅ [POST] ferias adicionado:', dadosInsert.ferias);
+    }
+    if (terco_ferias !== null && terco_ferias !== undefined && terco_ferias !== '') {
+      dadosInsert.um_terco_ferias = toString(terco_ferias); // Nome correto da coluna
+      console.log('✅ [POST] um_terco_ferias adicionado:', dadosInsert.um_terco_ferias);
+    }
+    if (decimoterceiro !== null && decimoterceiro !== undefined && decimoterceiro !== '') {
+      dadosInsert.decimoterceiro = toString(decimoterceiro);
+      console.log('✅ [POST] decimoterceiro adicionado:', dadosInsert.decimoterceiro);
+    }
+    if (fgts !== null && fgts !== undefined && fgts !== '') {
+      dadosInsert.fgts = toString(fgts);
+      console.log('✅ [POST] fgts adicionado:', dadosInsert.fgts);
+    }
+    if (custo_hora !== null && custo_hora !== undefined && custo_hora !== '') {
+      dadosInsert.custo_hora = toString(custo_hora);
+      console.log('✅ [POST] custo_hora adicionado:', dadosInsert.custo_hora);
+    }
+    // Campos numéricos - verificar se as colunas existem antes de enviar
+    // Se as colunas insspatronal e insscolaborador não existirem, não enviar
+    // (comentado temporariamente até confirmar se as colunas existem)
+    // if (insspatronal !== null && insspatronal !== undefined && insspatronal !== '') {
+    //   const inssPatronalNum = toNumber(insspatronal);
+    //   if (inssPatronalNum !== null) dadosInsert.insspatronal = inssPatronalNum;
+    // }
+    // if (insscolaborador !== null && insscolaborador !== undefined && insscolaborador !== '') {
+    //   const inssColabNum = toNumber(insscolaborador);
+    //   if (inssColabNum !== null) dadosInsert.insscolaborador = inssColabNum;
+    // }
+
+    console.log('📤 [POST] Dados para inserção:', JSON.stringify(dadosInsert, null, 2));
+
+    // Criar vigência - agora sem lógica de correção de trigger (campos são TEXT)
+    let { data, error } = await vigenciaService.criarVigencia(dadosInsert);
 
     if (error) {
-      console.error('❌ Erro ao criar custo membro vigência:', error);
+      console.error('❌ [POST] Erro ao criar vigência:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao criar custo membro vigência',
-        details: error.message
+        error: 'Erro ao criar custo colaborador vigência',
+        details: error.message || 'Erro desconhecido',
+        code: error.code,
+        hint: error.hint
       });
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Custo membro vigência criado com sucesso',
-      data: data
-    });
+      return res.status(201).json({
+        success: true,
+        message: 'Custo colaborador vigência criado com sucesso',
+        data: data
+      });
   } catch (error) {
-    console.error('Erro inesperado ao criar custo membro vigência:', error);
+    console.error('❌ [POST] Erro inesperado ao criar custo colaborador vigência:', error);
+    console.error('❌ [POST] Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
-      details: error.message
+      details: error.message || 'Erro desconhecido',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
 
 // PUT - Atualizar vigência
-async function atualizarCustoMembroVigencia(req, res) {
+// VERSÃO LIMPA: Atualiza exatamente o que vem do frontend, sem cálculos
+async function atualizarCustoColaboradorVigencia(req, res) {
   try {
     const { id } = req.params;
+    
+    // Pegar TODOS os campos do body
+    // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
       membro_id,
       dt_vigencia,
-      diasuteis,
       horascontratadasdia,
       salariobase,
+      tipo_contrato,
+      ferias,
+      terco_ferias,
+      decimoterceiro,
+      fgts,
+      insspatronal,
+      insscolaborador,
       ajudacusto,
       valetransporte,
+      vale_refeicao,
       descricao
+      // descricao_beneficios - removido pois a coluna não existe na tabela
+      // diasuteis - removido pois a coluna não existe na tabela
     } = req.body;
 
     if (!id) {
@@ -319,34 +397,44 @@ async function atualizarCustoMembroVigencia(req, res) {
       });
     }
 
-    // Preparar dados para atualização
+    // Função para converter para string (campos TEXT)
+    const toString = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number') return String(value);
+      return String(value);
+    };
+
+    // Função para converter para número (campos numéricos)
+    const toNumber = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      if (typeof value === 'number') return value;
+      const num = parseFloat(value);
+      return isNaN(num) ? null : num;
+    };
+
+    // Preparar dados - ATUALIZAR EXATAMENTE O QUE VEM DO FRONTEND
     const dadosUpdate = {};
 
     if (membro_id !== undefined) {
-      // Verificar se novo membro existe
       const { exists, error: errorMembro } = await vigenciaService.verificarMembroExiste(membro_id);
-
       if (errorMembro) {
-        console.error('Erro ao verificar membro:', errorMembro);
         return res.status(500).json({
           success: false,
           error: 'Erro ao verificar membro',
           details: errorMembro.message
         });
       }
-
       if (!exists) {
         return res.status(404).json({
           success: false,
           error: 'Membro não encontrado'
         });
       }
-
       dadosUpdate.membro_id = parseInt(membro_id, 10);
     }
 
     if (dt_vigencia !== undefined) {
-      // Validar formato de data
       const dataRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dataRegex.test(dt_vigencia)) {
         return res.status(400).json({
@@ -357,27 +445,30 @@ async function atualizarCustoMembroVigencia(req, res) {
       dadosUpdate.dt_vigencia = dt_vigencia;
     }
 
-    // Função auxiliar para converter valor para número ou null
-    const toNumberOrNull = (value) => {
-      if (value === null || value === undefined || value === '') return null;
-      const num = typeof value === 'number' ? value : parseFloat(value);
-      return isNaN(num) ? null : num;
-    };
-
-    // Função auxiliar para converter valor para número ou 0
-    const toNumberOrZero = (value) => {
-      if (value === null || value === undefined || value === '') return 0;
-      const num = typeof value === 'number' ? value : parseFloat(value);
-      return isNaN(num) ? 0 : num;
-    };
-
-    // Campos numéricos opcionais
-    if (diasuteis !== undefined) dadosUpdate.diasuteis = toNumberOrNull(diasuteis);
-    if (horascontratadasdia !== undefined) dadosUpdate.horascontratadasdia = toNumberOrNull(horascontratadasdia);
-    if (salariobase !== undefined) dadosUpdate.salariobase = toNumberOrNull(salariobase);
-    if (ajudacusto !== undefined) dadosUpdate.ajudacusto = toNumberOrZero(ajudacusto);
-    if (valetransporte !== undefined) dadosUpdate.valetransporte = toNumberOrZero(valetransporte);
+    // Atualizar TODOS os campos que vierem do frontend
+    // Campos numéricos
+    // diasuteis não existe na tabela, então não incluímos no update
+    if (horascontratadasdia !== undefined) dadosUpdate.horascontratadasdia = toNumber(horascontratadasdia);
+    if (salariobase !== undefined) dadosUpdate.salariobase = toNumber(salariobase);
+    if (tipo_contrato !== undefined) {
+      dadosUpdate.tipo_contrato = tipo_contrato ? (isNaN(parseInt(tipo_contrato, 10)) ? null : parseInt(tipo_contrato, 10)) : null;
+    }
+    // Campos TEXT (enviar como string)
+    if (ferias !== undefined) dadosUpdate.ferias = toString(ferias);
+    if (terco_ferias !== undefined) dadosUpdate.um_terco_ferias = toString(terco_ferias); // Nome correto da coluna
+    if (decimoterceiro !== undefined) dadosUpdate.decimoterceiro = toString(decimoterceiro);
+    if (fgts !== undefined) dadosUpdate.fgts = toString(fgts);
+    if (custo_hora !== undefined) dadosUpdate.custo_hora = toString(custo_hora) || null;
+    if (ajudacusto !== undefined) dadosUpdate.ajudacusto = toString(ajudacusto) || '0';
+    if (valetransporte !== undefined) dadosUpdate.valetransporte = toString(valetransporte) || '0';
+    if (vale_refeicao !== undefined) dadosUpdate.vale_refeicao = toString(vale_refeicao) || '0';
+    // Campos numéricos - verificar se as colunas existem antes de enviar
+    // Se as colunas insspatronal e insscolaborador não existirem, não enviar
+    // (comentado temporariamente até confirmar se as colunas existem)
+    // if (insspatronal !== undefined) dadosUpdate.insspatronal = toNumber(insspatronal);
+    // if (insscolaborador !== undefined) dadosUpdate.insscolaborador = toNumber(insscolaborador);
     if (descricao !== undefined) dadosUpdate.descricao = descricao || null;
+    // descricao_beneficios - removido pois a coluna não existe na tabela
 
     // Se não há nada para atualizar
     if (Object.keys(dadosUpdate).length === 0) {
@@ -387,25 +478,27 @@ async function atualizarCustoMembroVigencia(req, res) {
       });
     }
 
+    console.log('📤 [PUT] Dados para atualização (EXATOS do frontend):', JSON.stringify(dadosUpdate, null, 2));
+
     // Atualizar vigência
     const { data, error } = await vigenciaService.atualizarVigencia(id, dadosUpdate);
 
     if (error) {
-      console.error('Erro ao atualizar custo membro vigência:', error);
+      console.error('Erro ao atualizar custo colaborador vigência:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao atualizar custo membro vigência',
+        error: 'Erro ao atualizar custo colaborador vigência',
         details: error.message
       });
     }
 
     return res.json({
       success: true,
-      message: 'Custo membro vigência atualizado com sucesso',
+      message: 'Custo colaborador vigência atualizado com sucesso',
       data: data
     });
   } catch (error) {
-    console.error('Erro inesperado ao atualizar custo membro vigência:', error);
+    console.error('Erro inesperado ao atualizar custo colaborador vigência:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -415,7 +508,7 @@ async function atualizarCustoMembroVigencia(req, res) {
 }
 
 // DELETE - Deletar vigência
-async function deletarCustoMembroVigencia(req, res) {
+async function deletarCustoColaboradorVigencia(req, res) {
   try {
     const { id } = req.params;
 
@@ -449,17 +542,17 @@ async function deletarCustoMembroVigencia(req, res) {
     const { success, error } = await vigenciaService.deletarVigencia(id);
 
     if (error) {
-      console.error('Erro ao deletar custo membro vigência:', error);
+      console.error('Erro ao deletar custo colaborador vigência:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao deletar custo membro vigência',
+        error: 'Erro ao deletar custo colaborador vigência',
         details: error.message
       });
     }
 
     return res.json({
       success: true,
-      message: 'Custo membro vigência deletado com sucesso',
+      message: 'Custo colaborador vigência deletado com sucesso',
       data: {
         id: existente.id,
         membro_id: existente.membro_id,
@@ -467,7 +560,7 @@ async function deletarCustoMembroVigencia(req, res) {
       }
     });
   } catch (error) {
-    console.error('Erro inesperado ao deletar custo membro vigência:', error);
+    console.error('Erro inesperado ao deletar custo colaborador vigência:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -477,10 +570,10 @@ async function deletarCustoMembroVigencia(req, res) {
 }
 
 module.exports = {
-  getCustosMembroVigencia,
-  getCustoMembroVigenciaPorId,
+  getCustosColaboradorVigencia,
+  getCustoColaboradorVigenciaPorId,
   getCustosPorMembro,
-  criarCustoMembroVigencia,
-  atualizarCustoMembroVigencia,
-  deletarCustoMembroVigencia
+  criarCustoColaboradorVigencia,
+  atualizarCustoColaboradorVigencia,
+  deletarCustoColaboradorVigencia
 };

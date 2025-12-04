@@ -440,6 +440,52 @@ const RelatoriosColaboradores = () => {
     setMiniCardPosition(position);
   }, [allRegistrosTempo]);
 
+  const handleShowColaboradores = useCallback((e) => {
+    if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
+      alert('Nenhum colaborador encontrado');
+      return;
+    }
+
+    // Se há filtro de colaborador, considerar apenas os colaboradores filtrados
+    const colaboradorIdsFiltro = filtroColaborador 
+      ? (Array.isArray(filtroColaborador) 
+          ? filtroColaborador.map(id => String(id).trim().toLowerCase())
+          : [String(filtroColaborador).trim().toLowerCase()])
+      : null;
+
+    const colaboradoresMap = new Map();
+    allRegistrosTempo.forEach(registro => {
+      if (registro.usuario_id) {
+        const colaboradorId = String(registro.usuario_id).trim().toLowerCase();
+        
+        // Se há filtro, considerar apenas os colaboradores que estão no filtro
+        if (colaboradorIdsFiltro && !colaboradorIdsFiltro.includes(colaboradorId)) {
+          return; // Pular colaboradores que não estão no filtro
+        }
+        
+        if (!colaboradoresMap.has(colaboradorId)) {
+          // Buscar nome do colaborador
+          const colaborador = todosColaboradores.find(c => 
+            String(c.id).trim().toLowerCase() === colaboradorId
+          );
+          const nomeColaborador = colaborador?.nome || `Colaborador ${registro.usuario_id}`;
+          colaboradoresMap.set(colaboradorId, nomeColaborador);
+        }
+      }
+    });
+
+    const itens = Array.from(colaboradoresMap.values());
+    
+    if (itens.length === 0) {
+      alert('Nenhum colaborador encontrado');
+      return;
+    }
+    
+    const position = calcularPosicaoMiniCard(e);
+    setMiniCardLista({ titulo: 'Colaboradores', itens });
+    setMiniCardPosition(position);
+  }, [allRegistrosTempo, todosColaboradores, filtroColaborador]);
+
   const handleShowClientes = useCallback((e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
       alert('Nenhum cliente encontrado');
@@ -564,7 +610,7 @@ const RelatoriosColaboradores = () => {
               }}
             >
               <i className="fas fa-briefcase"></i>
-              Colaboradores
+              Gestão Colaboradores
             </button>
           </div>
         </div>
@@ -640,8 +686,9 @@ const RelatoriosColaboradores = () => {
             registrosTempo={allRegistrosTempo}
             clientesExibidos={[]}
             onShowTarefas={handleShowTarefas}
+            onShowColaboradores={handleShowColaboradores}
             onShowClientes={handleShowClientes}
-            showColaboradores={false}
+            showColaboradores={true}
             filtroCliente={filtroCliente}
           />
         )}

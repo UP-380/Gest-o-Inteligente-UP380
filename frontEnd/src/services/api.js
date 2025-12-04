@@ -103,11 +103,55 @@ export const authAPI = {
    * Verifica se o usuário está autenticado
    */
   async checkAuth() {
-    const response = await fetch(`${API_BASE_URL}/auth/check`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/check`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Resposta não é JSON! Status:', response.status);
+        console.error('❌ Content-Type:', contentType);
+        console.error('❌ Resposta:', text.substring(0, 200));
+        
+        // Se não for JSON, retornar resposta padrão
+        return {
+          authenticated: false,
+          error: 'Resposta inválida do servidor'
+        };
+      }
+
+      // Se a resposta não for ok, tentar ler o JSON de erro
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          return {
+            authenticated: false,
+            error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`
+          };
+        } catch (e) {
+          return {
+            authenticated: false,
+            error: `HTTP error! status: ${response.status}`
+          };
+        }
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Erro ao verificar autenticação:', error);
+      return {
+        authenticated: false,
+        error: error.message || 'Erro de conexão'
+      };
+    }
   },
 
   /**
@@ -565,12 +609,12 @@ export const contratosAPI = {
 };
 
 // ============================================
-// CUSTO MEMBRO VIGÊNCIA
+// CUSTO COLABORADOR VIGÊNCIA
 // ============================================
 
-export const custoMembroVigenciaAPI = {
+export const custoColaboradorVigenciaAPI = {
   /**
-   * Busca custos de membro vigência
+   * Busca custos de colaborador vigência
    * @param {Object} params - { colaboradorId, dtVigencia }
    */
   async getAll({ colaboradorId = null, dtVigencia = null } = {}) {
@@ -585,8 +629,8 @@ export const custoMembroVigenciaAPI = {
     }
 
     const url = params.length > 0 
-      ? `${API_BASE_URL}/custo-membro-vigencia?${params.join('&')}`
-      : `${API_BASE_URL}/custo-membro-vigencia`;
+      ? `${API_BASE_URL}/custo-colaborador-vigencia?${params.join('&')}`
+      : `${API_BASE_URL}/custo-colaborador-vigencia`;
     
     return await request(url);
   },
@@ -596,7 +640,7 @@ export const custoMembroVigenciaAPI = {
    * @param {Object} data 
    */
   async create(data) {
-    return await request(`${API_BASE_URL}/custo-membro-vigencia`, {
+    return await request(`${API_BASE_URL}/custo-colaborador-vigencia`, {
       method: 'POST',
       body: JSON.stringify(data)
     });
@@ -608,7 +652,7 @@ export const custoMembroVigenciaAPI = {
    * @param {Object} data 
    */
   async update(id, data) {
-    return await request(`${API_BASE_URL}/custo-membro-vigencia/${id}`, {
+    return await request(`${API_BASE_URL}/custo-colaborador-vigencia/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
     });
@@ -619,7 +663,7 @@ export const custoMembroVigenciaAPI = {
    * @param {number|string} id 
    */
   async delete(id) {
-    return await request(`${API_BASE_URL}/custo-membro-vigencia/${id}`, {
+    return await request(`${API_BASE_URL}/custo-colaborador-vigencia/${id}`, {
       method: 'DELETE'
     });
   }
