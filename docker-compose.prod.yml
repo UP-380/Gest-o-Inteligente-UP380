@@ -51,11 +51,17 @@ services:
       - easypanel
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.upgi-nginx.rule=Host(`upmap.up380.com.br`)"
-      - "traefik.http.routers.upgi-nginx.entrypoints=http"
+      - "traefik.http.routers.upgi-nginx-http.rule=Host(`upmap.up380.com.br`)"
+      - "traefik.http.routers.upgi-nginx-http.entrypoints=http"
+      - "traefik.http.routers.upgi-nginx-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.upgi-nginx-https.rule=Host(`upmap.up380.com.br`)"
+      - "traefik.http.routers.upgi-nginx-https.entrypoints=https"
+      - "traefik.http.routers.upgi-nginx-https.tls.certresolver=letsencrypt"
       - "traefik.http.services.upgi-nginx.loadbalancer.server.port=6032"
       - "traefik.http.services.upgi-nginx.loadbalancer.server.scheme=http"
       - "traefik.docker.network=easypanel"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
     restart: always
     logging:
       driver: "json-file"
