@@ -39,6 +39,8 @@ const RelatoriosColaboradores = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
+  // Estado para armazenar os valores dos filtros que foram aplicados por último (para comparação)
+  const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null);
   const [emptyMessage, setEmptyMessage] = useState(null);
 
   // Estado do card lateral
@@ -486,8 +488,16 @@ const RelatoriosColaboradores = () => {
     setCurrentPage(1);
     setFiltrosAplicados(true);
     setFiltrosAplicadosAtuais(filtrosParaEnviar);
+    // Salvar os valores dos filtros aplicados para comparação
+    setFiltrosUltimosAplicados({
+      cliente: filtroCliente,
+      dataInicio: filtroDataInicio,
+      dataFim: filtroDataFim,
+      colaborador: filtroColaborador,
+      mostrarInativos: mostrarInativos
+    });
     carregarColaboradoresPaginados(filtrosParaEnviar);
-  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, carregarColaboradoresPaginados]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarInativos, carregarColaboradoresPaginados]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -516,7 +526,44 @@ const RelatoriosColaboradores = () => {
     setCurrentPage(1);
     setFiltrosAplicados(false);
     setFiltrosAplicadosAtuais({});
+    setFiltrosUltimosAplicados(null);
   }, [carregarClientes, carregarColaboradores]);
+
+  // Função para comparar arrays (considerando ordem)
+  const arraysEqual = (a, b) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    const aSorted = [...a].sort().map(String);
+    const bSorted = [...b].sort().map(String);
+    return JSON.stringify(aSorted) === JSON.stringify(bSorted);
+  };
+
+  // Verificar se há mudanças pendentes nos filtros
+  const hasPendingChanges = () => {
+    // Se não há filtros aplicados, não há mudanças pendentes
+    if (!filtrosAplicados || !filtrosUltimosAplicados) {
+      return false;
+    }
+    
+    // Comparar cada filtro
+    const clienteChanged = !arraysEqual(
+      Array.isArray(filtroCliente) ? filtroCliente : (filtroCliente ? [filtroCliente] : []),
+      Array.isArray(filtrosUltimosAplicados.cliente) ? filtrosUltimosAplicados.cliente : (filtrosUltimosAplicados.cliente ? [filtrosUltimosAplicados.cliente] : [])
+    );
+    
+    const dataInicioChanged = (filtroDataInicio || '') !== (filtrosUltimosAplicados.dataInicio || '');
+    const dataFimChanged = (filtroDataFim || '') !== (filtrosUltimosAplicados.dataFim || '');
+    
+    const colaboradorChanged = !arraysEqual(
+      Array.isArray(filtroColaborador) ? filtroColaborador : (filtroColaborador ? [filtroColaborador] : []),
+      Array.isArray(filtrosUltimosAplicados.colaborador) ? filtrosUltimosAplicados.colaborador : (filtrosUltimosAplicados.colaborador ? [filtrosUltimosAplicados.colaborador] : [])
+    );
+    
+    const mostrarInativosChanged = mostrarInativos !== filtrosUltimosAplicados.mostrarInativos;
+    
+    return clienteChanged || dataInicioChanged || dataFimChanged || colaboradorChanged || mostrarInativosChanged;
+  };
 
   // Handlers dos filtros - apenas atualiza o estado, sem filtrar opções
   const handleClienteChange = useCallback((e) => {
@@ -901,6 +948,7 @@ const RelatoriosColaboradores = () => {
           onApply={aplicarFiltros}
           onClear={limparFiltros}
           loading={loading}
+          hasPendingChanges={hasPendingChanges()}
         >
           {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
           <div className="filter-group">

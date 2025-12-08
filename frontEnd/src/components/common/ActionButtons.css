@@ -1,0 +1,136 @@
+/* ===== BOTÕES DE AÇÃO (EDITAR E DELETAR) ===== */
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-edit {
+  color: #0e3b6f !important;
+}
+
+.btn-edit:hover:not(:disabled) {
+  background: #e6f0ff;
+  color: #0a2d4f !important;
+}
+
+/* ===== ANIMAÇÃO DO BOTÃO EDITAR ===== */
+.edit-anim {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ícone */
+.edit-anim-icon {
+  height: 17px;
+  fill: currentColor; /* usa a cor azul do sistema */
+  position: relative;
+  z-index: 3;
+  transition: all 0.2s;
+  transform-origin: bottom;
+}
+
+/* movimento do lápis */
+.edit-anim:hover .edit-anim-icon {
+  transform: rotate(-15deg) translateX(5px);
+}
+
+/* barra deslizante - começa na ponta do lápis */
+.edit-anim::after {
+  content: "";
+  width: 25px;
+  height: 1.5px;
+  position: absolute;
+  bottom: 4px;
+  left: -5px;
+  background-color: currentColor;
+  border-radius: 2px;
+  z-index: 2;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s ease-out, left 0.5s ease-out;
+}
+
+.edit-anim:hover::after {
+  transform: scaleX(1);
+  left: 0px;
+  transform-origin: right;
+}
+
+.btn-delete {
+  color: #ef4444;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ===== ANIMAÇÃO DA LIXEIRA (BIN) ===== */
+.bin-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  color: #ef4444 !important;
+}
+
+.bin-button svg {
+  color: #ef4444 !important;
+  stroke: #ef4444 !important;
+}
+
+.bin-button .bin-top {
+  width: 15px;
+  height: 2px;
+  transition: transform 0.3s ease;
+  transform-origin: right center;
+  margin-bottom: -1px;
+}
+
+.bin-button .bin-bottom {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.3s ease;
+}
+
+/* Animação: tampa se abre ao passar o mouse (para a direita) */
+.bin-button:hover:not(:disabled) {
+  color: #dc2626 !important;
+  background-color: #fef2f2;
+}
+
+.bin-button:hover:not(:disabled) svg {
+  color: #dc2626 !important;
+  stroke: #dc2626 !important;
+}
+
+.bin-button:hover:not(:disabled) .bin-top {
+  transform: rotate(45deg) translateX(2px) translateY(-1px);
+}
+
+.bin-button:hover:not(:disabled) .bin-bottom {
+  transform: scale(1.1);
+}
+
+
+

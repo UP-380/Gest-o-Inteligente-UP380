@@ -42,7 +42,6 @@
 }
 
 /* Estilos para filtros desabilitados - deixar mais cinza */
-.filter-group-disabled-wrapper .status-filter-container .status-select-display.disabled,
 .filter-group-disabled-wrapper .cliente-filter-container .cliente-select-display.disabled,
 .filter-group-disabled-wrapper .colaborador-filter-container .colaborador-select-display.disabled {
   opacity: 0.5;
@@ -51,7 +50,6 @@
   border-color: #d1d5db;
 }
 
-.filter-group-disabled-wrapper .status-filter-container .status-select-display.disabled:hover,
 .filter-group-disabled-wrapper .cliente-filter-container .cliente-select-display.disabled:hover,
 .filter-group-disabled-wrapper .colaborador-filter-container .colaborador-select-display.disabled:hover {
   border-color: #d1d5db;

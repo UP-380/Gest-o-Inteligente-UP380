@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Layout from '../../components/layout/Layout';
-import FilterStatus from '../../components/filters/FilterStatus';
 import FilterClientes from '../../components/filters/FilterClientes';
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import FilterColaborador from '../../components/filters/FilterColaborador';
@@ -10,12 +9,11 @@ import { ClientCard } from '../../components/clients';
 import DetailSideCard from '../../components/clients/DetailSideCard';
 import MiniCardLista from '../../components/dashboard/MiniCardLista';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
-import { statusAPI, clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI } from '../../services/api';
+import { clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI } from '../../services/api';
 import './DashboardClientes.css';
 
 const RelatoriosClientes = () => {
   // Estado dos filtros
-  const [filtroStatus, setFiltroStatus] = useState(null);
   const [filtroCliente, setFiltroCliente] = useState(null);
   const [filtroDataInicio, setFiltroDataInicio] = useState(null);
   const [filtroDataFim, setFiltroDataFim] = useState(null);
@@ -23,7 +21,6 @@ const RelatoriosClientes = () => {
   const [mostrarInativos, setMostrarInativos] = useState(false);
 
   // Estado dos dados
-  const [todosStatus, setTodosStatus] = useState([]);
   const [todosClientes, setTodosClientes] = useState([]);
   const [todosColaboradores, setTodosColaboradores] = useState([]);
 
@@ -78,6 +75,8 @@ const RelatoriosClientes = () => {
   
   // Estado para rastrear se os filtros foram aplicados
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
+  // Estado para armazenar os valores dos filtros que foram aplicados por último (para comparação)
+  const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null);
   const [emptyMessage, setEmptyMessage] = useState(null);
 
   // Estado do card lateral
@@ -99,18 +98,6 @@ const RelatoriosClientes = () => {
   // Ref para controlar requisições em andamento e evitar race conditions
   const requestIdRef = useRef(0);
   const isRequestInProgressRef = useRef(false);
-
-  // Carregar status - sempre carrega todas as opções
-  const carregarStatus = useCallback(async () => {
-    try {
-      const result = await statusAPI.getAll(null);
-      if (result.success && result.data && Array.isArray(result.data)) {
-        setTodosStatus(result.data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar status:', error);
-    }
-  }, []);
 
   // Carregar clientes - sempre carrega todas as opções
   const carregarClientes = useCallback(async () => {
@@ -228,10 +215,6 @@ const RelatoriosClientes = () => {
       };
       
       // Adicionar filtros apenas se estiverem preenchidos
-      if (filtrosAplicados.status) {
-        params.status = filtrosAplicados.status;
-      }
-      
       if (filtrosAplicados.clienteId) {
         params.clienteId = filtrosAplicados.clienteId;
       }
@@ -554,11 +537,6 @@ const RelatoriosClientes = () => {
     filtrosParaEnviar.dataInicio = filtroDataInicio.trim();
     filtrosParaEnviar.dataFim = filtroDataFim.trim();
     
-    // Status (opcional - só envia se preenchido)
-    if (filtroStatus && filtroStatus.toString().trim() !== '') {
-      filtrosParaEnviar.status = filtroStatus;
-    }
-    
     // Cliente (opcional - só envia se preenchido)
     if (filtroCliente) {
       const clienteValido = Array.isArray(filtroCliente) 
@@ -585,14 +563,21 @@ const RelatoriosClientes = () => {
     setCurrentPage(1);
     setFiltrosAplicados(true);
     setFiltrosAplicadosAtuais(filtrosParaEnviar);
+    // Salvar os valores dos filtros aplicados para comparação
+    setFiltrosUltimosAplicados({
+      cliente: filtroCliente,
+      dataInicio: filtroDataInicio,
+      dataFim: filtroDataFim,
+      colaborador: filtroColaborador,
+      mostrarInativos: mostrarInativos
+    });
     carregarClientesPaginados(filtrosParaEnviar);
-  }, [filtroStatus, filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, carregarClientesPaginados]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarInativos, carregarClientesPaginados]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
     setEmptyMessage(null);
     // Limpar todos os filtros
-    setFiltroStatus(null);
     setFiltroCliente(null);
     setFiltroColaborador(null);
     setFiltroDataInicio(null);
@@ -602,11 +587,9 @@ const RelatoriosClientes = () => {
     
     // Limpar cache para garantir dados atualizados
     cacheAPI.remove('api_cache_clientes_all');
-    cacheAPI.remove('api_cache_status_all');
     cacheAPI.remove('api_cache_colaboradores_all');
     
     // Recarregar todos os dados sem filtros
-    await carregarStatus();
     await carregarClientes();
     await carregarColaboradores();
     
@@ -616,15 +599,46 @@ const RelatoriosClientes = () => {
     setAllRegistrosTempo([]);
     setCurrentPage(1);
     setFiltrosAplicados(false);
-  }, [carregarStatus, carregarClientes, carregarColaboradores]);
+    setFiltrosUltimosAplicados(null);
+  }, [carregarClientes, carregarColaboradores]);
+
+  // Função para comparar arrays (considerando ordem)
+  const arraysEqual = (a, b) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    const aSorted = [...a].sort().map(String);
+    const bSorted = [...b].sort().map(String);
+    return JSON.stringify(aSorted) === JSON.stringify(bSorted);
+  };
+
+  // Verificar se há mudanças pendentes nos filtros
+  const hasPendingChanges = () => {
+    // Se não há filtros aplicados, não há mudanças pendentes
+    if (!filtrosAplicados || !filtrosUltimosAplicados) {
+      return false;
+    }
+    
+    // Comparar cada filtro
+    const clienteChanged = !arraysEqual(
+      Array.isArray(filtroCliente) ? filtroCliente : (filtroCliente ? [filtroCliente] : []),
+      Array.isArray(filtrosUltimosAplicados.cliente) ? filtrosUltimosAplicados.cliente : (filtrosUltimosAplicados.cliente ? [filtrosUltimosAplicados.cliente] : [])
+    );
+    
+    const dataInicioChanged = (filtroDataInicio || '') !== (filtrosUltimosAplicados.dataInicio || '');
+    const dataFimChanged = (filtroDataFim || '') !== (filtrosUltimosAplicados.dataFim || '');
+    
+    const colaboradorChanged = !arraysEqual(
+      Array.isArray(filtroColaborador) ? filtroColaborador : (filtroColaborador ? [filtroColaborador] : []),
+      Array.isArray(filtrosUltimosAplicados.colaborador) ? filtrosUltimosAplicados.colaborador : (filtrosUltimosAplicados.colaborador ? [filtrosUltimosAplicados.colaborador] : [])
+    );
+    
+    const mostrarInativosChanged = mostrarInativos !== filtrosUltimosAplicados.mostrarInativos;
+    
+    return clienteChanged || dataInicioChanged || dataFimChanged || colaboradorChanged || mostrarInativosChanged;
+  };
 
   // Handlers dos filtros - apenas atualiza o estado, sem filtrar opções
-  const handleStatusChange = useCallback((e) => {
-    // Tratar string vazia como null para limpar o filtro
-    const value = e.target.value && e.target.value.trim() !== '' ? e.target.value : null;
-    setFiltroStatus(value);
-  }, []);
-
   const handleClienteChange = useCallback((e) => {
     // Tratar arrays vazios e null como limpeza do filtro
     let value = e.target.value;
@@ -1195,10 +1209,9 @@ const RelatoriosClientes = () => {
     // Limpar cache de clientes e colaboradores para garantir dados atualizados
     cacheAPI.remove('api_cache_clientes_all');
     cacheAPI.remove('api_cache_colaboradores_all');
-    carregarStatus();
     carregarClientes();
     carregarColaboradores();
-  }, [carregarStatus, carregarClientes, carregarColaboradores]);
+  }, [carregarClientes, carregarColaboradores]);
 
   // Recarregar dados quando a página, itens por página ou mostrarInativos mudarem (apenas se filtros já foram aplicados)
   // IMPORTANTE: Usar um único useEffect com todas as dependências para evitar múltiplos carregamentos
@@ -1255,6 +1268,7 @@ const RelatoriosClientes = () => {
               onApply={aplicarFiltros}
               onClear={limparFiltros}
               loading={loading}
+              hasPendingChanges={hasPendingChanges()}
             >
               {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
               <div className="filter-group">
@@ -1279,20 +1293,6 @@ const RelatoriosClientes = () => {
                 
                 return (
                   <>
-                    <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
-                      <FilterStatus
-                        value={filtroStatus}
-                        onChange={handleStatusChange}
-                        options={todosStatus}
-                        disabled={!periodoPreenchido}
-                      />
-                      {!periodoPreenchido && (
-                        <div className="filter-tooltip">
-                          Selecione período TimeTrack
-                        </div>
-                      )}
-                    </div>
-                    
                     <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
                       <FilterClientes
                         value={filtroCliente}

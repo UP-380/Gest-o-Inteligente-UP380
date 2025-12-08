@@ -34,6 +34,9 @@ const Layout = ({ children }) => {
 
       {/* Marca d'água de versão */}
       <MarcaDagua version={VERSAO_SISTEMA} />
+      
+      {/* Container de notificações toast */}
+      <div id="toastContainer" className="toast-container" aria-live="polite" aria-atomic="true"></div>
     </>
   );
 };
