@@ -24,7 +24,7 @@ const Sidebar = () => {
   };
 
   const isCatalogosActive = () => {
-    return isActive('/cadastro/atividades') || isActive('/cadastro/produtos') || isActive('/cadastro/tipo-atividades') || isActive('/cadastro/vinculacoes');
+    return isActive('/catalogo/atividades') || isActive('/catalogo/produtos') || isActive('/catalogo/tipo-atividades') || isActive('/catalogo/vinculacoes');
   };
 
   // Expandir automaticamente o menu Clientes se estiver em uma das páginas relacionadas
@@ -45,7 +45,7 @@ const Sidebar = () => {
 
   // Expandir automaticamente o menu Catálogos se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isCatalogosActive = location.pathname === '/cadastro/atividades' || location.pathname === '/cadastro/produtos' || location.pathname === '/cadastro/tipo-atividades' || location.pathname === '/cadastro/vinculacoes';
+    const isCatalogosActive = location.pathname === '/catalogo/atividades' || location.pathname === '/catalogo/produtos' || location.pathname === '/catalogo/tipo-atividades' || location.pathname === '/catalogo/vinculacoes';
     if (isCatalogosActive) {
       setCatalogosExpanded(true);
     }
@@ -118,25 +118,25 @@ const Sidebar = () => {
 
   const catalogosSubItems = [
     {
-      path: '/cadastro/atividades',
+      path: '/catalogo/atividades',
       icon: 'fa-tasks',
       label: 'Atividades',
       title: 'Cadastro de Atividades'
     },
     {
-      path: '/cadastro/produtos',
+      path: '/catalogo/produtos',
       icon: 'fa-box',
       label: 'Produtos',
       title: 'Cadastro de Produtos'
     },
     {
-      path: '/cadastro/tipo-atividades',
+      path: '/catalogo/tipo-atividades',
       icon: 'fa-list-alt',
       label: 'Tipo de Atividades',
       title: 'Cadastro de Tipo de Atividades'
     },
     {
-      path: '/cadastro/vinculacoes',
+      path: '/catalogo/vinculacoes',
       icon: 'fa-link',
       label: 'Vinculações',
       title: 'Vinculações'

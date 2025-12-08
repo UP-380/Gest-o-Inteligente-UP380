@@ -108,8 +108,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Rotas de catálogo */}
         <Route
-          path="/cadastro/atividades"
+          path="/catalogo/atividades"
           element={
             <ProtectedRoute>
               <CadastroAtividades />
@@ -117,7 +118,7 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/produtos"
+          path="/catalogo/produtos"
           element={
             <ProtectedRoute>
               <CadastroProdutos />
@@ -125,7 +126,7 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/tipo-atividades"
+          path="/catalogo/tipo-atividades"
           element={
             <ProtectedRoute>
               <CadastroTipoAtividades />
@@ -133,7 +134,7 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/vinculacoes"
+          path="/catalogo/vinculacoes"
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />

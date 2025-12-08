@@ -212,9 +212,16 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     setSecondarySelects(secondarySelects.map(s => {
       if (s.id === id) {
         const selectedItems = s.selectedItems || [];
-        // Verificar se o item já foi selecionado
-        if (!selectedItems.includes(value)) {
-          return { ...s, value: '', selectedItems: [...selectedItems, value] };
+        
+        // Se estiver editando, substituir o item existente ao invés de adicionar
+        if (editingVinculado) {
+          // Na edição, apenas trocar o item (manter apenas um item selecionado)
+          return { ...s, value: '', selectedItems: [value] };
+        } else {
+          // Na criação, adicionar novo item se ainda não foi selecionado
+          if (!selectedItems.includes(value)) {
+            return { ...s, value: '', selectedItems: [...selectedItems, value] };
+          }
         }
       }
       return s;
@@ -223,6 +230,14 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
   // Remover item selecionado
   const removeSelectedItem = (selectId, itemValue) => {
+    // Na edição, não permitir remover se houver apenas um item
+    if (editingVinculado) {
+      const select = secondarySelects.find(s => s.id === selectId);
+      if (select && (select.selectedItems || []).length <= 1) {
+        return; // Não permitir remover o último item na edição
+      }
+    }
+    
     setSecondarySelects(secondarySelects.map(s => {
       if (s.id === selectId) {
         return {
@@ -236,6 +251,11 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
   // Selecionar todos os itens de um select secundário
   const handleSelectAll = (selectId) => {
+    // Na edição, não permitir selecionar todos
+    if (editingVinculado) {
+      return;
+    }
+    
     setSecondarySelects(secondarySelects.map(s => {
       if (s.id === selectId) {
         const allOptions = getAllSecondaryOptions(s.primaryType);
@@ -664,12 +684,19 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
               <div className="vinculacao-section">
                 <h4 className="section-title">Elementos Específicos</h4>
                 <p className="section-description">
-                  Selecione os itens específicos para cada tipo escolhido
+                  {editingVinculado 
+                    ? 'Troque o item selecionado para cada tipo escolhido'
+                    : 'Selecione os itens específicos para cada tipo escolhido'
+                  }
                 </p>
 
                 {secondarySelects.map((select) => {
                   const selectedItems = select.selectedItems || [];
-                  const options = getSecondaryOptions(select.primaryType, selectedItems);
+                  // Na edição, mostrar todas as opções (incluindo a selecionada) para o select simples
+                  // Na criação, filtrar opções já selecionadas
+                  const options = editingVinculado 
+                    ? getAllSecondaryOptions(select.primaryType)
+                    : getSecondaryOptions(select.primaryType, selectedItems);
                   const primaryLabel = opcoesPrimarias.find(
                     op => op.value === select.primaryType
                   )?.label || select.primaryType;
@@ -692,19 +719,26 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
                         return (
                           <div className="selected-items-container">
-                            {visibleItems.map((itemId) => (
-                              <div key={itemId} className="selected-item-tag">
-                                <span>{getItemLabel(select.primaryType, itemId)}</span>
-                                <button
-                                  type="button"
-                                  className="btn-remove-tag"
-                                  onClick={() => removeSelectedItem(select.id, itemId)}
-                                  title="Remover item"
-                                >
-                                  <i className="fas fa-times"></i>
-                                </button>
-                              </div>
-                            ))}
+                            {visibleItems.map((itemId) => {
+                              // Na edição, não mostrar botão de remover se houver apenas um item
+                              const canRemove = !editingVinculado || selectedItems.length > 1;
+                              
+                              return (
+                                <div key={itemId} className="selected-item-tag">
+                                  <span>{getItemLabel(select.primaryType, itemId)}</span>
+                                  {canRemove && (
+                                    <button
+                                      type="button"
+                                      className="btn-remove-tag"
+                                      onClick={() => removeSelectedItem(select.id, itemId)}
+                                      title="Remover item"
+                                    >
+                                      <i className="fas fa-times"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
                             {hasMore && (
                               <button
                                 type="button"
@@ -730,14 +764,15 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
                       <div className="select-wrapper">
                         <CustomSelect
-                          value={select.value}
+                          value={editingVinculado && selectedItems.length > 0 ? selectedItems[0] : select.value}
                           options={options}
                           onChange={(e) => updateSecondarySelect(select.id, e.target.value)}
-                          placeholder="Selecione um item"
+                          placeholder={editingVinculado ? "Trocar item selecionado" : "Selecione um item"}
                           disabled={loading || options.length === 0}
-                          keepOpen={true}
+                          keepOpen={!editingVinculado}
                           selectedItems={(select.selectedItems || []).map(item => String(item))}
-                          onSelectAll={() => handleSelectAll(select.id)}
+                          onSelectAll={editingVinculado ? undefined : () => handleSelectAll(select.id)}
+                          hideCheckboxes={editingVinculado}
                         />
                       </div>
                     </div>

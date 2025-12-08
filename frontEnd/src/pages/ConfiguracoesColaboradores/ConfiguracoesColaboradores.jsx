@@ -16,6 +16,7 @@ import ColaboradorModal from '../../components/colaboradores/ColaboradorModal';
 import ColaboradorTable from '../../components/colaboradores/ColaboradorTable';
 import VigenciaTable from '../../components/vigencia/VigenciaTable';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import { useToast } from '../../hooks/useToast';
 import {
   formatarDataBR,
   formatarMoeda,
@@ -30,6 +31,7 @@ const API_BASE_URL = '/api';
 
 const GestaoColaboradores = () => {
   const navigate = useNavigate();
+  const showToast = useToast();
   
   // Estado para toggle de detalhes (vigências)
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false);
@@ -218,13 +220,13 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao carregar membros');
       }
     } catch (error) {
-      showMessage('Erro ao carregar membros. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar membros. Tente novamente.');
       setMembros([]);
       setTodosColaboradoresParaFiltro([]);
     } finally {
       setLoadingMembros(false);
     }
-  }, []);
+  }, [showToast]);
 
   // Carregar vigências (quando mostrarDetalhes está ativo)
   const loadVigencias = useCallback(async () => {
@@ -320,12 +322,12 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao carregar vigências');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao carregar vigências. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao carregar vigências. Tente novamente.');
       setVigencias([]);
     } finally {
       setLoadingVigencias(false);
     }
-  }, [mostrarDetalhes, currentPageVigencias, itemsPerPageVigencias, filtroDataAPartirDe, filtroColaboradorId, mostrarInativos]);
+  }, [mostrarDetalhes, currentPageVigencias, itemsPerPageVigencias, filtroDataAPartirDe, filtroColaboradorId, mostrarInativos, showToast]);
 
   // Obter nome do membro
   const getNomeMembro = (membroId) => {
@@ -361,12 +363,12 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao carregar tipos de contrato');
       }
     } catch (error) {
-      showMessage('Erro ao carregar tipos de contrato. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar tipos de contrato. Tente novamente.');
       setTiposContrato([]);
     } finally {
       setLoadingTiposContrato(false);
     }
-  }, []);
+  }, [showToast]);
 
   // Carregar colaboradores
   const loadColaboradores = useCallback(async () => {
@@ -457,12 +459,12 @@ const GestaoColaboradores = () => {
       }
     } catch (error) {
       const errorMessage = error.message || 'Erro ao carregar colaboradores. Tente novamente.';
-      showMessage(errorMessage, 'error');
+      showToast('error', errorMessage);
       setColaboradores([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, mostrarInativos, filtroColaboradorBusca, todosColaboradoresParaFiltro]);
+  }, [currentPage, itemsPerPage, searchTerm, mostrarInativos, filtroColaboradorBusca, todosColaboradoresParaFiltro, showToast]);
 
   // Carregar colaborador por ID para edição
   const loadColaboradorParaEdicao = useCallback(async (id) => {
@@ -512,9 +514,9 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao carregar colaborador');
       }
     } catch (error) {
-      showMessage('Erro ao carregar colaborador. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar colaborador. Tente novamente.');
     }
-  }, []);
+  }, [showToast]);
 
   // Validar formulário
   const validateForm = () => {
@@ -611,26 +613,23 @@ const GestaoColaboradores = () => {
           if (temDadosVigencia) {
             try {
               await createVigencia(formData, membroId);
-              showMessage('Colaborador e vigência criados com sucesso!', 'success');
+              showToast('success', 'Colaborador e vigência criados com sucesso!');
             } catch (error) {
               // Colaborador foi criado, mas vigência falhou
-              showMessage(
-                'Colaborador criado com sucesso, mas houve erro ao criar a vigência: ' + (error.message || 'Erro desconhecido'),
-                'error'
+              showToast(
+                'error',
+                'Colaborador criado com sucesso, mas houve erro ao criar a vigência: ' + (error.message || 'Erro desconhecido')
               );
             }
           } else {
-            showMessage(
-              'Colaborador criado com sucesso!',
-              'success'
-            );
+            showToast('success', 'Colaborador criado com sucesso!');
           }
         } else {
-          showMessage(
+          showToast(
+            'success',
             editingId 
               ? 'Colaborador atualizado com sucesso!'
-              : 'Colaborador criado com sucesso!',
-            'success'
+              : 'Colaborador criado com sucesso!'
           );
         }
         resetForm();
@@ -639,11 +638,11 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao salvar colaborador');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao salvar colaborador. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao salvar colaborador. Tente novamente.');
     } finally {
       setSubmitting(false);
     }
-  }, [formData, editingId, loadColaboradores]);
+  }, [formData, editingId, loadColaboradores, showToast]);
 
   // Inativar colaborador
   const handleInativar = useCallback(async () => {
@@ -674,7 +673,7 @@ const GestaoColaboradores = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Colaborador inativado com sucesso!', 'success');
+        showToast('success', 'Colaborador inativado com sucesso!');
         setShowDeleteModal(false);
         setColaboradorToDelete(null);
         await loadColaboradores();
@@ -682,10 +681,10 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao inativar colaborador');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao inativar colaborador. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao inativar colaborador. Tente novamente.');
       setShowDeleteModal(false);
     }
-  }, [colaboradorToDelete, loadColaboradores]);
+  }, [colaboradorToDelete, loadColaboradores, showToast]);
 
   // Ativar colaborador
   const handleAtivar = useCallback(async () => {
@@ -716,7 +715,7 @@ const GestaoColaboradores = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Colaborador ativado com sucesso!', 'success');
+        showToast('success', 'Colaborador ativado com sucesso!');
         setShowDeleteModal(false);
         setColaboradorToDelete(null);
         await loadColaboradores();
@@ -724,10 +723,10 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao ativar colaborador');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao ativar colaborador. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao ativar colaborador. Tente novamente.');
       setShowDeleteModal(false);
     }
-  }, [colaboradorToDelete, loadColaboradores]);
+  }, [colaboradorToDelete, loadColaboradores, showToast]);
 
   // Resetar formulário
   const resetForm = () => {
@@ -796,7 +795,7 @@ const GestaoColaboradores = () => {
     }
 
     if (!colaboradorEditando) {
-      showMessage('Erro: Colaborador não encontrado', 'error');
+      showToast('error', 'Erro: Colaborador não encontrado');
       return;
     }
 
@@ -825,18 +824,18 @@ const GestaoColaboradores = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Colaborador atualizado com sucesso!', 'success');
+        showToast('success', 'Colaborador atualizado com sucesso!');
         fecharModalEditarColaborador();
         await loadColaboradores();
       } else {
         throw new Error(result.error || 'Erro ao atualizar colaborador');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao atualizar colaborador. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao atualizar colaborador. Tente novamente.');
     } finally {
       setSubmittingEditColaborador(false);
     }
-  }, [colaboradorEditFormData, colaboradorEditando, loadColaboradores]);
+  }, [colaboradorEditFormData, colaboradorEditando, loadColaboradores, showToast]);
 
   // Confirmar inativação
   const confirmInativar = (colaborador) => {
@@ -1151,7 +1150,7 @@ const GestaoColaboradores = () => {
     API_BASE_URL,
     removerFormatacaoMoeda,
     () => {
-      showMessage('Vigência salva com sucesso!', 'success');
+      showToast('success', 'Vigência salva com sucesso!');
       fecharModalNovaVigencia();
       fecharModalEditarVigencia();
       if (mostrarDetalhes) {
@@ -1159,7 +1158,7 @@ const GestaoColaboradores = () => {
       }
     },
     (error) => {
-      showMessage(error.message || 'Erro ao salvar vigência. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao salvar vigência. Tente novamente.');
     }
   );
 
@@ -1199,7 +1198,7 @@ const GestaoColaboradores = () => {
     }
 
     if (!vigenciaEditando) {
-      showMessage('Erro: Vigência não encontrada', 'error');
+      showToast('error', 'Erro: Vigência não encontrada');
       return;
     }
 
@@ -1208,7 +1207,7 @@ const GestaoColaboradores = () => {
     } catch (error) {
       // Erro já tratado no hook
     }
-  }, [vigenciaEditFormData, vigenciaEditando, updateVigencia]);
+  }, [vigenciaEditFormData, vigenciaEditando, updateVigencia, showToast]);
 
   // Deletar vigência
   const handleDeleteVigencia = useCallback(async () => {
@@ -1231,7 +1230,7 @@ const GestaoColaboradores = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Vigência deletada com sucesso!', 'success');
+        showToast('success', 'Vigência deletada com sucesso!');
         setShowDeleteModalVigencia(false);
         setVigenciaToDelete(null);
         await loadVigencias();
@@ -1239,46 +1238,11 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao deletar vigência');
       }
     } catch (error) {
-      showMessage(error.message || 'Erro ao deletar vigência. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao deletar vigência. Tente novamente.');
       setShowDeleteModalVigencia(false);
     }
-  }, [vigenciaToDelete, loadVigencias]);
+  }, [vigenciaToDelete, loadVigencias, showToast]);
 
-  // Mostrar mensagem
-  const showMessage = useCallback((message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-      </div>
-    `;
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10000;
-      animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
-  }, []);
 
   // Debounce para busca
   const searchTimeoutRef = useRef(null);
