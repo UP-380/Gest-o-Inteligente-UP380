@@ -3,11 +3,22 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import AtividadeModal from '../../components/atividades/AtividadeModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import SearchInput from '../../components/common/SearchInput';
+import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
+import LoadingState from '../../components/common/LoadingState';
+import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
+import { useToast } from '../../hooks/useToast';
+import { formatDate } from '../../utils/dateUtils';
 import './CadastroAtividades.css';
 
 const API_BASE_URL = '/api';
 
 const CadastroAtividades = () => {
+  const showToast = useToast();
+  
   // Estados principais
   const [atividades, setAtividades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,6 +40,7 @@ const CadastroAtividades = () => {
   // Estados para modal de confirmação de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [atividadeToDelete, setAtividadeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Carregar atividades
   const loadAtividades = useCallback(async () => {
@@ -98,12 +110,12 @@ const CadastroAtividades = () => {
     } catch (error) {
       console.error('❌ Erro ao carregar atividades:', error);
       const errorMessage = error.message || 'Erro ao carregar atividades. Tente novamente.';
-      showMessage(errorMessage, 'error');
+      showToast('error', errorMessage);
       setAtividades([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [currentPage, itemsPerPage, searchTerm, showToast]);
 
   // Carregar atividade por ID para edição
   const loadAtividadeParaEdicao = useCallback(async (id) => {
@@ -138,9 +150,9 @@ const CadastroAtividades = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar atividade:', error);
-      showMessage('Erro ao carregar atividade. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar atividade. Tente novamente.');
     }
-  }, []);
+  }, [showToast]);
 
   // Validar formulário
   const validateForm = () => {
@@ -163,7 +175,7 @@ const CadastroAtividades = () => {
 
     // Validar
     if (!nomeValue) {
-      showMessage('Nome é obrigatório', 'error');
+      showToast('error', 'Nome é obrigatório');
       return;
     }
 
@@ -201,7 +213,7 @@ const CadastroAtividades = () => {
       if (!contentType.includes('application/json')) {
         const text = await response.text();
         const errorMsg = text || `Erro no servidor. Status: ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
@@ -209,27 +221,27 @@ const CadastroAtividades = () => {
 
       if (!response.ok) {
         const errorMsg = result.error || result.details || result.message || `Erro HTTP ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
       if (result.success) {
-        showMessage(
+        showToast(
+          'success',
           editingId 
             ? 'Atividade atualizada com sucesso!'
-            : 'Atividade criada com sucesso!',
-          'success'
+            : 'Atividade criada com sucesso!'
         );
         resetForm();
         await loadAtividades();
       } else {
         const errorMsg = result.error || result.details || 'Erro ao salvar atividade';
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
       }
     } catch (error) {
       console.error('Erro ao salvar atividade:', error);
       const errorMsg = error.message || 'Erro ao salvar atividade. Verifique sua conexão e tente novamente.';
-      showMessage(errorMsg, 'error');
+      showToast('error', errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -239,6 +251,7 @@ const CadastroAtividades = () => {
   const handleDelete = useCallback(async () => {
     if (!atividadeToDelete) return;
 
+    setDeleteLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/atividades/${atividadeToDelete.id}`, {
         method: 'DELETE',
@@ -256,7 +269,7 @@ const CadastroAtividades = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Atividade deletada com sucesso!', 'success');
+        showToast('success', 'Atividade deletada com sucesso!');
         setShowDeleteModal(false);
         setAtividadeToDelete(null);
         await loadAtividades();
@@ -265,10 +278,12 @@ const CadastroAtividades = () => {
       }
     } catch (error) {
       console.error('Erro ao deletar atividade:', error);
-      showMessage(error.message || 'Erro ao deletar atividade. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao deletar atividade. Tente novamente.');
       setShowDeleteModal(false);
+    } finally {
+      setDeleteLoading(false);
     }
-  }, [atividadeToDelete, loadAtividades]);
+  }, [atividadeToDelete, loadAtividades, showToast]);
 
   // Resetar formulário
   const resetForm = () => {
@@ -297,42 +312,6 @@ const CadastroAtividades = () => {
     setShowDeleteModal(true);
   };
 
-  // Mostrar mensagem
-  const showMessage = useCallback((message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-      </div>
-    `;
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10000;
-      animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
-  }, []);
-
   // Debounce para busca
   const searchTimeoutRef = useRef(null);
   const handleSearch = useCallback((value) => {
@@ -350,26 +329,42 @@ const CadastroAtividades = () => {
     loadAtividades();
   }, [loadAtividades]);
 
-  // Calcular range de itens exibidos
-  const startItem = totalAtividades === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-  const endItem = Math.min(startItem + Math.min(itemsPerPage, atividades.length) - 1, totalAtividades);
-
-  // Formatar data
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
+  // Definir colunas da tabela
+  const tableColumns = [
+    { key: 'nome', label: 'Nome' },
+    { 
+      key: 'created_at', 
+      label: 'Criado em',
+      render: (item) => formatDate(item.created_at, true)
+    },
+    { 
+      key: 'updated_at', 
+      label: 'Atualizado em',
+      render: (item) => formatDate(item.updated_at, true)
     }
-  };
+  ];
+
+  // Renderizar ações da tabela
+  const renderTableActions = (atividade) => (
+    <>
+      <button
+        className="btn-icon btn-edit"
+        onClick={() => handleEdit(atividade)}
+        title="Editar"
+        disabled={showForm}
+      >
+        <i className="fas fa-edit"></i>
+      </button>
+      <button
+        className="btn-icon btn-delete"
+        onClick={() => confirmDelete(atividade)}
+        title="Deletar"
+        disabled={showForm}
+      >
+        <i className="fas fa-trash"></i>
+      </button>
+    </>
+  );
 
   return (
     <Layout>
@@ -377,37 +372,28 @@ const CadastroAtividades = () => {
         <main className="main-content">
           <CardContainer>
             <div className="atividades-listing-section">
-              <div className="form-header">
-                <h2 className="form-title">Cadastro de Atividades</h2>
-                <p className="form-subtitle">
-                  Gerencie as atividades do sistema
-                </p>
-              </div>
+              <PageHeader 
+                title="Cadastro de Atividades"
+                subtitle="Gerencie as atividades do sistema"
+              />
 
-          {/* Filtro de busca e botão adicionar */}
-          <div className="listing-controls">
-            <div className="search-container">
-              <div className="search-input-wrapper">
-                <i className="fas fa-search search-icon"></i>
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Buscar atividade por nome..."
+              {/* Filtro de busca e botão adicionar */}
+              <div className="listing-controls">
+                <SearchInput
                   value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  onChange={handleSearch}
+                  placeholder="Buscar atividade por nome..."
                 />
+                <div className="listing-controls-right">
+                  <ButtonPrimary
+                    onClick={handleNewAtividade}
+                    disabled={showForm}
+                    icon="fas fa-plus"
+                  >
+                    Nova Atividade
+                  </ButtonPrimary>
+                </div>
               </div>
-            </div>
-            <div className="listing-controls-right">
-              <ButtonPrimary
-                onClick={handleNewAtividade}
-                disabled={showForm}
-                icon="fas fa-plus"
-              >
-                Nova Atividade
-              </ButtonPrimary>
-            </div>
-          </div>
 
           {/* Modal de cadastro/edição */}
           <AtividadeModal
@@ -422,150 +408,49 @@ const CadastroAtividades = () => {
             editingId={editingId}
           />
 
-          {/* Lista de atividades */}
-          <div className="listing-table-container">
-            {loading ? (
-              <div className="loading-container">
-                <i className="fas fa-spinner fa-spin"></i>
-                <span>Carregando atividades...</span>
+              {/* Lista de atividades */}
+              <div className="listing-table-container">
+                {loading ? (
+                  <LoadingState message="Carregando atividades..." />
+                ) : (
+                  <DataTable
+                    columns={tableColumns}
+                    data={atividades}
+                    renderActions={renderTableActions}
+                    emptyMessage="Nenhuma atividade encontrada"
+                    emptyIcon="fa-tasks"
+                  />
+                )}
               </div>
-            ) : atividades.length === 0 ? (
-              <div className="empty-state">
-                <i className="fas fa-tasks"></i>
-                <p>Nenhuma atividade encontrada</p>
-              </div>
-            ) : (
-              <>
-                <table className="listing-table">
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>Criado em</th>
-                      <th>Atualizado em</th>
-                      <th className="actions-column">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atividades.map((atividade) => (
-                      <tr key={atividade.id}>
-                        <td>{atividade.nome || '-'}</td>
-                        <td>{formatDate(atividade.created_at)}</td>
-                        <td>{formatDate(atividade.updated_at)}</td>
-                        <td className="actions-column">
-                          <div className="action-buttons">
-                            <button
-                              className="btn-icon btn-edit"
-                              onClick={() => handleEdit(atividade)}
-                              title="Editar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              className="btn-icon btn-delete"
-                              onClick={() => confirmDelete(atividade)}
-                              title="Deletar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </div>
 
-          {/* Controles de Paginação */}
-          {totalAtividades > 0 && (
-            <div className="pagination-container" style={{ display: 'flex' }}>
-              <div className="pagination-limit-selector">
-                <label htmlFor="paginationLimit">Exibir:</label>
-                <select 
-                  id="paginationLimit" 
-                  className="pagination-limit-select"
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(parseInt(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="10">10 itens</option>
-                  <option value="20">20 itens</option>
-                  <option value="30">30 itens</option>
-                  <option value="50">50 itens</option>
-                </select>
-              </div>
-              
-              <div className="pagination-info">
-                <span>
-                  Mostrando {startItem} a {endItem} de {totalAtividades} atividades
-                </span>
-              </div>
-              
-              <div className="pagination-controls">
-                <button 
-                  className="pagination-btn" 
-                  title="Primeira página"
-                  disabled={currentPage === 1 || loading}
-                  onClick={() => setCurrentPage(1)}
-                >
-                  <i className="fas fa-angle-double-left"></i>
-                </button>
-                <button 
-                  className="pagination-btn" 
-                  title="Página anterior"
-                  disabled={currentPage === 1 || loading}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                >
-                  <i className="fas fa-angle-left"></i>
-                </button>
-                
-                <span className="pagination-current">
-                  Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                </span>
-                
-                <button 
-                  className="pagination-btn" 
-                  title="Próxima página"
-                  disabled={currentPage === totalPages || totalPages === 0 || loading}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                  <i className="fas fa-angle-right"></i>
-                </button>
-                <button 
-                  className="pagination-btn" 
-                  title="Última página"
-                  disabled={currentPage === totalPages || totalPages === 0 || loading}
-                  onClick={() => setCurrentPage(totalPages)}
-                >
-                  <i className="fas fa-angle-double-right"></i>
-                </button>
-              </div>
-            </div>
-          )}
+              {/* Controles de Paginação */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalAtividades}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={setItemsPerPage}
+                loading={loading}
+                itemName="atividades"
+              />
             </div>
           </CardContainer>
         </main>
       </div>
 
       {/* Modal de confirmação de exclusão */}
-      {showDeleteModal && atividadeToDelete && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Confirmar Exclusão</h3>
-              <button
-                className="btn-icon"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setAtividadeToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Confirmar Exclusão"
+        message={
+          atividadeToDelete ? (
+            <>
               <p>
                 Tem certeza que deseja deletar a atividade{' '}
                 <strong>{atividadeToDelete.nome}</strong>?
@@ -573,25 +458,14 @@ const CadastroAtividades = () => {
               <p className="warning-text">
                 Esta ação não pode ser desfeita.
               </p>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="btn-danger"
-                onClick={handleDelete}
-              >
-                <i className="fas fa-trash"></i>
-                Deletar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          ) : null
+        }
+        confirmText="Deletar"
+        cancelText="Cancelar"
+        confirmButtonClass="btn-danger"
+        loading={deleteLoading}
+      />
     </Layout>
   );
 };

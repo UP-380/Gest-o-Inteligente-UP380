@@ -3,11 +3,22 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import TipoAtividadeModal from '../../components/tipo-atividades/TipoAtividadeModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import SearchInput from '../../components/common/SearchInput';
+import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
+import LoadingState from '../../components/common/LoadingState';
+import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
+import { useToast } from '../../hooks/useToast';
+import { formatDate } from '../../utils/dateUtils';
 import './CadastroTipoAtividades.css';
 
 const API_BASE_URL = '/api';
 
 const CadastroTipoAtividades = () => {
+  const showToast = useToast();
+  
   // Estados principais
   const [tipoAtividades, setTipoAtividades] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,6 +40,7 @@ const CadastroTipoAtividades = () => {
   // Estados para modal de confirmação de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [tipoAtividadeToDelete, setTipoAtividadeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Carregar tipos de atividade
   const loadTipoAtividades = useCallback(async () => {
@@ -83,12 +95,12 @@ const CadastroTipoAtividades = () => {
     } catch (error) {
       console.error('❌ Erro ao carregar tipos de atividade:', error);
       const errorMessage = error.message || 'Erro ao carregar tipos de atividade. Tente novamente.';
-      showMessage(errorMessage, 'error');
+      showToast('error', errorMessage);
       setTipoAtividades([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [currentPage, itemsPerPage, searchTerm, showToast]);
 
   // Carregar tipo de atividade por ID para edição
   const loadTipoAtividadeParaEdicao = useCallback(async (id) => {
@@ -123,9 +135,9 @@ const CadastroTipoAtividades = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar tipo de atividade:', error);
-      showMessage('Erro ao carregar tipo de atividade. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar tipo de atividade. Tente novamente.');
     }
-  }, []);
+  }, [showToast]);
 
   // Validar formulário
   const validateForm = () => {
@@ -148,7 +160,7 @@ const CadastroTipoAtividades = () => {
 
     // Validar
     if (!nomeValue) {
-      showMessage('Nome é obrigatório', 'error');
+      showToast('error', 'Nome é obrigatório');
       return;
     }
 
@@ -186,7 +198,7 @@ const CadastroTipoAtividades = () => {
       if (!contentType.includes('application/json')) {
         const text = await response.text();
         const errorMsg = text || `Erro no servidor. Status: ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
@@ -195,27 +207,27 @@ const CadastroTipoAtividades = () => {
       if (!response.ok) {
         console.error('❌ Erro na resposta:', result);
         const errorMsg = result.error || result.details || result.message || result.hint || `Erro HTTP ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
       if (result.success) {
-        showMessage(
+        showToast(
+          'success',
           editingId 
             ? 'Tipo de atividade atualizado com sucesso!'
-            : 'Tipo de atividade criado com sucesso!',
-          'success'
+            : 'Tipo de atividade criado com sucesso!'
         );
         resetForm();
         await loadTipoAtividades();
       } else {
         const errorMsg = result.error || result.details || 'Erro ao salvar tipo de atividade';
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
       }
     } catch (error) {
       console.error('Erro ao salvar tipo de atividade:', error);
       const errorMsg = error.message || 'Erro ao salvar tipo de atividade. Verifique sua conexão e tente novamente.';
-      showMessage(errorMsg, 'error');
+      showToast('error', errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -225,6 +237,7 @@ const CadastroTipoAtividades = () => {
   const handleDelete = useCallback(async () => {
     if (!tipoAtividadeToDelete) return;
 
+    setDeleteLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/tipo-atividade/${tipoAtividadeToDelete.id}`, {
         method: 'DELETE',
@@ -242,7 +255,7 @@ const CadastroTipoAtividades = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Tipo de atividade deletado com sucesso!', 'success');
+        showToast('success', 'Tipo de atividade deletado com sucesso!');
         setShowDeleteModal(false);
         setTipoAtividadeToDelete(null);
         await loadTipoAtividades();
@@ -251,10 +264,12 @@ const CadastroTipoAtividades = () => {
       }
     } catch (error) {
       console.error('Erro ao deletar tipo de atividade:', error);
-      showMessage(error.message || 'Erro ao deletar tipo de atividade. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao deletar tipo de atividade. Tente novamente.');
       setShowDeleteModal(false);
+    } finally {
+      setDeleteLoading(false);
     }
-  }, [tipoAtividadeToDelete, loadTipoAtividades]);
+  }, [tipoAtividadeToDelete, loadTipoAtividades, showToast]);
 
   // Resetar formulário
   const resetForm = () => {
@@ -283,42 +298,6 @@ const CadastroTipoAtividades = () => {
     setShowDeleteModal(true);
   };
 
-  // Mostrar mensagem
-  const showMessage = useCallback((message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-      </div>
-    `;
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10000;
-      animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
-  }, []);
-
   // Debounce para busca
   const searchTimeoutRef = useRef(null);
   const handleSearch = useCallback((value) => {
@@ -336,24 +315,42 @@ const CadastroTipoAtividades = () => {
     loadTipoAtividades();
   }, [loadTipoAtividades]);
 
-  // Calcular range de itens exibidos
-  const startItem = totalTipoAtividades === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-  const endItem = Math.min(startItem + Math.min(itemsPerPage, tipoAtividades.length) - 1, totalTipoAtividades);
-
-  // Formatar data
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    } catch (error) {
-      return '-';
+  // Definir colunas da tabela
+  const tableColumns = [
+    { key: 'nome', label: 'Nome' },
+    { 
+      key: 'created_at', 
+      label: 'Criado em',
+      render: (item) => formatDate(item.created_at, false)
+    },
+    { 
+      key: 'updated_at', 
+      label: 'Atualizado em',
+      render: (item) => formatDate(item.updated_at, false)
     }
-  };
+  ];
+
+  // Renderizar ações da tabela
+  const renderTableActions = (tipoAtividade) => (
+    <>
+      <button
+        className="btn-icon btn-edit"
+        onClick={() => handleEdit(tipoAtividade)}
+        title="Editar"
+        disabled={showForm}
+      >
+        <i className="fas fa-edit"></i>
+      </button>
+      <button
+        className="btn-icon btn-delete"
+        onClick={() => confirmDelete(tipoAtividade)}
+        title="Deletar"
+        disabled={showForm}
+      >
+        <i className="fas fa-trash"></i>
+      </button>
+    </>
+  );
 
   return (
     <Layout>
@@ -361,27 +358,18 @@ const CadastroTipoAtividades = () => {
         <main className="main-content">
           <CardContainer>
             <div className="tipo-atividades-listing-section">
-              <div className="form-header">
-                <h2 className="form-title">Cadastro de Tipos de Atividade</h2>
-                <p className="form-subtitle">
-                  Gerencie os tipos de atividade do sistema
-                </p>
-              </div>
+              <PageHeader 
+                title="Cadastro de Tipos de Atividade"
+                subtitle="Gerencie os tipos de atividade do sistema"
+              />
 
               {/* Filtro de busca e botão adicionar */}
               <div className="listing-controls">
-                <div className="search-container">
-                  <div className="search-input-wrapper">
-                    <i className="fas fa-search search-icon"></i>
-                    <input
-                      type="text"
-                      className="search-input"
-                      placeholder="Buscar tipo de atividade por nome..."
-                      value={searchTerm}
-                      onChange={(e) => handleSearch(e.target.value)}
-                    />
-                  </div>
-                </div>
+                <SearchInput
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  placeholder="Buscar tipo de atividade por nome..."
+                />
                 <div className="listing-controls-right">
                   <ButtonPrimary
                     onClick={handleNewTipoAtividade}
@@ -409,147 +397,46 @@ const CadastroTipoAtividades = () => {
               {/* Lista de tipos de atividade */}
               <div className="listing-table-container">
                 {loading ? (
-                  <div className="loading-container">
-                    <i className="fas fa-spinner fa-spin"></i>
-                    <span>Carregando tipos de atividade...</span>
-                  </div>
-                ) : tipoAtividades.length === 0 ? (
-                  <div className="empty-state">
-                    <i className="fas fa-tags"></i>
-                    <p>Nenhum tipo de atividade encontrado</p>
-                  </div>
+                  <LoadingState message="Carregando tipos de atividade..." />
                 ) : (
-                  <>
-                    <table className="listing-table">
-                      <thead>
-                        <tr>
-                          <th>Nome</th>
-                          <th>Criado em</th>
-                          <th>Atualizado em</th>
-                          <th className="actions-column">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tipoAtividades.map((tipoAtividade) => (
-                          <tr key={tipoAtividade.id}>
-                            <td>{tipoAtividade.nome || '-'}</td>
-                            <td>{formatDate(tipoAtividade.created_at)}</td>
-                            <td>{formatDate(tipoAtividade.updated_at)}</td>
-                            <td className="actions-column">
-                              <div className="action-buttons">
-                                <button
-                                  className="btn-icon btn-edit"
-                                  onClick={() => handleEdit(tipoAtividade)}
-                                  title="Editar"
-                                  disabled={showForm}
-                                >
-                                  <i className="fas fa-edit"></i>
-                                </button>
-                                <button
-                                  className="btn-icon btn-delete"
-                                  onClick={() => confirmDelete(tipoAtividade)}
-                                  title="Deletar"
-                                  disabled={showForm}
-                                >
-                                  <i className="fas fa-trash"></i>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
+                  <DataTable
+                    columns={tableColumns}
+                    data={tipoAtividades}
+                    renderActions={renderTableActions}
+                    emptyMessage="Nenhum tipo de atividade encontrado"
+                    emptyIcon="fa-tags"
+                  />
                 )}
               </div>
 
               {/* Controles de Paginação */}
-              {totalTipoAtividades > 0 && (
-                <div className="pagination-container" style={{ display: 'flex' }}>
-                  <div className="pagination-limit-selector">
-                    <label htmlFor="paginationLimit">Exibir:</label>
-                    <select 
-                      id="paginationLimit" 
-                      className="pagination-limit-select"
-                      value={itemsPerPage}
-                      onChange={(e) => {
-                        setItemsPerPage(parseInt(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <option value="10">10 itens</option>
-                      <option value="20">20 itens</option>
-                      <option value="30">30 itens</option>
-                      <option value="50">50 itens</option>
-                    </select>
-                  </div>
-                  
-                  <div className="pagination-info">
-                    <span>
-                      Mostrando {startItem} a {endItem} de {totalTipoAtividades} tipos de atividade
-                    </span>
-                  </div>
-                  
-                  <div className="pagination-controls">
-                    <button 
-                      className="pagination-btn" 
-                      title="Primeira página"
-                      disabled={currentPage === 1 || loading}
-                      onClick={() => setCurrentPage(1)}
-                    >
-                      <i className="fas fa-angle-double-left"></i>
-                    </button>
-                    <button 
-                      className="pagination-btn" 
-                      title="Página anterior"
-                      disabled={currentPage === 1 || loading}
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                    >
-                      <i className="fas fa-angle-left"></i>
-                    </button>
-                    
-                    <span className="pagination-current">
-                      Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                    </span>
-                    
-                    <button 
-                      className="pagination-btn" 
-                      title="Próxima página"
-                      disabled={currentPage === totalPages || totalPages === 0 || loading}
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                    >
-                      <i className="fas fa-angle-right"></i>
-                    </button>
-                    <button 
-                      className="pagination-btn" 
-                      title="Última página"
-                      disabled={currentPage === totalPages || totalPages === 0 || loading}
-                      onClick={() => setCurrentPage(totalPages)}
-                    >
-                      <i className="fas fa-angle-double-right"></i>
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalTipoAtividades}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={setItemsPerPage}
+                loading={loading}
+                itemName="tipos de atividade"
+              />
             </div>
           </CardContainer>
         </main>
       </div>
 
       {/* Modal de confirmação de exclusão */}
-      {showDeleteModal && tipoAtividadeToDelete && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Confirmar Exclusão</h3>
-              <button
-                className="btn-icon"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setTipoAtividadeToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Confirmar Exclusão"
+        message={
+          tipoAtividadeToDelete ? (
+            <>
               <p>
                 Tem certeza que deseja deletar o tipo de atividade{' '}
                 <strong>{tipoAtividadeToDelete.nome}</strong>?
@@ -557,25 +444,14 @@ const CadastroTipoAtividades = () => {
               <p className="warning-text">
                 Esta ação não pode ser desfeita.
               </p>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="btn-danger"
-                onClick={handleDelete}
-              >
-                <i className="fas fa-trash"></i>
-                Deletar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          ) : null
+        }
+        confirmText="Deletar"
+        cancelText="Cancelar"
+        confirmButtonClass="btn-danger"
+        loading={deleteLoading}
+      />
     </Layout>
   );
 };

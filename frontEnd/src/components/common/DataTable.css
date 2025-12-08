@@ -1,0 +1,85 @@
+.listing-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.listing-table thead {
+  background-color: #f8fafc;
+}
+
+.listing-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.listing-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.listing-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.listing-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.actions-column {
+  text-align: right;
+  width: 120px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-icon {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-edit {
+  background-color: #eff6ff;
+  color: #3b82f6;
+}
+
+.btn-edit:hover:not(:disabled) {
+  background-color: #dbeafe;
+}
+
+.btn-delete {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background-color: #fee2e2;
+}
+
