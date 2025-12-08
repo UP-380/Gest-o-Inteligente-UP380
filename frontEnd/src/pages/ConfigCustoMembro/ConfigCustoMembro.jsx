@@ -90,16 +90,24 @@ const ConfigCustoMembro = () => {
     }
     // Formatar valores numéricos para exibição
     campos.forEach(campo => {
-      if (campo.key !== 'vigencia' && formData[campo.key] !== null && formData[campo.key] !== undefined) {
-        const valor = parseFloat(formData[campo.key]);
-        if (!isNaN(valor)) {
-          // Exibir com 2 casas decimais (porcentagem ou valor monetário)
-          formData[campo.key] = valor.toFixed(2).replace('.', ',');
+      if (campo.key !== 'vigencia') {
+        if (formData[campo.key] !== null && formData[campo.key] !== undefined && formData[campo.key] !== '') {
+          const valor = parseFloat(formData[campo.key]);
+          if (!isNaN(valor)) {
+            // Para números inteiros (dias_uteis), não adicionar casas decimais
+            if (campo.type === 'number') {
+              formData[campo.key] = Math.round(valor).toString();
+            } else {
+              // Exibir com 2 casas decimais (porcentagem ou valor monetário)
+              formData[campo.key] = valor.toFixed(2).replace('.', ',');
+            }
+          } else {
+            formData[campo.key] = '';
+          }
         } else {
+          // Se for null, undefined ou vazio, inicializar como string vazia
           formData[campo.key] = '';
         }
-      } else if (campo.key !== 'vigencia') {
-        formData[campo.key] = '';
       }
     });
     setFormData(formData);
@@ -147,16 +155,21 @@ const ConfigCustoMembro = () => {
       campos.forEach(campo => {
         if (campo.key !== 'vigencia') {
           // Converter vírgula para ponto e validar
-          const valorLimpo = dadosParaEnvio[campo.key] 
-            ? String(dadosParaEnvio[campo.key]).replace(',', '.')
-            : '';
+          let valorLimpo = '';
+          const valorOriginal = dadosParaEnvio[campo.key];
           
+          // Verificar se o valor existe e não é vazio
+          if (valorOriginal !== null && valorOriginal !== undefined && valorOriginal !== '') {
+            valorLimpo = String(valorOriginal).replace(',', '.');
+          }
+          
+          // Se o valor estiver vazio, definir como null
           if (valorLimpo === '' || valorLimpo === null || valorLimpo === undefined) {
             dadosParaEnvio[campo.key] = null;
           } else {
             const valorNumerico = parseFloat(valorLimpo);
             if (isNaN(valorNumerico) || valorNumerico < 0) {
-              // Validação diferente para porcentagem vs valor monetário
+              // Validação diferente para porcentagem vs valor monetário vs número
               if (campo.type === 'percent') {
                 if (valorNumerico > 100) {
                   novosErros[campo.key] = 'Porcentagem deve estar entre 0 e 100';
@@ -170,6 +183,15 @@ const ConfigCustoMembro = () => {
               // Validação específica para porcentagens
               if (campo.type === 'percent' && valorNumerico > 100) {
                 novosErros[campo.key] = 'Porcentagem deve estar entre 0 e 100';
+              } else if (campo.type === 'number') {
+                // Para números inteiros, arredondar e garantir que seja inteiro
+                const valorInteiro = Math.round(valorNumerico);
+                if (valorInteiro < 0) {
+                  novosErros[campo.key] = 'Valor deve ser maior ou igual a zero';
+                } else {
+                  // Garantir que o valor seja enviado como número, mesmo se for 0
+                  dadosParaEnvio[campo.key] = valorInteiro;
+                }
               } else {
                 dadosParaEnvio[campo.key] = valorNumerico;
               }
@@ -283,6 +305,13 @@ const ConfigCustoMembro = () => {
       type: 'date', 
       required: true,
       description: 'Data a partir da qual esta configuração é válida'
+    },
+    { 
+      key: 'dias_uteis', 
+      label: 'Dias Úteis', 
+      type: 'number', 
+      required: false,
+      description: 'Número de dias úteis no mês (ex: 22)'
     },
     { 
       key: 'fgts', 
@@ -429,6 +458,8 @@ const ConfigCustoMembro = () => {
                                   if (isNaN(date.getTime())) return '-';
                                   return date.toISOString().split('T')[0].split('-').reverse().join('/');
                                 })()
+                              : campo.type === 'number' && (item[campo.key] !== null && item[campo.key] !== undefined)
+                              ? Math.round(parseFloat(item[campo.key])).toString()
                               : campo.type === 'percent' && (item[campo.key] !== null && item[campo.key] !== undefined)
                               ? `${parseFloat(item[campo.key]).toFixed(2).replace('.', ',')}%`
                               : campo.type === 'currency' && (item[campo.key] !== null && item[campo.key] !== undefined)
@@ -573,30 +604,49 @@ const ConfigCustoMembro = () => {
                               {campo.required && <span className="required">*</span>}
                             </label>
                             <input
-                              type="text"
+                              type={campo.type === 'number' ? 'number' : 'text'}
                               className={`form-input-small ${formErrors[campo.key] ? 'error' : ''}`}
                               value={formData[campo.key] || ''}
+                              min={campo.type === 'number' ? '0' : undefined}
+                              step={campo.type === 'number' ? '1' : undefined}
                               onChange={(e) => {
-                                // Permitir apenas números e vírgula/ponto para decimais
-                                let valor = e.target.value.replace(/[^\d,.]/g, '').replace(',', '.');
-                                
-                                // Limitar a 2 casas decimais
-                                const partes = valor.split('.');
-                                if (partes.length > 1) {
-                                  valor = partes[0] + '.' + partes[1].substring(0, 2);
-                                }
-                                
-                                // Permitir valores vazios ou números válidos
-                                if (valor === '' || valor === '.') {
-                                  setFormData({ ...formData, [campo.key]: '' });
-                                } else {
-                                  const num = parseFloat(valor);
-                                  // Permitir digitação livre, validar apenas no submit
-                                  if (!isNaN(num)) {
-                                    // Converter ponto para vírgula para exibição
-                                    setFormData({ ...formData, [campo.key]: valor.replace('.', ',') });
-                                  } else if (valor === '') {
+                                if (campo.type === 'number') {
+                                  // Para números inteiros, permitir apenas números
+                                  let valor = e.target.value.replace(/\D/g, '');
+                                  // Se estiver vazio, permitir campo vazio
+                                  if (valor === '') {
                                     setFormData({ ...formData, [campo.key]: '' });
+                                  } else {
+                                    // Garantir que seja um número inteiro positivo
+                                    const num = parseInt(valor, 10);
+                                    if (!isNaN(num) && num >= 0) {
+                                      setFormData({ ...formData, [campo.key]: num.toString() });
+                                    } else {
+                                      setFormData({ ...formData, [campo.key]: '' });
+                                    }
+                                  }
+                                } else {
+                                  // Permitir apenas números e vírgula/ponto para decimais
+                                  let valor = e.target.value.replace(/[^\d,.]/g, '').replace(',', '.');
+                                  
+                                  // Limitar a 2 casas decimais
+                                  const partes = valor.split('.');
+                                  if (partes.length > 1) {
+                                    valor = partes[0] + '.' + partes[1].substring(0, 2);
+                                  }
+                                  
+                                  // Permitir valores vazios ou números válidos
+                                  if (valor === '' || valor === '.') {
+                                    setFormData({ ...formData, [campo.key]: '' });
+                                  } else {
+                                    const num = parseFloat(valor);
+                                    // Permitir digitação livre, validar apenas no submit
+                                    if (!isNaN(num)) {
+                                      // Converter ponto para vírgula para exibição
+                                      setFormData({ ...formData, [campo.key]: valor.replace('.', ',') });
+                                    } else if (valor === '') {
+                                      setFormData({ ...formData, [campo.key]: '' });
+                                    }
                                   }
                                 }
                                 
@@ -604,7 +654,7 @@ const ConfigCustoMembro = () => {
                                   setFormErrors({ ...formErrors, [campo.key]: '' });
                                 }
                               }}
-                              placeholder={campo.type === 'currency' ? '0,00' : '0,00'}
+                              placeholder={campo.type === 'number' ? 'Ex: 22' : campo.type === 'currency' ? '0,00' : '0,00'}
                               disabled={submitting}
                               required={campo.required}
                               title={campo.description}

@@ -1,4 +1,5 @@
 import React from 'react';
+import DatePicker from './DatePicker';
 
 /**
  * Componente reutilizável para campos de formulário de vigência
@@ -37,8 +38,21 @@ const VigenciaFormFields = ({
     return '';
   };
 
-  // Verificar se é PJ (tipo_contrato === '2')
-  const isPJ = formData.tipo_contrato === '2';
+  // Verificar se é PJ (tipo_contrato === '2' ou tipo_contrato === 2)
+  const isPJ = String(formData.tipo_contrato) === '2';
+  
+  // Verificar se é ESTAGIO (comparando o nome do tipo de contrato)
+  const tipoContratoSelecionado = tiposContrato.find(tipo => {
+    // Comparar tanto como string quanto como número
+    return String(tipo.id) === String(formData.tipo_contrato) || 
+           Number(tipo.id) === Number(formData.tipo_contrato);
+  });
+  
+  const isEstagio = tipoContratoSelecionado && tipoContratoSelecionado.nome && 
+    tipoContratoSelecionado.nome.toUpperCase().trim().includes('ESTAGIO');
+  
+  // Se for PJ ou ESTAGIO, os campos devem ser editáveis (não calculados automaticamente)
+  const isManualInput = isPJ || isEstagio;
 
   return (
     <>
@@ -48,9 +62,7 @@ const VigenciaFormFields = ({
           <label className="form-label-small">
             Data de Vigência <span className="required">*</span>
           </label>
-          <input
-            type="date"
-            className={`form-input-small ${formErrors.dt_vigencia ? 'error' : ''}`}
+          <DatePicker
             value={formData.dt_vigencia}
             onChange={(e) => {
               setFormData({ ...formData, dt_vigencia: e.target.value });
@@ -59,6 +71,7 @@ const VigenciaFormFields = ({
               }
             }}
             disabled={submitting}
+            error={!!formErrors.dt_vigencia}
           />
           {formErrors.dt_vigencia && (
             <span className="error-message">{formErrors.dt_vigencia}</span>
@@ -82,27 +95,24 @@ const VigenciaFormFields = ({
           <label className="form-label-small">
             Tipo de Contrato <span className="required">*</span>
           </label>
-          <div className="select-wrapper">
-            <select
-              className={`form-input-small select-with-icon ${formErrors.tipo_contrato ? 'error' : ''}`}
-              value={formData.tipo_contrato || ''}
-              onChange={(e) => {
-                setFormData({ ...formData, tipo_contrato: e.target.value });
-                if (formErrors.tipo_contrato) {
-                  setFormErrors({ ...formErrors, tipo_contrato: '' });
-                }
-              }}
-              disabled={submitting || loadingTiposContrato}
-            >
-              <option value="">Selecione o tipo de contrato</option>
-              {tiposContrato.map((tipo) => (
-                <option key={tipo.id} value={tipo.id}>
-                  {tipo.nome}
-                </option>
-              ))}
-            </select>
-            <i className="fas fa-chevron-down select-icon"></i>
-          </div>
+          <select
+            className={`form-input-small select-with-icon ${formErrors.tipo_contrato ? 'error' : ''}`}
+            value={formData.tipo_contrato || ''}
+            onChange={(e) => {
+              setFormData({ ...formData, tipo_contrato: e.target.value });
+              if (formErrors.tipo_contrato) {
+                setFormErrors({ ...formErrors, tipo_contrato: '' });
+              }
+            }}
+            disabled={submitting || loadingTiposContrato}
+          >
+            <option value="">Selecione o tipo de contrato</option>
+            {tiposContrato.map((tipo) => (
+              <option key={tipo.id} value={tipo.id}>
+                {tipo.nome}
+              </option>
+            ))}
+          </select>
           {formErrors.tipo_contrato && (
             <span className="error-message">{formErrors.tipo_contrato}</span>
           )}
@@ -130,8 +140,8 @@ const VigenciaFormFields = ({
 
         <div className="form-group">
           <label className="form-label-small">Custo Hora</label>
-          {isPJ ? (
-            // Se for PJ, campo editável
+          {isManualInput ? (
+            // Se for PJ ou ESTAGIO, campo editável
             <input
               type="text"
               className="form-input-small"
@@ -149,26 +159,25 @@ const VigenciaFormFields = ({
               disabled={submitting}
             />
           ) : (
-            // Se não for PJ, campo calculado automaticamente
+            // Se não for PJ ou ESTAGIO, campo calculado automaticamente
             <input
               type="text"
               className="form-input-small"
               value={formData.custo_hora || '0'}
               readOnly
-              style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
               placeholder="0,00"
               disabled={submitting}
-              title="Calculado automaticamente"
+              title="Calculado automaticamente: Custo Total Mensal / Jornada Mensal"
             />
           )}
         </div>
 
-        <div className="form-group" style={{ gridColumn: 'span 1' }}>
+        <div className="form-group">
           <label className="form-label-small">Descrição</label>
           <input
             type="text"
             className="form-input-small"
-            value={formData.descricao}
+            value={formData.descricao || ''}
             onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
             placeholder="Descrição opcional"
             disabled={submitting}
@@ -205,8 +214,8 @@ const VigenciaFormFields = ({
 
           <div className="form-group">
             <label className="form-label-small">Vale Transporte/Dia</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -224,13 +233,12 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.valetransporte || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -240,8 +248,8 @@ const VigenciaFormFields = ({
 
           <div className="form-group">
             <label className="form-label-small">Vale Refeição/Dia</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -259,13 +267,12 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.vale_refeicao || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -274,9 +281,9 @@ const VigenciaFormFields = ({
           </div>
 
           <div className="form-group">
-            <label className="form-label-small">Férias</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            <label className="form-label-small">Férias (média diária)</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -294,13 +301,12 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.ferias || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -309,9 +315,9 @@ const VigenciaFormFields = ({
           </div>
 
           <div className="form-group">
-            <label className="form-label-small">1/3 Férias</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            <label className="form-label-small">1/3 Férias (média diária)</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -329,13 +335,12 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.terco_ferias || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -344,9 +349,9 @@ const VigenciaFormFields = ({
           </div>
 
           <div className="form-group">
-            <label className="form-label-small">13º Salário</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            <label className="form-label-small">13º Salário (média diária)</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -364,13 +369,12 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.decimoterceiro || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -381,9 +385,9 @@ const VigenciaFormFields = ({
 
         <div className="form-row-vigencia">
           <div className="form-group">
-            <label className="form-label-small">FGTS</label>
-            {isPJ ? (
-              // Se for PJ, campo editável
+            <label className="form-label-small">FGTS (média diária)</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
               <input
                 type="text"
                 className="form-input-small"
@@ -401,13 +405,46 @@ const VigenciaFormFields = ({
                 disabled={submitting}
               />
             ) : (
-              // Se não for PJ, campo calculado automaticamente
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
               <input
                 type="text"
                 className="form-input-small"
                 value={formData.fgts || '0'}
                 readOnly
-                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+                placeholder="0,00"
+                disabled={submitting}
+                title="Calculado automaticamente"
+              />
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label-small">Custo Total Mensal</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
+              <input
+                type="text"
+                className="form-input-small"
+                value={formData.custo_total_mensal || '0'}
+                onChange={(e) => {
+                  const valor = e.target.value.replace(/\D/g, '');
+                  if (valor) {
+                    const valorFormatado = formatarMoedaInput(e.target.value);
+                    setFormData({ ...formData, custo_total_mensal: valorFormatado });
+                  } else {
+                    setFormData({ ...formData, custo_total_mensal: '0' });
+                  }
+                }}
+                placeholder="0,00"
+                disabled={submitting}
+              />
+            ) : (
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
+              <input
+                type="text"
+                className="form-input-small"
+                value={formData.custo_total_mensal || '0'}
+                readOnly
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"

@@ -15,7 +15,7 @@ async function getConfigCustoColaborador(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('config_custo_membro')
-      .select('id, created_at, updated_at, vigencia, fgts, ferias, terco_ferias, decimo_terceiro, vale_transporte, vale_alimentacao', { count: 'exact' });
+      .select('id, created_at, updated_at, vigencia, dias_uteis, fgts, ferias, terco_ferias, decimo_terceiro, vale_transporte, vale_alimentacao', { count: 'exact' });
     
     query = query.order('vigencia', { ascending: false });
 
@@ -133,6 +133,7 @@ async function criarConfigCustoColaborador(req, res) {
   try {
     const {
       vigencia,
+      dias_uteis,
       fgts,
       ferias,
       terco_ferias,
@@ -168,6 +169,7 @@ async function criarConfigCustoColaborador(req, res) {
     // Preparar dados para inserção
     const dadosInsert = {
       vigencia: vigencia,
+      dias_uteis: toNumberOrNull(dias_uteis),
       fgts: toNumberOrNull(fgts),
       ferias: toNumberOrNull(ferias),
       terco_ferias: toNumberOrNull(terco_ferias),
@@ -214,6 +216,7 @@ async function atualizarConfigCustoColaborador(req, res) {
     const { id } = req.params;
     const {
       vigencia,
+      dias_uteis,
       fgts,
       ferias,
       terco_ferias,
@@ -276,6 +279,7 @@ async function atualizarConfigCustoColaborador(req, res) {
     };
 
     // Campos numéricos opcionais
+    if (dias_uteis !== undefined) dadosUpdate.dias_uteis = toNumberOrNull(dias_uteis);
     if (fgts !== undefined) dadosUpdate.fgts = toNumberOrNull(fgts);
     if (ferias !== undefined) dadosUpdate.ferias = toNumberOrNull(ferias);
     if (terco_ferias !== undefined) dadosUpdate.terco_ferias = toNumberOrNull(terco_ferias);

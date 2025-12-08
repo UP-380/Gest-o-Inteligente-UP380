@@ -204,6 +204,9 @@ async function criarVigencia(dados) {
 // Atualizar vigência
 async function atualizarVigencia(id, dados) {
   try {
+    console.log('🔧 [SERVICE] Atualizando vigência ID:', id);
+    console.log('🔧 [SERVICE] Dados para update:', JSON.stringify(dados, null, 2));
+    
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
@@ -213,11 +216,15 @@ async function atualizarVigencia(id, dados) {
       .single();
 
     if (error) {
+      console.error('❌ [SERVICE] Erro do Supabase ao atualizar vigência:', error);
+      console.error('❌ [SERVICE] Detalhes:', JSON.stringify(error, null, 2));
       return { data: null, error };
     }
 
+    console.log('✅ [SERVICE] Vigência atualizada com sucesso:', data);
     return { data, error: null };
   } catch (error) {
+    console.error('❌ [SERVICE] Erro inesperado ao atualizar vigência:', error);
     return { data: null, error };
   }
 }
