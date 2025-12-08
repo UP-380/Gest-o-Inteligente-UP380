@@ -680,6 +680,19 @@ export const cacheAPI = {
   clear: () => cache.clear()
 };
 
+// ============================================
+// REGISTRO TEMPO
+// ============================================
+
+export const registroTempoAPI = {
+  /**
+   * Busca registros de tempo sem tarefa_id (tarefas desajustadas)
+   */
+  async getSemTarefa() {
+    return await request(`${API_BASE_URL}/registro-tempo-sem-tarefa`);
+  }
+};
+
 // Exportar URL base para uso externo se necessário
 export { getApiBaseUrl };
 

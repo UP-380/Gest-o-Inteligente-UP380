@@ -5,6 +5,7 @@
 //===================== CONFIGURAÇÃO INICIAL =====================
 const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
+const { buscarTodosComPaginacao } = require('./database-utils');
 
 const supabaseUrl = 'https://gijgjvfwxmkkihdmfmdg.supabase.co';
 const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpamdqdmZ3eG1ra2loZG1mbWRnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjEzNzIxNywiZXhwIjoyMDU3NzEzMjE3fQ.b9F3iLwtnpYp54kPyQORmfe8hW2fLxoKlXmIXuTY99U';
@@ -522,6 +523,75 @@ async function getRegistrosTempo(req, res) {
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// Buscar registros de tempo sem tarefa_id (tarefas desajustadas)
+async function getRegistrosTempoSemTarefa(req, res) {
+  try {
+    console.log('🔍 Buscando registros de tempo sem tarefa_id...');
+    
+    // Criar função para query builder (para usar paginação automática)
+    // Buscar registros onde tarefa_id é null OU string vazia
+    const criarQueryBuilderRegistros = () => {
+      const query = supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo')
+        .select('*')
+        .or('tarefa_id.is.null,tarefa_id.eq.');
+      
+      console.log('📋 Query criada: registro_tempo WHERE tarefa_id IS NULL OR tarefa_id = ""');
+      return query;
+    };
+
+    // Usar paginação automática para buscar todos os registros
+    const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
+      limit: 1000, 
+      logProgress: true 
+    });
+
+    console.log(`✅ Encontrados ${registros.length} registros sem tarefa_id`);
+    
+    // Buscar nomes dos membros (usuários)
+    const usuarioIds = [...new Set(registros.map(r => r.usuario_id).filter(Boolean))];
+    let membrosMap = {};
+    
+    if (usuarioIds.length > 0) {
+      console.log(`🔍 Buscando nomes de ${usuarioIds.length} membros...`);
+      const membros = await getMembrosPorIds(usuarioIds);
+      membros.forEach(membro => {
+        membrosMap[membro.id] = membro.nome;
+      });
+      console.log(`✅ Encontrados ${Object.keys(membrosMap).length} nomes de membros`);
+    }
+
+    // Adicionar nome do membro a cada registro
+    const registrosComNomes = registros.map(registro => ({
+      ...registro,
+      membro_nome: registro.usuario_id ? (membrosMap[registro.usuario_id] || null) : null
+    }));
+
+    // Verificar se encontrou o registro específico mencionado pelo usuário
+    const registroEspecifico = registrosComNomes.find(r => String(r.id) === '4688888212977614080');
+    if (registroEspecifico) {
+      console.log('✅ Registro específico encontrado:', registroEspecifico.id);
+    } else {
+      console.log('⚠️ Registro específico NÃO encontrado na lista');
+    }
+
+    return res.json({
+      success: true,
+      data: registrosComNomes || [],
+      count: (registrosComNomes || []).length
+    });
+  } catch (error) {
+    console.error('❌ Erro ao buscar registros de tempo sem tarefa:', error);
+    console.error('❌ Stack trace:', error.stack);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao buscar registros de tempo sem tarefa',
+      details: error.message
     });
   }
 }
@@ -1231,6 +1301,7 @@ function registrarRotasAPI(app, requireAuth = null) {
   app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteIdEndpoint);
   app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req,_res,next)=>next(), getTarefasEndpoint);
   app.get('/api/registro-tempo', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempo);
+  app.get('/api/registro-tempo-sem-tarefa', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempoSemTarefa);
   
   // Endpoints outros (com autenticação se disponível)
   app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req,_res,next)=>next(), getCustoHoraMembro);
