@@ -611,6 +611,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  align-items: start;
 }
 
 @media (max-width: 1400px) {
@@ -643,10 +644,35 @@
 }
 
 .form-row-vigencia .form-group {
-  min-height: 70px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
   gap: 6px;
+  align-items: start;
+  align-self: start;
+  row-gap: 6px;
+}
+
+.form-row-vigencia .form-group > label {
+  grid-row: 1;
+  margin: 0;
+  padding: 0;
+  height: auto;
+}
+
+.form-row-vigencia .form-group > .form-input-small,
+.form-row-vigencia .form-group > input,
+.form-row-vigencia .form-group > select,
+.form-row-vigencia .form-group > .periodo-filter-container {
+  grid-row: 2;
+  align-self: start;
+  margin-top: 0;
+}
+
+.form-row-vigencia {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .form-label {
@@ -659,6 +685,18 @@
   font-size: 12px;
   font-weight: 500;
   color: #475569;
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  display: block;
+  height: auto;
+  min-height: auto;
+  box-sizing: border-box;
+}
+
+.form-label-small .required {
+  display: inline;
+  margin-left: 2px;
 }
 
 .required {
@@ -674,14 +712,32 @@
 }
 
 .form-input-small {
+  width: 100%;
   padding: 8px 12px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid #e0e7ff !important;
   border-radius: 6px;
   font-size: 13px;
   transition: all 0.2s;
   box-sizing: border-box;
-  height: 37px; /* Altura fixa igual aos campos readOnly */
+  height: 37px; /* Altura fixa para todos os campos */
+  min-height: 37px;
+  max-height: 37px;
   line-height: 1.4;
+  background-color: white;
+  color: #374151;
+  font-family: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  margin: 0;
+  vertical-align: top;
+}
+
+/* Campos readOnly (calculados automaticamente) - fundo mais cinza */
+.form-input-small[readonly] {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+  color: #6b7280;
 }
 
 .form-input:focus {
@@ -714,15 +770,47 @@ input[type="number"].form-input-small::-webkit-inner-spin-button {
 select.form-input-small {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #e0e7ff;
+  padding-right: 32px; /* Espaço para o ícone da seta */
+  border: 1px solid #e0e7ff !important;
   border-radius: 6px;
   font-size: 13px;
   background-color: white;
   cursor: pointer;
   appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
+  height: 37px; /* Altura fixa igual aos outros campos */
+  min-height: 37px;
+  max-height: 37px;
+  box-sizing: border-box;
+  line-height: 1.4;
+  color: #374151;
+  font-family: inherit;
+  margin: 0;
+  vertical-align: top;
+}
+
+.select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  position: relative;
+}
+
+.select-wrapper .select-icon {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: #64748b;
+  font-size: 12px;
+  z-index: 1;
+}
+
+.select-wrapper select.select-with-icon {
   padding-right: 32px;
 }
 
@@ -751,15 +839,6 @@ select.form-input-small.error {
 .form-input-small:disabled {
   background: #f8fafc;
   cursor: not-allowed;
-}
-
-.form-input-small[readonly] {
-  background-color: #f9fafb;
-  cursor: not-allowed;
-  font-size: 13px;
-  padding: 8px 12px;
-  height: 37px;
-  box-sizing: border-box;
 }
 
 .error-message {

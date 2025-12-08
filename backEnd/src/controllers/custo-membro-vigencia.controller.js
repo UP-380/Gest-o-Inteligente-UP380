@@ -361,6 +361,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       terco_ferias,
       decimoterceiro,
       fgts,
+      custo_hora,
       insspatronal,
       insscolaborador,
       ajudacusto,
@@ -369,6 +370,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       descricao
       // descricao_beneficios - removido pois a coluna não existe na tabela
       // diasuteis - removido pois a coluna não existe na tabela
+      // custo_total_mensal - não existe na tabela, é calculado
     } = req.body;
 
     if (!id) {
@@ -458,7 +460,10 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     if (terco_ferias !== undefined) dadosUpdate.um_terco_ferias = toString(terco_ferias); // Nome correto da coluna
     if (decimoterceiro !== undefined) dadosUpdate.decimoterceiro = toString(decimoterceiro);
     if (fgts !== undefined) dadosUpdate.fgts = toString(fgts);
-    if (custo_hora !== undefined) dadosUpdate.custo_hora = toString(custo_hora) || null;
+    if (custo_hora !== undefined) {
+      const custoHoraStr = toString(custo_hora);
+      dadosUpdate.custo_hora = (custoHoraStr && custoHoraStr.trim() !== '') ? custoHoraStr : null;
+    }
     if (ajudacusto !== undefined) dadosUpdate.ajudacusto = toString(ajudacusto) || '0';
     if (valetransporte !== undefined) dadosUpdate.valetransporte = toString(valetransporte) || '0';
     if (vale_refeicao !== undefined) dadosUpdate.vale_refeicao = toString(vale_refeicao) || '0';
@@ -484,11 +489,14 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     const { data, error } = await vigenciaService.atualizarVigencia(id, dadosUpdate);
 
     if (error) {
-      console.error('Erro ao atualizar custo colaborador vigência:', error);
+      console.error('❌ [PUT] Erro ao atualizar custo colaborador vigência:', error);
+      console.error('❌ [PUT] Detalhes do erro:', JSON.stringify(error, null, 2));
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar custo colaborador vigência',
-        details: error.message
+        details: error.message || 'Erro desconhecido',
+        code: error.code,
+        hint: error.hint
       });
     }
 
@@ -498,11 +506,12 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       data: data
     });
   } catch (error) {
-    console.error('Erro inesperado ao atualizar custo colaborador vigência:', error);
+    console.error('❌ [PUT] Erro inesperado ao atualizar custo colaborador vigência:', error);
+    console.error('❌ [PUT] Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
-      details: error.message
+      details: error.message || 'Erro desconhecido'
     });
   }
 }

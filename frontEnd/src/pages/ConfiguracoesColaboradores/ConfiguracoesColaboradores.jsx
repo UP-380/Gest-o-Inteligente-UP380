@@ -158,6 +158,22 @@ const GestaoColaboradores = () => {
   // Estado para tipos de contrato
   const [tiposContrato, setTiposContrato] = useState([]);
   const [loadingTiposContrato, setLoadingTiposContrato] = useState(false);
+
+  // Função auxiliar para verificar se o tipo de contrato é manual (PJ ou ESTAGIO)
+  const isTipoContratoManual = useCallback((tipoContratoId) => {
+    // Verificar se é PJ (tipo_contrato === '2')
+    if (tipoContratoId === '2') {
+      return true;
+    }
+    
+    // Verificar se é ESTAGIO (comparando o nome do tipo de contrato)
+    const tipoContratoSelecionado = tiposContrato.find(tipo => tipo.id === tipoContratoId);
+    if (tipoContratoSelecionado && tipoContratoSelecionado.nome) {
+      return tipoContratoSelecionado.nome.toUpperCase().includes('ESTAGIO');
+    }
+    
+    return false;
+  }, [tiposContrato]);
   
   const [currentPageVigencias, setCurrentPageVigencias] = useState(1);
   const [itemsPerPageVigencias, setItemsPerPageVigencias] = useState(20);
@@ -227,6 +243,38 @@ const GestaoColaboradores = () => {
       setLoadingMembros(false);
     }
   }, [showToast]);
+
+  // Carregar colaboradores para o filtro (sempre, independente de mostrarDetalhes)
+  const loadColaboradoresParaFiltro = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        const colaboradores = result.data || [];
+        setTodosColaboradoresParaFiltro(colaboradores);
+      } else {
+        throw new Error(result.error || 'Erro ao carregar colaboradores para filtro');
+      }
+    } catch (error) {
+      setTodosColaboradoresParaFiltro([]);
+    }
+  }, []);
 
   // Carregar vigências (quando mostrarDetalhes está ativo)
   const loadVigencias = useCallback(async () => {
@@ -634,6 +682,9 @@ const GestaoColaboradores = () => {
         }
         resetForm();
         await loadColaboradores();
+        // Atualizar também as listas dos filtros
+        await loadMembros();
+        await loadColaboradoresParaFiltro();
       } else {
         throw new Error(result.error || 'Erro ao salvar colaborador');
       }
@@ -642,7 +693,7 @@ const GestaoColaboradores = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [formData, editingId, loadColaboradores, showToast]);
+  }, [formData, editingId, loadColaboradores, loadMembros, loadColaboradoresParaFiltro, showToast]);
 
   // Inativar colaborador
   const handleInativar = useCallback(async () => {
@@ -677,6 +728,9 @@ const GestaoColaboradores = () => {
         setShowDeleteModal(false);
         setColaboradorToDelete(null);
         await loadColaboradores();
+        // Atualizar também as listas dos filtros
+        await loadMembros();
+        await loadColaboradoresParaFiltro();
       } else {
         throw new Error(result.error || 'Erro ao inativar colaborador');
       }
@@ -684,7 +738,7 @@ const GestaoColaboradores = () => {
       showToast('error', error.message || 'Erro ao inativar colaborador. Tente novamente.');
       setShowDeleteModal(false);
     }
-  }, [colaboradorToDelete, loadColaboradores, showToast]);
+  }, [colaboradorToDelete, loadColaboradores, loadMembros, loadColaboradoresParaFiltro, showToast]);
 
   // Ativar colaborador
   const handleAtivar = useCallback(async () => {
@@ -719,6 +773,9 @@ const GestaoColaboradores = () => {
         setShowDeleteModal(false);
         setColaboradorToDelete(null);
         await loadColaboradores();
+        // Atualizar também as listas dos filtros
+        await loadMembros();
+        await loadColaboradoresParaFiltro();
       } else {
         throw new Error(result.error || 'Erro ao ativar colaborador');
       }
@@ -726,7 +783,7 @@ const GestaoColaboradores = () => {
       showToast('error', error.message || 'Erro ao ativar colaborador. Tente novamente.');
       setShowDeleteModal(false);
     }
-  }, [colaboradorToDelete, loadColaboradores, showToast]);
+  }, [colaboradorToDelete, loadColaboradores, loadMembros, loadColaboradoresParaFiltro, showToast]);
 
   // Resetar formulário
   const resetForm = () => {
@@ -1281,8 +1338,8 @@ const GestaoColaboradores = () => {
 
   // Efeito para calcular benefícios automaticamente quando salariobase mudar
   useEffect(() => {
-    // Não calcular se for PJ (tipo_contrato === '2')
-    if (formData.tipo_contrato === '2') {
+    // Não calcular se for PJ ou ESTAGIO
+    if (isTipoContratoManual(formData.tipo_contrato)) {
       return;
     }
 
@@ -1299,22 +1356,9 @@ const GestaoColaboradores = () => {
         const calcular = async () => {
           try {
             const dataVigencia = formData.dt_vigencia || null;
-            const diasUteis = formData.diasuteis ? parseFloat(formData.diasuteis) : null;
-            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteis);
-            
-            // Calcular custo hora (apenas se não for PJ - tipo_contrato !== '2')
-            let custoHora = '0';
-            if (formData.tipo_contrato && formData.tipo_contrato !== '2') {
-              const salarioBase = parseFloat(removerFormatacaoMoeda(formData.salariobase));
-              const horasDia = parseFloat(formData.horascontratadasdia) || 0;
-              const diasUteisMes = diasUteis || 22; // Padrão: 22 dias úteis
-              
-              if (horasDia > 0 && diasUteisMes > 0) {
-                const horasMes = horasDia * diasUteisMes;
-                const custoHoraCalculado = salarioBase / horasMes;
-                custoHora = formatarValorParaInput(custoHoraCalculado);
-              }
-            }
+            const diasUteisVigencia = formData.diasuteis ? parseFloat(formData.diasuteis) : null;
+            const horasContratadasDia = formData.horascontratadasdia ? parseFloat(formData.horascontratadasdia) : null;
+            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia);
             
             setFormData(prev => ({
               ...prev,
@@ -1326,8 +1370,11 @@ const GestaoColaboradores = () => {
               fgts: formatarValorParaInput(beneficios.fgts),
               valetransporte: formatarValorParaInput(beneficios.valetransporte),
               vale_refeicao: formatarValorParaInput(beneficios.vale_refeicao),
-              // Custo hora só é calculado se não for PJ
-              ...(formData.tipo_contrato && formData.tipo_contrato !== '2' ? { custo_hora: custoHora } : {})
+              custo_total_mensal: formatarValorParaInput(beneficios.custo_total_mensal),
+              // Custo hora já vem calculado da função calcularVigencia
+              ...(formData.tipo_contrato && !isTipoContratoManual(formData.tipo_contrato) ? { 
+                custo_hora: formatarValorParaInput(beneficios.custo_hora)
+              } : {})
             }));
           } catch (error) {
             // Erro silencioso ao calcular benefícios
@@ -1346,19 +1393,20 @@ const GestaoColaboradores = () => {
           fgts: '0',
           valetransporte: '0',
           vale_refeicao: '0',
-          // Se não for PJ, resetar custo hora também
-          ...(formData.tipo_contrato && formData.tipo_contrato !== '2' ? { custo_hora: '0' } : {})
+          custo_total_mensal: '0',
+          // Se não for PJ ou ESTAGIO, resetar custo hora também
+          ...(formData.tipo_contrato && !isTipoContratoManual(formData.tipo_contrato) ? { custo_hora: '0' } : {})
         }));
       }
     }, 300); // Aguardar 300ms após a última mudança
 
     return () => clearTimeout(timeoutId);
-  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato]);
+  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato, isTipoContratoManual]);
 
   // Efeito para calcular benefícios automaticamente quando salariobase mudar no modal de Nova Vigência
   useEffect(() => {
-    // Não calcular se for PJ (tipo_contrato === '2')
-    if (vigenciaFormData.tipo_contrato === '2') {
+    // Não calcular se for PJ ou ESTAGIO
+    if (isTipoContratoManual(vigenciaFormData.tipo_contrato)) {
       return;
     }
 
@@ -1367,22 +1415,9 @@ const GestaoColaboradores = () => {
         const calcular = async () => {
           try {
             const dataVigencia = vigenciaFormData.dt_vigencia || null;
-            const diasUteis = vigenciaFormData.diasuteis ? parseFloat(vigenciaFormData.diasuteis) : null;
-            const beneficios = await calcularVigencia(vigenciaFormData.salariobase, dataVigencia, diasUteis);
-            
-            // Calcular custo hora (apenas se não for PJ - tipo_contrato !== '2')
-            let custoHora = '0';
-            if (vigenciaFormData.tipo_contrato && vigenciaFormData.tipo_contrato !== '2') {
-              const salarioBase = parseFloat(removerFormatacaoMoeda(vigenciaFormData.salariobase));
-              const horasDia = parseFloat(vigenciaFormData.horascontratadasdia) || 0;
-              const diasUteisMes = diasUteis || 22; // Padrão: 22 dias úteis
-              
-              if (horasDia > 0 && diasUteisMes > 0) {
-                const horasMes = horasDia * diasUteisMes;
-                const custoHoraCalculado = salarioBase / horasMes;
-                custoHora = formatarValorParaInput(custoHoraCalculado);
-              }
-            }
+            const diasUteisVigencia = vigenciaFormData.diasuteis ? parseFloat(vigenciaFormData.diasuteis) : null;
+            const horasContratadasDia = vigenciaFormData.horascontratadasdia ? parseFloat(vigenciaFormData.horascontratadasdia) : null;
+            const beneficios = await calcularVigencia(vigenciaFormData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia);
             
             setVigenciaFormData(prev => ({
               ...prev,
@@ -1394,8 +1429,11 @@ const GestaoColaboradores = () => {
               fgts: formatarValorParaInput(beneficios.fgts),
               valetransporte: formatarValorParaInput(beneficios.valetransporte),
               vale_refeicao: formatarValorParaInput(beneficios.vale_refeicao),
-              // Custo hora só é calculado se não for PJ
-              ...(vigenciaFormData.tipo_contrato && vigenciaFormData.tipo_contrato !== '2' ? { custo_hora: custoHora } : {})
+              custo_total_mensal: formatarValorParaInput(beneficios.custo_total_mensal),
+              // Custo hora já vem calculado da função calcularVigencia
+              ...(vigenciaFormData.tipo_contrato && !isTipoContratoManual(vigenciaFormData.tipo_contrato) ? { 
+                custo_hora: formatarValorParaInput(beneficios.custo_hora)
+              } : {})
             }));
           } catch (error) {
             // Erro silencioso ao calcular benefícios
@@ -1405,8 +1443,8 @@ const GestaoColaboradores = () => {
       }, 300);
       return () => clearTimeout(timeoutId);
     } else if (showModalNovaVigencia && (!vigenciaFormData.salariobase || vigenciaFormData.salariobase === '0' || vigenciaFormData.salariobase === '')) {
-      // Resetar valores se salário base for removido (apenas se não for PJ)
-      if (vigenciaFormData.tipo_contrato !== '2') {
+      // Resetar valores se salário base for removido (apenas se não for PJ ou ESTAGIO)
+      if (!isTipoContratoManual(vigenciaFormData.tipo_contrato)) {
         setVigenciaFormData(prev => ({
           ...prev,
           ferias: '0',
@@ -1417,16 +1455,17 @@ const GestaoColaboradores = () => {
           fgts: '0',
           valetransporte: '0',
           vale_refeicao: '0',
+          custo_total_mensal: '0',
           custo_hora: '0'
         }));
       }
     }
-  }, [vigenciaFormData.salariobase, vigenciaFormData.dt_vigencia, vigenciaFormData.diasuteis, vigenciaFormData.horascontratadasdia, vigenciaFormData.tipo_contrato, showModalNovaVigencia]);
+  }, [vigenciaFormData.salariobase, vigenciaFormData.dt_vigencia, vigenciaFormData.diasuteis, vigenciaFormData.horascontratadasdia, vigenciaFormData.tipo_contrato, showModalNovaVigencia, isTipoContratoManual]);
 
   // Efeito para calcular benefícios automaticamente quando salariobase mudar no modal de Editar Vigência
   useEffect(() => {
-    // Não calcular se for PJ (tipo_contrato === '2')
-    if (vigenciaEditFormData.tipo_contrato === '2') {
+    // Não calcular se for PJ ou ESTAGIO
+    if (isTipoContratoManual(vigenciaEditFormData.tipo_contrato)) {
       return;
     }
 
@@ -1435,22 +1474,9 @@ const GestaoColaboradores = () => {
         const calcular = async () => {
           try {
             const dataVigencia = vigenciaEditFormData.dt_vigencia || null;
-            const diasUteis = vigenciaEditFormData.diasuteis ? parseFloat(vigenciaEditFormData.diasuteis) : null;
-            const beneficios = await calcularVigencia(vigenciaEditFormData.salariobase, dataVigencia, diasUteis);
-            
-            // Calcular custo hora (apenas se não for PJ - tipo_contrato !== '2')
-            let custoHora = '0';
-            if (vigenciaEditFormData.tipo_contrato && vigenciaEditFormData.tipo_contrato !== '2') {
-              const salarioBase = parseFloat(removerFormatacaoMoeda(vigenciaEditFormData.salariobase));
-              const horasDia = parseFloat(vigenciaEditFormData.horascontratadasdia) || 0;
-              const diasUteisMes = diasUteis || 22; // Padrão: 22 dias úteis
-              
-              if (horasDia > 0 && diasUteisMes > 0) {
-                const horasMes = horasDia * diasUteisMes;
-                const custoHoraCalculado = salarioBase / horasMes;
-                custoHora = formatarValorParaInput(custoHoraCalculado);
-              }
-            }
+            const diasUteisVigencia = vigenciaEditFormData.diasuteis ? parseFloat(vigenciaEditFormData.diasuteis) : null;
+            const horasContratadasDia = vigenciaEditFormData.horascontratadasdia ? parseFloat(vigenciaEditFormData.horascontratadasdia) : null;
+            const beneficios = await calcularVigencia(vigenciaEditFormData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia);
             
             setVigenciaEditFormData(prev => ({
               ...prev,
@@ -1462,8 +1488,11 @@ const GestaoColaboradores = () => {
               fgts: formatarValorParaInput(beneficios.fgts),
               valetransporte: formatarValorParaInput(beneficios.valetransporte),
               vale_refeicao: formatarValorParaInput(beneficios.vale_refeicao),
-              // Custo hora só é calculado se não for PJ
-              ...(vigenciaEditFormData.tipo_contrato && vigenciaEditFormData.tipo_contrato !== '2' ? { custo_hora: custoHora } : {})
+              custo_total_mensal: formatarValorParaInput(beneficios.custo_total_mensal),
+              // Custo hora já vem calculado da função calcularVigencia
+              ...(vigenciaEditFormData.tipo_contrato && !isTipoContratoManual(vigenciaEditFormData.tipo_contrato) ? { 
+                custo_hora: formatarValorParaInput(beneficios.custo_hora)
+              } : {})
             }));
           } catch (error) {
             // Erro silencioso ao calcular benefícios
@@ -1473,8 +1502,8 @@ const GestaoColaboradores = () => {
       }, 300);
       return () => clearTimeout(timeoutId);
     } else if (showModalEditarVigencia && (!vigenciaEditFormData.salariobase || vigenciaEditFormData.salariobase === '0' || vigenciaEditFormData.salariobase === '')) {
-      // Resetar valores se salário base for removido (apenas se não for PJ)
-      if (vigenciaEditFormData.tipo_contrato !== '2') {
+      // Resetar valores se salário base for removido (apenas se não for PJ ou ESTAGIO)
+      if (!isTipoContratoManual(vigenciaEditFormData.tipo_contrato)) {
         setVigenciaEditFormData(prev => ({
           ...prev,
           ferias: '0',
@@ -1485,11 +1514,12 @@ const GestaoColaboradores = () => {
           fgts: '0',
           valetransporte: '0',
           vale_refeicao: '0',
+          custo_total_mensal: '0',
           custo_hora: '0'
         }));
       }
     }
-  }, [vigenciaEditFormData.salariobase, vigenciaEditFormData.dt_vigencia, vigenciaEditFormData.diasuteis, vigenciaEditFormData.horascontratadasdia, vigenciaEditFormData.tipo_contrato, showModalEditarVigencia]);
+  }, [vigenciaEditFormData.salariobase, vigenciaEditFormData.dt_vigencia, vigenciaEditFormData.diasuteis, vigenciaEditFormData.horascontratadasdia, vigenciaEditFormData.tipo_contrato, showModalEditarVigencia, isTipoContratoManual]);
 
   // Carregar tipos de contrato quando o componente monta
   useEffect(() => {
@@ -1581,38 +1611,6 @@ const GestaoColaboradores = () => {
       scrollHandlersRef.current.topScroll = null;
     };
   }, [mostrarDetalhes, vigencias.length, colunasVigencias, loadingVigencias]);
-
-  // Carregar colaboradores para o filtro (sempre, independente de mostrarDetalhes)
-  const loadColaboradoresParaFiltro = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        const colaboradores = result.data || [];
-        setTodosColaboradoresParaFiltro(colaboradores);
-      } else {
-        throw new Error(result.error || 'Erro ao carregar colaboradores para filtro');
-      }
-    } catch (error) {
-      setTodosColaboradoresParaFiltro([]);
-    }
-  }, []);
 
   // Efeitos
   useEffect(() => {

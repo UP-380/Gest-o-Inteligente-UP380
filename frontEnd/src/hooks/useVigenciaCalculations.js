@@ -9,48 +9,47 @@ import { calcularVigencia } from '../utils/calcularVigencia';
  * @param {Function} formatarValorParaInput - Função para formatar valores para input
  * @param {Function} removerFormatacaoMoeda - Função para remover formatação de moeda
  * @param {Number} debounceMs - Tempo de debounce em milissegundos (padrão: 300)
+ * @param {Array} tiposContrato - Lista de tipos de contrato (opcional, para verificar ESTAGIO)
  */
 export const useVigenciaCalculations = (
   formData,
   setFormData,
   formatarValorParaInput,
   removerFormatacaoMoeda,
-  debounceMs = 300
+  debounceMs = 300,
+  tiposContrato = []
 ) => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      // Verificar se é PJ (tipo_contrato === '2')
+      const isPJ = formData.tipo_contrato === '2';
+      
+      // Verificar se é ESTAGIO (comparando o nome do tipo de contrato)
+      const tipoContratoSelecionado = tiposContrato.find(tipo => tipo.id === formData.tipo_contrato);
+      const isEstagio = tipoContratoSelecionado && tipoContratoSelecionado.nome && 
+        tipoContratoSelecionado.nome.toUpperCase().includes('ESTAGIO');
+      
+      // Se for PJ ou ESTAGIO, não calcular automaticamente
+      const isManualInput = isPJ || isEstagio;
+      
       const salarioValido = formData.salariobase &&
                             formData.salariobase.trim() !== '' &&
                             formData.salariobase !== '0' &&
                             formData.salariobase !== '0,00' &&
                             parseFloat(removerFormatacaoMoeda(formData.salariobase)) > 0;
 
-      if (salarioValido) {
+      if (salarioValido && !isManualInput) {
         const calcular = async () => {
           try {
             const dataVigencia = formData.dt_vigencia || null;
-            const diasUteis = formData.diasuteis ? parseFloat(formData.diasuteis) : null;
+            const diasUteisVigencia = formData.diasuteis ? parseFloat(formData.diasuteis) : null;
+            const horasContratadasDia = formData.horascontratadasdia ? parseFloat(formData.horascontratadasdia) : null;
             
-            console.log('🔄 Calculando benefícios para salário:', formData.salariobase, 'data:', dataVigencia, 'dias úteis:', diasUteis);
+            console.log('🔄 Calculando benefícios para salário:', formData.salariobase, 'data:', dataVigencia, 'dias úteis vigência:', diasUteisVigencia);
             
-            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteis);
+            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia);
             
             console.log('✅ Benefícios calculados:', beneficios);
-            
-            // Calcular custo hora (apenas se não for PJ - tipo_contrato !== '2')
-            let custoHora = '0';
-            if (formData.tipo_contrato && formData.tipo_contrato !== '2') {
-              const salarioBase = parseFloat(removerFormatacaoMoeda(formData.salariobase));
-              const horasDia = parseFloat(formData.horascontratadasdia) || 0;
-              const diasUteisMes = diasUteis || 22; // Padrão: 22 dias úteis
-              
-              if (horasDia > 0 && diasUteisMes > 0) {
-                const horasMes = horasDia * diasUteisMes;
-                const custoHoraCalculado = salarioBase / horasMes;
-                custoHora = formatarValorParaInput(custoHoraCalculado);
-                console.log('💰 Custo hora calculado:', custoHora, '(Salário:', salarioBase, '/ Horas mês:', horasMes, ')');
-              }
-            }
             
             setFormData(prev => ({
               ...prev,
@@ -59,15 +58,19 @@ export const useVigenciaCalculations = (
               decimoterceiro: formatarValorParaInput(beneficios.decimoterceiro),
               fgts: formatarValorParaInput(beneficios.fgts),
               valetransporte: formatarValorParaInput(beneficios.valetransporte),
-              // Custo hora só é calculado se não for PJ
-              ...(formData.tipo_contrato && formData.tipo_contrato !== '2' ? { custo_hora: custoHora } : {})
+              vale_refeicao: formatarValorParaInput(beneficios.vale_refeicao),
+              custo_total_mensal: formatarValorParaInput(beneficios.custo_total_mensal),
+              // Custo hora já vem calculado da função calcularVigencia
+              ...(!isManualInput ? { 
+                custo_hora: formatarValorParaInput(beneficios.custo_hora)
+              } : {})
             }));
           } catch (error) {
             console.error('❌ Erro ao calcular benefícios:', error);
           }
         };
         calcular();
-      } else {
+      } else if (!salarioValido && !isManualInput) {
         setFormData(prev => ({
           ...prev,
           ferias: '0',
@@ -75,13 +78,15 @@ export const useVigenciaCalculations = (
           decimoterceiro: '0',
           fgts: '0',
           valetransporte: '0',
-          // Se não for PJ, resetar custo hora também
-          ...(formData.tipo_contrato && formData.tipo_contrato !== '2' ? { custo_hora: '0' } : {})
+          vale_refeicao: '0',
+          custo_total_mensal: '0',
+          // Se não for PJ ou ESTAGIO, resetar custo hora também
+          custo_hora: '0'
         }));
       }
     }, debounceMs);
 
     return () => clearTimeout(timeoutId);
-  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato, formatarValorParaInput, removerFormatacaoMoeda, setFormData]);
+  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato, formatarValorParaInput, removerFormatacaoMoeda, setFormData, tiposContrato]);
 };
 

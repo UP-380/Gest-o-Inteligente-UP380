@@ -2,24 +2,36 @@
 .periodo-filter-container {
   position: relative;
   width: 100%;
+  display: block;
 }
 
 .periodo-select-field {
   position: relative;
   width: 100%;
+  display: block;
 }
 
 .periodo-select-display {
   background: white;
-  border: 1px solid #dee2e6;
+  border: 1px solid #e0e7ff !important;
   border-radius: 6px;
-  padding: 12px 16px;
+  padding: 8px 12px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
   transition: all 0.2s ease;
-  min-height: 44px;
+  height: 37px;
+  min-height: 37px;
+  max-height: 37px;
+  box-sizing: border-box;
+  font-size: 13px;
+  color: #374151;
+  font-family: inherit;
+  width: 100%;
+  line-height: 1.4;
+  vertical-align: top;
+  margin: 0;
 }
 
 .periodo-select-display:hover:not(.disabled) {
@@ -38,9 +50,15 @@
 }
 
 .periodo-select-text {
-  font-size: 14px;
-  color: #495057;
+  font-size: 13px;
+  color: #6b7280;
   flex: 1;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.periodo-select-text.has-selection {
+  color: #374151;
 }
 
 .periodo-select-text.has-selection {
@@ -207,4 +225,13 @@
 
 .periodo-calendar-day.in-range:hover {
   background: #bfdbfe;
+}
+
+.periodo-select-display.error {
+  border-color: #dc3545;
+}
+
+.periodo-select-display.error:hover {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
 }
