@@ -3,11 +3,22 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import ProdutoModal from '../../components/produtos/ProdutoModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import SearchInput from '../../components/common/SearchInput';
+import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
+import LoadingState from '../../components/common/LoadingState';
+import EmptyState from '../../components/common/EmptyState';
+import PageHeader from '../../components/common/PageHeader';
+import { useToast } from '../../hooks/useToast';
+import { formatDate } from '../../utils/dateUtils';
 import './CadastroProdutos.css';
 
 const API_BASE_URL = '/api';
 
 const CadastroProdutos = () => {
+  const showToast = useToast();
+  
   // Estados principais
   const [produtos, setProdutos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,6 +40,7 @@ const CadastroProdutos = () => {
   // Estados para modal de confirmação de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [produtoToDelete, setProdutoToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Carregar produtos
   const loadProdutos = useCallback(async () => {
@@ -83,12 +95,12 @@ const CadastroProdutos = () => {
     } catch (error) {
       console.error('❌ Erro ao carregar produtos:', error);
       const errorMessage = error.message || 'Erro ao carregar produtos. Tente novamente.';
-      showMessage(errorMessage, 'error');
+      showToast('error', errorMessage);
       setProdutos([]);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [currentPage, itemsPerPage, searchTerm, showToast]);
 
   // Carregar produto por ID para edição
   const loadProdutoParaEdicao = useCallback(async (id) => {
@@ -123,9 +135,9 @@ const CadastroProdutos = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar produto:', error);
-      showMessage('Erro ao carregar produto. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar produto. Tente novamente.');
     }
-  }, []);
+  }, [showToast]);
 
   // Validar formulário
   const validateForm = () => {
@@ -148,7 +160,7 @@ const CadastroProdutos = () => {
 
     // Validar
     if (!nomeValue) {
-      showMessage('Nome é obrigatório', 'error');
+      showToast('error', 'Nome é obrigatório');
       return;
     }
 
@@ -186,7 +198,7 @@ const CadastroProdutos = () => {
       if (!contentType.includes('application/json')) {
         const text = await response.text();
         const errorMsg = text || `Erro no servidor. Status: ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
@@ -194,27 +206,27 @@ const CadastroProdutos = () => {
 
       if (!response.ok) {
         const errorMsg = result.error || result.details || result.message || `Erro HTTP ${response.status}`;
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
         return;
       }
 
       if (result.success) {
-        showMessage(
+        showToast(
+          'success',
           editingId 
             ? 'Produto atualizado com sucesso!'
-            : 'Produto criado com sucesso!',
-          'success'
+            : 'Produto criado com sucesso!'
         );
         resetForm();
         await loadProdutos();
       } else {
         const errorMsg = result.error || result.details || 'Erro ao salvar produto';
-        showMessage(errorMsg, 'error');
+        showToast('error', errorMsg);
       }
     } catch (error) {
       console.error('Erro ao salvar produto:', error);
       const errorMsg = error.message || 'Erro ao salvar produto. Verifique sua conexão e tente novamente.';
-      showMessage(errorMsg, 'error');
+      showToast('error', errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -224,6 +236,7 @@ const CadastroProdutos = () => {
   const handleDelete = useCallback(async () => {
     if (!produtoToDelete) return;
 
+    setDeleteLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/produtos/${produtoToDelete.id}`, {
         method: 'DELETE',
@@ -241,7 +254,7 @@ const CadastroProdutos = () => {
       const result = await response.json();
 
       if (result.success) {
-        showMessage('Produto deletado com sucesso!', 'success');
+        showToast('success', 'Produto deletado com sucesso!');
         setShowDeleteModal(false);
         setProdutoToDelete(null);
         await loadProdutos();
@@ -250,10 +263,12 @@ const CadastroProdutos = () => {
       }
     } catch (error) {
       console.error('Erro ao deletar produto:', error);
-      showMessage(error.message || 'Erro ao deletar produto. Tente novamente.', 'error');
+      showToast('error', error.message || 'Erro ao deletar produto. Tente novamente.');
       setShowDeleteModal(false);
+    } finally {
+      setDeleteLoading(false);
     }
-  }, [produtoToDelete, loadProdutos]);
+  }, [produtoToDelete, loadProdutos, showToast]);
 
   // Resetar formulário
   const resetForm = () => {
@@ -282,42 +297,6 @@ const CadastroProdutos = () => {
     setShowDeleteModal(true);
   };
 
-  // Mostrar mensagem
-  const showMessage = useCallback((message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-      </div>
-    `;
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10000;
-      animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
-  }, []);
-
   // Debounce para busca
   const searchTimeoutRef = useRef(null);
   const handleSearch = useCallback((value) => {
@@ -335,26 +314,42 @@ const CadastroProdutos = () => {
     loadProdutos();
   }, [loadProdutos]);
 
-  // Calcular range de itens exibidos
-  const startItem = totalProdutos === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-  const endItem = Math.min(startItem + Math.min(itemsPerPage, produtos.length) - 1, totalProdutos);
-
-  // Formatar data
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return '-';
+  // Definir colunas da tabela
+  const tableColumns = [
+    { key: 'nome', label: 'Nome' },
+    { 
+      key: 'created_at', 
+      label: 'Criado em',
+      render: (item) => formatDate(item.created_at, true)
+    },
+    { 
+      key: 'updated_at', 
+      label: 'Atualizado em',
+      render: (item) => formatDate(item.updated_at, true)
     }
-  };
+  ];
+
+  // Renderizar ações da tabela
+  const renderTableActions = (produto) => (
+    <>
+      <button
+        className="btn-icon btn-edit"
+        onClick={() => handleEdit(produto)}
+        title="Editar"
+        disabled={showForm}
+      >
+        <i className="fas fa-edit"></i>
+      </button>
+      <button
+        className="btn-icon btn-delete"
+        onClick={() => confirmDelete(produto)}
+        title="Deletar"
+        disabled={showForm}
+      >
+        <i className="fas fa-trash"></i>
+      </button>
+    </>
+  );
 
   return (
     <Layout>
@@ -362,37 +357,28 @@ const CadastroProdutos = () => {
         <main className="main-content">
           <CardContainer>
             <div className="produtos-listing-section">
-              <div className="form-header">
-                <h2 className="form-title">Cadastro de Produtos</h2>
-                <p className="form-subtitle">
-                  Gerencie os produtos do sistema
-                </p>
-              </div>
+              <PageHeader 
+                title="Cadastro de Produtos"
+                subtitle="Gerencie os produtos do sistema"
+              />
 
-          {/* Filtro de busca e botão adicionar */}
-          <div className="listing-controls">
-            <div className="search-container">
-              <div className="search-input-wrapper">
-                <i className="fas fa-search search-icon"></i>
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Buscar produto por nome..."
+              {/* Filtro de busca e botão adicionar */}
+              <div className="listing-controls">
+                <SearchInput
                   value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  onChange={handleSearch}
+                  placeholder="Buscar produto por nome..."
                 />
+                <div className="listing-controls-right">
+                  <ButtonPrimary
+                    onClick={handleNewProduto}
+                    disabled={showForm}
+                    icon="fas fa-plus"
+                  >
+                    Novo Produto
+                  </ButtonPrimary>
+                </div>
               </div>
-            </div>
-            <div className="listing-controls-right">
-              <ButtonPrimary
-                onClick={handleNewProduto}
-                disabled={showForm}
-                icon="fas fa-plus"
-              >
-                Novo Produto
-              </ButtonPrimary>
-            </div>
-          </div>
 
           {/* Modal de cadastro/edição */}
           <ProdutoModal
@@ -407,150 +393,49 @@ const CadastroProdutos = () => {
             editingId={editingId}
           />
 
-          {/* Lista de produtos */}
-          <div className="listing-table-container">
-            {loading ? (
-              <div className="loading-container">
-                <i className="fas fa-spinner fa-spin"></i>
-                <span>Carregando produtos...</span>
+              {/* Lista de produtos */}
+              <div className="listing-table-container">
+                {loading ? (
+                  <LoadingState message="Carregando produtos..." />
+                ) : (
+                  <DataTable
+                    columns={tableColumns}
+                    data={produtos}
+                    renderActions={renderTableActions}
+                    emptyMessage="Nenhum produto encontrado"
+                    emptyIcon="fa-box"
+                  />
+                )}
               </div>
-            ) : produtos.length === 0 ? (
-              <div className="empty-state">
-                <i className="fas fa-box"></i>
-                <p>Nenhum produto encontrado</p>
-              </div>
-            ) : (
-              <>
-                <table className="listing-table">
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>Criado em</th>
-                      <th>Atualizado em</th>
-                      <th className="actions-column">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {produtos.map((produto) => (
-                      <tr key={produto.id}>
-                        <td>{produto.nome || '-'}</td>
-                        <td>{formatDate(produto.created_at)}</td>
-                        <td>{formatDate(produto.updated_at)}</td>
-                        <td className="actions-column">
-                          <div className="action-buttons">
-                            <button
-                              className="btn-icon btn-edit"
-                              onClick={() => handleEdit(produto)}
-                              title="Editar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              className="btn-icon btn-delete"
-                              onClick={() => confirmDelete(produto)}
-                              title="Deletar"
-                              disabled={showForm}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </div>
 
-          {/* Controles de Paginação */}
-          {totalProdutos > 0 && (
-            <div className="pagination-container" style={{ display: 'flex' }}>
-              <div className="pagination-limit-selector">
-                <label htmlFor="paginationLimit">Exibir:</label>
-                <select 
-                  id="paginationLimit" 
-                  className="pagination-limit-select"
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(parseInt(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="10">10 itens</option>
-                  <option value="20">20 itens</option>
-                  <option value="30">30 itens</option>
-                  <option value="50">50 itens</option>
-                </select>
-              </div>
-              
-              <div className="pagination-info">
-                <span>
-                  Mostrando {startItem} a {endItem} de {totalProdutos} produtos
-                </span>
-              </div>
-              
-              <div className="pagination-controls">
-                <button 
-                  className="pagination-btn" 
-                  title="Primeira página"
-                  disabled={currentPage === 1 || loading}
-                  onClick={() => setCurrentPage(1)}
-                >
-                  <i className="fas fa-angle-double-left"></i>
-                </button>
-                <button 
-                  className="pagination-btn" 
-                  title="Página anterior"
-                  disabled={currentPage === 1 || loading}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                >
-                  <i className="fas fa-angle-left"></i>
-                </button>
-                
-                <span className="pagination-current">
-                  Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                </span>
-                
-                <button 
-                  className="pagination-btn" 
-                  title="Próxima página"
-                  disabled={currentPage === totalPages || totalPages === 0 || loading}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                  <i className="fas fa-angle-right"></i>
-                </button>
-                <button 
-                  className="pagination-btn" 
-                  title="Última página"
-                  disabled={currentPage === totalPages || totalPages === 0 || loading}
-                  onClick={() => setCurrentPage(totalPages)}
-                >
-                  <i className="fas fa-angle-double-right"></i>
-                </button>
-              </div>
-            </div>
-          )}
+              {/* Controles de Paginação */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalProdutos}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={setItemsPerPage}
+                loading={loading}
+                itemName="produtos"
+              />
             </div>
           </CardContainer>
         </main>
       </div>
 
       {/* Modal de confirmação de exclusão */}
-      {showDeleteModal && produtoToDelete && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Confirmar Exclusão</h3>
-              <button
-                className="btn-icon"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="modal-body">
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setProdutoToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Confirmar Exclusão"
+        message={
+          produtoToDelete ? (
+            <>
               <p>
                 Tem certeza que deseja deletar o produto{' '}
                 <strong>{produtoToDelete.nome}</strong>?
@@ -558,25 +443,14 @@ const CadastroProdutos = () => {
               <p className="warning-text">
                 Esta ação não pode ser desfeita.
               </p>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn-secondary"
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="btn-danger"
-                onClick={handleDelete}
-              >
-                <i className="fas fa-trash"></i>
-                Deletar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          ) : null
+        }
+        confirmText="Deletar"
+        cancelText="Cancelar"
+        confirmButtonClass="btn-danger"
+        loading={deleteLoading}
+      />
     </Layout>
   );
 };
