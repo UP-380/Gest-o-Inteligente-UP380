@@ -9,7 +9,8 @@ const CustomSelect = ({
   disabled = false,
   keepOpen = false, // Se true, não fecha ao selecionar
   selectedItems = [], // Array de valores já selecionados (para multi-select)
-  onSelectAll = null // Função para selecionar todos
+  onSelectAll = null, // Função para selecionar todos
+  hideCheckboxes = false // Se true, esconde as checkboxes (para modo single select)
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -38,8 +39,9 @@ const CustomSelect = ({
         target: { value: optionValue }
       };
       onChange(fakeEvent);
-      // Só fecha se keepOpen for false
-      if (!keepOpen) {
+      // Se hideCheckboxes estiver ativo (modo single select), sempre fecha após selecionar
+      // Caso contrário, só fecha se keepOpen for false
+      if (hideCheckboxes || !keepOpen) {
         setIsOpen(false);
       }
     }
@@ -47,9 +49,10 @@ const CustomSelect = ({
 
   const handleToggle = (e) => {
     if (!disabled) {
+      // Se hideCheckboxes estiver ativo (modo single select), comportamento normal (fecha ao clicar novamente)
       // Se keepOpen está ativado e já está aberto, não fecha ao clicar no campo
       // Apenas fecha quando clicar fora
-      if (keepOpen && isOpen) {
+      if (!hideCheckboxes && keepOpen && isOpen) {
         // Deixa aberto
         return;
       }
@@ -81,8 +84,8 @@ const CustomSelect = ({
       {isOpen && !disabled && (
         <div className="custom-select-dropdown">
           <div className="custom-select-dropdown-content custom-scrollbar">
-            {/* Opção "Selecionar todos" - apenas se onSelectAll estiver definido */}
-            {onSelectAll && options.length > 0 && (
+            {/* Opção "Selecionar todos" - apenas se onSelectAll estiver definido e não estiver escondendo checkboxes */}
+            {onSelectAll && !hideCheckboxes && options.length > 0 && (
               <div
                 className={`custom-select-option select-all-option ${allSelected ? 'selected' : ''}`}
                 onClick={(e) => {
@@ -104,7 +107,7 @@ const CustomSelect = ({
             )}
             
             {/* Divisor visual se houver "Selecionar todos" */}
-            {onSelectAll && options.length > 0 && (
+            {onSelectAll && !hideCheckboxes && options.length > 0 && (
               <div className="custom-select-divider"></div>
             )}
             
@@ -123,9 +126,11 @@ const CustomSelect = ({
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <div className="custom-select-option-checkbox">
-                    {isSelected && <i className="fas fa-check"></i>}
-                  </div>
+                  {!hideCheckboxes && (
+                    <div className="custom-select-option-checkbox">
+                      {isSelected && <i className="fas fa-check"></i>}
+                    </div>
+                  )}
                   <span>{option.label}</span>
                 </div>
               );

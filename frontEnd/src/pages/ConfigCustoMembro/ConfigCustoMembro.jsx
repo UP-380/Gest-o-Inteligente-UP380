@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import CardContainer from '../../components/common/CardContainer';
+import { useToast } from '../../hooks/useToast';
 import './ConfigCustoMembro.css';
 
 const API_BASE_URL = '/api';
 
 const ConfigCustoMembro = () => {
+  const showToast = useToast();
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -16,42 +18,6 @@ const ConfigCustoMembro = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
-
-  // Função para exibir mensagens no sistema
-  const showMessage = (message, type = 'info') => {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-      <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-        <span>${message}</span>
-      </div>
-    `;
-    
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-      color: white;
-      padding: 16px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 10000;
-      animation: slideIn 0.3s ease;
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      notification.style.animation = 'slideOut 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, type === 'error' ? 4000 : 3000);
-  };
 
   // Carregar configurações
   const carregarConfigs = async () => {
@@ -84,7 +50,7 @@ const ConfigCustoMembro = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
-      showMessage('Erro ao carregar configurações. Tente novamente.', 'error');
+      showToast('error', 'Erro ao carregar configurações. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -246,12 +212,13 @@ const ConfigCustoMembro = () => {
       }
 
       if (result.success) {
-        showMessage(editingId ? 'Configuração atualizada com sucesso!' : 'Configuração criada com sucesso!', 'success');
+        showToast('success', editingId ? 'Configuração atualizada com sucesso!' : 'Configuração criada com sucesso!');
         fecharForm();
         carregarConfigs();
       }
     } catch (error) {
       console.error('Erro ao salvar configuração:', error);
+      showToast('error', 'Erro ao salvar configuração. Tente novamente.');
       setFormErrors({ geral: 'Erro ao salvar configuração. Tente novamente.' });
     } finally {
       setSubmitting(false);
@@ -292,18 +259,18 @@ const ConfigCustoMembro = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        showMessage(result.error || 'Erro ao excluir configuração', 'error');
+        showToast('error', result.error || 'Erro ao excluir configuração');
         return;
       }
 
       if (result.success) {
-        showMessage('Configuração excluída com sucesso!', 'success');
+        showToast('success', 'Configuração excluída com sucesso!');
         fecharModalExcluir();
         carregarConfigs();
       }
     } catch (error) {
       console.error('Erro ao excluir configuração:', error);
-      showMessage('Erro ao excluir configuração. Tente novamente.', 'error');
+      showToast('error', 'Erro ao excluir configuração. Tente novamente.');
     }
   };
 

@@ -6,6 +6,7 @@ import FiltersCard from '../../components/filters/FiltersCard';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { useToast } from '../../hooks/useToast';
 import './CadastroVinculacoes.css';
 
@@ -22,6 +23,13 @@ const CadastroVinculacoes = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalVinculados, setTotalVinculados] = useState(0);
   
+  // Estados para modais de confirmação
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [vinculadoToDelete, setVinculadoToDelete] = useState(null);
+  const [showDeleteGroupConfirmModal, setShowDeleteGroupConfirmModal] = useState(false);
+  const [vinculadosIdsToDelete, setVinculadosIdsToDelete] = useState([]);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
   // Filtros
   const [filtros, setFiltros] = useState({
     produto: false,
@@ -33,6 +41,7 @@ const CadastroVinculacoes = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState(false); // Rastrear se filtros foram aplicados
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null); // Armazenar últimos filtros aplicados
   const [showFiltros, setShowFiltros] = useState(false);
+  const [filtroHover, setFiltroHover] = useState(null); // Filtro em hover
 
   // Carregar vinculados
   const loadVinculados = useCallback(async (filtrosParaAplicar = null) => {
@@ -172,12 +181,14 @@ const CadastroVinculacoes = () => {
     setShowModal(true);
   };
 
+  // Abrir modal de confirmação para excluir vinculado individual
+  const handleRequestDeleteVinculado = (vinculadoId) => {
+    setVinculadoToDelete(vinculadoId);
+    setShowDeleteConfirmModal(true);
+  };
+
   // Excluir vinculado (sem confirmação - pode ser chamado de outros lugares)
   const handleDeleteVinculado = async (vinculadoId, showConfirm = true) => {
-    if (showConfirm && !window.confirm('Tem certeza que deseja excluir esta vinculação?')) {
-      return false;
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/vinculados/${vinculadoId}`, {
         method: 'DELETE',
@@ -220,6 +231,59 @@ const CadastroVinculacoes = () => {
         showToast('error', error.message || 'Erro ao excluir vinculação. Verifique sua conexão e tente novamente.');
       }
       return false;
+    }
+  };
+
+  // Confirmar exclusão de vinculado individual
+  const confirmDeleteVinculado = async () => {
+    if (!vinculadoToDelete) return;
+    
+    setDeleteLoading(true);
+    const success = await handleDeleteVinculado(vinculadoToDelete, true);
+    setDeleteLoading(false);
+    
+    if (success) {
+      setShowDeleteConfirmModal(false);
+      setVinculadoToDelete(null);
+    }
+  };
+
+  // Abrir modal de confirmação para excluir grupo de vinculados
+  const handleRequestDeleteGroup = (vinculadosIds) => {
+    setVinculadosIdsToDelete(vinculadosIds);
+    setShowDeleteGroupConfirmModal(true);
+  };
+
+  // Confirmar exclusão de grupo de vinculados
+  const confirmDeleteGroup = async () => {
+    if (vinculadosIdsToDelete.length === 0) return;
+    
+    setDeleteLoading(true);
+    let sucesso = 0;
+    let erros = 0;
+    
+    for (const id of vinculadosIdsToDelete) {
+      const result = await handleDeleteVinculado(id, false);
+      if (result) {
+        sucesso++;
+      } else {
+        erros++;
+      }
+    }
+    
+    setDeleteLoading(false);
+    setShowDeleteGroupConfirmModal(false);
+    setVinculadosIdsToDelete([]);
+    
+    // Recarregar lista após todas as exclusões
+    if (sucesso > 0 && filtrosAplicados) {
+      await loadVinculados(filtros);
+    }
+    
+    if (sucesso > 0) {
+      showToast('success', `${sucesso} vinculação(ões) excluída(s) com sucesso!${erros > 0 ? ` (${erros} erro(s))` : ''}`);
+    } else if (erros > 0) {
+      showToast('error', `Erro ao excluir ${erros} vinculação(ões).`);
     }
   };
 
@@ -313,6 +377,33 @@ const CadastroVinculacoes = () => {
     }
   };
 
+  // Obter o filtro pai atual (primeiro na ordem, mesmo antes de aplicar)
+  const getFiltroPaiAtual = () => {
+    // Se os filtros já foram aplicados, usar o filtroPrincipal
+    if (filtrosAplicados && filtroPrincipal) {
+      return filtroPrincipal;
+    }
+    // Caso contrário, usar o primeiro filtro na ordem de seleção
+    if (ordemFiltros.length > 0) {
+      return ordemFiltros[0];
+    }
+    return null;
+  };
+
+  // Verificar se um filtro deve ter o contorno laranja
+  const isFiltroPai = (filtroKey) => {
+    const filtroPaiAtual = getFiltroPaiAtual();
+    // Se já há um filtro pai selecionado, mostrar apenas ele
+    if (filtroPaiAtual) {
+      return filtroPaiAtual === filtroKey;
+    }
+    // Se não há filtro selecionado ainda, mostrar o hover
+    if (filtroHover === filtroKey) {
+      return true;
+    }
+    return false;
+  };
+
   // Calcular range de itens exibidos
   const startItem = totalVinculados === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
   const endItem = Math.min(startItem + Math.min(itemsPerPage, vinculados.length) - 1, totalVinculados);
@@ -350,8 +441,12 @@ const CadastroVinculacoes = () => {
                 hasPendingChanges={hasPendingChanges()}
               >
                 <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${filtroPrincipal === 'produto' ? 'has-tooltip' : ''}`}>
-                    <label className={`filtro-card-option ${filtroPrincipal === 'produto' ? 'filtro-pai' : ''}`}>
+                  <div className={`filtro-pai-wrapper ${isFiltroPai('produto') ? 'has-tooltip' : ''}`}>
+                    <label 
+                      className={`filtro-card-option ${isFiltroPai('produto') ? 'filtro-pai' : ''}`}
+                      onMouseEnter={() => setFiltroHover('produto')}
+                      onMouseLeave={() => setFiltroHover(null)}
+                    >
                       <input
                         type="checkbox"
                         checked={filtros.produto}
@@ -375,7 +470,7 @@ const CadastroVinculacoes = () => {
                         </div>
                       </div>
                     </label>
-                    {filtroPrincipal === 'produto' && (
+                    {isFiltroPai('produto') && (
                       <div className="filter-tooltip">
                         Separar resultados por {getFiltroNome('produto')}
                       </div>
@@ -383,8 +478,12 @@ const CadastroVinculacoes = () => {
                   </div>
                 </div>
                 <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${filtroPrincipal === 'atividade' ? 'has-tooltip' : ''}`}>
-                    <label className={`filtro-card-option ${filtroPrincipal === 'atividade' ? 'filtro-pai' : ''}`}>
+                  <div className={`filtro-pai-wrapper ${isFiltroPai('atividade') ? 'has-tooltip' : ''}`}>
+                    <label 
+                      className={`filtro-card-option ${isFiltroPai('atividade') ? 'filtro-pai' : ''}`}
+                      onMouseEnter={() => setFiltroHover('atividade')}
+                      onMouseLeave={() => setFiltroHover(null)}
+                    >
                       <input
                         type="checkbox"
                         checked={filtros.atividade}
@@ -408,7 +507,7 @@ const CadastroVinculacoes = () => {
                         </div>
                       </div>
                     </label>
-                    {filtroPrincipal === 'atividade' && (
+                    {isFiltroPai('atividade') && (
                       <div className="filter-tooltip">
                         Separar resultados por {getFiltroNome('atividade')}
                       </div>
@@ -416,8 +515,12 @@ const CadastroVinculacoes = () => {
                   </div>
                 </div>
                 <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${filtroPrincipal === 'tipoAtividade' ? 'has-tooltip' : ''}`}>
-                    <label className={`filtro-card-option ${filtroPrincipal === 'tipoAtividade' ? 'filtro-pai' : ''}`}>
+                  <div className={`filtro-pai-wrapper ${isFiltroPai('tipoAtividade') ? 'has-tooltip' : ''}`}>
+                    <label 
+                      className={`filtro-card-option ${isFiltroPai('tipoAtividade') ? 'filtro-pai' : ''}`}
+                      onMouseEnter={() => setFiltroHover('tipoAtividade')}
+                      onMouseLeave={() => setFiltroHover(null)}
+                    >
                       <input
                         type="checkbox"
                         checked={filtros.tipoAtividade}
@@ -441,7 +544,7 @@ const CadastroVinculacoes = () => {
                         </div>
                       </div>
                     </label>
-                    {filtroPrincipal === 'tipoAtividade' && (
+                    {isFiltroPai('tipoAtividade') && (
                       <div className="filter-tooltip">
                         Separar resultados por {getFiltroNome('tipoAtividade')}
                       </div>
@@ -550,31 +653,9 @@ const CadastroVinculacoes = () => {
                                     title="Editar vinculação"
                                   />
                                   <DeleteButton
-                                    onClick={async () => {
+                                    onClick={() => {
                                       const vinculadosIds = grupo.vinculados.map(v => v.id);
-                                      if (!window.confirm(`Tem certeza que deseja excluir todas as ${vinculadosIds.length} vinculação(ões) deste grupo?`)) {
-                                        return;
-                                      }
-                                      // Excluir todos os vinculados do grupo (sem confirmação individual)
-                                      let sucesso = 0;
-                                      let erros = 0;
-                                      for (const id of vinculadosIds) {
-                                        const result = await handleDeleteVinculado(id, false);
-                                        if (result) {
-                                          sucesso++;
-                                        } else {
-                                          erros++;
-                                        }
-                                      }
-                                      // Recarregar lista após todas as exclusões
-                                      if (sucesso > 0 && filtrosAplicados) {
-                                        await loadVinculados(filtros);
-                                      }
-                                      if (sucesso > 0) {
-                                        showToast('success', `${sucesso} vinculação(ões) excluída(s) com sucesso!${erros > 0 ? ` (${erros} erro(s))` : ''}`);
-                                      } else if (erros > 0) {
-                                        showToast('error', `Erro ao excluir ${erros} vinculação(ões).`);
-                                      }
+                                      handleRequestDeleteGroup(vinculadosIds);
                                     }}
                                     title="Excluir todas as vinculações do grupo"
                                   />
@@ -683,7 +764,7 @@ const CadastroVinculacoes = () => {
                               </button>
                               <button
                                 className="btn-delete-vinculado"
-                                onClick={() => handleDeleteVinculado(vinculado.id)}
+                                onClick={() => handleRequestDeleteVinculado(vinculado.id)}
                                 title="Excluir vinculação"
                               >
                                 <i className="fas fa-trash"></i>
@@ -773,6 +854,38 @@ const CadastroVinculacoes = () => {
           isOpen={showModal}
           onClose={handleCloseModal}
           editingVinculado={editingVinculado}
+        />
+
+        {/* Modal de confirmação para exclusão individual */}
+        <ConfirmModal
+          isOpen={showDeleteConfirmModal}
+          onClose={() => {
+            setShowDeleteConfirmModal(false);
+            setVinculadoToDelete(null);
+          }}
+          onConfirm={confirmDeleteVinculado}
+          title="Confirmar Exclusão"
+          message="Tem certeza que deseja excluir esta vinculação?"
+          confirmText="Excluir"
+          cancelText="Cancelar"
+          confirmButtonClass="btn-danger"
+          loading={deleteLoading}
+        />
+
+        {/* Modal de confirmação para exclusão em grupo */}
+        <ConfirmModal
+          isOpen={showDeleteGroupConfirmModal}
+          onClose={() => {
+            setShowDeleteGroupConfirmModal(false);
+            setVinculadosIdsToDelete([]);
+          }}
+          onConfirm={confirmDeleteGroup}
+          title="Confirmar Exclusão"
+          message={`Tem certeza que deseja excluir todas as ${vinculadosIdsToDelete.length} vinculação(ões) deste grupo?`}
+          confirmText="Excluir Todas"
+          cancelText="Cancelar"
+          confirmButtonClass="btn-danger"
+          loading={deleteLoading}
         />
     </Layout>
   );

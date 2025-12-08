@@ -423,9 +423,7 @@ const CadastroTipoAtividades = () => {
                     <table className="listing-table">
                       <thead>
                         <tr>
-                          <th>ID</th>
                           <th>Nome</th>
-                          <th>ClickUp ID</th>
                           <th>Criado em</th>
                           <th>Atualizado em</th>
                           <th className="actions-column">Ações</th>
@@ -434,9 +432,7 @@ const CadastroTipoAtividades = () => {
                       <tbody>
                         {tipoAtividades.map((tipoAtividade) => (
                           <tr key={tipoAtividade.id}>
-                            <td>{tipoAtividade.id || '-'}</td>
                             <td>{tipoAtividade.nome || '-'}</td>
-                            <td>{tipoAtividade.clickup_id ? String(tipoAtividade.clickup_id) : '-'}</td>
                             <td>{formatDate(tipoAtividade.created_at)}</td>
                             <td>{formatDate(tipoAtividade.updated_at)}</td>
                             <td className="actions-column">
