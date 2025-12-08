@@ -9,6 +9,7 @@ const Sidebar = () => {
   const { logout } = useAuth();
   const [clientesExpanded, setClientesExpanded] = useState(false);
   const [colaboradoresExpanded, setColaboradoresExpanded] = useState(false);
+  const [catalogosExpanded, setCatalogosExpanded] = useState(false);
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -20,6 +21,10 @@ const Sidebar = () => {
 
   const isColaboradoresActive = () => {
     return isActive('/relatorios-colaboradores') || isActive('/gestao-colaboradores') || isActive('/configuracoes/custo-colaborador');
+  };
+
+  const isCatalogosActive = () => {
+    return isActive('/cadastro/atividades') || isActive('/cadastro/produtos') || isActive('/cadastro/tipo-atividades') || isActive('/cadastro/vinculacoes');
   };
 
   // Expandir automaticamente o menu Clientes se estiver em uma das páginas relacionadas
@@ -38,6 +43,14 @@ const Sidebar = () => {
     }
   }, [location.pathname]);
 
+  // Expandir automaticamente o menu Catálogos se estiver em uma das páginas relacionadas
+  useEffect(() => {
+    const isCatalogosActive = location.pathname === '/cadastro/atividades' || location.pathname === '/cadastro/produtos' || location.pathname === '/cadastro/tipo-atividades' || location.pathname === '/cadastro/vinculacoes';
+    if (isCatalogosActive) {
+      setCatalogosExpanded(true);
+    }
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -51,6 +64,11 @@ const Sidebar = () => {
   const toggleColaboradores = (e) => {
     e.preventDefault();
     setColaboradoresExpanded(!colaboradoresExpanded);
+  };
+
+  const toggleCatalogos = (e) => {
+    e.preventDefault();
+    setCatalogosExpanded(!catalogosExpanded);
   };
 
   const menuItems = [
@@ -95,6 +113,33 @@ const Sidebar = () => {
       icon: 'fa-cog',
       label: 'Custo Colaborador',
       title: 'Custo Colaborador'
+    }
+  ];
+
+  const catalogosSubItems = [
+    {
+      path: '/cadastro/atividades',
+      icon: 'fa-tasks',
+      label: 'Atividades',
+      title: 'Cadastro de Atividades'
+    },
+    {
+      path: '/cadastro/produtos',
+      icon: 'fa-box',
+      label: 'Produtos',
+      title: 'Cadastro de Produtos'
+    },
+    {
+      path: '/cadastro/tipo-atividades',
+      icon: 'fa-list-alt',
+      label: 'Tipo de Atividades',
+      title: 'Cadastro de Tipo de Atividades'
+    },
+    {
+      path: '/cadastro/vinculacoes',
+      icon: 'fa-link',
+      label: 'Vinculações',
+      title: 'Vinculações'
     }
   ];
 
@@ -158,6 +203,35 @@ const Sidebar = () => {
           
           <div className={`sidebar-submenu ${colaboradoresExpanded ? 'open' : ''}`}>
             {colaboradoresSubItems.map((subItem) => (
+              <Link
+                key={subItem.path}
+                to={subItem.path}
+                className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                title={subItem.title}
+              >
+                <i className={`fas ${subItem.icon}`}></i>
+                <span className="sidebar-text">{subItem.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Menu Catálogos com Submenu */}
+        <div className="sidebar-menu-group">
+          <button
+            type="button"
+            className={`sidebar-item sidebar-menu-toggle ${isCatalogosActive() ? 'active' : ''}`}
+            title="Catálogos"
+            onClick={toggleCatalogos}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          >
+            <i className="fas fa-book"></i>
+            <span className="sidebar-text">Catálogos</span>
+            <i className={`fas fa-chevron-right sidebar-chevron ${catalogosExpanded ? 'expanded' : ''}`}></i>
+          </button>
+          
+          <div className={`sidebar-submenu ${catalogosExpanded ? 'open' : ''}`}>
+            {catalogosSubItems.map((subItem) => (
               <Link
                 key={subItem.path}
                 to={subItem.path}

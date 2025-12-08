@@ -14,14 +14,12 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0a2d4f;
+  background: #144577;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 59, 111, 0.3);
+  box-shadow: 0 4px 8px rgba(14, 59, 111, 0.3);
 }
 
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
-

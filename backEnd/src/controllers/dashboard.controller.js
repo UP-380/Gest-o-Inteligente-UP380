@@ -68,7 +68,6 @@ async function getDashboardClientes(req, res) {
     const { 
       page = 1, 
       limit = 20, 
-      status, 
       clienteId, 
       colaboradorId, 
       dataInicio, 
@@ -206,70 +205,13 @@ async function getDashboardClientes(req, res) {
         });
         let clienteIdsComRegistros = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
         
-        // Se há filtro de status, também filtrar por status
-        if (status) {
-          const { data: contratos, error: contratosError } = await supabase
-            .schema('up_gestaointeligente')
-            .from('contratos_clientes')
-            .select('id_cliente')
-            .eq('status', status)
-            .not('id_cliente', 'is', null);
-
-          if (contratosError) {
-            console.error('Erro ao buscar contratos:', contratosError);
-            return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
-          }
-
-          const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
-          clienteIdsComRegistros = clienteIdsComRegistros.filter(clienteId => {
-            const clienteIdStr = String(clienteId).trim();
-            return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
-          });
-        }
-        
         clienteIds = clienteIdsArray.filter(clienteId => {
           const clienteIdStr = String(clienteId).trim();
           return clienteIdsComRegistros.some(id => String(id).trim() === clienteIdStr);
         });
       } else {
-        // Se não há período, mas há status, filtrar por status
-        if (status) {
-          const { data: contratos, error: contratosError } = await supabase
-            .schema('up_gestaointeligente')
-            .from('contratos_clientes')
-            .select('id_cliente')
-            .eq('status', status)
-            .not('id_cliente', 'is', null);
-
-          if (contratosError) {
-            console.error('Erro ao buscar contratos:', contratosError);
-            return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
-          }
-
-          const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
-          clienteIds = clienteIdsArray.filter(clienteId => {
-            const clienteIdStr = String(clienteId).trim();
-            return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
-          });
-        } else {
-          clienteIds = clienteIdsArray;
-        }
+        clienteIds = clienteIdsArray;
       }
-    } else if (status && !dataInicio && !dataFim) {
-      // PRIORIDADE 1: Se tem status MAS NÃO tem período, buscar clientes pelos contratos com aquele status
-      const { data: contratos, error: contratosError } = await supabase
-        .schema('up_gestaointeligente')
-        .from('contratos_clientes')
-        .select('id_cliente')
-        .eq('status', status)
-        .not('id_cliente', 'is', null);
-
-      if (contratosError) {
-        console.error('Erro ao buscar contratos:', contratosError);
-        return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
-      }
-
-      clienteIds = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
     } else if (dataInicio && dataFim && clienteIdsArray.length === 0) {
       // Se não tem status mas tem período E NÃO tem clientes selecionados, buscar clientes pelos registros de tempo
       const dateInicialObj = new Date(dataInicio);
@@ -334,27 +276,6 @@ async function getDashboardClientes(req, res) {
         }
       });
       clienteIds = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
-      
-      // Se há status, filtrar também por status
-      if (status) {
-        const { data: contratos, error: contratosError } = await supabase
-          .schema('up_gestaointeligente')
-          .from('contratos_clientes')
-          .select('id_cliente')
-          .eq('status', status)
-          .not('id_cliente', 'is', null);
-
-        if (contratosError) {
-          console.error('Erro ao buscar contratos:', contratosError);
-          return res.status(500).json({ success: false, error: 'Erro ao buscar contratos' });
-        }
-
-        const clienteIdsComStatus = [...new Set((contratos || []).map(c => String(c.id_cliente).trim()).filter(Boolean))];
-        clienteIds = clienteIds.filter(clienteId => {
-          const clienteIdStr = String(clienteId).trim();
-          return clienteIdsComStatus.some(id => String(id).trim() === clienteIdStr);
-        });
-      }
     }
 
     // Se não há clientes encontrados, mas há filtros de período e/ou colaborador,
@@ -589,10 +510,6 @@ async function getDashboardClientes(req, res) {
       .from('contratos_clientes')
       .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
       .in('id_cliente', clienteIdsPaginated);
-    
-    if (status) {
-      contratosQuery = contratosQuery.eq('status', status);
-    }
 
     // Buscar registros da página atual (cliente_id pode conter múltiplos IDs, filtrar manualmente)
     let registrosQuery = null;
@@ -628,10 +545,6 @@ async function getDashboardClientes(req, res) {
         .from('contratos_clientes')
         .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
         .in('id_cliente', clienteIds); // TODOS os clientes, não apenas da página
-      
-      if (status) {
-        todosContratosQuery = todosContratosQuery.eq('status', status);
-      }
     }
 
     // Buscar TODOS os registros (para totais do dashboard)

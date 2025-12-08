@@ -45,6 +45,7 @@
   background: #0e3b6f;
   color: white;
   border: 1px solid #0e3b6f;
+  position: relative;
 }
 
 .apply-filters-btn:hover:not(:disabled) {
@@ -55,6 +56,101 @@
 .apply-filters-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Wrapper para o botão aplicar com tooltip */
+.apply-btn-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* Estilo quando há mudanças pendentes - mais sutil */
+.apply-filters-btn.has-pending-changes {
+  background: #0e3b6f;
+  border-color: #ffc107;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.3);
+  position: relative;
+  animation: subtle-pulse-border 2s ease-in-out infinite;
+}
+
+.apply-filters-btn.has-pending-changes:hover:not(:disabled) {
+  background: #144577;
+  border-color: #ffb300;
+}
+
+/* Indicador visual de mudanças pendentes - mais discreto */
+.pending-indicator {
+  display: inline-block;
+  margin-left: 6px;
+  background: #ffc107;
+  color: #0e3b6f;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* Animação de pulso na borda */
+@keyframes subtle-pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2);
+  }
+}
+
+/* Tooltip para o botão de aplicar filtros */
+.apply-btn-wrapper.has-tooltip:hover .filter-tooltip {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.apply-btn-wrapper .filter-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 12px 16px;
+  background-color: #1f2937;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: normal;
+  width: max-content;
+  max-width: 320px;
+  min-width: 250px;
+  text-align: center;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apply-btn-wrapper .filter-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #1f2937;
 }
 
 .clear-filters-btn {

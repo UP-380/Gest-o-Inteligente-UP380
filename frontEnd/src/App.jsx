@@ -7,6 +7,10 @@ import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardCol
 import GestaoClientes from './pages/CarteiraClientes/CarteiraClientes';
 import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
 import ConfigCustoMembro from './pages/ConfigCustoMembro/ConfigCustoMembro';
+import CadastroAtividades from './pages/CadastroAtividades/CadastroAtividades';
+import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
+import CadastroTipoAtividades from './pages/CadastroTipoAtividades/CadastroTipoAtividades';
+import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -101,6 +105,38 @@ function App() {
           element={
             <ProtectedRoute>
               <ConfigCustoMembro />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/atividades"
+          element={
+            <ProtectedRoute>
+              <CadastroAtividades />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/produtos"
+          element={
+            <ProtectedRoute>
+              <CadastroProdutos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tipo-atividades"
+          element={
+            <ProtectedRoute>
+              <CadastroTipoAtividades />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/vinculacoes"
+          element={
+            <ProtectedRoute>
+              <CadastroVinculacoes />
             </ProtectedRoute>
           }
         />

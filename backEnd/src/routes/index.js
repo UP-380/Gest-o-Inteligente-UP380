@@ -13,6 +13,11 @@ const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
 const custoColaboradorVigenciaController = require('../controllers/custo-membro-vigencia.controller');
 const configCustoColaboradorController = require('../controllers/config-custo-membro.controller');
+const atividadesController = require('../controllers/atividades.controller');
+const produtosController = require('../controllers/produtos.controller');
+const tipoAtividadeController = require('../controllers/tipo-atividade.controller');
+const vinculacoesController = require('../controllers/vinculacoes.controller');
+const vinculadosController = require('../controllers/vinculados.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -74,6 +79,42 @@ router.get('/api/config-custo-colaborador/:id', requireAuth, configCustoColabora
 router.post('/api/config-custo-colaborador', requireAuth, configCustoColaboradorController.criarConfigCustoColaborador);
 router.put('/api/config-custo-colaborador/:id', requireAuth, configCustoColaboradorController.atualizarConfigCustoColaborador);
 router.delete('/api/config-custo-colaborador/:id', requireAuth, configCustoColaboradorController.deletarConfigCustoColaborador);
+
+// Rotas de Atividades (CRUD completo)
+router.get('/api/atividades', requireAuth, atividadesController.getAtividades);
+router.get('/api/atividades/:id', requireAuth, atividadesController.getAtividadePorId);
+router.post('/api/atividades', requireAuth, atividadesController.criarAtividade);
+router.put('/api/atividades/:id', requireAuth, atividadesController.atualizarAtividade);
+router.delete('/api/atividades/:id', requireAuth, atividadesController.deletarAtividade);
+
+// Rotas de Produtos (CRUD completo)
+router.get('/api/produtos', requireAuth, produtosController.getProdutos);
+router.get('/api/produtos/:id', requireAuth, produtosController.getProdutoPorId);
+router.post('/api/produtos', requireAuth, produtosController.criarProduto);
+router.put('/api/produtos/:id', requireAuth, produtosController.atualizarProduto);
+router.delete('/api/produtos/:id', requireAuth, produtosController.deletarProduto);
+
+// Rotas de Tipo de Atividade (CRUD completo)
+router.get('/api/tipo-atividade', requireAuth, tipoAtividadeController.getTipoAtividades);
+router.get('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.getTipoAtividadePorId);
+router.post('/api/tipo-atividade', requireAuth, tipoAtividadeController.criarTipoAtividade);
+router.put('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.atualizarTipoAtividade);
+router.delete('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.deletarTipoAtividade);
+
+// Rotas de Vinculações (CRUD completo)
+router.get('/api/vinculacoes', requireAuth, vinculacoesController.getVinculacoes);
+router.get('/api/vinculacoes/:id', requireAuth, vinculacoesController.getVinculacaoPorId);
+router.post('/api/vinculacoes', requireAuth, vinculacoesController.criarVinculacao);
+router.put('/api/vinculacoes/:id', requireAuth, vinculacoesController.atualizarVinculacao);
+router.delete('/api/vinculacoes/:id', requireAuth, vinculacoesController.deletarVinculacao);
+
+// Rotas de Vinculados (CRUD completo)
+router.get('/api/vinculados', requireAuth, vinculadosController.getVinculados);
+router.get('/api/vinculados/:id', requireAuth, vinculadosController.getVinculadoPorId);
+router.post('/api/vinculados', requireAuth, vinculadosController.criarVinculado);
+router.post('/api/vinculados/multiplos', requireAuth, vinculadosController.criarMultiplosVinculados);
+router.put('/api/vinculados/:id', requireAuth, vinculadosController.atualizarVinculado);
+router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVinculado);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
