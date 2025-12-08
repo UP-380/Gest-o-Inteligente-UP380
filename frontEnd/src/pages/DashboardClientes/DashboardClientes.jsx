@@ -9,7 +9,7 @@ import { ClientCard } from '../../components/clients';
 import DetailSideCard from '../../components/clients/DetailSideCard';
 import MiniCardLista from '../../components/dashboard/MiniCardLista';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
-import { clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI } from '../../services/api';
+import { clientesAPI, colaboradoresAPI, tarefasAPI, cacheAPI, registroTempoAPI } from '../../services/api';
 import './DashboardClientes.css';
 
 const RelatoriosClientes = () => {
@@ -1159,18 +1159,18 @@ const RelatoriosClientes = () => {
     setMiniCardPosition(null);
   }, []);
 
-  // Carregar tarefas incompletas
+  // Carregar registros de tempo sem tarefa_id (tarefas desajustadas)
   const carregarTarefasIncompletas = useCallback(async () => {
     setLoadingIncompletas(true);
     try {
-      const result = await tarefasAPI.getIncompletas();
+      const result = await registroTempoAPI.getSemTarefa();
       
       // Aceitar tanto result.data quanto result.items (compatibilidade)
-      const tarefas = result.data || result.items || [];
+      const registros = result.data || result.items || [];
       
-      setTarefasIncompletas(tarefas);
+      setTarefasIncompletas(registros);
     } catch (error) {
-      console.error('❌ Erro ao carregar tarefas incompletas:', error);
+      console.error('❌ Erro ao carregar registros sem tarefa:', error);
       setTarefasIncompletas([]);
     } finally {
       setLoadingIncompletas(false);
@@ -1202,6 +1202,52 @@ const RelatoriosClientes = () => {
     } catch {
       return <span className="missing-date">X</span>;
     }
+  }, []);
+
+  // Formatar data com horário (dia/mes/ano horário)
+  const formatarDataComHorario = useCallback((data) => {
+    if (!data) return '-';
+    try {
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return '-';
+      const dia = d.getDate().toString().padStart(2, '0');
+      const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+      const ano = d.getFullYear();
+      const horas = d.getHours().toString().padStart(2, '0');
+      const minutos = d.getMinutes().toString().padStart(2, '0');
+      const segundos = d.getSeconds().toString().padStart(2, '0');
+      return `${dia}/${mes}/${ano} ${horas}:${minutos}:${segundos}`;
+    } catch {
+      return '-';
+    }
+  }, []);
+
+  // Formatar tempo realizado no formato "H.R: Xh Ymin Zs"
+  const formatarTempoRealizado = useCallback((tempoRealizado) => {
+    if (!tempoRealizado || tempoRealizado === 0) {
+      return 'H.R: 0h 0min 0s';
+    }
+    
+    // Converter para milissegundos se necessário
+    // Se valor < 1 (decimal), está em horas -> converter para ms
+    // Se valor >= 1, já está em ms
+    let tempoMs = Number(tempoRealizado);
+    if (tempoMs < 1) {
+      tempoMs = Math.round(tempoMs * 3600000);
+    }
+    // Se resultado < 1 segundo, arredondar para 1 segundo
+    if (tempoMs > 0 && tempoMs < 1000) {
+      tempoMs = 1000;
+    }
+    
+    const horas = Math.floor(tempoMs / (1000 * 60 * 60));
+    const minutos = Math.floor((tempoMs % (1000 * 60 * 60)) / (1000 * 60));
+    const segundos = Math.floor((tempoMs % (1000 * 60)) / 1000);
+    let tempoFormatado = '';
+    if (horas > 0) tempoFormatado += `${horas}h `;
+    if (minutos > 0 || horas > 0) tempoFormatado += `${minutos}min `;
+    if (segundos > 0 || (horas === 0 && minutos === 0)) tempoFormatado += `${segundos}s`;
+    return `H.R: ${tempoFormatado.trim()}`;
   }, []);
 
   // Carregar dados iniciais
@@ -1416,66 +1462,35 @@ const RelatoriosClientes = () => {
           </>
         )}
 
-        {/* Tabela de Tarefas Incompletas */}
+        {/* Tabela de Registros de Tempo sem Tarefa */}
         {mostrarIncompletas && (
           <div className="incomplete-tasks-container" style={{ marginTop: '30px' }}>
             <div className="incomplete-tasks-card">
               <p style={{ marginBottom: '20px', color: '#666', fontSize: '14px', fontWeight: 400 }}>
-                Listando tarefas com campos faltando.
+                Listando registros de tempo sem tarefa.
               </p>
               {loadingIncompletas ? (
                 <div className="loading">
                   <i className="fas fa-spinner"></i>
-                  <p>Carregando tarefas incompletas...</p>
+                  <p>Carregando registros sem tarefa...</p>
                 </div>
               ) : tarefasIncompletas.length > 0 ? (
                 <table className="incomplete-tasks-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th>Data Fim</th>
                       <th>Data Início</th>
-                      <th>Data Vencimento</th>
-                      <th>Cliente</th>
-                      <th>Abrir</th>
+                      <th>Usuário</th>
+                      <th>Tempo Realizado</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tarefasIncompletas.map((tarefa) => (
-                      <tr key={tarefa.id}>
-                        <td className="task-id-cell">{tarefa.id}</td>
-                        <td>{formatarData(tarefa.dt_inicio, !tarefa.dt_inicio)}</td>
-                        <td>{formatarData(tarefa.dt_vencimento, !tarefa.dt_vencimento)}</td>
-                        <td>
-                          {tarefa.clientes && tarefa.clientes.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                              {tarefa.clientes.map((cliente, idx) => (
-                                <span
-                                  key={idx}
-                                  className="client-badge"
-                                >
-                                  {cliente.nome}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span style={{ color: '#94A3B8' }}>Sem cliente</span>
-                          )}
-                        </td>
-                        <td>
-                          {tarefa.url ? (
-                            <a
-                              href={tarefa.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="open-task-btn"
-                              title="Abrir em nova aba"
-                            >
-                              <i className="fas fa-external-link-alt"></i>
-                            </a>
-                          ) : (
-                            <span style={{ color: '#94A3B8' }}>-</span>
-                          )}
-                        </td>
+                    {tarefasIncompletas.map((registro) => (
+                      <tr key={registro.id}>
+                        <td>{formatarDataComHorario(registro.data_fim)}</td>
+                        <td>{formatarDataComHorario(registro.data_inicio)}</td>
+                        <td>{registro.membro_nome || (registro.usuario_id ? `ID: ${registro.usuario_id}` : '-')}</td>
+                        <td>{formatarTempoRealizado(registro.tempo_realizado)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1491,7 +1506,7 @@ const RelatoriosClientes = () => {
                   fontWeight: 500, 
                   textAlign: 'center' 
                 }}>
-                  Nenhuma tarefa incompleta encontrada
+                  Nenhum registro sem tarefa encontrado
                 </div>
               )}
             </div>
