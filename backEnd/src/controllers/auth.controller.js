@@ -8,21 +8,52 @@ const path = require('path');
 const fs = require('fs');
 
 // Configurar multer para upload de imagens
+// Usar caminho absoluto baseado na raiz do projeto ou variável de ambiente
+const getUploadPath = () => {
+  // Tentar usar variável de ambiente primeiro (útil para Docker/produção)
+  if (process.env.UPLOAD_AVATAR_PATH) {
+    return process.env.UPLOAD_AVATAR_PATH;
+  }
+  // Fallback para caminho relativo (desenvolvimento)
+  return path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+};
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
-    // Criar pasta se não existir
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    try {
+      const uploadPath = getUploadPath();
+      
+      // Criar pasta se não existir com permissões corretas
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
+        console.error('📁 Diretório de upload criado:', uploadPath);
+      }
+      
+      // Verificar se o diretório é acessível para escrita
+      try {
+        fs.accessSync(uploadPath, fs.constants.W_OK);
+      } catch (accessError) {
+        console.error('❌ Erro: Diretório sem permissão de escrita:', uploadPath);
+        return cb(new Error('Diretório de upload sem permissão de escrita'));
+      }
+      
+      cb(null, uploadPath);
+    } catch (error) {
+      console.error('❌ Erro ao configurar diretório de upload:', error);
+      cb(error);
     }
-    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Nome do arquivo: custom-{userId}-{timestamp}.{extensão}
-    const userId = req.session?.usuario?.id || 'unknown';
-    const timestamp = Date.now();
-    const ext = path.extname(file.originalname);
-    cb(null, `custom-${userId}-${timestamp}${ext}`);
+    try {
+      // Nome do arquivo: custom-{userId}-{timestamp}.{extensão}
+      const userId = req.session?.usuario?.id || 'unknown';
+      const timestamp = Date.now();
+      const ext = path.extname(file.originalname);
+      cb(null, `custom-${userId}-${timestamp}${ext}`);
+    } catch (error) {
+      console.error('❌ Erro ao gerar nome do arquivo:', error);
+      cb(error);
+    }
   }
 });
 
@@ -501,9 +532,14 @@ async function updateProfile(req, res) {
 }
 
 async function uploadAvatar(req, res) {
+  let uploadedFilePath = null;
+  
   try {
+    console.error('📤 Iniciando upload de avatar...');
+    
     // Verificar se o usuário está autenticado
     if (!req.session || !req.session.usuario) {
+      console.error('❌ Upload negado: usuário não autenticado');
       return res.status(401).json({
         success: false,
         error: 'Acesso negado. Faça login primeiro.'
@@ -511,11 +547,26 @@ async function uploadAvatar(req, res) {
     }
 
     const userId = req.session.usuario.id;
+    console.error(`👤 Upload para usuário ID: ${userId}`);
 
     if (!req.file) {
+      console.error('❌ Upload negado: nenhum arquivo enviado');
       return res.status(400).json({
         success: false,
         error: 'Nenhuma imagem foi enviada'
+      });
+    }
+
+    console.error(`📁 Arquivo recebido: ${req.file.originalname} (${req.file.size} bytes)`);
+    console.error(`📂 Caminho salvo: ${req.file.path}`);
+
+    // Verificar se o arquivo foi realmente salvo
+    uploadedFilePath = req.file.path;
+    if (!fs.existsSync(uploadedFilePath)) {
+      console.error('❌ Erro: Arquivo não foi salvo corretamente:', uploadedFilePath);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar arquivo no servidor'
       });
     }
 
@@ -525,6 +576,8 @@ async function uploadAvatar(req, res) {
     // ID único para a imagem customizada
     const customAvatarId = `custom-${userId}`;
 
+    console.error('🔍 Buscando dados do usuário no banco...');
+    
     // NÃO atualizar o banco de dados aqui - apenas salvar o arquivo
     // A atualização do banco será feita quando o usuário clicar em "Salvar Alterações"
     // Buscar dados do usuário apenas para retornar na resposta
@@ -536,19 +589,26 @@ async function uploadAvatar(req, res) {
       .maybeSingle();
 
     if (userError) {
+      console.error('❌ Erro ao buscar usuário:', userError);
+      
       // Se der erro ao buscar usuário, deletar a imagem enviada
-      const filePath = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
+        try {
+          fs.unlinkSync(uploadedFilePath);
+          console.error('🗑️ Arquivo deletado devido a erro no banco');
+        } catch (unlinkError) {
+          console.error('⚠️ Erro ao deletar arquivo:', unlinkError);
+        }
       }
       
-      console.error('Erro ao buscar usuário:', userError);
       return res.status(500).json({
         success: false,
         error: 'Erro ao processar upload',
         details: userError.message
       });
     }
+
+    console.error('✅ Upload concluído com sucesso');
 
     // Retornar dados com o ID do avatar customizado (mas sem atualizar o banco ainda)
     res.json({
@@ -561,20 +621,32 @@ async function uploadAvatar(req, res) {
       imagePath: imagePath
     });
   } catch (error) {
-    console.error('Erro inesperado ao fazer upload de avatar:', error);
+    console.error('❌ Erro inesperado ao fazer upload de avatar:', error);
+    console.error('Stack trace:', error.stack);
     
     // Deletar arquivo se foi criado
-    if (req.file) {
-      const filePath = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
+      try {
+        fs.unlinkSync(uploadedFilePath);
+        console.error('🗑️ Arquivo deletado devido a erro');
+      } catch (unlinkError) {
+        console.error('⚠️ Erro ao deletar arquivo:', unlinkError);
+      }
+    } else if (req.file && req.file.path) {
+      // Fallback: tentar deletar usando req.file.path
+      try {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (unlinkError) {
+        console.error('⚠️ Erro ao deletar arquivo (fallback):', unlinkError);
       }
     }
     
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
-      details: error.message
+      details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
 }
@@ -589,7 +661,7 @@ async function getCustomAvatarPath(req, res) {
     }
 
     const userId = req.session.usuario.id;
-    const customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+    const customDir = getUploadPath();
     
     if (!fs.existsSync(customDir)) {
       return res.json({

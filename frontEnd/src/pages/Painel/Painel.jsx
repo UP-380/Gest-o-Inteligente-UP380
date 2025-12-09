@@ -25,19 +25,39 @@ const Painel = () => {
       ]
     },
     {
-      id: 'gestao',
-      title: 'Gestão',
-      icon: 'fa-briefcase',
+      id: 'cadastros',
+      title: 'Cadastros',
+      icon: 'fa-database',
       items: [
         {
-          label: 'Gestão de Clientes',
-          path: '/gestao-clientes',
+          label: 'Clientes',
+          path: '/cadastro/clientes',
           icon: 'fa-briefcase'
         },
         {
-          label: 'Gestão de Colaboradores',
-          path: '/gestao-colaboradores',
+          label: 'Colaboradores',
+          path: '/cadastro/colaboradores',
           icon: 'fa-user-cog'
+        },
+        {
+          label: 'Atividades',
+          path: '/cadastro/atividades',
+          icon: 'fa-tasks'
+        },
+        {
+          label: 'Produtos',
+          path: '/cadastro/produtos',
+          icon: 'fa-box'
+        },
+        {
+          label: 'Tipo de Atividades',
+          path: '/cadastro/tipo-atividades',
+          icon: 'fa-list-alt'
+        },
+        {
+          label: 'Vinculações',
+          path: '/cadastro/vinculacoes',
+          icon: 'fa-link'
         }
       ]
     },
@@ -48,35 +68,8 @@ const Painel = () => {
       items: [
         {
           label: 'Custo Colaborador',
-          path: '/configuracoes/custo-colaborador',
+          path: '/cadastro/custo-colaborador',
           icon: 'fa-dollar-sign'
-        }
-      ]
-    },
-    {
-      id: 'referencias',
-      title: 'Gestão de Referências',
-      icon: 'fa-database',
-      items: [
-        {
-          label: 'Atividades',
-          path: '/catalogo/atividades',
-          icon: 'fa-tasks'
-        },
-        {
-          label: 'Produtos',
-          path: '/catalogo/produtos',
-          icon: 'fa-box'
-        },
-        {
-          label: 'Tipo de Atividades',
-          path: '/catalogo/tipo-atividades',
-          icon: 'fa-list-alt'
-        },
-        {
-          label: 'Vinculações',
-          path: '/catalogo/vinculacoes',
-          icon: 'fa-link'
         }
       ]
     }

@@ -279,11 +279,11 @@ export const clientesAPI = {
   },
 
   /**
-   * Busca clientes paginados para gestão
+   * Busca clientes paginados para cadastro
    * @param {Object} params - { page, limit, search, status, incompletos }
    */
   async getPaginated({ page = 1, limit = 20, search = null, status = null, incompletos = false }) {
-    let url = `${API_BASE_URL}/gestao-clientes?page=${page}&limit=${limit}`;
+    let url = `${API_BASE_URL}/cadastro/clientes?page=${page}&limit=${limit}`;
     
     if (search && search.trim() !== '') {
       url += `&search=${encodeURIComponent(search.trim())}`;

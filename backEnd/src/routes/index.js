@@ -4,6 +4,7 @@
 
 const express = require('express');
 const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { requireAuth } = require('../middleware/auth');
 const authController = require('../controllers/auth.controller');
@@ -28,14 +29,43 @@ router.post('/api/login', authController.login);
 router.post('/api/logout', authController.logout);
 router.get('/api/auth/check', authController.checkAuth);
 router.put('/api/auth/profile', requireAuth, authController.updateProfile);
-router.post('/api/auth/upload-avatar', requireAuth, authController.upload.single('avatar'), authController.uploadAvatar);
+// Middleware para tratar erros do multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        error: 'Arquivo muito grande. Tamanho máximo: 15MB'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      error: `Erro no upload: ${err.message}`
+    });
+  } else if (err) {
+    return res.status(400).json({
+      success: false,
+      error: err.message || 'Erro ao processar arquivo'
+    });
+  }
+  next();
+};
+
+router.post('/api/auth/upload-avatar', 
+  requireAuth, 
+  authController.upload.single('avatar'),
+  handleMulterError,
+  authController.uploadAvatar
+);
 router.get('/api/auth/custom-avatar-path', requireAuth, authController.getCustomAvatarPath);
 
 // Rotas de clientes
 router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKamino);
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 router.get('/api/carteira-clientes', requireAuth, clientesController.getCarteiraClientes);
-router.get('/api/gestao-clientes', requireAuth, clientesController.getCarteiraClientes);
+router.get('/api/cadastro/clientes', requireAuth, clientesController.getCarteiraClientes);
+router.get('/api/cadastro-clientes', requireAuth, clientesController.getCarteiraClientes); // Mantido para compatibilidade
+router.get('/api/gestao-clientes', requireAuth, clientesController.getCarteiraClientes); // Mantido para compatibilidade
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.put('/api/clientes/:id/inativar', requireAuth, clientesController.inativarCliente);
 router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCliente);
@@ -245,9 +275,26 @@ router.get('/painel', requireAuth, (req, res) => {
 router.get('/carteira-clientes', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 });
-router.get('/gestao-clientes', requireAuth, (req, res) => {
+router.get('/cadastro/clientes', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 });
+router.get('/cadastro-clientes', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+}); // Mantido para compatibilidade
+router.get('/gestao-clientes', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+}); // Mantido para compatibilidade
+
+// Rota para a página de colaboradores - COM autenticação
+router.get('/cadastro/colaboradores', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+});
+router.get('/cadastro-colaboradores', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+}); // Mantido para compatibilidade
+router.get('/gestao-colaboradores', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+}); // Mantido para compatibilidade
 
 module.exports = router;
 
