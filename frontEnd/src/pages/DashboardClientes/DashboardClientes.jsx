@@ -1257,7 +1257,9 @@ const RelatoriosClientes = () => {
     cacheAPI.remove('api_cache_colaboradores_all');
     carregarClientes();
     carregarColaboradores();
-  }, [carregarClientes, carregarColaboradores]);
+    // Carregar tarefas incompletas no início para exibir o badge
+    carregarTarefasIncompletas();
+  }, [carregarClientes, carregarColaboradores, carregarTarefasIncompletas]);
 
   // Recarregar dados quando a página, itens por página ou mostrarInativos mudarem (apenas se filtros já foram aplicados)
   // IMPORTANTE: Usar um único useEffect com todas as dependências para evitar múltiplos carregamentos
