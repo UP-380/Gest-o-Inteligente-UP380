@@ -42,7 +42,7 @@ const UserProfile = () => {
         return JSON.parse(usuarioStorage);
       }
     } catch (error) {
-      console.error('Erro ao ler dados do usuário:', error);
+      // Erro silencioso ao ler dados do localStorage
     }
     
     return null;
@@ -54,17 +54,15 @@ const UserProfile = () => {
     return null;
   }
 
-  // Debug: log do foto_perfil do usuário
-  if (process.env.NODE_ENV === 'development') {
-    console.log('👤 UserProfile - foto_perfil do usuário:', userData.foto_perfil);
-  }
-
   // Obter nome de exibição
   const getDisplayName = () => {
     return userData.nome_usuario || userData.email_usuario || 'Usuário';
   };
 
-  // Buscar caminho da imagem do avatar apenas se necessário
+  // State para controlar se já tentamos buscar o avatar (evitar loops)
+  const [hasTriedFetchAvatar, setHasTriedFetchAvatar] = useState(false);
+
+  // Buscar caminho da imagem do avatar apenas se necessário (APENAS UMA VEZ)
   useEffect(() => {
     if (!userData) return;
 
@@ -81,8 +79,9 @@ const UserProfile = () => {
       return;
     }
     
-    // Se for avatar customizado sem caminho, buscar via API
-    if (userData.foto_perfil && userData.foto_perfil.startsWith('custom-')) {
+    // Se for avatar customizado sem caminho, buscar via API (APENAS UMA VEZ)
+    if (userData.foto_perfil && userData.foto_perfil.startsWith('custom-') && !hasTriedFetchAvatar) {
+      setHasTriedFetchAvatar(true); // Marcar que já tentamos
       const fetchAvatarPath = async () => {
         try {
           const result = await authAPI.getCustomAvatarPath();
@@ -90,12 +89,12 @@ const UserProfile = () => {
             setAvatarImagePath(result.imagePath);
           }
         } catch (error) {
-          console.error('Erro ao buscar caminho do avatar:', error);
+          // Erro silencioso - avatar customizado não disponível
         }
       };
       fetchAvatarPath();
     }
-  }, [userData]);
+  }, [userData?.foto_perfil, userData?.foto_perfil_path]); // Usar apenas propriedades específicas, não o objeto inteiro
 
   const handleAvatarClick = (e) => {
     e.stopPropagation(); // Evitar fechar o menu
@@ -197,8 +196,13 @@ const UserProfile = () => {
               alt={getDisplayName()}
               className="avatar-expand-modal-image"
               onError={(e) => {
-                e.target.style.display = 'none';
+                // Prevenir tentativas repetidas
+                if (!e.target.hasAttribute('data-error-handled')) {
+                  e.target.setAttribute('data-error-handled', 'true');
+                  e.target.style.display = 'none';
+                }
               }}
+              loading="lazy"
             />
             <div className="avatar-expand-modal-info">
               <div className="avatar-expand-modal-name">{getDisplayName()}</div>

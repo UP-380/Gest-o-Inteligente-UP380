@@ -15,7 +15,7 @@ async function getConfigCustoColaborador(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('config_custo_membro')
-      .select('id, created_at, updated_at, vigencia, dias_uteis, fgts, ferias, terco_ferias, decimo_terceiro, vale_transporte, vale_alimentacao', { count: 'exact' });
+      .select('id, created_at, updated_at, vigencia, dias_uteis, fgts, ferias, terco_ferias, decimo_terceiro, inss_patronal, vale_transporte, vale_alimentacao', { count: 'exact' });
     
     query = query.order('vigencia', { ascending: false });
 
@@ -138,6 +138,7 @@ async function criarConfigCustoColaborador(req, res) {
       ferias,
       terco_ferias,
       decimo_terceiro,
+      inss_patronal,
       vale_transporte,
       vale_alimentacao
     } = req.body;
@@ -174,6 +175,7 @@ async function criarConfigCustoColaborador(req, res) {
       ferias: toNumberOrNull(ferias),
       terco_ferias: toNumberOrNull(terco_ferias),
       decimo_terceiro: toNumberOrNull(decimo_terceiro),
+      inss_patronal: toNumberOrNull(inss_patronal),
       vale_transporte: toNumberOrNull(vale_transporte),
       vale_alimentacao: toNumberOrNull(vale_alimentacao)
     };
@@ -221,6 +223,7 @@ async function atualizarConfigCustoColaborador(req, res) {
       ferias,
       terco_ferias,
       decimo_terceiro,
+      inss_patronal,
       vale_transporte,
       vale_alimentacao
     } = req.body;
@@ -284,6 +287,7 @@ async function atualizarConfigCustoColaborador(req, res) {
     if (ferias !== undefined) dadosUpdate.ferias = toNumberOrNull(ferias);
     if (terco_ferias !== undefined) dadosUpdate.terco_ferias = toNumberOrNull(terco_ferias);
     if (decimo_terceiro !== undefined) dadosUpdate.decimo_terceiro = toNumberOrNull(decimo_terceiro);
+    if (inss_patronal !== undefined) dadosUpdate.inss_patronal = toNumberOrNull(inss_patronal);
     if (vale_transporte !== undefined) dadosUpdate.vale_transporte = toNumberOrNull(vale_transporte);
     if (vale_alimentacao !== undefined) dadosUpdate.vale_alimentacao = toNumberOrNull(vale_alimentacao);
 

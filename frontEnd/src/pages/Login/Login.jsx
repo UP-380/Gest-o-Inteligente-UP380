@@ -47,7 +47,6 @@ const Login = () => {
         setLoading(false);
       }
     } catch (error) {
-      console.error('Erro no login:', error);
       showToast('error', 'Erro de conexão. Tente novamente.');
       setShake(true);
       setTimeout(() => setShake(false), 300);
