@@ -46,8 +46,9 @@ RUN addgroup -g 1001 -S nodejs && \
 # Copiar código fonte do backend
 COPY backEnd/ ./
 
-# Criar diretório de logs e dar permissão
+# Criar diretórios necessários e dar permissões
 RUN mkdir -p /app/logs && \
+    mkdir -p /app/frontEnd/public/assets/images/avatars/custom && \
     chown -R nodejs:nodejs /app
 
 # Mudar para usuário não-root

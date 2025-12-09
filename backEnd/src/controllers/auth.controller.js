@@ -14,7 +14,14 @@ const getUploadPath = () => {
   if (process.env.UPLOAD_AVATAR_PATH) {
     return process.env.UPLOAD_AVATAR_PATH;
   }
-  // Fallback para caminho relativo (desenvolvimento)
+  
+  // Em produção (Docker), usar caminho absoluto baseado no WORKDIR /app
+  if (process.env.NODE_ENV === 'production') {
+    // No Docker, o WORKDIR é /app, então o caminho deve ser absoluto
+    return '/app/frontEnd/public/assets/images/avatars/custom';
+  }
+  
+  // Fallback para caminho relativo (desenvolvimento local)
   return path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
 };
 
@@ -22,24 +29,41 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     try {
       const uploadPath = getUploadPath();
+      console.error('📂 Tentando usar caminho de upload:', uploadPath);
       
       // Criar pasta se não existir com permissões corretas
       if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
-        console.error('📁 Diretório de upload criado:', uploadPath);
+        try {
+          fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
+          console.error('📁 Diretório de upload criado:', uploadPath);
+        } catch (mkdirError) {
+          console.error('❌ Erro ao criar diretório:', mkdirError);
+          console.error('   Caminho:', uploadPath);
+          console.error('   Erro:', mkdirError.message);
+          console.error('   Code:', mkdirError.code);
+          
+          // Se for erro de permissão, dar mensagem mais clara
+          if (mkdirError.code === 'EACCES' || mkdirError.code === 'EPERM') {
+            return cb(new Error(`Sem permissão para criar diretório: ${uploadPath}. Verifique as permissões do volume Docker.`));
+          }
+          return cb(mkdirError);
+        }
       }
       
       // Verificar se o diretório é acessível para escrita
       try {
         fs.accessSync(uploadPath, fs.constants.W_OK);
+        console.error('✅ Diretório acessível para escrita:', uploadPath);
       } catch (accessError) {
         console.error('❌ Erro: Diretório sem permissão de escrita:', uploadPath);
-        return cb(new Error('Diretório de upload sem permissão de escrita'));
+        console.error('   Erro:', accessError.message);
+        return cb(new Error(`Diretório sem permissão de escrita: ${uploadPath}. Verifique as permissões do volume Docker.`));
       }
       
       cb(null, uploadPath);
     } catch (error) {
       console.error('❌ Erro ao configurar diretório de upload:', error);
+      console.error('   Stack:', error.stack);
       cb(error);
     }
   },
