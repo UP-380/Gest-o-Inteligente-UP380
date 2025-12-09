@@ -59,5 +59,12 @@
 .filter-group-disabled-wrapper .filter-label {
   opacity: 0.5;
   color: #9ca3af;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+/* Quando o período está preenchido (sem has-tooltip), o label volta à cor normal */
+.filter-group-disabled-wrapper:not(.has-tooltip) .filter-label {
+  opacity: 1;
+  color: #495057;
 }
 
