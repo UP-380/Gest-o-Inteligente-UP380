@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { Link, useLocation } from 'react-router-dom';
 import './Sidebar.css';
 
 const Sidebar = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { logout } = useAuth();
   const [relatoriosExpanded, setRelatoriosExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
@@ -60,11 +57,6 @@ const Sidebar = () => {
       setConfiguracoesExpanded(true);
     }
   }, [location.pathname]);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   const toggleRelatorios = (e) => {
     e.preventDefault();
@@ -254,17 +246,6 @@ const Sidebar = () => {
             ))}
           </div>
         </div>
-
-        <button
-          type="button"
-          className="sidebar-item"
-          title="Sair"
-          onClick={handleLogout}
-          style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-        >
-          <i className="fas fa-sign-out-alt"></i>
-          <span className="sidebar-text">Sair</span>
-        </button>
       </div>
     </nav>
   );

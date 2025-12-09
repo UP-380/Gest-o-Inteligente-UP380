@@ -31,7 +31,7 @@ const storage = multer.diskStorage({
       const uploadPath = getUploadPath();
       console.error('📂 Tentando usar caminho de upload:', uploadPath);
       
-      // Criar pasta se não existir com permissões corretas
+      // Criar pasta se não existir com permissões corretas (755 = rwxr-xr-x)
       if (!fs.existsSync(uploadPath)) {
         try {
           fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
@@ -592,6 +592,15 @@ async function uploadAvatar(req, res) {
         success: false,
         error: 'Erro ao salvar arquivo no servidor'
       });
+    }
+
+    // Ajustar permissões do arquivo para que nginx possa ler (644 = rw-r--r--)
+    try {
+      fs.chmodSync(uploadedFilePath, 0o644);
+      console.error('✅ Permissões do arquivo ajustadas para leitura pública');
+    } catch (chmodError) {
+      console.error('⚠️ Aviso: Não foi possível ajustar permissões do arquivo:', chmodError.message);
+      // Não falhar o upload por causa disso, apenas avisar
     }
 
     // Caminho relativo da imagem (acessível pelo frontend)

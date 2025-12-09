@@ -46,6 +46,12 @@ services:
       - ./frontEnd/dist:/usr/share/nginx/html:ro
       - upgi-uploads:/usr/share/nginx/html/assets/images/avatars/custom
       - upgi-logs:/var/log/nginx
+    entrypoint: >
+      sh -c "
+      mkdir -p /usr/share/nginx/html/assets/images/avatars/custom &&
+      chmod -R 755 /usr/share/nginx/html/assets/images/avatars/custom &&
+      exec nginx -g 'daemon off;'
+      "
     depends_on:
       - upgi-app
     networks:

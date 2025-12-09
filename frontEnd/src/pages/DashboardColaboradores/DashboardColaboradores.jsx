@@ -938,7 +938,7 @@ const RelatoriosColaboradores = () => {
               }}
             >
               <i className="fas fa-briefcase"></i>
-              Gestão Colaboradores
+              Cadastro Colaboradores
             </button>
           </div>
         </div>
