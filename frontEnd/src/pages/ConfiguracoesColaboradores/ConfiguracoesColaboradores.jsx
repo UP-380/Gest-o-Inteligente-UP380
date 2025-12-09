@@ -196,6 +196,7 @@ const GestaoColaboradores = () => {
     { key: 'terco_ferias', label: '1/3 Férias' },
     { key: 'decimoterceiro', label: '13º Salário' },
     { key: 'fgts', label: 'FGTS' },
+    { key: 'inss_patronal', label: 'INSS Patronal' },
     { key: 'horas_mensal', label: 'Horas Mensal' },
     { key: 'descricao', label: 'Descrição' }
   ]);
@@ -1187,6 +1188,10 @@ const GestaoColaboradores = () => {
         return vigencia.decimoterceiro ? `R$ ${formatarMoeda(vigencia.decimoterceiro)}` : '-';
       case 'fgts':
         return vigencia.fgts ? `R$ ${formatarMoeda(vigencia.fgts)}` : '-';
+      case 'inss_patronal':
+        // Verifica tanto inss_patronal quanto insspatronal para compatibilidade
+        const inssPatronal = vigencia.inss_patronal || vigencia.insspatronal;
+        return inssPatronal ? `R$ ${formatarMoeda(inssPatronal)}` : '-';
       case 'horas_mensal':
         return vigencia.horas_mensal || '-';
       case 'descricao':
@@ -2356,6 +2361,22 @@ const GestaoColaboradores = () => {
                         />
                       </div>
 
+                      <div className="form-group">
+                        <label className="form-label-small">INSS Patronal</label>
+                        <input
+                          type="text"
+                          className="form-input-small"
+                          value={vigenciaEditFormData.insspatronal || '0'}
+                          readOnly
+                          style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+                          placeholder="0,00"
+                          disabled={submittingVigenciaHook}
+                          title="Calculado automaticamente"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row-vigencia">
                       <div className="form-group">
                         <label className="form-label-small">Custo Hora</label>
                         {vigenciaEditFormData.tipo_contrato === '2' ? (

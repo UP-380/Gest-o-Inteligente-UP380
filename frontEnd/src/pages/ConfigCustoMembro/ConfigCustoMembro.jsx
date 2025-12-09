@@ -3,6 +3,7 @@ import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import CardContainer from '../../components/common/CardContainer';
 import { useToast } from '../../hooks/useToast';
+import DatePicker from '../../components/vigencia/DatePicker';
 import './ConfigCustoMembro.css';
 
 const API_BASE_URL = '/api';
@@ -80,6 +81,14 @@ const ConfigCustoMembro = () => {
     const { id, created_at, updated_at, ...rest } = item;
     // Formatar data de vigência para o input
     const formData = { ...rest };
+    
+    // Compatibilidade: se inss_patronal não existir mas insspatronal existir, usar insspatronal
+    if (formData.inss_patronal === null || formData.inss_patronal === undefined) {
+      if (item.insspatronal !== null && item.insspatronal !== undefined) {
+        formData.inss_patronal = item.insspatronal;
+      }
+    }
+    
     if (formData.vigencia) {
       // Converter data ISO para formato YYYY-MM-DD (formato do input type="date")
       let dateOnly = formData.vigencia;
@@ -97,8 +106,11 @@ const ConfigCustoMembro = () => {
             // Para números inteiros (dias_uteis), não adicionar casas decimais
             if (campo.type === 'number') {
               formData[campo.key] = Math.round(valor).toString();
+            } else if (campo.type === 'percent') {
+              // Exibir porcentagem com 2 casas decimais e %
+              formData[campo.key] = valor.toFixed(2).replace('.', ',') + '%';
             } else {
-              // Exibir com 2 casas decimais (porcentagem ou valor monetário)
+              // Exibir com 2 casas decimais (valor monetário)
               formData[campo.key] = valor.toFixed(2).replace('.', ',');
             }
           } else {
@@ -160,7 +172,12 @@ const ConfigCustoMembro = () => {
           
           // Verificar se o valor existe e não é vazio
           if (valorOriginal !== null && valorOriginal !== undefined && valorOriginal !== '') {
-            valorLimpo = String(valorOriginal).replace(',', '.');
+            // Remover % se for campo percentual
+            if (campo.type === 'percent') {
+              valorLimpo = String(valorOriginal).replace(/%/g, '').trim().replace(',', '.');
+            } else {
+              valorLimpo = String(valorOriginal).replace(',', '.');
+            }
           }
           
           // Se o valor estiver vazio, definir como null
@@ -342,6 +359,13 @@ const ConfigCustoMembro = () => {
       description: 'Porcentagem do 13º salário sobre o salário base (ex: 100 para 100%)'
     },
     { 
+      key: 'inss_patronal', 
+      label: 'INSS Patronal (%)', 
+      type: 'percent', 
+      required: false,
+      description: 'Porcentagem do INSS Patronal sobre o salário base (ex: 20 para 20%)'
+    },
+    { 
       key: 'vale_transporte', 
       label: 'Vale Transporte (R$/dia)', 
       type: 'currency', 
@@ -438,10 +462,17 @@ const ConfigCustoMembro = () => {
                               fontSize: '0.875rem'
                             }}
                           >
-                            {campo.type === 'date' && item[campo.key]
-                              ? (() => {
+                            {(() => {
+                                // Buscar valor do campo (suporta múltiplos nomes para compatibilidade)
+                                let valor = item[campo.key];
+                                // Para inss_patronal, verificar também insspatronal (sem underscore)
+                                if (campo.key === 'inss_patronal' && (valor === null || valor === undefined)) {
+                                  valor = item.insspatronal;
+                                }
+                                
+                                if (campo.type === 'date' && valor) {
                                   // Formatar data usando a mesma lógica do input
-                                  const dateStr = item[campo.key];
+                                  const dateStr = valor;
                                   if (!dateStr) return '-';
                                   // Extrair apenas a parte YYYY-MM-DD da string ISO (mesma lógica do input)
                                   let dateOnly = dateStr;
@@ -457,16 +488,18 @@ const ConfigCustoMembro = () => {
                                   const date = new Date(dateStr);
                                   if (isNaN(date.getTime())) return '-';
                                   return date.toISOString().split('T')[0].split('-').reverse().join('/');
-                                })()
-                              : campo.type === 'number' && (item[campo.key] !== null && item[campo.key] !== undefined)
-                              ? Math.round(parseFloat(item[campo.key])).toString()
-                              : campo.type === 'percent' && (item[campo.key] !== null && item[campo.key] !== undefined)
-                              ? `${parseFloat(item[campo.key]).toFixed(2).replace('.', ',')}%`
-                              : campo.type === 'currency' && (item[campo.key] !== null && item[campo.key] !== undefined)
-                              ? `R$ ${parseFloat(item[campo.key]).toFixed(2).replace('.', ',')}`
-                              : item[campo.key] !== null && item[campo.key] !== undefined
-                              ? String(item[campo.key])
-                              : '-'}
+                                } else if (campo.type === 'number' && (valor !== null && valor !== undefined)) {
+                                  return Math.round(parseFloat(valor)).toString();
+                                } else if (campo.type === 'percent' && (valor !== null && valor !== undefined)) {
+                                  return `${parseFloat(valor).toFixed(2).replace('.', ',')}%`;
+                                } else if (campo.type === 'currency' && (valor !== null && valor !== undefined)) {
+                                  return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
+                                } else if (valor !== null && valor !== undefined) {
+                                  return String(valor);
+                                } else {
+                                  return '-';
+                                }
+                              })()}
                           </td>
                         ))}
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>
@@ -561,10 +594,7 @@ const ConfigCustoMembro = () => {
                           <label className="form-label-small">
                             Vigência <span className="required">*</span>
                           </label>
-                          <input
-                            type="date"
-                            lang="pt-BR"
-                            className={`form-input-small ${formErrors.vigencia ? 'error' : ''}`}
+                          <DatePicker
                             value={formData.vigencia || ''}
                             onChange={(e) => {
                               setFormData({ ...formData, vigencia: e.target.value });
@@ -573,10 +603,7 @@ const ConfigCustoMembro = () => {
                               }
                             }}
                             disabled={submitting}
-                            required
-                            style={{
-                              colorScheme: 'light'
-                            }}
+                            error={!!formErrors.vigencia}
                           />
                           {formErrors.vigencia && (
                             <span className="error-message">{formErrors.vigencia}</span>
@@ -625,8 +652,35 @@ const ConfigCustoMembro = () => {
                                       setFormData({ ...formData, [campo.key]: '' });
                                     }
                                   }
+                                } else if (campo.type === 'percent') {
+                                  // Máscara de porcentagem: permite números, vírgula/ponto e %
+                                  let valor = e.target.value;
+                                  // Remover % do final se existir
+                                  valor = valor.replace(/%/g, '').trim();
+                                  // Permitir apenas números e vírgula/ponto
+                                  valor = valor.replace(/[^\d,.]/g, '').replace(',', '.');
+                                  
+                                  // Limitar a 2 casas decimais
+                                  const partes = valor.split('.');
+                                  if (partes.length > 1) {
+                                    valor = partes[0] + '.' + partes[1].substring(0, 2);
+                                  }
+                                  
+                                  // Permitir valores vazios ou números válidos
+                                  if (valor === '' || valor === '.') {
+                                    setFormData({ ...formData, [campo.key]: '' });
+                                  } else {
+                                    const num = parseFloat(valor);
+                                    if (!isNaN(num)) {
+                                      // Converter ponto para vírgula e adicionar %
+                                      const valorFormatado = valor.replace('.', ',') + '%';
+                                      setFormData({ ...formData, [campo.key]: valorFormatado });
+                                    } else if (valor === '') {
+                                      setFormData({ ...formData, [campo.key]: '' });
+                                    }
+                                  }
                                 } else {
-                                  // Permitir apenas números e vírgula/ponto para decimais
+                                  // Para currency: permitir apenas números e vírgula/ponto para decimais
                                   let valor = e.target.value.replace(/[^\d,.]/g, '').replace(',', '.');
                                   
                                   // Limitar a 2 casas decimais
@@ -654,7 +708,7 @@ const ConfigCustoMembro = () => {
                                   setFormErrors({ ...formErrors, [campo.key]: '' });
                                 }
                               }}
-                              placeholder={campo.type === 'number' ? 'Ex: 22' : campo.type === 'currency' ? '0,00' : '0,00'}
+                              placeholder={campo.type === 'number' ? 'Ex: 22' : campo.type === 'currency' ? '0,00' : campo.type === 'percent' ? '0,00%' : '0,00'}
                               disabled={submitting}
                               required={campo.required}
                               title={campo.description}
