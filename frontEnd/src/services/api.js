@@ -180,6 +180,59 @@ export const authAPI = {
       credentials: 'include',
     });
     return await response.json();
+  },
+
+  /**
+   * Atualiza o perfil do usuário
+   * @param {Object} dados - { nome_usuario?, senha_login? }
+   */
+  async updateProfile(dados) {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(dados),
+    });
+    return await response.json();
+  },
+
+  /**
+   * Faz upload de uma foto de perfil personalizada
+   */
+  async uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const response = await fetch(`${API_BASE_URL}/auth/upload-avatar`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erro ao fazer upload' }));
+      throw new Error(error.error || 'Erro ao fazer upload da imagem');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Busca o caminho da imagem customizada do usuário
+   */
+  async getCustomAvatarPath() {
+    const response = await fetch(`${API_BASE_URL}/auth/custom-avatar-path`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      return { success: false, imagePath: null };
+    }
+
+    return await response.json();
   }
 };
 

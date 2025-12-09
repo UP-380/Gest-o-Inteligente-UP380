@@ -27,6 +27,9 @@ apiClientes.registrarRotasAPI(router, requireAuth);
 router.post('/api/login', authController.login);
 router.post('/api/logout', authController.logout);
 router.get('/api/auth/check', authController.checkAuth);
+router.put('/api/auth/profile', requireAuth, authController.updateProfile);
+router.post('/api/auth/upload-avatar', requireAuth, authController.upload.single('avatar'), authController.uploadAvatar);
+router.get('/api/auth/custom-avatar-path', requireAuth, authController.getCustomAvatarPath);
 
 // Rotas de clientes
 router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKamino);

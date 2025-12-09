@@ -67,3 +67,18 @@
   opacity: 0.8;
 }
 
+.status-toggle-minimal.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status-toggle-minimal.disabled .toggle-slider-minimal {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.toggle-input-minimal:disabled + .toggle-slider-minimal {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
