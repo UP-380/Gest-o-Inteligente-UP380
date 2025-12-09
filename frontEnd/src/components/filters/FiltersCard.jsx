@@ -14,6 +14,7 @@ import './FiltersCard.css';
  * @param {string} props.applyLabel - Label do botão Aplicar (padrão: "Aplicar Filtros")
  * @param {string} props.clearLabel - Label do botão Limpar (padrão: "Limpar Filtros")
  * @param {string} props.className - Classes CSS adicionais
+ * @param {boolean} props.showInfoMessage - Se deve mostrar a mensagem informativa (padrão: false)
  */
 const FiltersCard = ({
   children,
@@ -24,13 +25,16 @@ const FiltersCard = ({
   hasPendingChanges = false,
   applyLabel = 'Aplicar Filtros',
   clearLabel = 'Limpar Filtros',
-  className = ''
+  className = '',
+  showInfoMessage = false
 }) => {
   return (
     <div className={`exposed-filters-section ${className}`}>
-      <div className="filter-info-message">
-        O primeiro filtro selecionado será usado para agrupar os resultados.
-      </div>
+      {showInfoMessage && (
+        <div className="filter-info-message">
+          O primeiro filtro selecionado será usado para agrupar os resultados.
+        </div>
+      )}
       <div className="filters-row">
         {children}
       </div>

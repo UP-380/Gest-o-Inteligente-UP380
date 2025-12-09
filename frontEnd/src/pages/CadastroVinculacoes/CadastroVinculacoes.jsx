@@ -439,6 +439,7 @@ const CadastroVinculacoes = () => {
                 showActions={true}
                 loading={loading}
                 hasPendingChanges={hasPendingChanges()}
+                showInfoMessage={true}
               >
                 <div className="filter-group">
                   <div className={`filtro-pai-wrapper ${isFiltroPai('produto') ? 'has-tooltip' : ''}`}>
