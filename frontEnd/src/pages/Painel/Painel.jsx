@@ -1,100 +1,125 @@
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
-import '../../styles/global.css';
+import './Painel.css';
 
 const Painel = () => {
   const navigate = useNavigate();
 
-  const navigateToClientes = () => {
-    navigate('/relatorios-clientes');
-  };
+  const menuSections = [
+    {
+      id: 'relatorios',
+      title: 'Relatórios',
+      icon: 'fa-file-alt',
+      items: [
+        {
+          label: 'Relatórios de Clientes',
+          path: '/relatorios-clientes',
+          icon: 'fa-users'
+        },
+        {
+          label: 'Relatórios de Colaboradores',
+          path: '/relatorios-colaboradores',
+          icon: 'fa-user-tie'
+        }
+      ]
+    },
+    {
+      id: 'gestao',
+      title: 'Gestão',
+      icon: 'fa-briefcase',
+      items: [
+        {
+          label: 'Gestão de Clientes',
+          path: '/gestao-clientes',
+          icon: 'fa-briefcase'
+        },
+        {
+          label: 'Gestão de Colaboradores',
+          path: '/gestao-colaboradores',
+          icon: 'fa-user-cog'
+        }
+      ]
+    },
+    {
+      id: 'configuracoes',
+      title: 'Configurações',
+      icon: 'fa-cog',
+      items: [
+        {
+          label: 'Custo Colaborador',
+          path: '/configuracoes/custo-colaborador',
+          icon: 'fa-dollar-sign'
+        }
+      ]
+    },
+    {
+      id: 'referencias',
+      title: 'Gestão de Referências',
+      icon: 'fa-database',
+      items: [
+        {
+          label: 'Atividades',
+          path: '/catalogo/atividades',
+          icon: 'fa-tasks'
+        },
+        {
+          label: 'Produtos',
+          path: '/catalogo/produtos',
+          icon: 'fa-box'
+        },
+        {
+          label: 'Tipo de Atividades',
+          path: '/catalogo/tipo-atividades',
+          icon: 'fa-list-alt'
+        },
+        {
+          label: 'Vinculações',
+          path: '/catalogo/vinculacoes',
+          icon: 'fa-link'
+        }
+      ]
+    }
+  ];
 
-  const navigateToConfiguracaoClientes = () => {
-    navigate('/gestao-clientes');
-  };
-
-  const navigateToColaboradores = () => {
-    navigate('/relatorios-colaboradores');
-  };
-
-  const navigateToConfiguracaoColaboradores = () => {
-    navigate('/gestao-colaboradores');
+  const handleCardClick = (path) => {
+    navigate(path);
   };
 
   return (
     <Layout>
       <div className="container">
-        <main className="main-content">
-          <div className="form-header">
-            <h2 className="form-title">Painel</h2>
+        <main className="main-content painel-main">
+          <div className="painel-header">
+            <div className="painel-header-content">
+              <h1 className="painel-title">Painel Principal</h1>
+              <p className="painel-subtitle">Acesse rapidamente as principais funcionalidades do sistema</p>
+            </div>
           </div>
           
-          {/* Painel Cards */}
-          <div className="dashboard-content">
-            <div className="dashboard-cards">
-              <div className="dashboard-card" onClick={navigateToClientes}>
-                <div className="dashboard-card-icon">
-                  <i className="fas fa-users"></i>
+          <div className="painel-grid">
+            {menuSections.map((section) => (
+              <div key={section.id} className="painel-section-card">
+                <div className="painel-section-header">
+                  <i className={`fas ${section.icon}`}></i>
+                  <h2 className="painel-section-title">{section.title}</h2>
                 </div>
-                <div className="dashboard-card-content">
-                  <h3>CLIENTES</h3>
-                  <p>Gerenciar clientes e visualizar informações</p>
+                
+                <div className={`painel-section-items ${section.items.length > 2 ? 'custom-scrollbar' : ''}`}>
+                  {section.items.map((item, index) => (
+                    <div
+                      key={index}
+                      className="painel-item-card"
+                      onClick={() => handleCardClick(item.path)}
+                    >
+                      <i className={`fas ${item.icon}`}></i>
+                      <span className="painel-item-label">{item.label}</span>
+                      <i className="fas fa-chevron-right painel-item-arrow"></i>
+                    </div>
+                  ))}
                 </div>
-                <div 
-                  className="dashboard-card-arrow" 
-                  title="Ir para Relatórios de Clientes"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateToClientes();
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <i className="fas fa-chevron-right"></i>
-                </div>
-                <button 
-                  className="dashboard-card-settings-btn" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateToConfiguracaoClientes();
-                  }} 
-                  title="Configuração de Clientes"
-                >
-                  <i className="fas fa-briefcase"></i>
-                </button>
               </div>
-              
-              <div className="dashboard-card" onClick={navigateToColaboradores}>
-                <div className="dashboard-card-icon">
-                  <i className="fas fa-user-tie"></i>
-                </div>
-                <div className="dashboard-card-content">
-                  <h3>COLABORADORES</h3>
-                  <p>Gerenciar colaboradores e visualizar informações</p>
-                </div>
-                <div 
-                  className="dashboard-card-arrow" 
-                  title="Ir para Relatórios de Colaboradores"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateToColaboradores();
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <i className="fas fa-chevron-right"></i>
-                </div>
-                <button 
-                  className="dashboard-card-settings-btn" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateToConfiguracaoColaboradores();
-                  }} 
-                  title="Configuração de Colaboradores"
-                >
-                  <i className="fas fa-briefcase"></i>
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
         </main>
       </div>
