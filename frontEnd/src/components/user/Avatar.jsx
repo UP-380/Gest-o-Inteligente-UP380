@@ -111,13 +111,18 @@ const Avatar = ({
       );
     }
     
-    // Se não temos caminho para customizado, tentar construir (SEM Date.now() para evitar loops)
+    // Se não temos caminho para customizado, não tentar carregar (mostrar fallback com iniciais)
     if (avatarConfig.type === 'custom' && !imagePath) {
-      // Tentar diferentes extensões como fallback
-      const userId = avatarConfig.userId;
-      // NÃO usar Date.now() pois causa novos requests a cada render
-      // Usar caminho fixo baseado no userId
-      imagePath = `/assets/images/avatars/custom/custom-${userId}.jpg`;
+      // Não tentar construir caminho - o arquivo tem timestamp no nome
+      // Se não temos o caminho correto, mostrar avatar com iniciais
+      return (
+        <div
+          className={baseClass}
+          style={{ background: 'linear-gradient(135deg, #4a90e2, #357abd)' }}
+        >
+          {avatarConfig.initials || getInitialsFromName(nomeUsuario)}
+        </div>
+      );
     }
     
     return (

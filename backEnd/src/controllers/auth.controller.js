@@ -263,7 +263,7 @@ async function checkAuth(req, res) {
         let fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
         if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
           const userId = usuarioAtualizado.foto_perfil.replace('custom-', '');
-          const customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+          const customDir = getUploadPath();
           
           if (fs.existsSync(customDir)) {
             const files = fs.readdirSync(customDir);
@@ -471,7 +471,7 @@ async function updateProfile(req, res) {
     let fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
     if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
       const userIdFromAvatar = usuarioAtualizado.foto_perfil.replace('custom-', '');
-      const customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+      const customDir = getUploadPath();
       
       if (fs.existsSync(customDir)) {
         const files = fs.readdirSync(customDir);
@@ -506,7 +506,7 @@ async function updateProfile(req, res) {
           usuarioExistente.foto_perfil !== usuarioAtualizado.foto_perfil) {
         const oldUserId = usuarioExistente.foto_perfil.replace('custom-', '');
         if (oldUserId !== userIdFromAvatar.toString()) {
-          const customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+          const customDir = getUploadPath();
           if (fs.existsSync(customDir)) {
             const files = fs.readdirSync(customDir);
             files.forEach(file => {
