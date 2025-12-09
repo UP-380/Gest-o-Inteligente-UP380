@@ -23,11 +23,6 @@ const Avatar = ({
 }) => {
   // Usar avatar padrão se não fornecido
   const fotoPerfil = avatarId || DEFAULT_AVATAR;
-  
-  // Debug: log do avatarId recebido
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🎨 Avatar - avatarId recebido:', avatarId, '| Usando:', fotoPerfil);
-  }
 
   // Determinar tipo e configuração do avatar
   let avatarConfig = null;
@@ -65,27 +60,35 @@ const Avatar = ({
   // State para armazenar o caminho da imagem customizada
   const [customImagePathState, setCustomImagePathState] = useState(customImagePath);
   const [loadingCustomImage, setLoadingCustomImage] = useState(false);
+  const [hasTriedFetch, setHasTriedFetch] = useState(false); // Flag para evitar requisições repetidas
 
-  // Usar o caminho fornecido como prop ou buscar via API
+  // Usar o caminho fornecido como prop ou buscar via API (APENAS UMA VEZ)
   useEffect(() => {
+    // Se já temos o caminho fornecido como prop, usar ele
     if (customImagePath) {
       setCustomImagePathState(customImagePath);
-    } else if (avatarConfig?.type === 'custom' && !customImagePathState && !loadingCustomImage) {
+      return;
+    }
+    
+    // Se é avatar customizado, ainda não temos caminho, e ainda não tentamos buscar
+    if (avatarConfig?.type === 'custom' && !customImagePathState && !loadingCustomImage && !hasTriedFetch) {
       setLoadingCustomImage(true);
+      setHasTriedFetch(true); // Marcar que já tentamos, mesmo se falhar
+      
       authAPI.getCustomAvatarPath()
         .then(result => {
           if (result.success && result.imagePath) {
             setCustomImagePathState(result.imagePath);
           }
         })
-        .catch(error => {
-          console.error('Erro ao buscar caminho do avatar customizado:', error);
+        .catch(() => {
+          // Erro silencioso - avatar customizado não disponível
         })
         .finally(() => {
           setLoadingCustomImage(false);
         });
     }
-  }, [avatarConfig?.type, customImagePath, customImagePathState, loadingCustomImage]);
+  }, [avatarConfig?.type, customImagePath]); // Remover dependências problemáticas
 
   // Classes CSS baseadas no tamanho
   const sizeClass = `avatar-${size}`;
@@ -108,13 +111,13 @@ const Avatar = ({
       );
     }
     
-    // Se não temos caminho para customizado, tentar construir
+    // Se não temos caminho para customizado, tentar construir (SEM Date.now() para evitar loops)
     if (avatarConfig.type === 'custom' && !imagePath) {
       // Tentar diferentes extensões como fallback
       const userId = avatarConfig.userId;
-      const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-      // Por enquanto, tentar jpg primeiro
-      imagePath = `/assets/images/avatars/custom/custom-${userId}-${Date.now()}.jpg`;
+      // NÃO usar Date.now() pois causa novos requests a cada render
+      // Usar caminho fixo baseado no userId
+      imagePath = `/assets/images/avatars/custom/custom-${userId}.jpg`;
     }
     
     return (
@@ -124,12 +127,18 @@ const Avatar = ({
           alt={nomeUsuario || 'Avatar'}
           onError={(e) => {
             // Fallback para avatar com iniciais se a imagem não carregar
-            const fallbackGradient = 'linear-gradient(135deg, #4a90e2, #357abd)';
+            // Prevenir tentativas repetidas de carregar a mesma imagem
             e.target.style.display = 'none';
-            e.target.parentElement.innerHTML = getInitialsFromName(nomeUsuario);
-            e.target.parentElement.style.background = fallbackGradient;
-            e.target.parentElement.classList.remove('user-avatar-image');
+            const parent = e.target.parentElement;
+            if (parent && !parent.classList.contains('avatar-fallback-applied')) {
+              const fallbackGradient = 'linear-gradient(135deg, #4a90e2, #357abd)';
+              parent.innerHTML = getInitialsFromName(nomeUsuario);
+              parent.style.background = fallbackGradient;
+              parent.classList.remove('user-avatar-image');
+              parent.classList.add('avatar-fallback-applied');
+            }
           }}
+          loading="lazy"
         />
       </div>
     );

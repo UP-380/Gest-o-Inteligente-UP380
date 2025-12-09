@@ -15,18 +15,13 @@ export default defineConfig({
         cookieDomainRewrite: '',
         cookiePathRewrite: '/',
         configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.error('❌ Proxy error:', err);
-          });
+          // Garantir que cookies sejam enviados e repassados
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            // Garantir que cookies sejam enviados
             if (req.headers.cookie) {
               proxyReq.setHeader('Cookie', req.headers.cookie);
             }
-            console.log('📤 Vite Proxying Request:', req.method, req.url, '→', proxyReq.path);
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('📥 Vite Proxying Response:', req.method, req.url, 'Status:', proxyRes.statusCode);
             // Garantir que cookies sejam repassados
             if (proxyRes.headers['set-cookie']) {
               proxyRes.headers['set-cookie'] = proxyRes.headers['set-cookie'].map(cookie => {

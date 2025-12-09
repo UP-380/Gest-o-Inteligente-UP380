@@ -78,12 +78,7 @@ const request = async (url, options = {}) => {
   // Verificar se a resposta é JSON
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    console.error('❌ Resposta não é JSON! Content-Type:', contentType);
-    console.error('❌ Status:', response.status);
-    console.error('❌ URL:', url);
-    console.error('❌ Primeiros 500 caracteres da resposta:', text.substring(0, 500));
-    throw new Error(`Resposta não é JSON. Status: ${response.status}. Content-Type: ${contentType}. Verifique se o servidor backend está rodando na porta 4000 e se o proxy do Vite está configurado.`);
+    throw new Error(`Resposta não é JSON. Status: ${response.status}. Content-Type: ${contentType}. Verifique se o servidor backend está rodando.`);
   }
 
   if (!response.ok) {
@@ -116,11 +111,6 @@ export const authAPI = {
       // Verificar se a resposta é JSON
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('❌ Resposta não é JSON! Status:', response.status);
-        console.error('❌ Content-Type:', contentType);
-        console.error('❌ Resposta:', text.substring(0, 200));
-        
         // Se não for JSON, retornar resposta padrão
         return {
           authenticated: false,
@@ -146,7 +136,6 @@ export const authAPI = {
 
       return await response.json();
     } catch (error) {
-      console.error('❌ Erro ao verificar autenticação:', error);
       return {
         authenticated: false,
         error: error.message || 'Erro de conexão'
@@ -223,16 +212,36 @@ export const authAPI = {
    * Busca o caminho da imagem customizada do usuário
    */
   async getCustomAvatarPath() {
-    const response = await fetch(`${API_BASE_URL}/auth/custom-avatar-path`, {
-      method: 'GET',
-      credentials: 'include',
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/custom-avatar-path`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!response.ok) {
+      // Se for erro 503 ou 404, retornar imediatamente sem tentar parsear
+      if (response.status === 503 || response.status === 404) {
+        return { success: false, imagePath: null };
+      }
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return { success: false, imagePath: null };
+      }
+
+      if (!response.ok) {
+        return { success: false, imagePath: null };
+      }
+
+      return await response.json();
+    } catch (error) {
+      // Em caso de erro, retornar sem sucesso (não lançar exceção para evitar loops)
       return { success: false, imagePath: null };
     }
-
-    return await response.json();
   }
 };
 

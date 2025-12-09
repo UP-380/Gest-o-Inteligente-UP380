@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         return JSON.parse(usuarioStorage);
       }
     } catch (error) {
-      console.error('Erro ao ler dados do usuário do localStorage:', error);
+      // Erro silencioso ao ler dados do localStorage
     }
     return null;
   };
@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
         setUsuario(null);
       }
     } catch (error) {
-      console.error('Erro ao verificar autenticação:', error);
+      // Erro silencioso na verificação de autenticação
       setIsAuthenticated(false);
       localStorage.removeItem('usuario');
       setUsuario(null);
@@ -104,7 +104,6 @@ export const AuthProvider = ({ children }) => {
       setUsuario(null);
       window.location.href = '/login';
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
       // Mesmo com erro, fazer logout local
       setIsAuthenticated(false);
       localStorage.removeItem('usuario');

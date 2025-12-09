@@ -260,6 +260,21 @@ const GestaoColaboradores = () => {
         return;
       }
 
+      // Verificar se é erro 503 (Service Unavailable) - não tentar novamente
+      if (response.status === 503) {
+        setTodosColaboradoresParaFiltro([]);
+        // Não mostrar erro repetidamente
+        return;
+      }
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Se não for JSON (ex: HTML de erro), não processar
+        setTodosColaboradoresParaFiltro([]);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -319,6 +334,25 @@ const GestaoColaboradores = () => {
         return;
       }
 
+      // Verificar se é erro 503 (Service Unavailable) - não tentar novamente
+      if (response.status === 503) {
+        setVigencias([]);
+        setTotalVigencias(0);
+        setLoadingVigencias(false);
+        // Não mostrar erro repetidamente
+        return;
+      }
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Se não for JSON (ex: HTML de erro), não processar
+        setVigencias([]);
+        setTotalVigencias(0);
+        setLoadingVigencias(false);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -371,8 +405,16 @@ const GestaoColaboradores = () => {
         throw new Error(result.error || 'Erro ao carregar vigências');
       }
     } catch (error) {
-      showToast('error', error.message || 'Erro ao carregar vigências. Tente novamente.');
+      // Não mostrar toast repetidamente para evitar spam (especialmente em loops)
+      // Só mostrar se não for um erro de conexão/servidor
+      if (!error.message || (!error.message.includes('503') && !error.message.includes('HTML'))) {
+        // Usar um timeout para evitar múltiplos toasts simultâneos
+        setTimeout(() => {
+          showToast('error', error.message || 'Erro ao carregar vigências. Tente novamente.');
+        }, 100);
+      }
       setVigencias([]);
+      setTotalVigencias(0);
     } finally {
       setLoadingVigencias(false);
     }
@@ -469,15 +511,29 @@ const GestaoColaboradores = () => {
       if (!contentType.includes('application/json')) {
         const text = await response.text();
         
-        // Se for HTML, pode ser erro 404 ou redirecionamento
-        if (contentType.includes('text/html')) {
-          throw new Error(`Servidor retornou HTML em vez de JSON. Verifique se a rota /api/colaboradores existe no backend. Status: ${response.status}`);
+        // Se for HTML ou erro 503 (Service Unavailable), não tentar novamente imediatamente
+        if (contentType.includes('text/html') || response.status === 503) {
+          // Limpar dados para evitar loops
+          setColaboradores([]);
+          setTotalColaboradores(0);
+          setLoading(false);
+          // Não mostrar toast de erro repetidamente para evitar spam
+          return;
         }
         
-        throw new Error(`Resposta inválida do servidor. Status: ${response.status}, Content-Type: ${contentType}`);
+        // Para outros erros, ainda lançar exceção mas sem loop
+        throw new Error(`Servidor retornou resposta inválida. Status: ${response.status}`);
       }
 
       if (!response.ok) {
+        // Se for erro 503 (Service Unavailable), não tentar novamente
+        if (response.status === 503) {
+          setColaboradores([]);
+          setTotalColaboradores(0);
+          setLoading(false);
+          return;
+        }
+        
         const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
         throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
       }
