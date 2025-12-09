@@ -103,6 +103,9 @@
 }
 
 .incomplete-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #fff;
   color: #ed8936;
   border-radius: 12px;
@@ -110,6 +113,10 @@
   font-size: 11px;
   font-weight: 600;
   margin-left: 4px;
+  min-width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  line-height: 1;
 }
 
 .incomplete-clients-btn.active .incomplete-badge {

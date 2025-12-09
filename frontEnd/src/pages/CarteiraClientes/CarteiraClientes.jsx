@@ -127,11 +127,16 @@ const GestaoClientes = () => {
       if (response.ok) {
         const data = await response.json();
         if (data && data.success) {
-          setIncompleteCount(parseInt(data.count) || 0);
+          const count = parseInt(data.count) || 0;
+          setIncompleteCount(count);
         }
+      } else {
+        console.error('Erro ao carregar contagem de incompletos:', response.status, response.statusText);
       }
     } catch (error) {
-      // Erro silencioso ao carregar contagem de incompletos
+      if (error.name !== 'AbortError') {
+        console.error('Erro ao carregar contagem de incompletos:', error);
+      }
     }
   }, []);
 
@@ -643,11 +648,17 @@ const GestaoClientes = () => {
   }, [showIncompleteClients]);
 
   // Efeitos
+  // Carregar dados iniciais no mount
   useEffect(() => {
     loadClientesKamino();
     loadIncompleteClientsCount();
     loadClientesParaFiltro();
   }, [loadClientesKamino, loadIncompleteClientsCount, loadClientesParaFiltro]);
+
+  // Garantir que o contador seja carregado no início
+  useEffect(() => {
+    loadIncompleteClientsCount();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     loadClients();
@@ -693,9 +704,11 @@ const GestaoClientes = () => {
                 >
                   <i className="fas fa-exclamation-triangle"></i>
                   Pendentes
-                  <span className="incomplete-badge" id="incompleteBadge" style={{ display: incompleteCount > 0 ? 'flex' : 'none' }}>
-                    {incompleteCount}
-                  </span>
+                  {incompleteCount > 0 ? (
+                    <span className="incomplete-badge" id="incompleteBadge">
+                      {incompleteCount}
+                    </span>
+                  ) : null}
                 </button>
               </div>
             </div>
