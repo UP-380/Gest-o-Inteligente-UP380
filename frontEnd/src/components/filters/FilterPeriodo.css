@@ -13,20 +13,18 @@
 
 .periodo-select-display {
   background: white;
-  border: 1px solid #e0e7ff !important;
+  border: 1px solid #dee2e6;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 12px 16px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
   transition: all 0.2s ease;
-  height: 37px;
-  min-height: 37px;
-  max-height: 37px;
+  min-height: 44px;
   box-sizing: border-box;
-  font-size: 13px;
-  color: #374151;
+  font-size: 14px;
+  color: #495057;
   font-family: inherit;
   width: 100%;
   line-height: 1.4;
@@ -50,8 +48,8 @@
 }
 
 .periodo-select-text {
-  font-size: 13px;
-  color: #6b7280;
+  font-size: 14px;
+  color: #495057;
   flex: 1;
   text-align: left;
   line-height: 1.4;
@@ -234,4 +232,16 @@
 .periodo-select-display.error:hover {
   border-color: #dc3545;
   box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.1);
+}
+
+/* Variante pequena para uso em formulários de vigência */
+.periodo-filter-container.size-small .periodo-select-display {
+  padding: 8px 12px;
+  min-height: auto;
+  font-size: 13px;
+  border-color: #e0e7ff !important;
+}
+
+.periodo-filter-container.size-small .periodo-select-text {
+  font-size: 13px;
 }

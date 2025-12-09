@@ -28,6 +28,9 @@ const FiltersCard = ({
 }) => {
   return (
     <div className={`exposed-filters-section ${className}`}>
+      <div className="filter-info-message">
+        O primeiro filtro selecionado será usado para agrupar os resultados.
+      </div>
       <div className="filters-row">
         {children}
       </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false }) => {
+const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localInicio, setLocalInicio] = useState(dataInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
@@ -195,7 +195,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   return (
     <>
       <label className="filter-label">Período TimeTrack</label>
-      <div className="periodo-filter-container" ref={containerRef}>
+      <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''}`} ref={containerRef}>
         <div className="periodo-select-field">
           <div 
             className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}

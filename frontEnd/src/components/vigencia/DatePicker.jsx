@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../filters/FilterPeriodo.css';
 
-const DatePicker = ({ value, onChange, disabled = false, className = '', error = false }) => {
+const DatePicker = ({ value, onChange, disabled = false, className = '', error = false, size = 'small' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localDate, setLocalDate] = useState(value || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -135,7 +135,7 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
   const { monthYear, days } = renderCalendar();
 
   return (
-    <div className={`periodo-filter-container ${className}`} ref={containerRef}>
+    <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${className}`} ref={containerRef}>
       <div className="periodo-select-field">
         <div 
           className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''} ${error ? 'error' : ''}`}

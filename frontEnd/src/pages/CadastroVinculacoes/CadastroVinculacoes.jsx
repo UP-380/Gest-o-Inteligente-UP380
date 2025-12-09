@@ -416,7 +416,7 @@ const CadastroVinculacoes = () => {
               <div className="form-header">
                 <h2 className="form-title">Vinculações</h2>
                 <p className="form-subtitle">
-                  Cadastre e gerencie as vinculações.
+                  Cadastre e gerencie as vinculações entre catálogos.
                 </p>
               </div>
 

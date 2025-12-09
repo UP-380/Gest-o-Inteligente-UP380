@@ -9,6 +9,14 @@
   padding: 20px;
 }
 
+.filter-info-message {
+  font-size: 14px;
+  font-weight: 400;
+  color: #6b7280;
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
 .filters-row {
   display: flex;
   gap: 20px;

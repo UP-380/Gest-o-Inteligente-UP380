@@ -758,3 +758,32 @@
   }
 }
 
+/* Estilos específicos para cards na página de vinculações - Título e borda laranja */
+.vinculacoes-listing-section .client-card {
+  border: 1px solid var(--gray-200);
+}
+
+.vinculacoes-listing-section .client-card:hover {
+  border-color: #f97316;
+}
+
+.vinculacoes-listing-section .client-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.vinculacoes-listing-section .client-card:hover::before {
+  opacity: 1;
+}
+
+.vinculacoes-listing-section .client-card-title {
+  color: #f97316;
+}
+
