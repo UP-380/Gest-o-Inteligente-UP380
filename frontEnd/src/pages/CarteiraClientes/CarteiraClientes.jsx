@@ -675,7 +675,7 @@ const GestaoClientes = () => {
           <div className="colaboradores-listing-section">
             <div className="form-header">
               <div>
-                <h2 className="form-title">Clientes</h2>
+                <h2 className="form-title">Cadastro Clientes</h2>
                 <p className="form-subtitle" style={{ display: showIncompleteClients ? 'none' : 'block' }}>
                   {mostrarInativos 
                     ? 'Gerencie seus clientes Inativos'
