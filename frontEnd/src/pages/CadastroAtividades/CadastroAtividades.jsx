@@ -96,9 +96,7 @@ const CadastroAtividades = () => {
       }
 
       const result = await response.json();
-      console.log('📥 Resposta recebida:', result);
-      console.log('📥 Primeira atividade (se houver):', result.data?.[0]);
-      console.log('📥 clickup_id da primeira atividade:', result.data?.[0]?.clickup_id);
+
 
       if (result.success) {
         setAtividades(result.data || []);

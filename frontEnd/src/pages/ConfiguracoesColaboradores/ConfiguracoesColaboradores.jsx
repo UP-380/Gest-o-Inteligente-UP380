@@ -1727,7 +1727,7 @@ const GestaoColaboradores = () => {
           <div className="form-header">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <div>
-                <h2 className="form-title">Gestão de Colaboradores</h2>
+                <h2 className="form-title">Colaboradores</h2>
                 <p className="form-subtitle">
                   Gerencie os colaboradores do sistema
                 </p>

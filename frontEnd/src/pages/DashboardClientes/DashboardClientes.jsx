@@ -1299,7 +1299,7 @@ const RelatoriosClientes = () => {
                 if (mostrarIncompletas) {
                   setMostrarIncompletas(false);
                 } else {
-                  window.location.href = '/gestao-clientes';
+                  window.location.href = '/cadastro/clientes';
                 }
               }}
             >

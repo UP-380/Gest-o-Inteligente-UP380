@@ -211,7 +211,7 @@ const GestaoClientes = () => {
       const limitParaBusca = temFiltroCliente ? 10000 : itemsPerPage;
       const pageParaBusca = temFiltroCliente ? 1 : currentPage;
       
-      let url = `${API_BASE_URL}/gestao-clientes?page=${pageParaBusca}&limit=${limitParaBusca}`;
+      let url = `${API_BASE_URL}/cadastro/clientes?page=${pageParaBusca}&limit=${limitParaBusca}`;
       
       if (!showIncompleteClients) {
         url += `&status=${encodeURIComponent(mostrarInativos ? 'inativo' : 'ativo')}`;
@@ -675,7 +675,7 @@ const GestaoClientes = () => {
           <div className="colaboradores-listing-section">
             <div className="form-header">
               <div>
-                <h2 className="form-title">Gestão de Clientes</h2>
+                <h2 className="form-title">Clientes</h2>
                 <p className="form-subtitle" style={{ display: showIncompleteClients ? 'none' : 'block' }}>
                   {mostrarInativos 
                     ? 'Gerencie seus clientes Inativos'

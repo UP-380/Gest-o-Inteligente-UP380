@@ -934,7 +934,7 @@ const RelatoriosColaboradores = () => {
             <button 
               className="add-client-btn active"
               onClick={() => {
-                window.location.href = '/gestao-colaboradores';
+                window.location.href = '/cadastro/colaboradores';
               }}
             >
               <i className="fas fa-briefcase"></i>

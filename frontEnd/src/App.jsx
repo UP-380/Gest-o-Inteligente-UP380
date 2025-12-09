@@ -69,11 +69,12 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Redirecionamentos de URLs antigas */}
         <Route
           path="/carteira-clientes"
           element={
             <ProtectedRoute>
-              <Navigate to="/gestao-clientes" replace />
+              <Navigate to="/cadastro/clientes" replace />
             </ProtectedRoute>
           }
         />
@@ -81,15 +82,15 @@ function App() {
           path="/gestao-clientes"
           element={
             <ProtectedRoute>
-              <GestaoClientes />
+              <Navigate to="/cadastro/clientes" replace />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/cadastro-colaboradores"
+          path="/cadastro-clientes"
           element={
             <ProtectedRoute>
-              <Navigate to="/gestao-colaboradores" replace />
+              <Navigate to="/cadastro/clientes" replace />
             </ProtectedRoute>
           }
         />
@@ -97,7 +98,15 @@ function App() {
           path="/gestao-colaboradores"
           element={
             <ProtectedRoute>
-              <GestaoColaboradores />
+              <Navigate to="/cadastro/colaboradores" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro-colaboradores"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/colaboradores" replace />
             </ProtectedRoute>
           }
         />
@@ -105,13 +114,37 @@ function App() {
           path="/configuracoes/custo-colaborador"
           element={
             <ProtectedRoute>
+              <Navigate to="/cadastro/custo-colaborador" replace />
+            </ProtectedRoute>
+          }
+        />
+        {/* Rotas de cadastro */}
+        <Route
+          path="/cadastro/clientes"
+          element={
+            <ProtectedRoute>
+              <GestaoClientes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/colaboradores"
+          element={
+            <ProtectedRoute>
+              <GestaoColaboradores />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/custo-colaborador"
+          element={
+            <ProtectedRoute>
               <ConfigCustoMembro />
             </ProtectedRoute>
           }
         />
-        {/* Rotas de catálogo */}
         <Route
-          path="/catalogo/atividades"
+          path="/cadastro/atividades"
           element={
             <ProtectedRoute>
               <CadastroAtividades />
@@ -119,7 +152,7 @@ function App() {
           }
         />
         <Route
-          path="/catalogo/produtos"
+          path="/cadastro/produtos"
           element={
             <ProtectedRoute>
               <CadastroProdutos />
@@ -127,7 +160,7 @@ function App() {
           }
         />
         <Route
-          path="/catalogo/tipo-atividades"
+          path="/cadastro/tipo-atividades"
           element={
             <ProtectedRoute>
               <CadastroTipoAtividades />
@@ -135,10 +168,43 @@ function App() {
           }
         />
         <Route
-          path="/catalogo/vinculacoes"
+          path="/cadastro/vinculacoes"
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />
+            </ProtectedRoute>
+          }
+        />
+        {/* Redirecionamentos de URLs antigas de catálogo */}
+        <Route
+          path="/catalogo/atividades"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/atividades" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/catalogo/produtos"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/produtos" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/catalogo/tipo-atividades"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/tipo-atividades" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/catalogo/vinculacoes"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/vinculacoes" replace />
             </ProtectedRoute>
           }
         />

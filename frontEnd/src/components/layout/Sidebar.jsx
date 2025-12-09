@@ -8,9 +8,8 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [relatoriosExpanded, setRelatoriosExpanded] = useState(false);
-  const [gestaoExpanded, setGestaoExpanded] = useState(false);
+  const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
-  const [referenciasExpanded, setReferenciasExpanded] = useState(false);
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -20,16 +19,17 @@ const Sidebar = () => {
     return isActive('/relatorios-clientes') || isActive('/relatorios-colaboradores');
   };
 
-  const isGestaoActive = () => {
-    return isActive('/gestao-clientes') || isActive('/gestao-colaboradores');
+  const isCadastrosActive = () => {
+    return isActive('/cadastro/clientes') || 
+           isActive('/cadastro/colaboradores') || 
+           isActive('/cadastro/atividades') || 
+           isActive('/cadastro/produtos') || 
+           isActive('/cadastro/tipo-atividades') || 
+           isActive('/cadastro/vinculacoes');
   };
 
   const isConfiguracoesActive = () => {
-    return isActive('/configuracoes/custo-colaborador');
-  };
-
-  const isReferenciasActive = () => {
-    return isActive('/catalogo/atividades') || isActive('/catalogo/produtos') || isActive('/catalogo/tipo-atividades') || isActive('/catalogo/vinculacoes');
+    return isActive('/cadastro/custo-colaborador');
   };
 
   // Expandir automaticamente o menu Relatórios se estiver em uma das páginas relacionadas
@@ -40,27 +40,24 @@ const Sidebar = () => {
     }
   }, [location.pathname]);
 
-  // Expandir automaticamente o menu Gestão se estiver em uma das páginas relacionadas
+  // Expandir automaticamente o menu Cadastros se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isGestaoActive = location.pathname === '/gestao-clientes' || location.pathname === '/gestao-colaboradores';
-    if (isGestaoActive) {
-      setGestaoExpanded(true);
+    const isCadastrosActive = location.pathname === '/cadastro/clientes' || 
+                              location.pathname === '/cadastro/colaboradores' || 
+                              location.pathname === '/cadastro/atividades' || 
+                              location.pathname === '/cadastro/produtos' || 
+                              location.pathname === '/cadastro/tipo-atividades' || 
+                              location.pathname === '/cadastro/vinculacoes';
+    if (isCadastrosActive) {
+      setCadastrosExpanded(true);
     }
   }, [location.pathname]);
 
   // Expandir automaticamente o menu Configurações se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isConfiguracoesActive = location.pathname === '/configuracoes/custo-colaborador';
+    const isConfiguracoesActive = location.pathname === '/cadastro/custo-colaborador';
     if (isConfiguracoesActive) {
       setConfiguracoesExpanded(true);
-    }
-  }, [location.pathname]);
-
-  // Expandir automaticamente o menu Gestão de Referências se estiver em uma das páginas relacionadas
-  useEffect(() => {
-    const isReferenciasActive = location.pathname === '/catalogo/atividades' || location.pathname === '/catalogo/produtos' || location.pathname === '/catalogo/tipo-atividades' || location.pathname === '/catalogo/vinculacoes';
-    if (isReferenciasActive) {
-      setReferenciasExpanded(true);
     }
   }, [location.pathname]);
 
@@ -74,19 +71,14 @@ const Sidebar = () => {
     setRelatoriosExpanded(!relatoriosExpanded);
   };
 
-  const toggleGestao = (e) => {
+  const toggleCadastros = (e) => {
     e.preventDefault();
-    setGestaoExpanded(!gestaoExpanded);
+    setCadastrosExpanded(!cadastrosExpanded);
   };
 
   const toggleConfiguracoes = (e) => {
     e.preventDefault();
     setConfiguracoesExpanded(!configuracoesExpanded);
-  };
-
-  const toggleReferencias = (e) => {
-    e.preventDefault();
-    setReferenciasExpanded(!referenciasExpanded);
   };
 
   const menuItems = [
@@ -113,54 +105,51 @@ const Sidebar = () => {
     }
   ];
 
-  const gestaoSubItems = [
+  const cadastrosSubItems = [
     {
-      path: '/gestao-clientes',
+      path: '/cadastro/clientes',
       icon: 'fa-briefcase',
-      label: 'Gestão de Clientes',
-      title: 'Gestão de Clientes'
+      label: 'Clientes',
+      title: 'Clientes'
     },
     {
-      path: '/gestao-colaboradores',
+      path: '/cadastro/colaboradores',
       icon: 'fa-user-cog',
-      label: 'Gestão de Colaboradores',
-      title: 'Gestão de Colaboradores'
-    }
-  ];
-
-  const configuracoesSubItems = [
+      label: 'Colaboradores',
+      title: 'Colaboradores'
+    },
     {
-      path: '/configuracoes/custo-colaborador',
-      icon: 'fa-dollar-sign',
-      label: 'Custo Colaborador',
-      title: 'Custo Colaborador'
-    }
-  ];
-
-  const referenciasSubItems = [
-    {
-      path: '/catalogo/atividades',
+      path: '/cadastro/atividades',
       icon: 'fa-tasks',
       label: 'Atividades',
       title: 'Cadastro de Atividades'
     },
     {
-      path: '/catalogo/produtos',
+      path: '/cadastro/produtos',
       icon: 'fa-box',
       label: 'Produtos',
       title: 'Cadastro de Produtos'
     },
     {
-      path: '/catalogo/tipo-atividades',
+      path: '/cadastro/tipo-atividades',
       icon: 'fa-list-alt',
       label: 'Tipo de Atividades',
       title: 'Cadastro de Tipo de Atividades'
     },
     {
-      path: '/catalogo/vinculacoes',
+      path: '/cadastro/vinculacoes',
       icon: 'fa-link',
       label: 'Vinculações',
       title: 'Vinculações'
+    }
+  ];
+
+  const configuracoesSubItems = [
+    {
+      path: '/cadastro/custo-colaborador',
+      icon: 'fa-dollar-sign',
+      label: 'Custo Colaborador',
+      title: 'Custo Colaborador'
     }
   ];
 
@@ -208,22 +197,22 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* Menu Gestão com Submenu */}
+        {/* Menu Cadastros com Submenu */}
         <div className="sidebar-menu-group">
           <button
             type="button"
-            className={`sidebar-item sidebar-menu-toggle ${isGestaoActive() ? 'active' : ''}`}
-            title="Gestão"
-            onClick={toggleGestao}
+            className={`sidebar-item sidebar-menu-toggle ${isCadastrosActive() ? 'active' : ''}`}
+            title="Cadastros"
+            onClick={toggleCadastros}
             style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
           >
-            <i className="fas fa-briefcase"></i>
-            <span className="sidebar-text">Gestão</span>
-            <i className={`fas fa-chevron-right sidebar-chevron ${gestaoExpanded ? 'expanded' : ''}`}></i>
+            <i className="fas fa-database"></i>
+            <span className="sidebar-text">Cadastros</span>
+            <i className={`fas fa-chevron-right sidebar-chevron ${cadastrosExpanded ? 'expanded' : ''}`}></i>
           </button>
           
-          <div className={`sidebar-submenu ${gestaoExpanded ? 'open' : ''}`}>
-            {gestaoSubItems.map((subItem) => (
+          <div className={`sidebar-submenu ${cadastrosExpanded ? 'open' : ''}`}>
+            {cadastrosSubItems.map((subItem) => (
               <Link
                 key={subItem.path}
                 to={subItem.path}
@@ -253,35 +242,6 @@ const Sidebar = () => {
           
           <div className={`sidebar-submenu ${configuracoesExpanded ? 'open' : ''}`}>
             {configuracoesSubItems.map((subItem) => (
-              <Link
-                key={subItem.path}
-                to={subItem.path}
-                className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                title={subItem.title}
-              >
-                <i className={`fas ${subItem.icon}`}></i>
-                <span className="sidebar-text">{subItem.label}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Menu Gestão de Referências com Submenu */}
-        <div className="sidebar-menu-group">
-          <button
-            type="button"
-            className={`sidebar-item sidebar-menu-toggle ${isReferenciasActive() ? 'active' : ''}`}
-            title="Gestão de Referências"
-            onClick={toggleReferencias}
-            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-          >
-            <i className="fas fa-database"></i>
-            <span className="sidebar-text">Gestão de Referências</span>
-            <i className={`fas fa-chevron-right sidebar-chevron ${referenciasExpanded ? 'expanded' : ''}`}></i>
-          </button>
-          
-          <div className={`sidebar-submenu ${referenciasExpanded ? 'open' : ''}`}>
-            {referenciasSubItems.map((subItem) => (
               <Link
                 key={subItem.path}
                 to={subItem.path}
