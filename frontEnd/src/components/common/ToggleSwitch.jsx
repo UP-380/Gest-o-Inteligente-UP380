@@ -20,12 +20,13 @@ const ToggleSwitch = ({
   rightLabel = 'Detalhes',
   id,
   className = '',
-  style = {}
+  style = {},
+  disabled = false
 }) => {
   const toggleId = id || `toggle-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
-    <div className={`status-toggle-minimal ${className}`} style={style}>
+    <div className={`status-toggle-minimal ${className} ${disabled ? 'disabled' : ''}`} style={style}>
       <span className={`toggle-option-minimal ${!checked ? 'active' : ''}`}>
         {leftLabel}
       </span>
@@ -36,6 +37,7 @@ const ToggleSwitch = ({
           className="toggle-input-minimal"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
         />
         <label htmlFor={toggleId} className="toggle-slider-minimal"></label>
       </div>

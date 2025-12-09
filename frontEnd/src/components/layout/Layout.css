@@ -22,8 +22,9 @@
     margin: 0;
     padding: 0;
     padding-left: 60px;
+    padding-right: 2rem;
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     align-items: center;
     height: 64px;
 }
@@ -32,6 +33,12 @@
     display: flex;
     align-items: center;
     padding-left: 1rem;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
 }
 
 .header-logo {
@@ -55,6 +62,7 @@
   
   .header-container {
     padding-left: 50px;
+    padding-right: 1rem;
   }
   
   .header-left {
@@ -74,6 +82,7 @@
   
   .header-container {
     padding-left: 45px;
+    padding-right: 0.75rem;
   }
   
   .header-left {

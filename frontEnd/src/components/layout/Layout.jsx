@@ -1,6 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import MarcaDagua from '../common/MarcaDagua';
+import UserProfile from '../user/UserProfile';
 import { VERSAO_SISTEMA } from '../../config/versao';
 import './Layout.css';
 
@@ -25,6 +26,11 @@ const Layout = ({ children }) => {
                 }}
               />
             </div>
+          </div>
+          
+          {/* Perfil de usuário no lado direito */}
+          <div className="header-right">
+            <UserProfile />
           </div>
         </div>
       </header>

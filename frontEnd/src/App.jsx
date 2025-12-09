@@ -11,6 +11,7 @@ import CadastroAtividades from './pages/CadastroAtividades/CadastroAtividades';
 import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroTipoAtividades from './pages/CadastroTipoAtividades/CadastroTipoAtividades';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
+import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -138,6 +139,15 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />
+            </ProtectedRoute>
+          }
+        />
+        {/* Rota de configurações de perfil */}
+        <Route
+          path="/configuracoes/perfil"
+          element={
+            <ProtectedRoute>
+              <ConfiguracoesPerfil />
             </ProtectedRoute>
           }
         />
