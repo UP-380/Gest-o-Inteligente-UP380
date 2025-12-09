@@ -6,5 +6,5 @@
 // Exemplo: '0.2', '0.3', '1.0', '1.2.3', etc.
 //
 
-export const VERSAO_SISTEMA = '0.2';
+export const VERSAO_SISTEMA = '0.4';
 
