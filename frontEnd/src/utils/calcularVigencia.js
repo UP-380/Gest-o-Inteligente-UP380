@@ -4,7 +4,7 @@
  * 
  * @param {string|number} salarioBase - Salário base (pode vir formatado como string "1.000,00")
  * @param {string|null} dataVigencia - Data de vigência (obrigatória para buscar a config correta)
- * @param {number|null} diasUteisVigencia - Número de dias úteis da vigência atual (para cálculo do custo total mensal)
+ * @param {number|null} diasUteisVigencia - Número de dias úteis da vigência atual (usado em TODOS os cálculos)
  * @param {number|null} horasContratadasDia - Horas contratadas por dia (para cálculo do custo hora)
  * @returns {Promise<Object>} Objeto com os benefícios calculados (valores diários)
  */
@@ -83,10 +83,10 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
     };
   }
 
-  // Usar dias_uteis da configuração (última vigência da tabela config_custo_membro)
+  // Usar dias_uteis da configuração como fallback (última vigência da tabela config_custo_membro)
   const diasUteisConfig = config.dias_uteis || 22;
   
-  // Usar dias úteis da vigência atual (para cálculo do custo total mensal)
+  // Usar dias úteis da vigência atual (padronizado para TODOS os cálculos)
   // Se não fornecido, usar o mesmo da config
   const diasUteisVigenciaAtual = diasUteisVigencia || diasUteisConfig;
 
@@ -94,32 +94,33 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
   // IMPORTANTE: Férias, 1/3 Férias e 13º Salário são PROVISÕES ANUAIS
   // Devem ser provisionadas mensalmente (dividir por 12 meses)
   // FGTS é um encargo mensal direto (não precisa dividir por 12)
+  // TODOS os valores diários usam diasUteisVigenciaAtual para padronização
   
-  // FGTS: porcentagem sobre o salário (encargo mensal direto), depois dividir por dias_uteis
+  // FGTS: porcentagem sobre o salário (encargo mensal direto), depois dividir por diasUteisVigenciaAtual
   const fgtsPercent = config.fgts || 0;
   const fgtsMensal = (fgtsPercent / 100) * salario;
-  const fgts = diasUteisConfig > 0 ? fgtsMensal / diasUteisConfig : 0;
+  const fgts = diasUteisVigenciaAtual > 0 ? fgtsMensal / diasUteisVigenciaAtual : 0;
 
-  // Férias: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por dias_uteis
+  // Férias: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por diasUteisVigenciaAtual
   // Exemplo: 100% = 1 salário por ano = salario/12 por mês
   const feriasPercent = config.ferias || 0;
   const feriasAnual = (feriasPercent / 100) * salario; // Valor anual
   const feriasMensal = feriasAnual / 12; // Provisão mensal
-  const ferias = diasUteisConfig > 0 ? feriasMensal / diasUteisConfig : 0;
+  const ferias = diasUteisVigenciaAtual > 0 ? feriasMensal / diasUteisVigenciaAtual : 0;
 
-  // 1/3 de Férias: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por dias_uteis
+  // 1/3 de Férias: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por diasUteisVigenciaAtual
   // Exemplo: 33,33% = 1/3 de 1 salário por ano = (salario/3)/12 = salario/36 por mês
   const tercoFeriasPercent = config.terco_ferias || 0;
   const tercoFeriasAnual = (tercoFeriasPercent / 100) * salario; // Valor anual
   const tercoFeriasMensal = tercoFeriasAnual / 12; // Provisão mensal
-  const terco_ferias = diasUteisConfig > 0 ? tercoFeriasMensal / diasUteisConfig : 0;
+  const terco_ferias = diasUteisVigenciaAtual > 0 ? tercoFeriasMensal / diasUteisVigenciaAtual : 0;
 
-  // 13º Salário: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por dias_uteis
+  // 13º Salário: PROVISÃO ANUAL - porcentagem sobre o salário, dividir por 12 meses, depois dividir por diasUteisVigenciaAtual
   // Exemplo: 100% = 1 salário por ano = salario/12 por mês
   const decimoTerceiroPercent = config.decimo_terceiro || 0;
   const decimoTerceiroAnual = (decimoTerceiroPercent / 100) * salario; // Valor anual
   const decimoTerceiroMensal = decimoTerceiroAnual / 12; // Provisão mensal
-  const decimoterceiro = diasUteisConfig > 0 ? decimoTerceiroMensal / diasUteisConfig : 0;
+  const decimoterceiro = diasUteisVigenciaAtual > 0 ? decimoTerceiroMensal / diasUteisVigenciaAtual : 0;
 
   // Vale Transporte: valor fixo por dia (já está correto na config)
   const valetransporte = config.vale_transporte || 0;
@@ -127,15 +128,18 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
   // Vale Refeição: valor fixo por dia (já está correto na config)
   const vale_refeicao = config.vale_alimentacao || 0;
 
-  // INSS Patronal: ~20% do salário, depois dividir por dias_uteis
-  const insspatronalMensal = salario * 0.20;
-  const insspatronal = diasUteisConfig > 0 ? insspatronalMensal / diasUteisConfig : 0;
+  // INSS Patronal: porcentagem sobre o salário (da configuração), depois dividir por diasUteisVigenciaAtual
+  // Busca o valor da coluna inss_patronal da configuração (mesma lógica dos outros campos: FGTS, Férias, etc.)
+  const inssPatronalPercent = config.inss_patronal || 0; // Usar valor da configuração ou 0 se não configurado
+  const insspatronalMensal = (inssPatronalPercent / 100) * salario;
+  const insspatronal = diasUteisVigenciaAtual > 0 ? insspatronalMensal / diasUteisVigenciaAtual : 0;
 
-  // INSS Colaborador: ~11% do salário (com teto), depois dividir por dias_uteis
+  // INSS Colaborador: ~11% do salário (com teto), depois dividir por diasUteisVigenciaAtual
+  // NOTA: Este valor é uma RETENÇÃO do colaborador, não é custo da empresa (não entra no custo total)
   const tetoINSS = 7507.49;
   const baseINSS = Math.min(salario, tetoINSS);
   const insscolaboradorMensal = baseINSS * 0.11;
-  const insscolaborador = diasUteisConfig > 0 ? insscolaboradorMensal / diasUteisConfig : 0;
+  const insscolaborador = diasUteisVigenciaAtual > 0 ? insscolaboradorMensal / diasUteisVigenciaAtual : 0;
 
   // NOTA: Ajuda de Custo não é calculada automaticamente, é um campo manual
   // Por isso não está incluída nos cálculos automáticos

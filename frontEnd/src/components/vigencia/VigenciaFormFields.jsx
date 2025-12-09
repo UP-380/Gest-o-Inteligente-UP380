@@ -165,6 +165,7 @@ const VigenciaFormFields = ({
               className="form-input-small"
               value={formData.custo_hora || '0'}
               readOnly
+              style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
               placeholder="0,00"
               disabled={submitting}
               title="Calculado automaticamente: Custo Total Mensal / Jornada Mensal"
@@ -239,6 +240,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.valetransporte || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -273,6 +275,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.vale_refeicao || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -307,6 +310,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.ferias || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -341,6 +345,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.terco_ferias || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -375,6 +380,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.decimoterceiro || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -411,6 +417,42 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.fgts || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
+                placeholder="0,00"
+                disabled={submitting}
+                title="Calculado automaticamente"
+              />
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label-small">INSS Patronal (média diária)</label>
+            {isManualInput ? (
+              // Se for PJ ou ESTAGIO, campo editável
+              <input
+                type="text"
+                className="form-input-small"
+                value={formData.insspatronal || '0'}
+                onChange={(e) => {
+                  const valor = e.target.value.replace(/\D/g, '');
+                  if (valor) {
+                    const valorFormatado = formatarMoedaInput(e.target.value);
+                    setFormData({ ...formData, insspatronal: valorFormatado });
+                  } else {
+                    setFormData({ ...formData, insspatronal: '0' });
+                  }
+                }}
+                placeholder="0,00"
+                disabled={submitting}
+              />
+            ) : (
+              // Se não for PJ ou ESTAGIO, campo calculado automaticamente
+              <input
+                type="text"
+                className="form-input-small"
+                value={formData.insspatronal || '0'}
+                readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
@@ -445,6 +487,7 @@ const VigenciaFormFields = ({
                 className="form-input-small"
                 value={formData.custo_total_mensal || '0'}
                 readOnly
+                style={{ backgroundColor: '#f9fafb', cursor: 'not-allowed' }}
                 placeholder="0,00"
                 disabled={submitting}
                 title="Calculado automaticamente"
