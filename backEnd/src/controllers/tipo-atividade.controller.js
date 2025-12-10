@@ -116,6 +116,55 @@ async function getTipoAtividadePorId(req, res) {
   }
 }
 
+// GET - Buscar tipo de atividade por clickup_id
+async function getTipoAtividadePorClickupId(req, res) {
+  try {
+    const { clickup_id } = req.query;
+
+    if (!clickup_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'clickup_id é obrigatório'
+      });
+    }
+
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa_tipo')
+      .select('id, nome, clickup_id')
+      .eq('clickup_id', clickup_id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar tipo de atividade por clickup_id:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tipo de atividade',
+        details: error.message
+      });
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tipo de atividade não encontrado'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tipo de atividade por clickup_id:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // POST - Criar novo tipo de atividade
 async function criarTipoAtividade(req, res) {
   try {
@@ -386,6 +435,7 @@ async function deletarTipoAtividade(req, res) {
 module.exports = {
   getTipoAtividades,
   getTipoAtividadePorId,
+  getTipoAtividadePorClickupId,
   criarTipoAtividade,
   atualizarTipoAtividade,
   deletarTipoAtividade
