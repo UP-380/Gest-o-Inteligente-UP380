@@ -261,26 +261,32 @@ async function checkAuth(req, res) {
       if (usuarioAtualizado) {
         // Se for avatar customizado, buscar o caminho completo da imagem
         let fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
-        if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
-          const userId = usuarioAtualizado.foto_perfil.replace('custom-', '');
-          const customDir = getUploadPath();
-          
-          if (fs.existsSync(customDir)) {
-            const files = fs.readdirSync(customDir);
-            const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
+        try {
+          if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
+            const userId = usuarioAtualizado.foto_perfil.replace('custom-', '');
+            const customDir = getUploadPath();
             
-            if (userFiles.length > 0) {
-              // Ordenar por timestamp (mais recente primeiro)
-              userFiles.sort((a, b) => {
-                const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-                const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-                return timestampB - timestampA;
-              });
+            if (fs.existsSync(customDir)) {
+              const files = fs.readdirSync(customDir);
+              const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
               
-              const latestFile = userFiles[0];
-              fotoPerfilCompleto = `/assets/images/avatars/custom/${latestFile}`;
+              if (userFiles.length > 0) {
+                // Ordenar por timestamp (mais recente primeiro)
+                userFiles.sort((a, b) => {
+                  const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
+                  const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
+                  return timestampB - timestampA;
+                });
+                
+                const latestFile = userFiles[0];
+                fotoPerfilCompleto = `/assets/images/avatars/custom/${latestFile}`;
+              }
             }
           }
+        } catch (fileError) {
+          // Se houver erro ao processar arquivo, usar foto_perfil original
+          console.error('Erro ao processar foto de perfil:', fileError);
+          fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
         }
         
         // Atualizar sessão com dados do banco
@@ -304,12 +310,13 @@ async function checkAuth(req, res) {
     }
   } catch (error) {
     // Garantir que sempre retornamos JSON válido
+    console.error('Erro no checkAuth:', error);
     if (!res.headersSent) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         authenticated: false,
         error: 'Erro interno do servidor',
-        message: error.message
+        message: error.message || 'Erro desconhecido'
       });
     }
   }

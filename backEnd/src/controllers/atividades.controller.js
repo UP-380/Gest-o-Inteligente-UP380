@@ -14,7 +14,7 @@ async function getAtividades(req, res) {
 
     let query = supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
 
@@ -85,7 +85,7 @@ async function getAtividadePorId(req, res) {
 
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .select('*')
       .eq('id', id)
       .maybeSingle();
@@ -157,7 +157,7 @@ async function criarAtividade(req, res) {
     // Inserir no banco
     const { data, error: insertError } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .insert([dadosInsert])
       .select()
       .single();
@@ -221,7 +221,7 @@ async function atualizarAtividade(req, res) {
     // Verificar se atividade existe
     const { data: existente, error: errorCheck } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .select('id, nome')
       .eq('id', id)
       .maybeSingle();
@@ -259,7 +259,7 @@ async function atualizarAtividade(req, res) {
       // Buscar todas as atividades e fazer comparação case-insensitive no código
       const { data: todasAtividades, error: errorNome } = await supabase
         .schema('up_gestaointeligente')
-        .from('cp_atividade')
+        .from('cp_tarefa')
         .select('id, nome');
       
       if (errorNome) {
@@ -313,7 +313,7 @@ async function atualizarAtividade(req, res) {
     // Atualizar no banco
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .update(dadosUpdate)
       .eq('id', id)
       .select()
@@ -358,7 +358,7 @@ async function deletarAtividade(req, res) {
     // Verificar se atividade existe
     const { data: existente, error: errorCheck } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .select('id, nome')
       .eq('id', id)
       .maybeSingle();
@@ -382,7 +382,7 @@ async function deletarAtividade(req, res) {
     // Deletar do banco
     const { error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade')
+      .from('cp_tarefa')
       .delete()
       .eq('id', id);
 

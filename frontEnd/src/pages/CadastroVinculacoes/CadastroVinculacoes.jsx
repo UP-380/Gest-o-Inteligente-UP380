@@ -369,9 +369,9 @@ const CadastroVinculacoes = () => {
       case 'produto':
         return 'PRODUTO';
       case 'atividade':
-        return 'ATIVIDADE';
+        return 'TAREFA';
       case 'tipoAtividade':
-        return 'TIPO DE ATIVIDADE';
+        return 'TIPO DE TAREFA';
       default:
         return '';
     }
@@ -497,8 +497,8 @@ const CadastroVinculacoes = () => {
                           <i className="fas fa-list"></i>
                         </div>
                         <div className="filtro-card-text">
-                          <span className="filtro-card-title">Atividade</span>
-                          <span className="filtro-card-subtitle">Filtrar por atividades</span>
+                          <span className="filtro-card-title">Tarefa</span>
+                          <span className="filtro-card-subtitle">Filtrar por tarefas</span>
                         </div>
                         <div className="filtro-card-check">
                           <i className="fas fa-check"></i>
@@ -534,8 +534,8 @@ const CadastroVinculacoes = () => {
                           <i className="fas fa-list"></i>
                         </div>
                         <div className="filtro-card-text">
-                          <span className="filtro-card-title">Tipo de Atividade</span>
-                          <span className="filtro-card-subtitle">Filtrar por tipos</span>
+                          <span className="filtro-card-title">Tipo de Tarefa</span>
+                          <span className="filtro-card-subtitle">Filtrar por tipos de tarefa</span>
                         </div>
                         <div className="filtro-card-check">
                           <i className="fas fa-check"></i>
@@ -584,11 +584,13 @@ const CadastroVinculacoes = () => {
                           if (filtroPrincipal === 'produto' && vinculado.cp_produto) {
                             chaveAgrupamento = `produto_${vinculado.cp_produto}`;
                             nomeAgrupamento = vinculado.produto_nome || 'Produto não encontrado';
-                          } else if (filtroPrincipal === 'atividade' && vinculado.cp_atividade) {
-                            chaveAgrupamento = `atividade_${vinculado.cp_atividade}`;
-                            nomeAgrupamento = vinculado.atividade_nome || 'Atividade não encontrada';
-                          } else if (filtroPrincipal === 'tipoAtividade' && vinculado.cp_atividade_tipo) {
-                            chaveAgrupamento = `tipo_${vinculado.cp_atividade_tipo}`;
+                          } else if (filtroPrincipal === 'atividade' && (vinculado.cp_tarefa || vinculado.cp_atividade)) {
+                            const tarefaId = vinculado.cp_tarefa || vinculado.cp_atividade;
+                            chaveAgrupamento = `atividade_${tarefaId}`;
+                            nomeAgrupamento = vinculado.atividade_nome || 'Tarefa não encontrada';
+                          } else if (filtroPrincipal === 'tipoAtividade' && (vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo)) {
+                            const tipoId = vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo;
+                            chaveAgrupamento = `tipo_${tipoId}`;
                             nomeAgrupamento = vinculado.tipo_atividade_nome || 'Tipo não encontrado';
                           }
                           
@@ -614,9 +616,12 @@ const CadastroVinculacoes = () => {
                           };
                           
                           grupo.vinculados.forEach(vinculado => {
-                            if (filtroPrincipal !== 'atividade' && vinculado.cp_atividade && vinculado.atividade_nome) {
+                            const tarefaId = vinculado.cp_tarefa || vinculado.cp_atividade;
+                            const tipoId = vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo;
+                            
+                            if (filtroPrincipal !== 'atividade' && tarefaId && vinculado.atividade_nome) {
                               itensUnicos.atividades.add(JSON.stringify({
-                                id: vinculado.cp_atividade,
+                                id: tarefaId,
                                 nome: vinculado.atividade_nome
                               }));
                             }
@@ -626,9 +631,9 @@ const CadastroVinculacoes = () => {
                                 nome: vinculado.produto_nome
                               }));
                             }
-                            if (filtroPrincipal !== 'tipoAtividade' && vinculado.cp_atividade_tipo && vinculado.tipo_atividade_nome) {
+                            if (filtroPrincipal !== 'tipoAtividade' && tipoId && vinculado.tipo_atividade_nome) {
                               itensUnicos.tiposAtividade.add(JSON.stringify({
-                                id: vinculado.cp_atividade_tipo,
+                                id: tipoId,
                                 nome: vinculado.tipo_atividade_nome
                               }));
                             }
@@ -664,12 +669,12 @@ const CadastroVinculacoes = () => {
                               </div>
                               <div className="client-card-body">
                                 <div className="vinculado-items-container">
-                                  {/* Atividades */}
+                                  {/* Tarefas */}
                                   {atividadesArray.map((item, idx) => (
                                     <div key={`atividade_${item.id}_${idx}`} className="vinculado-item-card">
                                       <div className="vinculado-item-header">
                                         <i className="fas fa-list"></i>
-                                        <span className="vinculado-item-label">Atividade</span>
+                                        <span className="vinculado-item-label">Tarefa</span>
                                       </div>
                                       <div className="vinculado-item-value">
                                         {item.nome}
@@ -690,12 +695,12 @@ const CadastroVinculacoes = () => {
                                     </div>
                                   ))}
                                   
-                                  {/* Tipos de Atividade */}
+                                  {/* Tipos de Tarefa */}
                                   {tiposArray.map((item, idx) => (
                                     <div key={`tipo_${item.id}_${idx}`} className="vinculado-item-card">
                                       <div className="vinculado-item-header">
                                         <i className="fas fa-list"></i>
-                                        <span className="vinculado-item-label">Tipo de Atividade</span>
+                                        <span className="vinculado-item-label">Tipo de Tarefa</span>
                                       </div>
                                       <div className="vinculado-item-value">
                                         {item.nome}
@@ -721,11 +726,11 @@ const CadastroVinculacoes = () => {
                         return vinculados.map((vinculado) => (
                           <div key={vinculado.id} className="vinculado-item-card">
                             <div className="vinculado-item-content">
-                              {vinculado.cp_atividade && (
+                              {(vinculado.cp_tarefa || vinculado.cp_atividade) && (
                                 <div className="vinculado-item-row">
                                   <div className="vinculado-item-header">
                                     <i className="fas fa-list"></i>
-                                    <span className="vinculado-item-label">Atividade</span>
+                                    <span className="vinculado-item-label">Tarefa</span>
                                   </div>
                                   <div className="vinculado-item-value">
                                     {vinculado.atividade_nome || 'Nome não encontrado'}
@@ -743,11 +748,11 @@ const CadastroVinculacoes = () => {
                                   </div>
                                 </div>
                               )}
-                              {vinculado.cp_atividade_tipo && (
+                              {(vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo) && (
                                 <div className="vinculado-item-row">
                                   <div className="vinculado-item-header">
                                     <i className="fas fa-list"></i>
-                                    <span className="vinculado-item-label">Tipo de Atividade</span>
+                                    <span className="vinculado-item-label">Tipo de Tarefa</span>
                                   </div>
                                   <div className="vinculado-item-value">
                                     {vinculado.tipo_atividade_nome || 'Nome não encontrado'}

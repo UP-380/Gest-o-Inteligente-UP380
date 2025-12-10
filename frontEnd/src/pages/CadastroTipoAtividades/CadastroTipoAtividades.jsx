@@ -86,7 +86,22 @@ const CadastroTipoAtividades = () => {
       const result = await response.json();
 
       if (result.success) {
-        setTipoAtividades(result.data || []);
+        // Remover duplicatas baseado no ID
+        const dadosUnicos = (result.data || []).reduce((acc, item) => {
+          // Se o item tem ID, verificar se já existe
+          if (item.id !== undefined && item.id !== null) {
+            const existe = acc.find(existing => existing.id === item.id);
+            if (!existe) {
+              acc.push(item);
+            }
+          } else {
+            // Se não tem ID, adicionar mesmo assim (será tratado pelo DataTable)
+            acc.push(item);
+          }
+          return acc;
+        }, []);
+        
+        setTipoAtividades(dadosUnicos);
         setTotalTipoAtividades(result.total || 0);
         setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
       } else {
@@ -359,8 +374,8 @@ const CadastroTipoAtividades = () => {
           <CardContainer>
             <div className="tipo-atividades-listing-section">
               <PageHeader 
-                title="Cadastro de Tipos de Atividade"
-                subtitle="Gerencie os tipos de atividade do sistema"
+                title="Cadastro de Tipos de Tarefa"
+                subtitle="Gerencie os tipos de tarefa do sistema"
               />
 
               {/* Filtro de busca e botão adicionar */}
@@ -368,7 +383,7 @@ const CadastroTipoAtividades = () => {
                 <SearchInput
                   value={searchTerm}
                   onChange={handleSearch}
-                  placeholder="Buscar tipo de atividade por nome..."
+                  placeholder="Buscar tipo de tarefa por nome..."
                 />
                 <div className="listing-controls-right">
                   <ButtonPrimary
@@ -376,7 +391,7 @@ const CadastroTipoAtividades = () => {
                     disabled={showForm}
                     icon="fas fa-plus"
                   >
-                    Novo Tipo de Atividade
+                    Novo Tipo de Tarefa
                   </ButtonPrimary>
                 </div>
               </div>
@@ -397,13 +412,13 @@ const CadastroTipoAtividades = () => {
               {/* Lista de tipos de atividade */}
               <div className="listing-table-container">
                 {loading ? (
-                  <LoadingState message="Carregando tipos de atividade..." />
+                  <LoadingState message="Carregando tipos de tarefa..." />
                 ) : (
                   <DataTable
                     columns={tableColumns}
                     data={tipoAtividades}
                     renderActions={renderTableActions}
-                    emptyMessage="Nenhum tipo de atividade encontrado"
+                    emptyMessage="Nenhum tipo de tarefa encontrado"
                     emptyIcon="fa-tags"
                   />
                 )}
@@ -418,7 +433,7 @@ const CadastroTipoAtividades = () => {
                 onPageChange={setCurrentPage}
                 onItemsPerPageChange={setItemsPerPage}
                 loading={loading}
-                itemName="tipos de atividade"
+                itemName="tipos de tarefa"
               />
             </div>
           </CardContainer>
@@ -438,7 +453,7 @@ const CadastroTipoAtividades = () => {
           tipoAtividadeToDelete ? (
             <>
               <p>
-                Tem certeza que deseja deletar o tipo de atividade{' '}
+                Tem certeza que deseja deletar o tipo de tarefa{' '}
                 <strong>{tipoAtividadeToDelete.nome}</strong>?
               </p>
               <p className="warning-text">

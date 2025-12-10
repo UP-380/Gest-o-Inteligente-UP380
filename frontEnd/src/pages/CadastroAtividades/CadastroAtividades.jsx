@@ -99,7 +99,22 @@ const CadastroAtividades = () => {
 
 
       if (result.success) {
-        setAtividades(result.data || []);
+        // Remover duplicatas baseado no ID
+        const dadosUnicos = (result.data || []).reduce((acc, item) => {
+          // Se o item tem ID, verificar se já existe
+          if (item.id !== undefined && item.id !== null) {
+            const existe = acc.find(existing => existing.id === item.id);
+            if (!existe) {
+              acc.push(item);
+            }
+          } else {
+            // Se não tem ID, adicionar mesmo assim (será tratado pelo DataTable)
+            acc.push(item);
+          }
+          return acc;
+        }, []);
+        
+        setAtividades(dadosUnicos);
         setTotalAtividades(result.total || 0);
         setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
       } else {
@@ -371,8 +386,8 @@ const CadastroAtividades = () => {
           <CardContainer>
             <div className="atividades-listing-section">
               <PageHeader 
-                title="Cadastro de Atividades"
-                subtitle="Gerencie as atividades do sistema"
+                title="Cadastro de Tarefas"
+                subtitle="Gerencie as tarefas do sistema"
               />
 
               {/* Filtro de busca e botão adicionar */}
@@ -380,7 +395,7 @@ const CadastroAtividades = () => {
                 <SearchInput
                   value={searchTerm}
                   onChange={handleSearch}
-                  placeholder="Buscar atividade por nome..."
+                  placeholder="Buscar tarefa por nome..."
                 />
                 <div className="listing-controls-right">
                   <ButtonPrimary
@@ -388,7 +403,7 @@ const CadastroAtividades = () => {
                     disabled={showForm}
                     icon="fas fa-plus"
                   >
-                    Nova Atividade
+                    Nova Tarefa
                   </ButtonPrimary>
                 </div>
               </div>
@@ -409,13 +424,13 @@ const CadastroAtividades = () => {
               {/* Lista de atividades */}
               <div className="listing-table-container">
                 {loading ? (
-                  <LoadingState message="Carregando atividades..." />
+                  <LoadingState message="Carregando tarefas..." />
                 ) : (
                   <DataTable
                     columns={tableColumns}
                     data={atividades}
                     renderActions={renderTableActions}
-                    emptyMessage="Nenhuma atividade encontrada"
+                    emptyMessage="Nenhuma tarefa encontrada"
                     emptyIcon="fa-tasks"
                   />
                 )}
@@ -430,7 +445,7 @@ const CadastroAtividades = () => {
                 onPageChange={setCurrentPage}
                 onItemsPerPageChange={setItemsPerPage}
                 loading={loading}
-                itemName="atividades"
+                itemName="tarefas"
               />
             </div>
           </CardContainer>
@@ -450,7 +465,7 @@ const CadastroAtividades = () => {
           atividadeToDelete ? (
             <>
               <p>
-                Tem certeza que deseja deletar a atividade{' '}
+                Tem certeza que deseja deletar a tarefa{' '}
                 <strong>{atividadeToDelete.nome}</strong>?
               </p>
               <p className="warning-text">

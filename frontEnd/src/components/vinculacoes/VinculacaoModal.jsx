@@ -99,11 +99,18 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         if (result.success && result.data) {
           const vinculado = result.data;
           
+          // Mapear nomes antigos das colunas para os novos (backend retorna cp_atividade, frontend espera cp_tarefa)
+          const vinculadoMapeado = {
+            ...vinculado,
+            cp_tarefa: vinculado.cp_atividade || vinculado.cp_tarefa,
+            cp_tarefa_tipo: vinculado.cp_atividade_tipo || vinculado.cp_tarefa_tipo
+          };
+          
           // Determinar tipos primários baseados nos campos preenchidos
           const tiposSelecionados = [];
-          if (vinculado.cp_atividade) tiposSelecionados.push('atividade');
-          if (vinculado.cp_produto) tiposSelecionados.push('produto');
-          if (vinculado.cp_atividade_tipo) tiposSelecionados.push('tipo-atividade');
+          if (vinculadoMapeado.cp_tarefa) tiposSelecionados.push('atividade');
+          if (vinculadoMapeado.cp_produto) tiposSelecionados.push('produto');
+          if (vinculadoMapeado.cp_tarefa_tipo) tiposSelecionados.push('tipo-atividade');
 
           // Configurar selects primários
           const newPrimarySelects = tiposSelecionados.map((tipo, idx) => ({
@@ -120,8 +127,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           const newSecondarySelects = tiposSelecionados.map((tipo) => ({
             id: Math.random(),
             primaryType: tipo,
-            selectedItems: vinculado[`cp_${tipo === 'tipo-atividade' ? 'atividade_tipo' : tipo}`] 
-              ? [vinculado[`cp_${tipo === 'tipo-atividade' ? 'atividade_tipo' : tipo}`].toString()]
+            selectedItems: vinculadoMapeado[`cp_${tipo === 'tipo-atividade' ? 'tarefa_tipo' : tipo === 'atividade' ? 'tarefa' : tipo}`] 
+              ? [vinculadoMapeado[`cp_${tipo === 'tipo-atividade' ? 'tarefa_tipo' : tipo === 'atividade' ? 'tarefa' : tipo}`].toString()]
               : []
           }));
           setSecondarySelects(newSecondarySelects);
@@ -310,9 +317,9 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
     // Retornar objeto com valores booleanos
     return {
-      cp_atividade: tiposSelecionados.includes('atividade'),
+      cp_tarefa: tiposSelecionados.includes('atividade'),
       cp_produto: tiposSelecionados.includes('produto'),
-      cp_atividade_tipo: tiposSelecionados.includes('tipo-atividade')
+      cp_tarefa_tipo: tiposSelecionados.includes('tipo-atividade')
     };
   };
 
@@ -349,9 +356,9 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       atividadesIds.forEach(atividadeId => {
         produtosIds.forEach(produtoId => {
           combinacoes.push({
-            cp_atividade: atividadeId,
+            cp_tarefa: atividadeId,
             cp_produto: produtoId,
-            cp_atividade_tipo: null
+            cp_tarefa_tipo: null
           });
         });
       });
@@ -362,8 +369,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       atividadesIds.forEach(atividadeId => {
         tipoAtividadesIds.forEach(tipoAtividadeId => {
           combinacoes.push({
-            cp_atividade: atividadeId,
-            cp_atividade_tipo: tipoAtividadeId,
+            cp_tarefa: atividadeId,
+            cp_tarefa_tipo: tipoAtividadeId,
             cp_produto: null
           });
         });
@@ -376,8 +383,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         tipoAtividadesIds.forEach(tipoAtividadeId => {
           combinacoes.push({
             cp_produto: produtoId,
-            cp_atividade_tipo: tipoAtividadeId,
-            cp_atividade: null
+            cp_tarefa_tipo: tipoAtividadeId,
+            cp_tarefa: null
           });
         });
       });
@@ -387,9 +394,9 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     if (atividadesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
       atividadesIds.forEach(atividadeId => {
         combinacoes.push({
-          cp_atividade: atividadeId,
+          cp_tarefa: atividadeId,
           cp_produto: null,
-          cp_atividade_tipo: null
+          cp_tarefa_tipo: null
         });
       });
     }
@@ -398,8 +405,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       produtosIds.forEach(produtoId => {
         combinacoes.push({
           cp_produto: produtoId,
-          cp_atividade: null,
-          cp_atividade_tipo: null
+          cp_tarefa: null,
+          cp_tarefa_tipo: null
         });
       });
     }
@@ -407,8 +414,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     if (tipoAtividadesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0) {
       tipoAtividadesIds.forEach(tipoAtividadeId => {
         combinacoes.push({
-          cp_atividade_tipo: tipoAtividadeId,
-          cp_atividade: null,
+          cp_tarefa_tipo: tipoAtividadeId,
+          cp_tarefa: null,
           cp_produto: null
         });
       });
@@ -420,9 +427,9 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         produtosIds.forEach(produtoId => {
           tipoAtividadesIds.forEach(tipoAtividadeId => {
             combinacoes.push({
-              cp_atividade: atividadeId,
+              cp_tarefa: atividadeId,
               cp_produto: produtoId,
-              cp_atividade_tipo: tipoAtividadeId
+              cp_tarefa_tipo: tipoAtividadeId
             });
           });
         });

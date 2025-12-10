@@ -19,9 +19,9 @@ const Sidebar = () => {
   const isCadastrosActive = () => {
     return isActive('/cadastro/clientes') || 
            isActive('/cadastro/colaboradores') || 
-           isActive('/cadastro/atividades') || 
+           isActive('/cadastro/tarefas') || 
            isActive('/cadastro/produtos') || 
-           isActive('/cadastro/tipo-atividades') || 
+           isActive('/cadastro/tipo-tarefas') || 
            isActive('/cadastro/vinculacoes');
   };
 
@@ -41,9 +41,9 @@ const Sidebar = () => {
   useEffect(() => {
     const isCadastrosActive = location.pathname === '/cadastro/clientes' || 
                               location.pathname === '/cadastro/colaboradores' || 
-                              location.pathname === '/cadastro/atividades' || 
+                              location.pathname === '/cadastro/tarefas' || 
                               location.pathname === '/cadastro/produtos' || 
-                              location.pathname === '/cadastro/tipo-atividades' || 
+                              location.pathname === '/cadastro/tipo-tarefas' || 
                               location.pathname === '/cadastro/vinculacoes';
     if (isCadastrosActive) {
       setCadastrosExpanded(true);
@@ -111,10 +111,10 @@ const Sidebar = () => {
       title: 'Colaboradores'
     },
     {
-      path: '/cadastro/atividades',
+      path: '/cadastro/tarefas',
       icon: 'fa-tasks',
-      label: 'Atividades',
-      title: 'Cadastro de Atividades'
+      label: 'Tarefas',
+      title: 'Cadastro de Tarefas'
     },
     {
       path: '/cadastro/produtos',
@@ -123,10 +123,10 @@ const Sidebar = () => {
       title: 'Cadastro de Produtos'
     },
     {
-      path: '/cadastro/tipo-atividades',
+      path: '/cadastro/tipo-tarefas',
       icon: 'fa-list-alt',
-      label: 'Tipo de Atividades',
-      title: 'Cadastro de Tipo de Atividades'
+      label: 'Tipo de Tarefas',
+      title: 'Cadastro de Tipo de Tarefas'
     },
     {
       path: '/cadastro/vinculacoes',
