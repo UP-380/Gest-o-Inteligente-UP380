@@ -7,8 +7,8 @@ const supabase = require('../config/database');
 // Mapeamento de tipos para nomes de tabelas
 const TIPO_PARA_TABELA = {
   'produto': 'cp_produto',
-  'atividade': 'cp_atividade',
-  'tipo-atividade': 'cp_atividade_tipo'
+  'atividade': 'cp_tarefa',
+  'tipo-atividade': 'cp_tarefa_tipo'
 };
 
 // GET - Listar todas as vinculações (com paginação opcional)
@@ -126,13 +126,14 @@ async function getVinculacaoPorId(req, res) {
 // POST - Criar nova vinculação
 async function criarVinculacao(req, res) {
   try {
-    const { cp_atividade, cp_produto, cp_atividade_tipo } = req.body;
+    const { cp_tarefa, cp_produto, cp_tarefa_tipo } = req.body;
 
     // Preparar dados para inserção (valores booleanos, default false)
+    // Nota: A tabela cp_vinculacao ainda usa os nomes antigos das colunas
     const dadosVinculacao = {
-      cp_atividade: cp_atividade === true || cp_atividade === 'true',
+      cp_atividade: cp_tarefa === true || cp_tarefa === 'true',
       cp_produto: cp_produto === true || cp_produto === 'true',
-      cp_atividade_tipo: cp_atividade_tipo === true || cp_atividade_tipo === 'true'
+      cp_atividade_tipo: cp_tarefa_tipo === true || cp_tarefa_tipo === 'true'
     };
 
     // Inserir no banco
@@ -179,7 +180,7 @@ async function criarVinculacao(req, res) {
 async function atualizarVinculacao(req, res) {
   try {
     const { id } = req.params;
-    const { cp_atividade, cp_produto, cp_atividade_tipo } = req.body;
+    const { cp_tarefa, cp_produto, cp_tarefa_tipo } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -189,10 +190,11 @@ async function atualizarVinculacao(req, res) {
     }
 
     // Preparar dados para atualização (valores booleanos, default false)
+    // Nota: A tabela cp_vinculacao ainda usa os nomes antigos das colunas
     const dadosVinculacao = {
-      cp_atividade: cp_atividade === true || cp_atividade === 'true',
+      cp_atividade: cp_tarefa === true || cp_tarefa === 'true',
       cp_produto: cp_produto === true || cp_produto === 'true',
-      cp_atividade_tipo: cp_atividade_tipo === true || cp_atividade_tipo === 'true'
+      cp_atividade_tipo: cp_tarefa_tipo === true || cp_tarefa_tipo === 'true'
     };
 
     // Verificar se a vinculação existe

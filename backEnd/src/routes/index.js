@@ -129,6 +129,7 @@ router.delete('/api/produtos/:id', requireAuth, produtosController.deletarProdut
 
 // Rotas de Tipo de Atividade (CRUD completo)
 router.get('/api/tipo-atividade', requireAuth, tipoAtividadeController.getTipoAtividades);
+router.get('/api/tipo-atividade/por-clickup-id', requireAuth, tipoAtividadeController.getTipoAtividadePorClickupId);
 router.get('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.getTipoAtividadePorId);
 router.post('/api/tipo-atividade', requireAuth, tipoAtividadeController.criarTipoAtividade);
 router.put('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.atualizarTipoAtividade);

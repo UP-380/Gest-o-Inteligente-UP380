@@ -55,7 +55,7 @@ const ClienteForm = ({
   };
 
   return (
-    <form className="colaborador-form">
+    <div className="colaborador-form">
       <div className="form-row">
         <div className="form-group">
           <label className="form-label-small">
@@ -321,7 +321,7 @@ const ClienteForm = ({
           )}
         </div>
       </div>
-    </form>
+    </div>
   );
 };
 

@@ -144,7 +144,7 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/atividades"
+          path="/cadastro/tarefas"
           element={
             <ProtectedRoute>
               <CadastroAtividades />
@@ -160,7 +160,7 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/tipo-atividades"
+          path="/cadastro/tipo-tarefas"
           element={
             <ProtectedRoute>
               <CadastroTipoAtividades />
@@ -175,12 +175,29 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Redirecionamentos de URLs antigas */}
+        <Route
+          path="/cadastro/atividades"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/tarefas" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tipo-atividades"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/cadastro/tipo-tarefas" replace />
+            </ProtectedRoute>
+          }
+        />
         {/* Redirecionamentos de URLs antigas de catálogo */}
         <Route
           path="/catalogo/atividades"
           element={
             <ProtectedRoute>
-              <Navigate to="/cadastro/atividades" replace />
+              <Navigate to="/cadastro/tarefas" replace />
             </ProtectedRoute>
           }
         />
@@ -196,7 +213,7 @@ function App() {
           path="/catalogo/tipo-atividades"
           element={
             <ProtectedRoute>
-              <Navigate to="/cadastro/tipo-atividades" replace />
+              <Navigate to="/cadastro/tipo-tarefas" replace />
             </ProtectedRoute>
           }
         />

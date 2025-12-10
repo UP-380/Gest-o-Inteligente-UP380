@@ -7,17 +7,18 @@ const supabase = require('../config/database');
 // POST - Criar novo registro de vinculado
 async function criarVinculado(req, res) {
   try {
-    const { cp_atividade, cp_atividade_tipo, cp_produto } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto } = req.body;
 
     // Preparar dados para inserção (apenas valores não nulos)
+    // Nota: A tabela vinculados ainda usa os nomes antigos das colunas
     const dadosVinculado = {};
     
-    if (cp_atividade !== undefined && cp_atividade !== null && cp_atividade !== '') {
-      dadosVinculado.cp_atividade = parseInt(cp_atividade, 10);
+    if (cp_tarefa !== undefined && cp_tarefa !== null && cp_tarefa !== '') {
+      dadosVinculado.cp_atividade = parseInt(cp_tarefa, 10);
     }
     
-    if (cp_atividade_tipo !== undefined && cp_atividade_tipo !== null && cp_atividade_tipo !== '') {
-      dadosVinculado.cp_atividade_tipo = parseInt(cp_atividade_tipo, 10);
+    if (cp_tarefa_tipo !== undefined && cp_tarefa_tipo !== null && cp_tarefa_tipo !== '') {
+      dadosVinculado.cp_atividade_tipo = parseInt(cp_tarefa_tipo, 10);
     }
     
     if (cp_produto !== undefined && cp_produto !== null && cp_produto !== '') {
@@ -88,12 +89,13 @@ async function criarMultiplosVinculados(req, res) {
     const dadosParaInserir = vinculados.map(item => {
       const dadosVinculado = {};
       
-      if (item.cp_atividade !== undefined && item.cp_atividade !== null && item.cp_atividade !== '') {
-        dadosVinculado.cp_atividade = parseInt(item.cp_atividade, 10);
+      // Nota: A tabela vinculados ainda usa os nomes antigos das colunas
+      if (item.cp_tarefa !== undefined && item.cp_tarefa !== null && item.cp_tarefa !== '') {
+        dadosVinculado.cp_atividade = parseInt(item.cp_tarefa, 10);
       }
       
-      if (item.cp_atividade_tipo !== undefined && item.cp_atividade_tipo !== null && item.cp_atividade_tipo !== '') {
-        dadosVinculado.cp_atividade_tipo = parseInt(item.cp_atividade_tipo, 10);
+      if (item.cp_tarefa_tipo !== undefined && item.cp_tarefa_tipo !== null && item.cp_tarefa_tipo !== '') {
+        dadosVinculado.cp_atividade_tipo = parseInt(item.cp_tarefa_tipo, 10);
       }
       
       if (item.cp_produto !== undefined && item.cp_produto !== null && item.cp_produto !== '') {
@@ -249,7 +251,7 @@ async function getVinculados(req, res) {
       for (const atividadeId of idsAtividades) {
         const { data: atividade, error: errorAtividade } = await supabase
           .schema('up_gestaointeligente')
-          .from('cp_atividade')
+          .from('cp_tarefa')
           .select('id, nome')
           .eq('id', atividadeId)
           .maybeSingle();
@@ -261,7 +263,7 @@ async function getVinculados(req, res) {
           atividadesMap.set(id, atividade.nome);
           console.log(`  ✅ ID ${id}: ${atividade.nome}`);
         } else {
-          console.warn(`⚠️ Atividade ID ${atividadeId} não encontrada na tabela cp_atividade`);
+          console.warn(`⚠️ Atividade ID ${atividadeId} não encontrada na tabela cp_tarefa`);
         }
       }
     }
@@ -299,7 +301,7 @@ async function getVinculados(req, res) {
       for (const tipoAtividadeId of idsTipoAtividades) {
         const { data: tipoAtividade, error: errorTipoAtividade } = await supabase
           .schema('up_gestaointeligente')
-          .from('cp_atividade_tipo')
+          .from('cp_tarefa_tipo')
           .select('id, nome')
           .eq('id', tipoAtividadeId)
           .maybeSingle();
@@ -311,7 +313,7 @@ async function getVinculados(req, res) {
           tipoAtividadesMap.set(id, tipoAtividade.nome);
           console.log(`  ✅ ID ${id}: ${tipoAtividade.nome}`);
         } else {
-          console.warn(`⚠️ Tipo de atividade ID ${tipoAtividadeId} não encontrado na tabela cp_atividade_tipo`);
+          console.warn(`⚠️ Tipo de atividade ID ${tipoAtividadeId} não encontrado na tabela cp_tarefa_tipo`);
         }
       }
     }
@@ -435,7 +437,7 @@ async function getVinculadoPorId(req, res) {
 async function atualizarVinculado(req, res) {
   try {
     const { id } = req.params;
-    const { cp_atividade, cp_atividade_tipo, cp_produto } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -447,12 +449,13 @@ async function atualizarVinculado(req, res) {
     // Preparar dados para atualização (apenas valores não nulos)
     const dadosVinculado = {};
     
-    if (cp_atividade !== undefined) {
-      dadosVinculado.cp_atividade = cp_atividade !== null && cp_atividade !== '' ? parseInt(cp_atividade, 10) : null;
+    // Nota: A tabela vinculados ainda usa os nomes antigos das colunas
+    if (cp_tarefa !== undefined) {
+      dadosVinculado.cp_atividade = cp_tarefa !== null && cp_tarefa !== '' ? parseInt(cp_tarefa, 10) : null;
     }
     
-    if (cp_atividade_tipo !== undefined) {
-      dadosVinculado.cp_atividade_tipo = cp_atividade_tipo !== null && cp_atividade_tipo !== '' ? parseInt(cp_atividade_tipo, 10) : null;
+    if (cp_tarefa_tipo !== undefined) {
+      dadosVinculado.cp_atividade_tipo = cp_tarefa_tipo !== null && cp_tarefa_tipo !== '' ? parseInt(cp_tarefa_tipo, 10) : null;
     }
     
     if (cp_produto !== undefined) {

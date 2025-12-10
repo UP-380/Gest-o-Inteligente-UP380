@@ -14,7 +14,7 @@ async function getTipoAtividades(req, res) {
 
     let query = supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
 
@@ -81,7 +81,7 @@ async function getTipoAtividadePorId(req, res) {
 
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .select('*')
       .eq('id', id)
       .maybeSingle();
@@ -108,6 +108,55 @@ async function getTipoAtividadePorId(req, res) {
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar tipo de atividade:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar tipo de atividade por clickup_id
+async function getTipoAtividadePorClickupId(req, res) {
+  try {
+    const { clickup_id } = req.query;
+
+    if (!clickup_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'clickup_id é obrigatório'
+      });
+    }
+
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa_tipo')
+      .select('id, nome, clickup_id')
+      .eq('clickup_id', clickup_id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar tipo de atividade por clickup_id:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tipo de atividade',
+        details: error.message
+      });
+    }
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tipo de atividade não encontrado'
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tipo de atividade por clickup_id:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -147,7 +196,7 @@ async function criarTipoAtividade(req, res) {
     // Inserir no banco
     const { data, error: insertError } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .insert([dadosInsert])
       .select()
       .single();
@@ -201,7 +250,7 @@ async function atualizarTipoAtividade(req, res) {
     // Verificar se tipo de atividade existe
     const { data: existente, error: errorCheck } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
       .maybeSingle();
@@ -238,7 +287,7 @@ async function atualizarTipoAtividade(req, res) {
       // Buscar todos os tipos de atividade e fazer comparação case-insensitive
       const { data: todosTipos, error: errorNome } = await supabase
         .schema('up_gestaointeligente')
-        .from('cp_atividade_tipo')
+        .from('cp_tarefa_tipo')
         .select('id, nome');
       
       if (errorNome) {
@@ -283,7 +332,7 @@ async function atualizarTipoAtividade(req, res) {
     // Atualizar no banco
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .update(dadosUpdate)
       .eq('id', id)
       .select()
@@ -328,7 +377,7 @@ async function deletarTipoAtividade(req, res) {
     // Verificar se tipo de atividade existe
     const { data: existente, error: errorCheck } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
       .maybeSingle();
@@ -352,7 +401,7 @@ async function deletarTipoAtividade(req, res) {
     // Deletar do banco
     const { error } = await supabase
       .schema('up_gestaointeligente')
-      .from('cp_atividade_tipo')
+      .from('cp_tarefa_tipo')
       .delete()
       .eq('id', id);
 
@@ -386,6 +435,7 @@ async function deletarTipoAtividade(req, res) {
 module.exports = {
   getTipoAtividades,
   getTipoAtividadePorId,
+  getTipoAtividadePorClickupId,
   criarTipoAtividade,
   atualizarTipoAtividade,
   deletarTipoAtividade
