@@ -25,8 +25,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
   const opcoesPrimarias = [
     { value: 'produto', label: 'Produto' },
-    { value: 'atividade', label: 'Atividade' },
-    { value: 'tipo-atividade', label: 'Tipo de Atividade' }
+    { value: 'atividade', label: 'Tarefa' },
+    { value: 'tipo-atividade', label: 'Tipo de Tarefa' }
   ];
 
   // Carregar dados das APIs e do vinculado se estiver editando
@@ -780,6 +780,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
                           selectedItems={(select.selectedItems || []).map(item => String(item))}
                           onSelectAll={editingVinculado ? undefined : () => handleSelectAll(select.id)}
                           hideCheckboxes={editingVinculado}
+                          maxVisibleOptions={5}
+                          enableSearch={true}
                         />
                       </div>
                     </div>
@@ -820,7 +822,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
                   ) : (
                     <>
                       <i className="fas fa-save"></i>
-                      Salvar Vinculação
+                      Salvar
                     </>
                   )}
                 </button>

@@ -45,6 +45,22 @@
   font-weight: 500;
 }
 
+.custom-select-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #495057;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.custom-select-input::placeholder {
+  color: #6c757d;
+}
+
 .custom-select-arrow {
   font-size: 12px;
   color: #6c757d;
@@ -57,16 +73,13 @@
 }
 
 .custom-select-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  position: fixed !important;
+  z-index: 100001 !important;
   margin-top: 4px;
   background: white;
   border: 1px solid #dee2e6;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   overflow: hidden;
   animation: dropdownFadeIn 0.2s ease;
 }
@@ -83,7 +96,7 @@
 }
 
 .custom-select-dropdown-content {
-  max-height: 250px;
+  max-height: 400px;
   overflow-y: auto;
   padding: 0;
 }
@@ -121,6 +134,16 @@
 
 .custom-select-option.selected:hover {
   background-color: #bbdefb;
+}
+
+.custom-select-option.no-results {
+  color: #6c757d;
+  font-style: italic;
+  cursor: default;
+}
+
+.custom-select-option.no-results:hover {
+  background-color: transparent;
 }
 
 /* Checkbox customizado */

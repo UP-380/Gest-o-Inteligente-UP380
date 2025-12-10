@@ -1,66 +1,90 @@
 .vinculacao-modal-content {
-  max-width: 1100px;
-  width: 95%;
+  max-width: 1200px;
+  width: 90%;
+  max-height: 95vh;
   display: flex;
   flex-direction: column;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 10000;
 }
 
 /* Garantir que header e footer fiquem fixos */
 .vinculacao-modal-content .modal-header {
   flex-shrink: 0;
-  padding: 16px 24px;
-}
-
-/* Reduzir padding do modal-body */
-.vinculacao-modal-content .modal-body {
-  padding: 16px 24px;
+  padding: 20px 28px;
+  border-bottom: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc, #ffffff);
 }
 
 /* Ajustar modal-body para permitir scroll quando necessário */
 .vinculacao-modal-content .modal-body {
+  padding: 28px 32px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  overflow-x: hidden;
-  max-height: 70vh;
+  max-height: calc(95vh - 180px);
 }
 
 /* Garantir que footer fique fixo na parte inferior */
 .vinculacao-modal-content .modal-footer {
   flex-shrink: 0;
   margin-top: auto;
-  padding: 12px 24px;
+  padding: 16px 28px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
 }
 
-/* Usa a classe reutilizável de scrollbar do sistema */
+/* Estilos específicos para botões do modal de vinculação */
+.vinculacao-modal-content .modal-footer .btn-primary,
+.vinculacao-modal-content .modal-footer .btn-secondary {
+  padding: 8px 16px;
+  font-size: 13px;
+  min-width: auto;
+  white-space: nowrap;
+}
 
 .vinculacao-section {
-  margin-bottom: 20px;
+  margin-bottom: 32px;
 }
 
+/* Container de selects primários - sem overflow para permitir dropdowns aparecerem */
 .vinculacao-section-primary-selects {
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 8px;
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+  min-height: auto;
+  overflow: visible;
 }
 
 /* Usa a classe reutilizável de scrollbar do sistema */
 
 .section-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: #0e3b6f;
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .section-title::before {
   content: '';
   width: 4px;
-  height: 18px;
+  height: 20px;
   background: linear-gradient(135deg, #0e3b6f, #144577);
   border-radius: 2px;
 }
@@ -68,35 +92,44 @@
 .section-description {
   font-size: 14px;
   color: #64748b;
-  margin: 0 0 12px 0;
-  line-height: 1.5;
+  margin: 0 0 20px 0;
+  line-height: 1.6;
 }
 
 .select-group {
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  position: relative;
 }
 
 .select-group-secondary {
-  margin-bottom: 20px;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: visible;
 }
 
 .select-label {
   display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 12px;
 }
 
 .select-wrapper {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
+  align-items: flex-start;
+  position: relative;
 }
 
 .form-select {
   flex: 1;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
@@ -119,8 +152,8 @@
 
 .btn-add-select,
 .btn-remove-select {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -129,6 +162,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .btn-add-select {
@@ -164,19 +198,20 @@
 .selected-items-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 12px;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 16px;
   background-color: #f9fafb;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+  min-height: 60px;
 }
 
 .selected-item-tag {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 8px 14px;
   background: linear-gradient(135deg, #0e3b6f, #144577);
   color: white;
   border-radius: 6px;
@@ -209,7 +244,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   background: #ffffff;
   color: #0e3b6f;
   border: 1px solid #0e3b6f;
@@ -252,4 +287,3 @@
     width: 100%;
   }
 }
-
