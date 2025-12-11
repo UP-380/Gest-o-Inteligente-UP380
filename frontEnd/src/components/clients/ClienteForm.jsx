@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ClienteVinculacao from './ClienteVinculacao';
 
 /**
  * Componente de formulário de cliente (usado no modal de editar)
@@ -12,7 +13,8 @@ const ClienteForm = ({
   allClientesKamino = [],
   clientesKaminoMap,
   cnpjOptions = [],
-  loadCnpjOptions
+  loadCnpjOptions,
+  onVinculacaoSaveReady
 }) => {
   const [kaminoSearchTerm, setKaminoSearchTerm] = useState(formData.kaminoNome || '');
   const [showKaminoDropdown, setShowKaminoDropdown] = useState(false);
@@ -321,6 +323,14 @@ const ClienteForm = ({
           )}
         </div>
       </div>
+
+      {/* Seção de Vinculação */}
+      {formData.id && (
+        <ClienteVinculacao 
+          clienteId={formData.id} 
+          onSaveVinculacao={onVinculacaoSaveReady}
+        />
+      )}
     </div>
   );
 };

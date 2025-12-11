@@ -3,6 +3,7 @@ import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import VinculacaoModal from '../../components/vinculacoes/VinculacaoModal';
 import FiltersCard from '../../components/filters/FiltersCard';
+import FilterVinculacao from '../../components/filters/FilterVinculacao';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
@@ -34,9 +35,10 @@ const CadastroVinculacoes = () => {
   const [filtros, setFiltros] = useState({
     produto: false,
     atividade: false,
-    tipoAtividade: false
+    tipoAtividade: false,
+    cliente: false
   });
-  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoAtividade'
+  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoAtividade', 'cliente'
   const [ordemFiltros, setOrdemFiltros] = useState([]); // Array para rastrear ordem de aplicação
   const [filtrosAplicados, setFiltrosAplicados] = useState(false); // Rastrear se filtros foram aplicados
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null); // Armazenar últimos filtros aplicados
@@ -64,6 +66,9 @@ const CadastroVinculacoes = () => {
       }
       if (filtrosAUsar.tipoAtividade) {
         params.append('filtro_tipo_atividade', 'true');
+      }
+      if (filtrosAUsar.cliente) {
+        params.append('filtro_cliente', 'true');
       }
 
       const response = await fetch(`${API_BASE_URL}/vinculados?${params}`, {
@@ -190,7 +195,14 @@ const CadastroVinculacoes = () => {
   // Excluir vinculado (sem confirmação - pode ser chamado de outros lugares)
   const handleDeleteVinculado = async (vinculadoId, showConfirm = true) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/vinculados/${vinculadoId}`, {
+      // Garantir que o ID seja um número
+      const idParaDeletar = typeof vinculadoId === 'string' 
+        ? (isNaN(parseInt(vinculadoId, 10)) ? vinculadoId : parseInt(vinculadoId, 10))
+        : vinculadoId;
+      
+      console.log(`🗑️ Tentando deletar vinculado ID: ${idParaDeletar} (tipo: ${typeof idParaDeletar})`);
+      
+      const response = await fetch(`${API_BASE_URL}/vinculados/${idParaDeletar}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -262,12 +274,25 @@ const CadastroVinculacoes = () => {
     let sucesso = 0;
     let erros = 0;
     
-    for (const id of vinculadosIdsToDelete) {
+    // Garantir que os IDs sejam números (caso sejam strings)
+    const idsParaDeletar = vinculadosIdsToDelete.map(id => {
+      // Se for string, converter para número
+      if (typeof id === 'string') {
+        const numId = parseInt(id, 10);
+        return isNaN(numId) ? id : numId;
+      }
+      return id;
+    });
+    
+    console.log('🗑️ IDs para deletar:', idsParaDeletar);
+    
+    for (const id of idsParaDeletar) {
       const result = await handleDeleteVinculado(id, false);
       if (result) {
         sucesso++;
       } else {
         erros++;
+        console.error(`❌ Erro ao deletar vinculado ID: ${id}`);
       }
     }
     
@@ -292,7 +317,8 @@ const CadastroVinculacoes = () => {
     const filtrosLimpos = {
       produto: false,
       atividade: false,
-      tipoAtividade: false
+      tipoAtividade: false,
+      cliente: false
     };
     setFiltros(filtrosLimpos);
     setFiltroPrincipal(null);
@@ -316,7 +342,8 @@ const CadastroVinculacoes = () => {
     return (
       filtros.produto !== filtrosUltimosAplicados.produto ||
       filtros.atividade !== filtrosUltimosAplicados.atividade ||
-      filtros.tipoAtividade !== filtrosUltimosAplicados.tipoAtividade
+      filtros.tipoAtividade !== filtrosUltimosAplicados.tipoAtividade ||
+      filtros.cliente !== filtrosUltimosAplicados.cliente
     );
   };
 
@@ -343,7 +370,7 @@ const CadastroVinculacoes = () => {
   // Aplicar filtros
   const handleApplyFilters = () => {
     // Verificar se pelo menos um filtro está selecionado
-    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoAtividade;
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoAtividade || filtros.cliente;
     
     if (!temFiltroAtivo) {
       showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
@@ -372,6 +399,8 @@ const CadastroVinculacoes = () => {
         return 'TAREFA';
       case 'tipoAtividade':
         return 'TIPO DE TAREFA';
+      case 'cliente':
+        return 'CLIENTE';
       default:
         return '';
     }
@@ -441,117 +470,54 @@ const CadastroVinculacoes = () => {
                 hasPendingChanges={hasPendingChanges()}
                 showInfoMessage={true}
               >
-                <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${isFiltroPai('produto') ? 'has-tooltip' : ''}`}>
-                    <label 
-                      className={`filtro-card-option ${isFiltroPai('produto') ? 'filtro-pai' : ''}`}
-                      onMouseEnter={() => setFiltroHover('produto')}
-                      onMouseLeave={() => setFiltroHover(null)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filtros.produto}
-                        onChange={(e) => {
-                          handleFilterChange('produto', e.target.checked);
-                        }}
-                      />
-                      <div className="filtro-card-content">
-                        <div className="filtro-card-icon">
-                          <i className="fas fa-box"></i>
-                        </div>
-                        <div className="filtro-card-text">
-                          <span className="filtro-card-title">Produto</span>
-                          <span className="filtro-card-subtitle">Filtrar por produtos</span>
-                        </div>
-                        <div className="filtro-card-check">
-                          <i className="fas fa-check"></i>
-                        </div>
-                        <div className="filtro-card-click-indicator">
-                          <i className="fas fa-hand-pointer"></i>
-                        </div>
-                      </div>
-                    </label>
-                    {isFiltroPai('produto') && (
-                      <div className="filter-tooltip">
-                        Separar resultados por {getFiltroNome('produto')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${isFiltroPai('atividade') ? 'has-tooltip' : ''}`}>
-                    <label 
-                      className={`filtro-card-option ${isFiltroPai('atividade') ? 'filtro-pai' : ''}`}
-                      onMouseEnter={() => setFiltroHover('atividade')}
-                      onMouseLeave={() => setFiltroHover(null)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filtros.atividade}
-                        onChange={(e) => {
-                          handleFilterChange('atividade', e.target.checked);
-                        }}
-                      />
-                      <div className="filtro-card-content">
-                        <div className="filtro-card-icon">
-                          <i className="fas fa-list"></i>
-                        </div>
-                        <div className="filtro-card-text">
-                          <span className="filtro-card-title">Tarefa</span>
-                          <span className="filtro-card-subtitle">Filtrar por tarefas</span>
-                        </div>
-                        <div className="filtro-card-check">
-                          <i className="fas fa-check"></i>
-                        </div>
-                        <div className="filtro-card-click-indicator">
-                          <i className="fas fa-hand-pointer"></i>
-                        </div>
-                      </div>
-                    </label>
-                    {isFiltroPai('atividade') && (
-                      <div className="filter-tooltip">
-                        Separar resultados por {getFiltroNome('atividade')}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="filter-group">
-                  <div className={`filtro-pai-wrapper ${isFiltroPai('tipoAtividade') ? 'has-tooltip' : ''}`}>
-                    <label 
-                      className={`filtro-card-option ${isFiltroPai('tipoAtividade') ? 'filtro-pai' : ''}`}
-                      onMouseEnter={() => setFiltroHover('tipoAtividade')}
-                      onMouseLeave={() => setFiltroHover(null)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={filtros.tipoAtividade}
-                        onChange={(e) => {
-                          handleFilterChange('tipoAtividade', e.target.checked);
-                        }}
-                      />
-                      <div className="filtro-card-content">
-                        <div className="filtro-card-icon">
-                          <i className="fas fa-list"></i>
-                        </div>
-                        <div className="filtro-card-text">
-                          <span className="filtro-card-title">Tipo de Tarefa</span>
-                          <span className="filtro-card-subtitle">Filtrar por tipos de tarefa</span>
-                        </div>
-                        <div className="filtro-card-check">
-                          <i className="fas fa-check"></i>
-                        </div>
-                        <div className="filtro-card-click-indicator">
-                          <i className="fas fa-hand-pointer"></i>
-                        </div>
-                      </div>
-                    </label>
-                    {isFiltroPai('tipoAtividade') && (
-                      <div className="filter-tooltip">
-                        Separar resultados por {getFiltroNome('tipoAtividade')}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <FilterVinculacao
+                  filtroKey="produto"
+                  checked={filtros.produto}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('produto')}
+                  title="Produto"
+                  subtitle="Filtrar por produtos"
+                  icon="fas fa-box"
+                  filtroNome={getFiltroNome('produto')}
+                  onMouseEnter={() => setFiltroHover('produto')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="atividade"
+                  checked={filtros.atividade}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('atividade')}
+                  title="Tarefa"
+                  subtitle="Filtrar por tarefas"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('atividade')}
+                  onMouseEnter={() => setFiltroHover('atividade')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="tipoAtividade"
+                  checked={filtros.tipoAtividade}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('tipoAtividade')}
+                  title="Tipo de Tarefa"
+                  subtitle="Filtrar por tipos de tarefa"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('tipoAtividade')}
+                  onMouseEnter={() => setFiltroHover('tipoAtividade')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="cliente"
+                  checked={filtros.cliente}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('cliente')}
+                  title="Cliente"
+                  subtitle="Filtrar por clientes"
+                  icon="fas fa-briefcase"
+                  filtroNome={getFiltroNome('cliente')}
+                  onMouseEnter={() => setFiltroHover('cliente')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
               </FiltersCard>
 
               {/* Lista de vinculados */}
@@ -592,6 +558,10 @@ const CadastroVinculacoes = () => {
                             const tipoId = vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo;
                             chaveAgrupamento = `tipo_${tipoId}`;
                             nomeAgrupamento = vinculado.tipo_atividade_nome || 'Tipo não encontrado';
+                          } else if (filtroPrincipal === 'cliente' && vinculado.cp_cliente) {
+                            const clienteId = String(vinculado.cp_cliente).trim();
+                            chaveAgrupamento = `cliente_${clienteId}`;
+                            nomeAgrupamento = vinculado.cliente_nome || 'Cliente não encontrado';
                           }
                           
                           if (chaveAgrupamento) {
@@ -612,7 +582,8 @@ const CadastroVinculacoes = () => {
                           const itensUnicos = {
                             atividades: new Set(),
                             produtos: new Set(),
-                            tiposAtividade: new Set()
+                            tiposAtividade: new Set(),
+                            clientes: new Set()
                           };
                           
                           grupo.vinculados.forEach(vinculado => {
@@ -637,12 +608,20 @@ const CadastroVinculacoes = () => {
                                 nome: vinculado.tipo_atividade_nome
                               }));
                             }
+                            if (filtroPrincipal !== 'cliente' && vinculado.cp_cliente && vinculado.cliente_nome) {
+                              itensUnicos.clientes = itensUnicos.clientes || new Set();
+                              itensUnicos.clientes.add(JSON.stringify({
+                                id: String(vinculado.cp_cliente).trim(),
+                                nome: vinculado.cliente_nome
+                              }));
+                            }
                           });
                           
                           // Converter Sets para arrays
                           const atividadesArray = Array.from(itensUnicos.atividades).map(item => JSON.parse(item));
                           const produtosArray = Array.from(itensUnicos.produtos).map(item => JSON.parse(item));
                           const tiposArray = Array.from(itensUnicos.tiposAtividade).map(item => JSON.parse(item));
+                          const clientesArray = Array.from(itensUnicos.clientes || []).map(item => JSON.parse(item));
                           
                           return (
                             <div key={index} className="client-card">
@@ -660,7 +639,17 @@ const CadastroVinculacoes = () => {
                                   />
                                   <DeleteButton
                                     onClick={() => {
-                                      const vinculadosIds = grupo.vinculados.map(v => v.id);
+                                      // Garantir que os IDs sejam números
+                                      const vinculadosIds = grupo.vinculados.map(v => {
+                                        const id = v.id;
+                                        // Se for string, tentar converter para número
+                                        if (typeof id === 'string') {
+                                          const numId = parseInt(id, 10);
+                                          return isNaN(numId) ? id : numId;
+                                        }
+                                        return id;
+                                      });
+                                      console.log('🗑️ IDs coletados do grupo:', vinculadosIds, 'Tipo do primeiro:', typeof vinculadosIds[0]);
                                       handleRequestDeleteGroup(vinculadosIds);
                                     }}
                                     title="Excluir todas as vinculações do grupo"
@@ -708,8 +697,21 @@ const CadastroVinculacoes = () => {
                                     </div>
                                   ))}
                                   
+                                  {/* Clientes */}
+                                  {clientesArray.map((item, idx) => (
+                                    <div key={`cliente_${item.id}_${idx}`} className="vinculado-item-card">
+                                      <div className="vinculado-item-header">
+                                        <i className="fas fa-briefcase"></i>
+                                        <span className="vinculado-item-label">Cliente</span>
+                                      </div>
+                                      <div className="vinculado-item-value">
+                                        {item.nome}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  
                                   {/* Se não houver itens secundários */}
-                                  {atividadesArray.length === 0 && produtosArray.length === 0 && tiposArray.length === 0 && (
+                                  {atividadesArray.length === 0 && produtosArray.length === 0 && tiposArray.length === 0 && clientesArray.length === 0 && (
                                     <div className="vinculado-item-card">
                                       <div className="vinculado-item-value" style={{ color: '#64748b', fontStyle: 'italic' }}>
                                         Nenhum item vinculado

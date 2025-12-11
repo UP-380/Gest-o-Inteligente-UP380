@@ -55,6 +55,7 @@ const GestaoClientes = () => {
   const [clienteEditFormErrors, setClienteEditFormErrors] = useState({});
   const [submittingEditCliente, setSubmittingEditCliente] = useState(false);
   const [cnpjOptionsModal, setCnpjOptionsModal] = useState([]);
+  const [saveVinculacaoFunction, setSaveVinculacaoFunction] = useState(null);
 
   // Estados para modais de confirmação
   const [showInactivateModal, setShowInactivateModal] = useState(false);
@@ -447,6 +448,19 @@ const GestaoClientes = () => {
     setClienteEditFormErrors({});
 
     try {
+      // Salvar vinculação primeiro, se houver função disponível
+      if (saveVinculacaoFunction) {
+        try {
+          const vinculacaoResult = await saveVinculacaoFunction();
+          if (vinculacaoResult && !vinculacaoResult.success && !vinculacaoResult.skipped) {
+            // Se houver erro na vinculação (e não foi apenas skip), mostrar aviso mas continuar salvando o cliente
+            console.warn('Aviso ao salvar vinculação:', vinculacaoResult.error);
+          }
+        } catch (vinculacaoError) {
+          // Se houver erro na vinculação, mostrar aviso mas continuar salvando o cliente
+          console.warn('Erro ao salvar vinculação:', vinculacaoError);
+        }
+      }
       const sanitize = (v) => {
         const t = String(v || '').trim();
         return t.length ? t : null;
@@ -803,6 +817,7 @@ const GestaoClientes = () => {
         cnpjOptions={cnpjOptionsModal}
         loadCnpjOptions={loadCnpjOptions}
         clienteEditando={clienteEditando}
+        onVinculacaoSaveReady={setSaveVinculacaoFunction}
       />
 
       {/* Modal de Confirmação para Inativar Cliente */}

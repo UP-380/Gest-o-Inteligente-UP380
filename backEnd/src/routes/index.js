@@ -143,6 +143,8 @@ router.put('/api/vinculacoes/:id', requireAuth, vinculacoesController.atualizarV
 router.delete('/api/vinculacoes/:id', requireAuth, vinculacoesController.deletarVinculacao);
 
 // Rotas de Vinculados (CRUD completo)
+// IMPORTANTE: Rotas específicas devem vir ANTES de rotas com parâmetros
+router.get('/api/tarefas-por-produtos', requireAuth, vinculadosController.getTarefasPorProdutos);
 router.get('/api/vinculados', requireAuth, vinculadosController.getVinculados);
 router.get('/api/vinculados/:id', requireAuth, vinculadosController.getVinculadoPorId);
 router.post('/api/vinculados', requireAuth, vinculadosController.criarVinculado);
