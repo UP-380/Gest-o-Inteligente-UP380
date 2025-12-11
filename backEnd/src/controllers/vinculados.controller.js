@@ -7,7 +7,7 @@ const supabase = require('../config/database');
 // POST - Criar novo registro de vinculado
 async function criarVinculado(req, res) {
   try {
-    const { cp_tarefa, cp_tarefa_tipo, cp_produto } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente } = req.body;
 
     // Preparar dados para inserção (apenas valores não nulos)
     // Nota: A tabela vinculados ainda usa os nomes antigos das colunas
@@ -25,11 +25,16 @@ async function criarVinculado(req, res) {
       dadosVinculado.cp_produto = parseInt(cp_produto, 10);
     }
 
+    // cp_cliente é TEXT, então enviar como string
+    if (cp_cliente !== undefined && cp_cliente !== null && cp_cliente !== '') {
+      dadosVinculado.cp_cliente = String(cp_cliente).trim();
+    }
+
     // Verificar se pelo menos um campo foi preenchido
     if (Object.keys(dadosVinculado).length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Pelo menos um campo (cp_atividade, cp_atividade_tipo ou cp_produto) deve ser fornecido'
+        error: 'Pelo menos um campo (cp_atividade, cp_atividade_tipo, cp_produto ou cp_cliente) deve ser fornecido'
       });
     }
 
@@ -102,6 +107,11 @@ async function criarMultiplosVinculados(req, res) {
         dadosVinculado.cp_produto = parseInt(item.cp_produto, 10);
       }
 
+      // cp_cliente é TEXT, então enviar como string
+      if (item.cp_cliente !== undefined && item.cp_cliente !== null && item.cp_cliente !== '') {
+        dadosVinculado.cp_cliente = String(item.cp_cliente).trim();
+      }
+
       return dadosVinculado;
     }).filter(item => Object.keys(item).length > 0); // Remover itens vazios
 
@@ -155,7 +165,7 @@ async function criarMultiplosVinculados(req, res) {
 // GET - Listar todos os vinculados com nomes relacionados
 async function getVinculados(req, res) {
   try {
-    const { page = 1, limit = 50, filtro_produto, filtro_atividade, filtro_tipo_atividade } = req.query;
+    const { page = 1, limit = 50, filtro_produto, filtro_atividade, filtro_tipo_atividade, filtro_cliente } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
@@ -164,21 +174,24 @@ async function getVinculados(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
-      .select('id, cp_atividade, cp_atividade_tipo, cp_produto', { count: 'exact' })
+      .select('id, cp_atividade, cp_atividade_tipo, cp_produto, cp_cliente', { count: 'exact' })
       .order('id', { ascending: false });
 
     // Aplicar filtros - apenas mostrar registros que têm os campos selecionados
     const temFiltroProduto = filtro_produto === 'true' || filtro_produto === '1';
     const temFiltroAtividade = filtro_atividade === 'true' || filtro_atividade === '1';
     const temFiltroTipoAtividade = filtro_tipo_atividade === 'true' || filtro_tipo_atividade === '1';
+    const temFiltroCliente = filtro_cliente === 'true' || filtro_cliente === '1';
 
     console.log('🔍 Filtros recebidos:', {
       filtro_produto,
       filtro_atividade,
       filtro_tipo_atividade,
+      filtro_cliente,
       temFiltroProduto,
       temFiltroAtividade,
-      temFiltroTipoAtividade
+      temFiltroTipoAtividade,
+      temFiltroCliente
     });
 
     if (temFiltroProduto) {
@@ -192,6 +205,10 @@ async function getVinculados(req, res) {
     if (temFiltroTipoAtividade) {
       query = query.not('cp_atividade_tipo', 'is', null);
       console.log('✅ Filtro tipo atividade aplicado: cp_atividade_tipo IS NOT NULL');
+    }
+    if (temFiltroCliente) {
+      query = query.not('cp_cliente', 'is', null);
+      console.log('✅ Filtro cliente aplicado: cp_cliente IS NOT NULL');
     }
 
     // Aplicar paginação
@@ -224,6 +241,9 @@ async function getVinculados(req, res) {
     if (temFiltroTipoAtividade) {
       vinculadosFiltrados = vinculadosFiltrados.filter(v => v.cp_atividade_tipo !== null && v.cp_atividade_tipo !== undefined);
     }
+    if (temFiltroCliente) {
+      vinculadosFiltrados = vinculadosFiltrados.filter(v => v.cp_cliente !== null && v.cp_cliente !== undefined && v.cp_cliente !== '');
+    }
 
     if (vinculadosFiltrados.length !== (vinculados?.length || 0)) {
       console.warn(`⚠️ Filtro aplicado no código: ${vinculados?.length || 0} -> ${vinculadosFiltrados.length} registros`);
@@ -237,10 +257,13 @@ async function getVinculados(req, res) {
     const idsAtividades = [...new Set(vinculadosFiltrados?.filter(v => v.cp_atividade).map(v => parseInt(v.cp_atividade, 10)) || [])];
     const idsProdutos = [...new Set(vinculadosFiltrados?.filter(v => v.cp_produto).map(v => parseInt(v.cp_produto, 10)) || [])];
     const idsTipoAtividades = [...new Set(vinculadosFiltrados?.filter(v => v.cp_atividade_tipo).map(v => parseInt(v.cp_atividade_tipo, 10)) || [])];
+    // cp_cliente é TEXT, então manter como string
+    const idsClientes = [...new Set(vinculadosFiltrados?.filter(v => v.cp_cliente && v.cp_cliente.trim() !== '').map(v => String(v.cp_cliente).trim()) || [])];
 
     console.log(`🔍 IDs de atividades para buscar: [${idsAtividades.join(', ')}]`);
     console.log(`🔍 IDs de produtos para buscar: [${idsProdutos.join(', ')}]`);
     console.log(`🔍 IDs de tipo de atividades para buscar: [${idsTipoAtividades.join(', ')}]`);
+    console.log(`🔍 IDs de clientes para buscar: [${idsClientes.join(', ')}]`);
 
     // Buscar atividades
     const atividadesMap = new Map();
@@ -318,6 +341,35 @@ async function getVinculados(req, res) {
       }
     }
 
+    // Buscar clientes
+    // cp_cliente contém UUID (string), então buscar diretamente pelo id (UUID)
+    const clientesMap = new Map();
+    if (idsClientes.length > 0) {
+      console.log(`🔍 Buscando clientes com IDs: [${idsClientes.join(', ')}]`);
+      
+      for (const clienteId of idsClientes) {
+        // cp_cliente é UUID (string), buscar diretamente pelo id
+        const { data: cliente, error: errorCliente } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id, nome, nome_amigavel, nome_fantasia, razao_social')
+          .eq('id', clienteId.trim())
+          .maybeSingle();
+        
+        if (errorCliente) {
+          console.error(`❌ Erro ao buscar cliente ID ${clienteId}:`, errorCliente);
+        } else if (cliente) {
+          const nome = cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`;
+          // Armazenar o UUID original e também o id retornado para matching
+          clientesMap.set(clienteId.trim(), nome);
+          clientesMap.set(String(cliente.id).trim(), nome);
+          console.log(`  ✅ ID ${clienteId}: ${nome}`);
+        } else {
+          console.warn(`⚠️ Cliente ID ${clienteId} não encontrado na tabela cp_cliente`);
+        }
+      }
+    }
+
     // Enriquecer dados com nomes (garantir comparação correta de tipos) - usar vinculadosFiltrados
     const dadosEnriquecidos = (vinculadosFiltrados || []).map(v => {
       const atividadeId = v.cp_atividade ? parseInt(v.cp_atividade, 10) : null;
@@ -332,10 +384,19 @@ async function getVinculados(req, res) {
       const atividadeNome = atividadeId ? atividadesMap.get(atividadeId) : null;
       const produtoNome = produtoId ? produtosMap.get(produtoId) : null;
       const tipoAtividadeNome = tipoAtividadeId ? tipoAtividadesMap.get(tipoAtividadeId) : null;
+      
+      // Buscar nome do cliente (cp_cliente é TEXT/UUID)
+      let clienteNome = null;
+      if (v.cp_cliente) {
+        const clienteIdStr = String(v.cp_cliente).trim();
+        // Buscar pelo UUID diretamente
+        clienteNome = clientesMap.get(clienteIdStr) || null;
+      }
 
       console.log(`  - atividade_nome: ${atividadeNome || 'null'}`);
       console.log(`  - produto_nome: ${produtoNome || 'null'}`);
       console.log(`  - tipo_atividade_nome: ${tipoAtividadeNome || 'null'}`);
+      console.log(`  - cliente_nome: ${clienteNome || 'null'}`);
 
       // Debug para cada vinculado
       if (atividadeId && !atividadeNome) {
@@ -355,14 +416,15 @@ async function getVinculados(req, res) {
         ...v,
         atividade_nome: atividadeNome,
         produto_nome: produtoNome,
-        tipo_atividade_nome: tipoAtividadeNome
+        tipo_atividade_nome: tipoAtividadeNome,
+        cliente_nome: clienteNome
       };
     });
 
     console.log(`✅ Dados enriquecidos: ${dadosEnriquecidos.length} registros`);
 
     // Ajustar o total se filtros foram aplicados no código
-    const totalAjustado = temFiltroProduto || temFiltroAtividade || temFiltroTipoAtividade 
+    const totalAjustado = temFiltroProduto || temFiltroAtividade || temFiltroTipoAtividade || temFiltroCliente
       ? dadosEnriquecidos.length 
       : count || 0;
 
@@ -437,7 +499,7 @@ async function getVinculadoPorId(req, res) {
 async function atualizarVinculado(req, res) {
   try {
     const { id } = req.params;
-    const { cp_tarefa, cp_tarefa_tipo, cp_produto } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -460,6 +522,11 @@ async function atualizarVinculado(req, res) {
     
     if (cp_produto !== undefined) {
       dadosVinculado.cp_produto = cp_produto !== null && cp_produto !== '' ? parseInt(cp_produto, 10) : null;
+    }
+
+    // cp_cliente é TEXT, então enviar como string
+    if (cp_cliente !== undefined) {
+      dadosVinculado.cp_cliente = cp_cliente !== null && cp_cliente !== '' ? String(cp_cliente).trim() : null;
     }
 
     // Verificar se pelo menos um campo foi preenchido
@@ -541,12 +608,17 @@ async function deletarVinculado(req, res) {
       });
     }
 
+    // Converter ID para número se for string
+    const idNum = typeof id === 'string' ? parseInt(id, 10) : id;
+    
+    console.log(`🗑️ Tentando deletar vinculado ID: ${id} (tipo: ${typeof id}, convertido: ${idNum})`);
+
     // Verificar se o vinculado existe
     const { data: existingData, error: checkError } = await supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
       .select('id')
-      .eq('id', id)
+      .eq('id', idNum)
       .maybeSingle();
 
     if (checkError) {
@@ -559,18 +631,21 @@ async function deletarVinculado(req, res) {
     }
 
     if (!existingData) {
+      console.log(`⚠️ Vinculado ID ${idNum} não encontrado`);
       return res.status(404).json({
         success: false,
         error: 'Vinculado não encontrado'
       });
     }
 
+    console.log(`✅ Vinculado ID ${idNum} encontrado, deletando...`);
+
     // Deletar
     const { error } = await supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
       .delete()
-      .eq('id', id);
+      .eq('id', idNum);
 
     if (error) {
       console.error('❌ Erro ao deletar vinculado:', error);
@@ -597,12 +672,146 @@ async function deletarVinculado(req, res) {
   }
 }
 
+// GET - Buscar tarefas vinculadas a produtos
+async function getTarefasPorProdutos(req, res) {
+  try {
+    const { produtoIds } = req.query;
+    
+    if (!produtoIds) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "produtoIds" é obrigatório. Use: ?produtoIds=id1,id2,id3'
+      });
+    }
+
+    // Converter string de IDs separados por vírgula em array
+    const idsArray = [...new Set(
+      String(produtoIds)
+        .split(',')
+        .map(id => parseInt(id.trim(), 10))
+        .filter(id => !isNaN(id) && id > 0)
+    )];
+
+    if (idsArray.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar vinculados que têm esses produtos e têm tarefa vinculada
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('cp_atividade, cp_produto')
+      .in('cp_produto', idsArray)
+      .not('cp_atividade', 'is', null);
+
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar vinculados:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar vinculados',
+        details: vinculadosError.message
+      });
+    }
+
+    // Extrair IDs únicos de tarefas
+    const tarefaIds = [...new Set(
+      (vinculados || [])
+        .map(v => v.cp_atividade)
+        .filter(id => id !== null && id !== undefined)
+    )];
+
+    if (tarefaIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar tarefas na tabela cp_tarefa (igual ao getVinculados)
+    const tarefasMap = new Map();
+    if (tarefaIds.length > 0) {
+      console.log(`🔍 Buscando tarefas com IDs: [${tarefaIds.join(', ')}]`);flie
+      
+      // Buscar cada tarefa individualmente (igual ao getVinculados)
+      for (const tarefaId of tarefaIds) {
+        const { data: tarefa, error: errorTarefa } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .select('id, nome')
+          .eq('id', tarefaId)
+          .maybeSingle();
+        
+        if (errorTarefa) {
+          console.error(`❌ Erro ao buscar tarefa ID ${tarefaId}:`, errorTarefa);
+        } else if (tarefa) {
+          const id = parseInt(tarefa.id, 10);
+          tarefasMap.set(id, tarefa.nome || null);
+          console.log(`  ✅ ID ${id}: ${tarefa.nome}`);
+        } else {
+          console.warn(`⚠️ Tarefa ID ${tarefaId} não encontrada na tabela cp_tarefa`);
+        }
+      }
+    }
+
+    // Criar mapa de produto -> tarefas vinculadas
+    const produtoTarefasMap = {};
+    
+    idsArray.forEach(produtoId => {
+      produtoTarefasMap[produtoId] = [];
+    });
+
+    vinculados.forEach(vinculado => {
+      const produtoId = vinculado.cp_produto;
+      const tarefaId = vinculado.cp_atividade;
+      
+      if (produtoTarefasMap[produtoId] && !produtoTarefasMap[produtoId].includes(tarefaId)) {
+        produtoTarefasMap[produtoId].push(tarefaId);
+      }
+    });
+
+    // Formatar resultado: array de objetos { produtoId, produtoNome, tarefas: [...] }
+    const resultado = idsArray.map(produtoId => {
+      const tarefaIdsDoProduto = produtoTarefasMap[produtoId] || [];
+      const tarefasDoProduto = tarefaIdsDoProduto
+        .map(tarefaId => {
+          const nome = tarefasMap.get(tarefaId);
+          return nome ? { id: tarefaId, nome } : null;
+        })
+        .filter(Boolean);
+
+      return {
+        produtoId,
+        tarefas: tarefasDoProduto
+      };
+    });
+
+    res.json({
+      success: true,
+      data: resultado,
+      count: resultado.length
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao buscar tarefas por produtos:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarVinculado,
   criarMultiplosVinculados,
   getVinculados,
   getVinculadoPorId,
   atualizarVinculado,
-  deletarVinculado
+  deletarVinculado,
+  getTarefasPorProdutos
 };
 

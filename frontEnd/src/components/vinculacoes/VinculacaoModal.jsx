@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import CustomSelect from './CustomSelect';
 import { useToast } from '../../hooks/useToast';
+import { clientesAPI } from '../../services/api';
+import ModalHeader from './ModalHeader';
+import ModalFooter from './ModalFooter';
+import PrimarySelectsSection from './PrimarySelectsSection';
+import SecondarySelectsSection from './SecondarySelectsSection';
 import './VinculacaoModal.css';
 
 const API_BASE_URL = '/api';
@@ -22,11 +26,14 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
   const [atividades, setAtividades] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [tipoAtividades, setTipoAtividades] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [tarefasVinculadas, setTarefasVinculadas] = useState({}); // { produtoId: [{ id, nome }] }
 
   const opcoesPrimarias = [
     { value: 'produto', label: 'Produto' },
     { value: 'atividade', label: 'Tarefa' },
-    { value: 'tipo-atividade', label: 'Tipo de Tarefa' }
+    { value: 'tipo-atividade', label: 'Tipo de Tarefa' },
+    { value: 'cliente', label: 'Cliente' }
   ];
 
   // Carregar dados das APIs e do vinculado se estiver editando
@@ -77,6 +84,17 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           setTipoAtividades(tipoAtividadesData.data || []);
         }
       }
+
+      // Carregar clientes
+      const clientesResult = await clientesAPI.getAll(null, false);
+      if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
+        // Garantir que todos os clientes tenham nome e id
+        const clientesComDados = clientesResult.data.map(cliente => ({
+          id: cliente.id,
+          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`
+        }));
+        setClientes(clientesComDados);
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -111,6 +129,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           if (vinculadoMapeado.cp_tarefa) tiposSelecionados.push('atividade');
           if (vinculadoMapeado.cp_produto) tiposSelecionados.push('produto');
           if (vinculadoMapeado.cp_tarefa_tipo) tiposSelecionados.push('tipo-atividade');
+          if (vinculadoMapeado.cp_cliente) tiposSelecionados.push('cliente');
 
           // Configurar selects primários
           const newPrimarySelects = tiposSelecionados.map((tipo, idx) => ({
@@ -124,13 +143,26 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           setPrimarySelects(newPrimarySelects);
 
           // Confirmar e criar selects secundários
-          const newSecondarySelects = tiposSelecionados.map((tipo) => ({
-            id: Math.random(),
-            primaryType: tipo,
-            selectedItems: vinculadoMapeado[`cp_${tipo === 'tipo-atividade' ? 'tarefa_tipo' : tipo === 'atividade' ? 'tarefa' : tipo}`] 
-              ? [vinculadoMapeado[`cp_${tipo === 'tipo-atividade' ? 'tarefa_tipo' : tipo === 'atividade' ? 'tarefa' : tipo}`].toString()]
-              : []
-          }));
+          const newSecondarySelects = tiposSelecionados.map((tipo) => {
+            let campoNome;
+            if (tipo === 'tipo-atividade') {
+              campoNome = 'cp_tarefa_tipo';
+            } else if (tipo === 'atividade') {
+              campoNome = 'cp_tarefa';
+            } else if (tipo === 'cliente') {
+              campoNome = 'cp_cliente';
+            } else {
+              campoNome = `cp_${tipo}`;
+            }
+            
+            return {
+              id: Math.random(),
+              primaryType: tipo,
+              selectedItems: vinculadoMapeado[campoNome] 
+                ? [vinculadoMapeado[campoNome].toString()]
+                : []
+            };
+          });
           setSecondarySelects(newSecondarySelects);
           setPrimaryConfirmed(true);
         }
@@ -156,15 +188,34 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
   // Atualizar valor do select primário
   const updatePrimarySelect = (id, value) => {
-    // Se o valor selecionado já está sendo usado em outro select, limpar o outro select
     setPrimarySelects(primarySelects.map(s => {
       if (s.id === id) {
         return { ...s, value };
-      } else if (s.value === value && value !== '') {
-        // Limpar o outro select que tinha o mesmo valor
-        return { ...s, value: '' };
+      } else {
+        // Aplicar regra: Cliente <-> Produto (apenas quando Cliente está selecionado)
+        // Produto pode ser vinculado com Cliente OU Atividade
+        if (value === 'cliente') {
+          // Se selecionou "Cliente", o outro select só pode ter "Produto"
+          // Se o outro select não está vazio e não é "Produto", limpar
+          if (s.value !== '' && s.value !== 'produto') {
+            return { ...s, value: '' };
+          }
+        } else if (value === 'produto') {
+          // Se selecionou "Produto", o outro select pode ter "Cliente" ou "Atividade"
+          // Se o outro select não está vazio e não é "Cliente" nem "Atividade", limpar
+          if (s.value !== '' && s.value !== 'cliente' && s.value !== 'atividade') {
+            return { ...s, value: '' };
+          }
+        } else {
+          // Se selecionou outro tipo (atividade, tipo-atividade)
+          // Se o outro select tem "Cliente" ou "Produto", não precisa limpar (eles podem coexistir com outros tipos)
+          // Mas se o valor selecionado já está em outro select, limpar
+          if (s.value === value && value !== '') {
+            return { ...s, value: '' };
+          }
+        }
+        return s;
       }
-      return s;
     }));
   };
 
@@ -256,6 +307,56 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     }));
   };
 
+  // Buscar tarefas vinculadas aos produtos selecionados
+  useEffect(() => {
+    const buscarTarefasVinculadas = async () => {
+      // Encontrar o select de produtos
+      const produtoSelect = secondarySelects.find(s => s.primaryType === 'produto');
+      if (!produtoSelect || !produtoSelect.selectedItems || produtoSelect.selectedItems.length === 0) {
+        setTarefasVinculadas({});
+        return;
+      }
+
+      const produtoIds = produtoSelect.selectedItems.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      if (produtoIds.length === 0) {
+        setTarefasVinculadas({});
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/tarefas-por-produtos?produtoIds=${produtoIds.join(',')}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            // Converter array em objeto { produtoId: tarefas }
+            const tarefasMap = {};
+            result.data.forEach(item => {
+              tarefasMap[item.produtoId] = item.tarefas || [];
+            });
+            setTarefasVinculadas(tarefasMap);
+          } else {
+            setTarefasVinculadas({});
+          }
+        } else {
+          setTarefasVinculadas({});
+        }
+      } catch (error) {
+        console.error('Erro ao buscar tarefas vinculadas:', error);
+        setTarefasVinculadas({});
+      }
+    };
+
+    if (primaryConfirmed && secondarySelects.length > 0) {
+      buscarTarefasVinculadas();
+    } else {
+      setTarefasVinculadas({});
+    }
+  }, [secondarySelects, primaryConfirmed]);
+
   // Selecionar todos os itens de um select secundário
   const handleSelectAll = (selectId) => {
     // Na edição, não permitir selecionar todos
@@ -289,6 +390,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         return produtos.map(p => ({ value: p.id, label: p.nome }));
       case 'tipo-atividade':
         return tipoAtividades.map(t => ({ value: t.id, label: t.nome }));
+      case 'cliente':
+        return clientes.map(c => ({ value: c.id, label: c.nome }));
       default:
         return [];
     }
@@ -319,30 +422,49 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     return {
       cp_tarefa: tiposSelecionados.includes('atividade'),
       cp_produto: tiposSelecionados.includes('produto'),
-      cp_tarefa_tipo: tiposSelecionados.includes('tipo-atividade')
+      cp_tarefa_tipo: tiposSelecionados.includes('tipo-atividade'),
+      cp_cliente: tiposSelecionados.includes('cliente')
     };
   };
 
 
   // Criar dados para tabela vinculados (todas as combinações)
   const criarDadosVinculados = () => {
+    // Função auxiliar para converter ID para número
+    const toNumber = (id) => {
+      if (id === null || id === undefined || id === '') return null;
+      const num = parseInt(String(id).trim(), 10);
+      return isNaN(num) ? null : num;
+    };
+
+    // Função auxiliar para converter ID para string (para cp_cliente que é TEXT)
+    const toString = (id) => {
+      if (id === null || id === undefined || id === '') return null;
+      return String(id).trim();
+    };
+
     // Agrupar itens selecionados por tipo
     const atividadesIds = [];
     const produtosIds = [];
     const tipoAtividadesIds = [];
+    const clientesIds = [];
 
     secondarySelects.forEach(select => {
       const selectedItems = select.selectedItems || [];
       if (selectedItems.length > 0) {
         switch (select.primaryType) {
           case 'atividade':
-            atividadesIds.push(...selectedItems);
+            atividadesIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
             break;
           case 'produto':
-            produtosIds.push(...selectedItems);
+            produtosIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
             break;
           case 'tipo-atividade':
-            tipoAtividadesIds.push(...selectedItems);
+            tipoAtividadesIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
+            break;
+          case 'cliente':
+            // cp_cliente é TEXT, então manter como string
+            clientesIds.push(...selectedItems.map(toString).filter(id => id !== null));
             break;
         }
       }
@@ -351,11 +473,30 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     // Criar todas as combinações possíveis
     const combinacoes = [];
 
+    // Função auxiliar para criar combinações base com clientes
+    const criarCombinacaoComClientes = (baseCombinacao) => {
+      if (clientesIds.length > 0) {
+        // Se houver clientes, criar uma combinação para cada cliente
+        clientesIds.forEach(clienteId => {
+          combinacoes.push({
+            ...baseCombinacao,
+            cp_cliente: clienteId
+          });
+        });
+      } else {
+        // Se não houver clientes, adicionar apenas a combinação base
+        combinacoes.push({
+          ...baseCombinacao,
+          cp_cliente: null
+        });
+      }
+    };
+
     // Se houver atividades e produtos, criar combinações
     if (atividadesIds.length > 0 && produtosIds.length > 0) {
       atividadesIds.forEach(atividadeId => {
         produtosIds.forEach(produtoId => {
-          combinacoes.push({
+          criarCombinacaoComClientes({
             cp_tarefa: atividadeId,
             cp_produto: produtoId,
             cp_tarefa_tipo: null
@@ -368,7 +509,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     if (atividadesIds.length > 0 && tipoAtividadesIds.length > 0) {
       atividadesIds.forEach(atividadeId => {
         tipoAtividadesIds.forEach(tipoAtividadeId => {
-          combinacoes.push({
+          criarCombinacaoComClientes({
             cp_tarefa: atividadeId,
             cp_tarefa_tipo: tipoAtividadeId,
             cp_produto: null
@@ -381,7 +522,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     if (produtosIds.length > 0 && tipoAtividadesIds.length > 0) {
       produtosIds.forEach(produtoId => {
         tipoAtividadesIds.forEach(tipoAtividadeId => {
-          combinacoes.push({
+          criarCombinacaoComClientes({
             cp_produto: produtoId,
             cp_tarefa_tipo: tipoAtividadeId,
             cp_tarefa: null
@@ -390,10 +531,56 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       });
     }
 
-    // Se houver apenas um tipo selecionado, criar registros individuais
-    if (atividadesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
+    // Se houver apenas um tipo selecionado (sem clientes), criar registros individuais
+    if (atividadesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0 && clientesIds.length === 0) {
       atividadesIds.forEach(atividadeId => {
         combinacoes.push({
+          cp_tarefa: atividadeId,
+          cp_produto: null,
+          cp_tarefa_tipo: null,
+          cp_cliente: null
+        });
+      });
+    }
+
+    if (produtosIds.length > 0 && atividadesIds.length === 0 && tipoAtividadesIds.length === 0 && clientesIds.length === 0) {
+      produtosIds.forEach(produtoId => {
+        combinacoes.push({
+          cp_produto: produtoId,
+          cp_tarefa: null,
+          cp_tarefa_tipo: null,
+          cp_cliente: null
+        });
+      });
+    }
+
+    if (tipoAtividadesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0 && clientesIds.length === 0) {
+      tipoAtividadesIds.forEach(tipoAtividadeId => {
+        combinacoes.push({
+          cp_tarefa_tipo: tipoAtividadeId,
+          cp_tarefa: null,
+          cp_produto: null,
+          cp_cliente: null
+        });
+      });
+    }
+
+    // Se houver apenas clientes selecionados
+    if (clientesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
+      clientesIds.forEach(clienteId => {
+        combinacoes.push({
+          cp_cliente: clienteId,
+          cp_tarefa: null,
+          cp_produto: null,
+          cp_tarefa_tipo: null
+        });
+      });
+    }
+
+    // Se houver atividades e clientes (sem produtos e tipo-atividade)
+    if (atividadesIds.length > 0 && clientesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
+      atividadesIds.forEach(atividadeId => {
+        criarCombinacaoComClientes({
           cp_tarefa: atividadeId,
           cp_produto: null,
           cp_tarefa_tipo: null
@@ -401,9 +588,10 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       });
     }
 
-    if (produtosIds.length > 0 && atividadesIds.length === 0 && tipoAtividadesIds.length === 0) {
+    // Se houver produtos e clientes (sem atividades e tipo-atividade)
+    if (produtosIds.length > 0 && clientesIds.length > 0 && atividadesIds.length === 0 && tipoAtividadesIds.length === 0) {
       produtosIds.forEach(produtoId => {
-        combinacoes.push({
+        criarCombinacaoComClientes({
           cp_produto: produtoId,
           cp_tarefa: null,
           cp_tarefa_tipo: null
@@ -411,9 +599,10 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       });
     }
 
-    if (tipoAtividadesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0) {
+    // Se houver tipo-atividade e clientes (sem atividades e produtos)
+    if (tipoAtividadesIds.length > 0 && clientesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0) {
       tipoAtividadesIds.forEach(tipoAtividadeId => {
-        combinacoes.push({
+        criarCombinacaoComClientes({
           cp_tarefa_tipo: tipoAtividadeId,
           cp_tarefa: null,
           cp_produto: null
@@ -421,12 +610,12 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       });
     }
 
-    // Se houver todos os três tipos, criar todas as combinações triplas
+    // Se houver todos os três tipos (atividade, produto, tipo-atividade), criar todas as combinações triplas
     if (atividadesIds.length > 0 && produtosIds.length > 0 && tipoAtividadesIds.length > 0) {
       atividadesIds.forEach(atividadeId => {
         produtosIds.forEach(produtoId => {
           tipoAtividadesIds.forEach(tipoAtividadeId => {
-            combinacoes.push({
+            criarCombinacaoComClientes({
               cp_tarefa: atividadeId,
               cp_produto: produtoId,
               cp_tarefa_tipo: tipoAtividadeId
@@ -554,10 +743,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
             const resultVinculados = await responseVinculados.json();
             
             if (!responseVinculados.ok) {
-              console.error('Erro ao salvar vinculados:', resultVinculados);
-              // Não bloquear se falhar, apenas logar
             } else {
-              console.log(`✅ ${resultVinculados.count || combinacoesVinculados.length} vinculado(s) salvo(s) com sucesso`);
             }
           }
         }
@@ -593,240 +779,99 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
 
   if (!isOpen) return null;
 
+  // Handler para toggle de expansão
+  const handleToggleExpand = (selectId) => {
+    setExpandedSelects(prev => ({
+      ...prev,
+      [selectId]: !prev[selectId]
+    }));
+  };
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content vinculacao-modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#0e3b6f', margin: 0 }}>
-            <i className="fas fa-link" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
-            {editingVinculado ? 'Editar Vinculação' : 'Nova Vinculação'}
-          </h3>
-          <button
-            className="btn-icon"
-            onClick={handleClose}
-            title="Fechar"
-            disabled={submitting}
-          >
-            <i className="fas fa-times"></i>
-          </button>
-        </div>
+        <ModalHeader
+          title={editingVinculado ? 'Editar Vinculação' : 'Nova Vinculação'}
+          onClose={handleClose}
+          disabled={submitting}
+        />
 
         <div className="modal-body custom-scrollbar">
           {!primaryConfirmed ? (
             <>
-              <div className="vinculacao-section">
-                <h4 className="section-title">Tipos de Elementos</h4>
-                <p className="section-description">
-                  Selecione os tipos de elementos que deseja vincular
-                </p>
-                
-                <div className="vinculacao-section-primary-selects custom-scrollbar">
-                  {primarySelects.map((select, index) => {
-                    // Filtrar opções para não permitir selecionar o mesmo tipo já selecionado em outro select
-                    const otherSelectedValues = primarySelects
-                      .filter(s => s.id !== select.id && s.value !== '')
-                      .map(s => s.value);
-                    
-                    const availableOptions = opcoesPrimarias.filter(
-                      opt => !otherSelectedValues.includes(opt.value)
-                    );
-                    
-                    return (
-                      <div key={select.id} className="select-group">
-                        <div className="select-wrapper">
-                          <CustomSelect
-                            value={select.value}
-                            options={availableOptions}
-                            onChange={(e) => updatePrimarySelect(select.id, e.target.value)}
-                            placeholder="Selecione uma opção"
-                            disabled={loading}
-                          />
-                      {index === primarySelects.length - 1 && (
-                        <button
-                          type="button"
-                          className="btn-add-select"
-                          onClick={addPrimarySelect}
-                          title="Adicionar outro select"
-                        >
-                          <i className="fas fa-plus"></i>
-                        </button>
-                      )}
-                      {primarySelects.length > 2 && (
-                        <button
-                          type="button"
-                          className="btn-remove-select"
-                          onClick={() => removePrimarySelect(select.id)}
-                          title="Remover select"
-                        >
-                          <i className="fas fa-times"></i>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                    );
-                  })}
-                </div>
-              </div>
+              <PrimarySelectsSection
+                primarySelects={primarySelects}
+                opcoesPrimarias={opcoesPrimarias}
+                onUpdateSelect={updatePrimarySelect}
+                onAddSelect={addPrimarySelect}
+                onRemoveSelect={removePrimarySelect}
+                loading={loading}
+              />
 
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => handleClose(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={confirmPrimarySelects}
-                  disabled={loading}
-                >
-                  Confirmar Seleções
-                </button>
-              </div>
+              <ModalFooter
+                buttons={[
+                  {
+                    text: 'Cancelar',
+                    className: 'btn-secondary',
+                    onClick: () => handleClose(false)
+                  },
+                  {
+                    text: 'Confirmar Seleções',
+                    className: 'btn-primary',
+                    onClick: confirmPrimarySelects,
+                    disabled: loading
+                  }
+                ]}
+                disabled={loading}
+              />
             </>
           ) : (
             <>
-              <div className="vinculacao-section">
-                <h4 className="section-title">Elementos Específicos</h4>
-                <p className="section-description">
-                  {editingVinculado 
-                    ? 'Troque o item selecionado para cada tipo escolhido'
-                    : 'Selecione os itens específicos para cada tipo escolhido'
+              <SecondarySelectsSection
+                secondarySelects={secondarySelects}
+                opcoesPrimarias={opcoesPrimarias}
+                getAllSecondaryOptions={getAllSecondaryOptions}
+                getSecondaryOptions={getSecondaryOptions}
+                getItemLabel={getItemLabel}
+                isEditing={!!editingVinculado}
+                onUpdateSelect={updateSecondarySelect}
+                onRemoveItem={removeSelectedItem}
+                onSelectAll={handleSelectAll}
+                expandedSelects={expandedSelects}
+                onToggleExpand={handleToggleExpand}
+                loading={loading}
+                tarefasVinculadas={tarefasVinculadas}
+                produtos={produtos}
+              />
+
+              <ModalFooter
+                buttons={[
+                  {
+                    text: 'Voltar',
+                    className: 'btn-secondary',
+                    onClick: () => {
+                      setPrimaryConfirmed(false);
+                      setSecondarySelects([]);
+                    }
+                  },
+                  {
+                    text: 'Cancelar',
+                    className: 'btn-secondary',
+                    onClick: () => handleClose(false),
+                    disabled: submitting
+                  },
+                  {
+                    text: 'Salvar',
+                    className: 'btn-primary',
+                    icon: 'fas fa-save',
+                    onClick: handleSave,
+                    loading: submitting,
+                    loadingText: 'Salvando...',
+                    disabled: loading || submitting
                   }
-                </p>
-
-                {secondarySelects.map((select) => {
-                  const selectedItems = select.selectedItems || [];
-                  // Na edição, mostrar todas as opções (incluindo a selecionada) para o select simples
-                  // Na criação, filtrar opções já selecionadas
-                  const options = editingVinculado 
-                    ? getAllSecondaryOptions(select.primaryType)
-                    : getSecondaryOptions(select.primaryType, selectedItems);
-                  const primaryLabel = opcoesPrimarias.find(
-                    op => op.value === select.primaryType
-                  )?.label || select.primaryType;
-                  const sameTypeSelects = secondarySelects.filter(s => s.primaryType === select.primaryType);
-
-                  return (
-                    <div key={select.id} className="select-group-secondary">
-                      <label className="select-label">
-                        {primaryLabel}
-                      </label>
-                      
-                      {/* Itens já selecionados */}
-                      {selectedItems.length > 0 && (() => {
-                        const MAX_VISIBLE_ITEMS = 5;
-                        const isExpanded = expandedSelects[select.id] || false;
-                        const visibleItems = isExpanded 
-                          ? selectedItems 
-                          : selectedItems.slice(0, MAX_VISIBLE_ITEMS);
-                        const hasMore = selectedItems.length > MAX_VISIBLE_ITEMS;
-
-                        return (
-                          <div className="selected-items-container">
-                            {visibleItems.map((itemId) => {
-                              // Na edição, não mostrar botão de remover se houver apenas um item
-                              const canRemove = !editingVinculado || selectedItems.length > 1;
-                              
-                              return (
-                                <div key={itemId} className="selected-item-tag">
-                                  <span>{getItemLabel(select.primaryType, itemId)}</span>
-                                  {canRemove && (
-                                    <button
-                                      type="button"
-                                      className="btn-remove-tag"
-                                      onClick={() => removeSelectedItem(select.id, itemId)}
-                                      title="Remover item"
-                                    >
-                                      <i className="fas fa-times"></i>
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {hasMore && (
-                              <button
-                                type="button"
-                                className="btn-expand-items"
-                                onClick={() => setExpandedSelects(prev => ({
-                                  ...prev,
-                                  [select.id]: !isExpanded
-                                }))}
-                                title={isExpanded ? "Mostrar menos" : `Mostrar mais (${selectedItems.length - MAX_VISIBLE_ITEMS} itens)`}
-                              >
-                                <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`}></i>
-                                <span>
-                                  {isExpanded 
-                                    ? 'Mostrar menos' 
-                                    : `+${selectedItems.length - MAX_VISIBLE_ITEMS} mais`
-                                  }
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      <div className="select-wrapper">
-                        <CustomSelect
-                          value={editingVinculado && selectedItems.length > 0 ? selectedItems[0] : select.value}
-                          options={options}
-                          onChange={(e) => updateSecondarySelect(select.id, e.target.value)}
-                          placeholder={editingVinculado ? "Trocar item selecionado" : "Selecione um item"}
-                          disabled={loading || options.length === 0}
-                          keepOpen={!editingVinculado}
-                          selectedItems={(select.selectedItems || []).map(item => String(item))}
-                          onSelectAll={editingVinculado ? undefined : () => handleSelectAll(select.id)}
-                          hideCheckboxes={editingVinculado}
-                          maxVisibleOptions={5}
-                          enableSearch={true}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setPrimaryConfirmed(false);
-                    setSecondarySelects([]);
-                  }}
-                >
-                  Voltar
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => handleClose(false)}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleSave}
-                  disabled={loading || submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin"></i>
-                      Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save"></i>
-                      Salvar
-                    </>
-                  )}
-                </button>
-              </div>
+                ]}
+                disabled={submitting}
+              />
             </>
           )}
         </div>

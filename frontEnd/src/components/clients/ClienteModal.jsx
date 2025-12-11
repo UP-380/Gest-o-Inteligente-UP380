@@ -17,7 +17,8 @@ const ClienteModal = ({
   clientesKaminoMap,
   cnpjOptions = [],
   loadCnpjOptions,
-  clienteEditando
+  clienteEditando,
+  onVinculacaoSaveReady
 }) => {
   if (!isOpen) return null;
 
@@ -58,6 +59,7 @@ const ClienteModal = ({
               clientesKaminoMap={clientesKaminoMap}
               cnpjOptions={cnpjOptions}
               loadCnpjOptions={loadCnpjOptions}
+              onVinculacaoSaveReady={onVinculacaoSaveReady}
             />
           </div>
           <div className="modal-footer">
