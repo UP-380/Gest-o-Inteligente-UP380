@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
 import SelectedItemsList from '../vinculacoes/SelectedItemsList';
 import ModalFooter from '../vinculacoes/ModalFooter';
+import TarefasVinculadasCliente from '../vinculacoes/TarefasVinculadasCliente';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI } from '../../services/api';
 import '../vinculacoes/VinculacaoModal.css';
@@ -26,7 +27,6 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   const [produtos, setProdutos] = useState([]);
   const [tipoAtividades, setTipoAtividades] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [tarefasVinculadas, setTarefasVinculadas] = useState({}); // { produtoId: [{ id, nome }] }
 
   // Opções primárias (sem Cliente, pois já está selecionado)
   const opcoesPrimarias = [
@@ -248,55 +248,6 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
     }));
   };
 
-  // Buscar tarefas vinculadas aos produtos selecionados
-  useEffect(() => {
-    const buscarTarefasVinculadas = async () => {
-      // Encontrar o select de produtos
-      const produtoSelect = secondarySelects.find(s => s.primaryType === 'produto');
-      if (!produtoSelect || !produtoSelect.selectedItems || produtoSelect.selectedItems.length === 0) {
-        setTarefasVinculadas({});
-        return;
-      }
-
-      const produtoIds = produtoSelect.selectedItems.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-      if (produtoIds.length === 0) {
-        setTarefasVinculadas({});
-        return;
-      }
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/tarefas-por-produtos?produtoIds=${produtoIds.join(',')}`, {
-          credentials: 'include',
-          headers: { 'Accept': 'application/json' }
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            // Converter array em objeto { produtoId: tarefas }
-            const tarefasMap = {};
-            result.data.forEach(item => {
-              tarefasMap[item.produtoId] = item.tarefas || [];
-            });
-            setTarefasVinculadas(tarefasMap);
-          } else {
-            setTarefasVinculadas({});
-          }
-        } else {
-          setTarefasVinculadas({});
-        }
-      } catch (error) {
-        console.error('Erro ao buscar tarefas vinculadas:', error);
-        setTarefasVinculadas({});
-      }
-    };
-
-    if (secondarySelects.length > 0) {
-      buscarTarefasVinculadas();
-    } else {
-      setTarefasVinculadas({});
-    }
-  }, [secondarySelects]);
 
   // Remover select secundário
   const handleRemoveSecondarySelect = (selectId) => {
@@ -591,14 +542,7 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
               
               {/* Exibir tarefas vinculadas se for select de produto */}
               {select.primaryType === 'produto' && (select.selectedItems || []).length > 0 && (
-                <div className="tarefas-vinculadas-container" style={{ 
-                  marginTop: '15px', 
-                  marginBottom: '20px',
-                  padding: '15px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  border: '1px solid #dee2e6'
-                }}>
+                <div style={{ marginTop: '15px' }}>
                   <div style={{ 
                     fontWeight: '600', 
                     color: '#0e3b6f', 
@@ -610,58 +554,14 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
                     <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
                     Tarefas Vinculadas aos Produtos
                   </div>
-                  {(select.selectedItems || []).map(produtoIdStr => {
-                    const produtoId = parseInt(produtoIdStr, 10);
-                    const produto = produtos.find(p => p.id === produtoId);
-                    const produtoNome = produto ? produto.nome : `Produto #${produtoId}`;
-                    const tarefas = tarefasVinculadas[produtoId] || [];
-                    
-                    return (
-                      <div key={produtoId} className="tarefas-vinculadas-item" style={{ 
-                        marginBottom: '12px',
-                        padding: '10px',
-                        backgroundColor: '#ffffff',
-                        borderRadius: '4px',
-                        border: '1px solid #e2e8f0'
-                      }}>
-                        <div style={{ 
-                          fontWeight: '600', 
-                          color: '#0e3b6f', 
-                          marginBottom: '8px',
-                          fontSize: '13px'
-                        }}>
-                          <i className="fas fa-box" style={{ marginRight: '6px', color: '#64748b' }}></i>
-                          {produtoNome}
-                        </div>
-                        {tarefas.length > 0 ? (
-                          <ul style={{ 
-                            margin: 0, 
-                            paddingLeft: '20px',
-                            listStyle: 'disc'
-                          }}>
-                            {tarefas.map(tarefa => (
-                              <li key={tarefa.id} style={{ 
-                                marginBottom: '4px',
-                                color: '#495057',
-                                fontSize: '13px'
-                              }}>
-                                {tarefa.nome || `Tarefa #${tarefa.id}`}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div style={{ 
-                            color: '#64748b',
-                            fontSize: '12px',
-                            fontStyle: 'italic',
-                            paddingLeft: '20px'
-                          }}>
-                            Nenhuma tarefa vinculada a este produto
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <TarefasVinculadasCliente 
+                    clienteId={clienteId}
+                    produtos={(select.selectedItems || []).map(produtoIdStr => {
+                      const produtoId = parseInt(produtoIdStr, 10);
+                      const produto = produtos.find(p => p.id === produtoId);
+                      return produto || { id: produtoId, nome: `Produto #${produtoId}` };
+                    })}
+                  />
                 </div>
               )}
             </>

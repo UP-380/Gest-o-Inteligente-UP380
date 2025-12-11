@@ -19,6 +19,7 @@ const produtosController = require('../controllers/produtos.controller');
 const tipoAtividadeController = require('../controllers/tipo-atividade.controller');
 const vinculacoesController = require('../controllers/vinculacoes.controller');
 const vinculadosController = require('../controllers/vinculados.controller');
+const tempoEstimadoController = require('../controllers/tempo-estimado.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -145,12 +146,27 @@ router.delete('/api/vinculacoes/:id', requireAuth, vinculacoesController.deletar
 // Rotas de Vinculados (CRUD completo)
 // IMPORTANTE: Rotas específicas devem vir ANTES de rotas com parâmetros
 router.get('/api/tarefas-por-produtos', requireAuth, vinculadosController.getTarefasPorProdutos);
+router.get('/api/tarefas-por-cliente', requireAuth, vinculadosController.getTarefasPorCliente);
+router.get('/api/tarefas-por-cliente-produtos', requireAuth, vinculadosController.getTarefasPorClienteEProdutos);
+router.get('/api/produtos-por-cliente', requireAuth, vinculadosController.getProdutosPorCliente);
 router.get('/api/vinculados', requireAuth, vinculadosController.getVinculados);
 router.get('/api/vinculados/:id', requireAuth, vinculadosController.getVinculadoPorId);
 router.post('/api/vinculados', requireAuth, vinculadosController.criarVinculado);
 router.post('/api/vinculados/multiplos', requireAuth, vinculadosController.criarMultiplosVinculados);
 router.put('/api/vinculados/:id', requireAuth, vinculadosController.atualizarVinculado);
 router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVinculado);
+
+// Rotas de Tempo Estimado (CRUD completo)
+router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoEstimado);
+router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
+router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
+router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
+router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.deletarTempoEstimado);
+
+// Rotas de Tempo Estimado por Agrupador
+router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
+router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
+router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {

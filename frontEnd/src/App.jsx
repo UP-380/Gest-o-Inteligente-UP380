@@ -11,6 +11,7 @@ import CadastroAtividades from './pages/CadastroAtividades/CadastroAtividades';
 import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroTipoAtividades from './pages/CadastroTipoAtividades/CadastroTipoAtividades';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
+import DelegarTarefas from './pages/DelegarTarefas/DelegarTarefas';
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -172,6 +173,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/delegar-tarefas"
+          element={
+            <ProtectedRoute>
+              <DelegarTarefas />
             </ProtectedRoute>
           }
         />

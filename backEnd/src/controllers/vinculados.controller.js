@@ -805,6 +805,345 @@ async function getTarefasPorProdutos(req, res) {
   }
 }
 
+// GET - Buscar tarefas vinculadas a um cliente
+async function getTarefasPorCliente(req, res) {
+  try {
+    const { clienteId } = req.query;
+    
+    if (!clienteId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "clienteId" é obrigatório. Use: ?clienteId=id'
+      });
+    }
+
+    const clienteIdStr = String(clienteId).trim();
+
+    // Buscar vinculados que têm este cliente e têm tarefa vinculada
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('cp_atividade')
+      .eq('cp_cliente', clienteIdStr)
+      .not('cp_atividade', 'is', null);
+
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar vinculados:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar vinculados',
+        details: vinculadosError.message
+      });
+    }
+
+    // Extrair IDs únicos de tarefas
+    const tarefaIds = [...new Set(
+      (vinculados || [])
+        .map(v => v.cp_atividade)
+        .filter(id => id !== null && id !== undefined)
+    )];
+
+    if (tarefaIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar tarefas na tabela cp_tarefa
+    const tarefasMap = new Map();
+    if (tarefaIds.length > 0) {
+      console.log(`🔍 Buscando tarefas com IDs: [${tarefaIds.join(', ')}]`);
+      
+      // Buscar cada tarefa individualmente
+      for (const tarefaId of tarefaIds) {
+        const { data: tarefa, error: errorTarefa } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .select('id, nome')
+          .eq('id', tarefaId)
+          .maybeSingle();
+        
+        if (errorTarefa) {
+          console.error(`❌ Erro ao buscar tarefa ID ${tarefaId}:`, errorTarefa);
+        } else if (tarefa) {
+          const id = parseInt(tarefa.id, 10);
+          tarefasMap.set(id, { id, nome: tarefa.nome || null });
+          console.log(`  ✅ ID ${id}: ${tarefa.nome}`);
+        } else {
+          console.warn(`⚠️ Tarefa ID ${tarefaId} não encontrada na tabela cp_tarefa`);
+        }
+      }
+    }
+
+    // Converter Map para array
+    const tarefas = Array.from(tarefasMap.values());
+
+    return res.json({
+      success: true,
+      data: tarefas,
+      count: tarefas.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tarefas por cliente:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar tarefas vinculadas a um cliente e produtos específicos
+async function getTarefasPorClienteEProdutos(req, res) {
+  try {
+    const { clienteId, produtoIds } = req.query;
+    
+    if (!clienteId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "clienteId" é obrigatório. Use: ?clienteId=id&produtoIds=id1,id2,id3'
+      });
+    }
+
+    if (!produtoIds) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "produtoIds" é obrigatório. Use: ?clienteId=id&produtoIds=id1,id2,id3'
+      });
+    }
+
+    const clienteIdStr = String(clienteId).trim();
+    
+    // Converter string de IDs separados por vírgula em array
+    const idsArray = [...new Set(
+      String(produtoIds)
+        .split(',')
+        .map(id => parseInt(id.trim(), 10))
+        .filter(id => !isNaN(id) && id > 0)
+    )];
+
+    if (idsArray.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Primeiro, verificar se o cliente está vinculado aos produtos (pode ser em registros separados)
+    // Buscar registros onde o cliente está vinculado aos produtos
+    const { data: vinculadosClienteProduto, error: errorClienteProduto } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('cp_produto')
+      .eq('cp_cliente', clienteIdStr)
+      .in('cp_produto', idsArray);
+
+    if (errorClienteProduto) {
+      console.error('❌ Erro ao verificar vinculação cliente-produto:', errorClienteProduto);
+    }
+
+    // Produtos que estão vinculados ao cliente
+    const produtosVinculadosAoCliente = new Set(
+      (vinculadosClienteProduto || []).map(v => v.cp_produto).filter(Boolean)
+    );
+
+    // Buscar tarefas vinculadas aos produtos (pode ter ou não o cliente no mesmo registro)
+    // Se o produto está vinculado ao cliente, buscar todas as tarefas desse produto
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('cp_atividade, cp_produto, cp_cliente')
+      .in('cp_produto', idsArray)
+      .not('cp_atividade', 'is', null);
+
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar vinculados:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar vinculados',
+        details: vinculadosError.message
+      });
+    }
+
+    // Extrair IDs únicos de tarefas
+    const tarefaIds = [...new Set(
+      (vinculados || [])
+        .map(v => v.cp_atividade)
+        .filter(id => id !== null && id !== undefined)
+    )];
+
+    if (tarefaIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar tarefas na tabela cp_tarefa
+    const tarefasMap = new Map();
+    if (tarefaIds.length > 0) {
+      console.log(`🔍 Buscando tarefas com IDs: [${tarefaIds.join(', ')}]`);
+      
+      // Buscar cada tarefa individualmente
+      for (const tarefaId of tarefaIds) {
+        const { data: tarefa, error: errorTarefa } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .select('id, nome')
+          .eq('id', tarefaId)
+          .maybeSingle();
+        
+        if (errorTarefa) {
+          console.error(`❌ Erro ao buscar tarefa ID ${tarefaId}:`, errorTarefa);
+        } else if (tarefa) {
+          const id = parseInt(tarefa.id, 10);
+          tarefasMap.set(id, { id, nome: tarefa.nome || null });
+          console.log(`  ✅ ID ${id}: ${tarefa.nome}`);
+        } else {
+          console.warn(`⚠️ Tarefa ID ${tarefaId} não encontrada na tabela cp_tarefa`);
+        }
+      }
+    }
+
+    // Criar mapa de produto -> tarefas vinculadas
+    const produtoTarefasMap = {};
+    
+    idsArray.forEach(produtoId => {
+      produtoTarefasMap[produtoId] = [];
+    });
+
+    vinculados.forEach(vinculado => {
+      const produtoId = vinculado.cp_produto;
+      const tarefaId = vinculado.cp_atividade;
+      
+      // Se o produto está vinculado ao cliente (em qualquer registro), 
+      // mostrar todas as tarefas vinculadas a esse produto
+      const produtoVinculadoAoCliente = produtosVinculadosAoCliente.has(produtoId);
+      
+      if (produtoVinculadoAoCliente && produtoTarefasMap[produtoId] && tarefasMap.has(tarefaId)) {
+        const tarefa = tarefasMap.get(tarefaId);
+        // Verificar se já não foi adicionada
+        if (!produtoTarefasMap[produtoId].find(t => t.id === tarefa.id)) {
+          produtoTarefasMap[produtoId].push(tarefa);
+        }
+      }
+    });
+
+    // Formatar resultado: array de objetos { produtoId, tarefas: [...] }
+    const resultado = idsArray.map(produtoId => ({
+      produtoId,
+      tarefas: produtoTarefasMap[produtoId] || []
+    }));
+
+    return res.json({
+      success: true,
+      data: resultado,
+      count: resultado.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tarefas por cliente e produtos:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar produtos vinculados a um cliente
+async function getProdutosPorCliente(req, res) {
+  try {
+    const { clienteId } = req.query;
+    
+    if (!clienteId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "clienteId" é obrigatório. Use: ?clienteId=id'
+      });
+    }
+
+    const clienteIdStr = String(clienteId).trim();
+
+    // Buscar vinculados que têm este cliente e têm produto vinculado
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('cp_produto')
+      .eq('cp_cliente', clienteIdStr)
+      .not('cp_produto', 'is', null);
+
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar vinculados:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar vinculados',
+        details: vinculadosError.message
+      });
+    }
+
+    // Extrair IDs únicos de produtos
+    const produtoIds = [...new Set(
+      (vinculados || [])
+        .map(v => v.cp_produto)
+        .filter(id => id !== null && id !== undefined)
+    )];
+
+    if (produtoIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar produtos na tabela cp_produto
+    const produtosMap = new Map();
+    if (produtoIds.length > 0) {
+      console.log(`🔍 Buscando produtos com IDs: [${produtoIds.join(', ')}]`);
+      
+      // Buscar cada produto individualmente
+      for (const produtoId of produtoIds) {
+        const { data: produto, error: errorProduto } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_produto')
+          .select('id, nome')
+          .eq('id', produtoId)
+          .maybeSingle();
+        
+        if (errorProduto) {
+          console.error(`❌ Erro ao buscar produto ID ${produtoId}:`, errorProduto);
+        } else if (produto) {
+          const id = parseInt(produto.id, 10);
+          produtosMap.set(id, { id, nome: produto.nome || null });
+          console.log(`  ✅ ID ${id}: ${produto.nome}`);
+        } else {
+          console.warn(`⚠️ Produto ID ${produtoId} não encontrado na tabela cp_produto`);
+        }
+      }
+    }
+
+    // Converter Map para array
+    const produtos = Array.from(produtosMap.values());
+
+    return res.json({
+      success: true,
+      data: produtos,
+      count: produtos.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar produtos por cliente:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarVinculado,
   criarMultiplosVinculados,
@@ -812,6 +1151,9 @@ module.exports = {
   getVinculadoPorId,
   atualizarVinculado,
   deletarVinculado,
-  getTarefasPorProdutos
+  getTarefasPorProdutos,
+  getTarefasPorCliente,
+  getTarefasPorClienteEProdutos,
+  getProdutosPorCliente
 };
 
