@@ -17,3 +17,6 @@ const LoadingState = ({ message = 'Carregando...' }) => {
 
 export default LoadingState;
 
+
+
+

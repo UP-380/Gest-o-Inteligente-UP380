@@ -18,3 +18,6 @@ const RemoveSelectButton = ({ onClick, title = 'Remover select' }) => {
 
 export default RemoveSelectButton;
 
+
+
+

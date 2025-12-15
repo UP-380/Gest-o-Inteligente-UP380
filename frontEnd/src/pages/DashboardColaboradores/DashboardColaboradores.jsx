@@ -952,6 +952,7 @@ const RelatoriosColaboradores = () => {
         >
           {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
           <div className="filter-group">
+            <label className="filter-label">Período</label>
             <FilterPeriodo
               dataInicio={filtroDataInicio}
               dataFim={filtroDataFim}

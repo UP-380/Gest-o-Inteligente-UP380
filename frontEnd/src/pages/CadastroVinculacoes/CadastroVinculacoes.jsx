@@ -441,7 +441,7 @@ const CadastroVinculacoes = () => {
     <Layout>
       <div className="container">
         <main className="main-content">
-          <div className="vinculacoes-listing-section">
+          <div className="vinculacoes-listing-section vinculacoes-filters-horizontal">
               <div className="form-header">
                 <h2 className="form-title">Vinculações</h2>
                 <p className="form-subtitle">

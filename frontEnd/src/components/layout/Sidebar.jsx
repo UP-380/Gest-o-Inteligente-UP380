@@ -79,6 +79,12 @@ const Sidebar = () => {
       icon: 'fa-chart-bar',
       label: 'Painel',
       title: 'Painel'
+    },
+    {
+      path: '/atribuir-responsaveis',
+      icon: 'fa-user-check',
+      label: 'Atribuir Responsáveis',
+      title: 'Atribuir Responsáveis'
     }
   ];
 

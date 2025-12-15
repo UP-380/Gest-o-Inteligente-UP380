@@ -516,6 +516,104 @@ async function atualizarCustoColaboradorVigencia(req, res) {
   }
 }
 
+// GET - Buscar horas contratadas por membro_id e período
+async function getHorasContratadasPorMembroEPeriodo(req, res) {
+  try {
+    const { membro_id, data_inicio, data_fim } = req.query;
+
+    if (!membro_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do membro é obrigatório'
+      });
+    }
+
+    const membroId = parseInt(membro_id, 10);
+    if (isNaN(membroId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do membro inválido'
+      });
+    }
+
+    const { data, error } = await vigenciaService.buscarHorasContratadasPorMembroEPeriodo(
+      membroId,
+      data_inicio || null,
+      data_fim || null
+    );
+
+    if (error) {
+      console.error('Erro ao buscar horas contratadas:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar horas contratadas',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar horas contratadas:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar custo mais recente por membro_id e período
+async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
+  try {
+    const { membro_id, data_inicio, data_fim } = req.query;
+
+    if (!membro_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do membro é obrigatório'
+      });
+    }
+
+    const membroId = parseInt(membro_id, 10);
+    if (isNaN(membroId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do membro inválido'
+      });
+    }
+
+    const { data, error } = await vigenciaService.buscarCustoMaisRecentePorMembroEPeriodo(
+      membroId,
+      data_inicio || null,
+      data_fim || null
+    );
+
+    if (error) {
+      console.error('Erro ao buscar custo mais recente:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar custo mais recente',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar custo mais recente:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // DELETE - Deletar vigência
 async function deletarCustoColaboradorVigencia(req, res) {
   try {
@@ -582,6 +680,8 @@ module.exports = {
   getCustosColaboradorVigencia,
   getCustoColaboradorVigenciaPorId,
   getCustosPorMembro,
+  getCustoMaisRecentePorMembroEPeriodo,
+  getHorasContratadasPorMembroEPeriodo,
   criarCustoColaboradorVigencia,
   atualizarCustoColaboradorVigencia,
   deletarCustoColaboradorVigencia

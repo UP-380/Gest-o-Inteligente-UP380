@@ -28,3 +28,6 @@ const SearchInput = ({ value, onChange, placeholder = 'Buscar...', className = '
 
 export default SearchInput;
 
+
+
+

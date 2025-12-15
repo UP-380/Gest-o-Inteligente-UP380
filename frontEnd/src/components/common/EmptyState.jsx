@@ -18,3 +18,6 @@ const EmptyState = ({ icon = 'fa-inbox', message = 'Nenhum item encontrado' }) =
 
 export default EmptyState;
 
+
+
+

@@ -194,7 +194,6 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
   return (
     <>
-      <label className="filter-label">Período TimeTrack</label>
       <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''}`} ref={containerRef}>
         <div className="periodo-select-field">
           <div 
