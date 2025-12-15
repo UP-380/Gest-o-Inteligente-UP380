@@ -177,10 +177,19 @@ function App() {
           }
         />
         <Route
-          path="/delegar-tarefas"
+          path="/atribuir-responsaveis"
           element={
             <ProtectedRoute>
               <DelegarTarefas />
+            </ProtectedRoute>
+          }
+        />
+        {/* Redirecionamento da rota antiga */}
+        <Route
+          path="/delegar-tarefas"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/atribuir-responsaveis" replace />
             </ProtectedRoute>
           }
         />

@@ -1,61 +1,193 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../components/layout/Layout';
-import CustomSelect from '../../components/vinculacoes/CustomSelect';
-import SelectedItemsList from '../../components/vinculacoes/SelectedItemsList';
+import ButtonPrimary from '../../components/common/ButtonPrimary';
+import AtribuicaoModal from '../../components/atribuicoes/AtribuicaoModal';
+import FiltersCard from '../../components/filters/FiltersCard';
+import FilterVinculacao from '../../components/filters/FilterVinculacao';
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
-import TempoEstimadoInput from '../../components/common/TempoEstimadoInput';
+import FilterClientes from '../../components/filters/FilterClientes';
+import FilterMembro from '../../components/filters/FilterMembro';
+import FilterGeneric from '../../components/filters/FilterGeneric';
+import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
+import EditButton from '../../components/common/EditButton';
+import DeleteButton from '../../components/common/DeleteButton';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import Avatar from '../../components/user/Avatar';
+import Tooltip from '../../components/common/Tooltip';
 import { useToast } from '../../hooks/useToast';
-import { clientesAPI, colaboradoresAPI } from '../../services/api';
-import '../../components/vinculacoes/VinculacaoModal.css';
+import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../services/api';
+import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
 import './DelegarTarefas.css';
 
 const API_BASE_URL = '/api';
 
 const DelegarTarefas = () => {
   const showToast = useToast();
+  const [showModal, setShowModal] = useState(false);
+  const [editingAgrupamento, setEditingAgrupamento] = useState(null);
+  const [registrosAgrupados, setRegistrosAgrupados] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  // Estados dos selects
-  const [clientes, setClientes] = useState([]);
-  const [clienteSelecionado, setClienteSelecionado] = useState(null);
-  const [produtos, setProdutos] = useState([]);
-  const [produtosSelecionados, setProdutosSelecionados] = useState([]);
-  const [tarefas, setTarefas] = useState([]);
-  const [tarefasSelecionadas, setTarefasSelecionadas] = useState([]);
-  const [expandedSelects, setExpandedSelects] = useState({}); // Controla quais selects estão expandidos
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRegistros, setTotalRegistros] = useState(0);
   
-  // Estados de período e responsável
-  const [dataInicio, setDataInicio] = useState(null);
-  const [dataFim, setDataFim] = useState(null);
-  const [tempoEstimadoDia, setTempoEstimadoDia] = useState(0); // em milissegundos
-  const [colaboradores, setColaboradores] = useState([]);
-  const [responsavelSelecionado, setResponsavelSelecionado] = useState(null);
-
-  // Estados para CRUD
-  const [registrosTempoEstimado, setRegistrosTempoEstimado] = useState([]);
-  const [registrosAgrupados, setRegistrosAgrupados] = useState([]); // Registros agrupados por agrupador_id
-  const [loadingRegistros, setLoadingRegistros] = useState(false);
-  const [agrupamentoEditando, setAgrupamentoEditando] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // Estados para modais de confirmação
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [agrupamentoParaDeletar, setAgrupamentoParaDeletar] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
-  // Cache de nomes (produtos, tarefas, clientes)
+  // Filtros
+  const [filtros, setFiltros] = useState({
+    produto: false,
+    atividade: false,
+    cliente: false,
+    responsavel: false
+  });
+  const [filtroPrincipal, setFiltroPrincipal] = useState(null);
+  const [ordemFiltros, setOrdemFiltros] = useState([]);
+  const [filtrosAplicados, setFiltrosAplicados] = useState(false);
+  const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null);
+  const [filtroHover, setFiltroHover] = useState(null);
+  
+  // Filtro de período
+  const [periodoInicio, setPeriodoInicio] = useState(null);
+  const [periodoFim, setPeriodoFim] = useState(null);
+  
+  // Valores selecionados para filtros pai
+  const [filtroClienteSelecionado, setFiltroClienteSelecionado] = useState(null);
+  const [filtroProdutoSelecionado, setFiltroProdutoSelecionado] = useState(null);
+  const [filtroTarefaSelecionado, setFiltroTarefaSelecionado] = useState(null);
+  const [filtroResponsavelSelecionado, setFiltroResponsavelSelecionado] = useState(null);
+  
+  // Estados para carregar dados de produtos e tarefas
+  const [produtos, setProdutos] = useState([]);
+  const [tarefas, setTarefas] = useState([]);
+  
+  // Estado para grupos expandidos (lista estilo ClickUp)
+  const [gruposExpandidos, setGruposExpandidos] = useState(new Set());
+  
+  // Estado para tarefas expandidas (mostrar detalhes)
+  const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
+  
+  // Estado para agrupamentos com tarefas expandidas quando filtro pai é "atividade"
+  const [agrupamentosTarefasExpandidas, setAgrupamentosTarefasExpandidas] = useState(new Set());
+  
+  // Cache de nomes
   const [nomesCache, setNomesCache] = useState({
     produtos: {},
     tarefas: {},
     clientes: {},
     colaboradores: {}
   });
+  
+  // Cache de custos por responsável
+  const [custosPorResponsavel, setCustosPorResponsavel] = useState({});
+  
+  // Cache de horas contratadas por responsável
+  const [horasContratadasPorResponsavel, setHorasContratadasPorResponsavel] = useState({});
+  
+  // Estados para carregar dados
+  const [clientes, setClientes] = useState([]);
+  const [colaboradores, setColaboradores] = useState([]);
+  const [membros, setMembros] = useState([]);
 
-  // Carregar clientes, colaboradores e registros ao montar
+  // Carregar clientes, colaboradores e membros ao montar
   useEffect(() => {
     loadClientes();
     loadColaboradores();
-    loadRegistrosTempoEstimado();
+    loadMembros();
   }, []);
+
+  // Carregar produtos e tarefas quando necessário
+  const loadProdutos = async () => {
+    try {
+      // Buscar todos os produtos usando paginação
+      let todosProdutos = [];
+      let page = 1;
+      let hasMore = true;
+      const limit = 1000;
+      
+      while (hasMore) {
+        const response = await fetch(`${API_BASE_URL}/produtos?page=${page}&limit=${limit}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            todosProdutos = [...todosProdutos, ...result.data];
+            hasMore = result.data.length === limit;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const produtosComDados = todosProdutos.map(produto => ({
+        id: produto.id,
+        nome: produto.nome || `Produto #${produto.id}`
+      }));
+      setProdutos(produtosComDados);
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
+    }
+  };
+
+  const loadTarefas = async () => {
+    try {
+      // Buscar todas as tarefas usando paginação
+      let todasTarefas = [];
+      let page = 1;
+      let hasMore = true;
+      const limit = 1000;
+      
+      while (hasMore) {
+        const response = await fetch(`${API_BASE_URL}/atividades?page=${page}&limit=${limit}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            todasTarefas = [...todasTarefas, ...result.data];
+            hasMore = result.data.length === limit;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const tarefasComDados = todasTarefas.map(tarefa => ({
+        id: tarefa.id,
+        nome: tarefa.nome || `Tarefa #${tarefa.id}`
+      }));
+      setTarefas(tarefasComDados);
+    } catch (error) {
+      console.error('Erro ao carregar tarefas:', error);
+    }
+  };
+
+  // Carregar produtos e tarefas quando o filtro correspondente for selecionado
+  useEffect(() => {
+    if (filtros.produto && produtos.length === 0) {
+      loadProdutos();
+    }
+  }, [filtros.produto]);
+
+  useEffect(() => {
+    if (filtros.atividade && tarefas.length === 0) {
+      loadTarefas();
+    }
+  }, [filtros.atividade]);
 
   const loadClientes = async () => {
     setLoading(true);
@@ -96,6 +228,30 @@ const DelegarTarefas = () => {
     }
   };
 
+  const loadMembros = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data && Array.isArray(result.data)) {
+          // Mapear membros para o formato esperado (id e nome)
+          const membrosFormatados = result.data.map(membro => ({
+            id: membro.id,
+            nome: membro.nome || `Membro #${membro.id}`
+          }));
+          setMembros(membrosFormatados);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar membros:', error);
+      showToast('error', 'Erro ao carregar membros');
+    }
+  };
+
   // Atualizar cache de nomes quando clientes ou colaboradores forem carregados
   useEffect(() => {
     if (clientes.length > 0 || colaboradores.length > 0) {
@@ -115,323 +271,23 @@ const DelegarTarefas = () => {
     }
   }, [clientes, colaboradores]);
 
-  // Carregar produtos vinculados ao cliente selecionado
-  useEffect(() => {
-    if (clienteSelecionado) {
-      loadProdutosPorCliente(clienteSelecionado);
-    } else {
-      setProdutos([]);
-      setProdutosSelecionados([]);
-      setTarefas([]);
-      setTarefasSelecionadas([]);
-    }
-  }, [clienteSelecionado]);
+  // Handlers do modal
+  const handleNewAtribuicao = () => {
+    setEditingAgrupamento(null);
+    setShowModal(true);
+  };
 
-  const loadProdutosPorCliente = async (clienteId) => {
-    setLoading(true);
-    try {
-      // Buscar produtos vinculados a este cliente na tabela vinculados
-      const response = await fetch(`${API_BASE_URL}/produtos-por-cliente?clienteId=${clienteId}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          setProdutos(result.data || []);
-        } else {
-          setProdutos([]);
-        }
-      } else {
-        setProdutos([]);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
-      showToast('error', 'Erro ao carregar produtos vinculados ao cliente');
-      setProdutos([]);
-    } finally {
-      setLoading(false);
+  const handleCloseModal = (saved = false) => {
+    setShowModal(false);
+    setEditingAgrupamento(null);
+    if (saved && filtrosAplicados) {
+      loadRegistrosTempoEstimado(filtros);
     }
   };
 
-  // Carregar tarefas vinculadas ao cliente e produtos selecionados
-  useEffect(() => {
-    if (clienteSelecionado && produtosSelecionados.length > 0) {
-      loadTarefasPorClienteEProdutos(clienteSelecionado, produtosSelecionados);
-    } else {
-      setTarefas([]);
-      setTarefasSelecionadas([]);
-    }
-  }, [clienteSelecionado, produtosSelecionados]);
-
-  const loadTarefasPorClienteEProdutos = async (clienteId, produtoIds) => {
-    if (!clienteId || !produtoIds || produtoIds.length === 0) {
-      setTarefas([]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const produtoIdsNum = produtoIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-      if (produtoIdsNum.length === 0) {
-        setTarefas([]);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIdsNum.join(',')}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          // Coletar todas as tarefas únicas de todos os produtos
-          const todasTarefas = [];
-          const tarefasIds = new Set();
-          
-          result.data.forEach(item => {
-            (item.tarefas || []).forEach(tarefa => {
-              if (!tarefasIds.has(tarefa.id)) {
-                tarefasIds.add(tarefa.id);
-                todasTarefas.push(tarefa);
-              }
-            });
-          });
-          
-          setTarefas(todasTarefas);
-          // Automaticamente selecionar todas as tarefas vinculadas aos produtos
-          setTarefasSelecionadas(todasTarefas.map(t => String(t.id)));
-        } else {
-          setTarefas([]);
-        }
-      } else {
-        setTarefas([]);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar tarefas vinculadas:', error);
-      setTarefas([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handlers dos selects
-  const handleClienteChange = (e) => {
-    const clienteId = e.target.value;
-    if (clienteId) {
-      setClienteSelecionado(clienteId);
-      setProdutosSelecionados([]);
-      setTarefasSelecionadas([]);
-    } else {
-      setClienteSelecionado(null);
-    }
-  };
-
-  const handleProdutoSelect = (produtoId) => {
-    if (!produtoId) return;
-    const produtoIdStr = String(produtoId);
-    if (!produtosSelecionados.includes(produtoIdStr)) {
-      setProdutosSelecionados([...produtosSelecionados, produtoIdStr]);
-    }
-  };
-
-  const handleProdutoRemove = (produtoId) => {
-    const novosProdutosSelecionados = produtosSelecionados.filter(id => id !== produtoId);
-    setProdutosSelecionados(novosProdutosSelecionados);
-    // Se não há mais produtos, limpar tarefas
-    if (novosProdutosSelecionados.length === 0) {
-      setTarefas([]);
-      setTarefasSelecionadas([]);
-    }
-  };
-
-  const handleTarefaSelect = (tarefaId) => {
-    if (!tarefaId) return;
-    const tarefaIdStr = String(tarefaId);
-    if (!tarefasSelecionadas.includes(tarefaIdStr)) {
-      setTarefasSelecionadas([...tarefasSelecionadas, tarefaIdStr]);
-    }
-  };
-
-  const handleTarefaRemove = (tarefaId) => {
-    setTarefasSelecionadas(tarefasSelecionadas.filter(id => id !== tarefaId));
-  };
-
-  const handleSelectAllProdutos = () => {
-    const allProdutoIds = produtos.map(p => String(p.id));
-    const allSelected = allProdutoIds.every(id => produtosSelecionados.includes(id));
-    
-    if (allSelected) {
-      setProdutosSelecionados([]);
-    } else {
-      setProdutosSelecionados(allProdutoIds);
-    }
-  };
-
-  const handleSelectAllTarefas = () => {
-    const allTarefaIds = tarefas.map(t => String(t.id));
-    const allSelected = allTarefaIds.every(id => tarefasSelecionadas.includes(id));
-    
-    if (allSelected) {
-      setTarefasSelecionadas([]);
-    } else {
-      setTarefasSelecionadas(allTarefaIds);
-    }
-  };
-
-  // Obter opções dos selects
-  const getClienteOptions = () => {
-    return clientes.map(c => ({ value: c.id, label: c.nome }));
-  };
-
-  const getProdutoOptions = () => {
-    // Mostrar todas as opções, mesmo as já selecionadas
-    // O CustomSelect vai marcar as selecionadas automaticamente
-    return produtos.map(p => ({ value: p.id, label: p.nome }));
-  };
-
-  const getTarefaOptions = () => {
-    // Mostrar todas as tarefas, mesmo as já selecionadas
-    // O CustomSelect vai marcar as selecionadas automaticamente
-    return tarefas.map(t => ({ value: t.id, label: t.nome }));
-  };
-
-  // Obter label de um item
-  const getClienteLabel = (clienteId) => {
-    const cliente = clientes.find(c => String(c.id) === String(clienteId));
-    return cliente ? cliente.nome : clienteId;
-  };
-
-  const getProdutoLabel = (produtoId) => {
-    const produto = produtos.find(p => String(p.id) === String(produtoId));
-    return produto ? produto.nome : produtoId;
-  };
-
-  const getTarefaLabel = (tarefaId) => {
-    const tarefa = tarefas.find(t => String(t.id) === String(tarefaId));
-    return tarefa ? tarefa.nome : tarefaId;
-  };
-
-  const getColaboradorLabel = (colaboradorId) => {
-    const colaborador = colaboradores.find(c => String(c.id) === String(colaboradorId));
-    if (colaborador) {
-      return colaborador.cpf ? `${colaborador.nome} (${colaborador.cpf})` : colaborador.nome;
-    }
-    return colaboradorId;
-  };
-
-  const getColaboradorOptions = () => {
-    return colaboradores.map(c => ({ 
-      value: c.id, 
-      label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
-    }));
-  };
-
-  // Salvar delegação
-  const handleSave = async () => {
-    if (!clienteSelecionado) {
-      showToast('warning', 'Selecione um cliente');
-      return;
-    }
-
-    if (produtosSelecionados.length === 0) {
-      showToast('warning', 'Selecione pelo menos um produto');
-      return;
-    }
-
-    if (tarefasSelecionadas.length === 0) {
-      showToast('warning', 'Selecione pelo menos uma tarefa');
-      return;
-    }
-
-    if (!dataInicio || !dataFim) {
-      showToast('warning', 'Selecione o período (data início e vencimento)');
-      return;
-    }
-
-    if (!tempoEstimadoDia || tempoEstimadoDia <= 0) {
-      showToast('warning', 'Informe o tempo estimado por dia');
-      return;
-    }
-
-    if (!responsavelSelecionado) {
-      showToast('warning', 'Selecione um responsável');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Preparar dados para salvar
-      const dadosParaSalvar = {
-        cliente_id: clienteSelecionado,
-        produto_ids: produtosSelecionados.map(id => String(id)),
-        tarefa_ids: tarefasSelecionadas.map(id => String(id)),
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        tempo_estimado_dia: tempoEstimadoDia, // em milissegundos
-        responsavel_id: String(responsavelSelecionado)
-      };
-
-      console.log('📝 Salvando tempo estimado:', dadosParaSalvar);
-
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(dadosParaSalvar),
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const text = await response.text();
-        showToast('error', text || `Erro no servidor. Status: ${response.status}`);
-        return;
-      }
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-        console.error('❌ Erro ao salvar tempo estimado:', result);
-        showToast('error', errorMsg);
-        return;
-      }
-
-      if (result.success) {
-        const count = result.count || result.data?.length || 0;
-        showToast('success', `${count} registro(s) de tempo estimado criado(s) com sucesso!`);
-        
-        // Limpar seleções após salvar
-        setClienteSelecionado(null);
-        setProdutosSelecionados([]);
-        setTarefasSelecionadas([]);
-        setDataInicio(null);
-        setDataFim(null);
-        setTempoEstimadoDia(0);
-        setResponsavelSelecionado(null);
-        
-        // Recarregar lista de registros
-        loadRegistrosTempoEstimado();
-      } else {
-        const errorMsg = result.error || result.details || 'Erro ao salvar tempo estimado';
-        showToast('error', errorMsg);
-      }
-    } catch (error) {
-      console.error('Erro ao delegar tarefas:', error);
-      showToast('error', error.message || 'Erro ao delegar tarefas. Verifique sua conexão e tente novamente.');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleEditAtribuicao = (agrupamento) => {
+    setEditingAgrupamento(agrupamento);
+    setShowModal(true);
   };
 
   // Agrupar registros por agrupador_id
@@ -457,7 +313,15 @@ const DelegarTarefas = () => {
       grupo.quantidade = grupo.registros.length;
       
       // Encontrar data mínima e máxima
-      const datas = grupo.registros.map(r => new Date(r.data)).sort((a, b) => a - b);
+      // Converter strings de data para Date, tratando apenas a parte da data (sem hora)
+      const datas = grupo.registros.map(r => {
+        if (!r.data) return null;
+        const dataStr = typeof r.data === 'string' ? r.data.split('T')[0] : r.data;
+        // Criar data no timezone local para evitar problemas de UTC
+        const [ano, mes, dia] = dataStr.split('-');
+        return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      }).filter(d => d !== null).sort((a, b) => a - b);
+      
       if (datas.length > 0) {
         grupo.dataInicio = datas[0];
         grupo.dataFim = datas[datas.length - 1];
@@ -467,11 +331,140 @@ const DelegarTarefas = () => {
     setRegistrosAgrupados(Array.from(grupos.values()));
   };
 
-  // Carregar registros de tempo estimado
-  const loadRegistrosTempoEstimado = async () => {
-    setLoadingRegistros(true);
+  // Buscar horas contratadas por responsável
+  const buscarHorasContratadasPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado?limit=100`, {
+      const params = new URLSearchParams({
+        membro_id: responsavelId
+      });
+      if (dataInicio) params.append('data_inicio', dataInicio);
+      if (dataFim) params.append('data_fim', dataFim);
+
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.horascontratadasdia || null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar horas contratadas por responsável:', error);
+      return null;
+    }
+  };
+
+  // Carregar horas contratadas para todos os responsáveis
+  const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
+    const responsaveisIds = new Set();
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      if (primeiroRegistro.responsavel_id) {
+        responsaveisIds.add(String(primeiroRegistro.responsavel_id));
+      }
+    });
+
+    const novasHoras = { ...horasContratadasPorResponsavel };
+    
+    for (const responsavelId of responsaveisIds) {
+      if (!novasHoras[responsavelId]) {
+        const horasContratadas = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+        novasHoras[responsavelId] = horasContratadas;
+      }
+    }
+    
+    setHorasContratadasPorResponsavel(novasHoras);
+  };
+
+  // Carregar registros de tempo estimado
+  const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null) => {
+    setLoading(true);
+    try {
+      const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
+      const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : { inicio: periodoInicio, fim: periodoFim };
+      
+      // Usar valores selecionados passados como parâmetro, ou os estados atuais
+      const valoresAUsar = valoresSelecionados || {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+      
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString()
+      });
+
+      // Adicionar filtros
+      if (filtrosAUsar.produto) {
+        params.append('filtro_produto', 'true');
+        // Adicionar IDs de produtos selecionados se houver
+        if (valoresAUsar.produto) {
+          const produtoIds = Array.isArray(valoresAUsar.produto) 
+            ? valoresAUsar.produto 
+            : [valoresAUsar.produto];
+          produtoIds.forEach(id => {
+            if (id) params.append('produto_id', String(id).trim());
+          });
+        }
+      }
+      if (filtrosAUsar.atividade) {
+        params.append('filtro_atividade', 'true');
+        // Adicionar IDs de tarefas selecionadas se houver
+        if (valoresAUsar.tarefa) {
+          const tarefaIds = Array.isArray(valoresAUsar.tarefa) 
+            ? valoresAUsar.tarefa 
+            : [valoresAUsar.tarefa];
+          tarefaIds.forEach(id => {
+            if (id) params.append('tarefa_id', String(id).trim());
+          });
+        }
+      }
+      if (filtrosAUsar.cliente) {
+        params.append('filtro_cliente', 'true');
+        // Adicionar IDs de clientes selecionados se houver
+        if (valoresAUsar.cliente) {
+          const clienteIds = Array.isArray(valoresAUsar.cliente) 
+            ? valoresAUsar.cliente 
+            : [valoresAUsar.cliente];
+          clienteIds.forEach(id => {
+            if (id) params.append('cliente_id', String(id).trim());
+          });
+        }
+      }
+      if (filtrosAUsar.responsavel) {
+        params.append('filtro_responsavel', 'true');
+        // Adicionar IDs de responsáveis selecionados se houver
+        if (valoresAUsar.responsavel) {
+          const responsavelIds = Array.isArray(valoresAUsar.responsavel) 
+            ? valoresAUsar.responsavel 
+            : [valoresAUsar.responsavel];
+          responsavelIds.forEach(id => {
+            if (id) {
+              const idStr = String(id).trim();
+              params.append('responsavel_id', idStr);
+            }
+          });
+        } else {
+        }
+      }
+
+      // Adicionar filtro de período
+      if (periodoAUsar.inicio) {
+        params.append('data_inicio', periodoAUsar.inicio);
+      }
+      if (periodoAUsar.fim) {
+        params.append('data_fim', periodoAUsar.fim);
+      }
+
+      const url = `${API_BASE_URL}/tempo-estimado?${params}`;
+      
+      const response = await fetch(url, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
@@ -484,20 +477,40 @@ const DelegarTarefas = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          setRegistrosTempoEstimado(result.data || []);
           // Agrupar registros por agrupador_id
           agruparRegistros(result.data || []);
+          setTotalRegistros(result.total || 0);
+          setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
           // Carregar nomes dos itens relacionados
           await carregarNomesRelacionados(result.data || []);
+          
+          // Carregar custos e horas contratadas para todos os responsáveis encontrados nos registros
+          if (periodoAUsar.inicio && periodoAUsar.fim) {
+            const agrupadosTemp = {};
+            (result.data || []).forEach(registro => {
+              const agrupadorId = registro.agrupador_id || 'sem-grupo';
+              if (!agrupadosTemp[agrupadorId]) {
+                agrupadosTemp[agrupadorId] = {
+                  primeiroRegistro: registro,
+                  quantidade: 0
+                };
+              }
+              agrupadosTemp[agrupadorId].quantidade++;
+            });
+            
+            const agrupamentosArray = Object.values(agrupadosTemp);
+            await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+          }
         }
       }
     } catch (error) {
       console.error('Erro ao carregar registros:', error);
       showToast('error', 'Erro ao carregar registros de tempo estimado');
     } finally {
-      setLoadingRegistros(false);
+      setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, filtros, periodoInicio, periodoFim]);
 
   // Carregar nomes de produtos, tarefas, clientes e colaboradores
   const carregarNomesRelacionados = async (registros) => {
@@ -597,6 +610,19 @@ const DelegarTarefas = () => {
     return nomesCache.tarefas[String(tarefaId)] || `Tarefa #${tarefaId}`;
   };
 
+  const getClienteLabel = (clienteId) => {
+    const cliente = clientes.find(c => String(c.id) === String(clienteId));
+    return cliente ? cliente.nome : clienteId;
+  };
+
+  const getColaboradorLabel = (colaboradorId) => {
+    const colaborador = colaboradores.find(c => String(c.id) === String(colaboradorId));
+    if (colaborador) {
+      return colaborador.cpf ? `${colaborador.nome} (${colaborador.cpf})` : colaborador.nome;
+    }
+    return colaboradorId;
+  };
+
   const getNomeCliente = (clienteId) => {
     return nomesCache.clientes[String(clienteId)] || getClienteLabel(clienteId) || `Cliente #${clienteId}`;
   };
@@ -606,12 +632,31 @@ const DelegarTarefas = () => {
   };
 
   // Formatar data
-  const formatarData = (dataStr) => {
-    if (!dataStr) return '—';
+  const formatarData = (dataInput) => {
+    if (!dataInput) return '—';
     try {
-      const date = new Date(dataStr);
+      let date;
+      
+      // Se for um objeto Date, usar diretamente
+      if (dataInput instanceof Date) {
+        date = dataInput;
+      } else if (typeof dataInput === 'string') {
+        // Se for string ISO, extrair apenas a parte da data
+        const dataStr = dataInput.split('T')[0];
+        const [ano, mes, dia] = dataStr.split('-');
+        date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      } else {
+        date = new Date(dataInput);
+      }
+      
       if (isNaN(date.getTime())) return '—';
-      return date.toLocaleDateString('pt-BR');
+      
+      // Usar métodos locais para garantir a data correta
+      const dia = String(date.getDate()).padStart(2, '0');
+      const mes = String(date.getMonth() + 1).padStart(2, '0');
+      const ano = date.getFullYear();
+      
+      return `${dia}/${mes}/${ano}`;
     } catch (e) {
       return '—';
     }
@@ -623,130 +668,409 @@ const DelegarTarefas = () => {
     return `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
   };
 
-  // Editar agrupamento
-  const handleEdit = async (agrupamento) => {
-    setAgrupamentoEditando(agrupamento);
+  // Verificar se uma data está dentro do período filtrado
+  const dataEstaNoPeriodo = (dataRegistro) => {
+    if (!periodoInicio || !periodoFim || !dataRegistro) return true; // Se não há filtro de período, mostrar tudo
     
-    // Buscar todos os registros do agrupamento para obter produtos e tarefas únicos
-    const response = await fetch(`${API_BASE_URL}/tempo-estimado/agrupador/${agrupamento.agrupador_id}`, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' }
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data && result.data.length > 0) {
-        const registros = result.data;
-        const primeiroRegistro = registros[0];
-        
-        // Preencher formulário com dados do primeiro registro
-        setClienteSelecionado(primeiroRegistro.cliente_id);
-        
-        // Coletar produtos e tarefas únicos do agrupamento
-        const produtosUnicos = [...new Set(registros.map(r => String(r.produto_id)))];
-        const tarefasUnicas = [...new Set(registros.map(r => String(r.tarefa_id)))];
-        
-        // Carregar produtos do cliente primeiro
-        await loadProdutosPorCliente(primeiroRegistro.cliente_id);
-        
-        // Preencher produtos selecionados
-        setProdutosSelecionados(produtosUnicos);
-        
-        // Carregar tarefas do cliente e produtos
-        await loadTarefasPorClienteEProdutos(primeiroRegistro.cliente_id, produtosUnicos);
-        
-        // Preencher tarefas selecionadas
-        setTarefasSelecionadas(tarefasUnicas);
-        
-        // Extrair período (primeira e última data)
-        const datas = registros.map(r => r.data).sort();
-        const dataInicioStr = datas[0] ? datas[0].split('T')[0] : null;
-        const dataFimStr = datas[datas.length - 1] ? datas[datas.length - 1].split('T')[0] : null;
-        setDataInicio(dataInicioStr);
-        setDataFim(dataFimStr);
-        
-        // Carregar tempo estimado (pegar do primeiro registro)
-        setTempoEstimadoDia(primeiroRegistro.tempo_estimado_dia || 0);
-        
-        setResponsavelSelecionado(primeiroRegistro.responsavel_id);
+    try {
+      // Converter data do registro para Date
+      let dataReg;
+      if (dataRegistro instanceof Date) {
+        dataReg = new Date(dataRegistro);
+      } else if (typeof dataRegistro === 'string') {
+        const dataStr = dataRegistro.split('T')[0];
+        const [ano, mes, dia] = dataStr.split('-');
+        dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      } else {
+        dataReg = new Date(dataRegistro);
       }
+      
+      // Converter período filtrado para Date
+      let inicio, fim;
+      
+      // Se periodoInicio/periodoFim são strings no formato "YYYY-MM-DD", parsear manualmente
+      if (typeof periodoInicio === 'string' && periodoInicio.includes('-')) {
+        const [anoInicio, mesInicio, diaInicio] = periodoInicio.split('-');
+        inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+      } else {
+        inicio = new Date(periodoInicio);
+      }
+      
+      if (typeof periodoFim === 'string' && periodoFim.includes('-')) {
+        const [anoFim, mesFim, diaFim] = periodoFim.split('-');
+        fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+      } else {
+        fim = new Date(periodoFim);
+      }
+      
+      // Normalizar para comparar apenas datas (sem hora)
+      dataReg.setHours(0, 0, 0, 0);
+      inicio.setHours(0, 0, 0, 0);
+      fim.setHours(23, 59, 59, 999); // Colocar no final do dia para incluir a data final
+      
+      return dataReg >= inicio && dataReg <= fim;
+    } catch (e) {
+      console.error('Erro ao verificar data no período:', e);
+      return true; // Em caso de erro, mostrar o registro
     }
-    
-    // Scroll para o formulário
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Salvar edição do agrupamento
-  const handleUpdate = async () => {
-    if (!agrupamentoEditando) return;
-
-    if (!clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || !dataInicio || !dataFim || !responsavelSelecionado) {
-      showToast('warning', 'Preencha todos os campos');
-      return;
+  // Calcular tempo estimado total apenas com registros dentro do período
+  const calcularTempoEstimadoFiltrado = (registros) => {
+    if (!periodoInicio || !periodoFim) {
+      // Se não há filtro de período, retornar null para não mostrar valor filtrado
+      return null;
     }
+    
+    const registrosNoPeriodo = registros.filter(registro => dataEstaNoPeriodo(registro.data));
+    const tempoTotal = registrosNoPeriodo.reduce((total, registro) => {
+      return total + (registro.tempo_estimado_dia || 0);
+    }, 0);
+    
+    return tempoTotal;
+  };
 
-    setSubmitting(true);
+  // Formatar tempo estimado (de milissegundos para horas, minutos e segundos)
+  const formatarTempoEstimado = (milissegundos, incluirSegundos = false) => {
+    if (!milissegundos || milissegundos === 0) return '—';
+    const totalSegundos = Math.floor(milissegundos / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
+    
+    if (incluirSegundos) {
+      if (horas > 0 && minutos > 0 && segundos > 0) {
+        return `${horas}h ${minutos}min ${segundos}s`;
+      } else if (horas > 0 && minutos > 0) {
+        return `${horas}h ${minutos}min`;
+      } else if (horas > 0) {
+        return `${horas}h`;
+      } else if (minutos > 0 && segundos > 0) {
+        return `${minutos}min ${segundos}s`;
+      } else if (minutos > 0) {
+        return `${minutos}min`;
+      } else if (segundos > 0) {
+        return `${segundos}s`;
+      }
+    } else {
+      if (horas > 0 && minutos > 0) {
+        return `${horas}h ${minutos}min`;
+      } else if (horas > 0) {
+        return `${horas}h`;
+      } else if (minutos > 0) {
+        return `${minutos}min`;
+      }
+    }
+    return '—';
+  };
+
+  // Buscar custo mais recente por responsável
+  const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
     try {
-      const dadosUpdate = {
-        cliente_id: clienteSelecionado,
-        produto_ids: produtosSelecionados.map(id => String(id)),
-        tarefa_ids: tarefasSelecionadas.map(id => String(id)),
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        tempo_estimado_dia: tempoEstimadoDia, // em milissegundos
-        responsavel_id: String(responsavelSelecionado)
-      };
+      const params = new URLSearchParams({
+        membro_id: responsavelId
+      });
+      if (dataInicio) params.append('data_inicio', dataInicio);
+      if (dataFim) params.append('data_fim', dataFim);
 
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado/agrupador/${agrupamentoEditando.agrupador_id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
         credentials: 'include',
-        body: JSON.stringify(dadosUpdate),
+        headers: { 'Accept': 'application/json' }
       });
 
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.custo_hora || null;
+        }
       }
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = result.error || result.details || result.message || `Erro HTTP ${response.status}`;
-        showToast('error', errorMsg);
-        return;
-      }
-
-      if (result.success) {
-        const count = result.count || 0;
-        showToast('success', `${count} registro(s) atualizado(s) com sucesso!`);
-        setAgrupamentoEditando(null);
-        // Limpar formulário
-        setClienteSelecionado(null);
-        setProdutosSelecionados([]);
-        setTarefasSelecionadas([]);
-        setDataInicio(null);
-        setDataFim(null);
-        setTempoEstimadoDia(0);
-        setResponsavelSelecionado(null);
-        // Recarregar lista
-        loadRegistrosTempoEstimado();
-      }
+      return null;
     } catch (error) {
-      console.error('Erro ao atualizar agrupamento:', error);
-      showToast('error', 'Erro ao atualizar agrupamento');
-    } finally {
-      setSubmitting(false);
+      console.error('Erro ao buscar custo por responsável:', error);
+      return null;
     }
+  };
+
+  // Carregar custos para todos os responsáveis de um grupo
+  const carregarCustosPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
+    const responsaveisIds = new Set();
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      if (primeiroRegistro.responsavel_id) {
+        responsaveisIds.add(String(primeiroRegistro.responsavel_id));
+      }
+    });
+
+    const novosCustos = { ...custosPorResponsavel };
+    
+    for (const responsavelId of responsaveisIds) {
+      if (!novosCustos[responsavelId]) {
+        const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
+        novosCustos[responsavelId] = custoHora;
+      }
+    }
+    
+    setCustosPorResponsavel(novosCustos);
+  };
+
+  // Calcular custo estimado total para um grupo (funciona para qualquer filtro principal)
+  const calcularCustoEstimadoTotal = (agrupamentos) => {
+    // Coletar todos os responsáveis únicos e seus tempos
+    const temposPorResponsavel = {};
+    
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      const responsavelId = primeiroRegistro.responsavel_id;
+      
+      if (!responsavelId) return;
+      
+      const custoHoraStr = custosPorResponsavel[String(responsavelId)];
+      if (!custoHoraStr) return;
+      
+      // Converter custo_hora de string (formato "21,22") para número
+      const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+      if (isNaN(custoHora) || custoHora <= 0) return;
+      
+      // Calcular tempo total deste agrupamento em horas
+      const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+      const tempoHorasPorDia = tempoEstimadoDia / 3600000;
+      const quantidadeDias = agrupamento.quantidade || 0;
+      const tempoTotalHoras = tempoHorasPorDia * quantidadeDias;
+      
+      // Acumular tempo por responsável
+      if (!temposPorResponsavel[String(responsavelId)]) {
+        temposPorResponsavel[String(responsavelId)] = {
+          custoHora,
+          tempoTotalHoras: 0
+        };
+      }
+      temposPorResponsavel[String(responsavelId)].tempoTotalHoras += tempoTotalHoras;
+    });
+    
+    // Somar todos os custos
+    let custoTotal = 0;
+    Object.values(temposPorResponsavel).forEach(({ custoHora, tempoTotalHoras }) => {
+      custoTotal += custoHora * tempoTotalHoras;
+    });
+    
+    return custoTotal > 0 ? custoTotal : null;
+  };
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
+
+  // Calcular custo para um tempo específico e responsável
+  const calcularCustoPorTempo = (tempoMilissegundos, responsavelId) => {
+    if (!tempoMilissegundos || !responsavelId) return null;
+    
+    const custoHoraStr = custosPorResponsavel[String(responsavelId)];
+    if (!custoHoraStr) return null;
+
+    // Converter custo_hora de string (formato "21,22") para número
+    const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+    if (isNaN(custoHora) || custoHora <= 0) return null;
+
+    // Converter tempo de milissegundos para horas
+    const tempoHoras = tempoMilissegundos / 3600000;
+    
+    // Custo = custo por hora * tempo em horas
+    const custo = custoHora * tempoHoras;
+    return custo;
+  };
+
+  // Formatar tempo com custo (se disponível)
+  const formatarTempoComCusto = (tempoMilissegundos, responsavelId, incluirSegundos = false) => {
+    const tempoFormatado = formatarTempoEstimado(tempoMilissegundos, incluirSegundos);
+    const custo = calcularCustoPorTempo(tempoMilissegundos, responsavelId);
+    
+    if (custo !== null) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span>{tempoFormatado}</span>
+          <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>
+            {formatarValorMonetario(custo)}
+          </span>
+        </div>
+      );
+    }
+    
+    return tempoFormatado;
+  };
+
+  // Calcular tempo disponível, realizado e sobrando para um responsável
+  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, todosRegistros, dataInicio, dataFim) => {
+    // Calcular número de dias no período
+    if (!dataInicio || !dataFim) return null;
+    
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Buscar horas contratadas por dia
+    const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
+    if (!horasContratadasDia || horasContratadasDia <= 0) return null;
+    
+    // Tempo disponível total = horas contratadas por dia * número de dias (em milissegundos)
+    const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000; // converter horas para milissegundos
+    
+    // Tempo realizado = soma de todos os tempo_estimado_dia dos registros deste responsável
+    // FILTRADO: apenas registros dentro do período
+    let tempoRealizado = 0;
+    todosRegistros.forEach(registro => {
+      if (String(registro.responsavel_id) === String(responsavelId)) {
+        // Verificar se o registro está dentro do período filtrado
+        if (dataEstaNoPeriodo(registro.data)) {
+          // tempo_estimado_dia já está em milissegundos
+          tempoRealizado += (registro.tempo_estimado_dia || 0);
+        }
+      }
+    });
+    
+    // Tempo sobrando = tempo disponível - tempo realizado
+    const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoRealizado);
+    
+    return {
+      disponivel: tempoDisponivelTotal,
+      realizado: tempoRealizado,
+      sobrando: tempoSobrando
+    };
+  };
+
+  // Componente de barra de progresso de tempo
+  const BarraProgressoTempo = ({ disponivel, realizado, sobrando, responsavelId }) => {
+    if (!disponivel || disponivel === 0) return null;
+    
+    const percentualRealizado = (realizado / disponivel) * 100;
+    const custoEstimado = calcularCustoPorTempo(realizado, responsavelId);
+    
+    return (
+      <div className="barra-progresso-tempo">
+        <div className="barra-progresso-tempo-data">
+          <p className="barra-progresso-tempo-valor">{formatarTempoEstimado(realizado, true)}</p>
+          {custoEstimado !== null && (
+            <p className="barra-progresso-tempo-custo" style={{ 
+              fontSize: '0.75rem', 
+              color: '#6b7280', 
+              marginTop: '0px',
+              marginBottom: '0',
+              lineHeight: '1.2',
+              fontWeight: 'normal'
+            }}>
+              {formatarValorMonetario(custoEstimado)}
+            </p>
+          )}
+          <div className="barra-progresso-tempo-range">
+            <div 
+              className="barra-progresso-tempo-fill"
+              style={{ width: `${Math.min(100, percentualRealizado)}%` }}
+            ></div>
+          </div>
+        </div>
+        <div className="barra-progresso-tempo-legenda">
+          <span className="barra-progresso-tempo-item">
+            <span className="barra-progresso-tempo-indicador realizado"></span>
+            Estimado: {formatarTempoEstimado(realizado, true)}
+          </span>
+          <span className="barra-progresso-tempo-item">
+            <span className="barra-progresso-tempo-indicador sobrando"></span>
+            Disponível: {formatarTempoEstimado(sobrando, true)}
+          </span>
+          <span className="barra-progresso-tempo-item">
+            Total: {formatarTempoEstimado(disponivel, true)}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Calcular tempo total estimado de um grupo
+  const calcularTempoTotalGrupo = (agrupamentos) => {
+    let totalMilissegundos = 0;
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+      const quantidadeDias = agrupamento.quantidade || 0;
+      // Tempo total = tempo por dia * quantidade de dias
+      totalMilissegundos += tempoEstimadoDia * quantidadeDias;
+    });
+    return totalMilissegundos;
+  };
+
+  // Calcular tempo total filtrado de um grupo (apenas registros dentro do período)
+  const calcularTempoTotalGrupoFiltrado = (agrupamentos) => {
+    if (!periodoInicio || !periodoFim) {
+      // Se não há filtro de período, retornar o tempo total
+      return calcularTempoTotalGrupo(agrupamentos);
+    }
+    
+    let totalMilissegundos = 0;
+    agrupamentos.forEach(agrupamento => {
+      // Filtrar apenas registros dentro do período
+      const registrosNoPeriodo = agrupamento.registros.filter(registro => 
+        dataEstaNoPeriodo(registro.data)
+      );
+      
+      if (registrosNoPeriodo.length > 0) {
+        const primeiroRegistro = agrupamento.primeiroRegistro;
+        const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+        // Tempo filtrado = tempo por dia * quantidade de registros no período
+        totalMilissegundos += tempoEstimadoDia * registrosNoPeriodo.length;
+      }
+    });
+    return totalMilissegundos;
+  };
+
+  // Toggle grupo expandido
+  const toggleGrupo = (grupoKey) => {
+    setGruposExpandidos(prev => {
+      const novo = new Set(prev);
+      if (novo.has(grupoKey)) {
+        novo.delete(grupoKey);
+      } else {
+        novo.add(grupoKey);
+      }
+      return novo;
+    });
+  };
+
+  // Toggle tarefa expandida
+  const toggleTarefa = (agrupadorId, tarefaId) => {
+    const tarefaKey = `${agrupadorId}_${tarefaId}`;
+    setTarefasExpandidas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(tarefaKey)) {
+        novo.delete(tarefaKey);
+      } else {
+        novo.add(tarefaKey);
+      }
+      return novo;
+    });
+  };
+  
+  // Toggle para expandir tarefas quando filtro pai é "atividade"
+  const toggleAgrupamentoTarefas = (agrupadorId) => {
+    setAgrupamentosTarefasExpandidas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(agrupadorId)) {
+        novo.delete(agrupadorId);
+      } else {
+        novo.add(agrupadorId);
+      }
+      return novo;
+    });
   };
 
   // Deletar agrupamento
   const handleDelete = async () => {
     if (!agrupamentoParaDeletar) return;
 
-    setDeleting(true);
+    setDeleteLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/tempo-estimado/agrupador/${agrupamentoParaDeletar.agrupador_id}`, {
         method: 'DELETE',
@@ -768,449 +1092,1260 @@ const DelegarTarefas = () => {
 
       if (result.success) {
         const count = result.count || agrupamentoParaDeletar.quantidade || 0;
-        showToast('success', `${count} registro(s) deletado(s) com sucesso!`);
-        setShowDeleteModal(false);
+        showToast('success', `Atribuição removida com sucesso! ${count} dia(s) removido(s).`);
+        setShowDeleteConfirmModal(false);
         setAgrupamentoParaDeletar(null);
         // Recarregar lista
-        loadRegistrosTempoEstimado();
+        if (filtrosAplicados) {
+          loadRegistrosTempoEstimado(filtros);
+        }
       }
     } catch (error) {
       console.error('Erro ao deletar agrupamento:', error);
       showToast('error', 'Erro ao deletar agrupamento');
     } finally {
-      setDeleting(false);
+      setDeleteLoading(false);
     }
   };
 
-  // Cancelar edição
-  const handleCancelEdit = () => {
-    setAgrupamentoEditando(null);
-    setClienteSelecionado(null);
-    setProdutosSelecionados([]);
-    setTarefasSelecionadas([]);
-    setDataInicio(null);
-    setDataFim(null);
-    setResponsavelSelecionado(null);
+  // Limpar filtros
+  const limparFiltros = () => {
+    const filtrosLimpos = {
+      produto: false,
+      atividade: false,
+      cliente: false,
+      responsavel: false
+    };
+    setFiltros(filtrosLimpos);
+    setFiltroPrincipal(null);
+    setOrdemFiltros([]);
+    setFiltrosAplicados(false);
+    setFiltrosUltimosAplicados(null);
+    setPeriodoInicio(null);
+    setPeriodoFim(null);
+    setFiltroClienteSelecionado(null);
+    setFiltroProdutoSelecionado(null);
+    setFiltroTarefaSelecionado(null);
+    setFiltroResponsavelSelecionado(null);
+    setRegistrosAgrupados([]);
+    setTotalRegistros(0);
+    setTotalPages(1);
+    setCurrentPage(1);
   };
+
+  // Verificar se há mudanças pendentes nos filtros
+  const hasPendingChanges = () => {
+    if (!filtrosAplicados || !filtrosUltimosAplicados) {
+      // Se não há filtros aplicados, verificar se há algum filtro selecionado
+      // Período não conta como mudança pendente se não estiver completo
+      const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+      const temPeriodoCompleto = periodoInicio && periodoFim;
+      const temValoresSelecionados = filtroClienteSelecionado || filtroProdutoSelecionado || filtroTarefaSelecionado || filtroResponsavelSelecionado;
+      return temFiltroAtivo || temPeriodoCompleto || temValoresSelecionados;
+    }
+    
+    const filtrosMudaram = (
+      filtros.produto !== filtrosUltimosAplicados.produto ||
+      filtros.atividade !== filtrosUltimosAplicados.atividade ||
+      filtros.cliente !== filtrosUltimosAplicados.cliente ||
+      filtros.responsavel !== filtrosUltimosAplicados.responsavel
+    );
+    
+    const periodoMudou = (
+      periodoInicio !== filtrosUltimosAplicados.periodoInicio ||
+      periodoFim !== filtrosUltimosAplicados.periodoFim
+    );
+    
+    const valoresMudaram = (
+      JSON.stringify(filtroClienteSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroClienteSelecionado) ||
+      JSON.stringify(filtroProdutoSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroProdutoSelecionado) ||
+      JSON.stringify(filtroTarefaSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroTarefaSelecionado) ||
+      JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
+    );
+    
+    return filtrosMudaram || periodoMudou || valoresMudaram;
+  };
+
+  // Handler para mudança de filtro (apenas um filtro por vez nesta página)
+  const handleFilterChange = (filtroKey, checked) => {
+    if (checked) {
+      // Se está marcando um filtro, desmarcar todos os outros
+      const novoFiltros = {
+        produto: false,
+        atividade: false,
+        cliente: false,
+        responsavel: false,
+        [filtroKey]: true
+      };
+      setFiltros(novoFiltros);
+      setOrdemFiltros([filtroKey]);
+    } else {
+      // Se está desmarcando, apenas desmarcar esse filtro
+      const novoFiltros = { ...filtros, [filtroKey]: false };
+      setFiltros(novoFiltros);
+      setOrdemFiltros(prev => prev.filter(f => f !== filtroKey));
+    }
+  };
+
+  // Aplicar filtros
+  const handleApplyFilters = () => {
+    // Validar período (obrigatório) - seguindo a lógica do timetrack
+    if (!periodoInicio || !periodoFim) {
+      showToast('warning', 'Selecione o período TimeTrack');
+      return;
+    }
+
+    // Validar se a data de início é anterior ou igual à data de fim
+    if (new Date(periodoInicio) > new Date(periodoFim)) {
+      showToast('warning', 'A data de início deve ser anterior ou igual à data de fim');
+      return;
+    }
+
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+    
+    if (!temFiltroAtivo) {
+      showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
+      return;
+    }
+    
+    // Os filtros detalhados (valores selecionados) não são obrigatórios
+    // Se um filtro pai está selecionado mas não há valores selecionados, 
+    // o sistema vai trazer todos os registros daquele tipo
+    
+    const novoFiltroPrincipal = ordemFiltros.length > 0 ? ordemFiltros[0] : null;
+    setFiltroPrincipal(novoFiltroPrincipal);
+    setFiltrosAplicados(true);
+    setFiltrosUltimosAplicados({ 
+      ...filtros, 
+      periodoInicio, 
+      periodoFim,
+      filtroClienteSelecionado,
+      filtroProdutoSelecionado,
+      filtroTarefaSelecionado,
+      filtroResponsavelSelecionado
+    });
+    
+    setCurrentPage(1);
+    
+    // Passar os valores selecionados diretamente para garantir que sejam usados
+    const valoresSelecionados = {
+      cliente: filtroClienteSelecionado,
+      produto: filtroProdutoSelecionado,
+      tarefa: filtroTarefaSelecionado,
+      responsavel: filtroResponsavelSelecionado
+    };
+    
+    
+    loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados);
+  };
+
+  // Obter nome do filtro para o tooltip
+  const getFiltroNome = (filtroKey) => {
+    switch (filtroKey) {
+      case 'produto':
+        return 'PRODUTO';
+      case 'atividade':
+        return 'TAREFA';
+      case 'cliente':
+        return 'CLIENTE';
+      case 'responsavel':
+        return 'RESPONSÁVEL';
+      default:
+        return '';
+    }
+  };
+
+  // Obter o filtro pai atual
+  const getFiltroPaiAtual = () => {
+    if (filtrosAplicados && filtroPrincipal) {
+      return filtroPrincipal;
+    }
+    if (ordemFiltros.length > 0) {
+      return ordemFiltros[0];
+    }
+    return null;
+  };
+
+  // Verificar se um filtro deve ter o contorno laranja
+  const isFiltroPai = (filtroKey) => {
+    const filtroPaiAtual = getFiltroPaiAtual();
+    if (filtroPaiAtual) {
+      return filtroPaiAtual === filtroKey;
+    }
+    if (filtroHover === filtroKey) {
+      return true;
+    }
+    return false;
+  };
+
+  // Não carregar automaticamente - apenas quando filtros forem aplicados
+  useEffect(() => {
+    if (filtrosAplicados) {
+      loadRegistrosTempoEstimado(filtros);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, itemsPerPage]);
+  
+  // Resetar estado quando filtros forem desaplicados
+  useEffect(() => {
+    if (!filtrosAplicados) {
+      setRegistrosAgrupados([]);
+      setTotalRegistros(0);
+      setTotalPages(1);
+      setGruposExpandidos(new Set());
+    }
+  }, [filtrosAplicados]);
+
+  // Expandir todos os grupos quando há filtro principal e registros são carregados
+  useEffect(() => {
+    if (filtroPrincipal && registrosAgrupados.length > 0) {
+      const novosGruposExpandidos = new Set();
+      
+      // Agrupar registros para determinar as chaves dos grupos
+      const agrupados = {};
+      registrosAgrupados.forEach(agrupamento => {
+        const primeiroRegistro = agrupamento.primeiroRegistro;
+        let chaveAgrupamento = null;
+        
+        if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+          chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
+        } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+          chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
+        } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+          chaveAgrupamento = `cliente_${primeiroRegistro.cliente_id}`;
+        } else if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
+          chaveAgrupamento = `responsavel_${primeiroRegistro.responsavel_id}`;
+        }
+        
+        if (chaveAgrupamento && !agrupados[chaveAgrupamento]) {
+          agrupados[chaveAgrupamento] = true;
+        }
+      });
+      
+      // Criar chaves para cada grupo único (usar a chave diretamente)
+      Object.keys(agrupados).forEach((chave) => {
+        novosGruposExpandidos.add(chave);
+      });
+      
+      // Só atualizar se houver grupos e se ainda não estiverem expandidos
+      if (novosGruposExpandidos.size > 0 && gruposExpandidos.size === 0) {
+        setGruposExpandidos(novosGruposExpandidos);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroPrincipal, registrosAgrupados.length]);
+
+  // Calcular range de itens exibidos
+  const startItem = totalRegistros === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
+  const endItem = Math.min(startItem + Math.min(itemsPerPage, registrosAgrupados.length) - 1, totalRegistros);
 
   return (
     <Layout>
-      <div className="delegar-tarefas-container">
-        <div className="page-header">
-          <h1>Delegar Tarefas</h1>
-          <p className="page-description">
-            {agrupamentoEditando ? 'Editar delegação de tarefa' : 'Selecione um cliente, seus produtos vinculados e as tarefas que deseja delegar'}
-          </p>
-          {agrupamentoEditando && (
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="btn-secondary"
-              style={{ marginTop: '12px' }}
-            >
-              <i className="fas fa-times" style={{ marginRight: '8px' }}></i>
-              Cancelar Edição
-            </button>
-          )}
-        </div>
-
-        <div className="delegar-tarefas-content">
-          {/* Select de Clientes */}
-          <div className="select-group">
-            <label className="select-label">
-              <i className="fas fa-user" style={{ marginRight: '8px' }}></i>
-              Cliente
-            </label>
-            <div className="select-wrapper">
-              <CustomSelect
-                value={clienteSelecionado || ''}
-                options={getClienteOptions()}
-                onChange={handleClienteChange}
-                placeholder="Selecione um cliente"
-                disabled={loading || submitting}
-                keepOpen={false}
-                selectedItems={clienteSelecionado ? [String(clienteSelecionado)] : []}
-                hideCheckboxes={true}
-                maxVisibleOptions={5}
-                enableSearch={true}
-              />
+      <div className="container">
+        <main className="main-content">
+          <div className="vinculacoes-listing-section">
+            <div className="form-header">
+              <h2 className="form-title">Atribuir Responsáveis</h2>
+              <p className="form-subtitle">
+                Defina quais colaboradores serão responsáveis por quais tarefas, em quais períodos e com qual tempo estimado diário.
+              </p>
             </div>
-            {clienteSelecionado && (
-              <SelectedItemsList
-                items={[String(clienteSelecionado)]}
-                getItemLabel={getClienteLabel}
-                onRemoveItem={() => {
-                  setClienteSelecionado(null);
-                  setProdutosSelecionados([]);
-                  setTarefasSelecionadas([]);
-                }}
-                canRemove={true}
-                isExpanded={false}
-                onToggleExpand={() => {}}
+
+            <div className="listing-controls">
+              <div className="listing-controls-right">
+                <ButtonPrimary
+                  onClick={handleNewAtribuicao}
+                  icon="fas fa-plus"
+                  disabled={showModal}
+                >
+                  Nova Atribuição
+                </ButtonPrimary>
+              </div>
+            </div>
+
+            {/* Filtros usando FiltersCard */}
+            <FiltersCard
+              onApply={handleApplyFilters}
+              onClear={limparFiltros}
+              showActions={true}
+              loading={loading}
+              hasPendingChanges={hasPendingChanges()}
+              showInfoMessage={true}
+            >
+              {/* Primeira linha: Apenas os filtros FilterVinculacao */}
+              <div className="filtros-vinculacao-row">
+                <FilterVinculacao
+                  filtroKey="produto"
+                  checked={filtros.produto}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('produto')}
+                  title="Produto"
+                  subtitle="Filtrar por produtos"
+                  icon="fas fa-box"
+                  filtroNome={getFiltroNome('produto')}
+                  onMouseEnter={() => setFiltroHover('produto')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="atividade"
+                  checked={filtros.atividade}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('atividade')}
+                  title="Tarefa"
+                  subtitle="Filtrar por tarefas"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('atividade')}
+                  onMouseEnter={() => setFiltroHover('atividade')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="cliente"
+                  checked={filtros.cliente}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('cliente')}
+                  title="Cliente"
+                  subtitle="Filtrar por clientes"
+                  icon="fas fa-briefcase"
+                  filtroNome={getFiltroNome('cliente')}
+                  onMouseEnter={() => setFiltroHover('cliente')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="responsavel"
+                  checked={filtros.responsavel}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('responsavel')}
+                  title="Responsável"
+                  subtitle="Filtrar por responsáveis"
+                  icon="fas fa-user-tie"
+                  filtroNome={getFiltroNome('responsavel')}
+                  onMouseEnter={() => setFiltroHover('responsavel')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+              </div>
+              
+              {/* Segunda linha: FilterPeriodo e campos "Definir X" */}
+              <div className="filtros-detalhados-row">
+                <div className="filtro-periodo-wrapper">
+                  <label className="filtro-pai-label">Definir Período:</label>
+                  <FilterPeriodo
+                    dataInicio={periodoInicio}
+                    dataFim={periodoFim}
+                    onInicioChange={(e) => setPeriodoInicio(e.target.value || null)}
+                    onFimChange={(e) => setPeriodoFim(e.target.value || null)}
+                    disabled={loading}
+                  />
+                </div>
+                
+                {/* Componentes de seleção para filtros pai */}
+                {filtros.cliente && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Clientes:</label>
+                    <FilterClientes
+                      value={filtroClienteSelecionado}
+                      onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
+                      options={clientes}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
+                
+                {filtros.produto && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Produtos:</label>
+                    <FilterGeneric
+                      value={filtroProdutoSelecionado}
+                      onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
+                      options={produtos.map(p => ({ id: p.id, nome: p.nome }))}
+                      disabled={loading || produtos.length === 0}
+                      placeholder="Selecionar produtos"
+                    />
+                  </div>
+                )}
+                
+                {filtros.atividade && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Tarefas:</label>
+                    <FilterGeneric
+                      value={filtroTarefaSelecionado}
+                      onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
+                      options={tarefas.map(t => ({ id: t.id, nome: t.nome }))}
+                      disabled={loading || tarefas.length === 0}
+                      placeholder="Selecionar tarefas"
+                    />
+                  </div>
+                )}
+                
+                {filtros.responsavel && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Responsáveis:</label>
+                    <FilterMembro
+                      value={filtroResponsavelSelecionado}
+                      onChange={(e) => {
+                        const newValue = e.target.value || null;
+                        setFiltroResponsavelSelecionado(newValue);
+                      }}
+                      options={membros}
+                      disabled={loading || membros.length === 0}
+                    />
+                  </div>
+                )}
+              </div>
+            </FiltersCard>
+
+            {/* Lista de atribuições */}
+            {!filtrosAplicados ? (
+              <SemResultadosFiltros 
+                filtrosAplicados={false}
               />
+            ) : loading ? (
+              <div className="loading-container">
+                <i className="fas fa-spinner fa-spin"></i>
+                <span>Carregando atribuições...</span>
+              </div>
+            ) : registrosAgrupados.length === 0 ? (
+              <SemResultadosFiltros 
+                mensagem="Nenhuma atribuição encontrada com os filtros selecionados."
+                filtrosAplicados={true}
+              />
+            ) : (
+              <div className="atribuicoes-list-container">
+                {/* Seção de tempo disponível vs realizado por responsável */}
+                {filtrosAplicados && periodoInicio && periodoFim && registrosAgrupados.length > 0 && (
+                  <div className="tempo-disponivel-section">
+                    <h3 className="tempo-disponivel-title">
+                      <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
+                      Tempo Disponível vs Realizado por Responsável
+                    </h3>
+                    <div className="tempo-disponivel-grid">
+                      {(() => {
+                        // Coletar todos os responsáveis únicos dos registros
+                        const responsaveisUnicos = new Map();
+                        registrosAgrupados.forEach(agrupamento => {
+                          const primeiroRegistro = agrupamento.primeiroRegistro;
+                          const responsavelId = primeiroRegistro.responsavel_id;
+                          if (responsavelId) {
+                            if (!responsaveisUnicos.has(String(responsavelId))) {
+                              responsaveisUnicos.set(String(responsavelId), {
+                                id: responsavelId,
+                                nome: getNomeColaborador(responsavelId),
+                                fotoPerfil: primeiroRegistro.responsavel_foto_perfil,
+                                registros: []
+                              });
+                            }
+                            // Adicionar todos os registros deste agrupamento
+                            agrupamento.registros.forEach(registro => {
+                              if (String(registro.responsavel_id) === String(responsavelId)) {
+                                responsaveisUnicos.get(String(responsavelId)).registros.push({
+                                  ...registro,
+                                  quantidade: agrupamento.quantidade
+                                });
+                              }
+                            });
+                          }
+                        });
+                        
+                        return Array.from(responsaveisUnicos.values()).map(responsavel => {
+                          // Coletar todos os registros deste responsável de todos os agrupamentos
+                          const todosRegistrosResponsavel = [];
+                          registrosAgrupados.forEach(agrupamento => {
+                            agrupamento.registros.forEach(registro => {
+                              if (String(registro.responsavel_id) === String(responsavel.id)) {
+                                todosRegistrosResponsavel.push(registro);
+                              }
+                            });
+                          });
+                          
+                          const tempoInfo = calcularTempoDisponivelRealizadoSobrando(
+                            responsavel.id,
+                            todosRegistrosResponsavel,
+                            periodoInicio,
+                            periodoFim
+                          );
+                          
+                          if (!tempoInfo) return null;
+                          
+                          return (
+                            <div key={responsavel.id} className="tempo-disponivel-card">
+                              <div className="tempo-disponivel-card-header">
+                                {responsavel.fotoPerfil ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Avatar
+                                      avatarId={responsavel.fotoPerfil}
+                                      nomeUsuario={responsavel.nome}
+                                      size="tiny"
+                                    />
+                                    <span className="tempo-disponivel-card-nome">{responsavel.nome}</span>
+                                  </div>
+                                ) : (
+                                  <span className="tempo-disponivel-card-nome">{responsavel.nome}</span>
+                                )}
+                              </div>
+                              <BarraProgressoTempo
+                                disponivel={tempoInfo.disponivel}
+                                realizado={tempoInfo.realizado}
+                                sobrando={tempoInfo.sobrando}
+                                responsavelId={responsavel.id}
+                              />
+                            </div>
+                          );
+                        }).filter(Boolean);
+                      })()}
+                    </div>
+                  </div>
+                )}
+                
+                {(() => {
+                  // Se há filtro principal, agrupar por ele
+                  if (filtroPrincipal) {
+                    const agrupados = {};
+                    
+                    registrosAgrupados.forEach(agrupamento => {
+                      const primeiroRegistro = agrupamento.primeiroRegistro;
+                      let chaveAgrupamento = null;
+                      let nomeAgrupamento = null;
+                      
+                      if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+                        chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
+                        nomeAgrupamento = getNomeProduto(primeiroRegistro.produto_id);
+                      } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+                        chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
+                        nomeAgrupamento = getNomeTarefa(primeiroRegistro.tarefa_id);
+                      } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+                        chaveAgrupamento = `cliente_${primeiroRegistro.cliente_id}`;
+                        nomeAgrupamento = getNomeCliente(primeiroRegistro.cliente_id);
+                      } else if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
+                        chaveAgrupamento = `responsavel_${primeiroRegistro.responsavel_id}`;
+                        nomeAgrupamento = getNomeColaborador(primeiroRegistro.responsavel_id);
+                      }
+                      
+                      if (chaveAgrupamento) {
+                        if (!agrupados[chaveAgrupamento]) {
+                          agrupados[chaveAgrupamento] = {
+                            nome: nomeAgrupamento,
+                            tipo: filtroPrincipal,
+                            agrupamentos: [],
+                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null
+                          };
+                        }
+                        agrupados[chaveAgrupamento].agrupamentos.push(agrupamento);
+                      }
+                    });
+                    
+                    // Renderizar grupos expansíveis
+                    return Object.entries(agrupados).map(([chaveAgrupamento, grupo], index) => {
+                      const grupoKey = chaveAgrupamento;
+                      const isExpanded = gruposExpandidos.has(grupoKey);
+                      const totalItens = grupo.agrupamentos.length;
+                      // Usar tempo filtrado (não riscado) para exibição no header
+                      const tempoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
+                      const tempoTotalFormatado = formatarTempoEstimado(tempoTotal, true);
+                      
+                      // Calcular custo estimado total para qualquer filtro principal
+                      const custoEstimadoTotal = calcularCustoEstimadoTotal(grupo.agrupamentos);
+                      
+                      return (
+                        <div key={chaveAgrupamento} className="atribuicoes-group">
+                          <div 
+                            className="atribuicoes-group-header"
+                            onClick={() => toggleGrupo(grupoKey)}
+                          >
+                            <div className="atribuicoes-group-header-left">
+                              <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}></i>
+                              <span className={`atribuicoes-group-badge ${['produto', 'atividade', 'cliente', 'responsavel'].includes(grupo.tipo) ? 'atribuicoes-group-badge-orange' : ''}`}>
+                                {grupo.tipo === 'atividade' ? 'TAREFAS AGRUPADAS' : grupo.tipo.toUpperCase()}
+                              </span>
+                              <h3 className="atribuicoes-group-title">
+                                {grupo.tipo === 'responsavel' && grupo.fotoPerfil ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Avatar
+                                      avatarId={grupo.fotoPerfil}
+                                      nomeUsuario={grupo.nome}
+                                      size="tiny"
+                                    />
+                                    <span>{grupo.nome}</span>
+                                  </div>
+                                ) : (
+                                  grupo.nome
+                                )}
+                              </h3>
+                              {tempoTotal > 0 && (
+                                <span className="atribuicoes-group-tempo-total" title={`${(tempoTotal / 3600000).toFixed(2)}h`}>
+                                  {tempoTotalFormatado}
+                                </span>
+                              )}
+                              {custoEstimadoTotal !== null && (
+                                <span className="atribuicoes-group-custo-total" title="Custo estimado total">
+                                  {formatarValorMonetario(custoEstimadoTotal)}
+                                </span>
+                              )}
+                              <span className="atribuicoes-group-count">{totalItens}</span>
+                            </div>
+                          </div>
+                          
+                          {isExpanded && (
+                            <div className="atribuicoes-group-content">
+                              <table className="atribuicoes-table">
+                                <thead>
+                                  <tr>
+                                    {filtroPrincipal === 'atividade' && <th></th>}
+                                    {filtroPrincipal !== 'atividade' && <th>Tarefas Agrupadas</th>}
+                                    {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                    {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                    {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                    <th>Tempo Estimado Total</th>
+                                    <th>Período</th>
+                                    <th className="atribuicoes-table-actions">Ações</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {grupo.agrupamentos.map((agrupamento) => {
+                                    const primeiroRegistro = agrupamento.primeiroRegistro;
+                                    const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
+                                    const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
+                                    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+                                    const tempoEstimadoTotal = tempoEstimadoDia * agrupamento.quantidade;
+                                    const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
+                                    
+                                    return (
+                                      <React.Fragment key={agrupamento.agrupador_id}>
+                                        <tr>
+                                          {filtroPrincipal === 'atividade' && (
+                                            <td>
+                                              <button
+                                                type="button"
+                                                className="atribuicoes-expand-tarefas-btn"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleAgrupamentoTarefas(agrupamento.agrupador_id);
+                                                }}
+                                                title={isAgrupamentoTarefasExpanded ? "Ocultar tarefas" : "Ver tarefas"}
+                                              >
+                                                <i className={`fas fa-chevron-${isAgrupamentoTarefasExpanded ? 'down' : 'right'}`}></i>
+                                              </button>
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'atividade' && (
+                                            <td>
+                                              {tarefasUnicas.map((tarefaId, idx) => {
+                                                const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                                const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
+                                                return (
+                                              <button
+                                                key={tarefaId}
+                                                type="button"
+                                                className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleTarefa(agrupamento.agrupador_id, tarefaId);
+                                                }}
+                                                title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                                              >
+                                                {getNomeTarefa(tarefaId)}
+                                                <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px' }}></i>
+                                              </button>
+                                                );
+                                              })}
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'produto' && (
+                                            <td>
+                                              {produtosUnicos.map((produtoId, idx) => (
+                                                <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
+                                                  {getNomeProduto(produtoId)}
+                                                </span>
+                                              ))}
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'cliente' && (
+                                            <td>
+                                              <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                {getNomeCliente(primeiroRegistro.cliente_id)}
+                                              </span>
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'responsavel' && (
+                                            <td className="atribuicoes-col-responsavel">
+                                              <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                <Avatar
+                                                  avatarId={primeiroRegistro.responsavel_foto_perfil}
+                                                  nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                                  size="tiny"
+                                                />
+                                                <div className="responsavel-tooltip">
+                                                  {getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                                </div>
+                                              </div>
+                                            </td>
+                                          )}
+                                          <td>
+                                            <span className="atribuicoes-tempo">
+                                              {(() => {
+                                                const tempoFiltrado = calcularTempoEstimadoFiltrado(agrupamento.registros);
+                                                if (tempoFiltrado !== null) {
+                                                  return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                      <div className="tempo-total-wrapper has-tooltip" style={{ position: 'relative', display: 'inline-block' }}>
+                                                        <span 
+                                                          style={{ textDecoration: 'line-through', opacity: 0.5, cursor: 'help' }}
+                                                        >
+                                                          {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
+                                                        </span>
+                                                        <div className="filter-tooltip">
+                                                          Tempo estimado total do grupo de tarefas
+                                                        </div>
+                                                      </div>
+                                                      <span>
+                                                        {formatarTempoComCusto(tempoFiltrado, primeiroRegistro.responsavel_id, true)}
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                }
+                                                return formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true);
+                                              })()}
+                                            </span>
+                                          </td>
+                                          <td>
+                                            <span className="atribuicoes-periodo">
+                                              {formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}
+                                            </span>
+                                          </td>
+                                          <td className="atribuicoes-table-actions">
+                                            <div className="atribuicoes-row-actions">
+                                              <EditButton
+                                                onClick={() => handleEditAtribuicao(agrupamento)}
+                                                title="Editar atribuição"
+                                              />
+                                              <DeleteButton
+                                                onClick={() => {
+                                                  setAgrupamentoParaDeletar(agrupamento);
+                                                  setShowDeleteConfirmModal(true);
+                                                }}
+                                                title="Excluir atribuição"
+                                              />
+                                            </div>
+                                          </td>
+                                        </tr>
+                                        {/* Tarefas expandidas quando filtro pai é "atividade" */}
+                                        {filtroPrincipal === 'atividade' && isAgrupamentoTarefasExpanded && (
+                                          <tr className="atribuicoes-tarefa-detalhes">
+                                            <td colSpan={7} className="atribuicoes-tarefa-detalhes-cell">
+                                              <div className="atribuicoes-tarefa-detalhes-content">
+                                                <div className="atribuicoes-tarefa-detalhes-header">
+                                                  <h4>Tarefas</h4>
+                                                  <span className="atribuicoes-tarefa-detalhes-count">
+                                                    {tarefasUnicas.length} tarefa(s)
+                                                  </span>
+                                                </div>
+                                                <div className="atribuicoes-tarefas-list">
+                                                  {tarefasUnicas.map((tarefaId) => {
+                                                    const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                                    
+                                                    return (
+                                                      <div key={tarefaId} className="atribuicoes-tarefa-item">
+                                                        <div className="atribuicoes-tarefa-nome" style={{ marginBottom: '8px', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
+                                                          {getNomeTarefa(tarefaId)}
+                                                        </div>
+                                                        <table className="atribuicoes-detalhes-table">
+                                                          <thead>
+                                                            <tr>
+                                                              <th>Data</th>
+                                                              {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                                              {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                                              {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                                              <th>Tempo Estimado (dia)</th>
+                                                            </tr>
+                                                          </thead>
+                                                          <tbody>
+                                                            {registrosTarefa
+                                                              .sort((a, b) => {
+                                                                const aNoPeriodo = dataEstaNoPeriodo(a.data);
+                                                                const bNoPeriodo = dataEstaNoPeriodo(b.data);
+                                                                // Ordenar: primeiro os que estão no período (true vem antes de false)
+                                                                if (aNoPeriodo && !bNoPeriodo) return -1;
+                                                                if (!aNoPeriodo && bNoPeriodo) return 1;
+                                                                return 0;
+                                                              })
+                                                              .map((registro, regIdx) => {
+                                                              const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
+                                                              return (
+                                                              <tr 
+                                                                key={`reg_${registro.id || regIdx}`}
+                                                                style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
+                                                              >
+                                                                <td>{formatarData(registro.data)}</td>
+                                                                {filtroPrincipal !== 'produto' && (
+                                                                  <td>
+                                                                    <span className="atribuicoes-tag atribuicoes-tag-produto">
+                                                                      {getNomeProduto(registro.produto_id)}
+                                                                    </span>
+                                                                  </td>
+                                                                )}
+                                                                {filtroPrincipal !== 'cliente' && (
+                                                                  <td>
+                                                                    <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                                      {getNomeCliente(registro.cliente_id)}
+                                                                    </span>
+                                                                  </td>
+                                                                )}
+                                                                {filtroPrincipal !== 'responsavel' && (
+                                                                  <td className="atribuicoes-col-responsavel">
+                                                                    <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                                      <Avatar
+                                                                        avatarId={registro.responsavel_foto_perfil}
+                                                                        nomeUsuario={getNomeColaborador(registro.responsavel_id)}
+                                                                        size="tiny"
+                                                                      />
+                                                                      <div className="responsavel-tooltip">
+                                                                        {getNomeColaborador(registro.responsavel_id)}
+                                                                      </div>
+                                                                    </div>
+                                                                  </td>
+                                                                )}
+                                                                <td>
+                                                                  <span className="atribuicoes-tempo">
+                                                                    {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
+                                                                  </span>
+                                                                </td>
+                                                              </tr>
+                                                              );
+                                                            })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        )}
+                                        {/* Detalhes das tarefas expandidas (quando filtro pai não é "atividade") */}
+                                        {filtroPrincipal !== 'atividade' && tarefasUnicas.map((tarefaId) => {
+                                          const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                          if (!tarefasExpandidas.has(tarefaKey)) return null;
+                                          
+                                          // Filtrar registros dessa tarefa específica
+                                          const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                          
+                                          return (
+                                            <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
+                                              <td colSpan={7 - (filtroPrincipal === 'atividade' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
+                                                <div className="atribuicoes-tarefa-detalhes-content">
+                                                  <div className="atribuicoes-tarefa-detalhes-header">
+                                                    <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
+                                                    <span className="atribuicoes-tarefa-detalhes-count">
+                                                      {registrosTarefa.length} registro(s)
+                                                    </span>
+                                                  </div>
+                                                  <table className="atribuicoes-detalhes-table">
+                                                    <thead>
+                                                      <tr>
+                                                        <th>Data</th>
+                                                        {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                                        {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                                        {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                                        <th>Tempo Estimado (dia)</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {registrosTarefa
+                                                        .sort((a, b) => {
+                                                          const aNoPeriodo = dataEstaNoPeriodo(a.data);
+                                                          const bNoPeriodo = dataEstaNoPeriodo(b.data);
+                                                          // Ordenar: primeiro os que estão no período (true vem antes de false)
+                                                          if (aNoPeriodo && !bNoPeriodo) return -1;
+                                                          if (!aNoPeriodo && bNoPeriodo) return 1;
+                                                          return 0;
+                                                        })
+                                                        .map((registro, regIdx) => {
+                                                        const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
+                                                        return (
+                                                        <tr 
+                                                          key={`reg_${registro.id || regIdx}`}
+                                                          style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
+                                                        >
+                                                          <td>{formatarData(registro.data)}</td>
+                                                          {filtroPrincipal !== 'produto' && (
+                                                            <td>
+                                                              <span className="atribuicoes-tag atribuicoes-tag-produto">
+                                                                {getNomeProduto(registro.produto_id)}
+                                                              </span>
+                                                            </td>
+                                                          )}
+                                                          {filtroPrincipal !== 'cliente' && (
+                                                            <td>
+                                                              <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                                {getNomeCliente(registro.cliente_id)}
+                                                              </span>
+                                                            </td>
+                                                          )}
+                                                          {filtroPrincipal !== 'responsavel' && (
+                                                            <td className="atribuicoes-col-responsavel">
+                                                              <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                                <Avatar
+                                                                  avatarId={registro.responsavel_foto_perfil}
+                                                                  nomeUsuario={getNomeColaborador(registro.responsavel_id)}
+                                                                  size="tiny"
+                                                                />
+                                                                <div className="responsavel-tooltip">
+                                                                  {getNomeColaborador(registro.responsavel_id)}
+                                                                </div>
+                                                              </div>
+                                                            </td>
+                                                          )}
+                                                          <td>
+                                                            <span className="atribuicoes-tempo">
+                                                              {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
+                                                            </span>
+                                                          </td>
+                                                        </tr>
+                                                        );
+                                                      })}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  } else {
+                    // Sem filtro principal, exibir lista simples
+                    return (
+                      <div className="atribuicoes-group">
+                        <div className="atribuicoes-group-content">
+                          <table className="atribuicoes-table">
+                            <thead>
+                              <tr>
+                                <th>Tarefas Agrupadas</th>
+                                <th>Produto</th>
+                                <th>Cliente</th>
+                                <th>Responsável</th>
+                                <th>Tempo Estimado Total</th>
+                                <th>Período</th>
+                                <th className="atribuicoes-table-actions">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {registrosAgrupados.map((agrupamento) => {
+                                const primeiroRegistro = agrupamento.primeiroRegistro;
+                                const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
+                                const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
+                                const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+                                const tempoEstimadoTotal = tempoEstimadoDia * agrupamento.quantidade;
+                                
+                                return (
+                                  <React.Fragment key={agrupamento.agrupador_id}>
+                                    <tr>
+                                      <td>
+                                        {tarefasUnicas.map((tarefaId) => {
+                                          const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                          const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
+                                          return (
+                                            <button
+                                              key={tarefaId}
+                                              type="button"
+                                              className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleTarefa(agrupamento.agrupador_id, tarefaId);
+                                              }}
+                                              title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                                            >
+                                              {getNomeTarefa(tarefaId)}
+                                              <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px' }}></i>
+                                            </button>
+                                          );
+                                        })}
+                                      </td>
+                                      <td>
+                                        {produtosUnicos.map((produtoId) => (
+                                          <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
+                                            {getNomeProduto(produtoId)}
+                                          </span>
+                                        ))}
+                                      </td>
+                                      <td>
+                                        <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                          {getNomeCliente(primeiroRegistro.cliente_id)}
+                                        </span>
+                                      </td>
+                                       <td className="atribuicoes-col-responsavel">
+                                         <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                           <Avatar
+                                             avatarId={primeiroRegistro.responsavel_foto_perfil}
+                                             nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                             size="tiny"
+                                           />
+                                           <div className="responsavel-tooltip">
+                                             {getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                           </div>
+                                         </div>
+                                       </td>
+                                      <td>
+                                        <span className="atribuicoes-tempo">
+                                          {(() => {
+                                            const tempoFiltrado = calcularTempoEstimadoFiltrado(agrupamento.registros);
+                                            if (tempoFiltrado !== null) {
+                                              return (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                  <div className="tempo-total-wrapper has-tooltip" style={{ position: 'relative', display: 'inline-block' }}>
+                                                    <span 
+                                                      style={{ textDecoration: 'line-through', opacity: 0.5, cursor: 'help' }}
+                                                    >
+                                                      {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
+                                                    </span>
+                                                    <div className="filter-tooltip">
+                                                      Tempo estimado total do grupo de tarefas
+                                                    </div>
+                                                  </div>
+                                                  <span>
+                                                    {formatarTempoComCusto(tempoFiltrado, primeiroRegistro.responsavel_id, true)}
+                                                  </span>
+                                                </div>
+                                              );
+                                            }
+                                            return formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true);
+                                          })()}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        <span className="atribuicoes-periodo">
+                                          {formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}
+                                        </span>
+                                      </td>
+                                      <td className="atribuicoes-table-actions">
+                                        <div className="atribuicoes-row-actions">
+                                          <EditButton
+                                            onClick={() => handleEditAtribuicao(agrupamento)}
+                                            title="Editar atribuição"
+                                          />
+                                          <DeleteButton
+                                            onClick={() => {
+                                              setAgrupamentoParaDeletar(agrupamento);
+                                              setShowDeleteConfirmModal(true);
+                                            }}
+                                            title="Excluir atribuição"
+                                          />
+                                        </div>
+                                      </td>
+                                    </tr>
+                                    {/* Detalhes das tarefas expandidas */}
+                                    {tarefasUnicas.map((tarefaId) => {
+                                      const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                      if (!tarefasExpandidas.has(tarefaKey)) return null;
+                                      
+                                      // Filtrar registros dessa tarefa específica
+                                      const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                      
+                                      return (
+                                        <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
+                                          <td colSpan="7" className="atribuicoes-tarefa-detalhes-cell">
+                                            <div className="atribuicoes-tarefa-detalhes-content">
+                                              <div className="atribuicoes-tarefa-detalhes-header">
+                                                <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
+                                                <span className="atribuicoes-tarefa-detalhes-count">
+                                                  {registrosTarefa.length} registro(s)
+                                                </span>
+                                              </div>
+                                              <table className="atribuicoes-detalhes-table">
+                                                <thead>
+                                                  <tr>
+                                                    <th>Data</th>
+                                                    <th>Produto</th>
+                                                    <th>Cliente</th>
+                                                    <th className="atribuicoes-col-responsavel">Responsável</th>
+                                                    <th>Tempo Estimado (dia)</th>
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {registrosTarefa
+                                                    .sort((a, b) => {
+                                                      const aNoPeriodo = dataEstaNoPeriodo(a.data);
+                                                      const bNoPeriodo = dataEstaNoPeriodo(b.data);
+                                                      // Ordenar: primeiro os que estão no período (true vem antes de false)
+                                                      if (aNoPeriodo && !bNoPeriodo) return -1;
+                                                      if (!aNoPeriodo && bNoPeriodo) return 1;
+                                                      return 0;
+                                                    })
+                                                    .map((registro, regIdx) => {
+                                                    const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
+                                                    return (
+                                                    <tr 
+                                                      key={`reg_${registro.id || regIdx}`}
+                                                      style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
+                                                    >
+                                                      <td>{formatarData(registro.data)}</td>
+                                                      <td>
+                                                        <span className="atribuicoes-tag atribuicoes-tag-produto">
+                                                          {getNomeProduto(registro.produto_id)}
+                                                        </span>
+                                                      </td>
+                                                      <td>
+                                                        <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                          {getNomeCliente(registro.cliente_id)}
+                                                        </span>
+                                                      </td>
+                                                      <td className="atribuicoes-col-responsavel">
+                                                        <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                          <Avatar
+                                                            avatarId={registro.responsavel_foto_perfil}
+                                                            nomeUsuario={getNomeColaborador(registro.responsavel_id)}
+                                                            size="tiny"
+                                                          />
+                                                          <div className="responsavel-tooltip">
+                                                            {getNomeColaborador(registro.responsavel_id)}
+                                                          </div>
+                                                        </div>
+                                                      </td>
+                                                      <td>
+                                                        <span className="atribuicoes-tempo">
+                                                          {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
+                                                        </span>
+                                                      </td>
+                                                    </tr>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+            )}
+
+            {/* Controles de Paginação */}
+            {totalRegistros > 0 && (
+              <div className="pagination-container" style={{ display: 'flex' }}>
+                <div className="pagination-limit-selector">
+                  <label htmlFor="paginationLimit">Exibir:</label>
+                  <select 
+                    id="paginationLimit" 
+                    className="pagination-limit-select"
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(parseInt(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="10">10 itens</option>
+                    <option value="20">20 itens</option>
+                    <option value="30">30 itens</option>
+                    <option value="50">50 itens</option>
+                  </select>
+                </div>
+                
+                <div className="pagination-info">
+                  <span>
+                    Mostrando {startItem} a {endItem} de {totalRegistros} atribuições
+                  </span>
+                </div>
+                
+                <div className="pagination-controls">
+                  <button 
+                    className="pagination-btn" 
+                    title="Primeira página"
+                    disabled={currentPage === 1 || loading}
+                    onClick={() => setCurrentPage(1)}
+                  >
+                    <i className="fas fa-angle-double-left"></i>
+                  </button>
+                  <button 
+                    className="pagination-btn" 
+                    title="Página anterior"
+                    disabled={currentPage === 1 || loading}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    <i className="fas fa-angle-left"></i>
+                  </button>
+                  
+                  <span className="pagination-current">
+                    Página <span>{currentPage}</span> de <span>{totalPages}</span>
+                  </span>
+                  
+                  <button 
+                    className="pagination-btn" 
+                    title="Próxima página"
+                    disabled={currentPage === totalPages || totalPages === 0 || loading}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    <i className="fas fa-angle-right"></i>
+                  </button>
+                  <button 
+                    className="pagination-btn" 
+                    title="Última página"
+                    disabled={currentPage === totalPages || totalPages === 0 || loading}
+                    onClick={() => setCurrentPage(totalPages)}
+                  >
+                    <i className="fas fa-angle-double-right"></i>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Select de Produtos - só aparece se cliente estiver selecionado */}
-          {clienteSelecionado && (
-            <div className="select-group">
-              <label className="select-label">
-                <i className="fas fa-box" style={{ marginRight: '8px' }}></i>
-                Produtos Vinculados
-              </label>
-              
-              {/* Lista de produtos selecionados */}
-              <SelectedItemsList
-                items={produtosSelecionados}
-                getItemLabel={getProdutoLabel}
-                onRemoveItem={handleProdutoRemove}
-                canRemove={true}
-                isExpanded={expandedSelects['produtos'] || false}
-                onToggleExpand={() => setExpandedSelects(prev => ({
-                  ...prev,
-                  'produtos': !prev['produtos']
-                }))}
-              />
-
-              <div className="select-wrapper">
-                <CustomSelect
-                  value=""
-                  options={getProdutoOptions()}
-                  onChange={(e) => handleProdutoSelect(e.target.value)}
-                  placeholder="Selecione produtos"
-                  disabled={loading || submitting || produtos.length === 0}
-                  keepOpen={true}
-                  selectedItems={produtosSelecionados.map(id => String(id))}
-                  onSelectAll={handleSelectAllProdutos}
-                  hideCheckboxes={false}
-                  maxVisibleOptions={5}
-                  enableSearch={true}
-                />
-              </div>
-              {produtos.length === 0 && !loading && (
-                <p className="empty-message">Nenhum produto vinculado a este cliente</p>
-              )}
-            </div>
-          )}
-
-          {/* Select de Tarefas - só aparece se produtos estiverem selecionados */}
-          {produtosSelecionados.length > 0 && (
-            <div className="select-group">
-              <label className="select-label">
-                <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
-                Tarefas Vinculadas
-              </label>
-              
-              {/* Lista de tarefas selecionadas */}
-              <SelectedItemsList
-                items={tarefasSelecionadas}
-                getItemLabel={getTarefaLabel}
-                onRemoveItem={handleTarefaRemove}
-                canRemove={true}
-                isExpanded={expandedSelects['tarefas'] || false}
-                onToggleExpand={() => setExpandedSelects(prev => ({
-                  ...prev,
-                  'tarefas': !prev['tarefas']
-                }))}
-              />
-
-              <div className="select-wrapper">
-                <CustomSelect
-                  value=""
-                  options={getTarefaOptions()}
-                  onChange={(e) => handleTarefaSelect(e.target.value)}
-                  placeholder="Selecione tarefas"
-                  disabled={loading || submitting || tarefas.length === 0}
-                  keepOpen={true}
-                  selectedItems={tarefasSelecionadas.map(id => String(id))}
-                  onSelectAll={handleSelectAllTarefas}
-                  hideCheckboxes={false}
-                  maxVisibleOptions={5}
-                  enableSearch={true}
-                />
-              </div>
-              {tarefas.length === 0 && !loading && (
-                <p className="empty-message">Nenhuma tarefa vinculada aos produtos selecionados</p>
-              )}
-            </div>
-          )}
-
-          {/* Campo de Período - só aparece se tarefas estiverem selecionadas */}
-          {tarefasSelecionadas.length > 0 && (
-            <div className="select-group">
-              <div style={{ marginBottom: '12px' }}>
-                <label className="select-label">
-                  <i className="fas fa-calendar-alt" style={{ marginRight: '8px' }}></i>
-                  Período
-                </label>
-              </div>
-              <FilterPeriodo
-                dataInicio={dataInicio}
-                dataFim={dataFim}
-                onInicioChange={(e) => setDataInicio(e.target.value || null)}
-                onFimChange={(e) => setDataFim(e.target.value || null)}
-                disabled={loading || submitting}
-              />
-            </div>
-          )}
-
-          {/* Campo de Tempo Estimado - só aparece se período estiver definido */}
-          {dataInicio && dataFim && (
-            <div className="select-group">
-              <TempoEstimadoInput
-                value={tempoEstimadoDia}
-                onChange={setTempoEstimadoDia}
-                disabled={loading || submitting}
-                placeholder="Ex: 1h 30min ou 90min"
-              />
-            </div>
-          )}
-
-          {/* Campo de Responsável - só aparece se período estiver definido */}
-          {dataInicio && dataFim && (
-            <div className="select-group">
-              <label className="select-label">
-                <i className="fas fa-user-tie" style={{ marginRight: '8px' }}></i>
-                Responsável
-              </label>
-              
-              {responsavelSelecionado && (
-                <SelectedItemsList
-                  items={[String(responsavelSelecionado)]}
-                  getItemLabel={getColaboradorLabel}
-                  onRemoveItem={() => setResponsavelSelecionado(null)}
-                  canRemove={true}
-                  isExpanded={false}
-                  onToggleExpand={() => {}}
-                />
-              )}
-
-              <div className="select-wrapper">
-                <CustomSelect
-                  value={responsavelSelecionado || ''}
-                  options={getColaboradorOptions()}
-                  onChange={(e) => setResponsavelSelecionado(e.target.value || null)}
-                  placeholder="Selecione um responsável"
-                  disabled={loading || submitting || colaboradores.length === 0}
-                  keepOpen={false}
-                  selectedItems={responsavelSelecionado ? [String(responsavelSelecionado)] : []}
-                  hideCheckboxes={true}
-                  maxVisibleOptions={5}
-                  enableSearch={true}
-                />
-              </div>
-              {colaboradores.length === 0 && !loading && (
-                <p className="empty-message">Nenhum colaborador disponível</p>
-              )}
-            </div>
-          )}
-
-          {/* Botão de Salvar/Atualizar */}
-          {clienteSelecionado && produtosSelecionados.length > 0 && tarefasSelecionadas.length > 0 && dataInicio && dataFim && tempoEstimadoDia > 0 && responsavelSelecionado && (
-            <div className="action-buttons">
-              {agrupamentoEditando ? (
-                <button
-                  type="button"
-                  onClick={handleUpdate}
-                  disabled={loading || submitting}
-                  className="btn-primary"
-                >
-                  {submitting ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
-                      Atualizando...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
-                      Atualizar Registro
-                    </>
-                  )}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={loading || submitting}
-                  className="btn-primary"
-                >
-                  {submitting ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
-                      Delegando...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save" style={{ marginRight: '8px' }}></i>
-                      Delegar Tarefas
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Lista de Registros */}
-        <div className="registros-list-container" style={{ marginTop: '48px' }}>
-          <div className="page-header">
-            <h2>Registros de Tempo Estimado</h2>
-            <button
-              type="button"
-              onClick={loadRegistrosTempoEstimado}
-              disabled={loadingRegistros}
-              className="btn-secondary"
-              style={{ marginTop: '12px' }}
-            >
-              {loadingRegistros ? (
-                <>
-                  <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
-                  Carregando...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-sync-alt" style={{ marginRight: '8px' }}></i>
-                  Atualizar Lista
-                </>
-              )}
-            </button>
-          </div>
-
-          {loadingRegistros ? (
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: '24px', color: '#0e3b6f' }}></i>
-              <p style={{ marginTop: '12px', color: '#64748b' }}>Carregando registros...</p>
-            </div>
-          ) : registrosAgrupados.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', background: '#ffffff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-              <i className="fas fa-inbox" style={{ fontSize: '48px', color: '#cbd5e1', marginBottom: '16px' }}></i>
-              <p style={{ color: '#64748b' }}>Nenhum registro encontrado</p>
-            </div>
-          ) : (
-            <div className="registros-table-container" style={{ background: '#ffffff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)', overflow: 'hidden' }}>
-              <table className="registros-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #e2e8f0' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Cliente</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Produtos</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Tarefas</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Período</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Responsável</th>
-                    <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>Registros</th>
-                    <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600, color: '#0e3b6f', fontSize: '13px', width: '120px' }}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {registrosAgrupados.map((agrupamento) => {
-                    const primeiroRegistro = agrupamento.primeiroRegistro;
-                    const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
-                    const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                    
-                    return (
-                      <tr key={agrupamento.agrupador_id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{getNomeCliente(primeiroRegistro.cliente_id)}</td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>
-                          {produtosUnicos.map(id => getNomeProduto(id)).join(', ')}
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>
-                          {tarefasUnicas.map(id => getNomeTarefa(id)).join(', ')}
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>
-                          {formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{getNomeColaborador(primeiroRegistro.responsavel_id)}</td>
-                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
-                          {agrupamento.quantidade} dia(s)
-                        </td>
-                        <td style={{ padding: '12px', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleEdit(agrupamento)}
-                              className="btn-icon btn-edit"
-                              title="Editar Agrupamento"
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: '#0e3b6f', 
-                                cursor: 'pointer',
-                                padding: '6px 10px',
-                                borderRadius: '4px',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => e.target.style.background = '#f1f5f9'}
-                              onMouseLeave={(e) => e.target.style.background = 'none'}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAgrupamentoParaDeletar(agrupamento);
-                                setShowDeleteModal(true);
-                              }}
-                              className="btn-icon btn-delete"
-                              title="Deletar Agrupamento"
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: '#dc2626', 
-                                cursor: 'pointer',
-                                padding: '6px 10px',
-                                borderRadius: '4px',
-                                transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={(e) => e.target.style.background = '#fee2e2'}
-                              onMouseLeave={(e) => e.target.style.background = 'none'}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        </main>
       </div>
 
-      {/* Modal de Confirmação de Exclusão */}
+      <AtribuicaoModal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        editingAgrupamento={editingAgrupamento}
+      />
+
+      {/* Modal de confirmação para exclusão */}
       <ConfirmModal
-        isOpen={showDeleteModal}
+        isOpen={showDeleteConfirmModal}
         onClose={() => {
-          setShowDeleteModal(false);
-          setRegistroParaDeletar(null);
+          setShowDeleteConfirmModal(false);
+          setAgrupamentoParaDeletar(null);
         }}
         onConfirm={handleDelete}
         title="Confirmar Exclusão"
         message={
           agrupamentoParaDeletar ? (
             <>
-              <p>
-                Tem certeza que deseja deletar este agrupamento?
-              </p>
+              <p>Tem certeza que deseja excluir esta atribuição?</p>
               <p style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
                 <strong>Cliente:</strong> {getNomeCliente(agrupamentoParaDeletar.primeiroRegistro.cliente_id)}<br />
+                <strong>Colaborador:</strong> {getNomeColaborador(agrupamentoParaDeletar.primeiroRegistro.responsavel_id)}<br />
                 <strong>Período:</strong> {formatarPeriodo(agrupamentoParaDeletar.dataInicio, agrupamentoParaDeletar.dataFim)}<br />
-                <strong>Quantidade de registros:</strong> {agrupamentoParaDeletar.quantidade} dia(s)
+                <strong>Quantidade de dias:</strong> {agrupamentoParaDeletar.quantidade} dia(s)
               </p>
               <p className="warning-text" style={{ marginTop: '12px', color: '#dc2626', fontWeight: 500 }}>
-                Todos os {agrupamentoParaDeletar.quantidade} registro(s) deste agrupamento serão deletados. Esta ação não pode ser desfeita.
+                Todos os {agrupamentoParaDeletar.quantidade} dia(s) desta atribuição serão removidos. Esta ação não pode ser desfeita.
               </p>
             </>
           ) : null
         }
-        confirmText="Deletar"
+        confirmText="Excluir"
         cancelText="Cancelar"
         confirmButtonClass="btn-danger"
-        loading={deleting}
+        loading={deleteLoading}
       />
     </Layout>
   );
 };
 
 export default DelegarTarefas;
-

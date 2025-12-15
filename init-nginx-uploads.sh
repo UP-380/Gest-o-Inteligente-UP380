@@ -10,3 +10,6 @@ chmod -R 755 /usr/share/nginx/html/assets/images/avatars/custom
 # Executar nginx
 exec nginx -g 'daemon off;'
 
+
+
+

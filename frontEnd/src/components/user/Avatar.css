@@ -28,6 +28,12 @@
 }
 
 /* Tamanhos */
+.avatar-tiny {
+  width: 9px;
+  height: 9px;
+  font-size: 9px;
+}
+
 .avatar-small {
   width: 32px;
   height: 32px;

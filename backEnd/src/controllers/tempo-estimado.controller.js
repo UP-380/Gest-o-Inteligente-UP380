@@ -4,6 +4,7 @@
 
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const { buscarTodosComPaginacao } = require('../services/database-utils');
 
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
@@ -90,6 +91,101 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
+    // Verificar duplicatas: não pode ter o mesmo conjunto de tarefas para o mesmo cliente + responsável + produto + período
+    const verificarDuplicatas = async () => {
+      // Para cada produto, verificar se já existe um agrupamento com exatamente as mesmas tarefas
+      for (const produtoId of produto_ids) {
+        // Buscar todos os registros existentes para este cliente + produto + responsável
+        const { data: registrosExistentes, error: errorBusca } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado')
+          .select('agrupador_id, data, cliente_id, produto_id, tarefa_id, responsavel_id')
+          .eq('cliente_id', String(cliente_id).trim())
+          .eq('produto_id', String(produtoId).trim())
+          .eq('responsavel_id', String(responsavel_id).trim());
+        
+        if (errorBusca) {
+          console.error('Erro ao verificar duplicatas:', errorBusca);
+          continue;
+        }
+        
+        if (registrosExistentes && registrosExistentes.length > 0) {
+          // Agrupar por agrupador_id
+          const gruposExistentes = new Map();
+          registrosExistentes.forEach(reg => {
+            const agrupadorId = reg.agrupador_id || 'sem-grupo';
+            if (!gruposExistentes.has(agrupadorId)) {
+              gruposExistentes.set(agrupadorId, {
+                tarefas: new Set(),
+                datas: []
+              });
+            }
+            gruposExistentes.get(agrupadorId).tarefas.add(String(reg.tarefa_id).trim());
+            gruposExistentes.get(agrupadorId).datas.push(reg.data);
+          });
+          
+          // Criar conjunto de tarefas solicitadas (normalizado)
+          const tarefasSolicitadas = new Set(tarefa_ids.map(id => String(id).trim()));
+          
+          // Verificar cada grupo existente
+          for (const [agrupadorId, grupo] of gruposExistentes) {
+            // Verificar se o conjunto de tarefas é exatamente o mesmo
+            const tarefasExistentes = grupo.tarefas;
+            const temMesmasTarefas = 
+              tarefasSolicitadas.size === tarefasExistentes.size &&
+              [...tarefasSolicitadas].every(t => tarefasExistentes.has(t));
+            
+            if (temMesmasTarefas) {
+              // Verificar se o período se sobrepõe
+              const datasGrupo = grupo.datas.sort();
+              if (datasGrupo.length > 0) {
+                const grupoInicio = datasGrupo[0].split('T')[0];
+                const grupoFim = datasGrupo[datasGrupo.length - 1].split('T')[0];
+                
+                // Verificar sobreposição: dois períodos se sobrepõem se (inicio1 <= fim2) && (fim1 >= inicio2)
+                const inicioGrupo = new Date(grupoInicio);
+                const fimGrupo = new Date(grupoFim);
+                const inicioSolicitado = new Date(data_inicio);
+                const fimSolicitado = new Date(data_fim);
+                
+                // Normalizar para comparar apenas datas (sem hora)
+                inicioGrupo.setHours(0, 0, 0, 0);
+                fimGrupo.setHours(23, 59, 59, 999);
+                inicioSolicitado.setHours(0, 0, 0, 0);
+                fimSolicitado.setHours(23, 59, 59, 999);
+                
+                if (inicioGrupo <= fimSolicitado && fimGrupo >= inicioSolicitado) {
+                  return {
+                    duplicado: true,
+                    produto_id: produtoId,
+                    tarefas: Array.from(tarefasSolicitadas),
+                    periodo_existente: `${grupoInicio} até ${grupoFim}`,
+                    periodo_solicitado: `${data_inicio} até ${data_fim}`
+                  };
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      return { duplicado: false };
+    };
+    
+    const resultadoDuplicatas = await verificarDuplicatas();
+    if (resultadoDuplicatas.duplicado) {
+      return res.status(400).json({
+        success: false,
+        error: `Não é possível criar atribuições duplicadas. Já existe um registro para o mesmo conjunto de tarefas, cliente, responsável, produto e período sobreposto.`,
+        detalhes: {
+          produto_id: resultadoDuplicatas.produto_id,
+          tarefas: resultadoDuplicatas.tarefas,
+          periodo_existente: resultadoDuplicatas.periodo_existente,
+          periodo_solicitado: resultadoDuplicatas.periodo_solicitado
+        }
+      });
+    }
+
     // Gerar um ID único para agrupar todos os registros desta delegação
     const agrupador_id = uuidv4();
 
@@ -166,17 +262,37 @@ async function criarTempoEstimado(req, res) {
 // GET - Listar registros de tempo estimado (com paginação e filtros)
 async function getTempoEstimado(req, res) {
   try {
+    // Processar parâmetros que podem vir como array (quando múltiplos valores são passados)
+    const processarParametroArray = (param) => {
+      if (!param) return null;
+      if (Array.isArray(param)) {
+        return param.filter(Boolean);
+      }
+      if (typeof param === 'string' && param.includes(',')) {
+        return param.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      // Valor único - retornar como array
+      return [String(param).trim()].filter(Boolean);
+    };
+    
+    console.log('🔍 [TEMPO-ESTIMADO] req.query completo:', JSON.stringify(req.query, null, 2));
+    console.log('🔍 [TEMPO-ESTIMADO] req.query.responsavel_id:', req.query.responsavel_id);
+    console.log('🔍 [TEMPO-ESTIMADO] Tipo:', typeof req.query.responsavel_id);
+    console.log('🔍 [TEMPO-ESTIMADO] É array?', Array.isArray(req.query.responsavel_id));
+    
     const { 
       page = 1, 
       limit = 20,
-      cliente_id = null,
-      produto_id = null,
-      tarefa_id = null,
-      responsavel_id = null,
       data = null,
       data_inicio = null,
       data_fim = null
     } = req.query;
+    
+    // Processar IDs que podem vir como array
+    const cliente_id = processarParametroArray(req.query.cliente_id);
+    const produto_id = processarParametroArray(req.query.produto_id);
+    const tarefa_id = processarParametroArray(req.query.tarefa_id);
+    const responsavel_id = processarParametroArray(req.query.responsavel_id);
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -188,20 +304,42 @@ async function getTempoEstimado(req, res) {
       .select('*', { count: 'exact' });
 
     // Aplicar filtros
-    if (cliente_id) {
-      query = query.eq('cliente_id', String(cliente_id).trim());
+    // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
+    if (cliente_id && cliente_id.length > 0) {
+      const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+      if (clienteIdsLimpos.length === 1) {
+        query = query.eq('cliente_id', clienteIdsLimpos[0]);
+      } else if (clienteIdsLimpos.length > 1) {
+        query = query.in('cliente_id', clienteIdsLimpos);
+      }
     }
 
-    if (produto_id) {
-      query = query.eq('produto_id', String(produto_id).trim());
+    if (produto_id && produto_id.length > 0) {
+      const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+      if (produtoIdsLimpos.length === 1) {
+        query = query.eq('produto_id', produtoIdsLimpos[0]);
+      } else if (produtoIdsLimpos.length > 1) {
+        query = query.in('produto_id', produtoIdsLimpos);
+      }
     }
 
-    if (tarefa_id) {
-      query = query.eq('tarefa_id', String(tarefa_id).trim());
+    if (tarefa_id && tarefa_id.length > 0) {
+      const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+      if (tarefaIdsLimpos.length === 1) {
+        query = query.eq('tarefa_id', tarefaIdsLimpos[0]);
+      } else if (tarefaIdsLimpos.length > 1) {
+        query = query.in('tarefa_id', tarefaIdsLimpos);
+      }
     }
 
-    if (responsavel_id) {
-      query = query.eq('responsavel_id', String(responsavel_id).trim());
+    if (responsavel_id && responsavel_id.length > 0) {
+      const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
+      console.log('🔍 [TEMPO-ESTIMADO] Filtrando por responsavel_id:', responsavelIdsLimpos);
+      if (responsavelIdsLimpos.length === 1) {
+        query = query.eq('responsavel_id', responsavelIdsLimpos[0]);
+      } else if (responsavelIdsLimpos.length > 1) {
+        query = query.in('responsavel_id', responsavelIdsLimpos);
+      }
     }
 
     // Filtro por data específica
@@ -210,11 +348,16 @@ async function getTempoEstimado(req, res) {
       query = query.eq('data', dataFormatada);
     }
 
-    // Filtro por intervalo de datas
+    // Filtro por intervalo de datas - busca registros cujo período (agrupado) se sobrepõe ao período filtrado
+    let aplicarFiltroPeriodo = false;
+    let periodoInicioFiltro = null;
+    let periodoFimFiltro = null;
+    
     if (data_inicio && data_fim) {
-      const inicioFormatado = data_inicio.includes('T') ? data_inicio : `${data_inicio}T00:00:00`;
-      const fimFormatado = data_fim.includes('T') ? data_fim : `${data_fim}T23:59:59`;
-      query = query.gte('data', inicioFormatado).lte('data', fimFormatado);
+      aplicarFiltroPeriodo = true;
+      periodoInicioFiltro = data_inicio.includes('T') ? data_inicio : `${data_inicio}T00:00:00`;
+      periodoFimFiltro = data_fim.includes('T') ? data_fim : `${data_fim}T23:59:59`;
+      // Não aplicar filtro direto na query - vamos buscar todos e filtrar por agrupamento depois
     } else if (data_inicio) {
       const inicioFormatado = data_inicio.includes('T') ? data_inicio : `${data_inicio}T00:00:00`;
       query = query.gte('data', inicioFormatado);
@@ -223,13 +366,16 @@ async function getTempoEstimado(req, res) {
       query = query.lte('data', fimFormatado);
     }
 
-    // Ordenar por data (mais recentes primeiro)
-    query = query.order('data', { ascending: false });
+    // Se não há filtro de período completo, aplicar paginação normalmente
+    // Se há filtro de período, precisamos buscar todos os registros primeiro para agrupar
+    let queryFinal = query.order('data', { ascending: false });
+    
+    if (!aplicarFiltroPeriodo) {
+      // Aplicar paginação normalmente
+      queryFinal = queryFinal.range(offset, offset + limitNum - 1);
+    }
 
-    // Aplicar paginação
-    query = query.range(offset, offset + limitNum - 1);
-
-    const { data: dadosTempoEstimado, error, count } = await query;
+    const { data: dadosTempoEstimado, error, count } = await queryFinal;
 
     if (error) {
       console.error('❌ Erro ao buscar tempo estimado:', error);
@@ -240,23 +386,403 @@ async function getTempoEstimado(req, res) {
       });
     }
 
-    const totalPages = Math.ceil((count || 0) / limitNum);
+    // Se há filtro de período, filtrar agrupamentos cujo período se sobrepõe
+    let dadosFiltrados = dadosTempoEstimado || [];
+    let totalFiltrado = count || 0;
+    
+    if (aplicarFiltroPeriodo) {
+      // Primeiro, buscar TODOS os agrupadores únicos e calcular min/max de data
+      // Usar paginação automática para buscar todos os registros em lotes de 1000
+      const criarQueryAgrupadores = () => {
+        let queryAgrupadores = supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado')
+          .select('agrupador_id, data');
+        
+        // Aplicar outros filtros básicos (mas não filtro de data)
+        // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
+        if (cliente_id && cliente_id.length > 0) {
+          const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+          if (clienteIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('cliente_id', clienteIdsLimpos[0]);
+          } else if (clienteIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('cliente_id', clienteIdsLimpos);
+          }
+        }
+        if (produto_id && produto_id.length > 0) {
+          const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+          if (produtoIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('produto_id', produtoIdsLimpos[0]);
+          } else if (produtoIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('produto_id', produtoIdsLimpos);
+          }
+        }
+        if (tarefa_id && tarefa_id.length > 0) {
+          const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+          if (tarefaIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('tarefa_id', tarefaIdsLimpos[0]);
+          } else if (tarefaIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('tarefa_id', tarefaIdsLimpos);
+          }
+        }
+        if (responsavel_id && responsavel_id.length > 0) {
+          const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
+          console.log('🔍 [TEMPO-ESTIMADO-AGRUPADORES] Filtrando por responsavel_id:', responsavelIdsLimpos);
+          if (responsavelIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('responsavel_id', responsavelIdsLimpos[0]);
+          } else if (responsavelIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('responsavel_id', responsavelIdsLimpos);
+          }
+        }
+        
+        // Aplicar filtros de agrupamento se existirem
+        if (req.query.filtro_produto === 'true') {
+          queryAgrupadores = queryAgrupadores.not('produto_id', 'is', null);
+        }
+        if (req.query.filtro_atividade === 'true') {
+          queryAgrupadores = queryAgrupadores.not('tarefa_id', 'is', null);
+        }
+        if (req.query.filtro_cliente === 'true') {
+          queryAgrupadores = queryAgrupadores.not('cliente_id', 'is', null);
+        }
+        if (req.query.filtro_responsavel === 'true') {
+          queryAgrupadores = queryAgrupadores.not('responsavel_id', 'is', null);
+        }
+        
+        return queryAgrupadores.order('data', { ascending: false });
+      };
+      
+      let todosRegistros = [];
+      try {
+        console.log('📊 Buscando todos os registros para calcular períodos dos agrupamentos...');
+        todosRegistros = await buscarTodosComPaginacao(criarQueryAgrupadores, { 
+          limit: 1000, 
+          logProgress: true 
+        });
+        console.log(`✅ Total de ${todosRegistros.length} registros encontrados para análise de períodos`);
+      } catch (errorTodos) {
+        console.error('❌ Erro ao buscar registros para filtro de período:', errorTodos);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar registros para filtro de período',
+          details: errorTodos.message
+        });
+      }
+      
+      // Agrupar por agrupador_id e calcular min/max
+      const grupos = new Map();
+      
+      (todosRegistros || []).forEach(registro => {
+        const agrupadorId = registro.agrupador_id || 'sem-grupo';
+        
+        if (!grupos.has(agrupadorId)) {
+          grupos.set(agrupadorId, {
+            agrupador_id: agrupadorId,
+            dataMinima: null,
+            dataMaxima: null
+          });
+        }
+        
+        const grupo = grupos.get(agrupadorId);
+        
+        // Calcular data mínima e máxima do grupo
+        // Extrair apenas a parte da data (sem hora) para evitar problemas de timezone
+        if (registro.data) {
+          const dataStr = typeof registro.data === 'string' ? registro.data.split('T')[0] : registro.data;
+          const [ano, mes, dia] = dataStr.split('-');
+          const dataRegistro = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+          
+          if (!isNaN(dataRegistro.getTime())) {
+            if (!grupo.dataMinima || dataRegistro < grupo.dataMinima) {
+              grupo.dataMinima = dataRegistro;
+            }
+            if (!grupo.dataMaxima || dataRegistro > grupo.dataMaxima) {
+              grupo.dataMaxima = dataRegistro;
+            }
+          }
+        }
+      });
+      
+      // Filtrar grupos cujo período se sobrepõe ao período filtrado
+      // Converter strings de data para Date objects (considerando apenas a parte da data, sem hora)
+      const parseDateFromString = (dateStr) => {
+        if (!dateStr) return null;
+        // Remover a parte de hora se existir
+        const dateOnly = dateStr.split('T')[0];
+        const [ano, mes, dia] = dateOnly.split('-');
+        return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      };
+      
+      const filtroInicio = parseDateFromString(periodoInicioFiltro);
+      const filtroFim = parseDateFromString(periodoFimFiltro);
+      
+      if (!filtroInicio || !filtroFim) {
+        console.error('❌ Erro ao parsear datas do filtro de período');
+        return res.status(400).json({
+          success: false,
+          error: 'Datas do período inválidas'
+        });
+      }
+      
+      const agrupadoresValidos = [];
+      
+      console.log(`🔍 Filtrando agrupamentos que se sobrepõem ao período: ${periodoInicioFiltro} até ${periodoFimFiltro}`);
+      console.log(`📊 Total de ${grupos.size} agrupamentos para verificar`);
+      
+      // Normalizar datas do filtro (apenas data, sem hora)
+      const filtroInicioDate = new Date(filtroInicio.getFullYear(), filtroInicio.getMonth(), filtroInicio.getDate());
+      const filtroFimDate = new Date(filtroFim.getFullYear(), filtroFim.getMonth(), filtroFim.getDate());
+      
+      console.log(`📅 Período filtro normalizado: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]}`);
+      
+      grupos.forEach((grupo, agrupadorId) => {
+        if (grupo.dataMinima && grupo.dataMaxima) {
+          // Normalizar datas do grupo (apenas data, sem hora)
+          const grupoInicio = new Date(grupo.dataMinima.getFullYear(), grupo.dataMinima.getMonth(), grupo.dataMinima.getDate());
+          const grupoFim = new Date(grupo.dataMaxima.getFullYear(), grupo.dataMaxima.getMonth(), grupo.dataMaxima.getDate());
+          
+          // Dois períodos se sobrepõem se: (inicio1 <= fim2) && (fim1 >= inicio2)
+          const seSobrepoe = grupoInicio <= filtroFimDate && grupoFim >= filtroInicioDate;
+          
+          const grupoInicioStr = grupoInicio.toISOString().split('T')[0];
+          const grupoFimStr = grupoFim.toISOString().split('T')[0];
+          
+          if (seSobrepoe) {
+            agrupadoresValidos.push(agrupadorId);
+            console.log(`✅ Agrupamento ${agrupadorId.substring(0, 8)}... se sobrepõe: ${grupoInicioStr} até ${grupoFimStr}`);
+          } else {
+            console.log(`❌ Agrupamento ${agrupadorId.substring(0, 8)}... NÃO se sobrepõe: ${grupoInicioStr} até ${grupoFimStr} (filtro: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]})`);
+          }
+        } else {
+          console.log(`⚠️ Agrupamento ${agrupadorId.substring(0, 8)}... sem datas válidas`);
+        }
+      });
+      
+      console.log(`✅ Total de ${agrupadoresValidos.length} agrupamentos válidos encontrados de ${grupos.size} agrupamentos verificados`);
+      
+      // Se não há agrupadores válidos, retornar vazio
+      if (agrupadoresValidos.length === 0) {
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          total: 0,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: 0
+        });
+      }
+      
+      // Buscar TODOS os registros dos agrupamentos válidos usando paginação automática
+      const criarQueryRegistrosFiltrados = () => {
+        let queryFiltrada = supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado')
+          .select('*')
+          .in('agrupador_id', agrupadoresValidos);
+        
+        // Aplicar outros filtros
+        // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
+        if (cliente_id && cliente_id.length > 0) {
+          const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+          if (clienteIdsLimpos.length === 1) {
+            queryFiltrada = queryFiltrada.eq('cliente_id', clienteIdsLimpos[0]);
+          } else if (clienteIdsLimpos.length > 1) {
+            queryFiltrada = queryFiltrada.in('cliente_id', clienteIdsLimpos);
+          }
+        }
+        if (produto_id && produto_id.length > 0) {
+          const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+          if (produtoIdsLimpos.length === 1) {
+            queryFiltrada = queryFiltrada.eq('produto_id', produtoIdsLimpos[0]);
+          } else if (produtoIdsLimpos.length > 1) {
+            queryFiltrada = queryFiltrada.in('produto_id', produtoIdsLimpos);
+          }
+        }
+        if (tarefa_id && tarefa_id.length > 0) {
+          const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+          if (tarefaIdsLimpos.length === 1) {
+            queryFiltrada = queryFiltrada.eq('tarefa_id', tarefaIdsLimpos[0]);
+          } else if (tarefaIdsLimpos.length > 1) {
+            queryFiltrada = queryFiltrada.in('tarefa_id', tarefaIdsLimpos);
+          }
+        }
+        if (responsavel_id && responsavel_id.length > 0) {
+          const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
+          console.log('🔍 [TEMPO-ESTIMADO-FILTRADA] Filtrando por responsavel_id:', responsavelIdsLimpos);
+          if (responsavelIdsLimpos.length === 1) {
+            queryFiltrada = queryFiltrada.eq('responsavel_id', responsavelIdsLimpos[0]);
+          } else if (responsavelIdsLimpos.length > 1) {
+            queryFiltrada = queryFiltrada.in('responsavel_id', responsavelIdsLimpos);
+          }
+        }
+        
+        // Aplicar filtros de agrupamento se existirem
+        if (req.query.filtro_produto === 'true') {
+          queryFiltrada = queryFiltrada.not('produto_id', 'is', null);
+        }
+        if (req.query.filtro_atividade === 'true') {
+          queryFiltrada = queryFiltrada.not('tarefa_id', 'is', null);
+        }
+        if (req.query.filtro_cliente === 'true') {
+          queryFiltrada = queryFiltrada.not('cliente_id', 'is', null);
+        }
+        if (req.query.filtro_responsavel === 'true') {
+          queryFiltrada = queryFiltrada.not('responsavel_id', 'is', null);
+        }
+        
+        return queryFiltrada.order('data', { ascending: false });
+      };
+      
+      try {
+        console.log(`📊 Buscando todos os registros dos ${agrupadoresValidos.length} agrupamentos válidos...`);
+        const todosRegistrosFiltrados = await buscarTodosComPaginacao(criarQueryRegistrosFiltrados, { 
+          limit: 1000, 
+          logProgress: true 
+        });
+        console.log(`✅ Total de ${todosRegistrosFiltrados.length} registros encontrados dos agrupamentos válidos`);
+        
+        // Contar quantos agrupamentos únicos temos nos registros
+        const agrupadoresUnicos = new Set(todosRegistrosFiltrados.map(r => r.agrupador_id));
+        console.log(`📦 Total de ${agrupadoresUnicos.size} agrupamentos únicos nos registros retornados`);
+        
+        // IMPORTANTE: Não aplicar paginação manual aqui, pois o frontend agrupa por agrupador_id
+        // Se aplicarmos paginação aqui, podemos perder agrupamentos completos
+        // O frontend vai fazer a paginação após agrupar
+        totalFiltrado = todosRegistrosFiltrados.length;
+        dadosFiltrados = todosRegistrosFiltrados;
+        
+        // Não aplicar paginação manual - deixar o frontend fazer a paginação após agrupar
+        // dadosFiltrados = todosRegistrosFiltrados.slice(offset, offset + limitNum);
+      } catch (errorFiltrado) {
+        console.error('❌ Erro ao buscar registros filtrados:', errorFiltrado);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar registros filtrados',
+          details: errorFiltrado.message
+        });
+      }
+    }
+
+    // Buscar fotos de perfil dos responsáveis
+    if (dadosFiltrados && dadosFiltrados.length > 0) {
+      // Extrair responsavel_ids únicos
+      const responsavelIds = [...new Set(
+        dadosFiltrados
+          .map(r => r.responsavel_id)
+          .filter(Boolean)
+      )];
+
+      if (responsavelIds.length > 0) {
+        // Buscar membros por responsavel_id
+        const { data: membros, error: membrosError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('membro')
+          .select('id, usuario_id')
+          .in('id', responsavelIds);
+
+        if (!membrosError && membros && membros.length > 0) {
+          // Extrair usuario_ids únicos
+          const usuarioIds = [...new Set(
+            membros
+              .map(m => m.usuario_id)
+              .filter(Boolean)
+          )];
+
+          if (usuarioIds.length > 0) {
+            // Buscar usuarios por usuario_id
+            const { data: usuarios, error: usuariosError } = await supabase
+              .schema('up_gestaointeligente')
+              .from('usuarios')
+              .select('id, foto_perfil')
+              .in('id', usuarioIds);
+
+            if (!usuariosError && usuarios && usuarios.length > 0) {
+              // Criar mapas para lookup rápido
+              const membroMap = new Map();
+              membros.forEach(membro => {
+                membroMap.set(String(membro.id), membro.usuario_id);
+              });
+
+              const usuarioMap = new Map();
+              usuarios.forEach(usuario => {
+                usuarioMap.set(String(usuario.id), usuario.foto_perfil);
+              });
+
+              // Adicionar foto_perfil aos registros
+              dadosFiltrados.forEach(registro => {
+                if (registro.responsavel_id) {
+                  const responsavelIdStr = String(registro.responsavel_id);
+                  const usuarioId = membroMap.get(responsavelIdStr);
+                  if (usuarioId) {
+                    const fotoPerfil = usuarioMap.get(String(usuarioId));
+                    registro.responsavel_foto_perfil = fotoPerfil || null;
+                  } else {
+                    registro.responsavel_foto_perfil = null;
+                  }
+                } else {
+                  registro.responsavel_foto_perfil = null;
+                }
+              });
+            } else {
+              // Se não encontrar usuarios, definir foto_perfil como null
+              dadosFiltrados.forEach(registro => {
+                registro.responsavel_foto_perfil = null;
+              });
+            }
+          } else {
+            // Se não houver usuario_ids, definir foto_perfil como null
+            dadosFiltrados.forEach(registro => {
+              registro.responsavel_foto_perfil = null;
+            });
+          }
+        } else {
+          // Se não encontrar membros, definir foto_perfil como null
+          dadosFiltrados.forEach(registro => {
+            registro.responsavel_foto_perfil = null;
+          });
+        }
+      } else {
+        // Se não houver responsavel_ids, definir foto_perfil como null
+        dadosFiltrados.forEach(registro => {
+          registro.responsavel_foto_perfil = null;
+        });
+      }
+    }
+
+    // Quando há filtro de período, retornamos todos os registros dos agrupamentos válidos
+    // O frontend vai agrupar e fazer a paginação. Por isso, totalPages deve ser 1
+    // e total deve ser o número total de registros (não agrupamentos)
+    let totalPagesCalculado = 1;
+    if (!aplicarFiltroPeriodo) {
+      // Sem filtro de período, usar paginação normal
+      totalPagesCalculado = Math.ceil((totalFiltrado || 0) / limitNum);
+    } else {
+      // Com filtro de período, retornamos todos os registros
+      // O frontend vai agrupar e paginar
+      totalPagesCalculado = 1;
+    }
+
+    console.log(`📄 Retornando ${dadosFiltrados.length} registros (total: ${totalFiltrado}, página: ${pageNum}, totalPages: ${totalPagesCalculado})`);
 
     return res.json({
       success: true,
-      data: dadosTempoEstimado || [],
-      count: dadosTempoEstimado?.length || 0,
-      total: count || 0,
+      data: dadosFiltrados || [],
+      count: dadosFiltrados?.length || 0,
+      total: totalFiltrado || 0,
       page: pageNum,
       limit: limitNum,
-      totalPages
+      totalPages: totalPagesCalculado
     });
   } catch (error) {
-    console.error('Erro inesperado ao buscar tempo estimado:', error);
+    console.error('❌ Erro inesperado ao buscar tempo estimado:', error);
+    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ req.query:', JSON.stringify(req.query, null, 2));
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }

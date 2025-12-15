@@ -24,3 +24,6 @@ const ModalHeader = ({ title, onClose, disabled = false }) => {
 
 export default ModalHeader;
 
+
+
+

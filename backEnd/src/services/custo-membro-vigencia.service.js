@@ -170,6 +170,67 @@ async function verificarVigenciaExiste(id) {
   }
 }
 
+// Buscar horas contratadas por dia mais recente por membro_id e período
+async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dataFim) {
+  try {
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('custo_membro_vigencia')
+      .select('horascontratadasdia, dt_vigencia')
+      .eq('membro_id', membroId);
+
+    // Filtrar vigências que sejam <= data_fim (a mais recente antes ou no período)
+    if (dataFim) {
+      query = query.lte('dt_vigencia', dataFim);
+    }
+
+    // Ordenar por dt_vigencia descendente e pegar apenas o primeiro (mais recente)
+    query = query.order('dt_vigencia', { ascending: false }).limit(1);
+
+    const { data, error } = await query;
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    // Retornar o primeiro registro (mais recente) ou null se não houver
+    return { data: data && data.length > 0 ? data[0] : null, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Buscar custo mais recente por membro_id e período
+// Retorna a vigência com dt_vigencia mais recente que seja <= data_fim do período
+async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dataFim) {
+  try {
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('custo_membro_vigencia')
+      .select('*')
+      .eq('membro_id', membroId);
+
+    // Filtrar vigências que sejam <= data_fim (a mais recente antes ou no período)
+    if (dataFim) {
+      query = query.lte('dt_vigencia', dataFim);
+    }
+
+    // Ordenar por dt_vigencia descendente e pegar apenas o primeiro (mais recente)
+    query = query.order('dt_vigencia', { ascending: false }).limit(1);
+
+    const { data, error } = await query;
+
+    if (error) {
+      return { data: null, error };
+    }
+
+    // Retornar o primeiro registro (mais recente) ou null se não houver
+    return { data: data && data.length > 0 ? data[0] : null, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 // Criar vigência
 async function criarVigencia(dados) {
   try {
@@ -256,6 +317,8 @@ module.exports = {
   verificarVigenciaExiste,
   criarVigencia,
   atualizarVigencia,
-  deletarVigencia
+  deletarVigencia,
+  buscarCustoMaisRecentePorMembroEPeriodo,
+  buscarHorasContratadasPorMembroEPeriodo
 };
 
