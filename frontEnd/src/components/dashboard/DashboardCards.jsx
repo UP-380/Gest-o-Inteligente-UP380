@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import './DashboardCards.css';
+
+const API_BASE_URL = '/api';
 
 /**
  * DashboardCards - Componente para exibir totais gerais dos resultados
@@ -34,6 +36,8 @@ const DashboardCards = ({
   showColaboradores = true, 
   filtroCliente = null 
 }) => {
+  const [custosPorColaborador, setCustosPorColaborador] = useState({});
+
   // Normalizar arrays para garantir que são arrays válidos
   const registros = Array.isArray(registrosTempo) ? registrosTempo : [];
   const contratosArray = Array.isArray(contratos) ? contratos : [];
@@ -193,6 +197,120 @@ const DashboardCards = ({
   const tempoHM = formatarHrsHM(totais.totalHrs);
   const tempoDecimal = formatarHrsDecimal(totais.totalHrs);
 
+  // Buscar custo/hora de um colaborador
+  const buscarCustoPorColaborador = async (colaboradorId) => {
+    try {
+      const params = new URLSearchParams({
+        membro_id: colaboradorId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.custo_hora || null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar custo por colaborador:', error);
+      return null;
+    }
+  };
+
+  // Carregar custos para todos os colaboradores únicos dos registros
+  useEffect(() => {
+    const carregarCustos = async () => {
+      if (!registros || registros.length === 0) return;
+
+      const colaboradoresIds = new Set();
+      registros.forEach(registro => {
+        const colaboradorId = registro.usuario_id || registro.membro?.id;
+        if (colaboradorId) {
+          colaboradoresIds.add(String(colaboradorId));
+        }
+      });
+
+      setCustosPorColaborador(prevCustos => {
+        const novosCustos = { ...prevCustos };
+        const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !novosCustos[id]);
+
+        if (idsParaBuscar.length === 0) return prevCustos;
+
+        // Buscar custos em paralelo
+        Promise.all(
+          idsParaBuscar.map(async (colaboradorId) => {
+            const custoHora = await buscarCustoPorColaborador(colaboradorId);
+            return { colaboradorId, custoHora };
+          })
+        ).then(resultados => {
+          const custosAtualizados = { ...novosCustos };
+          resultados.forEach(({ colaboradorId, custoHora }) => {
+            custosAtualizados[colaboradorId] = custoHora;
+          });
+          setCustosPorColaborador(custosAtualizados);
+        });
+
+        return prevCustos;
+      });
+    };
+
+    carregarCustos();
+  }, [registros]);
+
+  // Calcular custo realizado total
+  const calcularCustoRealizadoTotal = useMemo(() => {
+    if (!registros || registros.length === 0) return null;
+
+    let custoTotal = 0;
+    let temCusto = false;
+
+    registros.forEach(registro => {
+      const colaboradorId = registro.usuario_id || registro.membro?.id;
+      if (!colaboradorId) return;
+
+      let tempo = Number(registro.tempo_realizado) || 0;
+      
+      // Converter horas decimais para milissegundos se necessário
+      if (tempo > 0 && tempo < 1) {
+        tempo = Math.round(tempo * 3600000);
+      }
+      
+      // Se resultado < 1 segundo, arredondar para 1 segundo
+      if (tempo > 0 && tempo < 1000) {
+        tempo = 1000;
+      }
+
+      const custoHoraStr = custosPorColaborador[String(colaboradorId)];
+      if (custoHoraStr) {
+        // Converter custo_hora de string (formato "21,22") para número
+        const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+        if (!isNaN(custoHora) && custoHora > 0) {
+          // Converter tempo de milissegundos para horas
+          const tempoHoras = tempo / 3600000;
+          // Custo = custo por hora * tempo em horas
+          custoTotal += custoHora * tempoHoras;
+          temCusto = true;
+        }
+      }
+    });
+
+    return temCusto ? custoTotal : null;
+  }, [registros, custosPorColaborador]);
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
+
   // Mostrar cards se houver pelo menos um dado
   if (totais.totalTarefas === 0 && totais.totalHrs === 0 && totais.totalColaboradores === 0 && totais.totalClientes === 0) {
     return null;
@@ -246,6 +364,30 @@ const DashboardCards = ({
           <div className="dashboard-card-decimal">
             {tempoDecimal} hrs decimais
           </div>
+          {calcularCustoRealizadoTotal !== null && (
+            <div style={{ 
+              marginTop: '8px', 
+              fontSize: '14px', 
+              fontWeight: 600, 
+              color: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span
+                style={{
+                  background: '#fee2e2',
+                  color: '#ef4444',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+              >
+                {formatarValorMonetario(calcularCustoRealizadoTotal)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

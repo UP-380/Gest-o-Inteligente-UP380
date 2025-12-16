@@ -784,7 +784,7 @@
   }
 }
 
-/* Seção de Tempo Disponível vs Realizado */
+/* Seção de Tempo Disponível vs Estimado por Responsável */
 .tempo-disponivel-section {
   margin-bottom: 32px;
   padding: 20px;
@@ -805,32 +805,74 @@
 
 .tempo-disponivel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  max-width: 100%;
+}
+
+@media (min-width: 1200px) {
+  .tempo-disponivel-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .tempo-disponivel-card {
-  padding: 1rem;
-  background-color: #f8f9fa;
-  box-shadow:
-    -4px -4px 8px rgba(255, 255, 255, 1),
-    4px 4px 8px rgba(153, 161, 175, 0.4),
-    inset -3px -3px 6px rgba(255, 255, 255, 0.7);
-  border-radius: 20px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
   max-width: 100%;
 }
 
 .tempo-disponivel-card-header {
-  margin-bottom: 16px;
+  margin-bottom: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 152, 0, 0.2);
+  height: 56px;
+  margin-bottom: 12px;
+}
+
+.tempo-disponivel-card-nome-wrapper {
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
+  width: 100%;
 }
 
 .tempo-disponivel-card-nome {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: #ff9800;
+  flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.3;
+  margin-top: 1px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tempo-disponivel-card-avatar-placeholder {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  flex-shrink: 0;
+}
+
+.tempo-disponivel-card-content {
+  width: 100%;
 }
 
 /* Avatar no card de tempo disponível */
@@ -847,90 +889,139 @@
   height: 28px !important;
 }
 
-/* Barra de Progresso de Tempo - Estilo Neumórfico Minimalista */
+/* Barra de Progresso de Tempo - Design Profissional */
 .barra-progresso-tempo {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 0;
+  position: relative;
+  top: 0;
+}
+
+.barra-progresso-tempo-header {
   width: 100%;
 }
 
-.barra-progresso-tempo-data {
+.barra-progresso-tempo-principal {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  gap: 3px;
+  margin-bottom: 10px;
+  align-items: flex-start;
 }
 
 .barra-progresso-tempo-valor {
-  margin-top: 0;
-  margin-bottom: 0.75rem;
-  color: #1f2937;
-  font-size: 1.125rem;
-  line-height: 1.5rem;
+  color: #ff9800;
+  font-size: 18px;
+  line-height: 1.2;
   font-weight: 700;
+  text-align: left;
+}
+
+.barra-progresso-tempo-custo {
+  font-size: 12px;
+  color: #ff9800;
+  font-weight: 600;
   text-align: left;
 }
 
 .barra-progresso-tempo-range {
   position: relative;
-  background-color: #e5e7eb;
-  box-shadow:
-    -2px -2px 4px white,
-    2px 2px 4px rgb(153, 161, 175);
+  background-color: #ffe0b2;
   width: 100%;
-  height: 0.5rem;
-  border-radius: 0.25rem;
+  height: 6px;
+  border-radius: 3px;
   overflow: hidden;
+  margin: 3px 0;
 }
 
 .barra-progresso-tempo-fill {
   position: absolute;
   top: 0;
   left: 0;
-  background-color: #10b981;
+  background-color: #ff9800;
   height: 100%;
-  border-radius: 0.25rem;
+  border-radius: 4px;
   transition: width 0.3s ease;
-  box-shadow:
-    inset -1px -1px 2px rgba(255, 255, 255, 0.3),
-    inset 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .barra-progresso-tempo-legenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 12px;
-  font-size: 12px;
-  color: #1f2937;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 152, 0, 0.2);
 }
 
 .barra-progresso-tempo-item {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.barra-progresso-tempo-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.barra-progresso-tempo-item-header {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 500;
+  gap: 4px;
 }
 
 .barra-progresso-tempo-indicador {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .barra-progresso-tempo-indicador.realizado {
-  background: #10b981;
-  box-shadow:
-    -1px -1px 2px rgba(255, 255, 255, 0.3),
-    1px 1px 2px rgba(0, 0, 0, 0.2);
+  background: #ff9800;
+  box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
 }
 
 .barra-progresso-tempo-indicador.sobrando {
-  background: #e5e7eb;
-  box-shadow:
-    -1px -1px 2px white,
-    1px 1px 2px rgb(153, 161, 175);
-  border: 1px solid #d1d5db;
+  background: #ffe0b2;
+  border: 1px solid #ffcc80;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* Tooltip para o tempo total riscado - mesmo estilo do botão Aplicar Filtros */
+.barra-progresso-tempo-label {
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.barra-progresso-tempo-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+/* Responsividade para legenda */
+@media (max-width: 768px) {
+  .barra-progresso-tempo-legenda {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+/* Tooltip para o tempo total - mesmo estilo do botão Aplicar Filtros */
 .tempo-total-wrapper.has-tooltip:hover .filter-tooltip {
   opacity: 1 !important;
   visibility: visible !important;

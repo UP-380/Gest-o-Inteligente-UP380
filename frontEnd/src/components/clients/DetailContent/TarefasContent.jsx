@@ -6,6 +6,7 @@ const TarefasContent = ({ registros }) => {
   const [expandedTarefas, setExpandedTarefas] = useState(new Set());
   const [expandedColaboradores, setExpandedColaboradores] = useState(new Set());
   const [tiposAtividadeMap, setTiposAtividadeMap] = useState(new Map());
+  const [custosPorColaborador, setCustosPorColaborador] = useState({});
 
   // Buscar tipos de atividade para criar mapa de clickup_id -> nome
   useEffect(() => {
@@ -37,6 +38,115 @@ const TarefasContent = ({ registros }) => {
 
     loadTiposAtividade();
   }, []);
+
+  // Buscar custo/hora de um colaborador
+  const buscarCustoPorColaborador = async (colaboradorId) => {
+    try {
+      const params = new URLSearchParams({
+        membro_id: colaboradorId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.custo_hora || null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar custo por colaborador:', error);
+      return null;
+    }
+  };
+
+  // Carregar custos para todos os colaboradores únicos dos registros
+  useEffect(() => {
+    const carregarCustos = async () => {
+      if (!registros || registros.length === 0) return;
+
+      const colaboradoresIds = new Set();
+      registros.forEach(registro => {
+        const colaboradorId = registro.usuario_id || registro.membro?.id;
+        if (colaboradorId) {
+          colaboradoresIds.add(String(colaboradorId));
+        }
+      });
+
+      setCustosPorColaborador(prevCustos => {
+        const novosCustos = { ...prevCustos };
+        const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !novosCustos[id]);
+
+        if (idsParaBuscar.length === 0) return prevCustos;
+
+        // Buscar custos em paralelo
+        Promise.all(
+          idsParaBuscar.map(async (colaboradorId) => {
+            const custoHora = await buscarCustoPorColaborador(colaboradorId);
+            return { colaboradorId, custoHora };
+          })
+        ).then(resultados => {
+          const custosAtualizados = { ...novosCustos };
+          resultados.forEach(({ colaboradorId, custoHora }) => {
+            custosAtualizados[colaboradorId] = custoHora;
+          });
+          setCustosPorColaborador(custosAtualizados);
+        });
+
+        return prevCustos;
+      });
+    };
+
+    carregarCustos();
+  }, [registros]);
+
+  // Calcular custo realizado por tempo
+  const calcularCustoRealizado = (tempoMilissegundos, colaboradorId) => {
+    if (!tempoMilissegundos || !colaboradorId) return null;
+    
+    const custoHoraStr = custosPorColaborador[String(colaboradorId)];
+    if (!custoHoraStr) return null;
+
+    // Converter custo_hora de string (formato "21,22") para número
+    const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+    if (isNaN(custoHora) || custoHora <= 0) return null;
+
+    // Converter tempo de milissegundos para horas
+    const tempoHoras = tempoMilissegundos / 3600000;
+    
+    // Custo = custo por hora * tempo em horas
+    const custo = custoHora * tempoHoras;
+    return custo;
+  };
+
+  // Calcular custo total realizado de uma tarefa (soma de todos os colaboradores)
+  const calcularCustoRealizadoTarefa = (tarefa) => {
+    let custoTotal = 0;
+    let temCusto = false;
+
+    tarefa.colaboradores.forEach((colaborador, colaboradorId) => {
+      const custoColaborador = calcularCustoRealizado(colaborador.tempoTotal, colaboradorId);
+      if (custoColaborador !== null) {
+        custoTotal += custoColaborador;
+        temCusto = true;
+      }
+    });
+
+    return temCusto ? custoTotal : null;
+  };
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
 
   if (!registros || registros.length === 0) {
     return <div className="empty-state"><p>Nenhuma tarefa encontrada</p></div>;
@@ -256,6 +366,27 @@ const TarefasContent = ({ registros }) => {
                   >
                     {rastText}
                   </span>
+                  {(() => {
+                    const custoRealizadoTarefa = calcularCustoRealizadoTarefa(tarefa);
+                    if (custoRealizadoTarefa !== null) {
+                      return (
+                        <span
+                          style={{
+                            background: '#fee2e2',
+                            color: '#ef4444',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            marginLeft: '8px'
+                          }}
+                        >
+                          {formatarValorMonetario(custoRealizadoTarefa)}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </span>
               </span>
               <button
@@ -331,6 +462,26 @@ const TarefasContent = ({ registros }) => {
                           >
                             {tempoText}
                           </span>
+                          {(() => {
+                            const custoRealizadoColaborador = calcularCustoRealizado(colaborador.tempoTotal, colaboradorId);
+                            if (custoRealizadoColaborador !== null) {
+                              return (
+                                <span
+                                  style={{
+                                    background: '#fee2e2',
+                                    color: '#ef4444',
+                                    padding: '2px 8px',
+                                    borderRadius: '999px',
+                                    fontSize: '12px',
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {formatarValorMonetario(custoRealizadoColaborador)}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           <button
                             className="tt-colaborador-expand-arrow"
                             title="Expandir registros"
