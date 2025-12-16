@@ -1,8 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const API_BASE_URL = '/api';
 
 const ClientesContent = ({ colaboradorId, registros, filtroCliente }) => {
   const [expandedClientes, setExpandedClientes] = useState(new Set());
   const [expandedTarefas, setExpandedTarefas] = useState(new Set());
+  const [custoHora, setCustoHora] = useState(null);
+
+  // Buscar custo/hora do colaborador
+  useEffect(() => {
+    const buscarCusto = async () => {
+      if (!colaboradorId) return;
+
+      try {
+        const params = new URLSearchParams({
+          membro_id: colaboradorId
+        });
+
+        const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            setCustoHora(result.data.custo_hora || null);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar custo por colaborador:', error);
+      }
+    };
+
+    buscarCusto();
+  }, [colaboradorId]);
+
+  // Calcular custo realizado
+  const calcularCustoRealizado = (tempoMs) => {
+    if (!tempoMs || !custoHora) return null;
+
+    // Converter custo_hora de string (formato "21,22") para número
+    const custoHoraNum = parseFloat(custoHora.replace(',', '.'));
+    if (isNaN(custoHoraNum) || custoHoraNum <= 0) return null;
+
+    // Converter tempo de milissegundos para horas
+    const tempoHoras = tempoMs / 3600000;
+    
+    // Custo = custo por hora * tempo em horas
+    const custo = custoHoraNum * tempoHoras;
+    return custo;
+  };
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
 
   if (!registros || registros.length === 0) {
     return <div className="empty-state"><p>Nenhum cliente encontrado</p></div>;
@@ -174,6 +231,8 @@ const ClientesContent = ({ colaboradorId, registros, filtroCliente }) => {
           tarefa.tempoTotal += tempoMs;
         });
 
+        const custoRealizado = calcularCustoRealizado(cliente.tempoTotal);
+
         return (
           <div key={cliente.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px', color: '#374151' }}>
@@ -195,6 +254,20 @@ const ClientesContent = ({ colaboradorId, registros, filtroCliente }) => {
                 >
                   {tempoText}
                 </span>
+                {custoRealizado !== null && (
+                  <span
+                    style={{
+                      background: '#fee2e2',
+                      color: '#ef4444',
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}
+                  >
+                    {formatarValorMonetario(custoRealizado)}
+                  </span>
+                )}
                 <button
                   className="tt-cliente-toggle"
                   title="Expandir"
@@ -309,6 +382,27 @@ const ClientesContent = ({ colaboradorId, registros, filtroCliente }) => {
                             >
                               {rastText}
                             </span>
+                            {(() => {
+                              const custoRealizadoTarefa = calcularCustoRealizado(tarefa.tempoTotal);
+                              if (custoRealizadoTarefa !== null) {
+                                return (
+                                  <span
+                                    style={{
+                                      background: '#fee2e2',
+                                      color: '#ef4444',
+                                      padding: '2px 8px',
+                                      borderRadius: '999px',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      marginLeft: '8px'
+                                    }}
+                                  >
+                                    {formatarValorMonetario(custoRealizadoTarefa)}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </span>
                         </span>
                         <button

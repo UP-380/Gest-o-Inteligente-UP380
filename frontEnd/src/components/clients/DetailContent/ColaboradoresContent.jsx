@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
+const API_BASE_URL = '/api';
 
 const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => {
   const [expandedColaboradores, setExpandedColaboradores] = useState(new Set());
   const [expandedTarefas, setExpandedTarefas] = useState(new Set());
+  const [custosPorColaborador, setCustosPorColaborador] = useState({});
 
   if (!tempoPorColaborador || Object.keys(tempoPorColaborador).length === 0) {
     return <div className="empty-state"><p>Nenhum colaborador encontrado</p></div>;
@@ -39,6 +42,92 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
       newExpanded.add(key);
     }
     setExpandedTarefas(newExpanded);
+  };
+
+  // Buscar custo/hora de um colaborador
+  const buscarCustoPorColaborador = async (colaboradorId) => {
+    try {
+      const params = new URLSearchParams({
+        membro_id: colaboradorId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.custo_hora || null;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar custo por colaborador:', error);
+      return null;
+    }
+  };
+
+  // Carregar custos para todos os colaboradores
+  useEffect(() => {
+    const carregarCustos = async () => {
+      if (!tempoPorColaborador || Object.keys(tempoPorColaborador).length === 0) return;
+
+      setCustosPorColaborador(prevCustos => {
+        const novosCustos = { ...prevCustos };
+        const colaboradoresIds = Object.keys(tempoPorColaborador);
+        const idsParaBuscar = colaboradoresIds.filter(id => !novosCustos[id]);
+
+        if (idsParaBuscar.length === 0) return prevCustos;
+
+        // Buscar custos em paralelo
+        Promise.all(
+          idsParaBuscar.map(async (colaboradorId) => {
+            const custoHora = await buscarCustoPorColaborador(colaboradorId);
+            return { colaboradorId, custoHora };
+          })
+        ).then(resultados => {
+          const custosAtualizados = { ...novosCustos };
+          resultados.forEach(({ colaboradorId, custoHora }) => {
+            custosAtualizados[colaboradorId] = custoHora;
+          });
+          setCustosPorColaborador(custosAtualizados);
+        });
+
+        return prevCustos;
+      });
+    };
+
+    carregarCustos();
+  }, [tempoPorColaborador]);
+
+  // Calcular custo realizado por tempo
+  const calcularCustoRealizado = (tempoMilissegundos, colaboradorId) => {
+    if (!tempoMilissegundos || !colaboradorId) return null;
+    
+    const custoHoraStr = custosPorColaborador[String(colaboradorId)];
+    if (!custoHoraStr) return null;
+
+    // Converter custo_hora de string (formato "21,22") para número
+    const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+    if (isNaN(custoHora) || custoHora <= 0) return null;
+
+    // Converter tempo de milissegundos para horas
+    const tempoHoras = tempoMilissegundos / 3600000;
+    
+    // Custo = custo por hora * tempo em horas
+    const custo = custoHora * tempoHoras;
+    return custo;
+  };
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
   };
 
   return (
@@ -101,51 +190,58 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
           tarefa.tempoTotal += tempoMs;
         });
 
+        const custoRealizado = calcularCustoRealizado(tempoMs, colaboradorId);
+
         return (
-          <div key={colaboradorId} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '12px', color: '#374151' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div key={colaboradorId} style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+            {/* Nome do colaborador com ícone e seta */}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                padding: '2px 0'
+              }}
+              onClick={() => toggleColaborador(colaboradorId)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <i className="fas fa-user" style={{ color: iconColor, fontSize: '14px' }}></i>
-                <span>{colaborador.nome}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  style={{
-                    background: '#eef2ff',
-                    color: '#1e3a8a',
-                    padding: '2px 8px',
-                    borderRadius: '999px',
-                    fontSize: '12px',
-                    fontWeight: 500
-                  }}
-                  title={`${tempoDecimal}h`}
-                >
-                  {tempoText}
+                <span style={{ fontWeight: 500, fontSize: '12px', color: '#4b5563' }}>
+                  {colaborador.nome}
                 </span>
-                <button
-                  className="tt-user-toggle"
-                  title="Expandir"
-                  onClick={() => toggleColaborador(colaboradorId)}
-                  style={{
-                    background: '#f1f5f9',
-                    border: '1px solid #e5e7eb',
-                    padding: '4px 6px',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <i
-                    className="fas fa-chevron-down"
-                    style={{
-                      color: '#475569',
-                      fontSize: '12px',
-                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s ease'
-                    }}
-                  ></i>
-                </button>
               </div>
+              <i 
+                className="fas fa-chevron-right" 
+                style={{ 
+                  color: '#2563eb', 
+                  fontSize: '12px',
+                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease'
+                }}
+              ></i>
+            </div>
+
+            {/* Quadrado minimalista vermelho com tempo e custo */}
+            <div
+              style={{
+                background: '#fee2e2',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '3px',
+                width: 'fit-content'
+              }}
+            >
+              <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
+                Realizadas: <span style={{ fontWeight: 600 }}>{tempoDecimal}h</span>
+              </div>
+              {custoRealizado !== null && (
+                <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
+                  Custo: <span style={{ fontWeight: 600 }}>{formatarValorMonetario(custoRealizado)}</span>
+                </div>
+              )}
             </div>
             {isExpanded && (
               <div
@@ -236,6 +332,27 @@ const ColaboradoresContent = ({ clienteId, tempoPorColaborador, registros }) => 
                             >
                               {rastText}
                             </span>
+                            {(() => {
+                              const custoRealizadoTarefa = calcularCustoRealizado(tarefa.tempoTotal, colaboradorId);
+                              if (custoRealizadoTarefa !== null) {
+                                return (
+                                  <span
+                                    style={{
+                                      background: '#fee2e2',
+                                      color: '#ef4444',
+                                      padding: '2px 8px',
+                                      borderRadius: '999px',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      marginLeft: '8px'
+                                    }}
+                                  >
+                                    {formatarValorMonetario(custoRealizadoTarefa)}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </span>
                         </span>
                         <button

@@ -715,20 +715,6 @@ const DelegarTarefas = () => {
     }
   };
 
-  // Calcular tempo estimado total apenas com registros dentro do período
-  const calcularTempoEstimadoFiltrado = (registros) => {
-    if (!periodoInicio || !periodoFim) {
-      // Se não há filtro de período, retornar null para não mostrar valor filtrado
-      return null;
-    }
-    
-    const registrosNoPeriodo = registros.filter(registro => dataEstaNoPeriodo(registro.data));
-    const tempoTotal = registrosNoPeriodo.reduce((total, registro) => {
-      return total + (registro.tempo_estimado_dia || 0);
-    }, 0);
-    
-    return tempoTotal;
-  };
 
   // Formatar tempo estimado (de milissegundos para horas, minutos e segundos)
   const formatarTempoEstimado = (milissegundos, incluirSegundos = false) => {
@@ -951,39 +937,47 @@ const DelegarTarefas = () => {
     
     return (
       <div className="barra-progresso-tempo">
-        <div className="barra-progresso-tempo-data">
-          <p className="barra-progresso-tempo-valor">{formatarTempoEstimado(realizado, true)}</p>
-          {custoEstimado !== null && (
-            <p className="barra-progresso-tempo-custo" style={{ 
-              fontSize: '0.75rem', 
-              color: '#6b7280', 
-              marginTop: '0px',
-              marginBottom: '0',
-              lineHeight: '1.2',
-              fontWeight: 'normal'
-            }}>
-              {formatarValorMonetario(custoEstimado)}
-            </p>
-          )}
-          <div className="barra-progresso-tempo-range">
-            <div 
-              className="barra-progresso-tempo-fill"
-              style={{ width: `${Math.min(100, percentualRealizado)}%` }}
-            ></div>
+        <div className="barra-progresso-tempo-header">
+          <div className="barra-progresso-tempo-principal">
+            <div className="barra-progresso-tempo-valor">{formatarTempoEstimado(realizado, true)}</div>
+            {custoEstimado !== null && (
+              <div className="barra-progresso-tempo-custo">
+                {formatarValorMonetario(custoEstimado)}
+              </div>
+            )}
           </div>
         </div>
+        <div className="barra-progresso-tempo-range">
+          <div 
+            className="barra-progresso-tempo-fill"
+            style={{ width: `${Math.min(100, percentualRealizado)}%` }}
+          ></div>
+        </div>
         <div className="barra-progresso-tempo-legenda">
-          <span className="barra-progresso-tempo-item">
-            <span className="barra-progresso-tempo-indicador realizado"></span>
-            Estimado: {formatarTempoEstimado(realizado, true)}
-          </span>
-          <span className="barra-progresso-tempo-item">
-            <span className="barra-progresso-tempo-indicador sobrando"></span>
-            Disponível: {formatarTempoEstimado(sobrando, true)}
-          </span>
-          <span className="barra-progresso-tempo-item">
-            Total: {formatarTempoEstimado(disponivel, true)}
-          </span>
+          <div className="barra-progresso-tempo-item">
+            <div className="barra-progresso-tempo-item-content">
+              <span className="barra-progresso-tempo-label">Contratadas</span>
+              <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivel, true)}</span>
+            </div>
+          </div>
+          <div className="barra-progresso-tempo-item">
+            <div className="barra-progresso-tempo-item-content">
+              <div className="barra-progresso-tempo-item-header">
+                <span className="barra-progresso-tempo-indicador realizado"></span>
+                <span className="barra-progresso-tempo-label">Estimado</span>
+              </div>
+              <span className="barra-progresso-tempo-badge estimado">{formatarTempoEstimado(realizado, true)}</span>
+            </div>
+          </div>
+          <div className="barra-progresso-tempo-item">
+            <div className="barra-progresso-tempo-item-content">
+              <div className="barra-progresso-tempo-item-header">
+                <span className="barra-progresso-tempo-indicador sobrando"></span>
+                <span className="barra-progresso-tempo-label">Disponível</span>
+              </div>
+              <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(sobrando, true)}</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1510,12 +1504,12 @@ const DelegarTarefas = () => {
               />
             ) : (
               <div className="atribuicoes-list-container">
-                {/* Seção de tempo disponível vs realizado por responsável */}
+                {/* Seção de tempo disponível vs estimado por responsável */}
                 {filtrosAplicados && periodoInicio && periodoFim && registrosAgrupados.length > 0 && (
                   <div className="tempo-disponivel-section">
                     <h3 className="tempo-disponivel-title">
                       <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
-                      Tempo Disponível vs Realizado por Responsável
+                      Tempo Disponível vs Estimado por Responsável
                     </h3>
                     <div className="tempo-disponivel-grid">
                       {(() => {
@@ -1568,25 +1562,27 @@ const DelegarTarefas = () => {
                           return (
                             <div key={responsavel.id} className="tempo-disponivel-card">
                               <div className="tempo-disponivel-card-header">
-                                {responsavel.fotoPerfil ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div className="tempo-disponivel-card-nome-wrapper">
+                                  {responsavel.fotoPerfil ? (
                                     <Avatar
                                       avatarId={responsavel.fotoPerfil}
                                       nomeUsuario={responsavel.nome}
                                       size="tiny"
                                     />
-                                    <span className="tempo-disponivel-card-nome">{responsavel.nome}</span>
-                                  </div>
-                                ) : (
+                                  ) : (
+                                    <div className="tempo-disponivel-card-avatar-placeholder"></div>
+                                  )}
                                   <span className="tempo-disponivel-card-nome">{responsavel.nome}</span>
-                                )}
+                                </div>
                               </div>
-                              <BarraProgressoTempo
-                                disponivel={tempoInfo.disponivel}
-                                realizado={tempoInfo.realizado}
-                                sobrando={tempoInfo.sobrando}
-                                responsavelId={responsavel.id}
-                              />
+                              <div className="tempo-disponivel-card-content">
+                                <BarraProgressoTempo
+                                  disponivel={tempoInfo.disponivel}
+                                  realizado={tempoInfo.realizado}
+                                  sobrando={tempoInfo.sobrando}
+                                  responsavelId={responsavel.id}
+                                />
+                              </div>
                             </div>
                           );
                         }).filter(Boolean);
@@ -1637,7 +1633,6 @@ const DelegarTarefas = () => {
                       const grupoKey = chaveAgrupamento;
                       const isExpanded = gruposExpandidos.has(grupoKey);
                       const totalItens = grupo.agrupamentos.length;
-                      // Usar tempo filtrado (não riscado) para exibição no header
                       const tempoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
                       const tempoTotalFormatado = formatarTempoEstimado(tempoTotal, true);
                       
@@ -1704,7 +1699,36 @@ const DelegarTarefas = () => {
                                     const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
                                     const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
                                     const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-                                    const tempoEstimadoTotal = tempoEstimadoDia * agrupamento.quantidade;
+                                    
+                                    // Calcular quantidade de dias dentro do período filtrado
+                                    let quantidadeDiasFiltrado = agrupamento.quantidade;
+                                    if (periodoInicio && periodoFim && agrupamento.dataInicio && agrupamento.dataFim) {
+                                      const inicioAgrupamento = new Date(agrupamento.dataInicio);
+                                      const fimAgrupamento = new Date(agrupamento.dataFim);
+                                      const inicioFiltro = new Date(periodoInicio);
+                                      const fimFiltro = new Date(periodoFim);
+                                      
+                                      // Ajustar para início do dia
+                                      inicioFiltro.setHours(0, 0, 0, 0);
+                                      fimFiltro.setHours(23, 59, 59, 999);
+                                      inicioAgrupamento.setHours(0, 0, 0, 0);
+                                      fimAgrupamento.setHours(23, 59, 59, 999);
+                                      
+                                      // Calcular interseção dos períodos
+                                      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
+                                      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
+                                      
+                                      if (inicioIntersecao <= fimIntersecao) {
+                                        // Calcular dias na interseção
+                                        const diffTime = fimIntersecao - inicioIntersecao;
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                        quantidadeDiasFiltrado = diffDays > 0 ? diffDays : 0;
+                                      } else {
+                                        quantidadeDiasFiltrado = 0;
+                                      }
+                                    }
+                                    
+                                    const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
                                     const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
                                     
                                     return (
@@ -1780,29 +1804,7 @@ const DelegarTarefas = () => {
                                           )}
                                           <td>
                                             <span className="atribuicoes-tempo">
-                                              {(() => {
-                                                const tempoFiltrado = calcularTempoEstimadoFiltrado(agrupamento.registros);
-                                                if (tempoFiltrado !== null) {
-                                                  return (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                      <div className="tempo-total-wrapper has-tooltip" style={{ position: 'relative', display: 'inline-block' }}>
-                                                        <span 
-                                                          style={{ textDecoration: 'line-through', opacity: 0.5, cursor: 'help' }}
-                                                        >
-                                                          {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
-                                                        </span>
-                                                        <div className="filter-tooltip">
-                                                          Tempo estimado total do grupo de tarefas
-                                                        </div>
-                                                      </div>
-                                                      <span>
-                                                        {formatarTempoComCusto(tempoFiltrado, primeiroRegistro.responsavel_id, true)}
-                                                      </span>
-                                                    </div>
-                                                  );
-                                                }
-                                                return formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true);
-                                              })()}
+                                              {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
                                             </span>
                                           </td>
                                           <td>
@@ -2037,12 +2039,41 @@ const DelegarTarefas = () => {
                               </tr>
                             </thead>
                             <tbody>
-                              {registrosAgrupados.map((agrupamento) => {
-                                const primeiroRegistro = agrupamento.primeiroRegistro;
-                                const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
-                                const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                                const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-                                const tempoEstimadoTotal = tempoEstimadoDia * agrupamento.quantidade;
+                                  {registrosAgrupados.map((agrupamento) => {
+                                    const primeiroRegistro = agrupamento.primeiroRegistro;
+                                    const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
+                                    const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
+                                    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+                                    
+                                    // Calcular quantidade de dias dentro do período filtrado
+                                    let quantidadeDiasFiltrado = agrupamento.quantidade;
+                                    if (periodoInicio && periodoFim && agrupamento.dataInicio && agrupamento.dataFim) {
+                                      const inicioAgrupamento = new Date(agrupamento.dataInicio);
+                                      const fimAgrupamento = new Date(agrupamento.dataFim);
+                                      const inicioFiltro = new Date(periodoInicio);
+                                      const fimFiltro = new Date(periodoFim);
+                                      
+                                      // Ajustar para início do dia
+                                      inicioFiltro.setHours(0, 0, 0, 0);
+                                      fimFiltro.setHours(23, 59, 59, 999);
+                                      inicioAgrupamento.setHours(0, 0, 0, 0);
+                                      fimAgrupamento.setHours(23, 59, 59, 999);
+                                      
+                                      // Calcular interseção dos períodos
+                                      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
+                                      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
+                                      
+                                      if (inicioIntersecao <= fimIntersecao) {
+                                        // Calcular dias na interseção
+                                        const diffTime = fimIntersecao - inicioIntersecao;
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                        quantidadeDiasFiltrado = diffDays > 0 ? diffDays : 0;
+                                      } else {
+                                        quantidadeDiasFiltrado = 0;
+                                      }
+                                    }
+                                    
+                                    const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
                                 
                                 return (
                                   <React.Fragment key={agrupamento.agrupador_id}>
@@ -2094,29 +2125,7 @@ const DelegarTarefas = () => {
                                        </td>
                                       <td>
                                         <span className="atribuicoes-tempo">
-                                          {(() => {
-                                            const tempoFiltrado = calcularTempoEstimadoFiltrado(agrupamento.registros);
-                                            if (tempoFiltrado !== null) {
-                                              return (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                  <div className="tempo-total-wrapper has-tooltip" style={{ position: 'relative', display: 'inline-block' }}>
-                                                    <span 
-                                                      style={{ textDecoration: 'line-through', opacity: 0.5, cursor: 'help' }}
-                                                    >
-                                                      {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
-                                                    </span>
-                                                    <div className="filter-tooltip">
-                                                      Tempo estimado total do grupo de tarefas
-                                                    </div>
-                                                  </div>
-                                                  <span>
-                                                    {formatarTempoComCusto(tempoFiltrado, primeiroRegistro.responsavel_id, true)}
-                                                  </span>
-                                                </div>
-                                              );
-                                            }
-                                            return formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true);
-                                          })()}
+                                          {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
                                         </span>
                                       </td>
                                       <td>
