@@ -111,12 +111,7 @@
 }
 
 .grid-item-content-board {
-  background-color: #f8fafc;
-  background-image:
-    radial-gradient(#d9e3f0 1px, transparent 1px),
-    radial-gradient(#d9e3f0 1px, transparent 1px);
-  background-position: 0 0, 8px 8px;
-  background-size: 16px 16px;
+  background: #ffffff;
 }
 
 /* Indicador de bloco vazio */
@@ -262,7 +257,7 @@
   animation: fadeIn 0.3s ease;
 }
 
-/* ---------- Board de tarefas (título + colunas por cliente) ---------- */
+/* ---------- Board de tarefas ---------- */
 .painel-usuario-header-board {
   display: flex;
   justify-content: space-between;
@@ -276,44 +271,176 @@
 
 .painel-usuario-coluna {
   background: #ffffff;
-  border: 1.5px solid #2b6cb0; /* azul do sistema */
+  border: 1.5px solid #e5e7eb;
   border-radius: 12px;
   box-shadow:
-    0 10px 24px rgba(43, 108, 176, 0.22),
-    0 4px 12px rgba(43, 108, 176, 0.12);
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 4px 12px rgba(15, 23, 42, 0.06);
   transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   overflow: hidden;
   position: relative;
   z-index: 1;
-  margin-top: 2px;      /* compensa elevação no hover */
-  margin-bottom: 6px;   /* evita cortar sombra inferior */
+  margin-top: 2px;
+  margin-bottom: 6px;
 }
 
 .painel-usuario-coluna:hover {
-  border-color: #2b6cb0;
+  border-color: #d7dde5;
   box-shadow:
-    0 14px 30px rgba(43, 108, 176, 0.3),
-    0 6px 14px rgba(43, 108, 176, 0.16);
+    0 12px 28px rgba(15, 23, 42, 0.12),
+    0 6px 14px rgba(15, 23, 42, 0.08);
   transform: translateY(-2px);
   z-index: 2;
 }
 
 .painel-usuario-coluna-body {
-  max-height: 360px; /* ~5 cards visíveis */
+  max-height: 360px;
   overflow-y: auto;
 }
 .painel-usuario-coluna-body::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 .painel-usuario-coluna-body::-webkit-scrollbar-track {
-  background: #eef2ff;
-  border-radius: 8px;
+  background: transparent;
+  border-radius: 999px;
 }
 .painel-usuario-coluna-body::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 8px;
+  background: #e5e7eb; /* cor igual ao card detalhado */
+  border-radius: 999px;
 }
 .painel-usuario-coluna-body::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #d1d5db;
+}
+
+.painel-usuario-tarefa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgb(238, 242, 247);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.painel-usuario-tarefa-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.painel-usuario-tarefa-nome {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #0b1e3a;
+  line-height: 1.35;
+}
+
+.painel-usuario-play-btn {
+  border: none;
+  background: #ef4444; /* invertido: fundo vermelho */
+  color: #fee2e2;      /* ícone claro */
+  border-radius: 50%;
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: none;
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.painel-usuario-play-btn:hover {
+  background: #dc2626;
+  box-shadow: none;
+  transform: translateY(-1px);
+  color: #fee2e2;
+}
+
+.painel-usuario-play-btn i {
+  font-size: 12px;
+}
+
+.painel-usuario-tarefa-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.painel-usuario-badge-estimado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-estimado-icon-inline {
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.painel-usuario-estimado-label {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-estimado-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eef2ff; /* igual ao detail-card */
+  border-radius: 999px;
+  color: #1e3a8a !important; /* rgb(30, 58, 138) */
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.painel-usuario-badge-realizado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-realizado-icon-inline {
+  color: #f59e0b;
+  font-size: 12px;
+}
+
+.painel-usuario-realizado-label {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-realizado-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eef2ff; /* mesma cor do estimado */
+  border-radius: 999px;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 

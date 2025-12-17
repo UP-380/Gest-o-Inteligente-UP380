@@ -207,48 +207,33 @@ const MIN_H_TAREFAS = 6;
 
         items.forEach((reg) => {
           const item = document.createElement('div');
-          item.style.border = '1px solid #e5e7eb';
-          item.style.borderRadius = '10px';
-          item.style.padding = '10px';
-          item.style.background = '#fff';
-          item.style.display = 'flex';
-          item.style.flexDirection = 'column';
-          item.style.gap = '6px';
+          item.className = 'painel-usuario-tarefa-card';
           item.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-              <div style="font-weight:700;color:#111827;font-size:13px;flex:1;">
+            <div class="painel-usuario-tarefa-top">
+              <div class="painel-usuario-tarefa-nome">
                 ${getNomeTarefa(reg.tarefa_id)}
               </div>
               <button
                 type="button"
-                style="
-                  border: 1px solid #b91c1c;
-                  background: #ffffff;
-                  color: #b91c1c;
-                  border-radius: 8px;
-                  padding: 4px 6px;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  gap: 6px;
-                  font-size: 11px;
-                  box-shadow: 0 2px 6px rgba(185,28,28,0.15);
-                "
+                class="painel-usuario-play-btn"
                 title="Iniciar tarefa (futuro time tracking)"
                 onclick="console.log('play tarefa', '${reg.tarefa_id || ''}')"
               >
                 <i class="fas fa-play"></i>
               </button>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#4b5563;">
-              <span style="
-                padding:2px 6px;
-                background:#fff7ed;
-                border-radius:6px;
-                color:#c2410c;
-                border:1px solid #f97316;
-              ">
-                Estimado: ${formatarTempoComCusto(reg.tempo_estimado_dia || reg.tempo_estimado_total || 0)}
+            <div class="painel-usuario-tarefa-tags">
+              <span class="painel-usuario-badge-estimado">
+                <i class="fas fa-clock painel-usuario-estimado-icon-inline"></i>
+                <span class="painel-usuario-estimado-label">Estimado:</span>
+                <span class="painel-usuario-estimado-pill">
+                  ${formatarTempoComCusto(reg.tempo_estimado_dia || reg.tempo_estimado_total || 0)}
+                </span>
+              </span>
+              <span class="painel-usuario-badge-realizado">
+                <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                <span class="painel-usuario-realizado-label">Realizado:</span>
+                <span class="painel-usuario-realizado-pill">1h</span>
               </span>
             </div>
           `;
