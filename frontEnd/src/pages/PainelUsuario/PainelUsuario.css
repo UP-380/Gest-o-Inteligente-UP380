@@ -1,0 +1,319 @@
+/* PainelUsuario.css
+ * Estilos para a tela de Painel do Usuário
+ * Layout limpo e moderno com cards arrastáveis e redimensionáveis
+ */
+
+.painel-usuario-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+  margin-left: 250px; /* Espaço para a sidebar */
+  padding-top: 80px; /* Espaço para o header */
+}
+
+.painel-usuario-header {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.painel-usuario-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.painel-usuario-title i {
+  color: #3498db;
+}
+
+.painel-usuario-subtitle {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.painel-usuario-content {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-height: calc(100vh - 200px);
+}
+
+/* Estilos do Gridstack */
+.grid-stack {
+  background: transparent;
+  min-height: 500px;
+}
+
+/* Estilos dos itens do grid (blocos) */
+.grid-item {
+  border-radius: 12px;
+  background: #ffffff;
+  border: 2px solid #e8ecef;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  overflow: visible; /* permitir que sombras internas apareçam */
+  position: relative;
+}
+
+/* Efeito hover nos blocos */
+.grid-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-color: #3498db;
+  transform: translateY(-2px);
+}
+
+/* Handle para arrastar (indicador visual de arrastabilidade) */
+.grid-item-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 6px 10px;
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 6px;
+  cursor: move;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-item:hover .grid-item-handle {
+  opacity: 1;
+}
+
+.grid-item-handle i {
+  color: #3498db;
+  font-size: 14px;
+}
+
+/* Conteúdo do bloco */
+.grid-item-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  min-height: 100%;
+  overflow: visible; /* permitir sombras dos cards internos */
+}
+
+.grid-item-content-board {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(#d9e3f0 1px, transparent 1px),
+    radial-gradient(#d9e3f0 1px, transparent 1px);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+
+/* Indicador de bloco vazio */
+.grid-item-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #bdc3c7;
+  font-size: 32px;
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.grid-item:hover .grid-item-empty {
+  color: #3498db;
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.grid-item-empty i {
+  font-size: 32px;
+}
+
+/* Estilos durante o arraste */
+.grid-item.ui-draggable-dragging {
+  opacity: 0.8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+/* Estilos durante o redimensionamento */
+.grid-item.ui-resizable-resizing {
+  opacity: 0.9;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Handle de redimensionamento customizado */
+.ui-resizable-handle {
+  background: rgba(52, 152, 219, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.ui-resizable-handle:hover {
+  background: rgba(52, 152, 219, 0.6);
+}
+
+/* Handles específicos para cada direção */
+.ui-resizable-se {
+  width: 16px;
+  height: 16px;
+  right: -2px;
+  bottom: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 0 12px 0;
+}
+
+.ui-resizable-sw {
+  width: 16px;
+  height: 16px;
+  left: -2px;
+  bottom: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 0 0 12px;
+}
+
+.ui-resizable-ne {
+  width: 16px;
+  height: 16px;
+  right: -2px;
+  top: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 12px 0 0;
+}
+
+.ui-resizable-nw {
+  width: 16px;
+  height: 16px;
+  left: -2px;
+  top: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 12px 0 0 0;
+}
+
+.ui-resizable-n,
+.ui-resizable-s {
+  height: 8px;
+  background: rgba(52, 152, 219, 0.4);
+}
+
+.ui-resizable-e,
+.ui-resizable-w {
+  width: 8px;
+  background: rgba(52, 152, 219, 0.4);
+}
+
+/* Estilos para o placeholder durante o arraste */
+.grid-stack > .ui-draggable-dragging {
+  opacity: 0.5;
+}
+
+/* Ajustes responsivos */
+@media (max-width: 768px) {
+  .painel-usuario-container {
+    margin-left: 0;
+    padding: 10px;
+    padding-top: 70px;
+  }
+
+  .painel-usuario-header {
+    padding: 15px;
+  }
+
+  .painel-usuario-title {
+    font-size: 24px;
+  }
+
+  .painel-usuario-content {
+    padding: 10px;
+  }
+}
+
+/* Override de estilos do Gridstack para melhor integração */
+.grid-stack-item-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Animação suave ao carregar os blocos */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.grid-item {
+  animation: fadeIn 0.3s ease;
+}
+
+.painel-usuario-header-board {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Colunas do board (clientes) */
+.painel-usuario-coluna {
+  background: #ffffff;
+  border: 1.5px solid #2b6cb0;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 24px rgba(43, 108, 176, 0.22),
+    0 4px 12px rgba(43, 108, 176, 0.12);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.painel-usuario-coluna:hover {
+  border-color: #2b6cb0;
+  box-shadow:
+    0 14px 30px rgba(43, 108, 176, 0.3),
+    0 6px 14px rgba(43, 108, 176, 0.16);
+  transform: translateY(-2px);
+  z-index: 2;
+}
+
+.painel-usuario-coluna-body {
+  max-height: 360px; /* ~5 cards */
+  overflow-y: auto;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar {
+  width: 8px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-track {
+  background: #eef2ff;
+  border-radius: 8px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
