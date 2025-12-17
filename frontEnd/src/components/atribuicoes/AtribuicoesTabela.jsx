@@ -23,32 +23,29 @@ const AtribuicoesTabela = ({
   setAgrupamentoParaDeletar,
   setShowDeleteConfirmModal
 }) => {
-  const calcularDiasFiltrado = (agrupamento) => {
-    const { quantidade, dataInicio, dataFim } = agrupamento;
-
-    if (periodoInicio && periodoFim && dataInicio && dataFim) {
-      const inicioAgrupamento = new Date(dataInicio);
-      const fimAgrupamento = new Date(dataFim);
-      const inicioFiltro = new Date(periodoInicio);
-      const fimFiltro = new Date(periodoFim);
-
-      inicioFiltro.setHours(0, 0, 0, 0);
-      fimFiltro.setHours(23, 59, 59, 999);
-      inicioAgrupamento.setHours(0, 0, 0, 0);
-      fimAgrupamento.setHours(23, 59, 59, 999);
-
-      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
-      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
-
-      if (inicioIntersecao <= fimIntersecao) {
-        const diffTime = fimIntersecao - inicioIntersecao;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        return diffDays > 0 ? diffDays : 0;
-      }
-      return 0;
-    }
-
-    return quantidade;
+  const calcularTempoEstimadoTotalAgrupamento = (agrupamento) => {
+    if (!agrupamento || !agrupamento.registros) return 0;
+    const registrosFiltrados =
+      periodoInicio && periodoFim
+        ? agrupamento.registros.filter((registro) => {
+            try {
+              if (!registro.data) return false;
+              let dataReg = new Date(registro.data);
+              let inicio = new Date(periodoInicio);
+              let fim = new Date(periodoFim);
+              dataReg.setHours(0, 0, 0, 0);
+              inicio.setHours(0, 0, 0, 0);
+              fim.setHours(23, 59, 59, 999);
+              return dataReg >= inicio && dataReg <= fim;
+            } catch {
+              return false;
+            }
+          })
+        : agrupamento.registros;
+    return registrosFiltrados.reduce(
+      (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
+      0
+    );
   };
 
   return (
@@ -70,9 +67,7 @@ const AtribuicoesTabela = ({
             const primeiroRegistro = agrupamento.primeiroRegistro;
             const produtosUnicos = [...new Set(agrupamento.registros.map((r) => r.produto_id))];
             const tarefasUnicas = [...new Set(agrupamento.registros.map((r) => r.tarefa_id))];
-            const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-            const quantidadeDiasFiltrado = calcularDiasFiltrado(agrupamento);
-            const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
+            const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
 
             return (
               <React.Fragment key={agrupamento.agrupador_id}>

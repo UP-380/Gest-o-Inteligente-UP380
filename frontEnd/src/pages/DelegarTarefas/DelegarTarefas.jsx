@@ -890,36 +890,31 @@ const DelegarTarefas = () => {
     return tempoFormatado;
   };
 
-  // Calcular tempo disponível, realizado e sobrando para um responsável
-  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, todosRegistros, dataInicio, dataFim) => {
-    // Calcular número de dias no período
-    if (!dataInicio || !dataFim) return null;
+  // Calcular tempo disponível, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
+  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
+    if (!periodoInicio || !periodoFim) return null;
     
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
+    const inicio = new Date(periodoInicio);
+    const fim = new Date(periodoFim);
     const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
     
-    // Buscar horas contratadas por dia
     const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
     if (!horasContratadasDia || horasContratadasDia <= 0) return null;
     
-    // Tempo disponível total = horas contratadas por dia * número de dias (em milissegundos)
     const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000; // converter horas para milissegundos
     
-    // Tempo realizado = soma de todos os tempo_estimado_dia dos registros deste responsável
-    // FILTRADO: apenas registros dentro do período
-    let tempoRealizado = 0;
-    todosRegistros.forEach(registro => {
-      if (String(registro.responsavel_id) === String(responsavelId)) {
-        // Verificar se o registro está dentro do período filtrado
-        if (dataEstaNoPeriodo(registro.data)) {
-          // tempo_estimado_dia já está em milissegundos
-          tempoRealizado += (registro.tempo_estimado_dia || 0);
-        }
-      }
-    });
+    // Tempo realizado baseado no total do agrupamento dentro do período (mesma lógica da tabela)
+    const tempoRealizado = agrupamentos
+      .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
+      .reduce((acc, agr) => {
+        const tempoEstimadoDia = agr.primeiroRegistro.tempo_estimado_dia || 0;
+        const registrosNoPeriodo = agr.registros
+          ? agr.registros.filter((reg) => dataEstaNoPeriodo(reg.data)).length
+          : 0;
+        const quantidade = registrosNoPeriodo > 0 ? registrosNoPeriodo : (agr.quantidade || 0);
+        return acc + tempoEstimadoDia * quantidade;
+      }, 0);
     
-    // Tempo sobrando = tempo disponível - tempo realizado
     const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoRealizado);
     
     return {
@@ -984,41 +979,36 @@ const DelegarTarefas = () => {
     );
   };
 
-  // Calcular tempo total estimado de um grupo
+  // Soma o tempo estimado real de um agrupamento (usando todos os registros)
+  const calcularTempoEstimadoTotalAgrupamento = (agrupamento) => {
+    if (!agrupamento || !agrupamento.registros) return 0;
+    const registrosFiltrados =
+      periodoInicio && periodoFim
+        ? agrupamento.registros.filter((registro) => dataEstaNoPeriodo(registro.data))
+        : agrupamento.registros;
+    return registrosFiltrados.reduce(
+      (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
+      0
+    );
+  };
+
+  // Calcular tempo total estimado de um grupo (para cabeçalho/legenda)
   const calcularTempoTotalGrupo = (agrupamentos) => {
-    let totalMilissegundos = 0;
-    agrupamentos.forEach(agrupamento => {
-      const primeiroRegistro = agrupamento.primeiroRegistro;
-      const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-      const quantidadeDias = agrupamento.quantidade || 0;
-      // Tempo total = tempo por dia * quantidade de dias
-      totalMilissegundos += tempoEstimadoDia * quantidadeDias;
-    });
-    return totalMilissegundos;
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
   };
 
   // Calcular tempo total filtrado de um grupo (apenas registros dentro do período)
   const calcularTempoTotalGrupoFiltrado = (agrupamentos) => {
     if (!periodoInicio || !periodoFim) {
-      // Se não há filtro de período, retornar o tempo total
       return calcularTempoTotalGrupo(agrupamentos);
     }
-    
-    let totalMilissegundos = 0;
-    agrupamentos.forEach(agrupamento => {
-      // Filtrar apenas registros dentro do período
-      const registrosNoPeriodo = agrupamento.registros.filter(registro => 
-        dataEstaNoPeriodo(registro.data)
-      );
-      
-      if (registrosNoPeriodo.length > 0) {
-        const primeiroRegistro = agrupamento.primeiroRegistro;
-        const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-        // Tempo filtrado = tempo por dia * quantidade de registros no período
-        totalMilissegundos += tempoEstimadoDia * registrosNoPeriodo.length;
-      }
-    });
-    return totalMilissegundos;
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
   };
 
   // Toggle grupo expandido
@@ -1541,21 +1531,9 @@ const DelegarTarefas = () => {
                         });
                         
                         return Array.from(responsaveisUnicos.values()).map(responsavel => {
-                          // Coletar todos os registros deste responsável de todos os agrupamentos
-                          const todosRegistrosResponsavel = [];
-                          registrosAgrupados.forEach(agrupamento => {
-                            agrupamento.registros.forEach(registro => {
-                              if (String(registro.responsavel_id) === String(responsavel.id)) {
-                                todosRegistrosResponsavel.push(registro);
-                              }
-                            });
-                          });
-                          
                           const tempoInfo = calcularTempoDisponivelRealizadoSobrando(
                             responsavel.id,
-                            todosRegistrosResponsavel,
-                            periodoInicio,
-                            periodoFim
+                            registrosAgrupados
                           );
                           
                           if (!tempoInfo) return null;
@@ -1699,37 +1677,7 @@ const DelegarTarefas = () => {
                                     const primeiroRegistro = agrupamento.primeiroRegistro;
                                     const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
                                     const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                                    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-                                    
-                                    // Calcular quantidade de dias dentro do período filtrado
-                                    let quantidadeDiasFiltrado = agrupamento.quantidade;
-                                    if (periodoInicio && periodoFim && agrupamento.dataInicio && agrupamento.dataFim) {
-                                      const inicioAgrupamento = new Date(agrupamento.dataInicio);
-                                      const fimAgrupamento = new Date(agrupamento.dataFim);
-                                      const inicioFiltro = new Date(periodoInicio);
-                                      const fimFiltro = new Date(periodoFim);
-                                      
-                                      // Ajustar para início do dia
-                                      inicioFiltro.setHours(0, 0, 0, 0);
-                                      fimFiltro.setHours(23, 59, 59, 999);
-                                      inicioAgrupamento.setHours(0, 0, 0, 0);
-                                      fimAgrupamento.setHours(23, 59, 59, 999);
-                                      
-                                      // Calcular interseção dos períodos
-                                      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
-                                      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
-                                      
-                                      if (inicioIntersecao <= fimIntersecao) {
-                                        // Calcular dias na interseção
-                                        const diffTime = fimIntersecao - inicioIntersecao;
-                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                        quantidadeDiasFiltrado = diffDays > 0 ? diffDays : 0;
-                                      } else {
-                                        quantidadeDiasFiltrado = 0;
-                                      }
-                                    }
-                                    
-                                    const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
+                                    const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
                                     const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
                                     
                                     return (

@@ -46,6 +46,9 @@ const PainelUsuario = () => {
     { id: 'bloco-9', x: 8, y: 6, w: 4, h: 3 }
   ];
 
+const MIN_W_TAREFAS = 7;
+const MIN_H_TAREFAS = 6;
+
   const toggleTarefa = useCallback((agrupadorId, tarefaId) => {
     setTarefasExpandidas((prev) => {
       const key = `${agrupadorId}_${tarefaId}`;
@@ -117,6 +120,21 @@ const PainelUsuario = () => {
     `;
   };
 
+  const garantirTamanhoMinimoTarefas = useCallback((conteudoEl) => {
+    if (!conteudoEl || !gridstackInstanceRef.current) return;
+    const widgetEl = conteudoEl.closest('.grid-item');
+    if (!widgetEl || !widgetEl.gridstackNode) return;
+    const node = widgetEl.gridstackNode;
+    const novoW = Math.max(node.w || 0, MIN_W_TAREFAS);
+    const novoH = Math.max(node.h || 0, MIN_H_TAREFAS);
+    gridstackInstanceRef.current.update(widgetEl, {
+      w: novoW,
+      h: novoH,
+      minW: MIN_W_TAREFAS,
+      minH: MIN_H_TAREFAS
+    });
+  }, []);
+
   const renderTarefasNoCard = (registros, target) => {
     const card = target || menuPosicao.target;
     if (!card) return;
@@ -139,7 +157,8 @@ const PainelUsuario = () => {
 
     const board = document.createElement('div');
     board.style.flex = '1';
-    board.style.overflow = 'auto';
+    board.style.overflowY = 'auto';
+    board.style.overflowX = 'hidden';
     board.style.display = 'flex';
     board.style.gap = '12px';
     board.style.alignItems = 'flex-start';
@@ -438,6 +457,8 @@ const PainelUsuario = () => {
     if (!usuario || !usuario.id) {
       return;
     }
+    const alvoReferencia = alvoManual || menuPosicao.target;
+    garantirTamanhoMinimoTarefas(alvoReferencia);
     setCarregandoTarefas(true);
     try {
       const hoje = new Date();
@@ -637,7 +658,7 @@ const PainelUsuario = () => {
     } finally {
       setCarregandoTarefas(false);
     }
-  }, [usuario, carregarNomesRelacionados, renderTarefasNoCard]);
+  }, [usuario, carregarNomesRelacionados, renderTarefasNoCard, garantirTamanhoMinimoTarefas, menuPosicao]);
 
   useEffect(() => {
     /**
