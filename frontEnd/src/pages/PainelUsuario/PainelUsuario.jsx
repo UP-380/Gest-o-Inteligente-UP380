@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
 import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import { colaboradoresAPI } from '../../services/api';
+import ClienteTempoInfo from './components/ClienteTempoInfo';
 import './PainelUsuario.css';
 
 /**
@@ -33,6 +35,10 @@ const PainelUsuario = () => {
   const [colaboradoresCache, setColaboradoresCache] = useState([]);
   const inicializadoRef = useRef(false);
   const tarefasRegistrosRef = useRef([]);
+  const [registrosAtivos, setRegistrosAtivos] = useState(new Map()); // Map<tarefa_id, { registro_id, data_inicio }>
+  const registrosAtivosRef = useRef(new Map()); // Ref para acesso em funções não-hook
+  const [temposRealizados, setTemposRealizados] = useState(new Map()); // Map<chave, tempo_realizado_ms>
+  const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
 
   // Array inicial de blocos vazios (cards sem conteúdo)
   // Máximo de 9 módulos permitidos
@@ -105,6 +111,385 @@ const MIN_H_TAREFAS = 6;
     const horasFormatadas = Number.isInteger(horas) ? horas : horas.toFixed(1);
     return `${horasFormatadas}h`;
   };
+
+  // Função para formatar milissegundos em formato legível (ex: "2min 25s" ou "1h 2min 25s")
+  const formatarTempoHMS = (milissegundos) => {
+    if (!milissegundos || milissegundos === 0) return '0s';
+    
+    const totalSegundos = Math.floor(milissegundos / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
+    
+    const partes = [];
+    
+    if (horas > 0) {
+      partes.push(`${horas}h`);
+    }
+    
+    if (minutos > 0) {
+      partes.push(`${minutos}min`);
+    }
+    
+    if (segundos > 0 || partes.length === 0) {
+      partes.push(`${segundos}s`);
+    }
+    
+    return partes.join(' ');
+  };
+
+  // Helper: Criar chave de registro (cliente_id + tarefa_id)
+  const criarChaveRegistro = useCallback((clienteId, tarefaId) => {
+    return `${String(clienteId).trim()}_${String(tarefaId).trim()}`;
+  }, []);
+
+  // Helper: Criar chave de tempo (cliente_id + tarefa_id + tempo_estimado_id)
+  const criarChaveTempo = useCallback((reg) => {
+    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+    if (!tempoEstimadoId) return null;
+    return `${String(reg.cliente_id).trim()}_${String(reg.tarefa_id).trim()}_${String(tempoEstimadoId).trim()}`;
+  }, []);
+
+  // Helper: Atualizar renderização de todas as tarefas
+  const atualizarRenderizacaoTarefas = useCallback(() => {
+    if (tarefasRegistrosRef.current.length > 0) {
+      const cardsComTarefas = document.querySelectorAll('.grid-item-content-board');
+      cardsComTarefas.forEach((card) => {
+        renderTarefasNoCard(tarefasRegistrosRef.current, card);
+      });
+    }
+  }, []);
+
+  // Função para obter tempo realizado formatado de uma tarefa
+  const obterTempoRealizadoFormatado = useCallback((reg) => {
+    const chaveTempo = criarChaveTempo(reg);
+    if (!chaveTempo) return '0s';
+    
+    const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
+    return formatarTempoHMS(tempoRealizadoMs);
+  }, [criarChaveTempo]);
+
+  // Função para buscar tempo realizado de uma tarefa específica
+  const buscarTempoRealizado = useCallback(async (reg) => {
+    if (!usuario?.id) return 0;
+
+    try {
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (!tempoEstimadoId) return 0;
+
+      const response = await fetch(
+        `/api/registro-tempo/realizado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}&tempo_estimado_id=${tempoEstimadoId}`,
+        {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.tempo_realizado_ms || 0;
+        }
+      }
+      return 0;
+    } catch (error) {
+      console.warn('[TimeTracking] Erro ao buscar tempo realizado:', error);
+      return 0;
+    }
+  }, [usuario]);
+
+  // Função para iniciar registro de tempo
+  const iniciarRegistroTempo = useCallback(async (reg) => {
+    if (!usuario?.id) {
+      alert('Usuário não encontrado');
+      return;
+    }
+
+    try {
+      // Verificar se já existe registro ativo para esta tarefa neste cliente
+      const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
+      if (registrosAtivosRef.current.has(chaveRegistro)) {
+        return; // Já existe registro ativo
+      }
+
+      // Buscar o ID do tempo_estimado
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (!tempoEstimadoId) {
+        alert('Erro: ID do tempo estimado não encontrado');
+        return;
+      }
+
+      const response = await fetch('/api/registro-tempo/iniciar', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          tarefa_id: String(reg.tarefa_id).trim(),
+          tempo_estimado_id: String(tempoEstimadoId).trim(),
+          cliente_id: String(reg.cliente_id).trim(),
+          usuario_id: parseInt(usuario.id, 10)
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        alert(result.error || 'Erro ao iniciar registro de tempo');
+        return;
+      }
+
+      // Atualizar estado com o registro ativo
+      const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
+      novoRegistrosAtivos.set(chaveRegistro, {
+        registro_id: result.data.id,
+        data_inicio: result.data.data_inicio
+      });
+      registrosAtivosRef.current = novoRegistrosAtivos;
+      setRegistrosAtivos(novoRegistrosAtivos);
+
+      // Atualizar tempo realizado
+      const chaveTempo = criarChaveTempo(reg);
+      if (chaveTempo) {
+        const tempoRealizado = await buscarTempoRealizado(reg);
+        const novosTempos = new Map(temposRealizadosRef.current);
+        novosTempos.set(chaveTempo, tempoRealizado);
+        temposRealizadosRef.current = novosTempos;
+        setTemposRealizados(novosTempos);
+      }
+
+      // Disparar evento para atualizar timer no header
+      window.dispatchEvent(new CustomEvent('registro-tempo-iniciado'));
+
+      // Re-renderizar tarefas
+      atualizarRenderizacaoTarefas();
+    } catch (error) {
+      console.error('[TimeTracking] Erro ao iniciar registro:', error);
+      alert('Erro ao iniciar registro de tempo');
+    }
+  }, [usuario, criarChaveRegistro, criarChaveTempo, buscarTempoRealizado, atualizarRenderizacaoTarefas]);
+
+  // Função para parar registro de tempo
+  const pararRegistroTempo = useCallback(async (reg) => {
+    if (!usuario?.id) {
+      alert('Usuário não encontrado');
+      return;
+    }
+
+    try {
+      const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
+      const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
+      
+      if (!registroAtivo?.registro_id) {
+        return; // Nenhum registro ativo encontrado
+      }
+
+      const response = await fetch(`/api/registro-tempo/finalizar/${registroAtivo.registro_id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          tarefa_id: String(reg.tarefa_id).trim(),
+          usuario_id: parseInt(usuario.id, 10)
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        alert(result.error || 'Erro ao finalizar registro de tempo');
+        return;
+      }
+
+      // Remover do estado de registros ativos
+      const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
+      novoRegistrosAtivos.delete(chaveRegistro);
+      registrosAtivosRef.current = novoRegistrosAtivos;
+      setRegistrosAtivos(novoRegistrosAtivos);
+
+      // Atualizar tempo realizado
+      const chaveTempo = criarChaveTempo(reg);
+      if (chaveTempo) {
+        const tempoRealizado = await buscarTempoRealizado(reg);
+        const novosTempos = new Map(temposRealizadosRef.current);
+        novosTempos.set(chaveTempo, tempoRealizado);
+        temposRealizadosRef.current = novosTempos;
+        setTemposRealizados(novosTempos);
+      }
+
+      // Disparar evento para atualizar timer no header
+      window.dispatchEvent(new CustomEvent('registro-tempo-finalizado'));
+
+      // Re-renderizar tarefas
+      atualizarRenderizacaoTarefas();
+    } catch (error) {
+      console.error('[TimeTracking] Erro ao finalizar registro:', error);
+      alert('Erro ao finalizar registro de tempo');
+    }
+  }, [usuario, criarChaveRegistro, criarChaveTempo, buscarTempoRealizado, atualizarRenderizacaoTarefas]);
+
+  // Função auxiliar para atualizar tempos realizados totais nos headers dos clientes
+  const atualizarTemposRealizadosHeaders = useCallback(() => {
+    const temposAtuais = temposRealizadosRef.current;
+    const headersClientes = document.querySelectorAll('.painel-usuario-grupo-cliente-header');
+    
+    headersClientes.forEach((header) => {
+      const clienteCard = header.closest('.painel-usuario-cliente-card');
+      if (!clienteCard) return;
+      
+      // Encontrar todas as tarefas deste cliente
+      const tarefasDoCliente = Array.from(clienteCard.querySelectorAll('.painel-usuario-tarefa-item-lista'));
+      if (tarefasDoCliente.length === 0) return;
+      
+      // Calcular tempo realizado total do cliente
+      let tempoRealizadoTotal = 0;
+      tarefasDoCliente.forEach((tarefaItem) => {
+        const btn = tarefaItem.querySelector('[data-tarefa-id]');
+        if (!btn) return;
+        
+        const tarefaId = btn.getAttribute('data-tarefa-id');
+        const clienteId = btn.getAttribute('data-cliente-id');
+        
+        // Encontrar o registro completo para obter tempo_estimado_id
+        const reg = tarefasRegistrosRef.current.find(r => 
+          String(r.tarefa_id).trim() === tarefaId && 
+          String(r.cliente_id).trim() === clienteId
+        );
+        
+        if (reg) {
+          const chaveTempo = criarChaveTempo(reg);
+          if (chaveTempo) {
+            const tempoRealizado = temposAtuais.get(chaveTempo) || 0;
+            tempoRealizadoTotal += tempoRealizado;
+          }
+        }
+      });
+      
+      // Atualizar ou criar o elemento de tempo realizado no header
+      let tempoRealizadoElement = header.querySelector('.painel-usuario-grupo-tempo-realizado');
+      if (tempoRealizadoTotal > 0) {
+        const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
+        if (tempoRealizadoElement) {
+          // Atualizar elemento existente
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div>`;
+          tempoRealizadoElement.classList.add('has-tooltip');
+        } else {
+          // Criar novo elemento
+          tempoRealizadoElement = document.createElement('span');
+          tempoRealizadoElement.className = 'painel-usuario-grupo-tempo-realizado has-tooltip';
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div>`;
+          
+          // Inserir após o tempo estimado (se existir) ou antes do count
+          const tempoTotalElement = header.querySelector('.painel-usuario-grupo-tempo-total');
+          const countElement = header.querySelector('.painel-usuario-grupo-count');
+          if (tempoTotalElement && tempoTotalElement.nextSibling) {
+            tempoTotalElement.parentNode.insertBefore(tempoRealizadoElement, tempoTotalElement.nextSibling);
+          } else if (countElement) {
+            countElement.parentNode.insertBefore(tempoRealizadoElement, countElement);
+          } else {
+            header.querySelector('.painel-usuario-grupo-cliente-header-left').appendChild(tempoRealizadoElement);
+          }
+        }
+      } else if (tempoRealizadoElement) {
+        // Remover elemento se não houver tempo realizado
+        tempoRealizadoElement.remove();
+      }
+    });
+  }, [criarChaveTempo]);
+
+  // Função para buscar tempos realizados de todas as tarefas
+  const buscarTemposRealizados = useCallback(async () => {
+    if (!usuario?.id || tarefasRegistrosRef.current.length === 0) {
+      return;
+    }
+
+    try {
+      const novosTempos = new Map();
+      
+      await Promise.all(
+        tarefasRegistrosRef.current.map(async (reg) => {
+          const chaveTempo = criarChaveTempo(reg);
+          if (!chaveTempo) return;
+          
+          const tempoRealizado = await buscarTempoRealizado(reg);
+          novosTempos.set(chaveTempo, tempoRealizado);
+        })
+      );
+
+      temposRealizadosRef.current = novosTempos;
+      setTemposRealizados(novosTempos);
+      
+      // Atualizar headers dos clientes
+      atualizarTemposRealizadosHeaders();
+    } catch (error) {
+      console.error('[TimeTracking] Erro ao buscar tempos realizados:', error);
+    }
+  }, [usuario, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);
+
+  // Função para verificar registros ativos ao carregar tarefas
+  const verificarRegistrosAtivos = useCallback(async () => {
+    if (!usuario?.id || tarefasRegistrosRef.current.length === 0) {
+      return;
+    }
+
+    try {
+      // Buscar registros ativos para todas as tarefas (considerando cliente_id também)
+      const tarefasUnicas = tarefasRegistrosRef.current
+        .map(r => ({
+          tarefa_id: String(r.tarefa_id).trim(),
+          cliente_id: String(r.cliente_id).trim()
+        }))
+        .filter(r => r.tarefa_id && r.cliente_id);
+      
+      // Remover duplicatas usando Map
+      const tarefasUnicasMap = new Map();
+      tarefasUnicas.forEach(t => {
+        const chave = criarChaveRegistro(t.cliente_id, t.tarefa_id);
+        if (!tarefasUnicasMap.has(chave)) {
+          tarefasUnicasMap.set(chave, t);
+        }
+      });
+      
+      const novosRegistrosAtivos = new Map();
+
+      await Promise.all(
+        Array.from(tarefasUnicasMap.values()).map(async (tarefa) => {
+          try {
+            const response = await fetch(
+              `/api/registro-tempo/ativo?usuario_id=${usuario.id}&tarefa_id=${tarefa.tarefa_id}&cliente_id=${tarefa.cliente_id}`,
+              {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              }
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                const chaveRegistro = criarChaveRegistro(tarefa.cliente_id, tarefa.tarefa_id);
+                novosRegistrosAtivos.set(chaveRegistro, {
+                  registro_id: result.data.id,
+                  data_inicio: result.data.data_inicio
+                });
+              }
+            }
+          } catch (error) {
+            // Erro silencioso - continua verificando outras tarefas
+          }
+        })
+      );
+
+      registrosAtivosRef.current = novosRegistrosAtivos;
+      setRegistrosAtivos(novosRegistrosAtivos);
+    } catch (error) {
+      console.error('[TimeTracking] Erro ao verificar registros ativos:', error);
+    }
+  }, [usuario, criarChaveRegistro]);
 
   const normalizeText = (str) =>
     (str || '')
@@ -283,6 +668,8 @@ const MIN_H_TAREFAS = 6;
   };
 
   const toggleClienteLista = useCallback((clienteNome) => {
+    const estavaExpandido = clientesExpandidosLista.has(clienteNome);
+    
     setClientesExpandidosLista((prev) => {
       const novo = new Set(prev);
       if (novo.has(clienteNome)) {
@@ -292,7 +679,49 @@ const MIN_H_TAREFAS = 6;
       }
       return novo;
     });
-  }, []);
+
+    // Se está expandindo (não estava expandido antes), fazer scroll suave para o header
+    if (!estavaExpandido) {
+      // Aguardar um pouco para o DOM atualizar após a expansão
+      setTimeout(() => {
+        // Encontrar o header pelo texto do título
+        const headers = document.querySelectorAll('.painel-usuario-grupo-cliente-header');
+        let targetHeader = null;
+        headers.forEach((header) => {
+          const titleElement = header.querySelector('.painel-usuario-grupo-title');
+          if (titleElement && titleElement.textContent.trim() === clienteNome) {
+            targetHeader = header;
+          }
+        });
+
+        if (targetHeader) {
+          // Encontrar o container scrollável (lista-container)
+          const listaContainer = targetHeader.closest('.painel-usuario-lista-container');
+          if (listaContainer) {
+            const headerRect = targetHeader.getBoundingClientRect();
+            const containerRect = listaContainer.getBoundingClientRect();
+            
+            // Calcular a posição do header relativa ao container
+            const headerTopRelative = targetHeader.offsetTop;
+            const containerScrollTop = listaContainer.scrollTop;
+            const containerHeight = listaContainer.clientHeight;
+            
+            // Se o header está fora da área visível (acima ou muito abaixo), fazer scroll
+            const headerVisibleTop = headerTopRelative - containerScrollTop;
+            const headerVisibleBottom = headerVisibleTop + headerRect.height;
+            
+            if (headerVisibleTop < 0 || headerVisibleBottom > containerHeight) {
+              // Fazer scroll para mostrar o header com uma margem de 20px do topo
+              listaContainer.scrollTo({
+                top: Math.max(0, headerTopRelative - 20),
+                behavior: 'smooth'
+              });
+            }
+          }
+        }
+      }, 150); // Aguardar um pouco mais para garantir que o DOM foi atualizado
+    }
+  }, [clientesExpandidosLista]);
 
   const renderTarefasEmLista = (registros, wrapper) => {
     const lista = document.createElement('div');
@@ -324,13 +753,22 @@ const MIN_H_TAREFAS = 6;
       Object.entries(gruposPorCliente).forEach(([clienteNome, items]) => {
         const isExpanded = clientesExpandidosLista.has(clienteNome);
         
-        // Calcular tempo total do cliente
+        // Calcular tempo estimado total do cliente
         const tempoTotal = items.reduce((sum, reg) => {
           const tempo = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
           const valor = Number(tempo) || 0;
           return sum + (valor >= 1000 ? valor / 3600000 : valor);
         }, 0);
         const tempoTotalFormatado = `${tempoTotal.toFixed(1)}h`;
+
+        // Calcular tempo realizado total do cliente
+        const tempoRealizadoTotal = items.reduce((sum, reg) => {
+          const chaveTempo = criarChaveTempo(reg);
+          if (!chaveTempo) return sum;
+          const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
+          return sum + tempoRealizadoMs;
+        }, 0);
+        const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
 
         // Card wrapper para o grupo de cliente
         const cardWrapper = document.createElement('div');
@@ -344,17 +782,26 @@ const MIN_H_TAREFAS = 6;
         const header = document.createElement('div');
         header.className = 'painel-usuario-grupo-cliente-header';
         header.style.cursor = 'pointer';
+        header.style.pointerEvents = 'auto';
         header.innerHTML = `
           <div class="painel-usuario-grupo-cliente-header-left">
             <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'}" style="color: #64748b; font-size: 12px; width: 16px; display: flex; align-items: center; justify-content: center;"></i>
             <span class="painel-usuario-grupo-badge-orange">CLIENTE</span>
             <h3 class="painel-usuario-grupo-title">${clienteNome}</h3>
-            ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total"><i class="fas fa-clock" style="color: #2563eb; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}</span>` : ''}
-            <span class="painel-usuario-grupo-count">${items.length}</span>
+            ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total has-tooltip"><i class="fas fa-clock" style="color: #0e3b6f; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}<div class="filter-tooltip">Tempo estimado</div></span>` : ''}
+            ${tempoRealizadoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-realizado has-tooltip"><i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div></span>` : ''}
+            <span class="painel-usuario-grupo-count">Tarefas: ${items.length}</span>
           </div>
         `;
-        header.addEventListener('click', () => {
+        // Garantir que o header capture cliques corretamente
+        header.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
           toggleClienteLista(clienteNome);
+        });
+        // Também adicionar no mousedown para garantir
+        header.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
         });
         grupoDiv.appendChild(header);
 
@@ -363,8 +810,20 @@ const MIN_H_TAREFAS = 6;
           const content = document.createElement('div');
           content.className = 'painel-usuario-grupo-cliente-content';
           content.style.background = '#ffffff';
+          // Garantir que o content não bloqueie cliques no header
+          content.style.pointerEvents = 'auto';
+          
+          // Limitar a 6 tarefas visíveis e adicionar scroll se houver mais
+          const maxTarefasVisiveis = 6;
+          const temMaisTarefas = items.length > maxTarefasVisiveis;
+          
+          if (temMaisTarefas) {
+            // Adicionar classe para scroll interno
+            content.classList.add('painel-usuario-grupo-cliente-content-scroll');
+          }
 
-          items.forEach((reg) => {
+          // Renderizar todas as tarefas, mas o CSS vai limitar a altura
+          items.forEach((reg, index) => {
             const item = document.createElement('div');
             item.className = 'painel-usuario-tarefa-item-lista';
             item.style.border = '1px solid rgb(238, 242, 247)';
@@ -372,6 +831,16 @@ const MIN_H_TAREFAS = 6;
             item.style.padding = '12px';
             item.style.margin = '8px 20px';
             item.style.background = '#ffffff';
+            // Garantir que o item não capture cliques que devem ir para o header
+            item.style.pointerEvents = 'auto';
+            const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
+            const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
+            const isAtivo = !!registroAtivo;
+            const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
+            const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
+            const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
+            const btnAction = isAtivo ? 'parar' : 'iniciar';
+            
             item.innerHTML = `
               <div class="painel-usuario-tarefa-item-lista-content">
                 <div class="painel-usuario-tarefa-item-lista-main">
@@ -382,14 +851,16 @@ const MIN_H_TAREFAS = 6;
                   </div>
                   <button
                     type="button"
-                    class="painel-usuario-play-btn"
-                    title="Iniciar tarefa (futuro time tracking)"
-                    onclick="console.log('play tarefa', '${reg.tarefa_id || ''}')"
+                    class="${btnClass}"
+                    title="${btnTitle}"
+                    data-tarefa-id="${reg.tarefa_id || ''}"
+                    data-cliente-id="${reg.cliente_id || ''}"
+                    data-action="${btnAction}"
                   >
-                    <i class="fas fa-play"></i>
+                    <i class="fas ${btnIcon}"></i>
                   </button>
                 </div>
-                <div class="painel-usuario-tarefa-tags">
+                <div class="painel-usuario-tarefa-tags painel-usuario-tarefa-tags-lista">
                   <span class="painel-usuario-badge-estimado">
                     <i class="fas fa-clock painel-usuario-estimado-icon-inline"></i>
                     <span class="painel-usuario-estimado-label">Estimado:</span>
@@ -400,11 +871,36 @@ const MIN_H_TAREFAS = 6;
                   <span class="painel-usuario-badge-realizado">
                     <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
                     <span class="painel-usuario-realizado-label">Realizado:</span>
-                    <span class="painel-usuario-realizado-pill">1h</span>
+                    <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
                   </span>
                 </div>
               </div>
             `;
+            
+            // Adicionar event listener ao botão - apenas o botão deve capturar cliques
+            const btn = item.querySelector('button');
+            if (btn) {
+              btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const action = btn.getAttribute('data-action');
+                if (action === 'iniciar') {
+                  iniciarRegistroTempo(reg);
+                } else if (action === 'parar') {
+                  pararRegistroTempo(reg);
+                }
+              });
+            }
+            
+            // Garantir que cliques no item não bloqueiem o header
+            item.addEventListener('click', (e) => {
+              // Se não foi o botão que foi clicado, não fazer nada (deixar propagar)
+              if (e.target !== btn && !btn.contains(e.target)) {
+                // Não fazer nada - deixar o evento propagar normalmente
+                return;
+              }
+            });
+            
             content.appendChild(item);
           });
 
@@ -447,6 +943,21 @@ const MIN_H_TAREFAS = 6;
       }, {});
 
       Object.entries(gruposPorCliente).forEach(([clienteNome, items]) => {
+        // Calcular tempo estimado total do cliente
+        const tempoTotal = items.reduce((sum, reg) => {
+          const tempo = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
+          const valor = Number(tempo) || 0;
+          return sum + (valor >= 1000 ? valor / 3600000 : valor);
+        }, 0);
+
+        // Calcular tempo realizado total do cliente
+        const tempoRealizadoTotal = items.reduce((sum, reg) => {
+          const chaveTempo = criarChaveTempo(reg);
+          if (!chaveTempo) return sum;
+          const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
+          return sum + tempoRealizadoMs;
+        }, 0);
+
         const coluna = document.createElement('div');
         coluna.className = 'painel-usuario-coluna';
         coluna.style.minWidth = '240px';
@@ -461,7 +972,40 @@ const MIN_H_TAREFAS = 6;
         colunaHeader.style.fontWeight = '700';
         colunaHeader.style.fontSize = '13px';
         colunaHeader.style.color = '#111827';
-        colunaHeader.textContent = clienteNome;
+        colunaHeader.style.display = 'flex';
+        colunaHeader.style.flexDirection = 'row';
+        colunaHeader.style.alignItems = 'center';
+        colunaHeader.style.justifyContent = 'space-between';
+        colunaHeader.style.gap = '12px';
+        colunaHeader.style.flexWrap = 'wrap';
+        
+        // Nome do cliente
+        const clienteNomeEl = document.createElement('div');
+        clienteNomeEl.textContent = clienteNome;
+        clienteNomeEl.style.flexShrink = '0';
+        colunaHeader.appendChild(clienteNomeEl);
+        
+        // Container para as informações de tempo (na mesma linha, alinhado à direita)
+        const tempoInfoContainer = document.createElement('div');
+        tempoInfoContainer.style.display = 'flex';
+        tempoInfoContainer.style.alignItems = 'center';
+        tempoInfoContainer.style.gap = '8px';
+        tempoInfoContainer.style.flexWrap = 'wrap';
+        tempoInfoContainer.style.marginLeft = 'auto';
+        colunaHeader.appendChild(tempoInfoContainer);
+        
+        // Renderizar componente React de informações de tempo
+        const root = createRoot(tempoInfoContainer);
+        root.render(
+          <ClienteTempoInfo
+            tempoEstimadoTotal={tempoTotal}
+            tempoRealizadoTotal={tempoRealizadoTotal}
+            quantidadeTarefas={items.length}
+            formatarTempoHMS={formatarTempoHMS}
+            modoQuadro={true}
+          />
+        );
+        
         coluna.appendChild(colunaHeader);
 
         const colunaBody = document.createElement('div');
@@ -474,6 +1018,14 @@ const MIN_H_TAREFAS = 6;
         items.forEach((reg) => {
           const item = document.createElement('div');
           item.className = 'painel-usuario-tarefa-card';
+          const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
+          const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
+          const isAtivo = !!registroAtivo;
+          const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
+          const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
+          const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
+          const btnAction = isAtivo ? 'parar' : 'iniciar';
+          
           item.innerHTML = `
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
@@ -481,11 +1033,12 @@ const MIN_H_TAREFAS = 6;
               </div>
               <button
                 type="button"
-                class="painel-usuario-play-btn"
-                title="Iniciar tarefa (futuro time tracking)"
-                onclick="console.log('play tarefa', '${reg.tarefa_id || ''}')"
+                class="${btnClass}"
+                title="${btnTitle}"
+                data-tarefa-id="${reg.tarefa_id || ''}"
+                data-action="${btnAction}"
               >
-                <i class="fas fa-play"></i>
+                <i class="fas ${btnIcon}"></i>
               </button>
             </div>
             <div class="painel-usuario-tarefa-tags">
@@ -499,10 +1052,25 @@ const MIN_H_TAREFAS = 6;
               <span class="painel-usuario-badge-realizado">
                 <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
                 <span class="painel-usuario-realizado-label">Realizado:</span>
-                <span class="painel-usuario-realizado-pill">1h</span>
+                <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
               </span>
             </div>
           `;
+          
+          // Adicionar event listener ao botão
+          const btn = item.querySelector('button');
+          if (btn) {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const action = btn.getAttribute('data-action');
+              if (action === 'iniciar') {
+                iniciarRegistroTempo(reg);
+              } else if (action === 'parar') {
+                pararRegistroTempo(reg);
+              }
+            });
+          }
+          
           colunaBody.appendChild(item);
         });
 
@@ -897,6 +1465,11 @@ const MIN_H_TAREFAS = 6;
         await carregarNomesRelacionados(registros);
         tarefasRegistrosRef.current = registros;
         setTarefasRegistros(registros);
+        // Verificar registros ativos e buscar tempos realizados antes de renderizar
+        await Promise.all([
+          verificarRegistrosAtivos(),
+          buscarTemposRealizados()
+        ]);
         // Aguardar um tick para garantir que o estado foi atualizado
         setTimeout(() => {
           renderTarefasNoCard(registros, alvoManual);
@@ -914,7 +1487,84 @@ const MIN_H_TAREFAS = 6;
     } finally {
       setCarregandoTarefas(false);
     }
-  }, [usuario, carregarNomesRelacionados, garantirTamanhoMinimoTarefas, menuPosicao, modoVisualizacao, tarefasRegistros]);
+  }, [usuario, carregarNomesRelacionados, garantirTamanhoMinimoTarefas, menuPosicao, modoVisualizacao, tarefasRegistros, verificarRegistrosAtivos, buscarTemposRealizados]);
+
+  // Atualizar tempo em tempo real quando houver registros ativos (sem re-renderizar tudo)
+  useEffect(() => {
+    if (registrosAtivos.size === 0) return;
+
+    const intervalId = setInterval(async () => {
+      // Atualizar tempos realizados para tarefas com registros ativos
+      const tarefasComRegistrosAtivos = Array.from(registrosAtivos.entries()).map(([chave, valor]) => {
+        const [clienteId, tarefaId] = chave.split('_');
+        return { clienteId, tarefaId, registroAtivo: valor };
+      });
+
+      // Buscar o registro completo para obter tempo_estimado_id
+      const registrosCompletos = tarefasRegistrosRef.current.filter(reg => {
+        return tarefasComRegistrosAtivos.some(ativo => 
+          String(reg.cliente_id).trim() === ativo.clienteId && 
+          String(reg.tarefa_id).trim() === ativo.tarefaId
+        );
+      });
+
+      // Atualizar tempos realizados
+      const novosTempos = new Map(temposRealizadosRef.current);
+      await Promise.all(
+        registrosCompletos.map(async (reg) => {
+          const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+          if (!tempoEstimadoId) return;
+          
+          const chaveTempo = criarChaveTempo(reg);
+          if (!chaveTempo) return;
+          
+          const tempoRealizado = await buscarTempoRealizado(reg);
+          novosTempos.set(chaveTempo, tempoRealizado);
+          
+          // Atualizar apenas o elemento de tempo realizado no DOM, sem re-renderizar tudo
+          const tempoFormatado = formatarTempoHMS(tempoRealizado);
+          const tarefaIdStr = String(reg.tarefa_id).trim();
+          const clienteIdStr = String(reg.cliente_id).trim();
+          
+          // Buscar todos os pills e atualizar apenas o que corresponde a esta tarefa e cliente
+          const tempoPills = document.querySelectorAll(`.painel-usuario-realizado-pill[data-tarefa-id="${tarefaIdStr}"][data-cliente-id="${clienteIdStr}"]`);
+          tempoPills.forEach((pill) => {
+            pill.textContent = tempoFormatado;
+          });
+        })
+      );
+
+      if (novosTempos.size > 0) {
+        temposRealizadosRef.current = novosTempos;
+        setTemposRealizados(novosTempos);
+        
+        // Atualizar tempos realizados totais nos headers dos clientes (modo lista)
+        atualizarTemposRealizadosHeaders();
+      }
+    }, 1000); // Atualizar a cada 1 segundo
+
+    return () => clearInterval(intervalId);
+  }, [registrosAtivos, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);
+
+  // Escutar evento de finalização de registro de tempo (quando parado pelo header)
+  useEffect(() => {
+    const handleRegistroFinalizado = async () => {
+      // Verificar registros ativos novamente
+      await verificarRegistrosAtivos();
+      
+      // Buscar tempos realizados atualizados
+      await buscarTemposRealizados();
+      
+      // Re-renderizar todas as tarefas para atualizar os botões
+      atualizarRenderizacaoTarefas();
+    };
+
+    window.addEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
+    
+    return () => {
+      window.removeEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
+    };
+  }, [verificarRegistrosAtivos, buscarTemposRealizados, atualizarRenderizacaoTarefas]);
 
   // Re-renderizar tarefas quando clientes expandidos mudarem (modo lista)
   useEffect(() => {

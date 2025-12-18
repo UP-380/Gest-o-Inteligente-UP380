@@ -20,6 +20,7 @@ const tipoAtividadeController = require('../controllers/tipo-atividade.controlle
 const vinculacoesController = require('../controllers/vinculacoes.controller');
 const vinculadosController = require('../controllers/vinculados.controller');
 const tempoEstimadoController = require('../controllers/tempo-estimado.controller');
+const registroTempoController = require('../controllers/registro-tempo.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -169,6 +170,13 @@ router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.de
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
+
+// Rotas de Registro de Tempo
+router.post('/api/registro-tempo/iniciar', requireAuth, registroTempoController.iniciarRegistroTempo);
+router.put('/api/registro-tempo/finalizar/:id', requireAuth, registroTempoController.finalizarRegistroTempo);
+router.get('/api/registro-tempo/ativo', requireAuth, registroTempoController.getRegistroAtivo);
+router.get('/api/registro-tempo/ativos', requireAuth, registroTempoController.getRegistrosAtivos);
+router.get('/api/registro-tempo/realizado', requireAuth, registroTempoController.getTempoRealizado);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {

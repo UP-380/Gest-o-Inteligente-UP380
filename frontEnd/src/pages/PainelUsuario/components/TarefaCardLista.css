@@ -1,0 +1,11 @@
+/* Estilos do TarefaCardLista - Versão para modo lista */
+/* Os estilos principais estão em PainelUsuario.css */
+
+/* Estilo para os badges ficarem na mesma linha no modo lista */
+.painel-usuario-tarefa-tags-lista {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+

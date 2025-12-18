@@ -1,0 +1,60 @@
+/* Timer Ativo - Widget de tempo em tempo real no header */
+.timer-ativo-container {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  background: #1f2937; /* Fundo escuro */
+  border-radius: 6px; /* Bordas arredondadas similares ao botão Quadro */
+  padding: 6px 3px 6px 15px; /* Menos padding à direita para botão mais próximo do canto */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 1;
+  height: 27px; /* Mesma altura do botão Quadro */
+  box-sizing: border-box;
+}
+
+.timer-ativo-tempo {
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e7eb; /* Texto claro */
+  letter-spacing: 0.5px;
+  min-width: 55px;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.timer-ativo-stop-btn {
+  background: #ef4444; /* Vermelho */
+  color: #ffffff;
+  border: none;
+  border-radius: 4px; /* Bordas arredondadas similares ao botão Quadro */
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+  margin-left: auto; /* Empurra o botão para a direita */
+}
+
+.timer-ativo-stop-btn:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+
+.timer-ativo-stop-btn:active {
+  transform: scale(0.95);
+}
+
+.timer-ativo-stop-btn i {
+  font-size: 9px;
+}
