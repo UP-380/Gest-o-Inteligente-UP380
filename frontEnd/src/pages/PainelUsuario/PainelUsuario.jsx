@@ -21,6 +21,8 @@ const PainelUsuario = () => {
   const [tarefasAgrupadas, setTarefasAgrupadas] = useState([]);
   const [tarefasRegistros, setTarefasRegistros] = useState([]);
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
+  const [clientesExpandidosLista, setClientesExpandidosLista] = useState(new Set()); // para controlar expansão de clientes na lista
+  const [modoVisualizacao, setModoVisualizacao] = useState({}); // objeto com { cardId: 'quadro' | 'lista' }
   const [nomesCache, setNomesCache] = useState({
     produtos: {},
     tarefas: {},
@@ -30,6 +32,7 @@ const PainelUsuario = () => {
   const [clientesListaCache, setClientesListaCache] = useState(null);
   const [colaboradoresCache, setColaboradoresCache] = useState([]);
   const inicializadoRef = useRef(false);
+  const tarefasRegistrosRef = useRef([]);
 
   // Array inicial de blocos vazios (cards sem conteúdo)
   // Máximo de 9 módulos permitidos
@@ -135,25 +138,288 @@ const MIN_H_TAREFAS = 6;
     });
   }, []);
 
+  const obterCardId = (card) => {
+    if (!card) return null;
+    const widgetEl = card.closest('.grid-item');
+    if (!widgetEl) return null;
+    return widgetEl.getAttribute('data-bloco-id') || null;
+  };
+
+  const obterModoVisualizacao = (cardId) => {
+    if (!cardId) return 'quadro';
+    // Tenta ler do DOM primeiro (mais atualizado), depois do estado
+    try {
+      const widgetEl = document.querySelector(`[data-bloco-id="${cardId}"]`);
+      if (widgetEl && widgetEl.getAttribute('data-view-mode')) {
+        return widgetEl.getAttribute('data-view-mode');
+      }
+    } catch (e) {}
+    return modoVisualizacao[cardId] || 'quadro';
+  };
+
+  const alternarModoVisualizacao = useCallback((cardId, modoDesejado = null) => {
+    if (!cardId) {
+      console.warn('[PainelUsuario] cardId não fornecido para alternarModoVisualizacao');
+      return;
+    }
+    setModoVisualizacao((prev) => {
+      // Se modoDesejado foi fornecido, usa ele. Senão, alterna entre os modos
+      const novoModo = modoDesejado || (prev[cardId] === 'lista' ? 'quadro' : 'lista');
+      const novo = { ...prev, [cardId]: novoModo };
+      // Armazenar no DOM imediatamente
+      const widgetEl = document.querySelector(`[data-bloco-id="${cardId}"]`);
+      if (widgetEl) {
+        widgetEl.setAttribute('data-view-mode', novoModo);
+      }
+      // Re-renderizar tarefas após mudar o modo
+      setTimeout(() => {
+        // Usa ref para garantir acesso aos registros mais recentes
+        const registrosAtuais = tarefasRegistrosRef.current || [];
+        if (registrosAtuais.length > 0) {
+          const card = document.querySelector(`[data-bloco-id="${cardId}"] .grid-item-content`);
+          if (card) {
+            renderTarefasNoCard(registrosAtuais, card);
+          }
+        }
+      }, 50);
+      return novo;
+    });
+  }, []);
+
   const renderTarefasNoCard = (registros, target) => {
     const card = target || menuPosicao.target;
-    if (!card) return;
+    if (!card) {
+      console.warn('[PainelUsuario] Card não fornecido para renderTarefasNoCard');
+      return;
+    }
     card.innerHTML = '';
     card.classList.add('grid-item-content-board');
 
+    const cardId = obterCardId(card);
+    if (!cardId) {
+      console.warn('[PainelUsuario] cardId não encontrado para o card');
+    }
+    const modo = obterModoVisualizacao(cardId);
+    // Armazenar modo no DOM para acesso futuro
+    const widgetEl = card.closest('.grid-item');
+    if (widgetEl && cardId) {
+      widgetEl.setAttribute('data-view-mode', modo);
+    }
+
     const wrapper = document.createElement('div');
     wrapper.style.height = '100%';
+    wrapper.style.width = '100%';
     wrapper.style.display = 'flex';
     wrapper.style.flexDirection = 'column';
     wrapper.style.gap = '12px';
+    wrapper.style.boxSizing = 'border-box';
+    wrapper.style.minWidth = '0';
 
     const header = document.createElement('div');
     header.className = 'painel-usuario-header-board';
-    header.innerHTML = `
-      <div style="font-weight:700;color:#111827;font-size:14px;">Minhas tarefas - hoje</div>
-      <div style="font-size:12px;color:#6b7280;">${registros.length} tarefa(s)</div>
-    `;
+    
+    const headerLeft = document.createElement('div');
+    headerLeft.style.display = 'flex';
+    headerLeft.style.flexDirection = 'column';
+    headerLeft.style.gap = '4px';
+    
+    const title = document.createElement('div');
+    title.style.fontWeight = '700';
+    title.style.color = '#111827';
+    title.style.fontSize = '14px';
+    title.textContent = 'Minhas tarefas - hoje';
+    headerLeft.appendChild(title);
+    
+    const subtitle = document.createElement('div');
+    subtitle.style.fontSize = '12px';
+    subtitle.style.color = '#6b7280';
+    subtitle.textContent = `${registros.length} tarefa(s)`;
+    headerLeft.appendChild(subtitle);
+    
+    header.appendChild(headerLeft);
+    
+    const toggleView = document.createElement('div');
+    toggleView.className = 'painel-usuario-toggle-view';
+    
+    const btnQuadro = document.createElement('button');
+    btnQuadro.type = 'button';
+    btnQuadro.className = `painel-usuario-toggle-btn ${modo === 'quadro' ? 'active' : ''}`;
+    btnQuadro.setAttribute('data-mode', 'quadro');
+    btnQuadro.title = 'Visualização em Quadro';
+    btnQuadro.innerHTML = '<i class="fas fa-th-large"></i><span>Quadro</span>';
+    if (cardId) {
+      btnQuadro.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alternarModoVisualizacao(cardId, 'quadro');
+      });
+    }
+    toggleView.appendChild(btnQuadro);
+    
+    const btnLista = document.createElement('button');
+    btnLista.type = 'button';
+    btnLista.className = `painel-usuario-toggle-btn ${modo === 'lista' ? 'active' : ''}`;
+    btnLista.setAttribute('data-mode', 'lista');
+    btnLista.title = 'Visualização em Lista';
+    btnLista.innerHTML = '<i class="fas fa-list"></i><span>Lista</span>';
+    if (cardId) {
+      btnLista.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alternarModoVisualizacao(cardId, 'lista');
+      });
+    }
+    toggleView.appendChild(btnLista);
+    
+    header.appendChild(toggleView);
     wrapper.appendChild(header);
+
+    // Renderizar baseado no modo
+    if (modo === 'lista') {
+      renderTarefasEmLista(registros, wrapper);
+    } else {
+      renderTarefasEmQuadro(registros, wrapper);
+    }
+
+    card.appendChild(wrapper);
+  };
+
+  const toggleClienteLista = useCallback((clienteNome) => {
+    setClientesExpandidosLista((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(clienteNome)) {
+        novo.delete(clienteNome);
+      } else {
+        novo.add(clienteNome);
+      }
+      return novo;
+    });
+  }, []);
+
+  const renderTarefasEmLista = (registros, wrapper) => {
+    const lista = document.createElement('div');
+    lista.className = 'painel-usuario-lista-container';
+    lista.style.flex = '1';
+    lista.style.overflowY = 'auto';
+    lista.style.overflowX = 'hidden';
+    lista.style.display = 'flex';
+    lista.style.flexDirection = 'column';
+    lista.style.gap = '0';
+
+    if (registros.length === 0) {
+      const vazio = document.createElement('div');
+      vazio.style.color = '#6b7280';
+      vazio.style.fontSize = '13px';
+      vazio.style.textAlign = 'center';
+      vazio.style.padding = '20px';
+      vazio.textContent = 'Nenhuma tarefa para hoje.';
+      lista.appendChild(vazio);
+    } else {
+      // Agrupar por cliente
+      const gruposPorCliente = registros.reduce((acc, reg) => {
+        const clienteNome = reg.cliente_nome || reg.cliente || getNomeCliente(reg.cliente_id);
+        if (!acc[clienteNome]) acc[clienteNome] = [];
+        acc[clienteNome].push(reg);
+        return acc;
+      }, {});
+
+      Object.entries(gruposPorCliente).forEach(([clienteNome, items]) => {
+        const isExpanded = clientesExpandidosLista.has(clienteNome);
+        
+        // Calcular tempo total do cliente
+        const tempoTotal = items.reduce((sum, reg) => {
+          const tempo = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
+          const valor = Number(tempo) || 0;
+          return sum + (valor >= 1000 ? valor / 3600000 : valor);
+        }, 0);
+        const tempoTotalFormatado = `${tempoTotal.toFixed(1)}h`;
+
+        // Card wrapper para o grupo de cliente
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = 'painel-usuario-cliente-card';
+
+        // Grupo de cliente
+        const grupoDiv = document.createElement('div');
+        grupoDiv.className = 'painel-usuario-grupo-cliente';
+
+        // Header do grupo
+        const header = document.createElement('div');
+        header.className = 'painel-usuario-grupo-cliente-header';
+        header.style.cursor = 'pointer';
+        header.innerHTML = `
+          <div class="painel-usuario-grupo-cliente-header-left">
+            <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'}" style="color: #64748b; font-size: 12px; width: 16px; display: flex; align-items: center; justify-content: center;"></i>
+            <span class="painel-usuario-grupo-badge-orange">CLIENTE</span>
+            <h3 class="painel-usuario-grupo-title">${clienteNome}</h3>
+            ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total"><i class="fas fa-clock" style="color: #2563eb; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}</span>` : ''}
+            <span class="painel-usuario-grupo-count">${items.length}</span>
+          </div>
+        `;
+        header.addEventListener('click', () => {
+          toggleClienteLista(clienteNome);
+        });
+        grupoDiv.appendChild(header);
+
+        // Conteúdo expandido
+        if (isExpanded) {
+          const content = document.createElement('div');
+          content.className = 'painel-usuario-grupo-cliente-content';
+          content.style.background = '#ffffff';
+
+          items.forEach((reg) => {
+            const item = document.createElement('div');
+            item.className = 'painel-usuario-tarefa-item-lista';
+            item.style.border = '1px solid rgb(238, 242, 247)';
+            item.style.borderRadius = '12px';
+            item.style.padding = '12px';
+            item.style.margin = '8px 20px';
+            item.style.background = '#ffffff';
+            item.innerHTML = `
+              <div class="painel-usuario-tarefa-item-lista-content">
+                <div class="painel-usuario-tarefa-item-lista-main">
+                  <div class="painel-usuario-tarefa-item-lista-left">
+                    <div class="painel-usuario-tarefa-nome">
+                      ${getNomeTarefa(reg.tarefa_id)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="painel-usuario-play-btn"
+                    title="Iniciar tarefa (futuro time tracking)"
+                    onclick="console.log('play tarefa', '${reg.tarefa_id || ''}')"
+                  >
+                    <i class="fas fa-play"></i>
+                  </button>
+                </div>
+                <div class="painel-usuario-tarefa-tags">
+                  <span class="painel-usuario-badge-estimado">
+                    <i class="fas fa-clock painel-usuario-estimado-icon-inline"></i>
+                    <span class="painel-usuario-estimado-label">Estimado:</span>
+                    <span class="painel-usuario-estimado-pill">
+                      ${formatarTempoComCusto(reg.tempo_estimado_dia || reg.tempo_estimado_total || 0)}
+                    </span>
+                  </span>
+                  <span class="painel-usuario-badge-realizado">
+                    <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                    <span class="painel-usuario-realizado-label">Realizado:</span>
+                    <span class="painel-usuario-realizado-pill">1h</span>
+                  </span>
+                </div>
+              </div>
+            `;
+            content.appendChild(item);
+          });
+
+          grupoDiv.appendChild(content);
+        }
+
+        cardWrapper.appendChild(grupoDiv);
+        lista.appendChild(cardWrapper);
+      });
+    }
+
+    wrapper.appendChild(lista);
+  };
+
+  const renderTarefasEmQuadro = (registros, wrapper) => {
 
     const board = document.createElement('div');
     board.style.flex = '1';
@@ -246,7 +512,6 @@ const MIN_H_TAREFAS = 6;
     }
 
     wrapper.appendChild(board);
-    card.appendChild(wrapper);
   };
 
   const carregarNomesRelacionados = async (registros) => {
@@ -629,21 +894,46 @@ const MIN_H_TAREFAS = 6;
       }
 
       if (registros.length > 0) {
-        setTarefasRegistros(registros);
         await carregarNomesRelacionados(registros);
-        renderTarefasNoCard(registros, alvoManual);
+        tarefasRegistrosRef.current = registros;
+        setTarefasRegistros(registros);
+        // Aguardar um tick para garantir que o estado foi atualizado
+        setTimeout(() => {
+          renderTarefasNoCard(registros, alvoManual);
+        }, 0);
       } else {
+        tarefasRegistrosRef.current = [];
         setTarefasRegistros([]);
         renderTarefasNoCard([], alvoManual);
       }
     } catch (e) {
       console.error('[PainelUsuario] Erro ao carregar minhas tarefas:', e);
+      tarefasRegistrosRef.current = [];
       setTarefasRegistros([]);
       renderTarefasNoCard([], alvoManual);
     } finally {
       setCarregandoTarefas(false);
     }
-  }, [usuario, carregarNomesRelacionados, renderTarefasNoCard, garantirTamanhoMinimoTarefas, menuPosicao]);
+  }, [usuario, carregarNomesRelacionados, garantirTamanhoMinimoTarefas, menuPosicao, modoVisualizacao, tarefasRegistros]);
+
+  // Re-renderizar tarefas quando clientes expandidos mudarem (modo lista)
+  useEffect(() => {
+    if (tarefasRegistrosRef.current.length > 0) {
+      // Verifica se há algum card com tarefas renderizadas
+      const cardsComTarefas = document.querySelectorAll('.grid-item-content-board');
+      if (cardsComTarefas.length > 0) {
+        cardsComTarefas.forEach((card) => {
+          const cardId = obterCardId(card);
+          if (cardId) {
+            const modo = obterModoVisualizacao(cardId);
+            if (modo === 'lista') {
+              renderTarefasNoCard(tarefasRegistrosRef.current, card);
+            }
+          }
+        });
+      }
+    }
+  }, [clientesExpandidosLista]);
 
   useEffect(() => {
     /**
