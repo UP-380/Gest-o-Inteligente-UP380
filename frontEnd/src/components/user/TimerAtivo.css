@@ -58,3 +58,355 @@
 .timer-ativo-stop-btn i {
   font-size: 9px;
 }
+
+/* Wrapper para posicionar o dropdown */
+.timer-ativo-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* Dropdown */
+.timer-ativo-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 420px;
+  max-height: 600px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.06);
+  z-index: 1000;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.timer-ativo-dropdown * {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.timer-ativo-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timer-ativo-dropdown::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.timer-ativo-dropdown::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.timer-ativo-dropdown::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Seções do dropdown */
+.timer-dropdown-section {
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.timer-dropdown-section:last-child {
+  border-bottom: none;
+}
+
+.timer-dropdown-header {
+  margin-bottom: 16px;
+}
+
+.timer-dropdown-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0e3b6f;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Tarefa Ativa */
+.timer-dropdown-tarefa-ativa {
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.timer-dropdown-tarefa-nome {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0e3b6f;
+  margin-bottom: 6px;
+}
+
+.timer-dropdown-cliente {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.timer-dropdown-tempo-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.timer-dropdown-tempo-atual {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0e3b6f;
+  font-family: 'Courier New', 'Monaco', monospace; /* Manter fonte monoespaçada para tempo */
+}
+
+.timer-dropdown-tempo-estimado {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.timer-dropdown-data {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+/* Histórico */
+.timer-dropdown-historico {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.timer-dropdown-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.timer-dropdown-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timer-dropdown-dia-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.timer-dropdown-dia-data {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0e3b6f;
+}
+
+.timer-dropdown-dia-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.timer-dropdown-registros {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timer-dropdown-registro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.timer-dropdown-registro:hover {
+  background: #f8f9fa;
+  border-color: #d1d5db;
+}
+
+.timer-dropdown-registro-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timer-dropdown-registro-tempo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0e3b6f;
+  font-family: 'Courier New', 'Monaco', monospace; /* Manter fonte monoespaçada para tempo */
+}
+
+.timer-dropdown-registro-periodo {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.timer-dropdown-registro-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Botões de ação - usar os mesmos estilos das tabelas */
+/* Os botões EditButton e DeleteButton já vêm com os estilos corretos do ActionButtons.css */
+
+/* Modal de Edição */
+.timer-edit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.timer-edit-modal-content {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.timer-edit-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.timer-edit-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.timer-edit-modal-close {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.timer-edit-modal-close:hover {
+  background: #f1f5f9;
+  color: #374151;
+}
+
+.timer-edit-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.timer-edit-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timer-edit-form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.timer-edit-input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2937;
+  transition: all 0.2s;
+}
+
+.timer-edit-input:focus {
+  outline: none;
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.timer-edit-tempo-display {
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  font-family: 'Courier New', 'Monaco', monospace;
+}
+
+.timer-edit-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.timer-edit-modal-footer .btn-secondary,
+.timer-edit-modal-footer .btn-primary {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.timer-edit-modal-footer .btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.timer-edit-modal-footer .btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+.timer-edit-modal-footer .btn-primary {
+  background: #0e3b6f;
+  color: #ffffff;
+}
+
+.timer-edit-modal-footer .btn-primary:hover {
+  background: #0a2d4f;
+}

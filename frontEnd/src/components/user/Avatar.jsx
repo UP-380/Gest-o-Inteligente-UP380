@@ -61,17 +61,28 @@ const Avatar = ({
   const [customImagePathState, setCustomImagePathState] = useState(customImagePath);
   const [loadingCustomImage, setLoadingCustomImage] = useState(false);
   const [hasTriedFetch, setHasTriedFetch] = useState(false); // Flag para evitar requisições repetidas
+  const [imageLoaded, setImageLoaded] = useState(false); // Flag para controlar quando a imagem carregou
+
+  // Resetar estado quando avatarId ou customImagePath mudarem
+  useEffect(() => {
+    setCustomImagePathState(customImagePath);
+    setHasTriedFetch(false);
+    setLoadingCustomImage(false);
+    setImageLoaded(false);
+  }, [avatarId, customImagePath]);
 
   // Usar o caminho fornecido como prop ou buscar via API (APENAS UMA VEZ)
   useEffect(() => {
-    // Se já temos o caminho fornecido como prop, usar ele
+    // Se já temos o caminho fornecido como prop, usar ele (prioridade máxima)
     if (customImagePath) {
       setCustomImagePathState(customImagePath);
+      setHasTriedFetch(true); // Marcar como tentado para não buscar via API
       return;
     }
     
     // Se é avatar customizado, ainda não temos caminho, e ainda não tentamos buscar
-    if (avatarConfig?.type === 'custom' && !customImagePathState && !loadingCustomImage && !hasTriedFetch) {
+    // IMPORTANTE: Só buscar via API se NÃO tivermos customImagePath como prop
+    if (avatarConfig?.type === 'custom' && !customImagePath && !customImagePathState && !loadingCustomImage && !hasTriedFetch) {
       setLoadingCustomImage(true);
       setHasTriedFetch(true); // Marcar que já tentamos, mesmo se falhar
       
@@ -88,7 +99,7 @@ const Avatar = ({
           setLoadingCustomImage(false);
         });
     }
-  }, [avatarConfig?.type, customImagePath]); // Remover dependências problemáticas
+  }, [avatarConfig?.type, customImagePath, avatarId, customImagePathState, loadingCustomImage, hasTriedFetch]);
 
   // Classes CSS baseadas no tamanho
   const sizeClass = `avatar-${size}`;
@@ -127,10 +138,36 @@ const Avatar = ({
     
     return (
       <div className={`${baseClass} user-avatar-image`}>
+        {/* Placeholder enquanto carrega */}
+        {!imageLoaded && (
+          <div
+            className="avatar-placeholder"
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(135deg, #e2e8f0, #cbd5e1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%',
+              fontSize: '0.7em',
+              color: '#94a3b8'
+            }}
+          >
+            {getInitialsFromName(nomeUsuario)}
+          </div>
+        )}
         <img
           src={imagePath}
           alt={nomeUsuario || 'Avatar'}
+          loading="lazy"
+          decoding="async"
+          fetchpriority="low"
+          style={{ opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.3s ease' }}
+          onLoad={() => setImageLoaded(true)}
           onError={(e) => {
+            setImageLoaded(false);
             // Fallback para avatar com iniciais se a imagem não carregar
             // Prevenir tentativas repetidas de carregar a mesma imagem
             e.target.style.display = 'none';
@@ -143,7 +180,6 @@ const Avatar = ({
               parent.classList.add('avatar-fallback-applied');
             }
           }}
-          loading="lazy"
         />
       </div>
     );

@@ -384,38 +384,14 @@
   flex: 1;
 }
 
-.atribuicoes-group-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 8px;
-  background: #eef2ff;
-  color: #1e3a8a;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
 .atribuicoes-group-tempo-total {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  background: #eef2ff;
-  color: #1e3a8a;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
+  background: #fef3c7;
+  color: #d97706;
 }
 
-.atribuicoes-group-custo-total {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  background: #f0fdf4;
-  color: #059669;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+.atribuicoes-group-tempo-realizado {
+  background: #dbeafe;
+  color: #2563eb;
 }
 
 .atribuicoes-group-header-actions {
@@ -496,6 +472,14 @@
   font-size: 11px;
   color: #334155;
   vertical-align: top;
+}
+
+/* Permitir múltiplas tarefas por linha na coluna "Tarefas Agrupadas" */
+.atribuicoes-table td:has(.atribuicoes-tag-clickable) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
 }
 
 .atribuicoes-tag {
@@ -913,18 +897,46 @@
 }
 
 .barra-progresso-tempo-valor {
-  color: #ff9800;
   font-size: 18px;
   line-height: 1.2;
   font-weight: 700;
   text-align: left;
 }
 
+.barra-progresso-tempo-valor.estimado {
+  color: #f59e0b;
+}
+
+.barra-progresso-tempo-valor.realizado {
+  color: #2563eb;
+}
+
 .barra-progresso-tempo-custo {
   font-size: 12px;
-  color: #ff9800;
   font-weight: 600;
   text-align: left;
+}
+
+.barra-progresso-tempo-custo.estimado {
+  color: #f59e0b;
+}
+
+.barra-progresso-tempo-custo.realizado {
+  color: #2563eb;
+}
+
+.barra-progresso-tempo-custo-estimado {
+  font-size: 10px;
+  color: #f59e0b;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.barra-progresso-tempo-custo-realizado {
+  font-size: 10px;
+  color: #2563eb;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .barra-progresso-tempo-range {
@@ -941,19 +953,26 @@
   position: absolute;
   top: 0;
   left: 0;
-  background-color: #ff9800;
   height: 100%;
   border-radius: 4px;
   transition: width 0.3s ease;
 }
 
+.barra-progresso-tempo-fill.estimado {
+  background-color: #f59e0b;
+  z-index: 2;
+}
+
+.barra-progresso-tempo-fill.realizado {
+  background-color: #2563eb;
+  z-index: 3;
+}
+
 .barra-progresso-tempo-legenda {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 152, 0, 0.2);
 }
 
 .barra-progresso-tempo-item {
@@ -981,9 +1000,14 @@
   flex-shrink: 0;
 }
 
+.barra-progresso-tempo-indicador.estimado {
+  background: #f59e0b;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3);
+}
+
 .barra-progresso-tempo-indicador.realizado {
-  background: #ff9800;
-  box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
+  background: #2563eb;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
 }
 
 .barra-progresso-tempo-indicador.sobrando {
@@ -1011,6 +1035,18 @@
   background: #ffffff;
   color: #374151;
   border: 1px solid #e5e7eb;
+}
+
+.barra-progresso-tempo-badge.estimado {
+  background: #fef3c7;
+  color: #f59e0b;
+  border: 1px solid #fde68a;
+}
+
+.barra-progresso-tempo-badge.realizado {
+  background: #dbeafe;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
 }
 
 /* Responsividade para legenda */

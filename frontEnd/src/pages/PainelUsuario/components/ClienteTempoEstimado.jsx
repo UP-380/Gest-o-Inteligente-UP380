@@ -6,14 +6,25 @@ import React from 'react';
  * @param {Object} props
  * @param {number} props.tempoEstimadoTotal - Tempo estimado total em horas (formato decimal, ex: 9.0)
  * @param {boolean} props.modoQuadro - Se true, usa estilos do modo quadro (fonte menor)
+ * @param {Function} props.formatarTempoHMS - Função para formatar tempo em formato HMS (ex: "1h 30min")
  */
 const ClienteTempoEstimado = ({
   tempoEstimadoTotal = 0,
-  modoQuadro = false
+  modoQuadro = false,
+  formatarTempoHMS
 }) => {
   if (tempoEstimadoTotal <= 0) return null;
 
-  const tempoEstimadoFormatado = `${tempoEstimadoTotal.toFixed(1)}h`;
+  // Converter horas decimais para milissegundos e formatar
+  let tempoEstimadoFormatado;
+  if (formatarTempoHMS) {
+    const tempoMs = tempoEstimadoTotal * 3600000; // Converter horas para milissegundos
+    tempoEstimadoFormatado = formatarTempoHMS(tempoMs);
+  } else {
+    // Fallback para formato decimal se não tiver função de formatação
+    tempoEstimadoFormatado = `${tempoEstimadoTotal.toFixed(1)}h`;
+  }
+  
   const className = modoQuadro 
     ? 'painel-usuario-grupo-tempo-total has-tooltip painel-usuario-quadro-tempo'
     : 'painel-usuario-grupo-tempo-total has-tooltip';
@@ -28,4 +39,5 @@ const ClienteTempoEstimado = ({
 };
 
 export default ClienteTempoEstimado;
+
 

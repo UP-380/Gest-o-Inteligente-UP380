@@ -260,11 +260,11 @@ async function getTarefasPorIds(req, res) {
       });
     }
 
-    // Usar a mesma abordagem que funciona no dashboard-clientes.js
+    // Buscar da tabela cp_tarefa, coluna 'nome'
     const { data: tarefas, error: tarefasError } = await supabase
       .schema('up_gestaointeligente')
-      .from('tarefa')
-      .select('id, tarefa_nome')
+      .from('cp_tarefa')
+      .select('id, nome')
       .in('id', tarefaIds);
 
     if (tarefasError) {
@@ -276,10 +276,10 @@ async function getTarefasPorIds(req, res) {
       });
     }
 
-    // Criar mapa de ID -> tarefa_nome (igual ao dashboard-clientes.js)
+    // Criar mapa de ID -> nome
     const tarefasMap = {};
     (tarefas || []).forEach(tarefa => {
-      tarefasMap[tarefa.id] = tarefa.tarefa_nome || null;
+      tarefasMap[tarefa.id] = tarefa.nome || null;
     });
 
     res.json({

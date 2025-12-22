@@ -24,6 +24,10 @@ const PainelUsuario = () => {
   const [tarefasRegistros, setTarefasRegistros] = useState([]);
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [clientesExpandidosLista, setClientesExpandidosLista] = useState(new Set()); // para controlar expansão de clientes na lista
+  const [timetracksExpandidos, setTimetracksExpandidos] = useState(new Set()); // para controlar expansão de timetracks individuais
+  const timetracksExpandidosRef = useRef(new Set()); // Ref para acesso síncrono ao estado de expansão
+  const [timetracksData, setTimetracksData] = useState(new Map()); // Map<chave, registros[]> - cache de registros de tempo
+  const timetracksDataRef = useRef(new Map()); // Ref para acesso síncrono aos dados
   const [modoVisualizacao, setModoVisualizacao] = useState({}); // objeto com { cardId: 'quadro' | 'lista' }
   const [nomesCache, setNomesCache] = useState({
     produtos: {},
@@ -31,8 +35,19 @@ const PainelUsuario = () => {
     clientes: {},
     colaboradores: {}
   });
+  const nomesCacheRef = useRef({
+    produtos: {},
+    tarefas: {},
+    clientes: {},
+    colaboradores: {}
+  });
   const [clientesListaCache, setClientesListaCache] = useState(null);
   const [colaboradoresCache, setColaboradoresCache] = useState([]);
+  
+  // Sincronizar ref com estado do cache
+  useEffect(() => {
+    nomesCacheRef.current = nomesCache;
+  }, [nomesCache]);
   const inicializadoRef = useRef(false);
   const tarefasRegistrosRef = useRef([]);
   const [registrosAtivos, setRegistrosAtivos] = useState(new Map()); // Map<tarefa_id, { registro_id, data_inicio }>
@@ -100,16 +115,37 @@ const MIN_H_TAREFAS = 6;
   };
 
   const getNomeProduto = (id) => nomesCache.produtos[String(id)] || `Produto #${id}`;
-  const getNomeTarefa = (id) => nomesCache.tarefas[String(id)] || `Tarefa #${id}`;
+  const getNomeTarefa = (id, registro = null) => {
+    const idStr = String(id);
+    // Primeiro tentar usar o nome do registro se disponível (mais confiável)
+    if (registro && registro.tarefa_nome) {
+      return registro.tarefa_nome;
+    }
+    // Depois tentar o cache (usar ref para garantir valor atualizado)
+    const cacheAtual = nomesCacheRef.current;
+    if (cacheAtual.tarefas && cacheAtual.tarefas[idStr]) {
+      return cacheAtual.tarefas[idStr];
+    }
+    // Também tentar o estado (para compatibilidade)
+    if (nomesCache.tarefas && nomesCache.tarefas[idStr]) {
+      return nomesCache.tarefas[idStr];
+    }
+    // Fallback
+    console.warn(`[PainelUsuario] Nome não encontrado para tarefa ${idStr}. Cache:`, cacheAtual.tarefas);
+    return `Tarefa #${idStr}`;
+  };
   const getNomeCliente = (id) => nomesCache.clientes[String(id)] || `Cliente #${id}`;
   const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || `Colaborador #${id}`;
 
   const formatarTempoComCusto = (tempo, responsavelId) => {
     const valor = Number(tempo) || 0;
-    // Se for milissegundos, converte para horas
-    const horas = valor >= 1000 ? valor / 3600000 : valor;
-    const horasFormatadas = Number.isInteger(horas) ? horas : horas.toFixed(1);
-    return `${horasFormatadas}h`;
+    // Se for milissegundos, usa formatarTempoHMS diretamente
+    if (valor >= 1000) {
+      return formatarTempoHMS(valor);
+    }
+    // Se for horas decimais, converte para milissegundos primeiro
+    const milissegundos = valor * 3600000;
+    return formatarTempoHMS(milissegundos);
   };
 
   // Função para formatar milissegundos em formato legível (ex: "2min 25s" ou "1h 2min 25s")
@@ -169,6 +205,188 @@ const MIN_H_TAREFAS = 6;
     return formatarTempoHMS(tempoRealizadoMs);
   }, [criarChaveTempo]);
 
+  // Função para obter tempo realizado em milissegundos
+  const obterTempoRealizadoMs = useCallback((reg) => {
+    const chaveTempo = criarChaveTempo(reg);
+    if (!chaveTempo) return 0;
+    
+    return temposRealizadosRef.current.get(chaveTempo) || 0;
+  }, [criarChaveTempo]);
+
+  // Sincronizar refs com estados
+  useEffect(() => {
+    timetracksDataRef.current = timetracksData;
+  }, [timetracksData]);
+  
+  useEffect(() => {
+    timetracksExpandidosRef.current = timetracksExpandidos;
+  }, [timetracksExpandidos]);
+
+  // Função para buscar registros de tempo individuais de uma tarefa
+  const buscarRegistrosTimetrack = useCallback(async (reg) => {
+    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+    if (!tempoEstimadoId) return [];
+    
+    const chaveTimetrack = criarChaveTempo(reg);
+    if (!chaveTimetrack) return [];
+    
+    // Verificar se já está no cache (usar ref para acesso síncrono)
+    if (timetracksDataRef.current.has(chaveTimetrack)) {
+      return timetracksDataRef.current.get(chaveTimetrack);
+    }
+    
+    try {
+      const response = await fetch(`/api/registro-tempo/por-tempo-estimado?tempo_estimado_id=${tempoEstimadoId}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const registros = result.data.map(r => ({
+            id: r.id,
+            tempo_realizado: r.tempo_realizado || 0,
+            data_inicio: r.data_inicio,
+            data_fim: r.data_fim,
+            created_at: r.created_at
+          }));
+          
+          // Armazenar no cache (tanto no estado quanto na ref)
+          const novoMap = new Map(timetracksDataRef.current);
+          novoMap.set(chaveTimetrack, registros);
+          timetracksDataRef.current = novoMap;
+          setTimetracksData(novoMap);
+          
+          return registros;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('[PainelUsuario] Erro ao buscar registros timetrack:', error);
+      return [];
+    }
+  }, [criarChaveTempo]);
+
+  // Função para renderizar lista de timetracks individuais
+  const renderizarTimetracksIndividuais = useCallback((reg) => {
+    const chaveTimetrack = criarChaveTempo(reg);
+    if (!chaveTimetrack) return '';
+    
+    // Usar ref para garantir acesso aos dados mais recentes
+    const registros = timetracksDataRef.current.get(chaveTimetrack) || [];
+    
+    if (registros.length === 0) {
+      return '<div style="padding: 8px 0; color: #9ca3af; font-size: 11px; font-style: italic;">Nenhum registro de tempo encontrado</div>';
+    }
+    
+    return `
+      <div class="painel-usuario-timetracks-list" style="margin-top: 8px; padding-left: 12px; display: flex; flex-direction: column; gap: 6px;">
+        ${registros.map((registro, idx) => {
+          const tempoRealizado = Number(registro.tempo_realizado) || 0;
+          let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+          if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
+          const tempoFormatado = formatarTempoHMS(tempoMs);
+          
+          let dataRegistro = null;
+          if (registro.data_inicio) {
+            dataRegistro = new Date(registro.data_inicio);
+          } else if (registro.created_at) {
+            dataRegistro = new Date(registro.created_at);
+          }
+          
+          const dataFormatada = dataRegistro
+            ? dataRegistro.toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            : '';
+          
+          return `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; background: #f9fafb; padding: 6px 10px; border-radius: 6px; border: 1px solid #e5e7eb;">
+              <span style="font-weight: 600; color: #374151;">${tempoFormatado}</span>
+              <span style="color: #6b7280;">${dataFormatada}</span>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }, [timetracksData, formatarTempoHMS, criarChaveTempo]);
+
+  // Função para renderizar barra de progresso de uma tarefa
+  const renderizarBarraProgressoTarefa = useCallback((reg, modo = 'quadro') => {
+    const tempoEstimado = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
+    const tempoRealizado = obterTempoRealizadoMs(reg);
+    
+    if (tempoEstimado <= 0) {
+      return ''; // Não mostrar barra se não houver tempo estimado
+    }
+    
+    // Calcular porcentagem (realizado / estimado * 100)
+    const porcentagem = (tempoRealizado / tempoEstimado) * 100;
+    const porcentagemLimitada = Math.min(100, porcentagem); // Limitar a 100% para a barra base
+    // Limitar a barra de excesso a um máximo de 10% da largura da barra base
+    // Isso garante que sempre apareça quando houver excesso, mas nunca fique muito grande
+    const porcentagemExcessoBruta = porcentagem > 100 ? porcentagem - 100 : 0;
+    const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(10, porcentagemExcessoBruta) : 0;
+    
+    // Cor: laranja padrão (#f59e0b) se <= 100%, vermelho se > 100%
+    const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
+    
+    const porcentagemFormatada = porcentagem.toFixed(0);
+    
+    if (modo === 'quadro') {
+      // Modo quadro: barra abaixo do nome
+      return `
+        <div class="painel-usuario-barra-progresso-wrapper painel-usuario-barra-progresso-quadro" style="margin-top: 8px;">
+          <div class="painel-usuario-barra-progresso-container">
+            <div class="painel-usuario-barra-progresso-base painel-usuario-barra-progresso-base-quadro">
+              <div 
+                class="painel-usuario-barra-progresso-fill" 
+                style="width: ${porcentagemLimitada}%; background: ${corBarra};"
+              ></div>
+              ${porcentagemExcesso > 0 ? `
+                <div 
+                  class="painel-usuario-barra-progresso-fill-excesso" 
+                  style="width: ${porcentagemExcesso}%; background: #dc2626; left: 100%;"
+                ></div>
+              ` : ''}
+            </div>
+            <div class="painel-usuario-barra-progresso-label" style="color: ${porcentagem > 100 ? '#dc2626' : '#6b7280'};">
+              ${porcentagemFormatada}%
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      // Modo lista: barra ao lado do tempo realizado
+      return `
+        <div class="painel-usuario-barra-progresso-wrapper painel-usuario-barra-progresso-lista">
+          <div class="painel-usuario-barra-progresso-container">
+            <div class="painel-usuario-barra-progresso-base">
+              <div 
+                class="painel-usuario-barra-progresso-fill" 
+                style="width: ${porcentagemLimitada}%; background: ${corBarra};"
+              ></div>
+              ${porcentagemExcesso > 0 ? `
+                <div 
+                  class="painel-usuario-barra-progresso-fill-excesso" 
+                  style="width: ${porcentagemExcesso}%; background: #dc2626; left: 100%;"
+                ></div>
+              ` : ''}
+            </div>
+            <div class="painel-usuario-barra-progresso-label" style="color: ${porcentagem > 100 ? '#dc2626' : '#6b7280'};">
+              ${porcentagemFormatada}%
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }, [obterTempoRealizadoMs]);
+
   // Função para buscar tempo realizado de uma tarefa específica
   const buscarTempoRealizado = useCallback(async (reg) => {
     if (!usuario?.id) return 0;
@@ -209,7 +427,62 @@ const MIN_H_TAREFAS = 6;
       // Verificar se já existe registro ativo para esta tarefa neste cliente
       const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
       if (registrosAtivosRef.current.has(chaveRegistro)) {
-        return; // Já existe registro ativo
+        return; // Já existe registro ativo para esta tarefa
+      }
+
+      // ANTES DE INICIAR: Parar qualquer registro ativo anterior
+      // Não é permitido ter mais de um registro ativo ao mesmo tempo
+      if (registrosAtivosRef.current.size > 0) {
+        // Encontrar o primeiro registro ativo
+        const [chaveRegistroAtivo, registroAtivo] = Array.from(registrosAtivosRef.current.entries())[0];
+        
+        // Buscar o registro completo nas tarefas registradas
+        const [clienteIdAtivo, tarefaIdAtivo] = chaveRegistroAtivo.split('_');
+        const regAtivo = tarefasRegistrosRef.current.find(r => 
+          String(r.cliente_id).trim() === clienteIdAtivo && 
+          String(r.tarefa_id).trim() === tarefaIdAtivo
+        );
+        
+        // Se encontrou o registro completo, parar o registro ativo
+        if (regAtivo && registroAtivo?.registro_id) {
+          try {
+            const response = await fetch(`/api/registro-tempo/finalizar/${registroAtivo.registro_id}`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                tarefa_id: String(regAtivo.tarefa_id).trim(),
+                usuario_id: parseInt(usuario.id, 10)
+              })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+              // Remover do estado de registros ativos
+              const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
+              novoRegistrosAtivos.delete(chaveRegistroAtivo);
+              registrosAtivosRef.current = novoRegistrosAtivos;
+              setRegistrosAtivos(novoRegistrosAtivos);
+
+              // Atualizar tempo realizado da tarefa anterior
+              const chaveTempoAnterior = criarChaveTempo(regAtivo);
+              if (chaveTempoAnterior) {
+                const tempoRealizado = await buscarTempoRealizado(regAtivo);
+                const novosTempos = new Map(temposRealizadosRef.current);
+                novosTempos.set(chaveTempoAnterior, tempoRealizado);
+                temposRealizadosRef.current = novosTempos;
+                setTemposRealizados(novosTempos);
+              }
+            }
+          } catch (error) {
+            console.warn('[TimeTracking] Erro ao parar registro anterior:', error);
+            // Continua mesmo se houver erro ao parar o anterior
+          }
+        }
       }
 
       // Buscar o ID do tempo_estimado
@@ -759,7 +1032,9 @@ const MIN_H_TAREFAS = 6;
           const valor = Number(tempo) || 0;
           return sum + (valor >= 1000 ? valor / 3600000 : valor);
         }, 0);
-        const tempoTotalFormatado = `${tempoTotal.toFixed(1)}h`;
+        // Converter horas decimais para milissegundos e formatar em hora/minuto
+        const tempoTotalMs = tempoTotal * 3600000;
+        const tempoTotalFormatado = formatarTempoHMS(tempoTotalMs);
 
         // Calcular tempo realizado total do cliente
         const tempoRealizadoTotal = items.reduce((sum, reg) => {
@@ -846,19 +1121,37 @@ const MIN_H_TAREFAS = 6;
                 <div class="painel-usuario-tarefa-item-lista-main">
                   <div class="painel-usuario-tarefa-item-lista-left">
                     <div class="painel-usuario-tarefa-nome">
-                      ${getNomeTarefa(reg.tarefa_id)}
+                      ${getNomeTarefa(reg.tarefa_id, reg)}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    class="${btnClass}"
-                    title="${btnTitle}"
-                    data-tarefa-id="${reg.tarefa_id || ''}"
-                    data-cliente-id="${reg.cliente_id || ''}"
-                    data-action="${btnAction}"
-                  >
-                    <i class="fas ${btnIcon}"></i>
-                  </button>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <button
+                      type="button"
+                      class="${btnClass}"
+                      title="${btnTitle}"
+                      data-tarefa-id="${reg.tarefa_id || ''}"
+                      data-cliente-id="${reg.cliente_id || ''}"
+                      data-action="${btnAction}"
+                    >
+                      <i class="fas ${btnIcon}"></i>
+                    </button>
+                    ${(() => {
+                      const chaveTimetrack = criarChaveTempo(reg);
+                      const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                      return `
+                        <button
+                          type="button"
+                          class="painel-usuario-expand-timetrack-btn"
+                          title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                          data-chave-timetrack="${chaveTimetrack}"
+                          style="background: transparent; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 6px; cursor: pointer; color: #6b7280; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;"
+                        >
+                          <i class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}" style="font-size: 9px;"></i>
+                          <span>Timetrack</span>
+                        </button>
+                      `;
+                    })()}
+                  </div>
                 </div>
                 <div class="painel-usuario-tarefa-tags painel-usuario-tarefa-tags-lista">
                   <span class="painel-usuario-badge-estimado">
@@ -873,12 +1166,20 @@ const MIN_H_TAREFAS = 6;
                     <span class="painel-usuario-realizado-label">Realizado:</span>
                     <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
                   </span>
+                  ${renderizarBarraProgressoTarefa(reg, 'lista')}
+                </div>
+                <div class="painel-usuario-timetracks-container">
+                  ${(() => {
+                    const chaveTimetrack = criarChaveTempo(reg);
+                    const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                    return isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
+                  })()}
                 </div>
               </div>
             `;
             
-            // Adicionar event listener ao botão - apenas o botão deve capturar cliques
-            const btn = item.querySelector('button');
+            // Adicionar event listener ao botão play/stop
+            const btn = item.querySelector(`button[data-action]`);
             if (btn) {
               btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -889,6 +1190,75 @@ const MIN_H_TAREFAS = 6;
                 } else if (action === 'parar') {
                   pararRegistroTempo(reg);
                 }
+              });
+            }
+            
+            // Adicionar event listener ao botão de expandir timetrack
+            const expandBtn = item.querySelector('.painel-usuario-expand-timetrack-btn');
+            if (expandBtn) {
+              // Remover listeners anteriores para evitar duplicação
+              const newExpandBtn = expandBtn.cloneNode(true);
+              expandBtn.parentNode.replaceChild(newExpandBtn, expandBtn);
+              
+              newExpandBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const chave = newExpandBtn.getAttribute('data-chave-timetrack');
+                if (!chave) return;
+                
+                // Usar ref para verificar estado atual (mais confiável)
+                const estavaExpandido = timetracksExpandidosRef.current.has(chave);
+                const novoExpandidos = new Set(timetracksExpandidosRef.current);
+                
+                if (estavaExpandido) {
+                  novoExpandidos.delete(chave);
+                } else {
+                  novoExpandidos.add(chave);
+                }
+                
+                // Atualizar ref imediatamente
+                timetracksExpandidosRef.current = novoExpandidos;
+                // Atualizar estado (para sincronizar com React)
+                setTimetracksExpandidos(novoExpandidos);
+                
+                const isTimetrackExpanded = novoExpandidos.has(chave);
+                
+                // Se está expandindo, buscar dados se necessário
+                if (isTimetrackExpanded && !timetracksDataRef.current.has(chave)) {
+                  await buscarRegistrosTimetrack(reg);
+                  await new Promise(resolve => setTimeout(resolve, 10));
+                }
+                
+                // Renderizar timetracks
+                const timetracksHtml = isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
+                
+                // Encontrar o container de timetracks dentro do item-lista-content
+                const itemContent = item.querySelector('.painel-usuario-tarefa-item-lista-content');
+                let timetracksContainer = itemContent ? itemContent.querySelector('.painel-usuario-timetracks-container') : null;
+                
+                if (!timetracksContainer && itemContent) {
+                  // Se não existe, criar e adicionar após os tags
+                  timetracksContainer = document.createElement('div');
+                  timetracksContainer.className = 'painel-usuario-timetracks-container';
+                  const tagsContainer = itemContent.querySelector('.painel-usuario-tarefa-tags');
+                  if (tagsContainer && tagsContainer.parentNode) {
+                    tagsContainer.parentNode.insertBefore(timetracksContainer, tagsContainer.nextSibling);
+                  } else {
+                    itemContent.appendChild(timetracksContainer);
+                  }
+                }
+                
+                if (timetracksContainer) {
+                  timetracksContainer.innerHTML = timetracksHtml;
+                }
+                
+                // Atualizar ícone do botão
+                const icon = newExpandBtn.querySelector('i');
+                if (icon) {
+                  icon.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}`;
+                  icon.style.fontSize = '9px';
+                }
+                newExpandBtn.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
               });
             }
             
@@ -1026,21 +1396,37 @@ const MIN_H_TAREFAS = 6;
           const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
           const btnAction = isAtivo ? 'parar' : 'iniciar';
           
+          const chaveTimetrack = criarChaveTempo(reg);
+          const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+          
           item.innerHTML = `
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
-                ${getNomeTarefa(reg.tarefa_id)}
+                ${getNomeTarefa(reg.tarefa_id, reg)}
               </div>
-              <button
-                type="button"
-                class="${btnClass}"
-                title="${btnTitle}"
-                data-tarefa-id="${reg.tarefa_id || ''}"
-                data-action="${btnAction}"
-              >
-                <i class="fas ${btnIcon}"></i>
-              </button>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button
+                  type="button"
+                  class="${btnClass}"
+                  title="${btnTitle}"
+                  data-tarefa-id="${reg.tarefa_id || ''}"
+                  data-action="${btnAction}"
+                >
+                  <i class="fas ${btnIcon}"></i>
+                </button>
+                <button
+                  type="button"
+                  class="painel-usuario-expand-timetrack-btn"
+                  title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                  data-chave-timetrack="${chaveTimetrack}"
+                  style="background: transparent; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 6px; cursor: pointer; color: #6b7280; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;"
+                >
+                  <i class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}" style="font-size: 9px;"></i>
+                  <span>Timetrack</span>
+                </button>
+              </div>
             </div>
+            ${renderizarBarraProgressoTarefa(reg, 'quadro')}
             <div class="painel-usuario-tarefa-tags">
               <span class="painel-usuario-badge-estimado">
                 <i class="fas fa-clock painel-usuario-estimado-icon-inline"></i>
@@ -1055,10 +1441,13 @@ const MIN_H_TAREFAS = 6;
                 <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
               </span>
             </div>
+            <div class="painel-usuario-timetracks-container">
+              ${isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : ''}
+            </div>
           `;
           
-          // Adicionar event listener ao botão
-          const btn = item.querySelector('button');
+          // Adicionar event listener ao botão play/stop
+          const btn = item.querySelector(`button[data-action]`);
           if (btn) {
             btn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -1068,6 +1457,63 @@ const MIN_H_TAREFAS = 6;
               } else if (action === 'parar') {
                 pararRegistroTempo(reg);
               }
+            });
+          }
+          
+          // Adicionar event listener ao botão de expandir timetrack
+          const expandBtn = item.querySelector('.painel-usuario-expand-timetrack-btn');
+          if (expandBtn) {
+            // Remover listeners anteriores para evitar duplicação
+            const newExpandBtn = expandBtn.cloneNode(true);
+            expandBtn.parentNode.replaceChild(newExpandBtn, expandBtn);
+            
+            newExpandBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const chave = newExpandBtn.getAttribute('data-chave-timetrack');
+              if (!chave) return;
+              
+              // Usar ref para verificar estado atual (mais confiável)
+              const estavaExpandido = timetracksExpandidosRef.current.has(chave);
+              const novoExpandidos = new Set(timetracksExpandidosRef.current);
+              
+              if (estavaExpandido) {
+                novoExpandidos.delete(chave);
+              } else {
+                novoExpandidos.add(chave);
+              }
+              
+              // Atualizar ref imediatamente
+              timetracksExpandidosRef.current = novoExpandidos;
+              // Atualizar estado (para sincronizar com React)
+              setTimetracksExpandidos(novoExpandidos);
+              
+              const isTimetrackExpanded = novoExpandidos.has(chave);
+              
+              // Se está expandindo, buscar dados se necessário
+              if (isTimetrackExpanded && !timetracksDataRef.current.has(chave)) {
+                await buscarRegistrosTimetrack(reg);
+                await new Promise(resolve => setTimeout(resolve, 10));
+              }
+              
+              // Renderizar timetracks
+              const timetracksHtml = isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
+              
+              // Encontrar o container de timetracks ou criar um novo
+              let timetracksContainer = item.querySelector('.painel-usuario-timetracks-container');
+              if (!timetracksContainer) {
+                timetracksContainer = document.createElement('div');
+                timetracksContainer.className = 'painel-usuario-timetracks-container';
+                item.appendChild(timetracksContainer);
+              }
+              timetracksContainer.innerHTML = timetracksHtml;
+              
+              // Atualizar ícone do botão
+              const icon = newExpandBtn.querySelector('i');
+              if (icon) {
+                icon.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}`;
+                icon.style.fontSize = '9px';
+              }
+              newExpandBtn.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
             });
           }
           
@@ -1111,48 +1557,162 @@ const MIN_H_TAREFAS = 6;
     });
 
     const novos = { ...nomesCache };
-    const fetchNome = async (tipo, id) => {
-      if (novos[tipo][id]) return;
-      // Para clientes, tenta usar cache de lista em vez de chamar /clientes/:id
-      if (tipo === 'clientes') {
-        const lista = await carregarClientesLista();
-        if (lista && lista[id]) {
-          novos[tipo][id] = lista[id];
-          return;
-        }
-        novos[tipo][id] = `${tipo.slice(0, -1)} #${id}`;
-        return;
-      }
+    
+    // Buscar tarefas/atividades em lote usando a rota de múltiplos IDs
+    if (tarefasIds.size > 0) {
       try {
-        const response = await fetch(`/api/${tipo === 'tarefas' ? 'atividades' : tipo}/${id}`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            const nome =
-              result.data.nome ||
-              result.data.razao_social ||
-              result.data.nome_fantasia ||
-              result.data.nomecolaborador;
-            novos[tipo][id] = nome || `${tipo.slice(0, -1)} #${id}`;
+        const tarefasIdsArray = Array.from(tarefasIds);
+        const tarefasFaltando = tarefasIdsArray.filter(id => !novos.tarefas[id]);
+        
+        if (tarefasFaltando.length > 0) {
+          // Usar a rota de múltiplos IDs para buscar todas as tarefas de uma vez
+          const idsParam = tarefasFaltando.join(',');
+          console.log('[PainelUsuario] Buscando nomes de tarefas para IDs:', tarefasFaltando);
+          
+          const response = await fetch(`/api/tarefas-por-ids?ids=${idsParam}`, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            console.log('[PainelUsuario] Resposta da API tarefas-por-ids:', result);
+            
+            if (result.success && result.data) {
+              // result.data é um objeto { id: nome }
+              // Os IDs podem vir como números ou strings, garantir que sejam strings
+              Object.entries(result.data).forEach(([id, nome]) => {
+                const idStr = String(id);
+                if (nome && nome.trim()) {
+                  novos.tarefas[idStr] = nome.trim();
+                  console.log(`[PainelUsuario] Nome carregado para tarefa ${idStr}:`, nome.trim());
+                } else {
+                  novos.tarefas[idStr] = `tarefa #${idStr}`;
+                  console.warn(`[PainelUsuario] Nome vazio para tarefa ${idStr}, usando fallback`);
+                }
+              });
+            } else {
+              console.warn('[PainelUsuario] Resposta da API não contém dados válidos:', result);
+            }
           } else {
-            novos[tipo][id] = `${tipo.slice(0, -1)} #${id}`;
+            console.warn('[PainelUsuario] Erro ao buscar tarefas por IDs:', response.status, response.statusText);
           }
-        } else {
-          novos[tipo][id] = `${tipo.slice(0, -1)} #${id}`;
+          
+          // Para tarefas que não foram encontradas na busca em lote, usar fallback
+          tarefasFaltando.forEach(id => {
+            const idStr = String(id);
+            if (!novos.tarefas[idStr]) {
+              novos.tarefas[idStr] = `tarefa #${idStr}`;
+              console.warn(`[PainelUsuario] Tarefa ${idStr} não encontrada na API, usando fallback`);
+            }
+          });
         }
       } catch (err) {
-        novos[tipo][id] = `${tipo.slice(0, -1)} #${id}`;
+        console.warn('[PainelUsuario] Erro ao carregar tarefas:', err);
+        // Em caso de erro, usar fallback para todas as tarefas faltando
+        Array.from(tarefasIds).forEach(id => {
+          if (!novos.tarefas[id]) {
+            novos.tarefas[id] = `tarefa #${id}`;
+          }
+        });
       }
-    };
+    }
+    
+    // Buscar produtos em lote usando a rota de múltiplos IDs
+    if (produtosIds.size > 0) {
+      try {
+        const produtosIdsArray = Array.from(produtosIds);
+        const produtosFaltando = produtosIdsArray.filter(id => !novos.produtos[id]);
+        
+        if (produtosFaltando.length > 0) {
+          // Usar a rota de múltiplos IDs para buscar todas os produtos de uma vez
+          const idsParam = produtosFaltando.join(',');
+          const response = await fetch(`/api/produtos-por-ids-numericos?ids=${idsParam}`, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' }
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              // result.data é um objeto { id: nome }
+              Object.entries(result.data).forEach(([id, nome]) => {
+                if (nome) {
+                  novos.produtos[String(id)] = nome;
+                } else {
+                  novos.produtos[String(id)] = `produto #${id}`;
+                }
+              });
+            }
+          }
+          
+          // Para produtos que não foram encontrados na busca em lote, usar fallback
+          produtosFaltando.forEach(id => {
+            if (!novos.produtos[id]) {
+              novos.produtos[id] = `produto #${id}`;
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[PainelUsuario] Erro ao carregar produtos:', err);
+        // Em caso de erro, usar fallback para todos os produtos faltando
+        Array.from(produtosIds).forEach(id => {
+          if (!novos.produtos[id]) {
+            novos.produtos[id] = `produto #${id}`;
+          }
+        });
+      }
+    }
+    
+    // Para clientes, tenta usar cache de lista em vez de chamar /clientes/:id
+    if (clientesIds.size > 0) {
+      const clientesIdsArray = Array.from(clientesIds);
+      const clientesFaltando = clientesIdsArray.filter(id => !novos.clientes[id]);
+      if (clientesFaltando.length > 0) {
+        const lista = await carregarClientesLista();
+        clientesFaltando.forEach(id => {
+          if (lista && lista[id]) {
+            novos.clientes[id] = lista[id];
+          } else {
+            novos.clientes[id] = `cliente #${id}`;
+          }
+        });
+      }
+    }
+    
+    // Buscar colaboradores individualmente
+    if (colaboradoresIds.size > 0) {
+      const colaboradoresIdsArray = Array.from(colaboradoresIds);
+      const colaboradoresFaltando = colaboradoresIdsArray.filter(id => !novos.colaboradores[id]);
+      
+      if (colaboradoresFaltando.length > 0) {
+        try {
+          const colaboradoresLista = await carregarColaboradores();
+          if (colaboradoresLista && Array.isArray(colaboradoresLista)) {
+            colaboradoresFaltando.forEach(id => {
+              const colaborador = colaboradoresLista.find(c => String(c.id) === String(id));
+              if (colaborador) {
+                novos.colaboradores[id] = colaborador.nome || `colaborador #${id}`;
+              } else {
+                novos.colaboradores[id] = `colaborador #${id}`;
+              }
+            });
+          } else {
+            colaboradoresFaltando.forEach(id => {
+              novos.colaboradores[id] = `colaborador #${id}`;
+            });
+          }
+        } catch (err) {
+          colaboradoresFaltando.forEach(id => {
+            novos.colaboradores[id] = `colaborador #${id}`;
+          });
+        }
+      }
+    }
 
-    for (const id of produtosIds) await fetchNome('produtos', id);
-    for (const id of tarefasIds) await fetchNome('tarefas', id);
-    for (const id of clientesIds) await fetchNome('clientes', id);
-    for (const id of colaboradoresIds) await fetchNome('colaboradores', id);
-
+    console.log('[PainelUsuario] Atualizando cache de nomes. Tarefas no cache:', Object.keys(novos.tarefas).length, novos.tarefas);
+    // Atualizar tanto o estado quanto a ref
+    nomesCacheRef.current = novos;
     setNomesCache(novos);
   };
 
@@ -1367,7 +1927,7 @@ const MIN_H_TAREFAS = 6;
         console.warn('[PainelUsuario] Falha HTTP ao carregar minhas tarefas', response.status);
       }
 
-      // Filtra em memória apenas registros do dia atual (comparando parte da data, desconsiderando timezone)
+      // Filtra em memória apenas registros do dia atual E do responsável correto
       const ehHoje = (data) => {
         if (!data) return false;
         if (typeof data === 'string') {
@@ -1384,96 +1944,43 @@ const MIN_H_TAREFAS = 6;
           return false;
         }
       };
-      registros = registros.filter((r) => ehHoje(r.data));
-      console.info('[PainelUsuario] Após filtro por data=hoje (memória):', registros.length);
+      
+      // Filtrar por data de hoje E responsável
+      const idsUnicosSet = new Set(idsUnicos);
+      registros = registros.filter((r) => {
+        const dataOk = ehHoje(r.data);
+        const responsavelOk = idsUnicosSet.has(String(r.responsavel_id)) || 
+                             idsUnicosSet.has(Number(r.responsavel_id));
+        return dataOk && responsavelOk;
+      });
+      console.info('[PainelUsuario] Após filtro por data=hoje E responsável (memória):', registros.length);
 
-      // Fallback 1: se nada veio, tenta apenas por data e filtra em memória
-      if (registros.length === 0) {
-        const paramsFallback = new URLSearchParams();
-        paramsFallback.append('data_inicio', dataStr);
-        paramsFallback.append('data_fim', dataStr);
-        paramsFallback.append('limit', '200');
-        paramsFallback.append('page', '1');
-
-        try {
-          const respFallback = await fetch(`/api/tempo-estimado?${paramsFallback}`, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
-          });
-          if (respFallback.ok) {
-            const resultFallback = await respFallback.json();
-            if (resultFallback.success && Array.isArray(resultFallback.data)) {
-              const todos = resultFallback.data;
-              const idsUnicosSet = new Set(idsPossiveis);
-              registros = todos.filter((reg) => {
-                const idMatch =
-                  idsUnicosSet.has(String(reg.responsavel_id || '').trim()) ||
-                  idsUnicosSet.has(String(reg.usuario_id || '').trim()) ||
-                  idsUnicosSet.has(String(reg.membro_id || '').trim()) ||
-                  idsUnicosSet.has(String(reg.colaborador_id || '').trim());
-
-                const nomeRegistro = normalizeText(
-                  reg.responsavel_nome ||
-                    reg.nome_responsavel ||
-                    reg.nomecolaborador ||
-                    reg.nome_colaborador ||
-                    reg.usuario_nome ||
-                    reg.nome ||
-                    ''
-                );
-                const nomeMatch =
-                  nomesPossiveis.length === 0
-                    ? true
-                    : nomesPossiveis.some((n) => n && nomeRegistro.includes(n));
-
-                return (idsUnicosSet.size > 0 ? idMatch : true) && nomeMatch;
-              });
-              console.info('[PainelUsuario] Fallback tarefas (filtradas em memória):', registros.length);
-            }
-          }
-        } catch (err) {
-          console.warn('[PainelUsuario] Erro no fallback de tarefas', err);
-        }
-      }
-
-      // Fallback 2: se ainda nada, tenta apenas por responsável (sem data)
-      if (registros.length === 0) {
-        const paramsResp = new URLSearchParams();
-        paramsResp.append('filtro_responsavel', 'true');
-        idsPossiveis.forEach((id) => paramsResp.append('responsavel_id', id));
-        paramsResp.append('limit', '200');
-        paramsResp.append('page', '1');
-
-        try {
-          const respApenasId = await fetch(`/api/tempo-estimado?${paramsResp}`, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
-          });
-          if (respApenasId.ok) {
-            const resultResp = await respApenasId.json();
-            if (resultResp.success && Array.isArray(resultResp.data)) {
-              registros = resultResp.data;
-              console.info('[PainelUsuario] Fallback só responsavel_id:', registros.length);
-            }
-          }
-        } catch (err) {
-          console.warn('[PainelUsuario] Erro no fallback só responsavel_id', err);
-        }
-      }
+      // Remover fallbacks que podem trazer dados incorretos
+      // Se não encontrou nada, é porque realmente não há tarefas para hoje do usuário
+      // Não fazer fallbacks que buscam sem data ou sem responsável, pois podem trazer dados incorretos
 
       if (registros.length > 0) {
+        // Carregar nomes primeiro e aguardar atualização do cache
         await carregarNomesRelacionados(registros);
+        
+        // Aguardar um tick para garantir que o estado do cache foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Atualizar referência e estado
         tarefasRegistrosRef.current = registros;
         setTarefasRegistros(registros);
+        
         // Verificar registros ativos e buscar tempos realizados antes de renderizar
         await Promise.all([
           verificarRegistrosAtivos(),
           buscarTemposRealizados()
         ]);
-        // Aguardar um tick para garantir que o estado foi atualizado
+        
+        // Aguardar um tick adicional e usar o cache atualizado do estado
         setTimeout(() => {
+          // Forçar re-renderização usando o estado atualizado do cache
           renderTarefasNoCard(registros, alvoManual);
-        }, 0);
+        }, 100);
       } else {
         tarefasRegistrosRef.current = [];
         setTarefasRegistros([]);

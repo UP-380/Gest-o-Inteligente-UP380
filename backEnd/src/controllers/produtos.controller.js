@@ -116,6 +116,71 @@ async function getProdutoPorId(req, res) {
   }
 }
 
+// GET - Buscar produtos por múltiplos IDs
+async function getProdutosPorIds(req, res) {
+  try {
+    const { ids } = req.query;
+    
+    if (!ids) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "ids" é obrigatório. Use: ?ids=id1,id2,id3'
+      });
+    }
+
+    // Converter string de IDs separados por vírgula em array e remover duplicatas
+    const produtoIds = [...new Set(
+      String(ids)
+        .split(',')
+        .map(id => id.trim())
+        .filter(id => id.length > 0)
+    )];
+
+    if (produtoIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {},
+        count: 0
+      });
+    }
+
+    // Buscar produtos por IDs numéricos
+    const { data: produtos, error: produtosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_produto')
+      .select('id, nome')
+      .in('id', produtoIds);
+
+    if (produtosError) {
+      console.error('Erro ao buscar produtos por IDs:', produtosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar produtos',
+        details: produtosError.message
+      });
+    }
+
+    // Criar mapa de ID -> nome
+    const produtosMap = {};
+    (produtos || []).forEach(produto => {
+      produtosMap[String(produto.id)] = produto.nome || null;
+    });
+
+    res.json({
+      success: true,
+      data: produtosMap,
+      count: Object.keys(produtosMap).length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar produtos por IDs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // POST - Criar novo produto
 async function criarProduto(req, res) {
   try {
@@ -386,6 +451,7 @@ async function deletarProduto(req, res) {
 module.exports = {
   getProdutos,
   getProdutoPorId,
+  getProdutosPorIds,
   criarProduto,
   atualizarProduto,
   deletarProduto

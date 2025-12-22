@@ -428,11 +428,317 @@ async function getRegistrosAtivos(req, res) {
   }
 }
 
+// GET - Buscar registros de tempo individuais por tempo_estimado_id
+async function getRegistrosPorTempoEstimado(req, res) {
+  try {
+    const { tempo_estimado_id } = req.query;
+
+    if (!tempo_estimado_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'tempo_estimado_id é obrigatório'
+      });
+    }
+
+    console.log(`[getRegistrosPorTempoEstimado] Buscando registros para tempo_estimado_id: ${tempo_estimado_id}`);
+
+    // Buscar todos os registros para este tempo_estimado_id (incluindo finalizados e não finalizados)
+    // Filtrar apenas registros onde cliente_id NÃO é NULL
+    const { data: registros, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
+      .eq('tempo_estimado_id', String(tempo_estimado_id).trim())
+      .not('cliente_id', 'is', null) // Apenas registros com cliente_id
+      .order('data_inicio', { ascending: false });
+
+    if (error) {
+      console.error('[getRegistrosPorTempoEstimado] Erro ao buscar registros de tempo:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registros de tempo',
+        details: error.message
+      });
+    }
+
+    console.log(`[getRegistrosPorTempoEstimado] Encontrados ${(registros || []).length} registros`);
+
+    return res.json({
+      success: true,
+      data: registros || [],
+      count: (registros || []).length
+    });
+  } catch (error) {
+    console.error('[getRegistrosPorTempoEstimado] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar histórico de registros de tempo de um usuário (finalizados)
+async function getHistoricoRegistros(req, res) {
+  try {
+    const { usuario_id, limite = 50 } = req.query;
+
+    if (!usuario_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'usuario_id é obrigatório'
+      });
+    }
+
+    const usuarioIdInt = parseInt(usuario_id, 10);
+    if (isNaN(usuarioIdInt)) {
+      return res.status(400).json({
+        success: false,
+        error: 'usuario_id deve ser um número válido'
+      });
+    }
+
+    // Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
+    const { data: registros, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, tempo_estimado_id')
+      .eq('usuario_id', usuarioIdInt)
+      .not('data_fim', 'is', null) // Apenas registros finalizados
+      .not('cliente_id', 'is', null) // Apenas registros com cliente_id
+      .order('data_inicio', { ascending: false })
+      .limit(parseInt(limite, 10));
+
+    if (error) {
+      console.error('[getHistoricoRegistros] Erro ao buscar histórico:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar histórico de registros',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: registros || [],
+      count: (registros || []).length
+    });
+  } catch (error) {
+    console.error('[getHistoricoRegistros] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// PUT - Atualizar registro de tempo
+async function atualizarRegistroTempo(req, res) {
+  try {
+    const { id } = req.params;
+    const { tempo_realizado, data_inicio, data_fim } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do registro é obrigatório'
+      });
+    }
+
+    // Validar que pelo menos um campo foi fornecido
+    if (tempo_realizado === undefined && !data_inicio && !data_fim) {
+      return res.status(400).json({
+        success: false,
+        error: 'Pelo menos um campo deve ser fornecido para atualização'
+      });
+    }
+
+    // Buscar registro existente
+    const { data: registroExistente, error: errorBusca } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (errorBusca) {
+      console.error('[atualizarRegistroTempo] Erro ao buscar registro:', errorBusca);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registro',
+        details: errorBusca.message
+      });
+    }
+
+    if (!registroExistente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Registro não encontrado'
+      });
+    }
+
+    // Preparar dados para atualização
+    const dadosUpdate = {};
+
+    // Atualizar data_inicio se fornecida
+    if (data_inicio) {
+      dadosUpdate.data_inicio = new Date(data_inicio).toISOString();
+    }
+
+    // Atualizar data_fim se fornecida
+    if (data_fim) {
+      dadosUpdate.data_fim = new Date(data_fim).toISOString();
+    }
+
+    // Calcular tempo_realizado se data_inicio e data_fim foram fornecidas
+    if (dadosUpdate.data_inicio && dadosUpdate.data_fim) {
+      const inicio = new Date(dadosUpdate.data_inicio);
+      const fim = new Date(dadosUpdate.data_fim);
+      
+      if (fim < inicio) {
+        return res.status(400).json({
+          success: false,
+          error: 'data_fim não pode ser anterior a data_inicio'
+        });
+      }
+
+      dadosUpdate.tempo_realizado = fim.getTime() - inicio.getTime();
+    } else if (tempo_realizado !== undefined) {
+      // Se tempo_realizado foi fornecido diretamente, usar ele
+      dadosUpdate.tempo_realizado = parseInt(tempo_realizado, 10);
+    } else if (dadosUpdate.data_inicio || dadosUpdate.data_fim) {
+      // Se apenas uma data foi atualizada, recalcular tempo_realizado
+      const inicio = dadosUpdate.data_inicio ? new Date(dadosUpdate.data_inicio) : new Date(registroExistente.data_inicio);
+      const fim = dadosUpdate.data_fim ? new Date(dadosUpdate.data_fim) : (registroExistente.data_fim ? new Date(registroExistente.data_fim) : new Date());
+      
+      if (fim < inicio) {
+        return res.status(400).json({
+          success: false,
+          error: 'data_fim não pode ser anterior a data_inicio'
+        });
+      }
+
+      dadosUpdate.tempo_realizado = fim.getTime() - inicio.getTime();
+    }
+
+    console.log('📝 Atualizando registro de tempo:', { id, dadosUpdate });
+
+    // Atualizar registro
+    const { data: registroAtualizado, error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .update(dadosUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[atualizarRegistroTempo] Erro ao atualizar registro:', updateError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao atualizar registro',
+        details: updateError.message
+      });
+    }
+
+    console.log('✅ Registro de tempo atualizado com sucesso:', registroAtualizado.id);
+
+    return res.json({
+      success: true,
+      data: registroAtualizado,
+      message: 'Registro de tempo atualizado com sucesso!'
+    });
+  } catch (error) {
+    console.error('[atualizarRegistroTempo] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// DELETE - Deletar registro de tempo
+async function deletarRegistroTempo(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do registro é obrigatório'
+      });
+    }
+
+    console.log('🗑️ Deletando registro de tempo:', id);
+
+    // Verificar se o registro existe
+    const { data: registroExistente, error: errorBusca } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (errorBusca) {
+      console.error('[deletarRegistroTempo] Erro ao buscar registro:', errorBusca);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registro',
+        details: errorBusca.message
+      });
+    }
+
+    if (!registroExistente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Registro não encontrado'
+      });
+    }
+
+    // Deletar registro
+    const { error: deleteError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('[deletarRegistroTempo] Erro ao deletar registro:', deleteError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao deletar registro',
+        details: deleteError.message
+      });
+    }
+
+    console.log('✅ Registro de tempo deletado com sucesso:', id);
+
+    return res.json({
+      success: true,
+      message: 'Registro de tempo deletado com sucesso!'
+    });
+  } catch (error) {
+    console.error('[deletarRegistroTempo] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   iniciarRegistroTempo,
   finalizarRegistroTempo,
   getRegistroAtivo,
   getTempoRealizado,
-  getRegistrosAtivos
+  getRegistrosAtivos,
+  getRegistrosPorTempoEstimado,
+  getHistoricoRegistros,
+  atualizarRegistroTempo,
+  deletarRegistroTempo
 };
+
 

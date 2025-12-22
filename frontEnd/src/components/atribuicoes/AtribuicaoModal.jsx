@@ -3,6 +3,7 @@ import CustomSelect from '../vinculacoes/CustomSelect';
 import SelectedItemsList from '../vinculacoes/SelectedItemsList';
 import FilterPeriodo from '../filters/FilterPeriodo';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
+import ToggleSwitch from '../common/ToggleSwitch';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI } from '../../services/api';
 import '../vinculacoes/VinculacaoModal.css';
@@ -27,7 +28,10 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
   // Estados de período e responsável
   const [dataInicio, setDataInicio] = useState(null);
   const [dataFim, setDataFim] = useState(null);
-  const [tempoEstimadoDia, setTempoEstimadoDia] = useState(0);
+  const [tempoEstimadoDia, setTempoEstimadoDia] = useState({}); // Objeto: { tarefaId: tempoEmMs }
+  const [tempoGlobalParaAplicar, setTempoGlobalParaAplicar] = useState(0); // Tempo para aplicar em múltiplas tarefas
+  const [tarefasSelecionadasParaTempo, setTarefasSelecionadasParaTempo] = useState(new Set()); // IDs das tarefas selecionadas para aplicar tempo
+  const [modoSelecionarVarios, setModoSelecionarVarios] = useState(false); // Toggle para modo "selecionar vários"
   const [colaboradores, setColaboradores] = useState([]);
   const [responsavelSelecionado, setResponsavelSelecionado] = useState(null);
   const [horasContratadasDia, setHorasContratadasDia] = useState(null);
@@ -120,7 +124,15 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
           setDataInicio(dataInicioStr);
           setDataFim(dataFimStr);
           
-          setTempoEstimadoDia(primeiroRegistro.tempo_estimado_dia || 0);
+          // Criar objeto de tempos por tarefa
+          const temposPorTarefa = {};
+          registros.forEach(reg => {
+            const tarefaId = String(reg.tarefa_id);
+            if (!temposPorTarefa[tarefaId]) {
+              temposPorTarefa[tarefaId] = reg.tempo_estimado_dia || 0;
+            }
+          });
+          setTempoEstimadoDia(temposPorTarefa);
           setResponsavelSelecionado(primeiroRegistro.responsavel_id);
           
           // Buscar horas contratadas do responsável
@@ -143,7 +155,10 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
     setTarefasSelecionadas([]);
     setDataInicio(null);
     setDataFim(null);
-    setTempoEstimadoDia(0);
+    setTempoEstimadoDia({});
+    setTempoGlobalParaAplicar(0);
+    setTarefasSelecionadasParaTempo(new Set());
+    setModoSelecionarVarios(false);
     setResponsavelSelecionado(null);
     setProdutos([]);
     setTarefas([]);
@@ -303,17 +318,18 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
 
   // Validar tempo estimado quando mudar
   useEffect(() => {
-    if (tempoEstimadoDia > 0 && horasContratadasDia && tarefasSelecionadas.length > 0) {
-      // Converter tempo estimado de milissegundos para horas
-      const tempoEstimadoHoras = tempoEstimadoDia / (1000 * 60 * 60);
-      const totalHorasPorDia = tempoEstimadoHoras * tarefasSelecionadas.length;
+    if (horasContratadasDia && tarefasSelecionadas.length > 0) {
+      // Somar todos os tempos individuais das tarefas
+      const totalTempoMs = tarefasSelecionadas.reduce((acc, tarefaId) => {
+        return acc + (tempoEstimadoDia[tarefaId] || 0);
+      }, 0);
+      
+      const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
       
       if (totalHorasPorDia > horasContratadasDia) {
-        const tempoMaximoPorTarefa = horasContratadasDia / tarefasSelecionadas.length;
-        const tempoMaximoMs = tempoMaximoPorTarefa * 1000 * 60 * 60;
         setErroTempoEstimado(
           `O tempo estimado total por dia (${totalHorasPorDia.toFixed(2)}h) ultrapassa as horas contratadas do responsável (${horasContratadasDia}h). ` +
-          `Máximo permitido por tarefa: ${tempoMaximoPorTarefa.toFixed(2)}h (${Math.floor(tempoMaximoPorTarefa)}h ${Math.round((tempoMaximoPorTarefa % 1) * 60)}min)`
+          `Ajuste os tempos individuais das tarefas.`
         );
       } else {
         setErroTempoEstimado(null);
@@ -321,7 +337,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
     } else {
       setErroTempoEstimado(null);
     }
-  }, [tempoEstimadoDia, horasContratadasDia, tarefasSelecionadas.length]);
+  }, [tempoEstimadoDia, horasContratadasDia, tarefasSelecionadas]);
 
   // Carregar produtos vinculados ao cliente selecionado
   useEffect(() => {
@@ -376,8 +392,35 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
     } else {
       setTarefas([]);
       setTarefasSelecionadas([]);
+      setTempoEstimadoDia({});
+      setTarefasSelecionadasParaTempo(new Set());
     }
   }, [responsavelSelecionado, clienteSelecionado, produtosSelecionados]);
+
+  // Inicializar tempos quando tarefas são selecionadas (apenas para novas tarefas)
+  useEffect(() => {
+    if (tarefasSelecionadas.length > 0 && !editingAgrupamento) {
+      const novosTempos = { ...tempoEstimadoDia };
+      let mudou = false;
+      tarefasSelecionadas.forEach(tarefaId => {
+        if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
+          // Inicializar com 0 se não tiver tempo definido
+          novosTempos[tarefaId] = 0;
+          mudou = true;
+        }
+      });
+      // Remover tempos de tarefas que não estão mais selecionadas
+      Object.keys(novosTempos).forEach(tarefaId => {
+        if (!tarefasSelecionadas.includes(tarefaId)) {
+          delete novosTempos[tarefaId];
+          mudou = true;
+        }
+      });
+      if (mudou) {
+        setTempoEstimadoDia(novosTempos);
+      }
+    }
+  }, [tarefasSelecionadas, editingAgrupamento]);
 
   const loadTarefasPorClienteEProdutos = async (clienteId, produtoIds) => {
     if (!clienteId || !produtoIds || produtoIds.length === 0) {
@@ -416,7 +459,21 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
           
           setTarefas(todasTarefas);
           // Automaticamente selecionar todas as tarefas vinculadas aos produtos
-          setTarefasSelecionadas(todasTarefas.map(t => String(t.id)));
+          const novasTarefasSelecionadas = todasTarefas.map(t => String(t.id));
+          setTarefasSelecionadas(novasTarefasSelecionadas);
+          
+          // Inicializar tempos apenas para novas tarefas (não sobrescrever se já existir)
+          if (!editingAgrupamento) {
+            setTempoEstimadoDia(prev => {
+              const novosTempos = { ...prev };
+              novasTarefasSelecionadas.forEach(tarefaId => {
+                if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
+                  novosTempos[tarefaId] = 0;
+                }
+              });
+              return novosTempos;
+            });
+          }
         } else {
           setTarefas([]);
         }
@@ -470,7 +527,63 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
 
   const handleTarefaRemove = (tarefaId) => {
     setTarefasSelecionadas(tarefasSelecionadas.filter(id => id !== tarefaId));
+    // Remover tempo da tarefa removida
+    const novosTempos = { ...tempoEstimadoDia };
+    delete novosTempos[tarefaId];
+    setTempoEstimadoDia(novosTempos);
+    // Remover da seleção de tempo
+    const novasSelecionadas = new Set(tarefasSelecionadasParaTempo);
+    novasSelecionadas.delete(tarefaId);
+    setTarefasSelecionadasParaTempo(novasSelecionadas);
   };
+
+  // Atualizar tempo individual de uma tarefa
+  const handleTempoTarefaChange = (tarefaId, tempo) => {
+    setTempoEstimadoDia(prev => ({
+      ...prev,
+      [tarefaId]: tempo
+    }));
+  };
+
+  // Toggle seleção de tarefa para aplicar tempo
+  const handleToggleTarefaSelecionada = (tarefaId) => {
+    const novasSelecionadas = new Set(tarefasSelecionadasParaTempo);
+    if (novasSelecionadas.has(tarefaId)) {
+      novasSelecionadas.delete(tarefaId);
+    } else {
+      novasSelecionadas.add(tarefaId);
+    }
+    setTarefasSelecionadasParaTempo(novasSelecionadas);
+  };
+
+  // Selecionar todas as tarefas para aplicar tempo
+  const handleSelectAllTarefasParaTempo = () => {
+    if (tarefasSelecionadasParaTempo.size === tarefas.length) {
+      setTarefasSelecionadasParaTempo(new Set());
+    } else {
+      // Selecionar todas as tarefas que estão na lista (não apenas as selecionadas)
+      setTarefasSelecionadasParaTempo(new Set(tarefas.map(t => String(t.id))));
+    }
+  };
+
+  // Aplicar tempo global automaticamente quando uma tarefa é selecionada via checkbox
+  useEffect(() => {
+    if (modoSelecionarVarios && tempoGlobalParaAplicar > 0) {
+      const novosTempos = { ...tempoEstimadoDia };
+      tarefasSelecionadasParaTempo.forEach(tarefaId => {
+        novosTempos[tarefaId] = tempoGlobalParaAplicar;
+      });
+      setTempoEstimadoDia(novosTempos);
+    }
+  }, [tarefasSelecionadasParaTempo, tempoGlobalParaAplicar, modoSelecionarVarios]);
+
+  // Limpar seleções quando o modo "selecionar vários" é desativado
+  useEffect(() => {
+    if (!modoSelecionarVarios) {
+      setTarefasSelecionadasParaTempo(new Set());
+      setTempoGlobalParaAplicar(0);
+    }
+  }, [modoSelecionarVarios]);
 
   const handleSelectAllProdutos = () => {
     const allProdutoIds = produtos.map(p => String(p.id));
@@ -565,8 +678,23 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
       return;
     }
 
-    if (!tempoEstimadoDia || tempoEstimadoDia <= 0) {
-      showToast('warning', 'Informe o tempo estimado por dia');
+    // Verificar se todas as tarefas têm tempo estimado
+    const tarefasSemTempo = tarefasSelecionadas.filter(tarefaId => {
+      // Se está no modo "selecionar vários" e a tarefa está selecionada para tempo global
+      if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId)) {
+        // Verificar se o tempo global foi definido
+        return !tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0;
+      }
+      // Caso contrário, verificar o tempo individual
+      return !tempoEstimadoDia[tarefaId] || tempoEstimadoDia[tarefaId] <= 0;
+    });
+    
+    if (tarefasSemTempo.length > 0) {
+      if (modoSelecionarVarios && tarefasSelecionadasParaTempo.size > 0 && (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0)) {
+        showToast('warning', 'Informe o tempo estimado no campo "Selecionar vários" para aplicar às tarefas selecionadas.');
+      } else {
+        showToast('warning', `Informe o tempo estimado para todas as tarefas. ${tarefasSemTempo.length} tarefa(s) sem tempo definido.`);
+      }
       return;
     }
 
@@ -578,8 +706,10 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
 
     // Avisar se o tempo estimado ultrapassa as horas contratadas, mas permitir salvar se o usuário quiser
     if (horasContratadasDia && tarefasSelecionadas.length > 0) {
-      const tempoEstimadoHoras = tempoEstimadoDia / (1000 * 60 * 60);
-      const totalHorasPorDia = tempoEstimadoHoras * tarefasSelecionadas.length;
+      const totalTempoMs = tarefasSelecionadas.reduce((acc, tarefaId) => {
+        return acc + (tempoEstimadoDia[tarefaId] || 0);
+      }, 0);
+      const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
       
       if (totalHorasPorDia > horasContratadasDia) {
         // Apenas avisar, não bloquear
@@ -589,15 +719,37 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
 
     setSubmitting(true);
     try {
+      // Criar array de objetos com tarefa_id e tempo_estimado_dia
+      // Se estiver no modo "selecionar vários" e a tarefa estiver selecionada para tempo global, usar o tempo global
+      const tarefasComTempo = tarefasSelecionadas.map(tarefaId => {
+        let tempo = tempoEstimadoDia[tarefaId] || 0;
+        
+        // Se está no modo "selecionar vários" e a tarefa está selecionada para tempo global, usar o tempo global
+        if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
+          tempo = tempoGlobalParaAplicar;
+        }
+        
+        // Garantir que tempo seja um número inteiro
+        const tempoInt = Math.round(Number(tempo));
+        
+        return {
+          tarefa_id: String(tarefaId).trim(),
+          tempo_estimado_dia: tempoInt
+        };
+      });
+
       const dadosParaSalvar = {
         cliente_id: clienteSelecionado,
         produto_ids: produtosSelecionados.map(id => String(id)),
-        tarefa_ids: tarefasSelecionadas.map(id => String(id)),
+        tarefas: tarefasComTempo, // Array de objetos { tarefa_id, tempo_estimado_dia }
         data_inicio: dataInicio,
         data_fim: dataFim,
-        tempo_estimado_dia: tempoEstimadoDia,
         responsavel_id: String(responsavelSelecionado)
       };
+
+      // Debug: verificar dados antes de enviar
+      console.log('📤 Dados para salvar:', JSON.stringify(dadosParaSalvar, null, 2));
+      console.log('📋 Tarefas com tempo:', tarefasComTempo);
 
       const url = editingAgrupamento 
         ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
@@ -622,6 +774,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
       const result = await response.json();
 
       if (!response.ok) {
+        console.error('❌ Erro na resposta:', result);
+        console.error('❌ Status:', response.status);
         const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
         showToast('error', errorMsg);
         return;
@@ -794,60 +948,18 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
               )}
             </div>
 
-            {/* Campo 4: Tarefas */}
-            <div className="form-group">
-              <label className="form-label-small">
-                <i className="fas fa-tasks" style={{ marginRight: '6px' }}></i>
-                4. Tarefas
-              </label>
-              <div className="select-wrapper">
-                <CustomSelect
-                  value=""
-                  options={getTarefaOptions()}
-                  onChange={(e) => handleTarefaSelect(e.target.value)}
-                  placeholder="Selecione tarefas"
-                  disabled={loading || submitting || produtosSelecionados.length === 0 || tarefas.length === 0}
-                  keepOpen={true}
-                  selectedItems={tarefasSelecionadas.map(id => String(id))}
-                  onSelectAll={handleSelectAllTarefas}
-                  hideCheckboxes={false}
-                  maxVisibleOptions={5}
-                  enableSearch={true}
-                />
-              </div>
-              {tarefasSelecionadas.length > 0 && (
-                <SelectedItemsList
-                  items={tarefasSelecionadas}
-                  getItemLabel={getTarefaLabel}
-                  onRemoveItem={handleTarefaRemove}
-                  canRemove={true}
-                  isExpanded={expandedSelects['tarefas'] || false}
-                  onToggleExpand={() => setExpandedSelects(prev => ({
-                    ...prev,
-                    'tarefas': !prev['tarefas']
-                  }))}
-                />
-              )}
-              {tarefas.length === 0 && produtosSelecionados.length > 0 && !loading && (
-                <p className="empty-message" style={{ marginTop: '8px', fontSize: '11px' }}>
-                  <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
-                  Os produtos selecionados não possuem tarefas vinculadas
-                </p>
-              )}
-            </div>
-
-            {/* Campo 5: Período */}
+            {/* Campo 4: Período */}
             <div className="form-group">
               <label className="form-label-small">
                 <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
-                5. Período
+                4. Período
               </label>
               <FilterPeriodo
                 dataInicio={dataInicio}
                 dataFim={dataFim}
                 onInicioChange={(e) => setDataInicio(e.target.value || null)}
                 onFimChange={(e) => setDataFim(e.target.value || null)}
-                disabled={loading || submitting || !responsavelSelecionado || tarefasSelecionadas.length === 0}
+                disabled={loading || submitting || !responsavelSelecionado || produtosSelecionados.length === 0}
               />
               {verificandoDuplicata && (
                 <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>
@@ -870,44 +982,369 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
             </div>
           </div>
 
-          {/* Segunda linha: Tempo */}
-          <div className="form-row-vigencia" style={{ marginTop: '20px' }}>
-            <div className="form-group">
-              <label className="form-label-small">
-                <i className="fas fa-clock" style={{ marginRight: '6px' }}></i>
-                6. Tempo Estimado (por dia)
-                {horasContratadasDia && tarefasSelecionadas.length > 0 && (() => {
-                  const maxHorasPorTarefa = horasContratadasDia / tarefasSelecionadas.length;
-                  const horas = Math.floor(maxHorasPorTarefa);
-                  const minutos = Math.round((maxHorasPorTarefa % 1) * 60);
-                  const tempoFormatado = minutos > 0 ? `${horas}h ${minutos}min` : `${horas}h`;
-                  return (
-                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280', fontWeight: 'normal' }}>
-                      (Máx: {tempoFormatado} por tarefa = {horasContratadasDia}h total/dia)
+          {/* Campo 5: Tarefas com Tempo Individual */}
+          {tarefas.length > 0 && (
+            <div className="form-row-vigencia" style={{ marginTop: '20px' }}>
+              <div className="form-group" style={{ width: '100%' }}>
+                <label className="form-label-small" style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
+                  <i className="fas fa-tasks" style={{ marginRight: '6px', flexShrink: 0 }}></i>
+                  <span style={{ whiteSpace: 'nowrap' }}>5. Estimar Tarefas por Dia</span>
+                  {horasContratadasDia && (
+                    <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280', fontWeight: 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      (Total disponível: {horasContratadasDia}h/dia)
                     </span>
-                  );
+                  )}
+                </label>
+                
+                {/* Toggle e campo de tempo para selecionar vários */}
+                <div style={{ 
+                  marginBottom: '16px', 
+                  padding: '12px', 
+                  background: '#f8f9fa', 
+                  borderRadius: '6px', 
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  flexWrap: 'nowrap'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500', whiteSpace: 'nowrap' }}>Selecionar vários</span>
+                    <ToggleSwitch
+                      checked={modoSelecionarVarios}
+                      onChange={setModoSelecionarVarios}
+                      leftLabel=""
+                      rightLabel=""
+                      disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                    />
+                  </div>
+                  {modoSelecionarVarios && (
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      flex: '0 0 auto'
+                    }}>
+                      <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>Tempo:</span>
+                      <div 
+                        className="tempo-input-wrapper"
+                        style={{ 
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          padding: '4px 8px',
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <input
+                          type="number"
+                          value={Math.floor(tempoGlobalParaAplicar / (1000 * 60 * 60)) || ''}
+                          onChange={(e) => {
+                            const horas = parseFloat(e.target.value) || 0;
+                            const minutos = Math.floor((tempoGlobalParaAplicar % (1000 * 60 * 60)) / (1000 * 60)) || 0;
+                            setTempoGlobalParaAplicar(Math.round((horas * 60 * 60 + minutos * 60) * 1000));
+                          }}
+                          disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                          placeholder="0"
+                          min="0"
+                          style={{
+                            width: '32px',
+                            padding: '0',
+                            border: 'none',
+                            background: 'transparent',
+                            fontSize: '11px',
+                            textAlign: 'center',
+                            color: '#334155',
+                            fontWeight: '500'
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.outline = 'none';
+                            e.target.parentElement.style.borderColor = '#0e3b6f';
+                            e.target.parentElement.style.boxShadow = '0 0 0 2px rgba(14, 59, 111, 0.1)';
+                          }}
+                          onBlur={(e) => {
+                            e.target.parentElement.style.borderColor = '#cbd5e1';
+                            e.target.parentElement.style.boxShadow = 'none';
+                          }}
+                        />
+                        <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '500' }}>h</span>
+                        <input
+                          type="number"
+                          value={Math.floor((tempoGlobalParaAplicar % (1000 * 60 * 60)) / (1000 * 60)) || ''}
+                          onChange={(e) => {
+                            const minutos = parseFloat(e.target.value) || 0;
+                            const horas = Math.floor(tempoGlobalParaAplicar / (1000 * 60 * 60)) || 0;
+                            setTempoGlobalParaAplicar(Math.round((horas * 60 * 60 + minutos * 60) * 1000));
+                          }}
+                          disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                          placeholder="0"
+                          min="0"
+                          max="59"
+                          style={{
+                            width: '32px',
+                            padding: '0',
+                            border: 'none',
+                            background: 'transparent',
+                            fontSize: '11px',
+                            textAlign: 'center',
+                            color: '#334155',
+                            fontWeight: '500'
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.outline = 'none';
+                            e.target.parentElement.style.borderColor = '#0e3b6f';
+                            e.target.parentElement.style.boxShadow = '0 0 0 2px rgba(14, 59, 111, 0.1)';
+                          }}
+                          onBlur={(e) => {
+                            e.target.parentElement.style.borderColor = '#cbd5e1';
+                            e.target.parentElement.style.boxShadow = 'none';
+                          }}
+                        />
+                        <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '500' }}>min</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lista de tarefas com badges e tempo dentro */}
+                <div className="selected-items-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' }}>
+                  {tarefas.map(tarefa => {
+                    const tarefaId = String(tarefa.id);
+                    const isSelecionada = tarefasSelecionadas.includes(tarefaId);
+                    const isSelecionadaParaTempo = tarefasSelecionadasParaTempo.has(tarefaId);
+                    // Se está no modo "selecionar vários" e a tarefa está selecionada, usar o tempo global
+                    const tempoTarefa = (modoSelecionarVarios && isSelecionadaParaTempo) 
+                      ? tempoGlobalParaAplicar 
+                      : (tempoEstimadoDia[tarefaId] || 0);
+                    
+                    return (
+                      <div 
+                        key={tarefaId}
+                        className="selected-item-tag"
+                        style={{
+                          opacity: isSelecionada ? 1 : 0.5,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'nowrap',
+                          whiteSpace: 'nowrap',
+                          width: '100%',
+                          justifyContent: 'space-between'
+                        }}
+                        onClick={(e) => {
+                          // Não fazer nada se clicar nos inputs, botões ou checkboxes
+                          if (e.target.tagName === 'INPUT' || 
+                              e.target.tagName === 'BUTTON' || 
+                              e.target.closest('.tempo-input-wrapper') ||
+                              e.target.closest('.btn-remove-tag')) {
+                            return;
+                          }
+                          // Apenas selecionar se não estiver selecionada
+                          if (!isSelecionada) {
+                            setTarefasSelecionadas([...tarefasSelecionadas, tarefaId]);
+                          }
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', minWidth: 0 }}>
+                          {/* Checkbox para selecionar tarefa quando modo "selecionar vários" está ativo */}
+                          {modoSelecionarVarios && (
+                            <input
+                              type="checkbox"
+                              checked={tarefasSelecionadasParaTempo.has(tarefaId)}
+                              onChange={(e) => {
+                                const novasSelecionadas = new Set(tarefasSelecionadasParaTempo);
+                                if (e.target.checked) {
+                                  novasSelecionadas.add(tarefaId);
+                                  // Se a tarefa não está selecionada, selecionar também
+                                  if (!tarefasSelecionadas.includes(tarefaId)) {
+                                    setTarefasSelecionadas([...tarefasSelecionadas, tarefaId]);
+                                  }
+                                } else {
+                                  novasSelecionadas.delete(tarefaId);
+                                }
+                                setTarefasSelecionadasParaTempo(novasSelecionadas);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                width: '14px',
+                                height: '14px',
+                                accentColor: '#ffffff'
+                              }}
+                              disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                            />
+                          )}
+                          <span style={{ flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tarefa.nome}</span>
+                        </div>
+                        {/* Campo de tempo dentro do badge - mostrar apenas se não estiver no modo "selecionar vários" ou se não estiver selecionada para tempo global */}
+                        {isSelecionada && (!modoSelecionarVarios || !isSelecionadaParaTempo) && (
+                          <div 
+                            className="tempo-input-wrapper"
+                            style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              padding: '2px 6px',
+                              background: 'rgba(255, 255, 255, 0.2)',
+                              border: '1px solid rgba(255, 255, 255, 0.3)',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              margin: 0,
+                              transition: 'all 0.2s ease',
+                              flexShrink: 0
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onFocus={(e) => {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                            }}
+                          >
+                            <input
+                              type="number"
+                              value={Math.floor(tempoTarefa / (1000 * 60 * 60)) || ''}
+                              onChange={(e) => {
+                                const horas = parseFloat(e.target.value) || 0;
+                                const minutos = Math.floor((tempoTarefa % (1000 * 60 * 60)) / (1000 * 60)) || 0;
+                                handleTempoTarefaChange(tarefaId, Math.round((horas * 60 * 60 + minutos * 60) * 1000));
+                              }}
+                              disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                              placeholder="0"
+                              min="0"
+                              style={{
+                                width: '28px',
+                                padding: '0',
+                                border: 'none',
+                                background: 'transparent',
+                                fontSize: '11px',
+                                textAlign: 'center',
+                                color: '#ffffff',
+                                fontWeight: '500'
+                              }}
+                              onFocus={(e) => {
+                                e.target.style.outline = 'none';
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.8)', fontWeight: '500' }}>h</span>
+                            <input
+                              type="number"
+                              value={Math.floor((tempoTarefa % (1000 * 60 * 60)) / (1000 * 60)) || ''}
+                              onChange={(e) => {
+                                const minutos = parseFloat(e.target.value) || 0;
+                                const horas = Math.floor(tempoTarefa / (1000 * 60 * 60)) || 0;
+                                handleTempoTarefaChange(tarefaId, Math.round((horas * 60 * 60 + minutos * 60) * 1000));
+                              }}
+                              disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                              placeholder="0"
+                              min="0"
+                              max="59"
+                              style={{
+                                width: '28px',
+                                padding: '0',
+                                border: 'none',
+                                background: 'transparent',
+                                fontSize: '11px',
+                                textAlign: 'center',
+                                color: '#ffffff',
+                                fontWeight: '500'
+                              }}
+                              onFocus={(e) => {
+                                e.target.style.outline = 'none';
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.8)', fontWeight: '500' }}>min</span>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                          {isSelecionadaParaTempo && (
+                            <span style={{
+                              fontSize: '10px',
+                              color: '#ffffff',
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              background: 'rgba(255, 255, 255, 0.3)',
+                              flexShrink: 0
+                            }} title="Selecionada para aplicar tempo global">
+                              ✓
+                            </span>
+                          )}
+                          {isSelecionada && (
+                            <button
+                              className="btn-remove-tag"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTarefasSelecionadas(tarefasSelecionadas.filter(id => id !== tarefaId));
+                                const novosTempos = { ...tempoEstimadoDia };
+                                delete novosTempos[tarefaId];
+                                setTempoEstimadoDia(novosTempos);
+                                const novasSelecionadas = new Set(tarefasSelecionadasParaTempo);
+                                novasSelecionadas.delete(tarefaId);
+                                setTarefasSelecionadasParaTempo(novasSelecionadas);
+                              }}
+                              title="Remover tarefa"
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {erroTempoEstimado && (
+                  <p className="empty-message" style={{ marginTop: '12px', fontSize: '11px', color: '#dc2626' }}>
+                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
+                    {erroTempoEstimado}
+                  </p>
+                )}
+                {horasContratadasDia && tarefasSelecionadas.length > 0 && !erroTempoEstimado && (() => {
+                  const totalTempoMs = tarefasSelecionadas.reduce((acc, tarefaId) => {
+                    return acc + (tempoEstimadoDia[tarefaId] || 0);
+                  }, 0);
+                  const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
+                  if (totalHorasPorDia > 0) {
+                    return (
+                      <p className="help-message" style={{ marginTop: '12px', fontSize: '11px' }}>
+                        <i className="fas fa-check-circle" style={{ marginRight: '6px', color: totalHorasPorDia > horasContratadasDia ? '#f59e0b' : '#10b981' }}></i>
+                        Tempo total por dia: {totalHorasPorDia.toFixed(2)}h de {horasContratadasDia}h disponíveis
+                        {totalHorasPorDia > horasContratadasDia && (
+                          <span style={{ color: '#dc2626', marginLeft: '8px' }}>
+                            (Ultrapassando em {(totalHorasPorDia - horasContratadasDia).toFixed(2)}h)
+                          </span>
+                        )}
+                      </p>
+                    );
+                  }
+                  return null;
                 })()}
-              </label>
-              <TempoEstimadoInput
-                value={tempoEstimadoDia}
-                onChange={setTempoEstimadoDia}
-                disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
-                placeholder="Ex: 1h 30min ou 90min"
-              />
-              {erroTempoEstimado && (
-                <p className="empty-message" style={{ marginTop: '8px', fontSize: '11px', color: '#dc2626' }}>
-                  <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
-                  {erroTempoEstimado}
-                </p>
-              )}
-              {horasContratadasDia && tarefasSelecionadas.length > 0 && !erroTempoEstimado && tempoEstimadoDia > 0 && (
-                <p className="help-message" style={{ marginTop: '8px', fontSize: '11px' }}>
-                  <i className="fas fa-check-circle" style={{ marginRight: '6px', color: '#10b981' }}></i>
-                  Tempo total por dia: {((tempoEstimadoDia / (1000 * 60 * 60)) * tarefasSelecionadas.length).toFixed(2)}h de {horasContratadasDia}h disponíveis
-                </p>
-              )}
+                {tarefas.length === 0 && produtosSelecionados.length > 0 && !loading && (
+                  <p className="empty-message" style={{ marginTop: '8px', fontSize: '11px' }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
+                    Os produtos selecionados não possuem tarefas vinculadas
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
         </div>
 
         <div className="modal-footer">
@@ -923,7 +1360,15 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
             type="button"
             className="btn-primary"
             onClick={handleSave}
-            disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || !dataInicio || !dataFim || tempoEstimadoDia <= 0 || verificandoDuplicata}
+            disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || !dataInicio || !dataFim || verificandoDuplicata || tarefasSelecionadas.some(tarefaId => {
+              // Se está no modo "selecionar vários" e a tarefa está selecionada para tempo global
+              if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId)) {
+                // Verificar se o tempo global foi definido
+                return !tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0;
+              }
+              // Caso contrário, verificar o tempo individual
+              return !tempoEstimadoDia[tarefaId] || tempoEstimadoDia[tarefaId] <= 0;
+            })}
           >
             {submitting ? (
               <>

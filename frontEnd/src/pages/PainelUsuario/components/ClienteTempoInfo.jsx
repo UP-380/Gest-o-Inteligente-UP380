@@ -27,6 +27,7 @@ const ClienteTempoInfo = ({
       <ClienteTempoEstimado 
         tempoEstimadoTotal={tempoEstimadoTotal}
         modoQuadro={modoQuadro}
+        formatarTempoHMS={formatarTempoHMS}
       />
       <ClienteTempoRealizado 
         tempoRealizadoTotal={tempoRealizadoTotal}
@@ -42,4 +43,5 @@ const ClienteTempoInfo = ({
 };
 
 export default ClienteTempoInfo;
+
 

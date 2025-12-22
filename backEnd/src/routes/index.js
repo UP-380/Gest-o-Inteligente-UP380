@@ -69,6 +69,7 @@ router.get('/api/cadastro/clientes', requireAuth, clientesController.getCarteira
 router.get('/api/cadastro-clientes', requireAuth, clientesController.getCarteiraClientes); // Mantido para compatibilidade
 router.get('/api/gestao-clientes', requireAuth, clientesController.getCarteiraClientes); // Mantido para compatibilidade
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
+router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId);
 router.put('/api/clientes/:id/inativar', requireAuth, clientesController.inativarCliente);
 router.put('/api/clientes/:id/ativar', requireAuth, clientesController.ativarCliente);
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
@@ -126,6 +127,7 @@ router.delete('/api/atividades/:id', requireAuth, atividadesController.deletarAt
 
 // Rotas de Produtos (CRUD completo)
 router.get('/api/produtos', requireAuth, produtosController.getProdutos);
+router.get('/api/produtos-por-ids-numericos', requireAuth, produtosController.getProdutosPorIds);
 router.get('/api/produtos/:id', requireAuth, produtosController.getProdutoPorId);
 router.post('/api/produtos', requireAuth, produtosController.criarProduto);
 router.put('/api/produtos/:id', requireAuth, produtosController.atualizarProduto);
@@ -170,6 +172,7 @@ router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.de
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
+router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
 
 // Rotas de Registro de Tempo
 router.post('/api/registro-tempo/iniciar', requireAuth, registroTempoController.iniciarRegistroTempo);
@@ -177,6 +180,10 @@ router.put('/api/registro-tempo/finalizar/:id', requireAuth, registroTempoContro
 router.get('/api/registro-tempo/ativo', requireAuth, registroTempoController.getRegistroAtivo);
 router.get('/api/registro-tempo/ativos', requireAuth, registroTempoController.getRegistrosAtivos);
 router.get('/api/registro-tempo/realizado', requireAuth, registroTempoController.getTempoRealizado);
+router.get('/api/registro-tempo/por-tempo-estimado', requireAuth, registroTempoController.getRegistrosPorTempoEstimado);
+router.get('/api/registro-tempo/historico', requireAuth, registroTempoController.getHistoricoRegistros);
+router.put('/api/registro-tempo/:id', requireAuth, registroTempoController.atualizarRegistroTempo);
+router.delete('/api/registro-tempo/:id', requireAuth, registroTempoController.deletarRegistroTempo);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {

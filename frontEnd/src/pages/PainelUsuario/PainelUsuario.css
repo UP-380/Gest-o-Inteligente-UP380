@@ -579,7 +579,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
+  overflow: visible; /* Mudado de hidden para visible para permitir que os balões apareçam completos */
   position: relative;
   z-index: 1;
   margin-bottom: 0;
@@ -608,6 +608,71 @@
 
 .painel-usuario-lista-container::-webkit-scrollbar-thumb:hover {
   background: #d1d5db;
+}
+
+/* Barra de progresso de tarefa */
+.painel-usuario-barra-progresso-wrapper {
+  width: 100%;
+}
+
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista {
+  width: auto;
+  min-width: 180px;
+  margin-left: 8px;
+}
+
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista .painel-usuario-barra-progresso-base {
+  height: 8px;
+  min-width: 120px;
+}
+
+/* Modo quadro: reduzir largura da barra para evitar sobreposição com porcentagem */
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro .painel-usuario-barra-progresso-base {
+  flex: 0 1 calc(100% - 100px);
+  max-width: calc(100% - 100px);
+}
+
+.painel-usuario-barra-progresso-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.painel-usuario-barra-progresso-base {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: visible;
+  position: relative;
+  min-width: 60px;
+}
+
+.painel-usuario-barra-progresso-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease, background 0.3s ease;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+}
+
+.painel-usuario-barra-progresso-fill-excesso {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  position: absolute;
+  top: 0;
+  z-index: 2;
+}
+
+.painel-usuario-barra-progresso-label {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 35px;
+  text-align: right;
 }
 
 .painel-usuario-tarefa-item-lista {
@@ -660,6 +725,7 @@
   width: 100%;
   /* Garantir que o grupo esteja no fluxo normal do documento */
   box-sizing: border-box;
+  overflow: visible; /* Garantir que os balões não sejam cortados */
 }
 
 .painel-usuario-grupo-cliente-header {
@@ -677,6 +743,8 @@
   /* Garantir que o header não saia do fluxo do documento */
   width: 100%;
   box-sizing: border-box;
+  overflow: visible; /* Garantir que os balões não sejam cortados */
+  min-width: 0; /* Permitir que o header encolha se necessário */
 }
 
 .painel-usuario-grupo-cliente-header:hover {
@@ -688,6 +756,8 @@
   align-items: center;
   gap: 12px;
   flex: 1;
+  min-width: 0; /* Permite que o flex item encolha */
+  overflow: visible; /* Garante que os balões não sejam cortados */
 }
 
 .painel-usuario-grupo-badge-orange {
@@ -709,6 +779,10 @@
   color: #0e3b6f;
   margin: 0;
   flex: 1;
+  min-width: 0; /* Permite que o título encolha se necessário */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .painel-usuario-grupo-tempo-total {
@@ -722,6 +796,8 @@
   font-weight: 500;
   gap: 4px;
   position: relative;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
@@ -803,6 +879,8 @@
   font-weight: 500;
   gap: 4px;
   position: relative;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
@@ -830,6 +908,8 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
