@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login/Login';
 import Painel from './pages/Painel/Painel';
+import PainelUsuario from './pages/PainelUsuario/PainelUsuario';
 import RelatoriosClientes from './pages/DashboardClientes/DashboardClientes';
 import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardColaboradores';
 import GestaoClientes from './pages/CarteiraClientes/CarteiraClientes';
@@ -27,6 +28,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Painel />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/painel-usuario"
+          element={
+            <ProtectedRoute>
+              <PainelUsuario />
             </ProtectedRoute>
           }
         />

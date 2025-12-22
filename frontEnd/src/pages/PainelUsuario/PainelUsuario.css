@@ -1,0 +1,957 @@
+/* PainelUsuario.css
+ * Estilos para a tela de Painel do Usuário
+ * Layout limpo e moderno com cards arrastáveis e redimensionáveis
+ */
+
+.painel-usuario-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+  margin-left: 250px; /* Espaço para a sidebar */
+  padding-top: 80px; /* Espaço para o header */
+}
+
+.painel-usuario-header {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.painel-usuario-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.painel-usuario-title i {
+  color: #3498db;
+}
+
+.painel-usuario-subtitle {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.painel-usuario-content {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-height: calc(100vh - 200px);
+}
+
+/* Estilos do Gridstack */
+.grid-stack {
+  background: transparent;
+  min-height: 500px;
+}
+
+/* Estilos dos itens do grid (blocos) */
+.grid-item {
+  border-radius: 12px;
+  background: #ffffff;
+  border: 2px solid #e8ecef;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  overflow: visible; /* permitir que sombras internas apareçam */
+  position: relative;
+}
+
+/* Efeito hover nos blocos */
+.grid-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border-color: #3498db;
+  transform: translateY(-2px);
+}
+
+/* Handle para arrastar (indicador visual de arrastabilidade) */
+.grid-item-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 6px 10px;
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 6px;
+  cursor: move;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-item:hover .grid-item-handle {
+  opacity: 1;
+}
+
+.grid-item-handle i {
+  color: #3498db;
+  font-size: 14px;
+}
+
+/* Conteúdo do bloco */
+.grid-item-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  min-height: 100%;
+  overflow: visible; /* permitir sombras dos cards internos */
+}
+
+.grid-item-content-board {
+  background: #ffffff;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden; /* Manter hidden para o container do grid */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Indicador de bloco vazio */
+.grid-item-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #bdc3c7;
+  font-size: 32px;
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+
+.grid-item:hover .grid-item-empty {
+  color: #3498db;
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.grid-item-empty i {
+  font-size: 32px;
+}
+
+/* Estilos durante o arraste */
+.grid-item.ui-draggable-dragging {
+  opacity: 0.8;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+/* Estilos durante o redimensionamento */
+.grid-item.ui-resizable-resizing {
+  opacity: 0.9;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Handle de redimensionamento customizado */
+.ui-resizable-handle {
+  background: rgba(52, 152, 219, 0.3);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.ui-resizable-handle:hover {
+  background: rgba(52, 152, 219, 0.6);
+}
+
+/* Handles específicos para cada direção */
+.ui-resizable-se {
+  width: 16px;
+  height: 16px;
+  right: -2px;
+  bottom: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 0 12px 0;
+}
+
+.ui-resizable-sw {
+  width: 16px;
+  height: 16px;
+  left: -2px;
+  bottom: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 0 0 12px;
+}
+
+.ui-resizable-ne {
+  width: 16px;
+  height: 16px;
+  right: -2px;
+  top: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 0 12px 0 0;
+}
+
+.ui-resizable-nw {
+  width: 16px;
+  height: 16px;
+  left: -2px;
+  top: -2px;
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 12px 0 0 0;
+}
+
+.ui-resizable-n,
+.ui-resizable-s {
+  height: 8px;
+  background: rgba(52, 152, 219, 0.4);
+}
+
+.ui-resizable-e,
+.ui-resizable-w {
+  width: 8px;
+  background: rgba(52, 152, 219, 0.4);
+}
+
+/* Estilos para o placeholder durante o arraste */
+.grid-stack > .ui-draggable-dragging {
+  opacity: 0.5;
+}
+
+/* Ajustes responsivos */
+@media (max-width: 768px) {
+  .painel-usuario-container {
+    margin-left: 0;
+    padding: 10px;
+    padding-top: 70px;
+  }
+
+  .painel-usuario-header {
+    padding: 15px;
+  }
+
+  .painel-usuario-title {
+    font-size: 24px;
+  }
+
+  .painel-usuario-content {
+    padding: 10px;
+  }
+}
+
+/* Override de estilos do Gridstack para melhor integração */
+.grid-stack-item-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Animação suave ao carregar os blocos */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.grid-item {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ---------- Board de tarefas ---------- */
+.painel-usuario-header-board {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.painel-usuario-coluna {
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 4px 12px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.painel-usuario-coluna:hover {
+  border-color: #d7dde5;
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.12),
+    0 6px 14px rgba(15, 23, 42, 0.08);
+  transform: translateY(-2px);
+  z-index: 2;
+}
+
+.painel-usuario-coluna-body {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar {
+  width: 6px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-thumb {
+  background: #e5e7eb; /* cor igual ao card detalhado */
+  border-radius: 999px;
+}
+.painel-usuario-coluna-body::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+.painel-usuario-tarefa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgb(238, 242, 247);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.painel-usuario-tarefa-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.painel-usuario-tarefa-nome {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #0b1e3a;
+  line-height: 1.35;
+}
+
+.painel-usuario-play-btn {
+  border: none;
+  background: #ef4444; /* invertido: fundo vermelho */
+  color: #fee2e2;      /* ícone claro */
+  border-radius: 4px; /* Bordas arredondadas similares ao botão de stop do header */
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: none;
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
+}
+
+.painel-usuario-play-btn:hover {
+  background: #dc2626;
+  box-shadow: none;
+  transform: scale(1.05);
+  color: #fee2e2;
+}
+
+.painel-usuario-play-btn i {
+  font-size: 9px; /* Mesmo tamanho do ícone do botão de stop do header */
+}
+
+.painel-usuario-stop-btn {
+  border: none;
+  background: #ef4444; /* vermelho para parar */
+  color: #ffffff;      /* ícone branco */
+  border-radius: 4px; /* Bordas arredondadas similares ao botão de stop do header */
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: none;
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+  flex-shrink: 0;
+}
+
+.painel-usuario-stop-btn:hover {
+  background: #dc2626;
+  box-shadow: none;
+  transform: scale(1.05);
+  color: #ffffff;
+}
+
+.painel-usuario-stop-btn i {
+  font-size: 9px; /* Mesmo tamanho do ícone do botão de stop do header */
+}
+
+.painel-usuario-tarefa-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+/* Estilo para os badges ficarem na mesma linha no modo lista */
+.painel-usuario-tarefa-item-lista .painel-usuario-tarefa-tags.painel-usuario-tarefa-tags-lista,
+.painel-usuario-tarefa-tags.painel-usuario-tarefa-tags-lista {
+  flex-direction: row !important;
+  gap: 12px !important;
+  align-items: center !important;
+  flex-wrap: wrap;
+}
+
+.painel-usuario-badge-estimado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-estimado-icon-inline {
+  color: #0e3b6f; /* Azul padrão do sistema */
+  font-size: 12px;
+}
+
+.painel-usuario-estimado-label {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-estimado-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eef2ff; /* igual ao detail-card */
+  border-radius: 999px;
+  color: #1e3a8a !important; /* rgb(30, 58, 138) */
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.painel-usuario-badge-realizado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-realizado-icon-inline {
+  color: #fd7e14; /* Laranja padrão do sistema */
+  font-size: 12px;
+}
+
+.painel-usuario-realizado-label {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.painel-usuario-realizado-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eef2ff; /* mesma cor do estimado */
+  border-radius: 999px;
+  color: #1e3a8a;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* ---------- Toggle de visualização ---------- */
+.painel-usuario-toggle-view {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.painel-usuario-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.painel-usuario-toggle-btn:hover {
+  color: #374151;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.painel-usuario-toggle-btn.active {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.painel-usuario-toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 1px;
+}
+
+.painel-usuario-toggle-btn i {
+  font-size: 14px;
+}
+
+.painel-usuario-toggle-btn span {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- Visualização em lista ---------- */
+.painel-usuario-lista-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+  scroll-behavior: smooth;
+  scroll-padding-top: 20px;
+  /* Garantir que o container respeite o fluxo normal e não cause sobreposição */
+  position: relative;
+  width: 100%;
+  /* Garantir que elementos filhos não saiam do container */
+  contain: layout;
+  /* Garantir que o container tenha altura mínima e permita scroll */
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.painel-usuario-cliente-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: visible; /* Mudado de hidden para visible para permitir que os balões apareçam completos */
+  position: relative;
+  z-index: 1;
+  margin-bottom: 0;
+  /* Garantir que cada card seja um elemento de bloco no fluxo normal */
+  display: block;
+  width: 100%;
+  /* Garantir que cards não sobreponham uns aos outros */
+  isolation: isolate;
+  /* Garantir que o card ocupe espaço no fluxo do documento */
+  min-height: fit-content;
+}
+
+.painel-usuario-lista-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.painel-usuario-lista-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.painel-usuario-lista-container::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.painel-usuario-lista-container::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+/* Barra de progresso de tarefa */
+.painel-usuario-barra-progresso-wrapper {
+  width: 100%;
+}
+
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista {
+  width: auto;
+  min-width: 180px;
+  margin-left: 8px;
+}
+
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista .painel-usuario-barra-progresso-base {
+  height: 8px;
+  min-width: 120px;
+}
+
+/* Modo quadro: reduzir largura da barra para evitar sobreposição com porcentagem */
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro .painel-usuario-barra-progresso-base {
+  flex: 0 1 calc(100% - 100px);
+  max-width: calc(100% - 100px);
+}
+
+.painel-usuario-barra-progresso-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.painel-usuario-barra-progresso-base {
+  flex: 1;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: visible;
+  position: relative;
+  min-width: 60px;
+}
+
+.painel-usuario-barra-progresso-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease, background 0.3s ease;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+}
+
+.painel-usuario-barra-progresso-fill-excesso {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  position: absolute;
+  top: 0;
+  z-index: 2;
+}
+
+.painel-usuario-barra-progresso-label {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 35px;
+  text-align: right;
+}
+
+.painel-usuario-tarefa-item-lista {
+  background: #ffffff;
+  border: 1px solid rgb(238, 242, 247);
+  border-radius: 12px;
+  padding: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.painel-usuario-tarefa-item-lista:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #e5e7eb;
+}
+
+.painel-usuario-tarefa-item-lista-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.painel-usuario-tarefa-item-lista-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.painel-usuario-tarefa-item-lista-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.painel-usuario-tarefa-item-lista-cliente {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* ---------- Grupos de cliente na lista (estilo atribuicoes-group) ---------- */
+.painel-usuario-grupo-cliente {
+  /* Removido border-bottom, agora está dentro do card */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+  /* Garantir que o grupo esteja no fluxo normal do documento */
+  box-sizing: border-box;
+  overflow: visible; /* Garantir que os balões não sejam cortados */
+}
+
+.painel-usuario-grupo-cliente-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  transition: background-color 0.2s;
+  user-select: none;
+  border-radius: 12px 12px 0 0;
+  position: relative;
+  z-index: 2; /* Reduzido de 10 para 2 - apenas para garantir que fique acima do content */
+  pointer-events: auto !important;
+  /* Garantir que o header não saia do fluxo do documento */
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible; /* Garantir que os balões não sejam cortados */
+  min-width: 0; /* Permitir que o header encolha se necessário */
+}
+
+.painel-usuario-grupo-cliente-header:hover {
+  background: #f1f5f9;
+}
+
+.painel-usuario-grupo-cliente-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0; /* Permite que o flex item encolha */
+  overflow: visible; /* Garante que os balões não sejam cortados */
+}
+
+.painel-usuario-grupo-badge-orange {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: #fd7e14;
+  color: #ffffff;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.painel-usuario-grupo-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0e3b6f;
+  margin: 0;
+  flex: 1;
+  min-width: 0; /* Permite que o título encolha se necessário */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.painel-usuario-grupo-tempo-total {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+  position: relative;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
+}
+
+/* Estilos específicos para modo quadro */
+.painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo i {
+  font-size: 10px;
+}
+
+.painel-usuario-grupo-tempo-total i {
+  color: #0e3b6f; /* Azul padrão do sistema */
+  font-size: 12px;
+}
+
+/* Tooltip para tempo estimado e realizado */
+.painel-usuario-grupo-tempo-total.has-tooltip:hover .filter-tooltip,
+.painel-usuario-grupo-tempo-realizado.has-tooltip:hover .filter-tooltip {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.painel-usuario-grupo-tempo-total .filter-tooltip,
+.painel-usuario-grupo-tempo-realizado .filter-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  padding: 12px 16px;
+  background-color: #1f2937;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: normal;
+  width: max-content;
+  max-width: 320px;
+  min-width: 150px;
+  text-align: center;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.painel-usuario-grupo-tempo-total .filter-tooltip::before,
+.painel-usuario-grupo-tempo-realizado .filter-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #1f2937;
+}
+
+.painel-usuario-grupo-tempo-realizado {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: #eef2ff; /* mesma cor do estimado */
+  color: #1e3a8a; /* mesma cor do estimado */
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+  position: relative;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
+}
+
+/* Estilos específicos para modo quadro */
+.painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo i {
+  font-size: 10px;
+}
+
+.painel-usuario-grupo-tempo-realizado i {
+  color: #fd7e14; /* Laranja padrão do sistema */
+  font-size: 12px;
+}
+
+.painel-usuario-grupo-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0; /* Não permite que o balão encolha */
+  white-space: nowrap; /* Não quebra linha */
+}
+
+/* Estilos específicos para modo quadro */
+.painel-usuario-grupo-count.painel-usuario-quadro-count {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.painel-usuario-grupo-cliente-content {
+  background: #ffffff;
+  padding: 0;
+  border-radius: 0 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Quando há mais de 6 tarefas, adicionar scroll interno */
+/* Cada item tem aproximadamente: padding 12px + margin 8px = ~20px vertical + conteúdo (~80-100px) = ~100-120px por item */
+/* 6 itens = ~600-720px, vamos usar 650px como altura máxima */
+.painel-usuario-grupo-cliente-content-scroll {
+  max-height: 650px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar customizada para o content do cliente */
+.painel-usuario-grupo-cliente-content-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.painel-usuario-grupo-cliente-content-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 999px;
+  margin: 8px 0;
+}
+
+.painel-usuario-grupo-cliente-content-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.painel-usuario-grupo-cliente-content-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

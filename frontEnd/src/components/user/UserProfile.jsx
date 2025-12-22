@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../services/api';
 import Avatar from './Avatar';
+import TimerAtivo from './TimerAtivo';
 import './UserProfile.css';
 
 const UserProfile = () => {
@@ -119,6 +120,9 @@ const UserProfile = () => {
 
   return (
     <div className="user-profile-container" ref={menuRef}>
+      {/* Timer ativo ao lado do avatar */}
+      <TimerAtivo />
+      
       <button
         className="user-profile-button"
         onClick={() => setIsMenuOpen(!isMenuOpen)}

@@ -1,0 +1,16 @@
+/* Estilos do ClienteTempoInfo - Os estilos principais estão em PainelUsuario.css */
+/* Este arquivo pode ser usado para customizações específicas do componente */
+
+/* Estilos específicos para o modo quadro */
+.painel-usuario-quadro-tempo {
+  font-size: 11px !important;
+}
+
+.painel-usuario-quadro-tempo i {
+  font-size: 10px !important;
+}
+
+.painel-usuario-quadro-count {
+  font-size: 11px !important;
+}
+

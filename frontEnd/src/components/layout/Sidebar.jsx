@@ -81,6 +81,12 @@ const Sidebar = () => {
       title: 'Painel'
     },
     {
+      path: '/painel-usuario',
+      icon: 'fa-th-large',
+      label: 'Painel do Usuário',
+      title: 'Painel do Usuário'
+    },
+    {
       path: '/atribuir-responsaveis',
       icon: 'fa-user-check',
       label: 'Atribuir Responsáveis',

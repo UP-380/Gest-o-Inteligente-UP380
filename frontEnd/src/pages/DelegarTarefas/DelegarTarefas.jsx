@@ -14,6 +14,7 @@ import DeleteButton from '../../components/common/DeleteButton';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import Avatar from '../../components/user/Avatar';
 import Tooltip from '../../components/common/Tooltip';
+import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../services/api';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
@@ -86,6 +87,9 @@ const DelegarTarefas = () => {
   
   // Cache de horas contratadas por responsável
   const [horasContratadasPorResponsavel, setHorasContratadasPorResponsavel] = useState({});
+  
+  // Cache de tempos realizados por tarefa estimada
+  const [temposRealizados, setTemposRealizados] = useState({});
   
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
@@ -380,9 +384,99 @@ const DelegarTarefas = () => {
     setHorasContratadasPorResponsavel(novasHoras);
   };
 
+  // Buscar tempos realizados para registros de tempo estimado
+  const buscarTemposRealizados = async (registros) => {
+    if (!registros || registros.length === 0) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/tempo-realizado`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ registros })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setTemposRealizados(result.data);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Erro ao buscar tempos realizados:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('❌ [DelegarTarefas] Erro ao buscar tempos realizados:', error);
+    }
+  };
+
+  // Obter chave única para um registro de tempo estimado
+  // Se tempo_estimado_id estiver disponível, usar ele para chave mais precisa
+  // Caso contrário, usar tarefa_id + responsavel_id + cliente_id + data
+  const getChaveTempoRealizado = (registro) => {
+    const tarefaId = String(registro.tarefa_id || '').trim();
+    // Normalizar responsavel_id: pode vir como string ou número, sempre converter para número e depois para string
+    const responsavelIdRaw = registro.responsavel_id || 0;
+    const responsavelId = String(parseInt(String(responsavelIdRaw).trim(), 10));
+    const clienteId = String(registro.cliente_id || '').trim();
+    const tempoEstimadoId = registro.id || registro.tempo_estimado_id || null;
+    
+    // Se temos tempo_estimado_id, usar ele na chave (mais preciso, igual ao PainelUsuario)
+    if (tempoEstimadoId) {
+      const chave = `${tarefaId}_${responsavelId}_${clienteId}_${String(tempoEstimadoId).trim()}`;
+      return chave;
+    }
+    
+    // Fallback: usar data quando tempo_estimado_id não está disponível
+    let dataEstimado = null;
+    if (registro.data) {
+      const dataStr = typeof registro.data === 'string' ? registro.data.split('T')[0] : registro.data;
+      dataEstimado = dataStr;
+    }
+    if (!tarefaId || !responsavelId || !clienteId || !dataEstimado) {
+      return null;
+    }
+    return `${tarefaId}_${responsavelId}_${clienteId}_${dataEstimado}`;
+  };
+
+  // Obter tempo realizado para um registro de tempo estimado
+  const getTempoRealizado = (registro) => {
+    const chave = getChaveTempoRealizado(registro);
+    if (!chave) {
+      return null;
+    }
+    
+    // Tentar encontrar pela chave exata primeiro
+    if (temposRealizados[chave]) {
+      const tempo = temposRealizados[chave].tempo_realizado || 0;
+      return tempo;
+    }
+    
+    // Se não encontrou pela chave exata, tentar buscar por tempo_estimado_id
+    const tempoEstimadoId = String(registro.id || registro.tempo_estimado_id || '').trim();
+    if (tempoEstimadoId) {
+      // Procurar todas as chaves que terminam com o tempo_estimado_id
+      const chavesComId = Object.keys(temposRealizados).filter(k => k.endsWith(`_${tempoEstimadoId}`));
+      if (chavesComId.length > 0) {
+        // Pegar o primeiro resultado encontrado
+        const tempo = temposRealizados[chavesComId[0]].tempo_realizado || 0;
+        return tempo;
+      }
+    }
+    
+    return null;
+  };
+
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null) => {
     setLoading(true);
+    // Resetar grupos expandidos quando recarregar os dados
+    setGruposExpandidos(new Set());
+    setTarefasExpandidas(new Set());
+    setAgrupamentosTarefasExpandidas(new Set());
     try {
       const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
       const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : { inicio: periodoInicio, fim: periodoFim };
@@ -483,6 +577,9 @@ const DelegarTarefas = () => {
           setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
           // Carregar nomes dos itens relacionados
           await carregarNomesRelacionados(result.data || []);
+          
+          // Buscar tempos realizados para todos os registros
+          await buscarTemposRealizados(result.data || []);
           
           // Carregar custos e horas contratadas para todos os responsáveis encontrados nos registros
           if (periodoAUsar.inicio && periodoAUsar.fim) {
@@ -718,7 +815,10 @@ const DelegarTarefas = () => {
 
   // Formatar tempo estimado (de milissegundos para horas, minutos e segundos)
   const formatarTempoEstimado = (milissegundos, incluirSegundos = false) => {
-    if (!milissegundos || milissegundos === 0) return '—';
+    if (!milissegundos || milissegundos === 0) {
+      // Se incluirSegundos for true, retornar "0s" em vez de "—"
+      return incluirSegundos ? '0s' : '—';
+    }
     const totalSegundos = Math.floor(milissegundos / 1000);
     const horas = Math.floor(totalSegundos / 3600);
     const minutos = Math.floor((totalSegundos % 3600) / 60);
@@ -747,7 +847,8 @@ const DelegarTarefas = () => {
         return `${minutos}min`;
       }
     }
-    return '—';
+    // Se chegou aqui e incluirSegundos é true, retornar "0s" em vez de "—"
+    return incluirSegundos ? '0s' : '—';
   };
 
   // Buscar custo mais recente por responsável
@@ -889,84 +990,167 @@ const DelegarTarefas = () => {
     return tempoFormatado;
   };
 
-  // Calcular tempo disponível, realizado e sobrando para um responsável
-  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, todosRegistros, dataInicio, dataFim) => {
-    // Calcular número de dias no período
-    if (!dataInicio || !dataFim) return null;
+  // Formatar tempo estimado e realizado juntos
+  const formatarTempoEstimadoERealizado = (registro, incluirSegundos = false) => {
+    const tempoEstimado = registro.tempo_estimado_dia || 0;
+    const tempoRealizado = getTempoRealizado(registro);
+    const tempoRealizadoValor = tempoRealizado !== null ? tempoRealizado : 0;
+    const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimado, incluirSegundos);
+    const tempoRealizadoFormatado = tempoRealizadoValor > 0 
+      ? formatarTempoEstimado(tempoRealizadoValor, incluirSegundos) 
+      : '0s';
+    const custoEstimado = calcularCustoPorTempo(tempoEstimado, registro.responsavel_id);
+    const custoRealizado = tempoRealizadoValor > 0 
+      ? calcularCustoPorTempo(tempoRealizadoValor, registro.responsavel_id) 
+      : null;
     
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
+    return (
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        {/* Quadrado Estimado */}
+        <div style={{
+          background: '#fef3c7',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3px',
+          width: 'fit-content'
+        }}>
+          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            Estimado: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{tempoEstimadoFormatado}</span>
+          </div>
+          {custoEstimado !== null && (
+            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              Custo: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatarValorMonetario(custoEstimado)}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Quadrado Realizado */}
+        <div style={{
+          background: tempoRealizadoValor > 0 ? '#dbeafe' : '#f3f4f6',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3px',
+          width: 'fit-content'
+        }}>
+          <div style={{ fontSize: '11px', color: tempoRealizadoValor > 0 ? '#2563eb' : '#9ca3af', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            Realizado: <span style={{ fontWeight: 600, color: tempoRealizadoValor > 0 ? '#2563eb' : '#9ca3af' }}>{tempoRealizadoFormatado}</span>
+          </div>
+          {custoRealizado !== null && (
+            <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              Custo: <span style={{ fontWeight: 600, color: '#2563eb' }}>{formatarValorMonetario(custoRealizado)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
+  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
+    if (!periodoInicio || !periodoFim) return null;
+    
+    const inicio = new Date(periodoInicio);
+    const fim = new Date(periodoFim);
     const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
     
-    // Buscar horas contratadas por dia
     const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
     if (!horasContratadasDia || horasContratadasDia <= 0) return null;
     
-    // Tempo disponível total = horas contratadas por dia * número de dias (em milissegundos)
     const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000; // converter horas para milissegundos
     
-    // Tempo realizado = soma de todos os tempo_estimado_dia dos registros deste responsável
-    // FILTRADO: apenas registros dentro do período
-    let tempoRealizado = 0;
-    todosRegistros.forEach(registro => {
-      if (String(registro.responsavel_id) === String(responsavelId)) {
-        // Verificar se o registro está dentro do período filtrado
-        if (dataEstaNoPeriodo(registro.data)) {
-          // tempo_estimado_dia já está em milissegundos
-          tempoRealizado += (registro.tempo_estimado_dia || 0);
-        }
-      }
-    });
+    // Tempo estimado baseado no total do agrupamento dentro do período
+    // Usar a mesma lógica da listagem: somar o tempo_estimado_dia de cada registro
+    const tempoEstimado = agrupamentos
+      .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
+      .reduce((acc, agr) => {
+        if (!agr.registros) return acc;
+        const registrosNoPeriodo = periodoInicio && periodoFim
+          ? agr.registros.filter((reg) => dataEstaNoPeriodo(reg.data))
+          : agr.registros;
+        return acc + registrosNoPeriodo.reduce(
+          (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
+          0
+        );
+      }, 0);
     
-    // Tempo sobrando = tempo disponível - tempo realizado
-    const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoRealizado);
+    // Tempo realizado baseado nos registros de tempo realizados
+    const tempoRealizado = agrupamentos
+      .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
+      .reduce((acc, agr) => {
+        if (!agr.registros) return acc;
+        const registrosNoPeriodo = agr.registros.filter((reg) => dataEstaNoPeriodo(reg.data));
+        return acc + registrosNoPeriodo.reduce((sum, reg) => {
+          const tempoRealizadoReg = getTempoRealizado(reg);
+          return sum + (tempoRealizadoReg || 0);
+        }, 0);
+      }, 0);
+    
+    const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
     
     return {
       disponivel: tempoDisponivelTotal,
+      estimado: tempoEstimado,
       realizado: tempoRealizado,
       sobrando: tempoSobrando
     };
   };
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, realizado, sobrando, responsavelId }) => {
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId }) => {
     if (!disponivel || disponivel === 0) return null;
     
+    const percentualEstimado = (estimado / disponivel) * 100;
     const percentualRealizado = (realizado / disponivel) * 100;
-    const custoEstimado = calcularCustoPorTempo(realizado, responsavelId);
+    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
+    const custoRealizado = realizado > 0 ? calcularCustoPorTempo(realizado, responsavelId) : null;
     
     return (
       <div className="barra-progresso-tempo">
-        <div className="barra-progresso-tempo-header">
-          <div className="barra-progresso-tempo-principal">
-            <div className="barra-progresso-tempo-valor">{formatarTempoEstimado(realizado, true)}</div>
-            {custoEstimado !== null && (
-              <div className="barra-progresso-tempo-custo">
-                {formatarValorMonetario(custoEstimado)}
-              </div>
-            )}
-          </div>
-        </div>
         <div className="barra-progresso-tempo-range">
           <div 
-            className="barra-progresso-tempo-fill"
-            style={{ width: `${Math.min(100, percentualRealizado)}%` }}
+            className="barra-progresso-tempo-fill estimado"
+            style={{ width: `${Math.min(100, percentualEstimado)}%` }}
           ></div>
+          {realizado > 0 && (
+            <div 
+              className="barra-progresso-tempo-fill realizado"
+              style={{ width: `${Math.min(100, percentualRealizado)}%` }}
+            ></div>
+          )}
         </div>
         <div className="barra-progresso-tempo-legenda">
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
-              <span className="barra-progresso-tempo-label">Contratadas</span>
-              <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivel, true)}</span>
+              <div className="barra-progresso-tempo-item-header">
+                <span className="barra-progresso-tempo-indicador estimado"></span>
+                <span className="barra-progresso-tempo-label">Estimado</span>
+              </div>
+              <span className="barra-progresso-tempo-badge estimado">{formatarTempoEstimado(estimado, true)}</span>
+              {custoEstimado !== null && (
+                <span className="barra-progresso-tempo-custo-estimado">{formatarValorMonetario(custoEstimado)}</span>
+              )}
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
                 <span className="barra-progresso-tempo-indicador realizado"></span>
-                <span className="barra-progresso-tempo-label">Estimado</span>
+                <span className="barra-progresso-tempo-label">Realizado</span>
               </div>
-              <span className="barra-progresso-tempo-badge estimado">{formatarTempoEstimado(realizado, true)}</span>
+              <span className="barra-progresso-tempo-badge realizado">{formatarTempoEstimado(realizado, true)}</span>
+              {custoRealizado !== null && (
+                <span className="barra-progresso-tempo-custo-realizado">{formatarValorMonetario(custoRealizado)}</span>
+              )}
+            </div>
+          </div>
+          <div className="barra-progresso-tempo-item">
+            <div className="barra-progresso-tempo-item-content">
+              <span className="barra-progresso-tempo-label">Contratadas</span>
+              <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivel, true)}</span>
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
@@ -983,41 +1167,57 @@ const DelegarTarefas = () => {
     );
   };
 
-  // Calcular tempo total estimado de um grupo
+  // Soma o tempo estimado real de um agrupamento (usando todos os registros)
+  const calcularTempoEstimadoTotalAgrupamento = (agrupamento) => {
+    if (!agrupamento || !agrupamento.registros) return 0;
+    const registrosFiltrados =
+      periodoInicio && periodoFim
+        ? agrupamento.registros.filter((registro) => dataEstaNoPeriodo(registro.data))
+        : agrupamento.registros;
+    return registrosFiltrados.reduce(
+      (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
+      0
+    );
+  };
+
+  // Soma o tempo realizado total de um agrupamento
+  const calcularTempoRealizadoTotalAgrupamento = (agrupamento) => {
+    if (!agrupamento || !agrupamento.registros) return 0;
+    const registrosFiltrados =
+      periodoInicio && periodoFim
+        ? agrupamento.registros.filter((registro) => dataEstaNoPeriodo(registro.data))
+        : agrupamento.registros;
+    return registrosFiltrados.reduce((acc, reg) => {
+      const tempoRealizado = getTempoRealizado(reg);
+      return acc + (tempoRealizado || 0);
+    }, 0);
+  };
+
+  // Calcular tempo total estimado de um grupo (para cabeçalho/legenda)
   const calcularTempoTotalGrupo = (agrupamentos) => {
-    let totalMilissegundos = 0;
-    agrupamentos.forEach(agrupamento => {
-      const primeiroRegistro = agrupamento.primeiroRegistro;
-      const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-      const quantidadeDias = agrupamento.quantidade || 0;
-      // Tempo total = tempo por dia * quantidade de dias
-      totalMilissegundos += tempoEstimadoDia * quantidadeDias;
-    });
-    return totalMilissegundos;
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
   };
 
   // Calcular tempo total filtrado de um grupo (apenas registros dentro do período)
   const calcularTempoTotalGrupoFiltrado = (agrupamentos) => {
     if (!periodoInicio || !periodoFim) {
-      // Se não há filtro de período, retornar o tempo total
       return calcularTempoTotalGrupo(agrupamentos);
     }
-    
-    let totalMilissegundos = 0;
-    agrupamentos.forEach(agrupamento => {
-      // Filtrar apenas registros dentro do período
-      const registrosNoPeriodo = agrupamento.registros.filter(registro => 
-        dataEstaNoPeriodo(registro.data)
-      );
-      
-      if (registrosNoPeriodo.length > 0) {
-        const primeiroRegistro = agrupamento.primeiroRegistro;
-        const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-        // Tempo filtrado = tempo por dia * quantidade de registros no período
-        totalMilissegundos += tempoEstimadoDia * registrosNoPeriodo.length;
-      }
-    });
-    return totalMilissegundos;
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
+  };
+
+  // Calcular tempo realizado total de um grupo
+  const calcularTempoRealizadoTotalGrupo = (agrupamentos) => {
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoRealizadoTotalAgrupamento(agrupamento),
+      0
+    );
   };
 
   // Toggle grupo expandido
@@ -1221,6 +1421,11 @@ const DelegarTarefas = () => {
     
     setCurrentPage(1);
     
+    // Resetar grupos expandidos quando aplicar novos filtros
+    setGruposExpandidos(new Set());
+    setTarefasExpandidas(new Set());
+    setAgrupamentosTarefasExpandidas(new Set());
+    
     // Passar os valores selecionados diretamente para garantir que sejam usados
     const valoresSelecionados = {
       cliente: filtroClienteSelecionado,
@@ -1290,44 +1495,8 @@ const DelegarTarefas = () => {
     }
   }, [filtrosAplicados]);
 
-  // Expandir todos os grupos quando há filtro principal e registros são carregados
-  useEffect(() => {
-    if (filtroPrincipal && registrosAgrupados.length > 0) {
-      const novosGruposExpandidos = new Set();
-      
-      // Agrupar registros para determinar as chaves dos grupos
-      const agrupados = {};
-      registrosAgrupados.forEach(agrupamento => {
-        const primeiroRegistro = agrupamento.primeiroRegistro;
-        let chaveAgrupamento = null;
-        
-        if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
-          chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
-        } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
-          chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
-        } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-          chaveAgrupamento = `cliente_${primeiroRegistro.cliente_id}`;
-        } else if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
-          chaveAgrupamento = `responsavel_${primeiroRegistro.responsavel_id}`;
-        }
-        
-        if (chaveAgrupamento && !agrupados[chaveAgrupamento]) {
-          agrupados[chaveAgrupamento] = true;
-        }
-      });
-      
-      // Criar chaves para cada grupo único (usar a chave diretamente)
-      Object.keys(agrupados).forEach((chave) => {
-        novosGruposExpandidos.add(chave);
-      });
-      
-      // Só atualizar se houver grupos e se ainda não estiverem expandidos
-      if (novosGruposExpandidos.size > 0 && gruposExpandidos.size === 0) {
-        setGruposExpandidos(novosGruposExpandidos);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroPrincipal, registrosAgrupados.length]);
+  // Resetar grupos expandidos quando os registros são recarregados
+  // Isso é feito diretamente na função loadRegistrosTempoEstimado e handleApplyFilters
 
   // Calcular range de itens exibidos
   const startItem = totalRegistros === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
@@ -1524,6 +1693,7 @@ const DelegarTarefas = () => {
                                 id: responsavelId,
                                 nome: getNomeColaborador(responsavelId),
                                 fotoPerfil: primeiroRegistro.responsavel_foto_perfil,
+                                fotoPerfilPath: primeiroRegistro.responsavel_foto_perfil_path || null,
                                 registros: []
                               });
                             }
@@ -1540,21 +1710,9 @@ const DelegarTarefas = () => {
                         });
                         
                         return Array.from(responsaveisUnicos.values()).map(responsavel => {
-                          // Coletar todos os registros deste responsável de todos os agrupamentos
-                          const todosRegistrosResponsavel = [];
-                          registrosAgrupados.forEach(agrupamento => {
-                            agrupamento.registros.forEach(registro => {
-                              if (String(registro.responsavel_id) === String(responsavel.id)) {
-                                todosRegistrosResponsavel.push(registro);
-                              }
-                            });
-                          });
-                          
                           const tempoInfo = calcularTempoDisponivelRealizadoSobrando(
                             responsavel.id,
-                            todosRegistrosResponsavel,
-                            periodoInicio,
-                            periodoFim
+                            registrosAgrupados
                           );
                           
                           if (!tempoInfo) return null;
@@ -1565,9 +1723,11 @@ const DelegarTarefas = () => {
                                 <div className="tempo-disponivel-card-nome-wrapper">
                                   {responsavel.fotoPerfil ? (
                                     <Avatar
+                                      key={`avatar-card-${responsavel.id}-${responsavel.fotoPerfil}`}
                                       avatarId={responsavel.fotoPerfil}
                                       nomeUsuario={responsavel.nome}
                                       size="tiny"
+                                      customImagePath={responsavel.fotoPerfilPath || null}
                                     />
                                   ) : (
                                     <div className="tempo-disponivel-card-avatar-placeholder"></div>
@@ -1578,6 +1738,7 @@ const DelegarTarefas = () => {
                               <div className="tempo-disponivel-card-content">
                                 <BarraProgressoTempo
                                   disponivel={tempoInfo.disponivel}
+                                  estimado={tempoInfo.estimado}
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
                                   responsavelId={responsavel.id}
@@ -1621,7 +1782,8 @@ const DelegarTarefas = () => {
                             nome: nomeAgrupamento,
                             tipo: filtroPrincipal,
                             agrupamentos: [],
-                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null
+                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null,
+                            fotoPerfilPath: filtroPrincipal === 'responsavel' ? (primeiroRegistro.responsavel_foto_perfil_path || null) : null
                           };
                         }
                         agrupados[chaveAgrupamento].agrupamentos.push(agrupamento);
@@ -1633,11 +1795,10 @@ const DelegarTarefas = () => {
                       const grupoKey = chaveAgrupamento;
                       const isExpanded = gruposExpandidos.has(grupoKey);
                       const totalItens = grupo.agrupamentos.length;
-                      const tempoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
-                      const tempoTotalFormatado = formatarTempoEstimado(tempoTotal, true);
-                      
-                      // Calcular custo estimado total para qualquer filtro principal
-                      const custoEstimadoTotal = calcularCustoEstimadoTotal(grupo.agrupamentos);
+                      const tempoEstimadoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
+                      const tempoRealizadoTotal = calcularTempoRealizadoTotalGrupo(grupo.agrupamentos);
+                      const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
+                      const tempoRealizadoFormatado = formatarTempoEstimado(tempoRealizadoTotal, true);
                       
                       return (
                         <div key={chaveAgrupamento} className="atribuicoes-group">
@@ -1654,9 +1815,11 @@ const DelegarTarefas = () => {
                                 {grupo.tipo === 'responsavel' && grupo.fotoPerfil ? (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Avatar
+                                      key={`avatar-group-${chaveAgrupamento}-${grupo.fotoPerfil}`}
                                       avatarId={grupo.fotoPerfil}
                                       nomeUsuario={grupo.nome}
                                       size="tiny"
+                                      customImagePath={grupo.fotoPerfilPath || null}
                                     />
                                     <span>{grupo.nome}</span>
                                   </div>
@@ -1664,17 +1827,17 @@ const DelegarTarefas = () => {
                                   grupo.nome
                                 )}
                               </h3>
-                              {tempoTotal > 0 && (
-                                <span className="atribuicoes-group-tempo-total" title={`${(tempoTotal / 3600000).toFixed(2)}h`}>
-                                  {tempoTotalFormatado}
+                              {tempoEstimadoTotal > 0 && (
+                                <span className="atribuicoes-tag atribuicoes-group-tempo-total" title={`Estimado: ${(tempoEstimadoTotal / 3600000).toFixed(2)}h`}>
+                                  Estimado: {tempoEstimadoFormatado}
                                 </span>
                               )}
-                              {custoEstimadoTotal !== null && (
-                                <span className="atribuicoes-group-custo-total" title="Custo estimado total">
-                                  {formatarValorMonetario(custoEstimadoTotal)}
+                              {tempoRealizadoTotal > 0 && (
+                                <span className="atribuicoes-tag atribuicoes-group-tempo-realizado" title={`Realizado: ${(tempoRealizadoTotal / 3600000).toFixed(2)}h`}>
+                                  Realizado: {tempoRealizadoFormatado}
                                 </span>
                               )}
-                              <span className="atribuicoes-group-count">{totalItens}</span>
+                              <span className="atribuicoes-tag atribuicoes-group-count">Tarefa: {totalItens}</span>
                             </div>
                           </div>
                           
@@ -1688,7 +1851,7 @@ const DelegarTarefas = () => {
                                     {filtroPrincipal !== 'produto' && <th>Produto</th>}
                                     {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                     {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                    <th>Tempo Estimado Total</th>
+                                    <th>Tempo Estimado / Realizado</th>
                                     <th>Período</th>
                                     <th className="atribuicoes-table-actions">Ações</th>
                                   </tr>
@@ -1698,38 +1861,20 @@ const DelegarTarefas = () => {
                                     const primeiroRegistro = agrupamento.primeiroRegistro;
                                     const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
                                     const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                                    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-                                    
-                                    // Calcular quantidade de dias dentro do período filtrado
-                                    let quantidadeDiasFiltrado = agrupamento.quantidade;
-                                    if (periodoInicio && periodoFim && agrupamento.dataInicio && agrupamento.dataFim) {
-                                      const inicioAgrupamento = new Date(agrupamento.dataInicio);
-                                      const fimAgrupamento = new Date(agrupamento.dataFim);
-                                      const inicioFiltro = new Date(periodoInicio);
-                                      const fimFiltro = new Date(periodoFim);
-                                      
-                                      // Ajustar para início do dia
-                                      inicioFiltro.setHours(0, 0, 0, 0);
-                                      fimFiltro.setHours(23, 59, 59, 999);
-                                      inicioAgrupamento.setHours(0, 0, 0, 0);
-                                      fimAgrupamento.setHours(23, 59, 59, 999);
-                                      
-                                      // Calcular interseção dos períodos
-                                      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
-                                      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
-                                      
-                                      if (inicioIntersecao <= fimIntersecao) {
-                                        // Calcular dias na interseção
-                                        const diffTime = fimIntersecao - inicioIntersecao;
-                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                        quantidadeDiasFiltrado = diffDays > 0 ? diffDays : 0;
-                                      } else {
-                                        quantidadeDiasFiltrado = 0;
-                                      }
-                                    }
-                                    
-                                    const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
+                                    const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
+                                    const tempoRealizadoTotal = calcularTempoRealizadoTotalAgrupamento(agrupamento);
                                     const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
+                                    
+                                    // Calcular tempo realizado por tarefa individual
+                                    const tempoRealizadoPorTarefa = {};
+                                    tarefasUnicas.forEach(tarefaId => {
+                                      const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                      const tempoRealizadoTarefa = registrosTarefa.reduce((acc, reg) => {
+                                        const tempoRealizado = getTempoRealizado(reg);
+                                        return acc + (tempoRealizado || 0);
+                                      }, 0);
+                                      tempoRealizadoPorTarefa[tarefaId] = tempoRealizadoTarefa;
+                                    });
                                     
                                     return (
                                       <React.Fragment key={agrupamento.agrupador_id}>
@@ -1750,10 +1895,11 @@ const DelegarTarefas = () => {
                                             </td>
                                           )}
                                           {filtroPrincipal !== 'atividade' && (
-                                            <td>
+                                            <td style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                                               {tarefasUnicas.map((tarefaId, idx) => {
                                                 const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
                                                 const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
+                                                const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
                                                 return (
                                               <button
                                                 key={tarefaId}
@@ -1764,6 +1910,14 @@ const DelegarTarefas = () => {
                                                   toggleTarefa(agrupamento.agrupador_id, tarefaId);
                                                 }}
                                                 title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                                                style={{ 
+                                                  margin: '2px 4px 2px 0', 
+                                                  display: 'inline-flex', 
+                                                  alignItems: 'center',
+                                                  flex: '0 1 calc(33.333% - 6px)',
+                                                  minWidth: '120px',
+                                                  maxWidth: 'calc(33.333% - 6px)'
+                                                }}
                                               >
                                                 {getNomeTarefa(tarefaId)}
                                                 <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px' }}></i>
@@ -1792,9 +1946,11 @@ const DelegarTarefas = () => {
                                             <td className="atribuicoes-col-responsavel">
                                               <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                                 <Avatar
+                                                  key={`avatar-${primeiroRegistro.responsavel_id}-${primeiroRegistro.responsavel_foto_perfil}`}
                                                   avatarId={primeiroRegistro.responsavel_foto_perfil}
                                                   nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
                                                   size="tiny"
+                                                  customImagePath={primeiroRegistro.responsavel_foto_perfil_path || null}
                                                 />
                                                 <div className="responsavel-tooltip">
                                                   {getNomeColaborador(primeiroRegistro.responsavel_id)}
@@ -1804,7 +1960,60 @@ const DelegarTarefas = () => {
                                           )}
                                           <td>
                                             <span className="atribuicoes-tempo">
-                                              {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
+                                              {(() => {
+                                                const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
+                                                const tempoRealizadoFormatado = tempoRealizadoTotal > 0 
+                                                  ? formatarTempoEstimado(tempoRealizadoTotal, true) 
+                                                  : '0s';
+                                                const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
+                                                const custoRealizado = tempoRealizadoTotal > 0 
+                                                  ? calcularCustoPorTempo(tempoRealizadoTotal, primeiroRegistro.responsavel_id) 
+                                                  : null;
+                                                
+                                                return (
+                                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                                    {/* Quadrado Estimado */}
+                                                    <div style={{
+                                                      background: '#fef3c7',
+                                                      borderRadius: '6px',
+                                                      padding: '6px 12px',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      gap: '3px',
+                                                      width: 'fit-content'
+                                                    }}>
+          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            Estimado: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{tempoEstimadoFormatado}</span>
+          </div>
+          {custoEstimado !== null && (
+            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              Custo: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatarValorMonetario(custoEstimado)}</span>
+            </div>
+          )}
+                                                    </div>
+                                                    
+                                                    {/* Quadrado Realizado */}
+                                                    <div style={{
+                                                      background: tempoRealizadoTotal > 0 ? '#dbeafe' : '#f3f4f6',
+                                                      borderRadius: '6px',
+                                                      padding: '6px 12px',
+                                                      display: 'flex',
+                                                      flexDirection: 'column',
+                                                      gap: '3px',
+                                                      width: 'fit-content'
+                                                    }}>
+                                                      <div style={{ fontSize: '11px', color: tempoRealizadoTotal > 0 ? '#2563eb' : '#9ca3af', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                                                        Realizado: <span style={{ fontWeight: 600, color: tempoRealizadoTotal > 0 ? '#2563eb' : '#9ca3af' }}>{tempoRealizadoFormatado}</span>
+                                                      </div>
+                                                      {custoRealizado !== null && (
+                                                        <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                                                          Custo: <span style={{ fontWeight: 600, color: '#2563eb' }}>{formatarValorMonetario(custoRealizado)}</span>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })()}
                                             </span>
                                           </td>
                                           <td>
@@ -1842,11 +2051,28 @@ const DelegarTarefas = () => {
                                                 <div className="atribuicoes-tarefas-list">
                                                   {tarefasUnicas.map((tarefaId) => {
                                                     const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                                    const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
                                                     
                                                     return (
                                                       <div key={tarefaId} className="atribuicoes-tarefa-item">
-                                                        <div className="atribuicoes-tarefa-nome" style={{ marginBottom: '8px', fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
-                                                          {getNomeTarefa(tarefaId)}
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                          <div className="atribuicoes-tarefa-nome" style={{ fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
+                                                            {getNomeTarefa(tarefaId)}
+                                                          </div>
+                                                          <span style={{ 
+                                                            fontSize: '11px', 
+                                                            color: tempoRealizadoTarefa > 0 ? '#2563eb' : '#9ca3af', 
+                                                            fontWeight: 600,
+                                                            padding: '4px 8px',
+                                                            background: tempoRealizadoTarefa > 0 ? '#e0f2fe' : '#f3f4f6',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                          }}>
+                                                            <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
+                                                            Realizado: {tempoRealizadoTarefa > 0 ? formatarTempoEstimado(tempoRealizadoTarefa, true) : '0s'}
+                                                          </span>
                                                         </div>
                                                         <table className="atribuicoes-detalhes-table">
                                                           <thead>
@@ -1855,7 +2081,7 @@ const DelegarTarefas = () => {
                                                               {filtroPrincipal !== 'produto' && <th>Produto</th>}
                                                               {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                                               {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                                              <th>Tempo Estimado (dia)</th>
+                                                              <th>Tempo Estimado / Realizado</th>
                                                             </tr>
                                                           </thead>
                                                           <tbody>
@@ -1894,9 +2120,11 @@ const DelegarTarefas = () => {
                                                                   <td className="atribuicoes-col-responsavel">
                                                                     <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                                                       <Avatar
+                                                                        key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
                                                                         avatarId={registro.responsavel_foto_perfil}
                                                                         nomeUsuario={getNomeColaborador(registro.responsavel_id)}
                                                                         size="tiny"
+                                                                        customImagePath={registro.responsavel_foto_perfil_path || null}
                                                                       />
                                                                       <div className="responsavel-tooltip">
                                                                         {getNomeColaborador(registro.responsavel_id)}
@@ -1906,7 +2134,7 @@ const DelegarTarefas = () => {
                                                                 )}
                                                                 <td>
                                                                   <span className="atribuicoes-tempo">
-                                                                    {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
+                                                                    {formatarTempoEstimadoERealizado(registro, true)}
                                                                   </span>
                                                                 </td>
                                                               </tr>
@@ -1930,15 +2158,37 @@ const DelegarTarefas = () => {
                                           // Filtrar registros dessa tarefa específica
                                           const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
                                           
+                                          // Calcular tempo realizado total para esta tarefa
+                                          const tempoRealizadoTarefaDetalhes = registrosTarefa.reduce((acc, reg) => {
+                                            const tempoRealizado = getTempoRealizado(reg);
+                                            return acc + (tempoRealizado || 0);
+                                          }, 0);
+                                          
                                           return (
                                             <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
                                               <td colSpan={7 - (filtroPrincipal === 'atividade' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
                                                 <div className="atribuicoes-tarefa-detalhes-content">
                                                   <div className="atribuicoes-tarefa-detalhes-header">
                                                     <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
-                                                    <span className="atribuicoes-tarefa-detalhes-count">
-                                                      {registrosTarefa.length} registro(s)
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                      <span style={{ 
+                                                        fontSize: '11px', 
+                                                        color: tempoRealizadoTarefaDetalhes > 0 ? '#2563eb' : '#9ca3af', 
+                                                        fontWeight: 600,
+                                                        padding: '4px 8px',
+                                                        background: tempoRealizadoTarefaDetalhes > 0 ? '#e0f2fe' : '#f3f4f6',
+                                                        borderRadius: '4px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                      }}>
+                                                        <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
+                                                        Realizado: {tempoRealizadoTarefaDetalhes > 0 ? formatarTempoEstimado(tempoRealizadoTarefaDetalhes, true) : '0s'}
+                                                      </span>
+                                                      <span className="atribuicoes-tarefa-detalhes-count">
+                                                        {registrosTarefa.length} registro(s)
+                                                      </span>
+                                                    </div>
                                                   </div>
                                                   <table className="atribuicoes-detalhes-table">
                                                     <thead>
@@ -1947,7 +2197,7 @@ const DelegarTarefas = () => {
                                                         {filtroPrincipal !== 'produto' && <th>Produto</th>}
                                                         {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                                         {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                                        <th>Tempo Estimado (dia)</th>
+                                                        <th>Tempo Estimado / Realizado</th>
                                                       </tr>
                                                     </thead>
                                                     <tbody>
@@ -1986,9 +2236,11 @@ const DelegarTarefas = () => {
                                                             <td className="atribuicoes-col-responsavel">
                                                               <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                                                                 <Avatar
+                                                                  key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
                                                                   avatarId={registro.responsavel_foto_perfil}
                                                                   nomeUsuario={getNomeColaborador(registro.responsavel_id)}
                                                                   size="tiny"
+                                                                  customImagePath={registro.responsavel_foto_perfil_path || null}
                                                                 />
                                                                 <div className="responsavel-tooltip">
                                                                   {getNomeColaborador(registro.responsavel_id)}
@@ -1998,7 +2250,7 @@ const DelegarTarefas = () => {
                                                           )}
                                                           <td>
                                                             <span className="atribuicoes-tempo">
-                                                              {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
+                                                              {formatarTempoEstimadoERealizado(registro, true)}
                                                             </span>
                                                           </td>
                                                         </tr>
@@ -2025,219 +2277,22 @@ const DelegarTarefas = () => {
                     // Sem filtro principal, exibir lista simples
                     return (
                       <div className="atribuicoes-group">
-                        <div className="atribuicoes-group-content">
-                          <table className="atribuicoes-table">
-                            <thead>
-                              <tr>
-                                <th>Tarefas Agrupadas</th>
-                                <th>Produto</th>
-                                <th>Cliente</th>
-                                <th>Responsável</th>
-                                <th>Tempo Estimado Total</th>
-                                <th>Período</th>
-                                <th className="atribuicoes-table-actions">Ações</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                                  {registrosAgrupados.map((agrupamento) => {
-                                    const primeiroRegistro = agrupamento.primeiroRegistro;
-                                    const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
-                                    const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                                    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-                                    
-                                    // Calcular quantidade de dias dentro do período filtrado
-                                    let quantidadeDiasFiltrado = agrupamento.quantidade;
-                                    if (periodoInicio && periodoFim && agrupamento.dataInicio && agrupamento.dataFim) {
-                                      const inicioAgrupamento = new Date(agrupamento.dataInicio);
-                                      const fimAgrupamento = new Date(agrupamento.dataFim);
-                                      const inicioFiltro = new Date(periodoInicio);
-                                      const fimFiltro = new Date(periodoFim);
-                                      
-                                      // Ajustar para início do dia
-                                      inicioFiltro.setHours(0, 0, 0, 0);
-                                      fimFiltro.setHours(23, 59, 59, 999);
-                                      inicioAgrupamento.setHours(0, 0, 0, 0);
-                                      fimAgrupamento.setHours(23, 59, 59, 999);
-                                      
-                                      // Calcular interseção dos períodos
-                                      const inicioIntersecao = inicioAgrupamento > inicioFiltro ? inicioAgrupamento : inicioFiltro;
-                                      const fimIntersecao = fimAgrupamento < fimFiltro ? fimAgrupamento : fimFiltro;
-                                      
-                                      if (inicioIntersecao <= fimIntersecao) {
-                                        // Calcular dias na interseção
-                                        const diffTime = fimIntersecao - inicioIntersecao;
-                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                        quantidadeDiasFiltrado = diffDays > 0 ? diffDays : 0;
-                                      } else {
-                                        quantidadeDiasFiltrado = 0;
-                                      }
-                                    }
-                                    
-                                    const tempoEstimadoTotal = tempoEstimadoDia * quantidadeDiasFiltrado;
-                                
-                                return (
-                                  <React.Fragment key={agrupamento.agrupador_id}>
-                                    <tr>
-                                      <td>
-                                        {tarefasUnicas.map((tarefaId) => {
-                                          const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
-                                          const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                                          return (
-                                            <button
-                                              key={tarefaId}
-                                              type="button"
-                                              className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleTarefa(agrupamento.agrupador_id, tarefaId);
-                                              }}
-                                              title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
-                                            >
-                                              {getNomeTarefa(tarefaId)}
-                                              <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px' }}></i>
-                                            </button>
-                                          );
-                                        })}
-                                      </td>
-                                      <td>
-                                        {produtosUnicos.map((produtoId) => (
-                                          <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
-                                            {getNomeProduto(produtoId)}
-                                          </span>
-                                        ))}
-                                      </td>
-                                      <td>
-                                        <span className="atribuicoes-tag atribuicoes-tag-cliente">
-                                          {getNomeCliente(primeiroRegistro.cliente_id)}
-                                        </span>
-                                      </td>
-                                       <td className="atribuicoes-col-responsavel">
-                                         <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                           <Avatar
-                                             avatarId={primeiroRegistro.responsavel_foto_perfil}
-                                             nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
-                                             size="tiny"
-                                           />
-                                           <div className="responsavel-tooltip">
-                                             {getNomeColaborador(primeiroRegistro.responsavel_id)}
-                                           </div>
-                                         </div>
-                                       </td>
-                                      <td>
-                                        <span className="atribuicoes-tempo">
-                                          {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        <span className="atribuicoes-periodo">
-                                          {formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}
-                                        </span>
-                                      </td>
-                                      <td className="atribuicoes-table-actions">
-                                        <div className="atribuicoes-row-actions">
-                                          <EditButton
-                                            onClick={() => handleEditAtribuicao(agrupamento)}
-                                            title="Editar atribuição"
-                                          />
-                                          <DeleteButton
-                                            onClick={() => {
-                                              setAgrupamentoParaDeletar(agrupamento);
-                                              setShowDeleteConfirmModal(true);
-                                            }}
-                                            title="Excluir atribuição"
-                                          />
-                                        </div>
-                                      </td>
-                                    </tr>
-                                    {/* Detalhes das tarefas expandidas */}
-                                    {tarefasUnicas.map((tarefaId) => {
-                                      const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
-                                      if (!tarefasExpandidas.has(tarefaKey)) return null;
-                                      
-                                      // Filtrar registros dessa tarefa específica
-                                      const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
-                                      
-                                      return (
-                                        <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
-                                          <td colSpan="7" className="atribuicoes-tarefa-detalhes-cell">
-                                            <div className="atribuicoes-tarefa-detalhes-content">
-                                              <div className="atribuicoes-tarefa-detalhes-header">
-                                                <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
-                                                <span className="atribuicoes-tarefa-detalhes-count">
-                                                  {registrosTarefa.length} registro(s)
-                                                </span>
-                                              </div>
-                                              <table className="atribuicoes-detalhes-table">
-                                                <thead>
-                                                  <tr>
-                                                    <th>Data</th>
-                                                    <th>Produto</th>
-                                                    <th>Cliente</th>
-                                                    <th className="atribuicoes-col-responsavel">Responsável</th>
-                                                    <th>Tempo Estimado (dia)</th>
-                                                  </tr>
-                                                </thead>
-                                                <tbody>
-                                                  {registrosTarefa
-                                                    .sort((a, b) => {
-                                                      const aNoPeriodo = dataEstaNoPeriodo(a.data);
-                                                      const bNoPeriodo = dataEstaNoPeriodo(b.data);
-                                                      // Ordenar: primeiro os que estão no período (true vem antes de false)
-                                                      if (aNoPeriodo && !bNoPeriodo) return -1;
-                                                      if (!aNoPeriodo && bNoPeriodo) return 1;
-                                                      return 0;
-                                                    })
-                                                    .map((registro, regIdx) => {
-                                                    const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
-                                                    return (
-                                                    <tr 
-                                                      key={`reg_${registro.id || regIdx}`}
-                                                      style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
-                                                    >
-                                                      <td>{formatarData(registro.data)}</td>
-                                                      <td>
-                                                        <span className="atribuicoes-tag atribuicoes-tag-produto">
-                                                          {getNomeProduto(registro.produto_id)}
-                                                        </span>
-                                                      </td>
-                                                      <td>
-                                                        <span className="atribuicoes-tag atribuicoes-tag-cliente">
-                                                          {getNomeCliente(registro.cliente_id)}
-                                                        </span>
-                                                      </td>
-                                                      <td className="atribuicoes-col-responsavel">
-                                                        <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                                          <Avatar
-                                                            avatarId={registro.responsavel_foto_perfil}
-                                                            nomeUsuario={getNomeColaborador(registro.responsavel_id)}
-                                                            size="tiny"
-                                                          />
-                                                          <div className="responsavel-tooltip">
-                                                            {getNomeColaborador(registro.responsavel_id)}
-                                                          </div>
-                                                        </div>
-                                                      </td>
-                                                      <td>
-                                                        <span className="atribuicoes-tempo">
-                                                          {formatarTempoComCusto(registro.tempo_estimado_dia || 0, registro.responsavel_id)}
-                                                        </span>
-                                                      </td>
-                                                    </tr>
-                                                    );
-                                                  })}
-                                                </tbody>
-                                              </table>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                        <AtribuicoesTabela
+                          registrosAgrupados={registrosAgrupados}
+                          periodoInicio={periodoInicio}
+                          periodoFim={periodoFim}
+                          tarefasExpandidas={tarefasExpandidas}
+                          toggleTarefa={toggleTarefa}
+                          getNomeTarefa={getNomeTarefa}
+                          getNomeProduto={getNomeProduto}
+                          getNomeCliente={getNomeCliente}
+                          getNomeColaborador={getNomeColaborador}
+                          formatarTempoComCusto={formatarTempoComCusto}
+                          formatarPeriodo={formatarPeriodo}
+                          handleEditAtribuicao={handleEditAtribuicao}
+                          setAgrupamentoParaDeletar={setAgrupamentoParaDeletar}
+                          setShowDeleteConfirmModal={setShowDeleteConfirmModal}
+                        />
                       </div>
                     );
                   }

@@ -410,6 +410,8 @@ const ConfiguracoesPerfil = () => {
                         <img
                           src={avatarPreview || customAvatarPath}
                           alt="Preview"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             e.target.style.display = 'none';
                           }}
@@ -445,6 +447,9 @@ const ConfiguracoesPerfil = () => {
                                   <img
                                     src={option.path}
                                     alt={option.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    fetchpriority="low"
                                     onError={(e) => {
                                       e.target.style.display = 'none';
                                       e.target.parentElement.innerHTML = '<div class="avatar-fallback">?</div>';

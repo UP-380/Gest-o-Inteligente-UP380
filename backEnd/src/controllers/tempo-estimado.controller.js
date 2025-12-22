@@ -5,14 +5,59 @@
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { buscarTodosComPaginacao } = require('../services/database-utils');
+const path = require('path');
+const fs = require('fs');
+
+// Função auxiliar para buscar caminho da foto customizada de um usuário
+const getCustomAvatarPathForUser = (userId) => {
+  try {
+    // Tentar usar variável de ambiente primeiro (útil para Docker/produção)
+    let customDir;
+    if (process.env.UPLOAD_AVATAR_PATH) {
+      customDir = process.env.UPLOAD_AVATAR_PATH;
+    } else if (process.env.NODE_ENV === 'production') {
+      customDir = '/app/frontEnd/public/assets/images/avatars/custom';
+    } else {
+      customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
+    }
+    
+    if (!fs.existsSync(customDir)) {
+      return null;
+    }
+
+    const files = fs.readdirSync(customDir);
+    const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
+    
+    if (userFiles.length === 0) {
+      return null;
+    }
+
+    // Ordenar por timestamp (mais recente primeiro)
+    userFiles.sort((a, b) => {
+      const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
+      const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
+      return timestampB - timestampA;
+    });
+
+    const latestFile = userFiles[0];
+    return `/assets/images/avatars/custom/${latestFile}`;
+  } catch (error) {
+    // Erro silencioso - retornar null se não conseguir buscar
+    return null;
+  }
+};
 
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
   try {
-    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
+    console.log('📥 Recebendo requisição para criar tempo estimado');
+    console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
+    
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
 
     // Validações
     if (!cliente_id) {
+      console.error('❌ Validação falhou: cliente_id é obrigatório');
       return res.status(400).json({
         success: false,
         error: 'cliente_id é obrigatório'
@@ -26,12 +71,38 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
-    if (!tarefa_ids || !Array.isArray(tarefa_ids) || tarefa_ids.length === 0) {
+    // Suportar tanto o formato antigo (tarefa_ids + tempo_estimado_dia) quanto o novo (tarefas array)
+    let tarefasComTempo = [];
+    if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
+      // Novo formato: array de objetos { tarefa_id, tempo_estimado_dia }
+      tarefasComTempo = tarefas;
+    } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
+      // Formato antigo: array de IDs + tempo único
+      tarefasComTempo = tarefa_ids.map(tarefaId => ({
+        tarefa_id: String(tarefaId).trim(),
+        tempo_estimado_dia: parseInt(tempo_estimado_dia, 10)
+      }));
+    } else {
       return res.status(400).json({
         success: false,
-        error: 'tarefa_ids deve ser um array não vazio'
+        error: 'É necessário fornecer "tarefas" (array de objetos com tarefa_id e tempo_estimado_dia) ou "tarefa_ids" + "tempo_estimado_dia"'
       });
     }
+
+    // Validar que todas as tarefas têm tempo estimado
+    const tarefasSemTempo = tarefasComTempo.filter(t => !t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0);
+    if (tarefasSemTempo.length > 0) {
+      console.error('❌ Validação falhou: tarefas sem tempo válido:', tarefasSemTempo);
+      return res.status(400).json({
+        success: false,
+        error: 'Todas as tarefas devem ter um tempo estimado válido (maior que zero)',
+        detalhes: tarefasSemTempo
+      });
+    }
+    
+    console.log('✅ Validações passaram. Tarefas com tempo:', tarefasComTempo.length);
+
+    const tarefaIdsArray = tarefasComTempo.map(t => String(t.tarefa_id).trim());
 
     if (!data_inicio) {
       return res.status(400).json({
@@ -125,7 +196,7 @@ async function criarTempoEstimado(req, res) {
           });
           
           // Criar conjunto de tarefas solicitadas (normalizado)
-          const tarefasSolicitadas = new Set(tarefa_ids.map(id => String(id).trim()));
+          const tarefasSolicitadas = new Set(tarefaIdsArray.map(id => String(id).trim()));
           
           // Verificar cada grupo existente
           for (const [agrupadorId, grupo] of gruposExistentes) {
@@ -192,15 +263,26 @@ async function criarTempoEstimado(req, res) {
     // Criar todas as combinações: produto x tarefa x data (um registro para cada dia)
     const registrosParaInserir = [];
     
+    // Criar mapa de tempo por tarefa para acesso rápido
+    const tempoPorTarefa = new Map();
+    tarefasComTempo.forEach(t => {
+      tempoPorTarefa.set(String(t.tarefa_id).trim(), parseInt(t.tempo_estimado_dia, 10));
+    });
+    
     produto_ids.forEach(produtoId => {
-      tarefa_ids.forEach(tarefaId => {
+      tarefaIdsArray.forEach(tarefaId => {
+        const tempoEstimado = tempoPorTarefa.get(String(tarefaId).trim());
+        if (!tempoEstimado || tempoEstimado <= 0) {
+          console.warn(`⚠️ Tarefa ${tarefaId} não tem tempo estimado válido, pulando...`);
+          return;
+        }
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
             produto_id: String(produtoId).trim(),
             tarefa_id: String(tarefaId).trim(),
             data: dataDoDia,
-            tempo_estimado_dia: parseInt(tempo_estimado_dia, 10), // em milissegundos
+            tempo_estimado_dia: tempoEstimado, // em milissegundos
             responsavel_id: String(responsavel_id).trim(),
             agrupador_id: agrupador_id
           });
@@ -209,8 +291,13 @@ async function criarTempoEstimado(req, res) {
     });
 
     console.log(`📝 Criando ${registrosParaInserir.length} registro(s) de tempo estimado`);
-    console.log(`   - ${produto_ids.length} produto(s) × ${tarefa_ids.length} tarefa(s) × ${datasDoPeriodo.length} dia(s) = ${registrosParaInserir.length} registro(s)`);
-    console.log(`   - Tempo estimado por dia: ${tempo_estimado_dia}ms (${Math.round(tempo_estimado_dia / (1000 * 60 * 60))}h ${Math.round((tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60))}min)`);
+    console.log(`   - ${produto_ids.length} produto(s) × ${tarefaIdsArray.length} tarefa(s) × ${datasDoPeriodo.length} dia(s) = ${registrosParaInserir.length} registro(s)`);
+    console.log(`   - Tempos estimados por tarefa:`);
+    tarefasComTempo.forEach(t => {
+      const horas = Math.floor(t.tempo_estimado_dia / (1000 * 60 * 60));
+      const minutos = Math.round((t.tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60));
+      console.log(`     * Tarefa ${t.tarefa_id}: ${horas}h ${minutos}min`);
+    });
     
     // Log do primeiro registro para debug
     if (registrosParaInserir.length > 0) {
@@ -709,7 +796,7 @@ async function getTempoEstimado(req, res) {
                 usuarioMap.set(String(usuario.id), usuario.foto_perfil);
               });
 
-              // Adicionar foto_perfil aos registros
+              // Adicionar foto_perfil e foto_perfil_path aos registros
               dadosFiltrados.forEach(registro => {
                 if (registro.responsavel_id) {
                   const responsavelIdStr = String(registro.responsavel_id);
@@ -717,35 +804,50 @@ async function getTempoEstimado(req, res) {
                   if (usuarioId) {
                     const fotoPerfil = usuarioMap.get(String(usuarioId));
                     registro.responsavel_foto_perfil = fotoPerfil || null;
+                    
+                    // Se for avatar customizado, buscar o caminho da foto
+                    if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
+                      const userIdFromAvatar = fotoPerfil.replace('custom-', '');
+                      const fotoPerfilPath = getCustomAvatarPathForUser(userIdFromAvatar);
+                      registro.responsavel_foto_perfil_path = fotoPerfilPath || null;
+                    } else {
+                      registro.responsavel_foto_perfil_path = null;
+                    }
                   } else {
                     registro.responsavel_foto_perfil = null;
+                    registro.responsavel_foto_perfil_path = null;
                   }
                 } else {
                   registro.responsavel_foto_perfil = null;
+                  registro.responsavel_foto_perfil_path = null;
                 }
               });
             } else {
               // Se não encontrar usuarios, definir foto_perfil como null
               dadosFiltrados.forEach(registro => {
                 registro.responsavel_foto_perfil = null;
+                registro.responsavel_foto_perfil_path = null;
               });
             }
           } else {
             // Se não houver usuario_ids, definir foto_perfil como null
             dadosFiltrados.forEach(registro => {
               registro.responsavel_foto_perfil = null;
+              registro.responsavel_foto_perfil_path = null;
             });
           }
         } else {
           // Se não encontrar membros, definir foto_perfil como null
           dadosFiltrados.forEach(registro => {
             registro.responsavel_foto_perfil = null;
+            registro.responsavel_foto_perfil_path = null;
           });
         }
       } else {
         // Se não houver responsavel_ids, definir foto_perfil como null
         dadosFiltrados.forEach(registro => {
           registro.responsavel_foto_perfil = null;
+          registro.responsavel_foto_perfil_path = null;
         });
       }
     }
@@ -1244,6 +1346,149 @@ async function getTempoEstimadoPorAgrupador(req, res) {
   }
 }
 
+// GET - Buscar tempo realizado para registros de tempo estimado
+async function getTempoRealizadoPorTarefasEstimadas(req, res) {
+  try {
+    const { registros } = req.body;
+
+    if (!registros || !Array.isArray(registros) || registros.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'registros é obrigatório e deve ser um array não vazio'
+      });
+    }
+
+    // Criar mapa de tempo realizado por chave: tempo_estimado_id (ou fallback)
+    const tempoRealizadoMap = new Map();
+
+    // Extrair todos os tempo_estimado_id únicos dos registros
+    const tempoEstimadoIds = registros
+      .map(reg => reg.id || reg.tempo_estimado_id)
+      .filter(Boolean)
+      .map(id => String(id).trim());
+
+    // Buscar todos os registros de tempo que correspondem aos tempo_estimado_id
+    // IMPORTANTE: Filtrar apenas registros onde cliente_id NÃO é NULL
+    const { data: registrosTempo, error: errorTempo } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, tempo_estimado_id')
+      .in('tempo_estimado_id', tempoEstimadoIds)
+      .not('cliente_id', 'is', null) // SOMENTE registros onde cliente_id não é NULL
+      .not('tempo_realizado', 'is', null)
+      .not('data_inicio', 'is', null)
+      .not('data_fim', 'is', null);
+
+    if (errorTempo) {
+      console.error('Erro ao buscar registros de tempo:', errorTempo);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registros de tempo',
+        details: errorTempo.message
+      });
+    }
+
+    // Buscar membros para converter usuario_id em responsavel_id
+    const usuarioIds = [...new Set((registrosTempo || []).map(reg => reg.usuario_id).filter(Boolean))];
+    const membrosMap = new Map();
+
+    if (usuarioIds.length > 0) {
+      const { data: membros, error: errorMembros } = await supabase
+        .schema('up_gestaointeligente')
+        .from('membro')
+        .select('id, usuario_id')
+        .in('usuario_id', usuarioIds);
+
+      if (!errorMembros && membros) {
+        membros.forEach(membro => {
+          membrosMap.set(membro.usuario_id, membro.id);
+        });
+      }
+    }
+
+    // Agrupar registros de tempo por tempo_estimado_id
+    const registrosPorTempoEstimado = new Map();
+    (registrosTempo || []).forEach(reg => {
+      const tempoEstimadoId = String(reg.tempo_estimado_id || '').trim();
+      if (!tempoEstimadoId) return;
+
+      if (!registrosPorTempoEstimado.has(tempoEstimadoId)) {
+        registrosPorTempoEstimado.set(tempoEstimadoId, []);
+      }
+      registrosPorTempoEstimado.get(tempoEstimadoId).push(reg);
+    });
+
+    // Para cada registro de tempo estimado, calcular tempo realizado total
+    registros.forEach(registro => {
+      const tempoEstimadoId = String(registro.id || registro.tempo_estimado_id || '').trim();
+      if (!tempoEstimadoId) {
+        return;
+      }
+
+      const tarefaId = String(registro.tarefa_id || '').trim();
+      // Normalizar responsavel_id: pode vir como string ou número, sempre converter para número
+      const responsavelIdRaw = registro.responsavel_id || 0;
+      const responsavelId = parseInt(String(responsavelIdRaw).trim(), 10);
+      const clienteId = String(registro.cliente_id || '').trim();
+      
+      // Extrair data para fallback
+      let dataEstimado = null;
+      if (registro.data) {
+        const dataStr = typeof registro.data === 'string' ? registro.data.split('T')[0] : registro.data;
+        dataEstimado = dataStr;
+      }
+
+      // Buscar registros de tempo para este tempo_estimado_id específico
+      const registrosTempoParaEste = registrosPorTempoEstimado.get(tempoEstimadoId) || [];
+
+      // Filtrar por responsável (converter usuario_id para responsavel_id através da tabela membro)
+      const registrosFiltrados = registrosTempoParaEste.filter(reg => {
+        if (responsavelId && !isNaN(responsavelId)) {
+          const responsavelIdDoRegistro = membrosMap.get(reg.usuario_id);
+          return responsavelIdDoRegistro === responsavelId;
+        }
+        return true;
+      });
+
+      // Calcular tempo total realizado
+      let tempoTotalRealizado = 0;
+      registrosFiltrados.forEach(reg => {
+        const tempoRealizado = Number(reg.tempo_realizado) || 0;
+        // Se valor < 1 (decimal), está em horas -> converter para ms
+        // Se valor >= 1, já está em ms
+        const tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+        tempoTotalRealizado += tempoMs;
+      });
+
+      // Criar chave: usar tempo_estimado_id quando disponível (mais preciso)
+      // Fallback: tarefa_id + responsavel_id + cliente_id + data
+      const chave = tempoEstimadoId 
+        ? `${tarefaId}_${responsavelId}_${clienteId}_${tempoEstimadoId}`
+        : (dataEstimado ? `${tarefaId}_${responsavelId}_${clienteId}_${dataEstimado}` : null);
+
+      if (chave) {
+        tempoRealizadoMap.set(chave, {
+          tempo_realizado: tempoTotalRealizado,
+          quantidade_registros: registrosFiltrados.length
+        });
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: Object.fromEntries(tempoRealizadoMap),
+      count: tempoRealizadoMap.size
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tempo realizado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarTempoEstimado,
   getTempoEstimado,
@@ -1252,6 +1497,7 @@ module.exports = {
   deletarTempoEstimado,
   atualizarTempoEstimadoPorAgrupador,
   deletarTempoEstimadoPorAgrupador,
-  getTempoEstimadoPorAgrupador
+  getTempoEstimadoPorAgrupador,
+  getTempoRealizadoPorTarefasEstimadas
 };
 

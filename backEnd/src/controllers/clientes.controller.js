@@ -558,6 +558,65 @@ async function atualizarClientePorNomeClickup(req, res) {
   }
 }
 
+// ========================================
+// === GET /api/clientes/:id ===
+// ========================================
+async function getClientePorId(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
+      });
+    }
+
+    console.log('📡 Buscando cliente por ID:', id);
+
+    const { data: cliente, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .select('id, nome, razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ Erro ao buscar cliente:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar cliente',
+        details: error.message
+      });
+    }
+
+    if (!cliente) {
+      return res.status(404).json({
+        success: false,
+        error: 'Cliente não encontrado'
+      });
+    }
+
+    // Usar nome_amigavel se disponível, senão nome_fantasia, senão razao_social
+    const nomeExibicao = cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || 'Cliente';
+
+    return res.json({
+      success: true,
+      data: {
+        ...cliente,
+        nome: nomeExibicao
+      }
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao buscar cliente:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getClientesKamino,
   getClientesIncompletosCount,
@@ -565,6 +624,7 @@ module.exports = {
   inativarCliente,
   ativarCliente,
   atualizarClientePorId,
-  atualizarClientePorNomeClickup
+  atualizarClientePorNomeClickup,
+  getClientePorId
 };
 
