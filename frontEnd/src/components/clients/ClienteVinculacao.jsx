@@ -23,16 +23,12 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   const [tempProdutoItems, setTempProdutoItems] = useState([]);
 
   // Dados carregados das APIs
-  const [atividades, setAtividades] = useState([]);
   const [produtos, setProdutos] = useState([]);
-  const [tipoAtividades, setTipoAtividades] = useState([]);
   const [clientes, setClientes] = useState([]);
 
   // Opções primárias (sem Cliente, pois já está selecionado)
   const opcoesPrimarias = [
-    { value: 'produto', label: 'Produto' },
-    { value: 'atividade', label: 'Tarefa' },
-    { value: 'tipo-atividade', label: 'Tipo de Tarefa' }
+    { value: 'produto', label: 'Produto' }
   ];
 
   // Carregar dados das APIs e inicializar vinculação
@@ -66,18 +62,6 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Carregar atividades
-      const atividadesRes = await fetch(`${API_BASE_URL}/atividades?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (atividadesRes.ok) {
-        const atividadesData = await atividadesRes.json();
-        if (atividadesData.success) {
-          setAtividades(atividadesData.data || []);
-        }
-      }
-
       // Carregar produtos
       const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
         credentials: 'include',
@@ -87,18 +71,6 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
         const produtosData = await produtosRes.json();
         if (produtosData.success) {
           setProdutos(produtosData.data || []);
-        }
-      }
-
-      // Carregar tipo de atividades
-      const tipoAtividadesRes = await fetch(`${API_BASE_URL}/tipo-atividade?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (tipoAtividadesRes.ok) {
-        const tipoAtividadesData = await tipoAtividadesRes.json();
-        if (tipoAtividadesData.success) {
-          setTipoAtividades(tipoAtividadesData.data || []);
         }
       }
 
@@ -138,12 +110,8 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   // Obter todas as opções do select secundário baseado no tipo primário (sem filtro)
   const getAllSecondaryOptions = (primaryType) => {
     switch (primaryType) {
-      case 'atividade':
-        return atividades.map(a => ({ value: a.id, label: a.nome }));
       case 'produto':
         return produtos.map(p => ({ value: p.id, label: p.nome }));
-      case 'tipo-atividade':
-        return tipoAtividades.map(t => ({ value: t.id, label: t.nome }));
       case 'cliente':
         return clientes.map(c => ({ value: c.id, label: c.nome }));
       default:
@@ -281,9 +249,7 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
       // 1. Salvar na tabela cp_vinculacao (valores booleanos)
       const tiposSelecionados = secondarySelects.map(s => s.primaryType);
       const dadosVinculacao = {
-        cp_tarefa: tiposSelecionados.includes('atividade'),
         cp_produto: tiposSelecionados.includes('produto'),
-        cp_tarefa_tipo: tiposSelecionados.includes('tipo-atividade'),
         cp_cliente: tiposSelecionados.includes('cliente')
       };
 
@@ -399,17 +365,11 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
           selectedItems.forEach(itemId => {
             const combinacao = {
               cp_cliente: clienteIdStr,
-              cp_tarefa: null,
-              cp_produto: null,
-              cp_tarefa_tipo: null
+              cp_produto: null
             };
 
-            if (select.primaryType === 'atividade') {
-              combinacao.cp_tarefa = itemId;
-            } else if (select.primaryType === 'produto') {
+            if (select.primaryType === 'produto') {
               combinacao.cp_produto = itemId;
-            } else if (select.primaryType === 'tipo-atividade') {
-              combinacao.cp_tarefa_tipo = itemId;
             }
 
             combinacoes.push(combinacao);
@@ -476,8 +436,8 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   if (!clienteId) return null;
 
   return (
-    <div className="cliente-vinculacao-section" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
-      <h4 className="section-title" style={{ fontSize: '14px', marginBottom: '10px' }}>Vincular Cliente</h4>
+    <div className="cliente-vinculacao-section" style={{ marginTop: '32px' }}>
+      <h4 className="section-title" style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', marginTop: '0', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>Vincular Cliente</h4>
       <p className="section-description" style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
         Vincule este cliente a produtos, tarefas ou tipos de tarefa
       </p>

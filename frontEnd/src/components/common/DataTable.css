@@ -23,10 +23,19 @@
 }
 
 .listing-table td {
-  padding: 12px 16px;
+  padding: 16px;
   font-size: 14px;
   color: #1e293b;
   border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.listing-table td:not(.actions-column) {
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.listing-table td.actions-column {
+  border-right: none !important;
 }
 
 .listing-table tbody tr:hover {
@@ -38,14 +47,40 @@
 }
 
 .actions-column {
-  text-align: right;
-  width: 120px;
+  width: auto;
+  min-width: 100px; /* padrão para 2 botões */
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
-.action-buttons {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+/* Ajuste automático baseado na quantidade de botões */
+.actions-column:has(button:nth-child(1):last-child) {
+  min-width: 50px; /* 1 botão */
+}
+
+.actions-column:has(button:nth-child(2):last-child) {
+  min-width: 100px; /* 2 botões */
+}
+
+.actions-column:has(button:nth-child(3):last-child) {
+  min-width: 150px; /* 3 botões */
+}
+
+.actions-column:has(button:nth-child(4):last-child) {
+  min-width: 200px; /* 4 botões */
+}
+
+.actions-column:has(button:nth-child(5):last-child) {
+  min-width: 250px; /* 5 botões */
+}
+
+.actions-column > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 3px;
 }
 
 .btn-icon {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import ClienteVinculacao from './ClienteVinculacao';
 
 /**
  * Componente de formulário de cliente (usado no modal de editar)
@@ -12,21 +11,15 @@ const ClienteForm = ({
   submitting,
   allClientesKamino = [],
   clientesKaminoMap,
-  cnpjOptions = [],
-  loadCnpjOptions,
-  onVinculacaoSaveReady
+  onLoadKamino
 }) => {
   const [kaminoSearchTerm, setKaminoSearchTerm] = useState(formData.kaminoNome || '');
   const [showKaminoDropdown, setShowKaminoDropdown] = useState(false);
+  const [kaminoLoaded, setKaminoLoaded] = useState(false);
 
   useEffect(() => {
-    if (formData.id && loadCnpjOptions) {
-      loadCnpjOptions(formData.id, formData.clickupNome).then(options => {
-        // Opções já são atualizadas via props
-      });
-    }
     setKaminoSearchTerm(formData.kaminoNome || '');
-  }, [formData.id, formData.clickupNome, formData.kaminoNome, loadCnpjOptions]);
+  }, [formData.kaminoNome]);
 
   // Filtrar clientes Kamino
   const filteredKamino = React.useMemo(() => {
@@ -133,34 +126,22 @@ const ClienteForm = ({
         <div className="form-group">
           <label className="form-label-small">
             CNPJ
-            <span className="info-icon" title="O CNPJ vem do contrato que é cadastrado no CLICKUP">
-              <i className="fas fa-info-circle" style={{ marginLeft: '4px', color: '#64748b', fontSize: '12px' }}></i>
-            </span>
           </label>
-          <div className="select-wrapper">
-            <select
-              className={`form-input-small select-with-icon ${formErrors.cnpj ? 'error' : ''}`}
-              value={formData.cnpj ? formData.cnpj.replace(/\D/g, '') : ''}
-              onChange={(e) => {
-                setFormData({ ...formData, cnpj: e.target.value });
-                if (formErrors.cnpj) {
-                  setFormErrors({ ...formErrors, cnpj: '' });
-                }
-              }}
-              disabled={submitting}
-            >
-              <option value="">Selecione o CNPJ</option>
-              {cnpjOptions.map((cnpj) => {
-                const cnpjLimpo = cnpj.replace(/\D/g, '');
-                return (
-                  <option key={cnpjLimpo} value={cnpjLimpo}>
-                    {aplicarMascaraCpfCnpj(cnpjLimpo)}
-                  </option>
-                );
-              })}
-            </select>
-            <i className="fas fa-chevron-down select-icon"></i>
-          </div>
+          <input
+            type="text"
+            className={`form-input-small ${formErrors.cnpj ? 'error' : ''}`}
+            value={formData.cnpj ? aplicarMascaraCpfCnpj(formData.cnpj.replace(/\D/g, '')) : ''}
+            onChange={(e) => {
+              const apenasNumeros = e.target.value.replace(/\D/g, '');
+              setFormData({ ...formData, cnpj: apenasNumeros });
+              if (formErrors.cnpj) {
+                setFormErrors({ ...formErrors, cnpj: '' });
+              }
+            }}
+            placeholder="Digite o CNPJ"
+            disabled={submitting}
+            maxLength={18}
+          />
           {formErrors.cnpj && (
             <span className="error-message">{formErrors.cnpj}</span>
           )}
@@ -192,12 +173,20 @@ const ClienteForm = ({
             <span className="error-message">{formErrors.status}</span>
           )}
         </div>
+      </div>
 
-        <div className="form-group" style={{ position: 'relative', zIndex: showKaminoDropdown ? 1001 : 'auto' }}>
-          <label className="form-label-small">
-            Cliente Kamino <span className="required">*</span>
-          </label>
-          <div className="select-wrapper searchable-select" style={{ position: 'relative', zIndex: showKaminoDropdown ? 1002 : 'auto' }}>
+      {/* Seção Vincular Financeiro */}
+      <div className="form-section-financial">
+        <h3 className="form-section-title">
+          <i className="fas fa-link"></i>
+          Vincular Financeiro
+        </h3>
+        <div className="form-row">
+          <div className="form-group" style={{ position: 'relative', zIndex: showKaminoDropdown ? 1001 : 'auto' }}>
+            <label className="form-label-small">
+              Cliente Kamino
+            </label>
+            <div className="select-wrapper searchable-select" style={{ position: 'relative', zIndex: showKaminoDropdown ? 1002 : 'auto' }}>
             <input
               type="text"
               className={`form-input-small select-with-icon searchable-input ${formErrors.kaminoNome ? 'error' : ''}`}
@@ -214,8 +203,13 @@ const ClienteForm = ({
                   });
                 }
               }}
-              onFocus={() => {
+              onFocus={async () => {
                 setShowKaminoDropdown(true);
+                // Carregar clientes Kamino apenas na primeira vez que o campo recebe foco
+                if (!kaminoLoaded && onLoadKamino) {
+                  setKaminoLoaded(true);
+                  await onLoadKamino();
+                }
               }}
               onBlur={(e) => {
                 const relatedTarget = e.relatedTarget;
@@ -226,7 +220,6 @@ const ClienteForm = ({
               placeholder="Digite para pesquisar..."
               autoComplete="off"
               disabled={submitting}
-              required
             />
             <i 
               className="fas fa-chevron-down select-icon" 
@@ -317,20 +310,14 @@ const ClienteForm = ({
                 )}
               </ul>
             )}
+            </div>
+            {formErrors.kaminoNome && (
+              <span className="error-message">{formErrors.kaminoNome}</span>
+            )}
           </div>
-          {formErrors.kaminoNome && (
-            <span className="error-message">{formErrors.kaminoNome}</span>
-          )}
         </div>
       </div>
 
-      {/* Seção de Vinculação */}
-      {formData.id && (
-        <ClienteVinculacao 
-          clienteId={formData.id} 
-          onSaveVinculacao={onVinculacaoSaveReady}
-        />
-      )}
     </div>
   );
 };

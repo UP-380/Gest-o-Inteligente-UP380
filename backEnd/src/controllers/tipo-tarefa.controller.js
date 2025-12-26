@@ -18,11 +18,11 @@ async function getTipoTarefas(req, res) {
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
 
-    // Busca por nome
+    // Busca por nome ou clickup_id
     if (search && search.trim()) {
       const searchTerm = search.trim();
       const ilikePattern = `%${searchTerm}%`;
-      query = query.ilike('nome', ilikePattern);
+      query = query.or(`nome.ilike.${ilikePattern},clickup_id.ilike.${ilikePattern}`);
     }
 
     // Aplicar paginação

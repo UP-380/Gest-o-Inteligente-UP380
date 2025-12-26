@@ -659,6 +659,175 @@ async function atualizarRegistroTempo(req, res) {
   }
 }
 
+// GET - Listar registros de tempo com filtros (endpoint genérico consolidado)
+async function getRegistrosTempo(req, res) {
+  try {
+    const { 
+      usuario_id, 
+      cliente_id, 
+      tarefa_id, 
+      tempo_estimado_id,
+      data_inicio, 
+      data_fim,
+      ativo, // true/false para filtrar apenas ativos ou finalizados
+      page = 1,
+      limit = 50,
+      // Compatibilidade com formato antigo do dashboard-clientes.js
+      colaboradorId // alias para usuario_id
+    } = req.query;
+    
+    // Usar colaboradorId se fornecido e usuario_id não foi fornecido (compatibilidade)
+    const usuarioIdFinal = usuario_id || colaboradorId;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Construir query base
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('*', { count: 'exact' });
+
+    // Aplicar filtros
+    if (usuarioIdFinal) {
+      query = query.eq('usuario_id', parseInt(usuarioIdFinal, 10));
+    }
+
+    // Compatibilidade: suporta tanto cliente_id quanto clienteId
+    const clienteIdFinal = cliente_id || req.query.clienteId;
+    if (clienteIdFinal) {
+      query = query.eq('cliente_id', String(clienteIdFinal).trim());
+    }
+
+    if (tarefa_id) {
+      query = query.eq('tarefa_id', String(tarefa_id).trim());
+    }
+
+    if (tempo_estimado_id) {
+      query = query.eq('tempo_estimado_id', String(tempo_estimado_id).trim());
+    }
+
+    // Filtro de status (ativo/finalizado)
+    if (ativo === 'true') {
+      query = query.is('data_fim', null);
+    } else if (ativo === 'false') {
+      query = query.not('data_fim', 'is', null);
+    }
+
+    // Filtro de período
+    // Suporta tanto data_inicio/data_fim quanto dataInicio/dataFim (compatibilidade)
+    const periodoInicio = data_inicio || req.query.dataInicio;
+    const periodoFim = data_fim || req.query.dataFim;
+    
+    if (periodoInicio && periodoFim) {
+      const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
+      const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
+      const inicioStr = inicioISO.toISOString();
+      const fimStr = fimISO.toISOString();
+
+      // Registro se sobrepõe se:
+      // 1. data_inicio está dentro do período, OU
+      // 2. data_fim está dentro do período, OU
+      // 3. registro cobre todo o período (começa antes e termina depois)
+      const orConditions = [
+        `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
+        `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`,
+        `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`
+      ].join(',');
+
+      query = query.or(orConditions);
+    }
+
+    // Ordenar por data_inicio (mais recentes primeiro)
+    query = query.order('data_inicio', { ascending: false });
+
+    // Aplicar paginação
+    if (limitNum > 0) {
+      query = query.range(offset, offset + limitNum - 1);
+    }
+
+    const { data, count, error } = await query;
+
+    if (error) {
+      console.error('[getRegistrosTempo] Erro ao buscar registros:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registros de tempo',
+        details: error.message
+      });
+    }
+
+    const totalPages = limitNum > 0 ? Math.max(1, Math.ceil((count || 0) / limitNum)) : 1;
+
+    return res.json({
+      success: true,
+      data: data || [],
+      count: count || 0,
+      page: pageNum,
+      limit: limitNum,
+      totalPages
+    });
+  } catch (error) {
+    console.error('[getRegistrosTempo] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar registros de tempo sem tarefa_id (debug/diagnóstico)
+async function getRegistrosSemTarefa(req, res) {
+  try {
+    console.log('🔍 [getRegistrosSemTarefa] Buscando registros sem tarefa_id...');
+
+    const { page = 1, limit = 100 } = req.query;
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Buscar registros onde tarefa_id é null OU string vazia
+    const { data: registros, count, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('*', { count: 'exact' })
+      .or('tarefa_id.is.null,tarefa_id.eq.')
+      .order('data_inicio', { ascending: false })
+      .range(offset, offset + limitNum - 1);
+
+    if (error) {
+      console.error('[getRegistrosSemTarefa] Erro ao buscar registros:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registros de tempo sem tarefa',
+        details: error.message
+      });
+    }
+
+    console.log(`✅ [getRegistrosSemTarefa] Encontrados ${(registros || []).length} registros sem tarefa_id`);
+
+    const totalPages = Math.max(1, Math.ceil((count || 0) / limitNum));
+
+    return res.json({
+      success: true,
+      data: registros || [],
+      count: count || 0,
+      page: pageNum,
+      limit: limitNum,
+      totalPages
+    });
+  } catch (error) {
+    console.error('[getRegistrosSemTarefa] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // DELETE - Deletar registro de tempo
 async function deletarRegistroTempo(req, res) {
   try {
@@ -737,6 +906,8 @@ module.exports = {
   getRegistrosAtivos,
   getRegistrosPorTempoEstimado,
   getHistoricoRegistros,
+  getRegistrosTempo, // Novo: endpoint genérico consolidado
+  getRegistrosSemTarefa, // Novo: endpoint de debug
   atualizarRegistroTempo,
   deletarRegistroTempo
 };

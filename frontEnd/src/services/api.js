@@ -251,6 +251,28 @@ export const authAPI = {
 
 export const clientesAPI = {
   /**
+   * Faz upload de uma foto de perfil personalizada para cliente
+   * @param {File} file - Arquivo de imagem
+   * @param {string} clienteId - ID do cliente
+   */
+  async uploadClienteFoto(file, clienteId) {
+    const formData = new FormData();
+    formData.append('foto', file);
+
+    const response = await fetch(`${API_BASE_URL}/clientes/${clienteId}/upload-foto`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erro ao fazer upload' }));
+      throw new Error(error.error || 'Erro ao fazer upload da imagem');
+    }
+
+    return await response.json();
+  },
+  /**
    * Busca todos os clientes
    * @param {string|null} status - Filtro opcional por status
    * @param {boolean} useCache - Se deve usar cache (padrão: true)
@@ -283,7 +305,7 @@ export const clientesAPI = {
    * @param {Object} params - { page, limit, search, status, incompletos }
    */
   async getPaginated({ page = 1, limit = 20, search = null, status = null, incompletos = false }) {
-    let url = `${API_BASE_URL}/cadastro/clientes?page=${page}&limit=${limit}`;
+    let url = `${API_BASE_URL}/clientes?page=${page}&limit=${limit}`;
     
     if (search && search.trim() !== '') {
       url += `&search=${encodeURIComponent(search.trim())}`;
@@ -375,25 +397,12 @@ export const clientesAPI = {
   },
 
   /**
-   * Busca dados de um cliente por nome ClickUp
-   * @param {string} clickupName 
-   */
-  async getByClickupName(clickupName) {
-    return await request(`${API_BASE_URL}/cliente-dados/${encodeURIComponent(clickupName)}`);
-  },
-
-  /**
    * Atualiza dados de um cliente
    * @param {number|string} id - ID do cliente
    * @param {Object} data - Dados do cliente
-   * @param {string|null} clickupName - Nome ClickUp (opcional, se fornecido usa endpoint diferente)
    */
-  async update(id, data, clickupName = null) {
-    const endpoint = clickupName && clickupName.trim() !== ''
-      ? `${API_BASE_URL}/cliente-dados/${encodeURIComponent(clickupName.trim())}`
-      : `${API_BASE_URL}/clientes/${id}`;
-    
-    return await request(endpoint, {
+  async update(id, data) {
+    return await request(`${API_BASE_URL}/clientes/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data)
     });
@@ -404,8 +413,9 @@ export const clientesAPI = {
    * @param {number|string} id 
    */
   async inativar(id) {
-    return await request(`${API_BASE_URL}/clientes/${id}/inativar`, {
-      method: 'POST'
+    return await request(`${API_BASE_URL}/clientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'inativo' })
     });
   },
 
@@ -414,8 +424,9 @@ export const clientesAPI = {
    * @param {number|string} id 
    */
   async ativar(id) {
-    return await request(`${API_BASE_URL}/clientes/${id}/ativar`, {
-      method: 'POST'
+    return await request(`${API_BASE_URL}/clientes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'ativo' })
     });
   }
 };
@@ -535,8 +546,9 @@ export const colaboradoresAPI = {
    * @param {number|string} id 
    */
   async inativar(id) {
-    return await request(`${API_BASE_URL}/colaboradores/${id}/inativar`, {
-      method: 'POST'
+    return await request(`${API_BASE_URL}/colaboradores/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'inativo' })
     });
   },
 

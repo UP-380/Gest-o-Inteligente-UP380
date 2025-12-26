@@ -5,14 +5,14 @@ const API_BASE_URL = '/api';
 const TarefasContent = ({ registros }) => {
   const [expandedTarefas, setExpandedTarefas] = useState(new Set());
   const [expandedColaboradores, setExpandedColaboradores] = useState(new Set());
-  const [tiposAtividadeMap, setTiposAtividadeMap] = useState(new Map());
+  const [tiposTarefaMap, setTiposTarefaMap] = useState(new Map());
   const [custosPorColaborador, setCustosPorColaborador] = useState({});
 
-  // Buscar tipos de atividade para criar mapa de clickup_id -> nome
+  // Buscar tipos de tarefa para criar mapa de clickup_id -> nome
   useEffect(() => {
-    const loadTiposAtividade = async () => {
+    const loadTiposTarefa = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/tipo-atividade?limit=1000`, {
+        const response = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
           credentials: 'include',
           headers: {
             'Accept': 'application/json',
@@ -28,15 +28,15 @@ const TarefasContent = ({ registros }) => {
                 map.set(String(tipo.clickup_id).trim(), tipo.nome);
               }
             });
-            setTiposAtividadeMap(map);
+            setTiposTarefaMap(map);
           }
         }
       } catch (error) {
-        console.error('Erro ao carregar tipos de atividade:', error);
+        console.error('Erro ao carregar tipos de tarefa:', error);
       }
     };
 
-    loadTiposAtividade();
+    loadTiposTarefa();
   }, []);
 
   // Buscar custo/hora de um colaborador
@@ -190,8 +190,8 @@ const TarefasContent = ({ registros }) => {
     const dtInicio = registro.tarefa?.dt_inicio || registro.tarefa?.data_inicio || null;
     const dtVencimento = registro.tarefa?.dt_vencimento || registro.tarefa?.data_vencimento || null;
     const tempoEstimado = registro.tarefa?.tempo_estimado || 0;
-    const tipoAtividadeId = registro.tarefa?.tipoatividade_id || null;
-    const tipoAtividadeNome = tipoAtividadeId ? tiposAtividadeMap.get(String(tipoAtividadeId).trim()) : null;
+    const tipoTarefaId = registro.tarefa?.tipoatividade_id || null;
+    const tipoTarefaNome = tipoTarefaId ? tiposTarefaMap.get(String(tipoTarefaId).trim()) : null;
     
     if (!tarefasMap.has(tarefaId)) {
       tarefasMap.set(tarefaId, {
@@ -200,8 +200,8 @@ const TarefasContent = ({ registros }) => {
         dtInicio,
         dtVencimento,
         tempoEstimado,
-        tipoAtividadeId,
-        tipoAtividadeNome,
+        tipoTarefaId,
+        tipoTarefaNome,
         registros: [],
         tempoTotal: 0,
         colaboradores: new Map()
@@ -319,7 +319,7 @@ const TarefasContent = ({ registros }) => {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#374151', fontSize: '12px' }}>
               <span>{range}</span>
-              {tarefa.tipoAtividadeNome && (
+              {tarefa.tipoTarefaNome && (
                 <span style={{ 
                   background: '#f3f4f6', 
                   color: '#6b7280', 
@@ -328,7 +328,7 @@ const TarefasContent = ({ registros }) => {
                   fontSize: '11px',
                   fontWeight: 500
                 }}>
-                  {tarefa.tipoAtividadeNome}
+                  {tarefa.tipoTarefaNome}
                 </span>
               )}
               <i className="fas fa-info-circle" style={{ color: '#9ca3af', fontSize: '12px' }} title="Data inicio - Data Vencimento da tarefa"></i>

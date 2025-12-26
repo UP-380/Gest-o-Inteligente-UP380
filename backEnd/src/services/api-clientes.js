@@ -1300,8 +1300,8 @@ function registrarRotasAPI(app, requireAuth = null) {
   app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteEndpoint);
   app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteIdEndpoint);
   app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req,_res,next)=>next(), getTarefasEndpoint);
-  app.get('/api/registro-tempo', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempo);
-  app.get('/api/registro-tempo-sem-tarefa', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempoSemTarefa);
+  // REMOVIDO: /api/registro-tempo - Consolidado no registro-tempo.controller.js
+  // REMOVIDO: /api/registro-tempo-sem-tarefa - Movido para /api/registro-tempo/debug/sem-tarefa
   
   // Endpoints outros (com autenticação se disponível)
   app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req,_res,next)=>next(), getCustoHoraMembro);

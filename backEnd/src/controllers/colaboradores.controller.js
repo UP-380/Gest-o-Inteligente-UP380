@@ -284,7 +284,7 @@ async function criarColaborador(req, res) {
 async function atualizarColaborador(req, res) {
   try {
     const { id } = req.params;
-    const { nome, cpf } = req.body;
+    const { nome, cpf, status } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -375,6 +375,11 @@ async function atualizarColaborador(req, res) {
       }
     }
 
+    if (status !== undefined && status !== null) {
+      dadosUpdate.status = status.trim() || null;
+      dadosUpdate.updated_at = new Date().toISOString();
+    }
+
     // Se não há nada para atualizar
     if (Object.keys(dadosUpdate).length === 0) {
       return res.status(400).json({
@@ -408,166 +413,6 @@ async function atualizarColaborador(req, res) {
     });
   } catch (error) {
     console.error('Erro inesperado ao atualizar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
-  }
-}
-
-// PUT - Inativar colaborador
-async function inativarColaborador(req, res) {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
-    }
-
-    // Verificar se colaborador existe
-    const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .select('id, nome, status')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (errorCheck) {
-      console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
-    }
-
-    if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
-    }
-
-    // Verificar se já está inativo
-    if (existente.status === 'inativo') {
-      return res.status(400).json({
-        success: false,
-        error: 'Colaborador já está inativo'
-      });
-    }
-
-    // Atualizar status para inativo
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .update({ 
-        status: 'inativo',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao inativar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao inativar colaborador',
-        details: error.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: 'Colaborador inativado com sucesso',
-      data: data
-    });
-  } catch (error) {
-    console.error('Erro inesperado ao inativar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
-  }
-}
-
-// PUT - Ativar colaborador
-async function ativarColaborador(req, res) {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
-    }
-
-    // Verificar se colaborador existe
-    const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .select('id, nome, status')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (errorCheck) {
-      console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
-    }
-
-    if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
-    }
-
-    // Verificar se já está ativo
-    if (existente.status === 'ativo' || existente.status === null) {
-      return res.status(400).json({
-        success: false,
-        error: 'Colaborador já está ativo'
-      });
-    }
-
-    // Atualizar status para ativo
-    const { data, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('membro')
-      .update({ 
-        status: 'ativo',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Erro ao ativar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao ativar colaborador',
-        details: error.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: 'Colaborador ativado com sucesso',
-      data: data
-    });
-  } catch (error) {
-    console.error('Erro inesperado ao ativar colaborador:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -706,8 +551,6 @@ module.exports = {
   getColaboradorPorId,
   criarColaborador,
   atualizarColaborador,
-  inativarColaborador,
-  ativarColaborador,
   deletarColaborador
 };
 

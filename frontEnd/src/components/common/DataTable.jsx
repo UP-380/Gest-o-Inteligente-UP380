@@ -52,9 +52,7 @@ const DataTable = ({
               ))}
               {renderActions && (
                 <td className="actions-column">
-                  <div className="action-buttons">
-                    {renderActions(item)}
-                  </div>
+                  {renderActions(item)}
                 </td>
               )}
             </tr>

@@ -4,6 +4,9 @@ import ContratosContent from './DetailContent/ContratosContent';
 import TarefasContent from './DetailContent/TarefasContent';
 import ProdutosContent from './DetailContent/ProdutosContent';
 import ColaboradoresContent from './DetailContent/ColaboradoresContent';
+import ContasBancariasContent from './DetailContent/ContasBancariasContent';
+import SistemasContent from './DetailContent/SistemasContent';
+import AdquirentesContent from './DetailContent/AdquirentesContent';
 import './DetailSideCard.css';
 
 const DetailSideCard = ({ clienteId, tipo, dados, onClose, position }) => {
@@ -44,6 +47,12 @@ const DetailSideCard = ({ clienteId, tipo, dados, onClose, position }) => {
             registros={dados.registros || []}
           />
         );
+      case 'contas-bancarias':
+        return <ContasBancariasContent contasBancarias={dados.contasBancarias || []} maxHeight="calc(75vh - 80px)" />;
+      case 'sistemas':
+        return <SistemasContent sistemas={dados.sistemas || []} maxHeight="calc(75vh - 80px)" />;
+      case 'adquirentes':
+        return <AdquirentesContent adquirentes={dados.adquirentes || []} maxHeight="calc(75vh - 80px)" />;
       default:
         return <div className="empty-state"><p>Tipo não reconhecido</p></div>;
     }
@@ -53,7 +62,10 @@ const DetailSideCard = ({ clienteId, tipo, dados, onClose, position }) => {
     contratos: { label: 'Contratos', icon: 'fa-file-contract', color: '#4b5563' },
     tarefas: { label: 'Tarefas', icon: 'fa-list', color: '#4b5563' },
     produtos: { label: 'Produtos', icon: 'fa-box', color: '#4b5563' },
-    colaboradores: { label: 'Detalhes de Colaboradores', icon: 'fa-user-friends', color: '#4b5563' }
+    colaboradores: { label: 'Detalhes de Colaboradores', icon: 'fa-user-friends', color: '#4b5563' },
+    'contas-bancarias': { label: 'Contas Bancárias', icon: 'fa-university', color: '#4b5563' },
+    sistemas: { label: 'Acessos de Sistema', icon: 'fa-server', color: '#4b5563' },
+    adquirentes: { label: 'Adquirentes', icon: 'fa-credit-card', color: '#4b5563' }
   };
 
   const tipoInfo = tipoLabels[tipo] || { label: tipo, icon: 'fa-info-circle', color: '#4b5563' };
@@ -64,7 +76,7 @@ const DetailSideCard = ({ clienteId, tipo, dados, onClose, position }) => {
     width: '500px',
     minWidth: '420px',
     maxWidth: '560px',
-    maxHeight: '50vh',
+    maxHeight: '75vh',
     background: '#fff',
     border: '1px solid #e5e7eb',
     borderRadius: '12px',
