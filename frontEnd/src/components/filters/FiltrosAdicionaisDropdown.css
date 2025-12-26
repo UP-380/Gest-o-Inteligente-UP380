@@ -1,0 +1,49 @@
+.filtros-adicionais-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  min-width: 250px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.filtros-adicionais-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filtro-adicional-option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filtro-adicional-option label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.filtro-adicional-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #0e3b6f;
+}
+
+.filtro-adicional-option input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+

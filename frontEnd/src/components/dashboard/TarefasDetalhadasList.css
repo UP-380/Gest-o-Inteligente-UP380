@@ -1,0 +1,380 @@
+.tarefas-detalhadas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tarefa-detalhada-cliente-group {
+  margin-bottom: 12px;
+}
+
+.tarefa-detalhada-cliente-group:last-child {
+  margin-bottom: 0;
+}
+
+.tarefa-detalhada-cliente-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tarefa-detalhada-cliente-tarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tarefas-detalhadas-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.tarefa-detalhada-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.tarefa-detalhada-card:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tarefa-detalhada-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tarefa-detalhada-info {
+  flex: 1;
+}
+
+.tarefa-detalhada-nome {
+  font-weight: 600;
+  color: #0e3b6f;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.tarefa-detalhada-metrics {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tarefa-detalhada-tempo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: fit-content;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.tarefa-detalhada-tempo-card:hover {
+  transform: translateY(-1px);
+}
+
+.tarefa-detalhada-tempo-card-estimado {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.tarefa-detalhada-tempo-card-realizado {
+  background: #fff4e6;
+  border: 1px solid #ffd8a8;
+}
+
+.tarefa-detalhada-tempo-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 1px;
+}
+
+.tarefa-detalhada-tempo-label-estimado {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-tempo-label-estimado i {
+  color: #0e3b6f;
+  font-size: 9px;
+}
+
+.tarefa-detalhada-tempo-label-realizado {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-tempo-label-realizado i {
+  color: #fd7e14;
+  font-size: 9px;
+}
+
+.tarefa-detalhada-tempo-valor {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.tarefa-detalhada-tempo-valor-estimado {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-tempo-valor-realizado {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-tempo-custo {
+  font-size: 8px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+
+.tarefa-detalhada-tempo-custo-estimado {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-tempo-custo-realizado {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-toggle:hover {
+  color: #0c2f5a;
+  transform: scale(1.1);
+}
+
+.tarefa-detalhada-toggle i {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.tarefa-detalhada-toggle i.expanded {
+  transform: rotate(180deg);
+}
+
+.tarefa-detalhada-registros {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.tarefa-detalhada-registros-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.tarefa-detalhada-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  gap: 6px;
+  color: #64748b;
+}
+
+.tarefa-detalhada-loading i {
+  color: #0e3b6f;
+  font-size: 12px;
+}
+
+.tarefa-detalhada-loading span {
+  font-size: 11px;
+}
+
+.tarefa-detalhada-empty-registros {
+  padding: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.tarefa-detalhada-registros-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tarefa-detalhada-registro-item {
+  padding: 4px 8px;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tarefa-detalhada-registro-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.tarefa-detalhada-registro-tempo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tarefa-detalhada-registro-tempo i {
+  font-size: 10px;
+}
+
+.tarefa-detalhada-registro-tempo span {
+  font-weight: 600;
+  color: #374151;
+}
+
+.tarefa-detalhada-registro-tempo-estimado {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-registro-tempo-estimado i {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-registro-tempo-estimado span {
+  color: #0e3b6f;
+}
+
+.tarefa-detalhada-registro-tempo-realizado {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-registro-tempo-realizado i {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-registro-tempo-realizado span {
+  color: #fd7e14;
+}
+
+.tarefa-detalhada-registro-custo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tarefa-detalhada-separator {
+  color: #9ca3af;
+  margin: 0 2px;
+}
+
+.tarefa-detalhada-registro-custo i {
+  color: #059669;
+  font-size: 9px;
+}
+
+.tarefa-detalhada-registro-custo span {
+  font-weight: 600;
+  color: #059669;
+  font-size: 10px;
+}
+
+.tarefa-detalhada-registro-data {
+  color: #6b7280;
+  font-size: 10px;
+}
+
+/* Agrupamento por data */
+.tarefa-detalhada-data-group {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.tarefa-detalhada-data-group:last-child {
+  margin-bottom: 0;
+}
+
+.tarefa-detalhada-data-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tarefa-detalhada-data-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.tarefa-detalhada-data-metrics {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tarefa-detalhada-tempo-card-dia {
+  /* Cards menores para o resumo do dia */
+  padding: 3px 6px;
+  font-size: 9px;
+}
+
+.tarefa-detalhada-tempo-card-dia .tarefa-detalhada-tempo-label {
+  font-size: 7px;
+  gap: 3px;
+}
+
+.tarefa-detalhada-tempo-card-dia .tarefa-detalhada-tempo-label i {
+  font-size: 8px;
+}
+
+.tarefa-detalhada-tempo-card-dia .tarefa-detalhada-tempo-valor {
+  font-size: 9px;
+}
+
+.tarefa-detalhada-tempo-card-dia .tarefa-detalhada-tempo-custo {
+  font-size: 7px;
+  margin-top: 1px;
+}
+
+.tarefa-detalhada-registros-individuais {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+

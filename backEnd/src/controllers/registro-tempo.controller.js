@@ -251,7 +251,7 @@ async function finalizarRegistroTempo(req, res) {
 // GET - Buscar registro ativo de um usuário para uma tarefa e cliente
 async function getRegistroAtivo(req, res) {
   try {
-    const { usuario_id, tarefa_id, cliente_id } = req.query;
+    const { usuario_id, tarefa_id, cliente_id, data } = req.query;
 
     if (!usuario_id) {
       return res.status(400).json({
@@ -274,15 +274,27 @@ async function getRegistroAtivo(req, res) {
       });
     }
 
-    const { data: registroAtivo, error } = await supabase
+    let query = supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
       .select('*')
       .eq('usuario_id', parseInt(usuario_id, 10))
       .eq('tarefa_id', String(tarefa_id).trim())
       .eq('cliente_id', String(cliente_id).trim())
-      .is('data_fim', null)
-      .maybeSingle();
+      .is('data_fim', null);
+
+    // Se data for fornecida, filtrar por data_inicio (apenas a parte da data, sem hora)
+    if (data) {
+      const dataStr = typeof data === 'string' ? data.split('T')[0] : new Date(data).toISOString().split('T')[0];
+      const inicioDia = `${dataStr}T00:00:00.000Z`;
+      const fimDia = `${dataStr}T23:59:59.999Z`;
+      
+      query = query
+        .gte('data_inicio', inicioDia)
+        .lte('data_inicio', fimDia);
+    }
+
+    const { data: registroAtivo, error } = await query.maybeSingle();
 
     if (error) {
       console.error('Erro ao buscar registro ativo:', error);
@@ -537,7 +549,7 @@ async function getHistoricoRegistros(req, res) {
 async function atualizarRegistroTempo(req, res) {
   try {
     const { id } = req.params;
-    const { tempo_realizado, data_inicio, data_fim } = req.body;
+    const { tempo_realizado, data_inicio, data_fim, justificativa } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -578,53 +590,192 @@ async function atualizarRegistroTempo(req, res) {
       });
     }
 
+    // REGRA 1: Apenas registros finalizados podem ser editados
+    if (!registroExistente.data_fim) {
+      return res.status(400).json({
+        success: false,
+        error: 'Apenas registros finalizados podem ser editados'
+      });
+    }
+
+    // REGRA 6: Justificativa é obrigatória
+    if (!justificativa || justificativa.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Justificativa é obrigatória para editar o registro'
+      });
+    }
+
     // Preparar dados para atualização
     const dadosUpdate = {};
 
     // Atualizar data_inicio se fornecida
     if (data_inicio) {
       dadosUpdate.data_inicio = new Date(data_inicio).toISOString();
+    } else {
+      dadosUpdate.data_inicio = registroExistente.data_inicio;
     }
 
     // Atualizar data_fim se fornecida
     if (data_fim) {
       dadosUpdate.data_fim = new Date(data_fim).toISOString();
+    } else {
+      dadosUpdate.data_fim = registroExistente.data_fim;
     }
 
-    // Calcular tempo_realizado se data_inicio e data_fim foram fornecidas
-    if (dadosUpdate.data_inicio && dadosUpdate.data_fim) {
-      const inicio = new Date(dadosUpdate.data_inicio);
-      const fim = new Date(dadosUpdate.data_fim);
-      
-      if (fim < inicio) {
-        return res.status(400).json({
-          success: false,
-          error: 'data_fim não pode ser anterior a data_inicio'
-        });
-      }
+    // Converter para Date objects para validações
+    const novoInicio = new Date(dadosUpdate.data_inicio);
+    const novoFim = new Date(dadosUpdate.data_fim);
+    const agora = new Date();
 
-      dadosUpdate.tempo_realizado = fim.getTime() - inicio.getTime();
-    } else if (tempo_realizado !== undefined) {
-      // Se tempo_realizado foi fornecido diretamente, usar ele
-      dadosUpdate.tempo_realizado = parseInt(tempo_realizado, 10);
-    } else if (dadosUpdate.data_inicio || dadosUpdate.data_fim) {
-      // Se apenas uma data foi atualizada, recalcular tempo_realizado
-      const inicio = dadosUpdate.data_inicio ? new Date(dadosUpdate.data_inicio) : new Date(registroExistente.data_inicio);
-      const fim = dadosUpdate.data_fim ? new Date(dadosUpdate.data_fim) : (registroExistente.data_fim ? new Date(registroExistente.data_fim) : new Date());
-      
-      if (fim < inicio) {
-        return res.status(400).json({
-          success: false,
-          error: 'data_fim não pode ser anterior a data_inicio'
-        });
-      }
-
-      dadosUpdate.tempo_realizado = fim.getTime() - inicio.getTime();
+    // REGRA 2: Validar não-futuro
+    if (novoInicio > agora) {
+      return res.status(400).json({
+        success: false,
+        error: 'Data de início não pode ser no futuro'
+      });
     }
+
+    if (novoFim > agora) {
+      return res.status(400).json({
+        success: false,
+        error: 'Data de fim não pode ser no futuro'
+      });
+    }
+
+    // REGRA 3: Validar ordem cronológica
+    if (novoInicio >= novoFim) {
+      return res.status(400).json({
+        success: false,
+        error: 'Data de início deve ser anterior à data de fim'
+      });
+    }
+
+    // REGRA 4: Validar duração mínima (1 segundo)
+    const duracao = novoFim.getTime() - novoInicio.getTime();
+    if (duracao < 1000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Duração mínima é de 1 segundo'
+      });
+    }
+
+    // REGRA 5: Validar sobreposição com outros registros do mesmo usuário
+    const { data: registrosUsuario, error: errorRegistros } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('id, data_inicio, data_fim')
+      .eq('usuario_id', registroExistente.usuario_id)
+      .not('id', 'eq', id) // Excluir o registro atual
+      .not('data_fim', 'is', null); // Apenas registros finalizados
+
+    if (errorRegistros) {
+      console.error('[atualizarRegistroTempo] Erro ao buscar registros do usuário:', errorRegistros);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao validar sobreposição',
+        details: errorRegistros.message
+      });
+    }
+
+    // Verificar sobreposição
+    if (registrosUsuario && registrosUsuario.length > 0) {
+      for (const registro of registrosUsuario) {
+        const outroInicio = new Date(registro.data_inicio);
+        const outroFim = new Date(registro.data_fim);
+        
+        // Sobreposição: (novo_inicio < outro_fim) E (novo_fim > outro_inicio)
+        const temSobreposicao = (novoInicio < outroFim) && (novoFim > outroInicio);
+        
+        if (temSobreposicao) {
+          const formatarData = (date) => {
+            return date.toLocaleString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          };
+          
+          return res.status(400).json({
+            success: false,
+            error: `Conflito com registro existente: ${formatarData(outroInicio)} - ${formatarData(outroFim)}`
+          });
+        }
+      }
+    }
+
+    // Calcular tempo_realizado
+    dadosUpdate.tempo_realizado = duracao;
 
     console.log('📝 Atualizando registro de tempo:', { id, dadosUpdate });
 
-    // Atualizar registro
+    // ============================================
+    // SALVAR HISTÓRICO DE EDIÇÃO
+    // ============================================
+    
+    // Buscar histórico anterior (se existir)
+    const { data: historicoAnterior, error: errorHistorico } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo_edicoes')
+      .select('*')
+      .eq('registro_tempo_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (errorHistorico) {
+      console.error('[atualizarRegistroTempo] Erro ao buscar histórico:', errorHistorico);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar histórico de edições',
+        details: errorHistorico.message
+      });
+    }
+
+    // Preparar dados do histórico
+    const dadosHistorico = {
+      registro_tempo_id: id,
+      data_inicio_nova: dadosUpdate.data_inicio,
+      data_fim_nova: dadosUpdate.data_fim,
+      justificativa_nova: justificativa.trim()
+    };
+
+    if (historicoAnterior) {
+      // CASO 2: Registro já editado anteriormente
+      // Usar dados da última edição como "anterior"
+      dadosHistorico.data_inicio_anterior = historicoAnterior.data_inicio_nova;
+      dadosHistorico.data_fim_anterior = historicoAnterior.data_fim_nova;
+      dadosHistorico.justificativa_anterior = historicoAnterior.justificativa_nova;
+    } else {
+      // CASO 1: Primeira edição do registro
+      // Usar dados originais do registro_tempo como "anterior"
+      dadosHistorico.data_inicio_anterior = registroExistente.data_inicio;
+      dadosHistorico.data_fim_anterior = registroExistente.data_fim;
+      dadosHistorico.justificativa_anterior = null; // Não havia justificativa antes
+    }
+
+    // Salvar histórico
+    const { data: historicoSalvo, error: errorSalvarHistorico } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo_edicoes')
+      .insert([dadosHistorico])
+      .select()
+      .single();
+
+    if (errorSalvarHistorico) {
+      console.error('[atualizarRegistroTempo] Erro ao salvar histórico:', errorSalvarHistorico);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar histórico de edição',
+        details: errorSalvarHistorico.message
+      });
+    }
+
+    console.log('✅ Histórico de edição salvo:', historicoSalvo.id);
+
+    // Atualizar registro principal
     const { data: registroAtualizado, error: updateError } = await supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
@@ -663,6 +814,7 @@ async function atualizarRegistroTempo(req, res) {
 async function deletarRegistroTempo(req, res) {
   try {
     const { id } = req.params;
+    const { justificativa } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -671,13 +823,21 @@ async function deletarRegistroTempo(req, res) {
       });
     }
 
+    // Validar justificativa obrigatória
+    if (!justificativa || justificativa.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'Justificativa é obrigatória para deletar o registro'
+      });
+    }
+
     console.log('🗑️ Deletando registro de tempo:', id);
 
-    // Verificar se o registro existe
+    // Buscar registro completo antes de deletar
     const { data: registroExistente, error: errorBusca } = await supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
-      .select('id')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
 
@@ -696,6 +856,117 @@ async function deletarRegistroTempo(req, res) {
         error: 'Registro não encontrado'
       });
     }
+
+    // REGRA: Apenas registros finalizados podem ser deletados
+    if (!registroExistente.data_fim) {
+      return res.status(400).json({
+        success: false,
+        error: 'Apenas registros finalizados podem ser deletados'
+      });
+    }
+
+    // ============================================
+    // SALVAR HISTÓRICO DE DELEÇÃO
+    // ============================================
+    
+    // Buscar histórico anterior (se existir)
+    const { data: historicoAnterior, error: errorHistorico } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo_edicoes')
+      .select('*')
+      .eq('registro_tempo_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (errorHistorico) {
+      console.error('[deletarRegistroTempo] Erro ao buscar histórico:', errorHistorico);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar histórico de edições',
+        details: errorHistorico.message
+      });
+    }
+
+    // Preparar dados do histórico de deleção
+    const dadosHistorico = {
+      registro_tempo_id: id,
+      data_inicio_nova: null, // Null indica que foi deletado
+      data_fim_nova: null, // Null indica que foi deletado
+      justificativa_nova: justificativa.trim(),
+      deletado: true // Marcar como deletado
+    };
+
+    if (historicoAnterior) {
+      // CASO 2: Registro já editado anteriormente
+      // Usar dados da última edição como "anterior"
+      dadosHistorico.data_inicio_anterior = historicoAnterior.data_inicio_nova;
+      dadosHistorico.data_fim_anterior = historicoAnterior.data_fim_nova;
+      dadosHistorico.justificativa_anterior = historicoAnterior.justificativa_nova;
+    } else {
+      // CASO 1: Primeira edição (deleção) do registro
+      // Usar dados originais do registro_tempo como "anterior"
+      dadosHistorico.data_inicio_anterior = registroExistente.data_inicio;
+      dadosHistorico.data_fim_anterior = registroExistente.data_fim;
+      dadosHistorico.justificativa_anterior = null; // Não havia justificativa antes
+    }
+
+    // Salvar histórico ANTES de deletar
+    let historicoSalvo = null;
+    const { data: historicoSalvoData, error: errorSalvarHistorico } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo_edicoes')
+      .insert([dadosHistorico])
+      .select()
+      .single();
+
+    if (errorSalvarHistorico) {
+      console.error('[deletarRegistroTempo] Erro ao salvar histórico:', errorSalvarHistorico);
+      console.error('[deletarRegistroTempo] Dados tentados:', JSON.stringify(dadosHistorico, null, 2));
+      
+      // Se o erro for relacionado à coluna deletado não existir, tentar sem ela
+      if (errorSalvarHistorico.message && (
+        errorSalvarHistorico.message.includes('deletado') || 
+        errorSalvarHistorico.message.includes('column') ||
+        errorSalvarHistorico.hint && errorSalvarHistorico.hint.includes('deletado')
+      )) {
+        console.warn('[deletarRegistroTempo] Coluna deletado não encontrada, tentando sem ela...');
+        const dadosHistoricoSemDeletado = { ...dadosHistorico };
+        delete dadosHistoricoSemDeletado.deletado;
+        
+        const { data: historicoSalvo2, error: errorSalvarHistorico2 } = await supabase
+          .schema('up_gestaointeligente')
+          .from('registro_tempo_edicoes')
+          .insert([dadosHistoricoSemDeletado])
+          .select()
+          .single();
+        
+        if (errorSalvarHistorico2) {
+          console.error('[deletarRegistroTempo] Erro ao salvar histórico (sem deletado):', errorSalvarHistorico2);
+          return res.status(500).json({
+            success: false,
+            error: 'Erro ao salvar histórico de deleção',
+            details: errorSalvarHistorico2.message,
+            hint: errorSalvarHistorico2.hint || null
+          });
+        }
+        
+        historicoSalvo = historicoSalvo2;
+        console.log('✅ Histórico de deleção salvo (sem coluna deletado):', historicoSalvo.id);
+      } else {
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao salvar histórico de deleção',
+          details: errorSalvarHistorico.message,
+          hint: errorSalvarHistorico.hint || null
+        });
+      }
+    } else {
+      historicoSalvo = historicoSalvoData;
+      console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
+    }
+
+    console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
 
     // Deletar registro
     const { error: deleteError } = await supabase

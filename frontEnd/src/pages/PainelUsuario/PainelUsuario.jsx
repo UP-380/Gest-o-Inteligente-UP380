@@ -5,20 +5,19 @@ import { useAuth } from '../../contexts/AuthContext';
 import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import { colaboradoresAPI } from '../../services/api';
 import ClienteTempoInfo from './components/ClienteTempoInfo';
+import DatePicker from '../../components/vigencia/DatePicker';
 import './PainelUsuario.css';
 
 /**
  * Componente PainelUsuario
- * Tela de painel personalizável usando Gridstack.js
- * Permite arrastar e redimensionar blocos visuais
+ * Tela de visualização de tarefas do usuário
+ * Exibe tarefas atribuídas ao usuário logado
  */
 const RESPONSAVEL_ID_FIXO = '87902612'; // ID vinculado ao usuário logado (João Pedro)
 
 const PainelUsuario = () => {
   const { usuario } = useAuth();
-  const gridRef = useRef(null);
-  const gridstackInstanceRef = useRef(null);
-  const [menuPosicao, setMenuPosicao] = useState({ open: false, x: 0, y: 0, target: null });
+  const tarefasContainerRef = useRef(null);
   const [carregandoTarefas, setCarregandoTarefas] = useState(false);
   const [tarefasAgrupadas, setTarefasAgrupadas] = useState([]);
   const [tarefasRegistros, setTarefasRegistros] = useState([]);
@@ -48,30 +47,16 @@ const PainelUsuario = () => {
   useEffect(() => {
     nomesCacheRef.current = nomesCache;
   }, [nomesCache]);
-  const inicializadoRef = useRef(false);
   const tarefasRegistrosRef = useRef([]);
-  const [registrosAtivos, setRegistrosAtivos] = useState(new Map()); // Map<tarefa_id, { registro_id, data_inicio }>
+  const [registrosAtivos, setRegistrosAtivos] = useState(new Map()); // Map<tempo_estimado_id, { registro_id, data_inicio }>
   const registrosAtivosRef = useRef(new Map()); // Ref para acesso em funções não-hook
   const [temposRealizados, setTemposRealizados] = useState(new Map()); // Map<chave, tempo_realizado_ms>
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
+  const [dataTarefasSelecionada, setDataTarefasSelecionada] = useState(new Date()); // Data selecionada para exibir tarefas (inicia com hoje)
+  const carregarMinhasTarefasRef = useRef(null); // Ref para a função de carregar tarefas
 
-  // Array inicial de blocos vazios (cards sem conteúdo)
-  // Máximo de 9 módulos permitidos
-  // Cada bloco possui um ID fixo para futura persistência
-  const blocosIniciais = [
-    { id: 'bloco-1', x: 0, y: 0, w: 4, h: 3 },
-    { id: 'bloco-2', x: 4, y: 0, w: 4, h: 3 },
-    { id: 'bloco-3', x: 8, y: 0, w: 4, h: 3 },
-    { id: 'bloco-4', x: 0, y: 3, w: 4, h: 3 },
-    { id: 'bloco-5', x: 4, y: 3, w: 4, h: 3 },
-    { id: 'bloco-6', x: 8, y: 3, w: 4, h: 3 },
-    { id: 'bloco-7', x: 0, y: 6, w: 4, h: 3 },
-    { id: 'bloco-8', x: 4, y: 6, w: 4, h: 3 },
-    { id: 'bloco-9', x: 8, y: 6, w: 4, h: 3 }
-  ];
-
-const MIN_W_TAREFAS = 7;
-const MIN_H_TAREFAS = 6;
+  // ID fixo para o card de tarefas (não usa mais grid, então só um card)
+  const CARD_ID_TAREFAS = 'tarefas-card-1';
 
   const toggleTarefa = useCallback((agrupadorId, tarefaId) => {
     setTarefasExpandidas((prev) => {
@@ -131,7 +116,6 @@ const MIN_H_TAREFAS = 6;
       return nomesCache.tarefas[idStr];
     }
     // Fallback
-    console.warn(`[PainelUsuario] Nome não encontrado para tarefa ${idStr}. Cache:`, cacheAtual.tarefas);
     return `Tarefa #${idStr}`;
   };
   const getNomeCliente = (id) => nomesCache.clientes[String(id)] || `Cliente #${id}`;
@@ -175,8 +159,29 @@ const MIN_H_TAREFAS = 6;
   };
 
   // Helper: Criar chave de registro (cliente_id + tarefa_id)
-  const criarChaveRegistro = useCallback((clienteId, tarefaId) => {
-    return `${String(clienteId).trim()}_${String(tarefaId).trim()}`;
+  const criarChaveRegistro = useCallback((clienteId, tarefaId, data = null) => {
+    const clienteIdStr = String(clienteId).trim();
+    const tarefaIdStr = String(tarefaId).trim();
+    
+    // Se data for fornecida, incluir na chave
+    if (data) {
+      let dataStr;
+      if (data instanceof Date) {
+        const yyyy = data.getFullYear();
+        const mm = String(data.getMonth() + 1).padStart(2, '0');
+        const dd = String(data.getDate()).padStart(2, '0');
+        dataStr = `${yyyy}-${mm}-${dd}`;
+      } else if (typeof data === 'string') {
+        // Se já é string, usar apenas a parte da data (sem hora)
+        dataStr = data.split('T')[0];
+      } else {
+        dataStr = String(data);
+      }
+      return `${clienteIdStr}_${tarefaIdStr}_${dataStr}`;
+    }
+    
+    // Fallback: chave sem data (para compatibilidade)
+    return `${clienteIdStr}_${tarefaIdStr}`;
   }, []);
 
   // Helper: Criar chave de tempo (cliente_id + tarefa_id + tempo_estimado_id)
@@ -188,13 +193,76 @@ const MIN_H_TAREFAS = 6;
 
   // Helper: Atualizar renderização de todas as tarefas
   const atualizarRenderizacaoTarefas = useCallback(() => {
-    if (tarefasRegistrosRef.current.length > 0) {
-      const cardsComTarefas = document.querySelectorAll('.grid-item-content-board');
-      cardsComTarefas.forEach((card) => {
-        renderTarefasNoCard(tarefasRegistrosRef.current, card);
-      });
+    if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
+      renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
     }
+  }, [dataTarefasSelecionada]);
+
+  // Helper: Atualizar apenas o botão de um tempo estimado específico
+  // Cada tempo estimado é totalmente independente
+  const atualizarBotaoTempoEstimado = useCallback((tempoEstimadoId, isAtivo) => {
+    if (!tempoEstimadoId) {
+      return;
+    }
+    
+    const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+    
+    // Buscar APENAS o botão deste tempo estimado específico
+    const botoes = document.querySelectorAll(
+      `button[data-tempo-estimado-id="${tempoEstimadoIdStr}"]`
+    );
+    
+    botoes.forEach((btn) => {
+      if (!btn) return;
+      
+      const icon = btn.querySelector('i');
+      if (!icon) return;
+      
+      // Atualizar classes e atributos imediatamente
+      if (isAtivo) {
+        // Estado ativo: botão de parar
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.className = 'painel-usuario-stop-btn';
+        icon.className = 'fas fa-stop';
+        btn.setAttribute('data-action', 'parar');
+        btn.setAttribute('title', 'Parar registro de tempo');
+      } else {
+        // Estado inativo: botão de play
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.className = 'painel-usuario-play-btn';
+        icon.className = 'fas fa-play';
+        btn.setAttribute('data-action', 'iniciar');
+        btn.setAttribute('title', 'Iniciar registro de tempo');
+      }
+    });
   }, []);
+
+  // Helper: Obter estado atual do botão de um tempo estimado
+  const obterEstadoBotaoTempoEstimado = useCallback((tempoEstimadoId) => {
+    if (!tempoEstimadoId) return { isAtivo: false, registroAtivo: null };
+    const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+    const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
+    return {
+      isAtivo: !!registroAtivo,
+      registroAtivo: registroAtivo || null
+    };
+  }, []);
+
+  // Helper: Sincronizar TODOS os botões com o estado atual dos registros ativos
+  const sincronizarTodosBotoes = useCallback(() => {
+    // Atualizar todos os botões baseado no estado atual
+    tarefasRegistrosRef.current.forEach((reg) => {
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (tempoEstimadoId) {
+        const estado = obterEstadoBotaoTempoEstimado(tempoEstimadoId);
+        atualizarBotaoTempoEstimado(tempoEstimadoId, estado.isAtivo);
+      }
+    });
+  }, [obterEstadoBotaoTempoEstimado, atualizarBotaoTempoEstimado]);
 
   // Função para obter tempo realizado formatado de uma tarefa
   const obterTempoRealizadoFormatado = useCallback((reg) => {
@@ -211,6 +279,80 @@ const MIN_H_TAREFAS = 6;
     if (!chaveTempo) return 0;
     
     return temposRealizadosRef.current.get(chaveTempo) || 0;
+  }, [criarChaveTempo]);
+
+  // Função para atualizar tempo realizado e barra de progresso no DOM
+  const atualizarTempoRealizadoEBarraProgresso = useCallback((reg, tempoRealizadoMs) => {
+    const chaveTempo = criarChaveTempo(reg);
+    if (!chaveTempo) return;
+    
+    const tempoFormatado = formatarTempoHMS(tempoRealizadoMs);
+    const tarefaIdStr = String(reg.tarefa_id).trim();
+    const clienteIdStr = String(reg.cliente_id).trim();
+    
+    // Atualizar todos os pills de tempo realizado desta tarefa
+    const tempoPills = document.querySelectorAll(
+      `.painel-usuario-realizado-pill[data-tarefa-id="${tarefaIdStr}"][data-cliente-id="${clienteIdStr}"]`
+    );
+    tempoPills.forEach((pill) => {
+      pill.textContent = tempoFormatado;
+    });
+    
+    // Atualizar barra de progresso
+    const tempoEstimado = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
+    if (tempoEstimado > 0) {
+      const porcentagem = (tempoRealizadoMs / tempoEstimado) * 100;
+      const porcentagemLimitada = Math.min(100, porcentagem);
+      const porcentagemExcessoBruta = porcentagem > 100 ? porcentagem - 100 : 0;
+      const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(10, porcentagemExcessoBruta) : 0;
+      const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
+      const porcentagemFormatada = porcentagem.toFixed(0);
+      
+      // Buscar pelos pills e encontrar a barra próxima
+      tempoPills.forEach((pill) => {
+        const itemTarefa = pill.closest('.painel-usuario-tarefa-item-lista, .painel-usuario-tarefa-card');
+        if (itemTarefa) {
+          const barraContainer = itemTarefa.querySelector('.painel-usuario-barra-progresso-container');
+          if (barraContainer) {
+            const barraBase = barraContainer.querySelector('.painel-usuario-barra-progresso-base');
+            const barraFill = barraBase?.querySelector('.painel-usuario-barra-progresso-fill');
+            const barraFillExcesso = barraBase?.querySelector('.painel-usuario-barra-progresso-fill-excesso');
+            const barraLabel = barraContainer.querySelector('.painel-usuario-barra-progresso-label');
+            
+            if (barraFill) {
+              barraFill.style.width = `${porcentagemLimitada}%`;
+              barraFill.style.background = corBarra;
+            }
+            
+            if (porcentagemExcesso > 0) {
+              if (!barraFillExcesso) {
+                // Criar elemento de excesso se não existir
+                const excessoEl = document.createElement('div');
+                excessoEl.className = 'painel-usuario-barra-progresso-fill-excesso';
+                excessoEl.style.width = `${porcentagemExcesso}%`;
+                excessoEl.style.background = '#dc2626';
+                excessoEl.style.left = '100%';
+                excessoEl.style.position = 'absolute';
+                excessoEl.style.height = '100%';
+                if (barraBase) {
+                  barraBase.appendChild(excessoEl);
+                }
+              } else {
+                barraFillExcesso.style.width = `${porcentagemExcesso}%`;
+              }
+            } else if (barraFillExcesso) {
+              // Remover elemento de excesso se não houver mais excesso
+              barraFillExcesso.remove();
+            }
+            
+            if (barraLabel) {
+              barraLabel.textContent = `${porcentagemFormatada}%`;
+              barraLabel.style.color = porcentagemFormatada > 100 ? '#dc2626' : '#6b7280';
+            }
+          }
+        }
+      });
+    }
   }, [criarChaveTempo]);
 
   // Sincronizar refs com estados
@@ -263,7 +405,6 @@ const MIN_H_TAREFAS = 6;
       }
       return [];
     } catch (error) {
-      console.error('[PainelUsuario] Erro ao buscar registros timetrack:', error);
       return [];
     }
   }, [criarChaveTempo]);
@@ -411,7 +552,6 @@ const MIN_H_TAREFAS = 6;
       }
       return 0;
     } catch (error) {
-      console.warn('[TimeTracking] Erro ao buscar tempo realizado:', error);
       return 0;
     }
   }, [usuario]);
@@ -423,25 +563,36 @@ const MIN_H_TAREFAS = 6;
       return;
     }
 
-    try {
-      // Verificar se já existe registro ativo para esta tarefa neste cliente
-      const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
-      if (registrosAtivosRef.current.has(chaveRegistro)) {
-        return; // Já existe registro ativo para esta tarefa
-      }
+    // Obter o ID do tempo estimado - este é o identificador único
+    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+    if (!tempoEstimadoId) {
+      alert('Erro: ID do tempo estimado não encontrado');
+      return;
+    }
 
+    const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+    
+    // Verificar se já existe registro ativo para este tempo estimado
+    if (registrosAtivosRef.current.has(tempoEstimadoIdStr)) {
+      return; // Já existe registro ativo para este tempo estimado
+    }
+
+    // Atualizar botão imediatamente para estado ativo (sem loading)
+    // IMPORTANTE: Atualizar ANTES de fazer a requisição para feedback visual imediato
+    atualizarBotaoTempoEstimado(tempoEstimadoId, true);
+
+    try {
       // ANTES DE INICIAR: Parar qualquer registro ativo anterior
       // Não é permitido ter mais de um registro ativo ao mesmo tempo
       if (registrosAtivosRef.current.size > 0) {
         // Encontrar o primeiro registro ativo
-        const [chaveRegistroAtivo, registroAtivo] = Array.from(registrosAtivosRef.current.entries())[0];
+        const [tempoEstimadoIdAtivo, registroAtivo] = Array.from(registrosAtivosRef.current.entries())[0];
         
-        // Buscar o registro completo nas tarefas registradas
-        const [clienteIdAtivo, tarefaIdAtivo] = chaveRegistroAtivo.split('_');
-        const regAtivo = tarefasRegistrosRef.current.find(r => 
-          String(r.cliente_id).trim() === clienteIdAtivo && 
-          String(r.tarefa_id).trim() === tarefaIdAtivo
-        );
+        // Buscar o registro completo nas tarefas registradas pelo tempo_estimado_id
+        const regAtivo = tarefasRegistrosRef.current.find(r => {
+          const id = r.id || r.tempo_estimado_id;
+          return String(id).trim() === String(tempoEstimadoIdAtivo).trim();
+        });
         
         // Se encontrou o registro completo, parar o registro ativo
         if (regAtivo && registroAtivo?.registro_id) {
@@ -464,9 +615,12 @@ const MIN_H_TAREFAS = 6;
             if (response.ok && result.success) {
               // Remover do estado de registros ativos
               const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
-              novoRegistrosAtivos.delete(chaveRegistroAtivo);
+              novoRegistrosAtivos.delete(tempoEstimadoIdAtivo);
               registrosAtivosRef.current = novoRegistrosAtivos;
               setRegistrosAtivos(novoRegistrosAtivos);
+
+              // Atualizar botão do tempo estimado anterior para estado inativo
+              atualizarBotaoTempoEstimado(tempoEstimadoIdAtivo, false);
 
               // Atualizar tempo realizado da tarefa anterior
               const chaveTempoAnterior = criarChaveTempo(regAtivo);
@@ -479,17 +633,9 @@ const MIN_H_TAREFAS = 6;
               }
             }
           } catch (error) {
-            console.warn('[TimeTracking] Erro ao parar registro anterior:', error);
             // Continua mesmo se houver erro ao parar o anterior
           }
         }
-      }
-
-      // Buscar o ID do tempo_estimado
-      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
-      if (!tempoEstimadoId) {
-        alert('Erro: ID do tempo estimado não encontrado');
-        return;
       }
 
       const response = await fetch('/api/registro-tempo/iniciar', {
@@ -511,17 +657,22 @@ const MIN_H_TAREFAS = 6;
 
       if (!response.ok || !result.success) {
         alert(result.error || 'Erro ao iniciar registro de tempo');
+        // Reverter estado do botão
+        atualizarBotaoTempoEstimado(tempoEstimadoId, false);
         return;
       }
 
-      // Atualizar estado com o registro ativo
+      // Atualizar estado com o registro ativo usando tempo_estimado_id como chave
       const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
-      novoRegistrosAtivos.set(chaveRegistro, {
+      novoRegistrosAtivos.set(tempoEstimadoIdStr, {
         registro_id: result.data.id,
         data_inicio: result.data.data_inicio
       });
       registrosAtivosRef.current = novoRegistrosAtivos;
       setRegistrosAtivos(novoRegistrosAtivos);
+
+      // Atualizar apenas o botão específico deste tempo estimado
+      atualizarBotaoTempoEstimado(tempoEstimadoId, true);
 
       // Atualizar tempo realizado
       const chaveTempo = criarChaveTempo(reg);
@@ -535,14 +686,15 @@ const MIN_H_TAREFAS = 6;
 
       // Disparar evento para atualizar timer no header
       window.dispatchEvent(new CustomEvent('registro-tempo-iniciado'));
-
-      // Re-renderizar tarefas
-      atualizarRenderizacaoTarefas();
     } catch (error) {
-      console.error('[TimeTracking] Erro ao iniciar registro:', error);
       alert('Erro ao iniciar registro de tempo');
+      // Reverter estado do botão em caso de erro
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (tempoEstimadoId) {
+        atualizarBotaoTempoEstimado(tempoEstimadoId, false);
+      }
     }
-  }, [usuario, criarChaveRegistro, criarChaveTempo, buscarTempoRealizado, atualizarRenderizacaoTarefas]);
+  }, [usuario, criarChaveTempo, buscarTempoRealizado, atualizarBotaoTempoEstimado]);
 
   // Função para parar registro de tempo
   const pararRegistroTempo = useCallback(async (reg) => {
@@ -551,14 +703,23 @@ const MIN_H_TAREFAS = 6;
       return;
     }
 
-    try {
-      const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
-      const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
-      
-      if (!registroAtivo?.registro_id) {
-        return; // Nenhum registro ativo encontrado
-      }
+    // Obter o ID do tempo estimado - este é o identificador único
+    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+    if (!tempoEstimadoId) {
+      return;
+    }
 
+    const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+    const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
+    
+    if (!registroAtivo?.registro_id) {
+      return; // Nenhum registro ativo encontrado
+    }
+
+    // Atualizar botão imediatamente para estado inativo (sem loading)
+    atualizarBotaoTempoEstimado(tempoEstimadoId, false);
+
+    try {
       const response = await fetch(`/api/registro-tempo/finalizar/${registroAtivo.registro_id}`, {
         method: 'PUT',
         credentials: 'include',
@@ -576,14 +737,19 @@ const MIN_H_TAREFAS = 6;
 
       if (!response.ok || !result.success) {
         alert(result.error || 'Erro ao finalizar registro de tempo');
+        // Reverter estado do botão
+        atualizarBotaoTempoEstimado(tempoEstimadoId, true);
         return;
       }
 
-      // Remover do estado de registros ativos
+      // Remover do estado de registros ativos usando tempo_estimado_id
       const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
-      novoRegistrosAtivos.delete(chaveRegistro);
+      novoRegistrosAtivos.delete(tempoEstimadoIdStr);
       registrosAtivosRef.current = novoRegistrosAtivos;
       setRegistrosAtivos(novoRegistrosAtivos);
+
+      // Atualizar apenas o botão específico deste tempo estimado
+      atualizarBotaoTempoEstimado(tempoEstimadoId, false);
 
       // Atualizar tempo realizado
       const chaveTempo = criarChaveTempo(reg);
@@ -593,18 +759,25 @@ const MIN_H_TAREFAS = 6;
         novosTempos.set(chaveTempo, tempoRealizado);
         temposRealizadosRef.current = novosTempos;
         setTemposRealizados(novosTempos);
+        
+        // Atualizar imediatamente o tempo realizado e a barra de progresso no DOM
+        atualizarTempoRealizadoEBarraProgresso(reg, tempoRealizado);
       }
+
+      // Atualizar tempos realizados totais nos headers dos clientes
+      atualizarTemposRealizadosHeaders();
 
       // Disparar evento para atualizar timer no header
       window.dispatchEvent(new CustomEvent('registro-tempo-finalizado'));
-
-      // Re-renderizar tarefas
-      atualizarRenderizacaoTarefas();
     } catch (error) {
-      console.error('[TimeTracking] Erro ao finalizar registro:', error);
       alert('Erro ao finalizar registro de tempo');
+      // Reverter estado do botão em caso de erro
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (tempoEstimadoId) {
+        atualizarBotaoTempoEstimado(tempoEstimadoId, true);
+      }
     }
-  }, [usuario, criarChaveRegistro, criarChaveTempo, buscarTempoRealizado, atualizarRenderizacaoTarefas]);
+  }, [usuario, criarChaveTempo, buscarTempoRealizado, atualizarBotaoTempoEstimado]);
 
   // Função auxiliar para atualizar tempos realizados totais nos headers dos clientes
   const atualizarTemposRealizadosHeaders = useCallback(() => {
@@ -700,7 +873,7 @@ const MIN_H_TAREFAS = 6;
       // Atualizar headers dos clientes
       atualizarTemposRealizadosHeaders();
     } catch (error) {
-      console.error('[TimeTracking] Erro ao buscar tempos realizados:', error);
+      // Erro ao buscar tempos realizados
     }
   }, [usuario, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);
 
@@ -711,30 +884,26 @@ const MIN_H_TAREFAS = 6;
     }
 
     try {
-      // Buscar registros ativos para todas as tarefas (considerando cliente_id também)
-      const tarefasUnicas = tarefasRegistrosRef.current
-        .map(r => ({
-          tarefa_id: String(r.tarefa_id).trim(),
-          cliente_id: String(r.cliente_id).trim()
-        }))
-        .filter(r => r.tarefa_id && r.cliente_id);
-      
-      // Remover duplicatas usando Map
-      const tarefasUnicasMap = new Map();
-      tarefasUnicas.forEach(t => {
-        const chave = criarChaveRegistro(t.cliente_id, t.tarefa_id);
-        if (!tarefasUnicasMap.has(chave)) {
-          tarefasUnicasMap.set(chave, t);
-        }
-      });
-      
+      // Buscar registros ativos para todos os tempos estimados
+      // Cada tempo estimado é independente
       const novosRegistrosAtivos = new Map();
 
       await Promise.all(
-        Array.from(tarefasUnicasMap.values()).map(async (tarefa) => {
+        tarefasRegistrosRef.current.map(async (reg) => {
+          const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+          if (!tempoEstimadoId) return;
+
           try {
+            // Buscar registro ativo por tempo_estimado_id
+            // O backend precisa retornar qual tempo_estimado_id está ativo
+            const params = new URLSearchParams({
+              usuario_id: usuario.id,
+              tarefa_id: reg.tarefa_id,
+              cliente_id: reg.cliente_id
+            });
+            
             const response = await fetch(
-              `/api/registro-tempo/ativo?usuario_id=${usuario.id}&tarefa_id=${tarefa.tarefa_id}&cliente_id=${tarefa.cliente_id}`,
+              `/api/registro-tempo/ativo?${params}`,
               {
                 credentials: 'include',
                 headers: { 'Accept': 'application/json' }
@@ -744,25 +913,32 @@ const MIN_H_TAREFAS = 6;
             if (response.ok) {
               const result = await response.json();
               if (result.success && result.data) {
-                const chaveRegistro = criarChaveRegistro(tarefa.cliente_id, tarefa.tarefa_id);
-                novosRegistrosAtivos.set(chaveRegistro, {
-                  registro_id: result.data.id,
-                  data_inicio: result.data.data_inicio
-                });
+                // Verificar se o registro ativo pertence a este tempo_estimado_id
+                // O backend deve retornar tempo_estimado_id no resultado
+                const tempoEstimadoIdAtivo = result.data.tempo_estimado_id;
+                if (String(tempoEstimadoIdAtivo).trim() === String(tempoEstimadoId).trim()) {
+                  novosRegistrosAtivos.set(String(tempoEstimadoId).trim(), {
+                    registro_id: result.data.id,
+                    data_inicio: result.data.data_inicio
+                  });
+                }
               }
             }
           } catch (error) {
-            // Erro silencioso - continua verificando outras tarefas
+            // Erro silencioso - continua verificando outros tempos estimados
           }
         })
       );
 
       registrosAtivosRef.current = novosRegistrosAtivos;
       setRegistrosAtivos(novosRegistrosAtivos);
+      
+      // Sincronizar todos os botões após verificar registros ativos
+      sincronizarTodosBotoes();
     } catch (error) {
-      console.error('[TimeTracking] Erro ao verificar registros ativos:', error);
+      // Erro ao verificar registros ativos
     }
-  }, [usuario, criarChaveRegistro]);
+  }, [usuario, sincronizarTodosBotoes]);
 
   const normalizeText = (str) =>
     (str || '')
@@ -781,62 +957,43 @@ const MIN_H_TAREFAS = 6;
     `;
   };
 
-  const garantirTamanhoMinimoTarefas = useCallback((conteudoEl) => {
-    if (!conteudoEl || !gridstackInstanceRef.current) return;
-    const widgetEl = conteudoEl.closest('.grid-item');
-    if (!widgetEl || !widgetEl.gridstackNode) return;
-    const node = widgetEl.gridstackNode;
-    const novoW = Math.max(node.w || 0, MIN_W_TAREFAS);
-    const novoH = Math.max(node.h || 0, MIN_H_TAREFAS);
-    gridstackInstanceRef.current.update(widgetEl, {
-      w: novoW,
-      h: novoH,
-      minW: MIN_W_TAREFAS,
-      minH: MIN_H_TAREFAS
-    });
-  }, []);
-
-  const obterCardId = (card) => {
-    if (!card) return null;
-    const widgetEl = card.closest('.grid-item');
-    if (!widgetEl) return null;
-    return widgetEl.getAttribute('data-bloco-id') || null;
+  const obterCardId = () => {
+    return CARD_ID_TAREFAS;
   };
 
-  const obterModoVisualizacao = (cardId) => {
-    if (!cardId) return 'quadro';
-    // Tenta ler do DOM primeiro (mais atualizado), depois do estado
-    try {
-      const widgetEl = document.querySelector(`[data-bloco-id="${cardId}"]`);
-      if (widgetEl && widgetEl.getAttribute('data-view-mode')) {
-        return widgetEl.getAttribute('data-view-mode');
-      }
-    } catch (e) {}
-    return modoVisualizacao[cardId] || 'quadro';
+  const obterModoVisualizacao = () => {
+    return modoVisualizacao[CARD_ID_TAREFAS] || 'quadro';
   };
 
-  const alternarModoVisualizacao = useCallback((cardId, modoDesejado = null) => {
-    if (!cardId) {
-      console.warn('[PainelUsuario] cardId não fornecido para alternarModoVisualizacao');
-      return;
-    }
+  const alternarModoVisualizacao = useCallback((modoDesejado = null) => {
+    const cardId = CARD_ID_TAREFAS;
     setModoVisualizacao((prev) => {
       // Se modoDesejado foi fornecido, usa ele. Senão, alterna entre os modos
       const novoModo = modoDesejado || (prev[cardId] === 'lista' ? 'quadro' : 'lista');
       const novo = { ...prev, [cardId]: novoModo };
-      // Armazenar no DOM imediatamente
-      const widgetEl = document.querySelector(`[data-bloco-id="${cardId}"]`);
-      if (widgetEl) {
-        widgetEl.setAttribute('data-view-mode', novoModo);
-      }
       // Re-renderizar tarefas após mudar o modo
       setTimeout(() => {
-        // Usa ref para garantir acesso aos registros mais recentes
-        const registrosAtuais = tarefasRegistrosRef.current || [];
-        if (registrosAtuais.length > 0) {
-          const card = document.querySelector(`[data-bloco-id="${cardId}"] .grid-item-content`);
-          if (card) {
-            renderTarefasNoCard(registrosAtuais, card);
+        const card = tarefasContainerRef.current;
+        if (card) {
+          // Obter a data atual do header se disponível, senão usar dataTarefasSelecionada
+          const header = card.querySelector('.painel-usuario-header-board');
+          let dataParaUsar = dataTarefasSelecionada || new Date();
+          
+          if (header) {
+            const dataDoHeader = obterDataDoHeader(header);
+            if (dataDoHeader) {
+              dataParaUsar = dataDoHeader;
+            }
+          }
+          
+          // Normalizar a data
+          dataParaUsar = new Date(dataParaUsar);
+          dataParaUsar.setHours(0, 0, 0, 0);
+          
+          // Sempre recarregar as tarefas para garantir que está usando a data correta
+          // Isso evita problemas de registros desatualizados
+          if (carregarMinhasTarefasRef.current) {
+            carregarMinhasTarefasRef.current(card, dataParaUsar);
           }
         }
       }, 50);
@@ -844,29 +1001,96 @@ const MIN_H_TAREFAS = 6;
     });
   }, []);
 
-  const renderTarefasNoCard = (registros, target) => {
-    const card = target || menuPosicao.target;
+  // Função auxiliar para verificar se uma data é hoje
+  const ehHoje = (data) => {
+    if (!data) return false;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataComparar = new Date(data);
+    dataComparar.setHours(0, 0, 0, 0);
+    return dataComparar.getTime() === hoje.getTime();
+  };
+
+  // Função auxiliar para formatar data para exibição
+  const formatarDataExibicao = (data) => {
+    if (!data) return 'hoje';
+    if (ehHoje(data)) return 'hoje';
+    
+    const dia = String(data.getDate()).padStart(2, '0');
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const ano = data.getFullYear();
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  // Função para navegar para data anterior
+  const navegarDataAnterior = useCallback(() => {
+    setDataTarefasSelecionada((dataAtual) => {
+      const novaData = new Date(dataAtual);
+      novaData.setDate(novaData.getDate() - 1);
+      return novaData;
+    });
+  }, []);
+
+  // Função para navegar para próxima data
+  const navegarDataProxima = useCallback(() => {
+    setDataTarefasSelecionada((dataAtual) => {
+      const novaData = new Date(dataAtual);
+      novaData.setDate(novaData.getDate() + 1);
+      return novaData;
+    });
+  }, []);
+
+  // Função auxiliar para obter a data atual do header
+  const obterDataDoHeader = (headerElement) => {
+    // Tentar obter do atributo data do header
+    let dataAtualStr = headerElement.getAttribute('data-data-selecionada');
+    
+    // Se não encontrar, tentar obter do elemento dataDisplay (span com a data)
+    if (!dataAtualStr) {
+      const dataDisplay = headerElement.querySelector('span[data-data-selecionada]');
+      if (dataDisplay) {
+        dataAtualStr = dataDisplay.getAttribute('data-data-selecionada');
+      }
+    }
+    
+    if (dataAtualStr) {
+      return new Date(dataAtualStr);
+    }
+    
+    // Tentar extrair do texto do elemento dataDisplay
+    const dataDisplay = headerElement.querySelector('span[style*="min-width: 80px"]');
+    if (dataDisplay) {
+      const texto = dataDisplay.textContent || '';
+      // Se contém "hoje", retornar hoje
+      if (texto.toLowerCase().includes('hoje')) {
+        return new Date();
+      }
+      // Tentar extrair data do formato DD/MM/AAAA
+      const match = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (match) {
+        const [, dia, mes, ano] = match;
+        return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      }
+    }
+    
+    // Fallback: usar estado ou hoje
+    return dataTarefasSelecionada || new Date();
+  };
+
+  const renderTarefasNoCard = (registros, target, dataSelecionada = null) => {
+    const card = target || tarefasContainerRef.current;
     if (!card) {
-      console.warn('[PainelUsuario] Card não fornecido para renderTarefasNoCard');
       return;
     }
     card.innerHTML = '';
-    card.classList.add('grid-item-content-board');
+    card.classList.add('painel-usuario-tarefas-content');
 
-    const cardId = obterCardId(card);
-    if (!cardId) {
-      console.warn('[PainelUsuario] cardId não encontrado para o card');
-    }
-    const modo = obterModoVisualizacao(cardId);
-    // Armazenar modo no DOM para acesso futuro
-    const widgetEl = card.closest('.grid-item');
-    if (widgetEl && cardId) {
-      widgetEl.setAttribute('data-view-mode', modo);
-    }
+    const cardId = obterCardId();
+    const modo = obterModoVisualizacao();
 
     const wrapper = document.createElement('div');
-    wrapper.style.height = '100%';
     wrapper.style.width = '100%';
+    wrapper.style.minHeight = '600px'; // Altura mínima para dar mais espaço
     wrapper.style.display = 'flex';
     wrapper.style.flexDirection = 'column';
     wrapper.style.gap = '12px';
@@ -876,22 +1100,421 @@ const MIN_H_TAREFAS = 6;
     const header = document.createElement('div');
     header.className = 'painel-usuario-header-board';
     
+    // Calcular data para exibir ANTES de criar os botões
+    const dataParaExibir = dataSelecionada || dataTarefasSelecionada || new Date();
+    const dataParaExibirCopy = new Date(dataParaExibir);
+    dataParaExibirCopy.setHours(0, 0, 0, 0); // Normalizar para início do dia
+    // Armazenar a data no header ANTES de criar os botões
+    header.setAttribute('data-data-selecionada', dataParaExibirCopy.toISOString());
+    
     const headerLeft = document.createElement('div');
     headerLeft.style.display = 'flex';
-    headerLeft.style.flexDirection = 'column';
-    headerLeft.style.gap = '4px';
+    headerLeft.style.flexDirection = 'row';
+    headerLeft.style.alignItems = 'center';
+    headerLeft.style.gap = '12px';
+    headerLeft.style.flex = '1';
     
+    // Título fixo "Minhas tarefas"
     const title = document.createElement('div');
     title.style.fontWeight = '700';
     title.style.color = '#111827';
     title.style.fontSize = '14px';
-    title.textContent = 'Minhas tarefas - hoje';
+    title.textContent = 'Minhas tarefas';
     headerLeft.appendChild(title);
     
+    // Container para navegação de data (setas + data)
+    const navContainer = document.createElement('div');
+    navContainer.style.display = 'inline-flex';
+    navContainer.style.alignItems = 'center';
+    navContainer.style.gap = '6px';
+    
+    // Botão de navegação anterior
+    const btnAnterior = document.createElement('button');
+    btnAnterior.type = 'button';
+    btnAnterior.className = 'painel-usuario-nav-date-btn';
+    btnAnterior.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    btnAnterior.title = 'Data anterior';
+    btnAnterior.style.cssText = `
+      background: transparent;
+      border: none;
+      padding: 4px 6px;
+      cursor: pointer;
+      color: #9ca3af;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      font-size: 10px;
+      border-radius: 4px;
+    `;
+    btnAnterior.addEventListener('mouseenter', () => {
+      btnAnterior.style.background = '#f3f4f6';
+      btnAnterior.style.color = '#6b7280';
+    });
+    btnAnterior.addEventListener('mouseleave', () => {
+      btnAnterior.style.background = 'transparent';
+      btnAnterior.style.color = '#9ca3af';
+    });
+    btnAnterior.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Obter a data atual sendo exibida no header
+      const dataAtual = obterDataDoHeader(header);
+      // Calcular data anterior
+      const novaData = new Date(dataAtual);
+      novaData.setDate(novaData.getDate() - 1);
+      novaData.setHours(0, 0, 0, 0); // Normalizar para início do dia
+      setDataTarefasSelecionada(novaData);
+      // Recarregar tarefas imediatamente usando a ref (sem await para não bloquear)
+      if (carregarMinhasTarefasRef.current) {
+        carregarMinhasTarefasRef.current(card, novaData);
+      }
+    });
+    navContainer.appendChild(btnAnterior);
+    
+    // Função auxiliar para formatar data para input
+    function formatDateForInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Container para data e calendário
+    const dataContainer = document.createElement('div');
+    dataContainer.style.position = 'relative';
+    dataContainer.style.display = 'inline-block';
+    
+    // Data exibida entre as setas
+    const dataDisplay = document.createElement('span');
+    dataDisplay.style.fontSize = '12px';
+    dataDisplay.style.color = '#6b7280';
+    dataDisplay.style.fontWeight = '500';
+    dataDisplay.style.textAlign = 'center';
+    dataDisplay.style.padding = '0 4px';
+    dataDisplay.style.display = 'inline-block';
+    const textoData = formatarDataExibicao(dataParaExibirCopy);
+    dataDisplay.textContent = textoData;
+    // Armazenar a data no elemento para uso nos botões
+    dataDisplay.setAttribute('data-data-selecionada', dataParaExibirCopy.toISOString());
+    navContainer.appendChild(dataDisplay);
+    
+    // Botão de calendário
+    const btnCalendario = document.createElement('button');
+    btnCalendario.type = 'button';
+    btnCalendario.className = 'painel-usuario-nav-date-btn';
+    btnCalendario.innerHTML = '<i class="fas fa-calendar-alt"></i>';
+    btnCalendario.title = 'Selecionar data';
+    btnCalendario.style.cssText = `
+      background: transparent;
+      border: none;
+      padding: 4px 6px;
+      cursor: pointer;
+      color: #9ca3af;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      font-size: 10px;
+      border-radius: 4px;
+    `;
+    btnCalendario.addEventListener('mouseenter', () => {
+      btnCalendario.style.background = '#f3f4f6';
+      btnCalendario.style.color = '#6b7280';
+    });
+    btnCalendario.addEventListener('mouseleave', () => {
+      btnCalendario.style.background = 'transparent';
+      btnCalendario.style.color = '#9ca3af';
+    });
+    
+    // Container para o DatePicker (será renderizado via React)
+    const datePickerContainer = document.createElement('div');
+    datePickerContainer.style.position = 'absolute';
+    datePickerContainer.style.top = 'calc(100% + 4px)';
+    datePickerContainer.style.left = '50%';
+    datePickerContainer.style.transform = 'translateX(-50%)';
+    datePickerContainer.style.zIndex = '1000';
+    datePickerContainer.style.width = '280px';
+    datePickerContainer.style.visibility = 'hidden';
+    datePickerContainer.style.opacity = '0';
+    datePickerContainer.style.pointerEvents = 'none';
+    datePickerContainer.style.transition = 'opacity 0.2s ease, visibility 0.2s ease';
+    
+    // Renderizar apenas o calendário (sem o campo de input)
+    const datePickerRoot = createRoot(datePickerContainer);
+    
+    // Componente customizado que renderiza apenas o calendário (sem periodo-select-display)
+    const CalendarOnly = ({ value, onChange, onClose }) => {
+      const [currentMonth, setCurrentMonth] = useState(() => {
+        if (value) {
+          const dateObj = new Date(value + 'T00:00:00');
+          if (!isNaN(dateObj.getTime())) {
+            return new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+          }
+        }
+        return new Date();
+      });
+      
+      const formatDateForInput = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const isSameDay = (date1, date2) => {
+        return date1.getFullYear() === date2.getFullYear() &&
+               date1.getMonth() === date2.getMonth() &&
+               date1.getDate() === date2.getDate();
+      };
+      
+      const handleDateClick = (date) => {
+        const dateStr = formatDateForInput(date);
+        if (onChange) {
+          onChange({ target: { value: dateStr } });
+        }
+        if (onClose) {
+          onClose();
+        }
+      };
+      
+      const handlePrevMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+      };
+      
+      const handleNextMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+      };
+      
+      const renderCalendar = () => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        
+        const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
+                          'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+        const monthYear = `${monthNames[month]} de ${year}`;
+        
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const firstDayWeekday = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+        
+        const days = [];
+        
+        // Dias vazios do início
+        for (let i = 0; i < firstDayWeekday; i++) {
+          days.push(React.createElement('div', { key: `empty-${i}`, className: 'periodo-calendar-day empty' }));
+        }
+        
+        // Dias do mês
+        for (let day = 1; day <= daysInMonth; day++) {
+          const currentDate = new Date(year, month, day);
+          let dayClasses = 'periodo-calendar-day';
+          
+          // Verificar se é a data selecionada
+          if (value) {
+            const selectedDate = new Date(value + 'T00:00:00');
+            const selectedDateObj = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+            const isSelected = isSameDay(currentDate, selectedDateObj);
+            
+            if (isSelected) {
+              dayClasses += ' selected';
+            }
+          }
+          
+          days.push(
+            React.createElement('div', {
+              key: day,
+              className: dayClasses,
+              onClick: () => handleDateClick(currentDate)
+            }, day)
+          );
+        }
+        
+        return { monthYear, days };
+      };
+      
+      const { monthYear, days } = renderCalendar();
+      
+      return React.createElement('div', { 
+        className: 'periodo-dropdown',
+        onClick: (e) => e.stopPropagation(),
+        style: { position: 'relative', display: 'block' }
+      }, React.createElement('div', { className: 'periodo-dropdown-content' },
+        React.createElement('div', { style: { padding: '12px' } },
+          React.createElement('div', { 
+            style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }
+          },
+            React.createElement('i', { 
+              className: 'fas fa-calendar-alt', 
+              style: { color: '#4b5563', fontSize: '14px' } 
+            }),
+            React.createElement('span', { 
+              style: { fontWeight: 600, color: '#111827', fontSize: '13px' } 
+            }, 'Selecionar data')
+          ),
+          React.createElement('div', { className: 'periodo-calendar-container' },
+            React.createElement('div', { className: 'periodo-calendar-header' },
+              React.createElement('button', { 
+                className: 'periodo-calendar-nav', 
+                type: 'button', 
+                onClick: handlePrevMonth 
+              }, React.createElement('i', { className: 'fas fa-chevron-left' })),
+              React.createElement('span', { className: 'periodo-calendar-month-year' }, monthYear),
+              React.createElement('button', { 
+                className: 'periodo-calendar-nav', 
+                type: 'button', 
+                onClick: handleNextMonth 
+              }, React.createElement('i', { className: 'fas fa-chevron-right' }))
+            ),
+            React.createElement('div', { className: 'periodo-calendar-weekdays' },
+              React.createElement('div', null, 'D'),
+              React.createElement('div', null, 'S'),
+              React.createElement('div', null, 'T'),
+              React.createElement('div', null, 'Q'),
+              React.createElement('div', null, 'Q'),
+              React.createElement('div', null, 'S'),
+              React.createElement('div', null, 'S')
+            ),
+            React.createElement('div', { className: 'periodo-calendar-days' }, days)
+          )
+        )
+      ));
+    };
+    
+    // Função para atualizar o calendário
+    const updateCalendar = (dataAtual) => {
+      const dataStrAtual = formatDateForInput(dataAtual);
+      datePickerRoot.render(
+        React.createElement(CalendarOnly, {
+          value: dataStrAtual,
+          onChange: (e) => {
+            const novaDataStr = e.target.value;
+            const novaData = new Date(novaDataStr + 'T00:00:00');
+            novaData.setHours(0, 0, 0, 0);
+            setDataTarefasSelecionada(novaData);
+            if (carregarMinhasTarefasRef.current) {
+              carregarMinhasTarefasRef.current(card, novaData);
+            }
+            datePickerContainer.style.visibility = 'hidden';
+            datePickerContainer.style.opacity = '0';
+            datePickerContainer.style.pointerEvents = 'none';
+          },
+          onClose: () => {
+            datePickerContainer.style.visibility = 'hidden';
+            datePickerContainer.style.opacity = '0';
+            datePickerContainer.style.pointerEvents = 'none';
+          }
+        })
+      );
+    };
+    
+    // Renderizar inicialmente
+    updateCalendar(dataParaExibirCopy);
+    
+    // Ao clicar no botão de calendário, mostrar o DatePicker
+    let closeHandler = null;
+    btnCalendario.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = datePickerContainer.style.visibility !== 'hidden';
+      if (!isVisible) {
+        // Atualizar com a data atual antes de mostrar
+        const dataAtual = obterDataDoHeader(header);
+        updateCalendar(dataAtual);
+        datePickerContainer.style.visibility = 'visible';
+        datePickerContainer.style.opacity = '1';
+        datePickerContainer.style.pointerEvents = 'auto';
+        
+        // Remover handler anterior se existir
+        if (closeHandler) {
+          document.removeEventListener('mousedown', closeHandler);
+        }
+        
+        // Fechar ao clicar fora
+        closeHandler = (event) => {
+          if (!dataContainer.contains(event.target) && !datePickerContainer.contains(event.target)) {
+            datePickerContainer.style.visibility = 'hidden';
+            datePickerContainer.style.opacity = '0';
+            datePickerContainer.style.pointerEvents = 'none';
+            document.removeEventListener('mousedown', closeHandler);
+            closeHandler = null;
+          }
+        };
+        setTimeout(() => {
+          document.addEventListener('mousedown', closeHandler);
+        }, 100);
+      } else {
+        datePickerContainer.style.visibility = 'hidden';
+        datePickerContainer.style.opacity = '0';
+        datePickerContainer.style.pointerEvents = 'none';
+        if (closeHandler) {
+          document.removeEventListener('mousedown', closeHandler);
+          closeHandler = null;
+        }
+      }
+    });
+    
+    navContainer.appendChild(btnCalendario);
+    
+    dataContainer.appendChild(datePickerContainer);
+    navContainer.appendChild(dataContainer);
+    
+    // Botão de navegação próxima
+    const btnProxima = document.createElement('button');
+    btnProxima.type = 'button';
+    btnProxima.className = 'painel-usuario-nav-date-btn';
+    btnProxima.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    btnProxima.title = 'Próxima data';
+    btnProxima.style.cssText = `
+      background: transparent;
+      border: none;
+      padding: 4px 6px;
+      cursor: pointer;
+      color: #9ca3af;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      font-size: 10px;
+      border-radius: 4px;
+    `;
+    btnProxima.addEventListener('mouseenter', () => {
+      btnProxima.style.background = '#f3f4f6';
+      btnProxima.style.color = '#6b7280';
+    });
+    btnProxima.addEventListener('mouseleave', () => {
+      btnProxima.style.background = 'transparent';
+      btnProxima.style.color = '#9ca3af';
+    });
+    btnProxima.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Obter a data atual sendo exibida no header
+      const dataAtual = obterDataDoHeader(header);
+      // Calcular próxima data
+      const novaData = new Date(dataAtual);
+      novaData.setDate(novaData.getDate() + 1);
+      novaData.setHours(0, 0, 0, 0); // Normalizar para início do dia
+      setDataTarefasSelecionada(novaData);
+      // Recarregar tarefas imediatamente usando a ref (sem await para não bloquear)
+      if (carregarMinhasTarefasRef.current) {
+        carregarMinhasTarefasRef.current(card, novaData);
+      }
+    });
+    navContainer.appendChild(btnProxima);
+    
+    headerLeft.appendChild(navContainer);
+    
+    // Subtítulo com quantidade de tarefas (na mesma linha)
     const subtitle = document.createElement('div');
     subtitle.style.fontSize = '12px';
     subtitle.style.color = '#6b7280';
     subtitle.textContent = `${registros.length} tarefa(s)`;
+    subtitle.style.marginLeft = 'auto';
     headerLeft.appendChild(subtitle);
     
     header.appendChild(headerLeft);
@@ -905,12 +1528,10 @@ const MIN_H_TAREFAS = 6;
     btnQuadro.setAttribute('data-mode', 'quadro');
     btnQuadro.title = 'Visualização em Quadro';
     btnQuadro.innerHTML = '<i class="fas fa-th-large"></i><span>Quadro</span>';
-    if (cardId) {
-      btnQuadro.addEventListener('click', (e) => {
-        e.stopPropagation();
-        alternarModoVisualizacao(cardId, 'quadro');
-      });
-    }
+    btnQuadro.addEventListener('click', (e) => {
+      e.stopPropagation();
+      alternarModoVisualizacao('quadro');
+    });
     toggleView.appendChild(btnQuadro);
     
     const btnLista = document.createElement('button');
@@ -919,22 +1540,21 @@ const MIN_H_TAREFAS = 6;
     btnLista.setAttribute('data-mode', 'lista');
     btnLista.title = 'Visualização em Lista';
     btnLista.innerHTML = '<i class="fas fa-list"></i><span>Lista</span>';
-    if (cardId) {
-      btnLista.addEventListener('click', (e) => {
-        e.stopPropagation();
-        alternarModoVisualizacao(cardId, 'lista');
-      });
-    }
+    btnLista.addEventListener('click', (e) => {
+      e.stopPropagation();
+      alternarModoVisualizacao('lista');
+    });
     toggleView.appendChild(btnLista);
     
     header.appendChild(toggleView);
     wrapper.appendChild(header);
 
     // Renderizar baseado no modo
+    const dataParaRenderizar = dataSelecionada || dataTarefasSelecionada || new Date();
     if (modo === 'lista') {
-      renderTarefasEmLista(registros, wrapper);
+      renderTarefasEmLista(registros, wrapper, dataParaRenderizar);
     } else {
-      renderTarefasEmQuadro(registros, wrapper);
+      renderTarefasEmQuadro(registros, wrapper, dataParaRenderizar);
     }
 
     card.appendChild(wrapper);
@@ -996,12 +1616,10 @@ const MIN_H_TAREFAS = 6;
     }
   }, [clientesExpandidosLista]);
 
-  const renderTarefasEmLista = (registros, wrapper) => {
+  const renderTarefasEmLista = (registros, wrapper, dataSelecionada = null) => {
     const lista = document.createElement('div');
     lista.className = 'painel-usuario-lista-container';
     lista.style.flex = '1';
-    lista.style.overflowY = 'auto';
-    lista.style.overflowX = 'hidden';
     lista.style.display = 'flex';
     lista.style.flexDirection = 'column';
     lista.style.gap = '0';
@@ -1012,7 +1630,13 @@ const MIN_H_TAREFAS = 6;
       vazio.style.fontSize = '13px';
       vazio.style.textAlign = 'center';
       vazio.style.padding = '20px';
-      vazio.textContent = 'Nenhuma tarefa para hoje.';
+      const dataParaExibir = dataSelecionada || dataTarefasSelecionada || new Date();
+      const textoData = formatarDataExibicao(dataParaExibir);
+      if (textoData === 'hoje') {
+        vazio.textContent = 'Nenhuma tarefa para hoje.';
+      } else {
+        vazio.textContent = `Sem tarefas para ${textoData}.`;
+      }
       lista.appendChild(vazio);
     } else {
       // Agrupar por cliente
@@ -1108,8 +1732,15 @@ const MIN_H_TAREFAS = 6;
             item.style.background = '#ffffff';
             // Garantir que o item não capture cliques que devem ir para o header
             item.style.pointerEvents = 'auto';
-            const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
-            const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
+            // CRÍTICO: Cada tempo estimado é totalmente independente
+            // Usar o ID do tempo estimado como identificador único
+            const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+            if (!tempoEstimadoId) {
+              return; // Pular este registro se não tiver ID
+            }
+            
+            const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+            const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
             const isAtivo = !!registroAtivo;
             const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
             const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
@@ -1125,32 +1756,15 @@ const MIN_H_TAREFAS = 6;
                     </div>
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
-                    <button
-                      type="button"
-                      class="${btnClass}"
-                      title="${btnTitle}"
-                      data-tarefa-id="${reg.tarefa_id || ''}"
-                      data-cliente-id="${reg.cliente_id || ''}"
-                      data-action="${btnAction}"
-                    >
-                      <i class="fas ${btnIcon}"></i>
-                    </button>
-                    ${(() => {
-                      const chaveTimetrack = criarChaveTempo(reg);
-                      const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
-                      return `
-                        <button
-                          type="button"
-                          class="painel-usuario-expand-timetrack-btn"
-                          title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
-                          data-chave-timetrack="${chaveTimetrack}"
-                          style="background: transparent; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 6px; cursor: pointer; color: #6b7280; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;"
-                        >
-                          <i class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}" style="font-size: 9px;"></i>
-                          <span>Timetrack</span>
-                        </button>
-                      `;
-                    })()}
+              <button
+                type="button"
+                class="${btnClass}"
+                title="${btnTitle}"
+                data-tempo-estimado-id="${tempoEstimadoIdStr}"
+                data-action="${btnAction}"
+              >
+                    <i class="fas ${btnIcon}"></i>
+                  </button>
                   </div>
                 </div>
                 <div class="painel-usuario-tarefa-tags painel-usuario-tarefa-tags-lista">
@@ -1165,6 +1779,18 @@ const MIN_H_TAREFAS = 6;
                     <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
                     <span class="painel-usuario-realizado-label">Realizado:</span>
                     <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
+                    ${(() => {
+                      const chaveTimetrack = criarChaveTempo(reg);
+                      const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                      return `
+                        <i 
+                          class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
+                          data-chave-timetrack="${chaveTimetrack}"
+                          style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
+                          title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                        ></i>
+                      `;
+                    })()}
                   </span>
                   ${renderizarBarraProgressoTarefa(reg, 'lista')}
                 </div>
@@ -1185,25 +1811,36 @@ const MIN_H_TAREFAS = 6;
                 e.stopPropagation();
                 e.preventDefault();
                 const action = btn.getAttribute('data-action');
+                // Obter o tempo_estimado_id do botão - este é o identificador único
+                const tempoEstimadoIdDoBotao = btn.getAttribute('data-tempo-estimado-id');
+                if (!tempoEstimadoIdDoBotao) {
+                  return;
+                }
+                // Garantir que o reg tenha o tempo_estimado_id correto
+                const regComTempoEstimado = {
+                  ...reg,
+                  id: tempoEstimadoIdDoBotao,
+                  tempo_estimado_id: tempoEstimadoIdDoBotao
+                };
                 if (action === 'iniciar') {
-                  iniciarRegistroTempo(reg);
+                  iniciarRegistroTempo(regComTempoEstimado);
                 } else if (action === 'parar') {
-                  pararRegistroTempo(reg);
+                  pararRegistroTempo(regComTempoEstimado);
                 }
               });
             }
             
-            // Adicionar event listener ao botão de expandir timetrack
-            const expandBtn = item.querySelector('.painel-usuario-expand-timetrack-btn');
-            if (expandBtn) {
+            // Adicionar event listener à setinha de expandir timetrack
+            const expandArrow = item.querySelector('.painel-usuario-timetrack-arrow');
+            if (expandArrow) {
               // Remover listeners anteriores para evitar duplicação
-              const newExpandBtn = expandBtn.cloneNode(true);
-              expandBtn.parentNode.replaceChild(newExpandBtn, expandBtn);
+              const newExpandArrow = expandArrow.cloneNode(true);
+              expandArrow.parentNode.replaceChild(newExpandArrow, expandArrow);
               
-              newExpandBtn.addEventListener('click', async (e) => {
+              newExpandArrow.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                const chave = newExpandBtn.getAttribute('data-chave-timetrack');
+                const chave = newExpandArrow.getAttribute('data-chave-timetrack');
                 if (!chave) return;
                 
                 // Usar ref para verificar estado atual (mais confiável)
@@ -1252,20 +1889,16 @@ const MIN_H_TAREFAS = 6;
                   timetracksContainer.innerHTML = timetracksHtml;
                 }
                 
-                // Atualizar ícone do botão
-                const icon = newExpandBtn.querySelector('i');
-                if (icon) {
-                  icon.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}`;
-                  icon.style.fontSize = '9px';
-                }
-                newExpandBtn.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
+                // Atualizar ícone da setinha
+                newExpandArrow.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow`;
+                newExpandArrow.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
               });
             }
             
             // Garantir que cliques no item não bloqueiem o header
             item.addEventListener('click', (e) => {
               // Se não foi o botão que foi clicado, não fazer nada (deixar propagar)
-              if (e.target !== btn && !btn.contains(e.target)) {
+              if (e.target !== btn && !btn.contains(e.target) && !newExpandArrow.contains(e.target)) {
                 // Não fazer nada - deixar o evento propagar normalmente
                 return;
               }
@@ -1285,12 +1918,12 @@ const MIN_H_TAREFAS = 6;
     wrapper.appendChild(lista);
   };
 
-  const renderTarefasEmQuadro = (registros, wrapper) => {
+  const renderTarefasEmQuadro = (registros, wrapper, dataSelecionada = null) => {
 
     const board = document.createElement('div');
     board.style.flex = '1';
     board.style.overflowY = 'auto';
-    board.style.overflowX = 'hidden';
+    board.style.overflowX = 'auto'; // Permite scroll horizontal quando há muitos clientes
     board.style.display = 'flex';
     board.style.gap = '12px';
     board.style.alignItems = 'flex-start';
@@ -1301,7 +1934,13 @@ const MIN_H_TAREFAS = 6;
       vazio.style.fontSize = '13px';
       vazio.style.textAlign = 'center';
       vazio.style.padding = '10px';
-      vazio.textContent = 'Nenhuma tarefa para hoje.';
+      const dataParaExibir = dataSelecionada || dataTarefasSelecionada || new Date();
+      const textoData = formatarDataExibicao(dataParaExibir);
+      if (textoData === 'hoje') {
+        vazio.textContent = 'Nenhuma tarefa para hoje.';
+      } else {
+        vazio.textContent = `Sem tarefas para ${textoData}.`;
+      }
       board.appendChild(vazio);
     } else {
       // Agrupar por cliente
@@ -1388,8 +2027,15 @@ const MIN_H_TAREFAS = 6;
         items.forEach((reg) => {
           const item = document.createElement('div');
           item.className = 'painel-usuario-tarefa-card';
-          const chaveRegistro = criarChaveRegistro(reg.cliente_id, reg.tarefa_id);
-          const registroAtivo = registrosAtivosRef.current.get(chaveRegistro);
+          // CRÍTICO: Cada tempo estimado é totalmente independente
+          // Usar o ID do tempo estimado como identificador único
+          const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+          if (!tempoEstimadoId) {
+            return; // Pular este registro se não tiver ID
+          }
+          
+          const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
+          const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
           const isAtivo = !!registroAtivo;
           const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
           const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
@@ -1405,26 +2051,16 @@ const MIN_H_TAREFAS = 6;
                 ${getNomeTarefa(reg.tarefa_id, reg)}
               </div>
               <div style="display: flex; gap: 6px; align-items: center;">
-                <button
-                  type="button"
-                  class="${btnClass}"
-                  title="${btnTitle}"
-                  data-tarefa-id="${reg.tarefa_id || ''}"
-                  data-action="${btnAction}"
-                >
-                  <i class="fas ${btnIcon}"></i>
-                </button>
-                <button
-                  type="button"
-                  class="painel-usuario-expand-timetrack-btn"
-                  title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
-                  data-chave-timetrack="${chaveTimetrack}"
-                  style="background: transparent; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 6px; cursor: pointer; color: #6b7280; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;"
-                >
-                  <i class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}" style="font-size: 9px;"></i>
-                  <span>Timetrack</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                class="${btnClass}"
+                title="${btnTitle}"
+                data-tempo-estimado-id="${tempoEstimadoIdStr}"
+                data-action="${btnAction}"
+              >
+                <i class="fas ${btnIcon}"></i>
+              </button>
+            </div>
             </div>
             ${renderizarBarraProgressoTarefa(reg, 'quadro')}
             <div class="painel-usuario-tarefa-tags">
@@ -1439,6 +2075,12 @@ const MIN_H_TAREFAS = 6;
                 <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
                 <span class="painel-usuario-realizado-label">Realizado:</span>
                 <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
+                <i 
+                  class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
+                  data-chave-timetrack="${chaveTimetrack}"
+                  style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
+                  title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                ></i>
               </span>
             </div>
             <div class="painel-usuario-timetracks-container">
@@ -1452,24 +2094,35 @@ const MIN_H_TAREFAS = 6;
             btn.addEventListener('click', (e) => {
               e.stopPropagation();
               const action = btn.getAttribute('data-action');
+              // Obter o tempo_estimado_id do botão - este é o identificador único
+              const tempoEstimadoIdDoBotao = btn.getAttribute('data-tempo-estimado-id');
+              if (!tempoEstimadoIdDoBotao) {
+                return;
+              }
+              // Garantir que o reg tenha o tempo_estimado_id correto
+              const regComTempoEstimado = {
+                ...reg,
+                id: tempoEstimadoIdDoBotao,
+                tempo_estimado_id: tempoEstimadoIdDoBotao
+              };
               if (action === 'iniciar') {
-                iniciarRegistroTempo(reg);
+                iniciarRegistroTempo(regComTempoEstimado);
               } else if (action === 'parar') {
-                pararRegistroTempo(reg);
+                pararRegistroTempo(regComTempoEstimado);
               }
             });
           }
           
-          // Adicionar event listener ao botão de expandir timetrack
-          const expandBtn = item.querySelector('.painel-usuario-expand-timetrack-btn');
-          if (expandBtn) {
+          // Adicionar event listener à setinha de expandir timetrack
+          const expandArrow = item.querySelector('.painel-usuario-timetrack-arrow');
+          if (expandArrow) {
             // Remover listeners anteriores para evitar duplicação
-            const newExpandBtn = expandBtn.cloneNode(true);
-            expandBtn.parentNode.replaceChild(newExpandBtn, expandBtn);
+            const newExpandArrow = expandArrow.cloneNode(true);
+            expandArrow.parentNode.replaceChild(newExpandArrow, expandArrow);
             
-            newExpandBtn.addEventListener('click', async (e) => {
+            newExpandArrow.addEventListener('click', async (e) => {
               e.stopPropagation();
-              const chave = newExpandBtn.getAttribute('data-chave-timetrack');
+              const chave = newExpandArrow.getAttribute('data-chave-timetrack');
               if (!chave) return;
               
               // Usar ref para verificar estado atual (mais confiável)
@@ -1507,13 +2160,9 @@ const MIN_H_TAREFAS = 6;
               }
               timetracksContainer.innerHTML = timetracksHtml;
               
-              // Atualizar ícone do botão
-              const icon = newExpandBtn.querySelector('i');
-              if (icon) {
-                icon.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'}`;
-                icon.style.fontSize = '9px';
-              }
-              newExpandBtn.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
+              // Atualizar ícone da setinha
+              newExpandArrow.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow`;
+              newExpandArrow.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
             });
           }
           
@@ -1567,7 +2216,6 @@ const MIN_H_TAREFAS = 6;
         if (tarefasFaltando.length > 0) {
           // Usar a rota de múltiplos IDs para buscar todas as tarefas de uma vez
           const idsParam = tarefasFaltando.join(',');
-          console.log('[PainelUsuario] Buscando nomes de tarefas para IDs:', tarefasFaltando);
           
           const response = await fetch(`/api/tarefas-por-ids?ids=${idsParam}`, {
             credentials: 'include',
@@ -1576,7 +2224,6 @@ const MIN_H_TAREFAS = 6;
           
           if (response.ok) {
             const result = await response.json();
-            console.log('[PainelUsuario] Resposta da API tarefas-por-ids:', result);
             
             if (result.success && result.data) {
               // result.data é um objeto { id: nome }
@@ -1585,17 +2232,11 @@ const MIN_H_TAREFAS = 6;
                 const idStr = String(id);
                 if (nome && nome.trim()) {
                   novos.tarefas[idStr] = nome.trim();
-                  console.log(`[PainelUsuario] Nome carregado para tarefa ${idStr}:`, nome.trim());
                 } else {
                   novos.tarefas[idStr] = `tarefa #${idStr}`;
-                  console.warn(`[PainelUsuario] Nome vazio para tarefa ${idStr}, usando fallback`);
                 }
               });
-            } else {
-              console.warn('[PainelUsuario] Resposta da API não contém dados válidos:', result);
             }
-          } else {
-            console.warn('[PainelUsuario] Erro ao buscar tarefas por IDs:', response.status, response.statusText);
           }
           
           // Para tarefas que não foram encontradas na busca em lote, usar fallback
@@ -1603,12 +2244,10 @@ const MIN_H_TAREFAS = 6;
             const idStr = String(id);
             if (!novos.tarefas[idStr]) {
               novos.tarefas[idStr] = `tarefa #${idStr}`;
-              console.warn(`[PainelUsuario] Tarefa ${idStr} não encontrada na API, usando fallback`);
             }
           });
         }
       } catch (err) {
-        console.warn('[PainelUsuario] Erro ao carregar tarefas:', err);
         // Em caso de erro, usar fallback para todas as tarefas faltando
         Array.from(tarefasIds).forEach(id => {
           if (!novos.tarefas[id]) {
@@ -1628,20 +2267,20 @@ const MIN_H_TAREFAS = 6;
           // Usar a rota de múltiplos IDs para buscar todas os produtos de uma vez
           const idsParam = produtosFaltando.join(',');
           const response = await fetch(`/api/produtos-por-ids-numericos?ids=${idsParam}`, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
-          });
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        });
           
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
               // result.data é um objeto { id: nome }
               Object.entries(result.data).forEach(([id, nome]) => {
                 if (nome) {
                   novos.produtos[String(id)] = nome;
-                } else {
+          } else {
                   novos.produtos[String(id)] = `produto #${id}`;
-                }
+          }
               });
             }
           }
@@ -1654,12 +2293,11 @@ const MIN_H_TAREFAS = 6;
           });
         }
       } catch (err) {
-        console.warn('[PainelUsuario] Erro ao carregar produtos:', err);
         // Em caso de erro, usar fallback para todos os produtos faltando
         Array.from(produtosIds).forEach(id => {
           if (!novos.produtos[id]) {
             novos.produtos[id] = `produto #${id}`;
-          }
+      }
         });
       }
     }
@@ -1710,7 +2348,6 @@ const MIN_H_TAREFAS = 6;
       }
     }
 
-    console.log('[PainelUsuario] Atualizando cache de nomes. Tarefas no cache:', Object.keys(novos.tarefas).length, novos.tarefas);
     // Atualizar tanto o estado quanto a ref
     nomesCacheRef.current = novos;
     setNomesCache(novos);
@@ -1725,7 +2362,7 @@ const MIN_H_TAREFAS = 6;
         return result.data;
       }
     } catch (e) {
-      console.warn('[PainelUsuario] Erro ao carregar colaboradores', e);
+      // Erro ao carregar colaboradores
     }
     return [];
   }, [colaboradoresCache]);
@@ -1757,7 +2394,7 @@ const MIN_H_TAREFAS = 6;
         }
       }
     } catch (e) {
-      console.warn('[PainelUsuario] Erro ao carregar lista de clientes', e);
+      // Erro ao carregar lista de clientes
     }
     return null;
   }, [clientesListaCache]);
@@ -1831,18 +2468,18 @@ const MIN_H_TAREFAS = 6;
     setTarefasAgrupadas(Array.from(grupos.values()));
   };
 
-  const carregarMinhasTarefas = useCallback(async (alvoManual = null) => {
+  const carregarMinhasTarefas = useCallback(async (alvoManual = null, dataSelecionada = null) => {
     if (!usuario || !usuario.id) {
       return;
     }
-    const alvoReferencia = alvoManual || menuPosicao.target;
-    garantirTamanhoMinimoTarefas(alvoReferencia);
+    const alvoReferencia = alvoManual || tarefasContainerRef.current;
     setCarregandoTarefas(true);
     try {
-      const hoje = new Date();
-      const yyyy = hoje.getFullYear();
-      const mm = String(hoje.getMonth() + 1).padStart(2, '0');
-      const dd = String(hoje.getDate()).padStart(2, '0');
+      // Usar data selecionada ou dataTarefasSelecionada do estado, ou hoje como fallback
+      const dataParaUsar = dataSelecionada || dataTarefasSelecionada || new Date();
+      const yyyy = dataParaUsar.getFullYear();
+      const mm = String(dataParaUsar.getMonth() + 1).padStart(2, '0');
+      const dd = String(dataParaUsar.getDate()).padStart(2, '0');
       const dataStr = `${yyyy}-${mm}-${dd}`;
 
       const params = new URLSearchParams();
@@ -1893,14 +2530,8 @@ const MIN_H_TAREFAS = 6;
         )
       ].filter(Boolean);
 
-      console.info('[PainelUsuario] Usuario atual:', usuario);
-      console.info('[PainelUsuario] Usuario storage:', usuarioStorage);
-      console.info('[PainelUsuario] IDs possíveis para filtro:', idsPossiveis);
-
       const idsUnicos = Array.from(new Set(idsPossiveis));
-      if (idsUnicos.length === 0) {
-        console.warn('[PainelUsuario] Nenhum ID encontrado para responsável, usando fallback data-only');
-      } else {
+      if (idsUnicos.length > 0) {
         idsUnicos.forEach((id) => params.append('responsavel_id', id));
       }
 
@@ -1919,16 +2550,11 @@ const MIN_H_TAREFAS = 6;
         const result = await response.json();
         if (result.success && Array.isArray(result.data)) {
           registros = result.data;
-          console.info('[PainelUsuario] Tarefas carregadas (apenas responsavel_id):', registros.length);
-        } else {
-          console.warn('[PainelUsuario] Nenhum dado retornado para minhas tarefas', result);
         }
-      } else {
-        console.warn('[PainelUsuario] Falha HTTP ao carregar minhas tarefas', response.status);
       }
 
-      // Filtra em memória apenas registros do dia atual E do responsável correto
-      const ehHoje = (data) => {
+      // Filtra em memória apenas registros da data selecionada E do responsável correto
+      const ehDataSelecionada = (data) => {
         if (!data) return false;
         if (typeof data === 'string') {
           const apenasData = data.split('T')[0];
@@ -1945,56 +2571,77 @@ const MIN_H_TAREFAS = 6;
         }
       };
       
-      // Filtrar por data de hoje E responsável
+      // Filtrar por data selecionada E responsável
       const idsUnicosSet = new Set(idsUnicos);
       registros = registros.filter((r) => {
-        const dataOk = ehHoje(r.data);
+        const dataOk = ehDataSelecionada(r.data);
         const responsavelOk = idsUnicosSet.has(String(r.responsavel_id)) || 
                              idsUnicosSet.has(Number(r.responsavel_id));
         return dataOk && responsavelOk;
-      });
-      console.info('[PainelUsuario] Após filtro por data=hoje E responsável (memória):', registros.length);
+              });
 
       // Remover fallbacks que podem trazer dados incorretos
       // Se não encontrou nada, é porque realmente não há tarefas para hoje do usuário
       // Não fazer fallbacks que buscam sem data ou sem responsável, pois podem trazer dados incorretos
 
+      // Atualizar referência e estado primeiro para renderização mais rápida
+      tarefasRegistrosRef.current = registros;
+      setTarefasRegistros(registros);
+      
+      // Renderizar imediatamente com os dados disponíveis (sem esperar nomes/tempos)
+      renderTarefasNoCard(registros, alvoManual, dataParaUsar);
+      
+      // Carregar dados adicionais em paralelo (sem bloquear renderização)
       if (registros.length > 0) {
-        // Carregar nomes primeiro e aguardar atualização do cache
-        await carregarNomesRelacionados(registros);
-        
-        // Aguardar um tick para garantir que o estado do cache foi atualizado
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Atualizar referência e estado
-        tarefasRegistrosRef.current = registros;
-        setTarefasRegistros(registros);
-        
-        // Verificar registros ativos e buscar tempos realizados antes de renderizar
-        await Promise.all([
+        Promise.all([
+          carregarNomesRelacionados(registros),
           verificarRegistrosAtivos(),
           buscarTemposRealizados()
-        ]);
-        
-        // Aguardar um tick adicional e usar o cache atualizado do estado
-        setTimeout(() => {
-          // Forçar re-renderização usando o estado atualizado do cache
-          renderTarefasNoCard(registros, alvoManual);
-        }, 100);
-      } else {
-        tarefasRegistrosRef.current = [];
-        setTarefasRegistros([]);
-        renderTarefasNoCard([], alvoManual);
+        ]).then(() => {
+          // Re-renderizar apenas quando nomes/tempos estiverem prontos
+          if (tarefasRegistrosRef.current.length > 0) {
+            renderTarefasNoCard(tarefasRegistrosRef.current, alvoManual, dataParaUsar);
+          }
+        });
       }
     } catch (e) {
-      console.error('[PainelUsuario] Erro ao carregar minhas tarefas:', e);
       tarefasRegistrosRef.current = [];
       setTarefasRegistros([]);
-      renderTarefasNoCard([], alvoManual);
+      renderTarefasNoCard([], alvoManual, dataParaUsar);
     } finally {
       setCarregandoTarefas(false);
     }
-  }, [usuario, carregarNomesRelacionados, garantirTamanhoMinimoTarefas, menuPosicao, modoVisualizacao, tarefasRegistros, verificarRegistrosAtivos, buscarTemposRealizados]);
+  }, [usuario, carregarNomesRelacionados, verificarRegistrosAtivos, buscarTemposRealizados]);
+
+  // Atualizar ref quando a função mudar
+  useEffect(() => {
+    carregarMinhasTarefasRef.current = carregarMinhasTarefas;
+  }, [carregarMinhasTarefas]);
+
+  // Recarregar tarefas quando a data mudar
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (carregarMinhasTarefasRef.current && tarefasContainerRef.current) {
+        carregarMinhasTarefasRef.current(tarefasContainerRef.current, dataTarefasSelecionada);
+      }
+    }, 200);
+
+    return () => clearTimeout(timeoutId);
+  }, [dataTarefasSelecionada]);
+
+  // Carregar tarefas ao montar o componente
+  useEffect(() => {
+    if (usuario?.id && tarefasContainerRef.current) {
+      // Aguardar um pouco para garantir que o ref está pronto
+      const timeoutId = setTimeout(() => {
+        if (carregarMinhasTarefasRef.current && tarefasContainerRef.current) {
+          carregarMinhasTarefasRef.current(tarefasContainerRef.current, dataTarefasSelecionada);
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id]);
 
   // Atualizar tempo em tempo real quando houver registros ativos (sem re-renderizar tudo)
   useEffect(() => {
@@ -2053,315 +2700,72 @@ const MIN_H_TAREFAS = 6;
     return () => clearInterval(intervalId);
   }, [registrosAtivos, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);
 
-  // Escutar evento de finalização de registro de tempo (quando parado pelo header)
+  // Escutar eventos de início e finalização de registro de tempo (sincronização com TimerAtivo)
   useEffect(() => {
-    const handleRegistroFinalizado = async () => {
-      // Verificar registros ativos novamente
-      await verificarRegistrosAtivos();
-      
-      // Buscar tempos realizados atualizados
-      await buscarTemposRealizados();
-      
-      // Re-renderizar todas as tarefas para atualizar os botões
-      atualizarRenderizacaoTarefas();
+    const handleRegistroIniciado = async () => {
+      // Pequeno delay para garantir que o backend processou
+      setTimeout(async () => {
+        // Verificar registros ativos novamente
+        await verificarRegistrosAtivos();
+        
+        // Buscar tempos realizados atualizados
+        await buscarTemposRealizados();
+        
+        // Sincronizar TODOS os botões para garantir consistência
+        sincronizarTodosBotoes();
+      }, 100);
     };
 
+    const handleRegistroFinalizado = async () => {
+      // Pequeno delay para garantir que o backend processou
+      setTimeout(async () => {
+        // Verificar registros ativos novamente
+        await verificarRegistrosAtivos();
+        
+        // Buscar tempos realizados atualizados
+        await buscarTemposRealizados();
+        
+        // Sincronizar TODOS os botões para garantir consistência
+        sincronizarTodosBotoes();
+      }, 100);
+    };
+
+    window.addEventListener('registro-tempo-iniciado', handleRegistroIniciado);
     window.addEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
     
     return () => {
+      window.removeEventListener('registro-tempo-iniciado', handleRegistroIniciado);
       window.removeEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
     };
-  }, [verificarRegistrosAtivos, buscarTemposRealizados, atualizarRenderizacaoTarefas]);
+  }, [verificarRegistrosAtivos, buscarTemposRealizados, sincronizarTodosBotoes]);
 
   // Re-renderizar tarefas quando clientes expandidos mudarem (modo lista)
   useEffect(() => {
-    if (tarefasRegistrosRef.current.length > 0) {
-      // Verifica se há algum card com tarefas renderizadas
-      const cardsComTarefas = document.querySelectorAll('.grid-item-content-board');
-      if (cardsComTarefas.length > 0) {
-        cardsComTarefas.forEach((card) => {
-          const cardId = obterCardId(card);
-          if (cardId) {
-            const modo = obterModoVisualizacao(cardId);
-            if (modo === 'lista') {
-              renderTarefasNoCard(tarefasRegistrosRef.current, card);
-            }
-          }
-        });
+    if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
+      const modo = obterModoVisualizacao();
+      if (modo === 'lista') {
+        renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
       }
     }
   }, [clientesExpandidosLista]);
 
-  useEffect(() => {
-    /**
-     * Cria um elemento DOM para um bloco
-     * @param {string} id - ID único do bloco
-     * @returns {HTMLElement} Elemento criado
-     */
-    const criarElementoBloco = (id) => {
-      const bloco = document.createElement('div');
-      bloco.className = 'grid-item';
-      bloco.setAttribute('data-bloco-id', id);
-
-      // Handle para arrastar (indicador visual de arrastabilidade)
-      const handle = document.createElement('div');
-      handle.className = 'grid-item-handle';
-      handle.innerHTML = '<i class="fas fa-grip-vertical"></i>';
-      bloco.appendChild(handle);
-
-      // Conteúdo do bloco (vazio conforme especificado)
-      const conteudo = document.createElement('div');
-      conteudo.className = 'grid-item-content';
-      conteudo.innerHTML = '<div class="grid-item-empty"><i class="fas fa-plus"></i></div>';
-      bloco.appendChild(conteudo);
-
-      // Clique no "+" abre menu contextual
-      const botao = conteudo.querySelector('.grid-item-empty');
-      if (botao) {
-        botao.style.cursor = 'pointer';
-        botao.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const rect = botao.getBoundingClientRect();
-          setMenuPosicao({
-            open: true,
-            x: rect.left + rect.width / 2,
-            y: rect.bottom + 8,
-            target: conteudo
-          });
-        });
-      }
-
-      return bloco;
-    };
-
-    // Função para inicializar o Gridstack
-    const inicializarGridstack = () => {
-      // Previne múltiplas inicializações
-      if (inicializadoRef.current) {
-        return;
-      }
-
-      // Verifica se Gridstack está disponível
-      if (typeof window === 'undefined' || typeof window.GridStack === 'undefined') {
-        console.error('Gridstack.js não está carregado. Verifique se o script foi adicionado no index.html');
-        return;
-      }
-
-      // Verifica se já existe uma instância e se o grid já foi inicializado
-      if (!gridRef.current || gridstackInstanceRef.current) {
-        return;
-      }
-
-      // Marca como inicializado antes de continuar
-      inicializadoRef.current = true;
-
-      // Limpa qualquer conteúdo existente no container
-      if (gridRef.current) {
-        gridRef.current.innerHTML = '';
-      }
-
-      // Cria a instância do Gridstack
-      // Configurações: 12 colunas, altura mínima dos itens, etc.
-      gridstackInstanceRef.current = window.GridStack.init({
-        column: 12,
-        cellHeight: 60,
-        margin: 10,
-        resizable: {
-          handles: 'e, se, s, sw, w, nw, n, ne'
-        },
-        draggable: {
-          handle: '.grid-item-handle',
-          appendTo: 'parent'
-        },
-        minRow: 1,
-        float: false,
-        disableOneColumnMode: true
-      }, gridRef.current);
-
-      // Adiciona os blocos iniciais ao grid
-      // Verifica se já existem widgets antes de adicionar
-      const widgetsExistentes = gridstackInstanceRef.current.engine.nodes.length;
-      if (widgetsExistentes === 0) {
-        blocosIniciais.forEach((bloco) => {
-          // Verifica se o bloco já existe antes de adicionar
-          const existe = gridstackInstanceRef.current.engine.nodes.some(
-            node => node.id === bloco.id
-          );
-          
-          if (!existe) {
-            const elemento = criarElementoBloco(bloco.id);
-            gridstackInstanceRef.current.addWidget(elemento, {
-              x: bloco.x,
-              y: bloco.y,
-              w: bloco.w,
-              h: bloco.h,
-              noResize: false,
-              noMove: false,
-              id: bloco.id
-            });
-          }
-        });
-      }
-
-      // Listener para mudanças no grid (útil para futura persistência)
-      gridstackInstanceRef.current.on('change', (event, items) => {
-        console.log('Grid alterado:', items);
-        // Aqui futuramente será implementada a persistência dos layouts
-      });
-
-      // Listener para quando um item é arrastado
-      gridstackInstanceRef.current.on('dragstop', (event, element) => {
-        const node = element.gridstackNode;
-        console.log('Bloco arrastado:', {
-          id: node.id,
-          x: node.x,
-          y: node.y,
-          w: node.w,
-          h: node.h
-        });
-      });
-
-      // Listener para quando um item é redimensionado
-      gridstackInstanceRef.current.on('resizestop', (event, element) => {
-        const node = element.gridstackNode;
-        console.log('Bloco redimensionado:', {
-          id: node.id,
-          x: node.x,
-          y: node.y,
-          w: node.w,
-          h: node.h
-        });
-      });
-    };
-
-    // Aguarda o carregamento do Gridstack (com timeout de segurança)
-    let intervalo = null;
-    if (typeof window !== 'undefined' && window.GridStack) {
-      // Se já estiver carregado, inicializa imediatamente
-      inicializarGridstack();
-    } else {
-      // Se não estiver carregado, aguarda até que esteja disponível
-      let tentativas = 0;
-      const maxTentativas = 50; // 5 segundos máximo
-      intervalo = setInterval(() => {
-        tentativas++;
-        if (typeof window !== 'undefined' && window.GridStack) {
-          clearInterval(intervalo);
-          inicializarGridstack();
-        } else if (tentativas >= maxTentativas) {
-          clearInterval(intervalo);
-          console.error('Gridstack.js não foi carregado dentro do tempo esperado');
-        }
-      }, 100);
-    }
-
-    // Cleanup: destroi a instância do Gridstack quando o componente desmonta
-    return () => {
-      if (intervalo) {
-        clearInterval(intervalo);
-      }
-      if (gridstackInstanceRef.current) {
-        // Remove todos os widgets antes de destruir
-        try {
-          const nodes = gridstackInstanceRef.current.engine.nodes;
-          nodes.forEach((node) => {
-            const el = node.el;
-            if (el && el.parentNode) {
-              gridstackInstanceRef.current.removeWidget(el, false);
-            }
-          });
-        } catch (e) {
-          console.warn('Erro ao remover widgets:', e);
-        }
-        
-        // Destrói a instância
-        gridstackInstanceRef.current.destroy(false);
-        gridstackInstanceRef.current = null;
-      }
-      
-      // Limpa o conteúdo do container
-      if (gridRef.current) {
-        gridRef.current.innerHTML = '';
-      }
-      
-      // Reseta a flag de inicialização
-      inicializadoRef.current = false;
-    };
-  }, []);
 
   return (
     <Layout>
-      <div className="painel-usuario-container">
-        <div className="painel-usuario-header">
-          <h1 className="painel-usuario-title">
-            <i className="fas fa-th-large"></i> Painel do Usuário
-          </h1>
-          <p className="painel-usuario-subtitle">
-            Organize seus blocos arrastando e redimensionando conforme necessário
-          </p>
-        </div>
-
-        <div className="painel-usuario-content">
-          {/* Container do Gridstack */}
-          <div ref={gridRef} className="grid-stack" id="gridstack-container"></div>
-        </div>
-
-        {menuPosicao.open && (
-          <div
-            className="painel-usuario-menu"
-            style={{
-              position: 'fixed',
-              left: menuPosicao.x,
-              top: menuPosicao.y,
-              transform: 'translate(-50%, 0)',
-              background: '#fff',
-              border: '1px solid #e5e7eb',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
-              borderRadius: '10px',
-              padding: '12px',
-              zIndex: 2000,
-              minWidth: '180px'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <strong style={{ color: '#1f2937', fontSize: 14 }}>Adicionar</strong>
-              <button
-                onClick={() => setMenuPosicao({ open: false, x: 0, y: 0 })}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#6b7280' }}
-                title="Fechar"
-              >
-                <i className="fas fa-times"></i>
-              </button>
+      <div className="container painel-usuario-container-wrapper">
+        <main className="main-content">
+          <div className="vinculacoes-listing-section">
+            <div className="form-header">
+              <h2 className="form-title">Minhas Tarefas</h2>
+              <p className="form-subtitle">
+                Visualize e gerencie suas tarefas atribuídas
+              </p>
             </div>
-            <button
-              type="button"
-            className="painel-usuario-menu-item"
-            style={{
-              width: '100%',
-              border: 'none',
-              background: '#eef2ff',
-              color: '#3730a3',
-              padding: '10px 12px',
-              borderRadius: 8,
-              textAlign: 'left',
-              cursor: 'pointer',
-              fontWeight: 600
-            }}
-            onClick={() => {
-              const alvo = menuPosicao.target;
-              setMenuPosicao({ open: false, x: 0, y: 0, target: null });
-              setTarefasExpandidas(new Set());
-              if (alvo) {
-                mostrarLoadingNoAlvo(alvo);
-                carregarMinhasTarefas(alvo);
-              }
-            }}
-            >
-              <i className="fas fa-list-check" style={{ marginRight: 8 }}></i>
-              Minhas tarefas (hoje)
-            </button>
+
+            {/* Container das tarefas */}
+            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container"></div>
           </div>
-        )}
+        </main>
       </div>
     </Layout>
   );

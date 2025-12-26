@@ -157,7 +157,7 @@ const FilterDate = ({
             className={`date-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
             onClick={handleOpen}
           >
-            <i className="fas fa-calendar-alt" style={{ marginRight: '8px', color: '#6c757d' }}></i>
+            <i className="fas fa-calendar-alt" style={{ marginRight: '8px', color: '#64748b', fontSize: '13px' }}></i>
             <span className={`date-select-text ${localValue ? 'has-selection' : ''}`}>
               {textoDisplay}
             </span>

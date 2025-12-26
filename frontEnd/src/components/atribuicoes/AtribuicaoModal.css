@@ -1,14 +1,16 @@
 /* Estilos específicos do modal de atribuição - EXCLUSIVOS para esta tela */
 .vinculacao-modal-content {
-  max-width: 1200px !important;
-  width: 90% !important;
+  max-width: 1800px !important;
+  width: 98% !important;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: visible !important;
   padding: 0 !important;
 }
 
 .vinculacao-modal-content .modal-body {
   padding: 24px !important;
+  overflow: visible !important;
 }
 
 /* Usar form-row-vigencia do sistema para campos lado a lado */
@@ -18,6 +20,20 @@
   gap: 20px;
   align-items: start;
   margin-bottom: 24px;
+}
+
+/* Garantir que o dropdown do período tenha espaço suficiente */
+.vinculacao-modal-content .periodo-dropdown {
+  min-width: 360px !important;
+  max-width: 400px !important;
+  z-index: 10000 !important;
+  overflow: visible !important;
+}
+
+.vinculacao-modal-content .periodo-calendar-container {
+  max-width: 320px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 @media (max-width: 1400px) {
@@ -46,6 +62,8 @@
   gap: 8px;
   align-items: flex-start;
   min-height: 80px;
+  overflow: visible !important;
+  position: relative;
 }
 
 /* Labels mais bonitos e consistentes */

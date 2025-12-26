@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import EditButton from '../../components/common/EditButton';
-import DeleteButton from '../../components/common/DeleteButton';
+import { useToast } from '../../hooks/useToast';
+import TimerButton from '../../components/common/TimerButton';
+import HistoTempoRastreado from './HistoTempoRastreado';
 import '../../components/common/ActionButtons.css';
+import '../filters/FilterDate.css';
 import './TimerAtivo.css';
 
 const TimerAtivo = () => {
   const { usuario } = useAuth();
+  const showToast = useToast();
   const [registroAtivo, setRegistroAtivo] = useState(null);
   const [tempoDecorrido, setTempoDecorrido] = useState(0);
   const [tarefaNome, setTarefaNome] = useState('');
   const [clienteNome, setClienteNome] = useState('');
   const [tempoEstimado, setTempoEstimado] = useState(null);
   const [historicoRegistros, setHistoricoRegistros] = useState([]);
+  const [nomesTarefas, setNomesTarefas] = useState({});
+  const [nomesClientes, setNomesClientes] = useState({});
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [registroEditando, setRegistroEditando] = useState(null);
-  const [formData, setFormData] = useState({
-    data_inicio: '',
-    hora_inicio: '',
-    data_fim: '',
-    hora_fim: '',
-    tempo_realizado_ms: ''
-  });
+  const [registroEditandoId, setRegistroEditandoId] = useState(null);
+  const [registroDeletandoId, setRegistroDeletandoId] = useState(null);
+  const [formDataPorRegistro, setFormDataPorRegistro] = useState({});
+  const [justificativaDelecaoPorRegistro, setJustificativaDelecaoPorRegistro] = useState({});
   const dropdownRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -63,6 +64,15 @@ const TimerAtivo = () => {
           setTarefaNome('');
           setClienteNome('');
           setTempoEstimado(null);
+        }
+      } else if (response.status === 401) {
+        // Sessão expirada - redirecionar para login
+        const errorData = await response.json().catch(() => ({}));
+        console.warn('[TimerAtivo] Sessão expirada, redirecionando para login');
+        if (errorData.redirect) {
+          window.location.href = errorData.redirect;
+        } else {
+          window.location.href = '/login';
         }
       } else {
         const errorText = await response.text();
@@ -149,8 +159,9 @@ const TimerAtivo = () => {
     if (!usuario || !usuario.id) return;
 
     try {
+      // Buscar histórico sem filtro de data - aumentar limite para pegar mais registros
       const response = await fetch(
-        `/api/registro-tempo/historico?usuario_id=${usuario.id}&limite=20`,
+        `/api/registro-tempo/historico?usuario_id=${usuario.id}&limite=1000`,
         {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
@@ -160,7 +171,120 @@ const TimerAtivo = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          setHistoricoRegistros(result.data || []);
+          const registros = result.data || [];
+          console.log('[TimerAtivo] Histórico recebido:', registros.length, 'registros');
+          // Log para debug: verificar datas dos registros
+          const datasUnicas = [...new Set(registros.map(r => r.data_inicio ? new Date(r.data_inicio).toISOString().split('T')[0] : null).filter(Boolean))];
+          console.log('[TimerAtivo] Datas únicas encontradas:', datasUnicas);
+          setHistoricoRegistros(registros);
+          
+          // Buscar nomes das tarefas (otimizado - uma única requisição)
+          const tarefasIds = [...new Set(result.data.map(r => r.tarefa_id).filter(Boolean))];
+          
+          if (tarefasIds.length > 0) {
+            try {
+              const tarefasResponse = await fetch(
+                `/api/tarefas-por-ids?ids=${tarefasIds.join(',')}`,
+                {
+                  credentials: 'include',
+                  headers: { 'Accept': 'application/json' }
+                }
+              );
+              
+              if (tarefasResponse.ok) {
+                const tarefasResult = await tarefasResponse.json();
+                if (tarefasResult.success && tarefasResult.data) {
+                  // tarefasResult.data já é um objeto { id: nome }
+                  const nomes = {};
+                  tarefasIds.forEach(tarefaId => {
+                    nomes[tarefaId] = tarefasResult.data[tarefaId] || `Tarefa #${tarefaId}`;
+                  });
+                  setNomesTarefas(nomes);
+                } else {
+                  // Fallback: criar nomes padrão
+                  const nomes = {};
+                  tarefasIds.forEach(tarefaId => {
+                    nomes[tarefaId] = `Tarefa #${tarefaId}`;
+                  });
+                  setNomesTarefas(nomes);
+                }
+              } else if (tarefasResponse.status === 401) {
+                // Sessão expirada - redirecionar para login
+                window.location.href = '/login';
+                return;
+              } else {
+                // Fallback: criar nomes padrão
+                const nomes = {};
+                tarefasIds.forEach(tarefaId => {
+                  nomes[tarefaId] = `Tarefa #${tarefaId}`;
+                });
+                setNomesTarefas(nomes);
+              }
+            } catch (error) {
+              console.warn('[TimerAtivo] Erro ao buscar nomes das tarefas:', error);
+              // Fallback: criar nomes padrão
+              const nomes = {};
+              tarefasIds.forEach(tarefaId => {
+                nomes[tarefaId] = `Tarefa #${tarefaId}`;
+              });
+              setNomesTarefas(nomes);
+            }
+          } else {
+            setNomesTarefas({});
+          }
+
+          // Buscar nomes dos clientes (buscar individualmente já que não há endpoint em lote)
+          const clientesIds = [...new Set(result.data.map(r => r.cliente_id).filter(Boolean))];
+          
+          if (clientesIds.length > 0) {
+            try {
+              // Buscar clientes individualmente em paralelo
+              const clientesPromises = clientesIds.map(async (clienteId) => {
+                try {
+                  const clienteResponse = await fetch(`/api/clientes/${clienteId}`, {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                  });
+                  
+                  if (clienteResponse.ok) {
+                    const clienteResult = await clienteResponse.json();
+                    if (clienteResult.success && clienteResult.data) {
+                      return { id: clienteId, nome: clienteResult.data.nome || clienteResult.data.nome_fantasia || clienteResult.data.razao_social || `Cliente #${clienteId}` };
+                    }
+                  }
+                } catch (error) {
+                  console.warn(`[TimerAtivo] Erro ao buscar cliente ${clienteId}:`, error);
+                }
+                return { id: clienteId, nome: `Cliente #${clienteId}` };
+              });
+              
+              const clientesData = await Promise.all(clientesPromises);
+              const nomes = {};
+              clientesData.forEach(cliente => {
+                nomes[cliente.id] = cliente.nome;
+              });
+              setNomesClientes(nomes);
+            } catch (error) {
+              console.warn('[TimerAtivo] Erro ao buscar nomes dos clientes:', error);
+              // Fallback: criar nomes padrão
+              const nomes = {};
+              clientesIds.forEach(clienteId => {
+                nomes[clienteId] = `Cliente #${clienteId}`;
+              });
+              setNomesClientes(nomes);
+            }
+          } else {
+            setNomesClientes({});
+          }
+        }
+      } else if (response.status === 401) {
+        // Sessão expirada - redirecionar para login
+        const errorData = await response.json().catch(() => ({}));
+        console.warn('[TimerAtivo] Sessão expirada ao buscar histórico, redirecionando para login');
+        if (errorData.redirect) {
+          window.location.href = errorData.redirect;
+        } else {
+          window.location.href = '/login';
         }
       }
     } catch (error) {
@@ -205,11 +329,17 @@ const TimerAtivo = () => {
     
     // Escutar eventos de início/fim de registro
     const handleRegistroIniciado = () => {
+      // Atualizar imediatamente quando outro componente iniciar
+      setTimeout(() => {
       buscarRegistroAtivo();
+      }, 100); // Pequeno delay para garantir que o backend processou
     };
     
     const handleRegistroFinalizado = () => {
+      // Atualizar imediatamente quando outro componente parar
+      setTimeout(() => {
       buscarRegistroAtivo();
+      }, 100); // Pequeno delay para garantir que o backend processou
     };
     
     window.addEventListener('registro-tempo-iniciado', handleRegistroIniciado);
@@ -339,13 +469,18 @@ const TimerAtivo = () => {
   const formatarDataGrupo = (dataString) => {
     if (!dataString) return '';
     const data = new Date(dataString);
+    
+    // Normalizar para comparar apenas a data (sem hora)
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
     const ontem = new Date(hoje);
     ontem.setDate(ontem.getDate() - 1);
+    const dataNormalizada = new Date(data);
+    dataNormalizada.setHours(0, 0, 0, 0);
     
-    if (data.toDateString() === hoje.toDateString()) {
+    if (dataNormalizada.getTime() === hoje.getTime()) {
       return 'Hoje';
-    } else if (data.toDateString() === ontem.toDateString()) {
+    } else if (dataNormalizada.getTime() === ontem.getTime()) {
       return 'Ontem';
     } else {
       return data.toLocaleDateString('pt-BR', {
@@ -356,21 +491,69 @@ const TimerAtivo = () => {
     }
   };
 
-  // Agrupar histórico por data
-  const agruparHistoricoPorData = () => {
-    const grupos = {};
+  // Agrupar histórico por data, depois por cliente, e depois por tarefa
+  const agruparHistoricoPorDataETarefa = () => {
+    const gruposPorData = {};
+    
     historicoRegistros.forEach((registro) => {
-      const dataKey = registro.data_inicio ? new Date(registro.data_inicio).toDateString() : 'Sem data';
-      if (!grupos[dataKey]) {
-        grupos[dataKey] = [];
+      if (!registro.data_inicio) return;
+      
+      // Usar a data de início para agrupar (apenas a data, sem hora)
+      const dataInicio = new Date(registro.data_inicio);
+      const chaveData = dataInicio.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      if (!gruposPorData[chaveData]) {
+        gruposPorData[chaveData] = {
+          data: chaveData,
+          dataFormatada: formatarDataGrupo(registro.data_inicio),
+          clientes: {}
+        };
       }
-      grupos[dataKey].push(registro);
+      
+      // Agrupar por cliente dentro de cada data
+      const clienteId = registro.cliente_id || 'sem-cliente';
+      if (!gruposPorData[chaveData].clientes[clienteId]) {
+        gruposPorData[chaveData].clientes[clienteId] = {
+          cliente_id: clienteId,
+          tarefas: {}
+        };
+      }
+      
+      // Agrupar por tarefa dentro de cada cliente
+      const tarefaId = registro.tarefa_id || 'sem-tarefa';
+      if (!gruposPorData[chaveData].clientes[clienteId].tarefas[tarefaId]) {
+        gruposPorData[chaveData].clientes[clienteId].tarefas[tarefaId] = {
+          tarefa_id: tarefaId,
+          registros: []
+        };
+      }
+      gruposPorData[chaveData].clientes[clienteId].tarefas[tarefaId].registros.push(registro);
     });
-    return grupos;
+    
+    // Ordenar registros de cada tarefa por hora de início (mais recente primeiro)
+    Object.keys(gruposPorData).forEach(chaveData => {
+      Object.keys(gruposPorData[chaveData].clientes).forEach(clienteId => {
+        Object.keys(gruposPorData[chaveData].clientes[clienteId].tarefas).forEach(tarefaId => {
+          gruposPorData[chaveData].clientes[clienteId].tarefas[tarefaId].registros.sort((a, b) => {
+            const dataA = new Date(a.data_inicio);
+            const dataB = new Date(b.data_inicio);
+            return dataB - dataA; // Mais recente primeiro
+          });
+        });
+      });
+    });
+    
+    // Ordenar as datas (mais recente primeiro)
+    const datasOrdenadas = Object.keys(gruposPorData).sort((a, b) => {
+      return new Date(b) - new Date(a);
+    });
+    
+    // Retornar como array ordenado
+    return datasOrdenadas.map(chaveData => gruposPorData[chaveData]);
   };
 
-  // Calcular total do dia
-  const calcularTotalDia = (registros) => {
+  // Calcular total de uma lista de registros
+  const calcularTotal = (registros) => {
     return registros.reduce((total, reg) => {
       return total + (reg.tempo_realizado || 0);
     }, 0);
@@ -385,56 +568,215 @@ const TimerAtivo = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-  // Converter data/hora para formato datetime-local
-  const formatarParaInputDateTime = (dataString) => {
-    if (!dataString) return '';
-    const data = new Date(dataString);
-    const ano = data.getFullYear();
-    const mes = String(data.getMonth() + 1).padStart(2, '0');
-    const dia = String(data.getDate()).padStart(2, '0');
-    const hora = String(data.getHours()).padStart(2, '0');
-    const minuto = String(data.getMinutes()).padStart(2, '0');
-    return `${ano}-${mes}-${dia}T${hora}:${minuto}`;
-  };
-
-  // Abrir modal de edição
+  // Abrir/fechar edição
   const handleEditar = (e, registro) => {
     e.stopPropagation();
+    
+    if (registroEditandoId === registro.id) {
+      // Se já está editando, fecha
+      setRegistroEditandoId(null);
+      return;
+    }
+    
     const dataInicio = new Date(registro.data_inicio);
     const dataFim = registro.data_fim ? new Date(registro.data_fim) : new Date();
     
-    setRegistroEditando(registro);
-    setFormData({
-      data_inicio: formatarParaInputDateTime(registro.data_inicio),
-      hora_inicio: formatarParaInputDateTime(registro.data_inicio),
-      data_fim: registro.data_fim ? formatarParaInputDateTime(registro.data_fim) : formatarParaInputDateTime(new Date()),
-      hora_fim: registro.data_fim ? formatarParaInputDateTime(registro.data_fim) : formatarParaInputDateTime(new Date()),
-      tempo_realizado_ms: registro.tempo_realizado || 0
+    // Extrair data (YYYY-MM-DD)
+    const formatarData = (date) => {
+      const ano = date.getFullYear();
+      const mes = String(date.getMonth() + 1).padStart(2, '0');
+      const dia = String(date.getDate()).padStart(2, '0');
+      return `${ano}-${mes}-${dia}`;
+    };
+    
+    setRegistroEditandoId(registro.id);
+    setFormDataPorRegistro({
+      ...formDataPorRegistro,
+      [registro.id]: {
+        data_inicio: formatarData(dataInicio),
+        hora_inicio: dataInicio.getHours(),
+        minuto_inicio: dataInicio.getMinutes(),
+        data_fim: formatarData(dataFim),
+        hora_fim: dataFim.getHours(),
+        minuto_fim: dataFim.getMinutes(),
+        justificativa: ''
+      }
     });
+    
+    // Fechar exclusão se estiver aberta
+    if (registroDeletandoId === registro.id) {
+      setRegistroDeletandoId(null);
+    }
   };
 
-  // Fechar modal de edição
-  const handleFecharEdicao = () => {
-    setRegistroEditando(null);
-    setFormData({
-      data_inicio: '',
-      hora_inicio: '',
-      data_fim: '',
-      hora_fim: '',
-      tempo_realizado_ms: ''
-    });
+  // Fechar edição
+  const handleFecharEdicao = (registroId) => {
+    if (registroId) {
+      setRegistroEditandoId(null);
+      const newFormData = { ...formDataPorRegistro };
+      delete newFormData[registroId];
+      setFormDataPorRegistro(newFormData);
+    } else {
+      setRegistroEditandoId(null);
+    }
+  };
+
+  // Validar edição de registro de tempo
+  const validarEdicao = (dataInicio, dataFim, registroId, registro) => {
+    const agora = new Date();
+    
+    // 1. Validar que o registro está finalizado (tem data_fim)
+    if (!registro || !registro.data_fim) {
+      return { 
+        valido: false, 
+        erro: 'Apenas registros finalizados podem ser editados' 
+      };
+    }
+
+    // 2. Validar não-futuro
+    if (dataInicio > agora) {
+      return { 
+        valido: false, 
+        erro: 'Data de início não pode ser no futuro' 
+      };
+    }
+    
+    if (dataFim > agora) {
+      return { 
+        valido: false, 
+        erro: 'Data de fim não pode ser no futuro' 
+      };
+    }
+
+    // 3. Validar ordem cronológica
+    if (dataInicio >= dataFim) {
+      return { 
+        valido: false, 
+        erro: 'Data de início deve ser anterior à data de fim' 
+      };
+    }
+
+    // 4. Validar duração mínima (1 segundo)
+    const duracao = dataFim.getTime() - dataInicio.getTime();
+    if (duracao < 1000) {
+      return { 
+        valido: false, 
+        erro: 'Duração mínima é de 1 segundo' 
+      };
+    }
+
+    return { valido: true };
+  };
+
+  // Validar sobreposição com outros registros
+  const validarSobreposicao = async (dataInicio, dataFim, registroId) => {
+    if (!usuario || !usuario.id) {
+      return { valido: false, erro: 'Usuário não identificado' };
+    }
+
+    try {
+      // Buscar todos os registros finalizados do usuário (exceto o atual)
+      const response = await fetch(
+        `/api/registro-tempo/historico?usuario_id=${usuario.id}&limite=1000`,
+        {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const registrosParaVerificar = result.data.filter(
+            reg => reg.id !== registroId && reg.data_fim // Apenas finalizados
+          );
+
+          for (const registro of registrosParaVerificar) {
+            const outroInicio = new Date(registro.data_inicio);
+            const outroFim = new Date(registro.data_fim);
+            
+            // Verificar sobreposição: (novo_inicio < outro_fim) E (novo_fim > outro_inicio)
+            const temSobreposicao = 
+              (dataInicio < outroFim) && 
+              (dataFim > outroInicio);
+
+            if (temSobreposicao) {
+              const formatarPeriodo = (inicio, fim) => {
+                const inicioStr = inicio.toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                const fimStr = fim.toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                return `${inicioStr} - ${fimStr}`;
+              };
+
+              return { 
+                valido: false, 
+                erro: `Conflito com registro existente: ${formatarPeriodo(outroInicio, outroFim)}` 
+              };
+            }
+          }
+        }
+      }
+
+      return { valido: true };
+    } catch (error) {
+      console.error('[TimerAtivo] Erro ao validar sobreposição:', error);
+      // Em caso de erro na validação, permitir (o backend vai validar também)
+      return { valido: true };
+    }
   };
 
   // Salvar edição
-  const handleSalvarEdicao = async () => {
-    if (!registroEditando) return;
+  const handleSalvarEdicao = async (registro) => {
+    if (!registro || !registroEditandoId || registroEditandoId !== registro.id) return;
+    
+    const formData = formDataPorRegistro[registro.id];
+    if (!formData) return;
 
     try {
-      // Combinar data e hora
-      const dataInicioCompleta = new Date(formData.data_inicio);
-      const dataFimCompleta = new Date(formData.data_fim);
+      // Validar justificativa obrigatória
+      if (!formData.justificativa || formData.justificativa.trim() === '') {
+        showToast('error', 'Justificativa é obrigatória para editar o registro');
+        return;
+      }
 
-      const response = await fetch(`/api/registro-tempo/${registroEditando.id}`, {
+      // Combinar data, hora e minuto
+      const dataInicioCompleta = new Date(
+        `${formData.data_inicio}T${String(formData.hora_inicio).padStart(2, '0')}:${String(formData.minuto_inicio).padStart(2, '0')}:00`
+      );
+      const dataFimCompleta = new Date(
+        `${formData.data_fim}T${String(formData.hora_fim).padStart(2, '0')}:${String(formData.minuto_fim).padStart(2, '0')}:00`
+      );
+
+      // Validar edição
+      const validacao = validarEdicao(dataInicioCompleta, dataFimCompleta, registro.id, registro);
+      if (!validacao.valido) {
+        showToast('error', validacao.erro);
+        return;
+      }
+
+      // Validar sobreposição
+      const validacaoSobreposicao = await validarSobreposicao(
+        dataInicioCompleta, 
+        dataFimCompleta, 
+        registro.id
+      );
+      if (!validacaoSobreposicao.valido) {
+        showToast('error', validacaoSobreposicao.erro);
+        return;
+      }
+
+      const response = await fetch(`/api/registro-tempo/${registro.id}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {
@@ -443,33 +785,95 @@ const TimerAtivo = () => {
         },
         body: JSON.stringify({
           data_inicio: dataInicioCompleta.toISOString(),
-          data_fim: dataFimCompleta.toISOString()
+          data_fim: dataFimCompleta.toISOString(),
+          justificativa: formData.justificativa.trim()
         })
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        console.error('[TimerAtivo] Erro ao atualizar registro:', response.status, errorData);
+        showToast('error', errorData.error || errorData.details || 'Erro ao atualizar registro');
+        return;
+      }
+
       const result = await response.json();
 
-      if (response.ok && result.success) {
+      if (result.success) {
         // Atualizar histórico
         await buscarHistorico();
-        handleFecharEdicao();
+        handleFecharEdicao(registro.id);
         
         // Disparar evento para atualizar outros componentes
         window.dispatchEvent(new CustomEvent('registro-tempo-atualizado'));
+        showToast('success', 'Registro de tempo atualizado com sucesso!');
       } else {
-        alert(result.error || 'Erro ao atualizar registro');
+        console.error('[TimerAtivo] Erro ao atualizar registro:', result);
+        showToast('error', result.error || result.details || 'Erro ao atualizar registro');
       }
     } catch (error) {
       console.error('[TimerAtivo] Erro ao salvar edição:', error);
-      alert('Erro ao salvar edição');
+      showToast('error', `Erro ao salvar edição: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
-  // Deletar registro
-  const handleDeletar = async (e, registro) => {
+  // Abrir/fechar exclusão
+  const handleDeletar = (e, registro) => {
     e.stopPropagation();
     
-    if (!window.confirm('Tem certeza que deseja deletar este registro de tempo?')) {
+    if (registroDeletandoId === registro.id) {
+      // Se já está excluindo, fecha
+      setRegistroDeletandoId(null);
+      return;
+    }
+    
+    setRegistroDeletandoId(registro.id);
+    setJustificativaDelecaoPorRegistro({
+      ...justificativaDelecaoPorRegistro,
+      [registro.id]: ''
+    });
+    
+    // Fechar edição se estiver aberta
+    if (registroEditandoId === registro.id) {
+      setRegistroEditandoId(null);
+    }
+  };
+
+  // Fechar exclusão
+  const handleFecharDelecao = (registroId) => {
+    setRegistroDeletandoId(null);
+    if (registroId) {
+      const newJustificativas = { ...justificativaDelecaoPorRegistro };
+      delete newJustificativas[registroId];
+      setJustificativaDelecaoPorRegistro(newJustificativas);
+    }
+  };
+
+  // Wrapper para atualizar formData
+  const handleAtualizarFormData = (registroId, novoFormData) => {
+    setFormDataPorRegistro({
+      ...formDataPorRegistro,
+      [registroId]: novoFormData
+    });
+  };
+
+  // Wrapper para atualizar justificativa de deleção
+  const handleAtualizarJustificativaDelecao = (registroId, justificativa) => {
+    setJustificativaDelecaoPorRegistro({
+      ...justificativaDelecaoPorRegistro,
+      [registroId]: justificativa
+    });
+  };
+
+  // Confirmar exclusão
+  const handleConfirmarDelecao = async (registro) => {
+    if (!registro || !registroDeletandoId || registroDeletandoId !== registro.id) return;
+
+    const justificativa = justificativaDelecaoPorRegistro[registro.id] || '';
+
+    // Validar justificativa obrigatória
+    if (!justificativa || justificativa.trim() === '') {
+      showToast('error', 'Justificativa é obrigatória para excluir o registro');
       return;
     }
 
@@ -478,24 +882,40 @@ const TimerAtivo = () => {
         method: 'DELETE',
         credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
           'Accept': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          justificativa: justificativa.trim()
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        console.error('[TimerAtivo] Erro ao excluir registro:', response.status, errorData);
+        showToast('error', errorData.error || errorData.details || 'Erro ao excluir registro');
+        return;
+      }
 
       const result = await response.json();
 
-      if (response.ok && result.success) {
+      if (result.success) {
         // Atualizar histórico
         await buscarHistorico();
         
+        // Fechar exclusão
+        handleFecharDelecao(registro.id);
+        
         // Disparar evento para atualizar outros componentes
         window.dispatchEvent(new CustomEvent('registro-tempo-deletado'));
+        showToast('success', 'Registro de tempo excluído com sucesso!');
       } else {
-        alert(result.error || 'Erro ao deletar registro');
+        console.error('[TimerAtivo] Erro ao excluir registro:', result);
+        showToast('error', result.error || result.details || 'Erro ao excluir registro');
       }
     } catch (error) {
-      console.error('[TimerAtivo] Erro ao deletar registro:', error);
-      alert('Erro ao deletar registro');
+      console.error('[TimerAtivo] Erro ao excluir registro:', error);
+      showToast('error', `Erro ao excluir registro: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -532,23 +952,68 @@ const TimerAtivo = () => {
         setTimeout(() => {
           buscarRegistroAtivo();
         }, 500);
+        showToast('success', 'Timer parado com sucesso!');
       } else {
         console.error('[TimerAtivo] Erro ao finalizar registro:', result);
-        alert(result.error || 'Erro ao parar o timer');
+        showToast('error', result.error || 'Erro ao parar o timer');
       }
     } catch (error) {
       console.error('[TimerAtivo] Erro ao parar timer:', error);
-      alert('Erro ao parar o timer');
+      showToast('error', 'Erro ao parar o timer');
     }
   };
 
-  // Não mostrar se não houver registro ativo
+  const historicoAgrupadoPorData = agruparHistoricoPorDataETarefa();
+
+  // Se não houver registro ativo, mostrar apenas botão de histórico
   if (!registroAtivo) {
-    return null;
+    return (
+      <div className="timer-ativo-wrapper">
+        <div 
+          ref={containerRef}
+          className="timer-ativo-container timer-ativo-container-historico"
+          onClick={handleContainerClick}
+          style={{ cursor: 'pointer' }}
+          title="Ver histórico de tempo"
+        >
+          <i className="far fa-clock timer-ativo-historico-icon"></i>
+        </div>
+
+        {isDropdownOpen && (
+          <div ref={dropdownRef} className="timer-ativo-dropdown">
+            {/* Histórico */}
+            <div className="timer-dropdown-section">
+            <div className="timer-dropdown-header">
+              <span className="timer-dropdown-title">Histórico</span>
+            </div>
+            <HistoTempoRastreado
+              historicoAgrupadoPorData={historicoAgrupadoPorData}
+              nomesTarefas={nomesTarefas}
+              nomesClientes={nomesClientes}
+              formatarTempoHMS={formatarTempoHMS}
+              formatarPeriodo={formatarPeriodo}
+              calcularTotal={calcularTotal}
+              onEditar={handleEditar}
+              onDeletar={handleDeletar}
+              onSalvarEdicao={handleSalvarEdicao}
+              onConfirmarDelecao={handleConfirmarDelecao}
+              onFecharEdicao={handleFecharEdicao}
+              onFecharDelecao={handleFecharDelecao}
+              onAtualizarFormData={handleAtualizarFormData}
+              onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+              registroEditandoId={registroEditandoId}
+              registroDeletandoId={registroDeletandoId}
+              formDataPorRegistro={formDataPorRegistro}
+              justificativaDelecaoPorRegistro={justificativaDelecaoPorRegistro}
+            />
+          </div>
+        </div>
+      )}
+      </div>
+    );
   }
 
-  const historicoAgrupado = agruparHistoricoPorData();
-
+  // Se houver registro ativo, mostrar timer normal com histórico
   return (
     <div className="timer-ativo-wrapper">
       <div 
@@ -560,14 +1025,11 @@ const TimerAtivo = () => {
         <div className="timer-ativo-tempo">
           {formatarTempo(tempoDecorrido)}
         </div>
-        <button
-          className="timer-ativo-stop-btn"
+        <TimerButton
+          isActive={true}
           onClick={handleParar}
-          title="Parar registro de tempo"
-          aria-label="Parar registro de tempo"
-        >
-          <i className="fas fa-stop"></i>
-        </button>
+          className="timer-button-header"
+        />
       </div>
 
       {isDropdownOpen && (
@@ -575,12 +1037,12 @@ const TimerAtivo = () => {
           {/* Tarefa Atual Ativa */}
           <div className="timer-dropdown-section">
             <div className="timer-dropdown-header">
-              <span className="timer-dropdown-title">Tempo Estimado</span>
+              <span className="timer-dropdown-title">Rastreamento de Tempo</span>
             </div>
             <div className="timer-dropdown-tarefa-ativa">
               <div className="timer-dropdown-tarefa-nome">{tarefaNome || 'Tarefa'}</div>
               {clienteNome && (
-                <div className="timer-dropdown-cliente">{clienteNome}</div>
+                <div className="timer-dropdown-cliente-nome-inline">{clienteNome}</div>
               )}
               <div className="timer-dropdown-tempo-info">
                 <span className="timer-dropdown-tempo-atual">
@@ -603,104 +1065,26 @@ const TimerAtivo = () => {
             <div className="timer-dropdown-header">
               <span className="timer-dropdown-title">Histórico</span>
             </div>
-            <div className="timer-dropdown-historico">
-              {Object.entries(historicoAgrupado).length === 0 ? (
-                <div className="timer-dropdown-empty">Nenhum registro encontrado</div>
-              ) : (
-                Object.entries(historicoAgrupado).map(([dataKey, registros]) => {
-                  const totalDia = calcularTotalDia(registros);
-                  return (
-                    <div key={dataKey} className="timer-dropdown-dia">
-                      <div className="timer-dropdown-dia-header">
-                        <span className="timer-dropdown-dia-data">
-                          {formatarDataGrupo(registros[0].data_inicio)}
-                        </span>
-                        <span className="timer-dropdown-dia-total">
-                          {formatarTempoHMS(totalDia)}
-                        </span>
-                      </div>
-                      <div className="timer-dropdown-registros">
-                        {registros.map((reg) => (
-                          <div key={reg.id} className="timer-dropdown-registro">
-                            <div className="timer-dropdown-registro-info">
-                              <div className="timer-dropdown-registro-tempo">
-                                {formatarTempoHMS(reg.tempo_realizado || 0)}
-                              </div>
-                              <div className="timer-dropdown-registro-periodo">
-                                {formatarPeriodo(reg.data_inicio, reg.data_fim)}
-                              </div>
-                            </div>
-                            <div className="timer-dropdown-registro-actions">
-                              <EditButton
-                                onClick={(e) => handleEditar(e, reg)}
-                                title="Editar registro"
-                              />
-                              <DeleteButton
-                                onClick={(e) => handleDeletar(e, reg)}
-                                title="Deletar registro"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Edição */}
-      {registroEditando && (
-        <div className="timer-edit-modal-overlay" onClick={handleFecharEdicao}>
-          <div className="timer-edit-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="timer-edit-modal-header">
-              <h3>Editar Registro de Tempo</h3>
-              <button className="timer-edit-modal-close" onClick={handleFecharEdicao}>
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-            <div className="timer-edit-modal-body">
-              <div className="timer-edit-form-group">
-                <label>Data e Hora de Início</label>
-                <input
-                  type="datetime-local"
-                  value={formData.data_inicio}
-                  onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
-                  className="timer-edit-input"
-                />
-              </div>
-              <div className="timer-edit-form-group">
-                <label>Data e Hora de Fim</label>
-                <input
-                  type="datetime-local"
-                  value={formData.data_fim}
-                  onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
-                  className="timer-edit-input"
-                />
-              </div>
-              <div className="timer-edit-form-group">
-                <label>Tempo Realizado</label>
-                <div className="timer-edit-tempo-display">
-                  {(() => {
-                    const inicio = new Date(formData.data_inicio);
-                    const fim = new Date(formData.data_fim);
-                    const tempo = fim.getTime() - inicio.getTime();
-                    return formatarTempoHMS(tempo > 0 ? tempo : 0);
-                  })()}
-                </div>
-              </div>
-            </div>
-            <div className="timer-edit-modal-footer">
-              <button className="btn-secondary" onClick={handleFecharEdicao}>
-                Cancelar
-              </button>
-              <button className="btn-primary" onClick={handleSalvarEdicao}>
-                Salvar
-              </button>
-            </div>
+            <HistoTempoRastreado
+              historicoAgrupadoPorData={historicoAgrupadoPorData}
+              nomesTarefas={nomesTarefas}
+              nomesClientes={nomesClientes}
+              formatarTempoHMS={formatarTempoHMS}
+              formatarPeriodo={formatarPeriodo}
+              calcularTotal={calcularTotal}
+              onEditar={handleEditar}
+              onDeletar={handleDeletar}
+              onSalvarEdicao={handleSalvarEdicao}
+              onConfirmarDelecao={handleConfirmarDelecao}
+              onFecharEdicao={handleFecharEdicao}
+              onFecharDelecao={handleFecharDelecao}
+              onAtualizarFormData={handleAtualizarFormData}
+              onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+              registroEditandoId={registroEditandoId}
+              registroDeletandoId={registroDeletandoId}
+              formDataPorRegistro={formDataPorRegistro}
+              justificativaDelecaoPorRegistro={justificativaDelecaoPorRegistro}
+            />
           </div>
         </div>
       )}

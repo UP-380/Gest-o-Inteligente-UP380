@@ -324,8 +324,9 @@ async function getMembrosIdNome(req, res) {
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome, status')
+      .select('id, nome, status, usuario_id')
       .not('id', 'is', null)
+      .not('usuario_id', 'is', null) // Filtrar apenas membros com usuários vinculados
       .order('nome', { ascending: true });
 
     if (error) {

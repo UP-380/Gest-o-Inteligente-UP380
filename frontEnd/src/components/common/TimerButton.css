@@ -1,0 +1,102 @@
+/* Botão de Timer - Componente Reutilizável */
+
+.timer-button {
+  border: none;
+  border-radius: 4px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  position: relative;
+  line-height: 1;
+  text-align: center;
+}
+
+.timer-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.timer-button i {
+  font-size: 9px;
+  line-height: 1;
+  display: block;
+  margin: 0 auto;
+  padding: 0;
+  text-align: center;
+  width: 9px;
+  height: 9px;
+  position: relative;
+}
+
+/* Ajuste específico para ícone de play (triângulo) - centralizar visualmente */
+.timer-button-play i.fa-play {
+  /* O triângulo do Font Awesome pode precisar de um pequeno ajuste */
+  transform: translateX(0.5px);
+}
+
+/* Ajuste específico para ícone de stop (quadrado) */
+.timer-button-stop i.fa-stop {
+  /* Já está centralizado */
+  transform: translateX(0);
+}
+
+/* Botão de Play (Iniciar) */
+.timer-button-play {
+  background: #ef4444; /* Vermelho claro */
+  color: #fee2e2; /* Ícone claro/rosado */
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.timer-button-play:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: rgba(220, 38, 38, 0.5);
+  transform: scale(1.05);
+  color: #ffffff;
+}
+
+.timer-button-play:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Botão de Stop (Parar) - Estado Ativo */
+.timer-button-stop {
+  background: #dc2626; /* Vermelho mais escuro */
+  color: #ffffff; /* Ícone branco */
+  border: 2px solid #ffffff; /* Borda branca para destacar */
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3); /* Sombra sutil ao redor */
+}
+
+.timer-button-stop:hover:not(:disabled) {
+  background: #b91c1c; /* Vermelho ainda mais escuro */
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.4); /* Sombra mais forte */
+  transform: scale(1.05);
+  color: #ffffff;
+}
+
+.timer-button-stop:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+
+/* Variante para uso no header (timer ativo) */
+.timer-button-header {
+  width: 20px;
+  height: 20px;
+}
+
+/* Variante para uso no painel de usuário */
+.timer-button-painel {
+  width: 20px;
+  height: 20px;
+}
+

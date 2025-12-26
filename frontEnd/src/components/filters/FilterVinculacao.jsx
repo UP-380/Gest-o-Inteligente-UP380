@@ -46,8 +46,8 @@ const FilterVinculacao = ({
               <i className={icon}></i>
             </div>
             <div className="filtro-card-text">
-              <span className="filtro-card-title">{title}</span>
               <span className="filtro-card-subtitle">{subtitle}</span>
+              <span className="filtro-card-title">{title}</span>
             </div>
             <div className="filtro-card-check">
               <i className="fas fa-check"></i>

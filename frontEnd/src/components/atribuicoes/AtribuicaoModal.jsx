@@ -5,7 +5,7 @@ import FilterPeriodo from '../filters/FilterPeriodo';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
 import ToggleSwitch from '../common/ToggleSwitch';
 import { useToast } from '../../hooks/useToast';
-import { clientesAPI, colaboradoresAPI } from '../../services/api';
+import { clientesAPI, colaboradoresAPI, cacheAPI } from '../../services/api';
 import '../vinculacoes/VinculacaoModal.css';
 import './AtribuicaoModal.css';
 
@@ -42,6 +42,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
   // Carregar dados iniciais
   useEffect(() => {
     if (isOpen) {
+      // Limpar cache de colaboradores para garantir dados atualizados (especialmente status)
+      cacheAPI.remove('api_cache_colaboradores_all');
       loadClientes();
       loadColaboradores();
       
@@ -76,7 +78,8 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
 
   const loadColaboradores = async () => {
     try {
-      const colaboradoresResult = await colaboradoresAPI.getAll();
+      // Desabilitar cache para garantir dados atualizados (especialmente status de membros)
+      const colaboradoresResult = await colaboradoresAPI.getAll(false);
       if (colaboradoresResult.success && colaboradoresResult.data && Array.isArray(colaboradoresResult.data)) {
         const colaboradoresAtivos = colaboradoresResult.data
           .filter(colab => colab.status === 'ativo' || !colab.status)
@@ -385,9 +388,9 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
     }
   };
 
-  // Carregar tarefas vinculadas ao cliente e produtos selecionados
+  // Carregar tarefas vinculadas ao cliente e produtos selecionados (apenas após período ser selecionado)
   useEffect(() => {
-    if (responsavelSelecionado && clienteSelecionado && produtosSelecionados.length > 0) {
+    if (responsavelSelecionado && clienteSelecionado && produtosSelecionados.length > 0 && dataInicio && dataFim) {
       loadTarefasPorClienteEProdutos(clienteSelecionado, produtosSelecionados);
     } else {
       setTarefas([]);
@@ -395,7 +398,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
       setTempoEstimadoDia({});
       setTarefasSelecionadasParaTempo(new Set());
     }
-  }, [responsavelSelecionado, clienteSelecionado, produtosSelecionados]);
+  }, [responsavelSelecionado, clienteSelecionado, produtosSelecionados, dataInicio, dataFim]);
 
   // Inicializar tempos quando tarefas são selecionadas (apenas para novas tarefas)
   useEffect(() => {
@@ -823,9 +826,9 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
         </div>
 
         <div className="modal-body">
-          {/* Campos lado a lado usando form-row-vigencia */}
+          {/* Ordem: 1. Responsável, 2. Cliente, 3. Produtos, 4. Período, 5. Tarefas */}
           <div className="form-row-vigencia">
-            {/* Campo 1: Responsável */}
+            {/* 1. Responsável */}
             <div className="form-group">
               <label className="form-label-small">
                 <i className="fas fa-user-tie" style={{ marginRight: '6px' }}></i>
@@ -870,7 +873,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
               )}
             </div>
 
-            {/* Campo 2: Cliente */}
+            {/* 2. Cliente */}
             <div className="form-group">
               <label className="form-label-small">
                 <i className="fas fa-building" style={{ marginRight: '6px' }}></i>
@@ -906,7 +909,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
               )}
             </div>
 
-            {/* Campo 3: Produtos */}
+            {/* 3. Produtos */}
             <div className="form-group">
               <label className="form-label-small">
                 <i className="fas fa-box" style={{ marginRight: '6px' }}></i>
@@ -948,7 +951,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
               )}
             </div>
 
-            {/* Campo 4: Período */}
+            {/* 4. Período */}
             <div className="form-group">
               <label className="form-label-small">
                 <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
@@ -959,7 +962,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
                 dataFim={dataFim}
                 onInicioChange={(e) => setDataInicio(e.target.value || null)}
                 onFimChange={(e) => setDataFim(e.target.value || null)}
-                disabled={loading || submitting || !responsavelSelecionado || produtosSelecionados.length === 0}
+                disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0}
               />
               {verificandoDuplicata && (
                 <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>
@@ -982,19 +985,19 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
             </div>
           </div>
 
-          {/* Campo 5: Tarefas com Tempo Individual */}
-          {tarefas.length > 0 && (
-            <div className="form-row-vigencia" style={{ marginTop: '20px' }}>
+          {/* 5. Tarefas (por último - só aparece após período ser selecionado) */}
+          {dataInicio && dataFim && tarefas.length > 0 && (
+          <div className="form-row-vigencia" style={{ marginTop: '20px' }}>
               <div className="form-group" style={{ width: '100%' }}>
                 <label className="form-label-small" style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
                   <i className="fas fa-tasks" style={{ marginRight: '6px', flexShrink: 0 }}></i>
-                  <span style={{ whiteSpace: 'nowrap' }}>5. Estimar Tarefas por Dia</span>
+                  <span style={{ whiteSpace: 'nowrap' }}>5. Tarefas</span>
                   {horasContratadasDia && (
                     <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280', fontWeight: 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       (Total disponível: {horasContratadasDia}h/dia)
                     </span>
                   )}
-                </label>
+              </label>
                 
                 {/* Toggle e campo de tempo para selecionar vários */}
                 <div style={{ 
@@ -1015,7 +1018,7 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
                       onChange={setModoSelecionarVarios}
                       leftLabel=""
                       rightLabel=""
-                      disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
                     />
                   </div>
                   {modoSelecionarVarios && (
@@ -1309,12 +1312,12 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
                   })}
                 </div>
 
-                {erroTempoEstimado && (
+              {erroTempoEstimado && (
                   <p className="empty-message" style={{ marginTop: '12px', fontSize: '11px', color: '#dc2626' }}>
-                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
-                    {erroTempoEstimado}
-                  </p>
-                )}
+                  <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
+                  {erroTempoEstimado}
+                </p>
+              )}
                 {horasContratadasDia && tarefasSelecionadas.length > 0 && !erroTempoEstimado && (() => {
                   const totalTempoMs = tarefasSelecionadas.reduce((acc, tarefaId) => {
                     return acc + (tempoEstimadoDia[tarefaId] || 0);
@@ -1335,14 +1338,14 @@ const AtribuicaoModal = ({ isOpen, onClose, editingAgrupamento = null }) => {
                   }
                   return null;
                 })()}
-                {tarefas.length === 0 && produtosSelecionados.length > 0 && !loading && (
+                {dataInicio && dataFim && tarefas.length === 0 && produtosSelecionados.length > 0 && !loading && (
                   <p className="empty-message" style={{ marginTop: '8px', fontSize: '11px' }}>
                     <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
                     Os produtos selecionados não possuem tarefas vinculadas
-                  </p>
-                )}
-              </div>
+                </p>
+              )}
             </div>
+          </div>
           )}
 
         </div>

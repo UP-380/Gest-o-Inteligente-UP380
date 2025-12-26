@@ -613,14 +613,9 @@ async function getTempoEstimado(req, res) {
       
       const agrupadoresValidos = [];
       
-      console.log(`🔍 Filtrando agrupamentos que se sobrepõem ao período: ${periodoInicioFiltro} até ${periodoFimFiltro}`);
-      console.log(`📊 Total de ${grupos.size} agrupamentos para verificar`);
-      
       // Normalizar datas do filtro (apenas data, sem hora)
       const filtroInicioDate = new Date(filtroInicio.getFullYear(), filtroInicio.getMonth(), filtroInicio.getDate());
       const filtroFimDate = new Date(filtroFim.getFullYear(), filtroFim.getMonth(), filtroFim.getDate());
-      
-      console.log(`📅 Período filtro normalizado: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]}`);
       
       grupos.forEach((grupo, agrupadorId) => {
         if (grupo.dataMinima && grupo.dataMaxima) {
@@ -631,21 +626,11 @@ async function getTempoEstimado(req, res) {
           // Dois períodos se sobrepõem se: (inicio1 <= fim2) && (fim1 >= inicio2)
           const seSobrepoe = grupoInicio <= filtroFimDate && grupoFim >= filtroInicioDate;
           
-          const grupoInicioStr = grupoInicio.toISOString().split('T')[0];
-          const grupoFimStr = grupoFim.toISOString().split('T')[0];
-          
           if (seSobrepoe) {
             agrupadoresValidos.push(agrupadorId);
-            console.log(`✅ Agrupamento ${agrupadorId.substring(0, 8)}... se sobrepõe: ${grupoInicioStr} até ${grupoFimStr}`);
-          } else {
-            console.log(`❌ Agrupamento ${agrupadorId.substring(0, 8)}... NÃO se sobrepõe: ${grupoInicioStr} até ${grupoFimStr} (filtro: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]})`);
           }
-        } else {
-          console.log(`⚠️ Agrupamento ${agrupadorId.substring(0, 8)}... sem datas válidas`);
         }
       });
-      
-      console.log(`✅ Total de ${agrupadoresValidos.length} agrupamentos válidos encontrados de ${grupos.size} agrupamentos verificados`);
       
       // Se não há agrupadores válidos, retornar vazio
       if (agrupadoresValidos.length === 0) {
@@ -1366,20 +1351,20 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
       .map(reg => reg.id || reg.tempo_estimado_id)
       .filter(Boolean)
       .map(id => String(id).trim());
-
+      
     // Buscar todos os registros de tempo que correspondem aos tempo_estimado_id
     // IMPORTANTE: Filtrar apenas registros onde cliente_id NÃO é NULL
-    const { data: registrosTempo, error: errorTempo } = await supabase
-      .schema('up_gestaointeligente')
-      .from('registro_tempo')
+      const { data: registrosTempo, error: errorTempo } = await supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, tempo_estimado_id')
       .in('tempo_estimado_id', tempoEstimadoIds)
       .not('cliente_id', 'is', null) // SOMENTE registros onde cliente_id não é NULL
-      .not('tempo_realizado', 'is', null)
-      .not('data_inicio', 'is', null)
-      .not('data_fim', 'is', null);
+        .not('tempo_realizado', 'is', null)
+        .not('data_inicio', 'is', null)
+        .not('data_fim', 'is', null);
 
-    if (errorTempo) {
+      if (errorTempo) {
       console.error('Erro ao buscar registros de tempo:', errorTempo);
       return res.status(500).json({
         success: false,
@@ -1452,13 +1437,13 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
 
       // Calcular tempo total realizado
       let tempoTotalRealizado = 0;
-      registrosFiltrados.forEach(reg => {
-        const tempoRealizado = Number(reg.tempo_realizado) || 0;
-        // Se valor < 1 (decimal), está em horas -> converter para ms
-        // Se valor >= 1, já está em ms
-        const tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
-        tempoTotalRealizado += tempoMs;
-      });
+        registrosFiltrados.forEach(reg => {
+          const tempoRealizado = Number(reg.tempo_realizado) || 0;
+          // Se valor < 1 (decimal), está em horas -> converter para ms
+          // Se valor >= 1, já está em ms
+          const tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+          tempoTotalRealizado += tempoMs;
+        });
 
       // Criar chave: usar tempo_estimado_id quando disponível (mais preciso)
       // Fallback: tarefa_id + responsavel_id + cliente_id + data
@@ -1468,9 +1453,9 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
 
       if (chave) {
         tempoRealizadoMap.set(chave, {
-          tempo_realizado: tempoTotalRealizado,
-          quantidade_registros: registrosFiltrados.length
-        });
+        tempo_realizado: tempoTotalRealizado,
+        quantidade_registros: registrosFiltrados.length
+    });
       }
     });
 

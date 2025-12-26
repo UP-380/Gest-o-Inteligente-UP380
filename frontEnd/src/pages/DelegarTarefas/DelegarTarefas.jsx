@@ -8,6 +8,7 @@ import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import FilterClientes from '../../components/filters/FilterClientes';
 import FilterMembro from '../../components/filters/FilterMembro';
 import FilterGeneric from '../../components/filters/FilterGeneric';
+import FiltrosAdicionaisDropdown from '../../components/filters/FiltrosAdicionaisDropdown';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
@@ -15,6 +16,7 @@ import ConfirmModal from '../../components/common/ConfirmModal';
 import Avatar from '../../components/user/Avatar';
 import Tooltip from '../../components/common/Tooltip';
 import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
+import DetailSideCard from '../../components/dashboard/DetailSideCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../services/api';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
@@ -61,9 +63,33 @@ const DelegarTarefas = () => {
   const [filtroTarefaSelecionado, setFiltroTarefaSelecionado] = useState(null);
   const [filtroResponsavelSelecionado, setFiltroResponsavelSelecionado] = useState(null);
   
-  // Estados para carregar dados de produtos e tarefas
+  // Estados para filtros adicionais (que não são o filtro pai)
+  const [mostrarFiltrosAdicionais, setMostrarFiltrosAdicionais] = useState(false);
+  const [filtrosAdicionaisAtivos, setFiltrosAdicionaisAtivos] = useState({
+    cliente: false,
+    tarefa: false,
+    produto: false
+  });
+  // Valores selecionados para filtros adicionais
+  const [filtroAdicionalCliente, setFiltroAdicionalCliente] = useState(null);
+  const [filtroAdicionalTarefa, setFiltroAdicionalTarefa] = useState(null);
+  const [filtroAdicionalProduto, setFiltroAdicionalProduto] = useState(null);
+  
+  // Estados para carregar dados de produtos e tarefas (globais)
   const [produtos, setProdutos] = useState([]);
   const [tarefas, setTarefas] = useState([]);
+  
+  // Estados para opções filtradas de filtros adicionais (baseadas nos filtros já aplicados)
+  const [opcoesFiltradasTarefas, setOpcoesFiltradasTarefas] = useState([]);
+  const [opcoesFiltradasProdutos, setOpcoesFiltradasProdutos] = useState([]);
+  const [opcoesFiltradasClientes, setOpcoesFiltradasClientes] = useState([]);
+  const [opcoesFiltradasResponsaveis, setOpcoesFiltradasResponsaveis] = useState([]);
+  const [carregandoOpcoesFiltradas, setCarregandoOpcoesFiltradas] = useState({
+    tarefa: false,
+    produto: false,
+    cliente: false,
+    responsavel: false
+  });
   
   // Estado para grupos expandidos (lista estilo ClickUp)
   const [gruposExpandidos, setGruposExpandidos] = useState(new Set());
@@ -95,6 +121,61 @@ const DelegarTarefas = () => {
   const [clientes, setClientes] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
   const [membros, setMembros] = useState([]);
+  
+  // Estado para controlar expansão dos dashboards
+  const [dashboardsExpandidos, setDashboardsExpandidos] = useState(false);
+  
+  // Estado para controlar qual detalhe está aberto (entidadeId + tipo)
+  const [detalheAberto, setDetalheAberto] = useState(null); // { entidadeId, tipo, position }
+  const [detalhesDados, setDetalhesDados] = useState(null);
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+
+  // Função para calcular posição do card lateral (igual à tela de relatórios)
+  const calcularPosicaoCard = useCallback((event) => {
+    if (!event || !event.target) {
+      return { left: '50%', top: '50%' };
+    }
+
+    const triggerElement = event.target;
+    const arrowRect = triggerElement.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    
+    // Posição no documento (considerando scroll)
+    const documentLeft = arrowRect.left + scrollLeft;
+    const documentTop = arrowRect.top + scrollTop;
+    
+    // Tamanho estimado do card (será ajustado depois)
+    const cardWidth = 500;
+    const cardHeight = 400;
+    
+    // Tentar posicionar à direita do botão
+    let calculatedLeft = documentLeft + arrowRect.width + 10;
+    let calculatedTop = documentTop;
+    
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    
+    // Se não cabe à direita, posicionar à esquerda
+    if ((calculatedLeft - scrollLeft) + cardWidth > vw) {
+      calculatedLeft = documentLeft - cardWidth - 10;
+    }
+    
+    // Garantir que não saia da tela à esquerda
+    if ((calculatedLeft - scrollLeft) < 10) {
+      calculatedLeft = scrollLeft + 10;
+    }
+    
+    // Ajustar verticalmente se necessário
+    if ((calculatedTop - scrollTop) + cardHeight > vh) {
+      calculatedTop = scrollTop + vh - cardHeight - 10;
+    }
+    if ((calculatedTop - scrollTop) < 10) {
+      calculatedTop = scrollTop + 10;
+    }
+    
+    return { left: `${calculatedLeft}px`, top: `${calculatedTop}px` };
+  }, []);
 
   // Carregar clientes, colaboradores e membros ao montar
   useEffect(() => {
@@ -102,6 +183,11 @@ const DelegarTarefas = () => {
     loadColaboradores();
     loadMembros();
   }, []);
+
+  // Resetar expansão dos dashboards quando filtros forem aplicados
+  useEffect(() => {
+    setDashboardsExpandidos(false);
+  }, [filtrosAplicados]);
 
   // Carregar produtos e tarefas quando necessário
   const loadProdutos = async () => {
@@ -180,6 +266,257 @@ const DelegarTarefas = () => {
     }
   };
 
+  // Função genérica para buscar opções filtradas de QUALQUER filtro (pai ou adicional)
+  // Considera TODOS os filtros já ativos, independente da ordem
+  const buscarOpcoesFiltroContextual = async (tipoFiltro) => {
+    // Precisa de período definido para buscar opções contextuais
+    if (!periodoInicio || !periodoFim) {
+      return [];
+    }
+
+    // Verificar se há pelo menos um filtro ativo (pai ou adicional)
+    // Isso garante que sempre busquemos opções contextuais, nunca globais
+    const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+    const temFiltroPai = !!filtroPaiAtual;
+    const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
+    
+    // Se não há nenhum filtro ativo, retornar vazio (não mostrar opções globais)
+    // A menos que o próprio filtro que está sendo buscado seja um filtro pai
+    const eFiltroPai = (tipoFiltro === 'responsavel' && (filtroPaiAtual === 'responsavel' || filtros.responsavel)) ||
+                       (tipoFiltro === 'cliente' && (filtroPaiAtual === 'cliente' || filtros.cliente)) ||
+                       (tipoFiltro === 'produto' && (filtroPaiAtual === 'produto' || filtros.produto)) ||
+                       (tipoFiltro === 'tarefa' && (filtroPaiAtual === 'atividade' || filtros.atividade));
+    
+    // Buscar opções se:
+    // 1. Há filtro pai E/OU filtros adicionais ativos, OU
+    // 2. O filtro sendo buscado é o próprio filtro pai
+    if (!temFiltroPai && !temFiltrosAdicionais && !eFiltroPai) {
+      return [];
+    }
+
+    setCarregandoOpcoesFiltradas(prev => ({ ...prev, [tipoFiltro]: true }));
+
+    try {
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '1000' // Buscar muitos registros para ter todas as opções
+      });
+
+      // Adicionar filtro pai (se existir)
+      if (filtroPaiAtual === 'produto' || filtros.produto) {
+        params.append('filtro_produto', 'true');
+        if (filtroProdutoSelecionado) {
+          const produtoIds = Array.isArray(filtroProdutoSelecionado) 
+            ? filtroProdutoSelecionado 
+            : [filtroProdutoSelecionado];
+          produtoIds.forEach(id => {
+            if (id) params.append('produto_id', String(id).trim());
+          });
+        }
+      }
+      if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+        params.append('filtro_atividade', 'true');
+        if (filtroTarefaSelecionado) {
+          const tarefaIds = Array.isArray(filtroTarefaSelecionado) 
+            ? filtroTarefaSelecionado 
+            : [filtroTarefaSelecionado];
+          tarefaIds.forEach(id => {
+            if (id) params.append('tarefa_id', String(id).trim());
+          });
+        }
+      }
+      if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+        params.append('filtro_cliente', 'true');
+        if (filtroClienteSelecionado) {
+          const clienteIds = Array.isArray(filtroClienteSelecionado) 
+            ? filtroClienteSelecionado 
+            : [filtroClienteSelecionado];
+          clienteIds.forEach(id => {
+            if (id) params.append('cliente_id', String(id).trim());
+          });
+        }
+      }
+      if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+        params.append('filtro_responsavel', 'true');
+        if (filtroResponsavelSelecionado) {
+          const responsavelIds = Array.isArray(filtroResponsavelSelecionado) 
+            ? filtroResponsavelSelecionado 
+            : [filtroResponsavelSelecionado];
+          responsavelIds.forEach(id => {
+            if (id) params.append('responsavel_id', String(id).trim());
+          });
+        }
+      }
+
+      // Adicionar TODOS os filtros adicionais já aplicados (exceto o que está sendo buscado)
+      if (tipoFiltro !== 'cliente' && filtrosAdicionaisAtivos.cliente && filtroAdicionalCliente) {
+        const clienteIds = Array.isArray(filtroAdicionalCliente) 
+          ? filtroAdicionalCliente 
+          : [filtroAdicionalCliente];
+        clienteIds.forEach(id => {
+          if (id) params.append('cliente_id', String(id).trim());
+        });
+      }
+      if (tipoFiltro !== 'tarefa' && filtrosAdicionaisAtivos.tarefa && filtroAdicionalTarefa) {
+        const tarefaIds = Array.isArray(filtroAdicionalTarefa) 
+          ? filtroAdicionalTarefa 
+          : [filtroAdicionalTarefa];
+        tarefaIds.forEach(id => {
+          if (id) params.append('tarefa_id', String(id).trim());
+        });
+      }
+      if (tipoFiltro !== 'produto' && filtrosAdicionaisAtivos.produto && filtroAdicionalProduto) {
+        const produtoIds = Array.isArray(filtroAdicionalProduto) 
+          ? filtroAdicionalProduto 
+          : [filtroAdicionalProduto];
+        produtoIds.forEach(id => {
+          if (id) params.append('produto_id', String(id).trim());
+        });
+      }
+
+      // Adicionar período
+      params.append('data_inicio', periodoInicio);
+      params.append('data_fim', periodoFim);
+
+      const url = `${API_BASE_URL}/tempo-estimado?${params}`;
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const registros = result.data || [];
+          
+          // Extrair IDs únicos baseado no tipo de filtro
+          const idsUnicos = new Set();
+          registros.forEach(reg => {
+            if (tipoFiltro === 'tarefa' && reg.tarefa_id) {
+              idsUnicos.add(String(reg.tarefa_id));
+            } else if (tipoFiltro === 'produto' && reg.produto_id) {
+              idsUnicos.add(String(reg.produto_id));
+            } else if (tipoFiltro === 'cliente' && reg.cliente_id) {
+              idsUnicos.add(String(reg.cliente_id));
+            } else if (tipoFiltro === 'responsavel' && reg.responsavel_id) {
+              idsUnicos.add(String(reg.responsavel_id));
+            }
+          });
+
+          // Buscar nomes dos itens
+          const opcoes = [];
+          for (const id of idsUnicos) {
+            if (tipoFiltro === 'tarefa') {
+              // Buscar nome da tarefa
+              const nome = nomesCache.tarefas[id];
+              if (nome) {
+                opcoes.push({ id: parseInt(id), nome });
+              } else {
+                // Buscar da API se não estiver no cache
+                try {
+                  const tarefaResponse = await fetch(`${API_BASE_URL}/atividades/${id}`, {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                  });
+                  if (tarefaResponse.ok) {
+                    const tarefaResult = await tarefaResponse.json();
+                    if (tarefaResult.success && tarefaResult.data) {
+                      const nomeTarefa = tarefaResult.data.nome || `Tarefa #${id}`;
+                      opcoes.push({ id: parseInt(id), nome: nomeTarefa });
+                      // Atualizar cache
+                      setNomesCache(prev => ({
+                        ...prev,
+                        tarefas: { ...prev.tarefas, [id]: nomeTarefa }
+                      }));
+                    }
+                  }
+                } catch (err) {
+                  console.error(`Erro ao buscar tarefa ${id}:`, err);
+                }
+              }
+            } else if (tipoFiltro === 'produto') {
+              // Buscar nome do produto
+              const nome = nomesCache.produtos[id];
+              if (nome) {
+                opcoes.push({ id: parseInt(id), nome });
+              } else {
+                // Buscar da API se não estiver no cache
+                try {
+                  const produtoResponse = await fetch(`${API_BASE_URL}/produtos/${id}`, {
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                  });
+                  if (produtoResponse.ok) {
+                    const produtoResult = await produtoResponse.json();
+                    if (produtoResult.success && produtoResult.data) {
+                      const nomeProduto = produtoResult.data.nome || `Produto #${id}`;
+                      opcoes.push({ id: parseInt(id), nome: nomeProduto });
+                      // Atualizar cache
+                      setNomesCache(prev => ({
+                        ...prev,
+                        produtos: { ...prev.produtos, [id]: nomeProduto }
+                      }));
+                    }
+                  }
+                } catch (err) {
+                  console.error(`Erro ao buscar produto ${id}:`, err);
+                }
+              }
+            } else if (tipoFiltro === 'cliente') {
+              // Buscar nome do cliente
+              const nome = nomesCache.clientes[id];
+              if (nome) {
+                opcoes.push({ id, nome });
+              } else {
+                // Buscar da lista de clientes
+                const cliente = clientes.find(c => String(c.id) === id);
+                if (cliente) {
+                  opcoes.push({ id, nome: cliente.nome });
+                  // Atualizar cache
+                  setNomesCache(prev => ({
+                    ...prev,
+                    clientes: { ...prev.clientes, [id]: cliente.nome }
+                  }));
+                }
+              }
+            } else if (tipoFiltro === 'responsavel') {
+              // Buscar nome do responsável
+              const nome = nomesCache.colaboradores[id];
+              if (nome) {
+                opcoes.push({ id: parseInt(id), nome });
+              } else {
+                // Buscar da lista de membros
+                const membro = membros.find(m => String(m.id) === id);
+                if (membro) {
+                  opcoes.push({ id: parseInt(id), nome: membro.nome });
+                  // Atualizar cache
+                  setNomesCache(prev => ({
+                    ...prev,
+                    colaboradores: { ...prev.colaboradores, [id]: membro.nome }
+                  }));
+                }
+              }
+            }
+          }
+
+          // Ordenar alfabeticamente
+          opcoes.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+          return opcoes;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error(`Erro ao buscar opções filtradas para ${tipoFiltro}:`, error);
+      return [];
+    } finally {
+      setCarregandoOpcoesFiltradas(prev => ({ ...prev, [tipoFiltro]: false }));
+    }
+  };
+
+  // Alias para manter compatibilidade com código existente
+  const buscarOpcoesFiltroAdicional = buscarOpcoesFiltroContextual;
+
   // Carregar produtos e tarefas quando o filtro correspondente for selecionado
   useEffect(() => {
     if (filtros.produto && produtos.length === 0) {
@@ -192,6 +529,38 @@ const DelegarTarefas = () => {
       loadTarefas();
     }
   }, [filtros.atividade]);
+
+  // Buscar opções contextuais quando um filtro pai for selecionado pela primeira vez
+  useEffect(() => {
+    if (periodoInicio && periodoFim) {
+      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+      const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
+      
+      // Se há filtros adicionais ativos e um filtro pai foi selecionado, buscar opções contextuais
+      if (temFiltrosAdicionais && filtroPaiAtual) {
+        const buscarOpcoesPai = async () => {
+          if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+            const opcoes = await buscarOpcoesFiltroContextual('responsavel');
+            setOpcoesFiltradasResponsaveis(opcoes);
+          }
+          if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+            const opcoes = await buscarOpcoesFiltroContextual('cliente');
+            setOpcoesFiltradasClientes(opcoes);
+          }
+          if (filtroPaiAtual === 'produto' || filtros.produto) {
+            const opcoes = await buscarOpcoesFiltroContextual('produto');
+            setOpcoesFiltradasProdutos(opcoes);
+          }
+          if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+            const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+            setOpcoesFiltradasTarefas(opcoes);
+          }
+        };
+        buscarOpcoesPai();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros.produto, filtros.atividade, filtros.cliente, filtros.responsavel, ordemFiltros]);
 
   const loadClientes = async () => {
     setLoading(true);
@@ -256,9 +625,9 @@ const DelegarTarefas = () => {
     }
   };
 
-  // Atualizar cache de nomes quando clientes ou colaboradores forem carregados
+  // Atualizar cache de nomes quando clientes, colaboradores ou membros forem carregados
   useEffect(() => {
-    if (clientes.length > 0 || colaboradores.length > 0) {
+    if (clientes.length > 0 || colaboradores.length > 0 || membros.length > 0) {
       const novosNomes = { ...nomesCache };
       
       // Atualizar cache de clientes
@@ -271,9 +640,16 @@ const DelegarTarefas = () => {
         novosNomes.colaboradores[String(colab.id)] = colab.cpf ? `${colab.nome} (${colab.cpf})` : colab.nome;
       });
       
+      // Atualizar cache de membros (usando o mesmo cache de colaboradores)
+      membros.forEach(membro => {
+        if (!novosNomes.colaboradores[String(membro.id)]) {
+          novosNomes.colaboradores[String(membro.id)] = membro.nome;
+        }
+      });
+      
       setNomesCache(novosNomes);
     }
-  }, [clientes, colaboradores]);
+  }, [clientes, colaboradores, membros]);
 
   // Handlers do modal
   const handleNewAtribuicao = () => {
@@ -362,14 +738,21 @@ const DelegarTarefas = () => {
     }
   };
 
-  // Carregar horas contratadas para todos os responsáveis
+  // Carregar horas contratadas para todos os responsáveis (incluindo todos os membros do sistema)
   const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
     const responsaveisIds = new Set();
+    
+    // Adicionar responsáveis dos registros agrupados
     agrupamentos.forEach(agrupamento => {
       const primeiroRegistro = agrupamento.primeiroRegistro;
       if (primeiroRegistro.responsavel_id) {
         responsaveisIds.add(String(primeiroRegistro.responsavel_id));
       }
+    });
+    
+    // Adicionar TODOS os membros do sistema para mostrar quem falta estimar
+    membros.forEach(membro => {
+      responsaveisIds.add(String(membro.id));
     });
 
     const novasHoras = { ...horasContratadasPorResponsavel };
@@ -471,7 +854,7 @@ const DelegarTarefas = () => {
   };
 
   // Carregar registros de tempo estimado
-  const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null) => {
+  const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
     setLoading(true);
     // Resetar grupos expandidos quando recarregar os dados
     setGruposExpandidos(new Set());
@@ -487,6 +870,13 @@ const DelegarTarefas = () => {
         produto: filtroProdutoSelecionado,
         tarefa: filtroTarefaSelecionado,
         responsavel: filtroResponsavelSelecionado
+      };
+      
+      // Usar filtros adicionais passados como parâmetro, ou os estados atuais
+      const filtrosAdicionaisAUsar = filtrosAdicionaisParaAplicar !== null ? filtrosAdicionaisParaAplicar : {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
       };
       
       const params = new URLSearchParams({
@@ -546,6 +936,37 @@ const DelegarTarefas = () => {
           });
         } else {
         }
+      }
+      
+      // Adicionar filtros adicionais (que não são o filtro pai)
+      // Cliente adicional
+      if (filtrosAdicionaisAUsar.cliente) {
+        const clienteIds = Array.isArray(filtrosAdicionaisAUsar.cliente) 
+          ? filtrosAdicionaisAUsar.cliente 
+          : [filtrosAdicionaisAUsar.cliente];
+        clienteIds.forEach(id => {
+          if (id) params.append('cliente_id', String(id).trim());
+        });
+      }
+      
+      // Tarefa adicional
+      if (filtrosAdicionaisAUsar.tarefa) {
+        const tarefaIds = Array.isArray(filtrosAdicionaisAUsar.tarefa) 
+          ? filtrosAdicionaisAUsar.tarefa 
+          : [filtrosAdicionaisAUsar.tarefa];
+        tarefaIds.forEach(id => {
+          if (id) params.append('tarefa_id', String(id).trim());
+        });
+      }
+      
+      // Produto adicional
+      if (filtrosAdicionaisAUsar.produto) {
+        const produtoIds = Array.isArray(filtrosAdicionaisAUsar.produto) 
+          ? filtrosAdicionaisAUsar.produto 
+          : [filtrosAdicionaisAUsar.produto];
+        produtoIds.forEach(id => {
+          if (id) params.append('produto_id', String(id).trim());
+        });
       }
 
       // Adicionar filtro de período
@@ -1058,9 +1479,10 @@ const DelegarTarefas = () => {
     const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
     
     const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
-    if (!horasContratadasDia || horasContratadasDia <= 0) return null;
+    // Permitir exibir mesmo sem vigência (horas contratadas = 0)
+    const horasContratadasDiaValor = horasContratadasDia || 0;
     
-    const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000; // converter horas para milissegundos
+    const tempoDisponivelTotal = horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
     
     // Tempo estimado baseado no total do agrupamento dentro do período
     // Usar a mesma lógica da listagem: somar o tempo_estimado_dia de cada registro
@@ -1100,11 +1522,14 @@ const DelegarTarefas = () => {
   };
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId }) => {
-    if (!disponivel || disponivel === 0) return null;
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true }) => {
+    // Permitir exibir mesmo quando disponivel for 0 (sem vigência)
+    const disponivelValor = disponivel || 0;
     
-    const percentualEstimado = (estimado / disponivel) * 100;
-    const percentualRealizado = (realizado / disponivel) * 100;
+    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
+    const totalParaBarra = mostrarContratadasDisponivel ? disponivelValor : (estimado || 1);
+    const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
+    const percentualRealizado = totalParaBarra > 0 ? (realizado / totalParaBarra) * 100 : 0;
     const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
     const custoRealizado = realizado > 0 ? calcularCustoPorTempo(realizado, responsavelId) : null;
     
@@ -1118,39 +1543,45 @@ const DelegarTarefas = () => {
           {realizado > 0 && (
             <div 
               className="barra-progresso-tempo-fill realizado"
-              style={{ width: `${Math.min(100, percentualRealizado)}%` }}
-            ></div>
+            style={{ width: `${Math.min(100, percentualRealizado)}%` }}
+          ></div>
           )}
         </div>
         <div className="barra-progresso-tempo-legenda">
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <span className="barra-progresso-tempo-indicador estimado"></span>
+                <i className="fas fa-clock painel-usuario-estimado-icon-inline"></i>
                 <span className="barra-progresso-tempo-label">Estimado</span>
               </div>
-              <span className="barra-progresso-tempo-badge estimado">{formatarTempoEstimado(estimado, true)}</span>
-              {custoEstimado !== null && (
-                <span className="barra-progresso-tempo-custo-estimado">{formatarValorMonetario(custoEstimado)}</span>
-              )}
+              <span className="barra-progresso-tempo-badge estimado">
+                <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(estimado, true)}</span>
+              </span>
+              <span className={`barra-progresso-tempo-custo estimado ${custoEstimado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                {custoEstimado !== null ? formatarValorMonetario(custoEstimado) : '\u00A0'}
+              </span>
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <span className="barra-progresso-tempo-indicador realizado"></span>
+                <i className="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
                 <span className="barra-progresso-tempo-label">Realizado</span>
               </div>
-              <span className="barra-progresso-tempo-badge realizado">{formatarTempoEstimado(realizado, true)}</span>
-              {custoRealizado !== null && (
-                <span className="barra-progresso-tempo-custo-realizado">{formatarValorMonetario(custoRealizado)}</span>
-              )}
+              <span className="barra-progresso-tempo-badge realizado">
+                <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(realizado, true)}</span>
+              </span>
+              <span className={`barra-progresso-tempo-custo realizado ${custoRealizado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
+              </span>
             </div>
           </div>
+          {mostrarContratadasDisponivel && (
+            <>
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <span className="barra-progresso-tempo-label">Contratadas</span>
-              <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivel, true)}</span>
+                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivelValor, true)}</span>
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
@@ -1162,6 +1593,8 @@ const DelegarTarefas = () => {
               <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(sobrando, true)}</span>
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1321,6 +1754,21 @@ const DelegarTarefas = () => {
     setFiltroProdutoSelecionado(null);
     setFiltroTarefaSelecionado(null);
     setFiltroResponsavelSelecionado(null);
+    // Limpar filtros adicionais
+    setMostrarFiltrosAdicionais(false);
+    setFiltrosAdicionaisAtivos({
+      cliente: false,
+      tarefa: false,
+      produto: false
+    });
+    setFiltroAdicionalCliente(null);
+    setFiltroAdicionalTarefa(null);
+    setFiltroAdicionalProduto(null);
+    // Limpar opções filtradas
+    setOpcoesFiltradasTarefas([]);
+    setOpcoesFiltradasProdutos([]);
+    setOpcoesFiltradasClientes([]);
+    setOpcoesFiltradasResponsaveis([]);
     setRegistrosAgrupados([]);
     setTotalRegistros(0);
     setTotalPages(1);
@@ -1332,10 +1780,11 @@ const DelegarTarefas = () => {
     if (!filtrosAplicados || !filtrosUltimosAplicados) {
       // Se não há filtros aplicados, verificar se há algum filtro selecionado
       // Período não conta como mudança pendente se não estiver completo
+      // Valores selecionados (filtros "Definir") não contam como mudança pendente
+      // pois eles só fazem sentido quando há filtros aplicados
       const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
       const temPeriodoCompleto = periodoInicio && periodoFim;
-      const temValoresSelecionados = filtroClienteSelecionado || filtroProdutoSelecionado || filtroTarefaSelecionado || filtroResponsavelSelecionado;
-      return temFiltroAtivo || temPeriodoCompleto || temValoresSelecionados;
+      return temFiltroAtivo || temPeriodoCompleto;
     }
     
     const filtrosMudaram = (
@@ -1350,14 +1799,17 @@ const DelegarTarefas = () => {
       periodoFim !== filtrosUltimosAplicados.periodoFim
     );
     
-    const valoresMudaram = (
-      JSON.stringify(filtroClienteSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroClienteSelecionado) ||
-      JSON.stringify(filtroProdutoSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroProdutoSelecionado) ||
-      JSON.stringify(filtroTarefaSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroTarefaSelecionado) ||
-      JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
-    );
+    // Valores selecionados (filtros "Definir") não contam como mudança pendente
+    // pois eles já atualizam automaticamente os resultados
+    // const valoresMudaram = (
+    //   JSON.stringify(filtroClienteSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroClienteSelecionado) ||
+    //   JSON.stringify(filtroProdutoSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroProdutoSelecionado) ||
+    //   JSON.stringify(filtroTarefaSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroTarefaSelecionado) ||
+    //   JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
+    // );
     
-    return filtrosMudaram || periodoMudou || valoresMudaram;
+    // Apenas filtros principais ou período mudando ativam o botão "Aplicar Filtros"
+    return filtrosMudaram || periodoMudou;
   };
 
   // Handler para mudança de filtro (apenas um filtro por vez nesta página)
@@ -1416,7 +1868,12 @@ const DelegarTarefas = () => {
       filtroClienteSelecionado,
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
-      filtroResponsavelSelecionado
+      filtroResponsavelSelecionado,
+      filtrosAdicionais: {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      }
     });
     
     setCurrentPage(1);
@@ -1434,8 +1891,14 @@ const DelegarTarefas = () => {
       responsavel: filtroResponsavelSelecionado
     };
     
+    // Passar os filtros adicionais
+    const filtrosAdicionais = {
+      cliente: filtroAdicionalCliente,
+      tarefa: filtroAdicionalTarefa,
+      produto: filtroAdicionalProduto
+    };
     
-    loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados);
+    loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados, filtrosAdicionais);
   };
 
   // Obter nome do filtro para o tooltip
@@ -1495,6 +1958,108 @@ const DelegarTarefas = () => {
     }
   }, [filtrosAplicados]);
 
+  // Atualizar automaticamente a listagem quando os filtros "Definir" mudarem
+  useEffect(() => {
+    // Só atualizar se houver filtros aplicados e período definido
+    if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
+      // Preparar valores selecionados para passar para a função
+      const valoresSelecionados = {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+      
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      };
+      
+      // Recarregar registros com os novos valores selecionados e filtros adicionais
+      loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados, filtrosAdicionais);
+      
+      // Atualizar filtrosUltimosAplicados para refletir os novos valores selecionados
+      // (sem ativar o botão "Aplicar Filtros")
+      setFiltrosUltimosAplicados({
+        ...filtrosUltimosAplicados,
+        filtroClienteSelecionado,
+        filtroProdutoSelecionado,
+        filtroTarefaSelecionado,
+        filtroResponsavelSelecionado,
+        filtrosAdicionais
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
+
+  // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
+  useEffect(() => {
+    if (periodoInicio && periodoFim) {
+      // Recarregar opções filtradas para TODOS os filtros ativos (pai e adicionais)
+      const recarregarOpcoes = async () => {
+        // Recarregar filtros adicionais
+        if (filtrosAdicionaisAtivos.tarefa) {
+          const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+          setOpcoesFiltradasTarefas(opcoes);
+        }
+        if (filtrosAdicionaisAtivos.produto) {
+          const opcoes = await buscarOpcoesFiltroContextual('produto');
+          setOpcoesFiltradasProdutos(opcoes);
+        }
+        if (filtrosAdicionaisAtivos.cliente) {
+          const opcoes = await buscarOpcoesFiltroContextual('cliente');
+          setOpcoesFiltradasClientes(opcoes);
+        }
+        
+        // Recarregar filtros pai se houver filtros adicionais ativos
+        const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+        const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
+        
+        if (temFiltrosAdicionais && filtroPaiAtual) {
+          if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+            const opcoes = await buscarOpcoesFiltroContextual('responsavel');
+            setOpcoesFiltradasResponsaveis(opcoes);
+          }
+          if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+            const opcoes = await buscarOpcoesFiltroContextual('cliente');
+            setOpcoesFiltradasClientes(opcoes);
+          }
+          if (filtroPaiAtual === 'produto' || filtros.produto) {
+            const opcoes = await buscarOpcoesFiltroContextual('produto');
+            setOpcoesFiltradasProdutos(opcoes);
+          }
+          if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+            const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+            setOpcoesFiltradasTarefas(opcoes);
+          }
+        } else if (!temFiltrosAdicionais) {
+          // Se não há filtros adicionais, limpar opções filtradas dos filtros pai
+          setOpcoesFiltradasResponsaveis([]);
+          setOpcoesFiltradasClientes([]);
+          setOpcoesFiltradasProdutos([]);
+          setOpcoesFiltradasTarefas([]);
+        }
+      };
+      recarregarOpcoes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    periodoInicio, 
+    periodoFim, 
+    filtroPrincipal, 
+    ordemFiltros, 
+    filtroClienteSelecionado, 
+    filtroProdutoSelecionado, 
+    filtroTarefaSelecionado, 
+    filtroResponsavelSelecionado,
+    filtrosAdicionaisAtivos,
+    filtroAdicionalCliente,
+    filtroAdicionalTarefa,
+    filtroAdicionalProduto
+  ]);
+
   // Resetar grupos expandidos quando os registros são recarregados
   // Isso é feito diretamente na função loadRegistrosTempoEstimado e handleApplyFilters
 
@@ -1543,7 +2108,7 @@ const DelegarTarefas = () => {
                   onChange={handleFilterChange}
                   isFiltroPai={isFiltroPai('produto')}
                   title="Produto"
-                  subtitle="Filtrar por produtos"
+                  subtitle="Filtrar por"
                   icon="fas fa-box"
                   filtroNome={getFiltroNome('produto')}
                   onMouseEnter={() => setFiltroHover('produto')}
@@ -1555,7 +2120,7 @@ const DelegarTarefas = () => {
                   onChange={handleFilterChange}
                   isFiltroPai={isFiltroPai('atividade')}
                   title="Tarefa"
-                  subtitle="Filtrar por tarefas"
+                  subtitle="Filtrar por"
                   icon="fas fa-list"
                   filtroNome={getFiltroNome('atividade')}
                   onMouseEnter={() => setFiltroHover('atividade')}
@@ -1567,7 +2132,7 @@ const DelegarTarefas = () => {
                   onChange={handleFilterChange}
                   isFiltroPai={isFiltroPai('cliente')}
                   title="Cliente"
-                  subtitle="Filtrar por clientes"
+                  subtitle="Filtrar por"
                   icon="fas fa-briefcase"
                   filtroNome={getFiltroNome('cliente')}
                   onMouseEnter={() => setFiltroHover('cliente')}
@@ -1579,7 +2144,7 @@ const DelegarTarefas = () => {
                   onChange={handleFilterChange}
                   isFiltroPai={isFiltroPai('responsavel')}
                   title="Responsável"
-                  subtitle="Filtrar por responsáveis"
+                  subtitle="Filtrar por"
                   icon="fas fa-user-tie"
                   filtroNome={getFiltroNome('responsavel')}
                   onMouseEnter={() => setFiltroHover('responsavel')}
@@ -1607,8 +2172,8 @@ const DelegarTarefas = () => {
                     <FilterClientes
                       value={filtroClienteSelecionado}
                       onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
-                      options={clientes}
-                      disabled={loading}
+                      options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                      disabled={loading || carregandoOpcoesFiltradas.cliente}
                     />
                   </div>
                 )}
@@ -1619,9 +2184,9 @@ const DelegarTarefas = () => {
                     <FilterGeneric
                       value={filtroProdutoSelecionado}
                       onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
-                      options={produtos.map(p => ({ id: p.id, nome: p.nome }))}
-                      disabled={loading || produtos.length === 0}
-                      placeholder="Selecionar produtos"
+                      options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos.map(p => ({ id: p.id, nome: p.nome }))}
+                      disabled={loading || carregandoOpcoesFiltradas.produto || (opcoesFiltradasProdutos.length === 0 && produtos.length === 0)}
+                      placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
                     />
                   </div>
                 )}
@@ -1632,9 +2197,9 @@ const DelegarTarefas = () => {
                     <FilterGeneric
                       value={filtroTarefaSelecionado}
                       onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
-                      options={tarefas.map(t => ({ id: t.id, nome: t.nome }))}
-                      disabled={loading || tarefas.length === 0}
-                      placeholder="Selecionar tarefas"
+                      options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
+                      disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
+                      placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
                     />
                   </div>
                 )}
@@ -1648,12 +2213,122 @@ const DelegarTarefas = () => {
                         const newValue = e.target.value || null;
                         setFiltroResponsavelSelecionado(newValue);
                       }}
-                      options={membros}
-                      disabled={loading || membros.length === 0}
+                      options={opcoesFiltradasResponsaveis.length > 0 ? opcoesFiltradasResponsaveis : membros}
+                      disabled={loading || carregandoOpcoesFiltradas.responsavel || (opcoesFiltradasResponsaveis.length === 0 && membros.length === 0)}
                     />
                   </div>
                 )}
               </div>
+              
+              {/* Terceira linha: Botão "Adicionar filtros" e componentes de seleção para filtros adicionais */}
+              {(filtroPrincipal || ordemFiltros.length > 0) && (
+                <div className="filtros-adicionais-row">
+                  <div className="filtro-adicionar-wrapper">
+                    <label className="filtro-pai-label">Adicionar filtros:</label>
+                    <button
+                      type="button"
+                      className="btn-adicionar-filtros"
+                      onClick={() => setMostrarFiltrosAdicionais(!mostrarFiltrosAdicionais)}
+                      disabled={loading}
+                    >
+                      <i className="fas fa-plus"></i>
+                      Adicionar filtros
+                      <i className={`fas fa-chevron-${mostrarFiltrosAdicionais ? 'up' : 'down'}`} style={{ marginLeft: '8px' }}></i>
+                    </button>
+                    
+                    <FiltrosAdicionaisDropdown
+                      isOpen={mostrarFiltrosAdicionais}
+                      onClose={() => setMostrarFiltrosAdicionais(false)}
+                      filtroPrincipal={filtroPrincipal}
+                      ordemFiltros={ordemFiltros}
+                      filtrosAdicionaisAtivos={filtrosAdicionaisAtivos}
+                      onToggleFiltro={async (tipoFiltro, checked) => {
+                        if (tipoFiltro === 'cliente') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            cliente: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalCliente(null);
+                            setOpcoesFiltradasClientes([]);
+                          }
+                        } else if (tipoFiltro === 'tarefa') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            tarefa: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalTarefa(null);
+                            setOpcoesFiltradasTarefas([]);
+                          }
+                        } else if (tipoFiltro === 'produto') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            produto: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalProduto(null);
+                            setOpcoesFiltradasProdutos([]);
+                          }
+                        }
+                      }}
+                      periodoInicio={periodoInicio}
+                      periodoFim={periodoFim}
+                      onBuscarOpcoes={async (tipoFiltro) => {
+                        const opcoes = await buscarOpcoesFiltroContextual(tipoFiltro);
+                        if (tipoFiltro === 'cliente') {
+                          setOpcoesFiltradasClientes(opcoes);
+                        } else if (tipoFiltro === 'tarefa') {
+                          setOpcoesFiltradasTarefas(opcoes);
+                        } else if (tipoFiltro === 'produto') {
+                          setOpcoesFiltradasProdutos(opcoes);
+                        }
+                        return opcoes;
+                      }}
+                      loading={loading}
+                    />
+                  </div>
+                  
+                  {/* Componentes de seleção para filtros adicionais (ao lado do botão) */}
+                  {filtrosAdicionaisAtivos.cliente && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Clientes:</label>
+                      <FilterClientes
+                        value={filtroAdicionalCliente}
+                        onChange={(e) => setFiltroAdicionalCliente(e.target.value || null)}
+                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                        disabled={loading || carregandoOpcoesFiltradas.cliente}
+                      />
+                    </div>
+                  )}
+                  
+                  {filtrosAdicionaisAtivos.tarefa && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Tarefas:</label>
+                      <FilterGeneric
+                        value={filtroAdicionalTarefa}
+                        onChange={(e) => setFiltroAdicionalTarefa(e.target.value || null)}
+                        options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
+                        disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
+                        placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
+                      />
+                    </div>
+                  )}
+                  
+                  {filtrosAdicionaisAtivos.produto && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Produtos:</label>
+                      <FilterGeneric
+                        value={filtroAdicionalProduto}
+                        onChange={(e) => setFiltroAdicionalProduto(e.target.value || null)}
+                        options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos.map(p => ({ id: p.id, nome: p.nome }))}
+                        disabled={loading || carregandoOpcoesFiltradas.produto || (opcoesFiltradasProdutos.length === 0 && produtos.length === 0)}
+                        placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </FiltersCard>
 
             {/* Lista de atribuições */}
@@ -1673,34 +2348,353 @@ const DelegarTarefas = () => {
               />
             ) : (
               <div className="atribuicoes-list-container">
-                {/* Seção de tempo disponível vs estimado por responsável */}
-                {filtrosAplicados && periodoInicio && periodoFim && registrosAgrupados.length > 0 && (
+                {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
+                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && (
                   <div className="tempo-disponivel-section">
                     <h3 className="tempo-disponivel-title">
                       <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
-                      Tempo Disponível vs Estimado por Responsável
+                      {filtroPrincipal === 'responsavel' 
+                        ? `Tempo Disponível vs Estimado por Responsável`
+                        : `Tempo Estimado vs Realizado por ${filtroPrincipal === 'cliente' ? 'Cliente' : filtroPrincipal === 'produto' ? 'Produto' : 'Atividade'}`
+                      }
                     </h3>
                     <div className="tempo-disponivel-grid">
                       {(() => {
-                        // Coletar todos os responsáveis únicos dos registros
-                        const responsaveisUnicos = new Map();
+                        // Usar os valores aplicados do período, não os valores atuais do estado
+                        const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
+                        const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
+                        
+                        // Função para calcular estatísticas (tarefas, produtos, clientes, responsáveis) por entidade
+                        const calcularEstatisticasPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              return String(primeiroRegistro.cliente_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                            }
+                            return false;
+                          });
+
+                          // Coletar IDs únicos de cada tipo
+                          const tarefasUnicas = new Set();
+                          const produtosUnicos = new Set();
+                          const clientesUnicos = new Set();
+                          const responsaveisUnicos = new Set();
+
+                          agrupamentosFiltrados.forEach(agr => {
+                            agr.registros.forEach(reg => {
+                              if (reg.tarefa_id) tarefasUnicas.add(String(reg.tarefa_id));
+                              if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
+                              if (reg.cliente_id) clientesUnicos.add(String(reg.cliente_id));
+                              if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+                            });
+                          });
+
+                          return {
+                            totalTarefas: tarefasUnicas.size,
+                            totalProdutos: produtosUnicos.size,
+                            totalClientes: clientesUnicos.size,
+                            totalResponsaveis: responsaveisUnicos.size
+                          };
+                        };
+
+                        // Função para buscar detalhes (tarefas, clientes, produtos, responsáveis) relacionados a uma entidade
+                        const buscarDetalhesPorTipo = (entidadeId, tipoEntidade, tipoDetalhe, agrupamentos) => {
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              return String(primeiroRegistro.cliente_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                            }
+                            return false;
+                          });
+
+                          // Se for tarefas, agrupar por tarefa e calcular tempo realizado total
+                          if (tipoDetalhe === 'tarefas') {
+                            const tarefasMap = new Map();
+
+                            agrupamentosFiltrados.forEach(agr => {
+                              agr.registros.forEach(reg => {
+                                if (!reg.tarefa_id) return;
+                                
+                                const tarefaId = String(reg.tarefa_id);
+                                const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                
+                                if (!tarefasMap.has(tarefaId)) {
+                                  tarefasMap.set(tarefaId, {
+                                    id: tarefaId,
+                                    nome: nomeTarefa,
+                                    tipo: 'tarefa',
+                                    tempoRealizado: 0,
+                                    tempoEstimado: 0,
+                                    responsavelId: reg.responsavel_id || null, // Guardar responsavelId do primeiro registro
+                                    clienteId: reg.cliente_id || null, // Guardar clienteId do primeiro registro
+                                    registros: [] // Registros de tempo estimado relacionados
+                                  });
+                                }
+                                
+                                const tarefa = tarefasMap.get(tarefaId);
+                                
+                                // Calcular tempo realizado deste registro
+                                const tempoRealizadoReg = getTempoRealizado(reg);
+                                const tempoRealizadoValor = tempoRealizadoReg !== null ? tempoRealizadoReg : 0;
+                                tarefa.tempoRealizado += tempoRealizadoValor;
+                                
+                                // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
+                                const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                tarefa.tempoEstimado += tempoEstimadoReg;
+                                
+                                // Adicionar registro para poder buscar detalhes individuais depois
+                                tarefa.registros.push({
+                                  ...reg,
+                                  tempoRealizado: tempoRealizadoValor
+                                });
+                              });
+                            });
+
+                            return Array.from(tarefasMap.values());
+                          }
+
+                          // Para outros tipos (produtos, clientes, responsáveis), manter lógica simples
+                          const registrosDetalhes = [];
+                          const idsUnicos = new Set();
+
+                          agrupamentosFiltrados.forEach(agr => {
+                            agr.registros.forEach(reg => {
+                              let idDetalhe = null;
+                              let nomeDetalhe = null;
+                              let registroIncluir = null;
+
+                              if (tipoDetalhe === 'produtos' && reg.produto_id) {
+                                idDetalhe = String(reg.produto_id);
+                                nomeDetalhe = getNomeProduto(reg.produto_id);
+                                registroIncluir = { ...reg, tipo: 'produto', nome: nomeDetalhe };
+                              } else if (tipoDetalhe === 'clientes' && reg.cliente_id) {
+                                idDetalhe = String(reg.cliente_id);
+                                nomeDetalhe = getNomeCliente(reg.cliente_id);
+                                registroIncluir = { ...reg, tipo: 'cliente', nome: nomeDetalhe };
+                              } else if (tipoDetalhe === 'responsaveis' && reg.responsavel_id) {
+                                idDetalhe = String(reg.responsavel_id);
+                                nomeDetalhe = getNomeColaborador(reg.responsavel_id);
+                                registroIncluir = { ...reg, tipo: 'responsavel', nome: nomeDetalhe };
+                              }
+
+                              if (idDetalhe && !idsUnicos.has(idDetalhe)) {
+                                idsUnicos.add(idDetalhe);
+                                registrosDetalhes.push(registroIncluir);
+                              }
+                            });
+                          });
+
+                          return registrosDetalhes;
+                        };
+
+                        // Função genérica para calcular tempo por qualquer entidade
+                        const calcularTempoPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
+                          if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
+                          
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              return String(primeiroRegistro.cliente_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                            }
+                            return false;
+                          });
+                          
+                          // Calcular tempo estimado
+                          const tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
+                            if (!agr.registros) return acc;
+                            const registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
+                              ? agr.registros.filter((reg) => {
+                                  // Usar os valores aplicados do período para verificar se a data está no período
+                                  if (!periodoAplicadoInicio || !periodoAplicadoFim || !reg.data) return true;
+                                  try {
+                                    let dataReg;
+                                    if (reg.data instanceof Date) {
+                                      dataReg = new Date(reg.data);
+                                    } else if (typeof reg.data === 'string') {
+                                      const dataStr = reg.data.split('T')[0];
+                                      const [ano, mes, dia] = dataStr.split('-');
+                                      dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+                                    } else {
+                                      dataReg = new Date(reg.data);
+                                    }
+                                    
+                                    let inicio, fim;
+                                    if (typeof periodoAplicadoInicio === 'string' && periodoAplicadoInicio.includes('-')) {
+                                      const [anoInicio, mesInicio, diaInicio] = periodoAplicadoInicio.split('-');
+                                      inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+                                    } else {
+                                      inicio = new Date(periodoAplicadoInicio);
+                                    }
+                                    
+                                    if (typeof periodoAplicadoFim === 'string' && periodoAplicadoFim.includes('-')) {
+                                      const [anoFim, mesFim, diaFim] = periodoAplicadoFim.split('-');
+                                      fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+                                    } else {
+                                      fim = new Date(periodoAplicadoFim);
+                                    }
+                                    
+                                    dataReg.setHours(0, 0, 0, 0);
+                                    inicio.setHours(0, 0, 0, 0);
+                                    fim.setHours(23, 59, 59, 999);
+                                    
+                                    return dataReg >= inicio && dataReg <= fim;
+                                  } catch (e) {
+                                    return true;
+                                  }
+                                })
+                              : agr.registros;
+                            return acc + registrosNoPeriodo.reduce(
+                              (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
+                              0
+                            );
+                          }, 0);
+                          
+                          // Calcular tempo realizado
+                          const tempoRealizado = agrupamentosFiltrados.reduce((acc, agr) => {
+                            if (!agr.registros) return acc;
+                            const registrosNoPeriodo = agr.registros.filter((reg) => {
+                              // Usar os valores aplicados do período para verificar se a data está no período
+                              if (!periodoAplicadoInicio || !periodoAplicadoFim || !reg.data) return true;
+                              try {
+                                let dataReg;
+                                if (reg.data instanceof Date) {
+                                  dataReg = new Date(reg.data);
+                                } else if (typeof reg.data === 'string') {
+                                  const dataStr = reg.data.split('T')[0];
+                                  const [ano, mes, dia] = dataStr.split('-');
+                                  dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+                                } else {
+                                  dataReg = new Date(reg.data);
+                                }
+                                
+                                let inicio, fim;
+                                if (typeof periodoAplicadoInicio === 'string' && periodoAplicadoInicio.includes('-')) {
+                                  const [anoInicio, mesInicio, diaInicio] = periodoAplicadoInicio.split('-');
+                                  inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+                                } else {
+                                  inicio = new Date(periodoAplicadoInicio);
+                                }
+                                
+                                if (typeof periodoAplicadoFim === 'string' && periodoAplicadoFim.includes('-')) {
+                                  const [anoFim, mesFim, diaFim] = periodoAplicadoFim.split('-');
+                                  fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+                                } else {
+                                  fim = new Date(periodoAplicadoFim);
+                                }
+                                
+                                dataReg.setHours(0, 0, 0, 0);
+                                inicio.setHours(0, 0, 0, 0);
+                                fim.setHours(23, 59, 59, 999);
+                                
+                                return dataReg >= inicio && dataReg <= fim;
+                              } catch (e) {
+                                return true;
+                              }
+                            });
+                            return acc + registrosNoPeriodo.reduce((sum, reg) => {
+                              const tempoRealizadoReg = getTempoRealizado(reg);
+                              return sum + (tempoRealizadoReg || 0);
+                            }, 0);
+                          }, 0);
+                          
+                          // Para responsável, calcular disponível e sobrando
+                          if (tipoEntidade === 'responsavel') {
+                            const inicio = new Date(periodoAplicadoInicio);
+                            const fim = new Date(periodoAplicadoFim);
+                            const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
+                            const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)] || 0;
+                            const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000;
+                            const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
+                            
+                            return {
+                              disponivel: tempoDisponivelTotal,
+                              estimado: tempoEstimado,
+                              realizado: tempoRealizado,
+                              sobrando: tempoSobrando
+                            };
+                          }
+                          
+                          // Para outras entidades, não há conceito de disponível/sobrando
+                          return {
+                            disponivel: 0,
+                            estimado: tempoEstimado,
+                            realizado: tempoRealizado,
+                            sobrando: 0
+                          };
+                        };
+                        
+                        // Coletar entidades únicas baseado no filtro principal
+                        const entidadesDosRegistros = new Map();
                         registrosAgrupados.forEach(agrupamento => {
                           const primeiroRegistro = agrupamento.primeiroRegistro;
-                          const responsavelId = primeiroRegistro.responsavel_id;
-                          if (responsavelId) {
-                            if (!responsaveisUnicos.has(String(responsavelId))) {
-                              responsaveisUnicos.set(String(responsavelId), {
-                                id: responsavelId,
-                                nome: getNomeColaborador(responsavelId),
-                                fotoPerfil: primeiroRegistro.responsavel_foto_perfil,
-                                fotoPerfilPath: primeiroRegistro.responsavel_foto_perfil_path || null,
+                          let entidadeId = null;
+                          let nomeEntidade = null;
+                          let fotoPerfil = null;
+                          let fotoPerfilPath = null;
+                          
+                          if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
+                            entidadeId = primeiroRegistro.responsavel_id;
+                            nomeEntidade = getNomeColaborador(entidadeId);
+                            fotoPerfil = primeiroRegistro.responsavel_foto_perfil;
+                            fotoPerfilPath = primeiroRegistro.responsavel_foto_perfil_path || null;
+                          } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+                            entidadeId = primeiroRegistro.cliente_id;
+                            nomeEntidade = getNomeCliente(entidadeId);
+                          } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+                            entidadeId = primeiroRegistro.produto_id;
+                            nomeEntidade = getNomeProduto(entidadeId);
+                          } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+                            entidadeId = primeiroRegistro.tarefa_id;
+                            nomeEntidade = getNomeTarefa(entidadeId);
+                          }
+                          
+                          if (entidadeId) {
+                            const entidadeKey = String(entidadeId);
+                            if (!entidadesDosRegistros.has(entidadeKey)) {
+                              entidadesDosRegistros.set(entidadeKey, {
+                                id: entidadeId,
+                                nome: nomeEntidade,
+                                fotoPerfil: fotoPerfil,
+                                fotoPerfilPath: fotoPerfilPath,
                                 registros: []
                               });
                             }
                             // Adicionar todos os registros deste agrupamento
                             agrupamento.registros.forEach(registro => {
-                              if (String(registro.responsavel_id) === String(responsavelId)) {
-                                responsaveisUnicos.get(String(responsavelId)).registros.push({
+                              let registroPertence = false;
+                              if (filtroPrincipal === 'responsavel') {
+                                registroPertence = String(registro.responsavel_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'cliente') {
+                                registroPertence = String(registro.cliente_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'produto') {
+                                registroPertence = String(registro.produto_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'atividade') {
+                                registroPertence = String(registro.tarefa_id) === String(entidadeId);
+                              }
+                              
+                              if (registroPertence) {
+                                entidadesDosRegistros.get(entidadeKey).registros.push({
                                   ...registro,
                                   quantidade: agrupamento.quantidade
                                 });
@@ -1709,44 +2703,826 @@ const DelegarTarefas = () => {
                           }
                         });
                         
-                        return Array.from(responsaveisUnicos.values()).map(responsavel => {
-                          const tempoInfo = calcularTempoDisponivelRealizadoSobrando(
-                            responsavel.id,
+                        // Criar um mapa com entidades do sistema (filtradas pelos valores selecionados quando aplicável)
+                        const todasEntidades = new Map();
+                        
+                        // Função auxiliar para verificar se um ID está nos filtros selecionados
+                        const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
+                          if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
+                          const idStr = String(id);
+                          if (Array.isArray(filtroSelecionado)) {
+                            return filtroSelecionado.some(f => String(f) === idStr);
+                          }
+                          return String(filtroSelecionado) === idStr;
+                        };
+                        
+                        if (filtroPrincipal === 'responsavel') {
+                          // Para responsáveis, adicionar membros do sistema (filtrados se houver seleção)
+                          membros.forEach(membro => {
+                            const membroId = String(membro.id);
+                            // Se há filtro selecionado, verificar se o membro está incluído
+                            if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
+                              return; // Pular este membro se não estiver nos filtros
+                            }
+                            
+                            if (entidadesDosRegistros.has(membroId)) {
+                              todasEntidades.set(membroId, entidadesDosRegistros.get(membroId));
+                            } else {
+                              todasEntidades.set(membroId, {
+                                id: membro.id,
+                                nome: membro.nome || getNomeColaborador(membro.id),
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
+                              });
+                            }
+                          });
+                        } else if (filtroPrincipal === 'cliente') {
+                          // Para clientes, adicionar clientes do sistema (filtrados se houver seleção)
+                          clientes.forEach(cliente => {
+                            const clienteId = String(cliente.id);
+                            // Se há filtro selecionado, verificar se o cliente está incluído
+                            if (!estaNosFiltrosSelecionados(cliente.id, filtroClienteSelecionado)) {
+                              return; // Pular este cliente se não estiver nos filtros
+                            }
+                            
+                            if (entidadesDosRegistros.has(clienteId)) {
+                              todasEntidades.set(clienteId, entidadesDosRegistros.get(clienteId));
+                            } else {
+                              todasEntidades.set(clienteId, {
+                                id: cliente.id,
+                                nome: cliente.nome,
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
+                              });
+                            }
+                          });
+                        } else if (filtroPrincipal === 'produto') {
+                          // Para produtos, adicionar produtos do sistema (filtrados se houver seleção)
+                          produtos.forEach(produto => {
+                            const produtoId = String(produto.id);
+                            // Se há filtro selecionado, verificar se o produto está incluído
+                            if (!estaNosFiltrosSelecionados(produto.id, filtroProdutoSelecionado)) {
+                              return; // Pular este produto se não estiver nos filtros
+                            }
+                            
+                            if (entidadesDosRegistros.has(produtoId)) {
+                              todasEntidades.set(produtoId, entidadesDosRegistros.get(produtoId));
+                            } else {
+                              todasEntidades.set(produtoId, {
+                                id: produto.id,
+                                nome: produto.nome,
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
+                              });
+                            }
+                          });
+                        } else {
+                          // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
+                          entidadesDosRegistros.forEach((entidade, key) => {
+                            // Se há filtro selecionado, verificar se a tarefa está incluída
+                            if (!estaNosFiltrosSelecionados(entidade.id, filtroTarefaSelecionado)) {
+                              return; // Pular esta tarefa se não estiver nos filtros
+                            }
+                            todasEntidades.set(key, entidade);
+                          });
+                        }
+                        
+                        // Separar entidades com e sem tempo estimado, e ordenar alfabeticamente
+                        const entidadesComTempo = [];
+                        const entidadesSemTempo = [];
+                        
+                        Array.from(todasEntidades.values()).forEach(entidade => {
+                          const tempoInfo = calcularTempoPorEntidade(
+                            entidade.id,
+                            filtroPrincipal,
                             registrosAgrupados
                           );
                           
-                          if (!tempoInfo) return null;
+                          if (tempoInfo && tempoInfo.estimado > 0) {
+                            entidadesComTempo.push({ entidade, tempoInfo });
+                          } else {
+                            entidadesSemTempo.push({ entidade, tempoInfo: null });
+                          }
+                        });
+                        
+                        // Ordenar alfabeticamente cada grupo
+                        entidadesComTempo.sort((a, b) => 
+                          a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
+                        );
+                        entidadesSemTempo.sort((a, b) => 
+                          a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
+                        );
+                        
+                        // Combinar: primeiro os com tempo estimado, depois os sem
+                        const todosOrdenados = [...entidadesComTempo, ...entidadesSemTempo];
+                        
+                        // Limitar a 4 inicialmente se não estiver expandido
+                        const dashboardsParaExibir = dashboardsExpandidos 
+                          ? todosOrdenados 
+                          : todosOrdenados.slice(0, 4);
+                        const temMaisDashboards = todosOrdenados.length > 4;
                           
                           return (
-                            <div key={responsavel.id} className="tempo-disponivel-card">
-                              <div className="tempo-disponivel-card-header">
-                                <div className="tempo-disponivel-card-nome-wrapper">
-                                  {responsavel.fotoPerfil ? (
+                          <>
+                            {dashboardsParaExibir.map(({ entidade, tempoInfo }) => {
+                          // Sempre exibir o card, mesmo se não houver tempo estimado (para identificar quem falta estimar)
+                          if (!tempoInfo) {
+                            // Se não há tempoInfo, criar um objeto vazio para exibir valores zerados
+                            // Calcular estatísticas mesmo sem tempo
+                            const estatisticas = calcularEstatisticasPorEntidade(
+                              entidade.id,
+                              filtroPrincipal,
+                              registrosAgrupados
+                            );
+
+                            return (
+                              <div key={entidade.id} className="tempo-disponivel-card">
+                                <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                  <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                    {filtroPrincipal === 'responsavel' && (
                                     <Avatar
-                                      key={`avatar-card-${responsavel.id}-${responsavel.fotoPerfil}`}
-                                      avatarId={responsavel.fotoPerfil}
-                                      nomeUsuario={responsavel.nome}
+                                        key={`avatar-card-${entidade.id}-${entidade.fotoPerfil || 'no-photo'}`}
+                                        avatarId={entidade.fotoPerfil || null}
+                                        nomeUsuario={entidade.nome}
                                       size="tiny"
-                                      customImagePath={responsavel.fotoPerfilPath || null}
+                                        customImagePath={entidade.fotoPerfilPath || null}
                                     />
-                                  ) : (
-                                    <div className="tempo-disponivel-card-avatar-placeholder"></div>
                                   )}
-                                  <span className="tempo-disponivel-card-nome">{responsavel.nome}</span>
+                                    <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
                                 </div>
                               </div>
                               <div className="tempo-disponivel-card-content">
+                                  {/* Cards informativos */}
+                                  <div className="tempo-disponivel-card-stats">
+                                    {filtroPrincipal === 'responsavel' && (
+                                      <>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-list"></i>
+                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                          {estatisticas.totalTarefas > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'tarefas',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de tarefas"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-briefcase"></i>
+                                          <span>Clientes: {estatisticas.totalClientes}</span>
+                                          {estatisticas.totalClientes > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de clientes"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-box"></i>
+                                          <span>Produtos: {estatisticas.totalProdutos}</span>
+                                          {estatisticas.totalProdutos > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de produtos"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                    {filtroPrincipal === 'cliente' && (
+                                      <>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-list"></i>
+                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                          {estatisticas.totalTarefas > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'tarefas',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de tarefas"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-box"></i>
+                                          <span>Produtos: {estatisticas.totalProdutos}</span>
+                                          {estatisticas.totalProdutos > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de produtos"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-user-tie"></i>
+                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                          {estatisticas.totalResponsaveis > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de responsáveis"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                    {filtroPrincipal === 'produto' && (
+                                      <>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-list"></i>
+                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                          {estatisticas.totalTarefas > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'tarefas',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de tarefas"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-briefcase"></i>
+                                          <span>Clientes: {estatisticas.totalClientes}</span>
+                                          {estatisticas.totalClientes > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de clientes"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-user-tie"></i>
+                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                          {estatisticas.totalResponsaveis > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de responsáveis"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                    {filtroPrincipal === 'atividade' && (
+                                      <>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-box"></i>
+                                          <span>Produtos: {estatisticas.totalProdutos}</span>
+                                          {estatisticas.totalProdutos > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de produtos"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-briefcase"></i>
+                                          <span>Clientes: {estatisticas.totalClientes}</span>
+                                          {estatisticas.totalClientes > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de clientes"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="tempo-disponivel-stat-item">
+                                          <i className="fas fa-user-tie"></i>
+                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                          {estatisticas.totalResponsaveis > 0 && (
+                                            <span
+                                              className="resumo-arrow produtos-arrow"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const position = calcularPosicaoCard(e);
+                                                setDetalheAberto({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  position
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                setDetalhesDados({ registros: detalhes });
+                                              }}
+                                              title="Ver detalhes de responsáveis"
+                                            >
+                                              &gt;
+                                            </span>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                  <BarraProgressoTempo
+                                    disponivel={0}
+                                    estimado={0}
+                                    realizado={0}
+                                    sobrando={0}
+                                    responsavelId={filtroPrincipal === 'responsavel' ? entidade.id : null}
+                                    mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+                          
+                          // Calcular estatísticas para esta entidade
+                          const estatisticas = calcularEstatisticasPorEntidade(
+                            entidade.id,
+                            filtroPrincipal,
+                            registrosAgrupados
+                          );
+
+                          return (
+                            <div key={entidade.id} className="tempo-disponivel-card">
+                              <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                  {filtroPrincipal === 'responsavel' && (
+                                    <Avatar
+                                      key={`avatar-card-${entidade.id}-${entidade.fotoPerfil || 'no-photo'}`}
+                                      avatarId={entidade.fotoPerfil || null}
+                                      nomeUsuario={entidade.nome}
+                                      size="tiny"
+                                      customImagePath={entidade.fotoPerfilPath || null}
+                                    />
+                                  )}
+                                  <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
+                                </div>
+                              </div>
+                              <div className="tempo-disponivel-card-content">
+                                {/* Cards informativos */}
+                                <div className="tempo-disponivel-card-stats">
+                                  {filtroPrincipal === 'responsavel' && (
+                                    <>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-list"></i>
+                                        <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                        {estatisticas.totalTarefas > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'tarefas',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de tarefas"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-briefcase"></i>
+                                        <span>Clientes: {estatisticas.totalClientes}</span>
+                                        {estatisticas.totalClientes > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'clientes',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de clientes"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-box"></i>
+                                        <span>Produtos: {estatisticas.totalProdutos}</span>
+                                        {estatisticas.totalProdutos > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'produtos',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de produtos"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                  {filtroPrincipal === 'cliente' && (
+                                    <>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-list"></i>
+                                        <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                        {estatisticas.totalTarefas > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'tarefas',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de tarefas"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-box"></i>
+                                        <span>Produtos: {estatisticas.totalProdutos}</span>
+                                        {estatisticas.totalProdutos > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'produtos',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de produtos"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-user-tie"></i>
+                                        <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                        {estatisticas.totalResponsaveis > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'responsaveis',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de responsáveis"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                  {filtroPrincipal === 'produto' && (
+                                    <>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-list"></i>
+                                        <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                        {estatisticas.totalTarefas > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'tarefas',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de tarefas"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-briefcase"></i>
+                                        <span>Clientes: {estatisticas.totalClientes}</span>
+                                        {estatisticas.totalClientes > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'clientes',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de clientes"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-user-tie"></i>
+                                        <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                        {estatisticas.totalResponsaveis > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'responsaveis',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de responsáveis"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                  {filtroPrincipal === 'atividade' && (
+                                    <>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-box"></i>
+                                        <span>Produtos: {estatisticas.totalProdutos}</span>
+                                        {estatisticas.totalProdutos > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'produtos',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de produtos"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-briefcase"></i>
+                                        <span>Clientes: {estatisticas.totalClientes}</span>
+                                        {estatisticas.totalClientes > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'clientes',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de clientes"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="tempo-disponivel-stat-item">
+                                        <i className="fas fa-user-tie"></i>
+                                        <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                        {estatisticas.totalResponsaveis > 0 && (
+                                          <span
+                                            className="resumo-arrow produtos-arrow"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                              const rect = elemento.getBoundingClientRect();
+                                              setDetalheAberto({
+                                                entidadeId: entidade.id,
+                                                tipo: 'responsaveis',
+                                                position: { left: rect.right + 10, top: rect.top }
+                                              });
+                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                              setDetalhesDados({ registros: detalhes });
+                                            }}
+                                            title="Ver detalhes de responsáveis"
+                                          >
+                                            &gt;
+                                          </span>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                                 <BarraProgressoTempo
                                   disponivel={tempoInfo.disponivel}
                                   estimado={tempoInfo.estimado}
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
-                                  responsavelId={responsavel.id}
+                                  responsavelId={filtroPrincipal === 'responsavel' ? entidade.id : null}
+                                  mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                 />
                               </div>
                             </div>
                           );
-                        }).filter(Boolean);
+                        })}
+                        {temMaisDashboards && (
+                          <div 
+                            className="tempo-disponivel-expand-bar"
+                            onClick={() => setDashboardsExpandidos(!dashboardsExpandidos)}
+                            style={{
+                              gridColumn: '1 / -1',
+                              cursor: 'pointer',
+                              marginTop: '8px'
+                            }}
+                          >
+                            <span className="tempo-disponivel-expand-text">
+                              {dashboardsExpandidos ? 'Ver menos' : `Ver mais (${todosOrdenados.length - 4} restantes)`}
+                            </span>
+                          </div>
+                        )}
+                          </>
+                        );
                       })()}
                     </div>
                   </div>
@@ -1803,11 +3579,18 @@ const DelegarTarefas = () => {
                       return (
                         <div key={chaveAgrupamento} className="atribuicoes-group">
                           <div 
-                            className="atribuicoes-group-header"
+                            className={`atribuicoes-group-header ${isExpanded ? 'expanded' : ''}`}
                             onClick={() => toggleGrupo(grupoKey)}
                           >
                             <div className="atribuicoes-group-header-left">
-                              <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}></i>
+                              <i 
+                                className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleGrupo(grupoKey);
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              ></i>
                               <span className={`atribuicoes-group-badge ${['produto', 'atividade', 'cliente', 'responsavel'].includes(grupo.tipo) ? 'atribuicoes-group-badge-orange' : ''}`}>
                                 {grupo.tipo === 'atividade' ? 'TAREFAS AGRUPADAS' : grupo.tipo.toUpperCase()}
                               </span>
@@ -1827,17 +3610,24 @@ const DelegarTarefas = () => {
                                   grupo.nome
                                 )}
                               </h3>
+                              <div className="atribuicoes-group-header-info">
                               {tempoEstimadoTotal > 0 && (
-                                <span className="atribuicoes-tag atribuicoes-group-tempo-total" title={`Estimado: ${(tempoEstimadoTotal / 3600000).toFixed(2)}h`}>
-                                  Estimado: {tempoEstimadoFormatado}
+                                  <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-total" title={`Estimado: ${(tempoEstimadoTotal / 3600000).toFixed(2)}h`}>
+                                    <i className="fas fa-clock"></i>
+                                    <span>Estimado: {tempoEstimadoFormatado}</span>
                                 </span>
                               )}
                               {tempoRealizadoTotal > 0 && (
-                                <span className="atribuicoes-tag atribuicoes-group-tempo-realizado" title={`Realizado: ${(tempoRealizadoTotal / 3600000).toFixed(2)}h`}>
-                                  Realizado: {tempoRealizadoFormatado}
+                                  <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-realizado" title={`Realizado: ${(tempoRealizadoTotal / 3600000).toFixed(2)}h`}>
+                                    <i className="fas fa-stopwatch"></i>
+                                    <span>Realizado: {tempoRealizadoFormatado}</span>
                                 </span>
                               )}
-                              <span className="atribuicoes-tag atribuicoes-group-count">Tarefa: {totalItens}</span>
+                                <span className="atribuicoes-group-count">
+                                  <i className="fas fa-tasks"></i>
+                                  <span>{totalItens} {totalItens === 1 ? 'tarefa' : 'tarefas'}</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
                           
@@ -1848,7 +3638,7 @@ const DelegarTarefas = () => {
                                   <tr>
                                     {filtroPrincipal === 'atividade' && <th></th>}
                                     {filtroPrincipal !== 'atividade' && <th>Tarefas Agrupadas</th>}
-                                    {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                    {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
                                     {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                     {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
                                     <th>Tempo Estimado / Realizado</th>
@@ -1895,39 +3685,37 @@ const DelegarTarefas = () => {
                                             </td>
                                           )}
                                           {filtroPrincipal !== 'atividade' && (
-                                            <td style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                                            <td style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                                               {tarefasUnicas.map((tarefaId, idx) => {
                                                 const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
                                                 const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
                                                 const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
                                                 return (
-                                              <button
+                                                <button
                                                 key={tarefaId}
-                                                type="button"
-                                                className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  toggleTarefa(agrupamento.agrupador_id, tarefaId);
-                                                }}
-                                                title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                                                  type="button"
+                                                  className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleTarefa(agrupamento.agrupador_id, tarefaId);
+                                                  }}
+                                                  title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
                                                 style={{ 
                                                   margin: '2px 4px 2px 0', 
                                                   display: 'inline-flex', 
                                                   alignItems: 'center',
-                                                  flex: '0 1 calc(33.333% - 6px)',
-                                                  minWidth: '120px',
-                                                  maxWidth: 'calc(33.333% - 6px)'
+                                                  whiteSpace: 'nowrap'
                                                 }}
-                                              >
-                                                {getNomeTarefa(tarefaId)}
-                                                <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px' }}></i>
-                                              </button>
+                                                >
+                                                  {getNomeTarefa(tarefaId)}
+                                                  <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px', flexShrink: 0 }}></i>
+                                                </button>
                                                 );
                                               })}
                                             </td>
                                           )}
                                           {filtroPrincipal !== 'produto' && (
-                                            <td>
+                                            <td className="atribuicoes-col-produto">
                                               {produtosUnicos.map((produtoId, idx) => (
                                                 <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
                                                   {getNomeProduto(produtoId)}
@@ -1959,66 +3747,59 @@ const DelegarTarefas = () => {
                                             </td>
                                           )}
                                           <td>
-                                            <span className="atribuicoes-tempo">
-                                              {(() => {
+                                            <div className="atribuicoes-tempo">
+                                                  {(() => {
                                                 const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
                                                 const tempoRealizadoFormatado = tempoRealizadoTotal > 0 
                                                   ? formatarTempoEstimado(tempoRealizadoTotal, true) 
                                                   : '0s';
-                                                const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
+                                                    const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
                                                 const custoRealizado = tempoRealizadoTotal > 0 
                                                   ? calcularCustoPorTempo(tempoRealizadoTotal, primeiroRegistro.responsavel_id) 
                                                   : null;
                                                 
                                                 return (
-                                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                                    {/* Quadrado Estimado */}
-                                                    <div style={{
-                                                      background: '#fef3c7',
-                                                      borderRadius: '6px',
-                                                      padding: '6px 12px',
-                                                      display: 'flex',
-                                                      flexDirection: 'column',
-                                                      gap: '3px',
-                                                      width: 'fit-content'
-                                                    }}>
-          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
-            Estimado: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{tempoEstimadoFormatado}</span>
-          </div>
-          {custoEstimado !== null && (
-            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
-              Custo: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatarValorMonetario(custoEstimado)}</span>
-            </div>
-          )}
-                                                    </div>
-                                                    
-                                                    {/* Quadrado Realizado */}
-                                                    <div style={{
-                                                      background: tempoRealizadoTotal > 0 ? '#dbeafe' : '#f3f4f6',
-                                                      borderRadius: '6px',
-                                                      padding: '6px 12px',
-                                                      display: 'flex',
-                                                      flexDirection: 'column',
-                                                      gap: '3px',
-                                                      width: 'fit-content'
-                                                    }}>
-                                                      <div style={{ fontSize: '11px', color: tempoRealizadoTotal > 0 ? '#2563eb' : '#9ca3af', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                                                        Realizado: <span style={{ fontWeight: 600, color: tempoRealizadoTotal > 0 ? '#2563eb' : '#9ca3af' }}>{tempoRealizadoFormatado}</span>
+                                                  <>
+                                                    {/* Card Estimado */}
+                                                    <div className="atribuicoes-tempo-card atribuicoes-tempo-card-estimado">
+                                                      <div className="atribuicoes-tempo-label atribuicoes-tempo-label-estimado">
+                                                        <i className="fas fa-clock"></i>
+                                                        <span>Estimado</span>
                                                       </div>
+                                                      <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-estimado">
+                                                        {tempoEstimadoFormatado}
+                                                </div>
+          {custoEstimado !== null && (
+                                                        <div className="atribuicoes-tempo-custo atribuicoes-tempo-custo-estimado">
+                                                          {formatarValorMonetario(custoEstimado)}
+                                                  </div>
+          )}
+                                                </div>
+                                                    
+                                                    {/* Card Realizado */}
+                                                    <div className={`atribuicoes-tempo-card ${tempoRealizadoTotal > 0 ? 'atribuicoes-tempo-card-realizado' : 'atribuicoes-tempo-card-realizado-empty'}`}>
+                                                      <div className={`atribuicoes-tempo-label ${tempoRealizadoTotal > 0 ? 'atribuicoes-tempo-label-realizado' : 'atribuicoes-tempo-label-realizado-empty'}`}>
+                                                        <i className="fas fa-stopwatch"></i>
+                                                        <span>Realizado</span>
+                                                      </div>
+                                                      <div className={`atribuicoes-tempo-valor ${tempoRealizadoTotal > 0 ? 'atribuicoes-tempo-valor-realizado' : 'atribuicoes-tempo-valor-realizado-empty'}`}>
+                                                        {tempoRealizadoFormatado}
+                                              </div>
                                                       {custoRealizado !== null && (
-                                                        <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                                                          Custo: <span style={{ fontWeight: 600, color: '#2563eb' }}>{formatarValorMonetario(custoRealizado)}</span>
+                                                        <div className="atribuicoes-tempo-custo atribuicoes-tempo-custo-realizado">
+                                                          {formatarValorMonetario(custoRealizado)}
                                                         </div>
                                                       )}
                                                     </div>
-                                                  </div>
+                                                  </>
                                                 );
                                               })()}
-                                            </span>
+                                            </div>
                                           </td>
                                           <td>
                                             <span className="atribuicoes-periodo">
-                                              {formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}
+                                              <i className="fas fa-calendar-alt"></i>
+                                              <span>{formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}</span>
                                             </span>
                                           </td>
                                           <td className="atribuicoes-table-actions">
@@ -2059,26 +3840,26 @@ const DelegarTarefas = () => {
                                                           <div className="atribuicoes-tarefa-nome" style={{ fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
                                                             {getNomeTarefa(tarefaId)}
                                                           </div>
-                                                          <span style={{ 
-                                                            fontSize: '11px', 
+                                                            <span style={{ 
+                                                              fontSize: '11px', 
                                                             color: tempoRealizadoTarefa > 0 ? '#2563eb' : '#9ca3af', 
-                                                            fontWeight: 600,
-                                                            padding: '4px 8px',
+                                                              fontWeight: 600,
+                                                              padding: '4px 8px',
                                                             background: tempoRealizadoTarefa > 0 ? '#e0f2fe' : '#f3f4f6',
-                                                            borderRadius: '4px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px'
-                                                          }}>
+                                                              borderRadius: '4px',
+                                                              display: 'flex',
+                                                              alignItems: 'center',
+                                                              gap: '4px'
+                                                            }}>
                                                             <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
                                                             Realizado: {tempoRealizadoTarefa > 0 ? formatarTempoEstimado(tempoRealizadoTarefa, true) : '0s'}
-                                                          </span>
+                                                            </span>
                                                         </div>
                                                         <table className="atribuicoes-detalhes-table">
                                                           <thead>
                                                             <tr>
                                                               <th>Data</th>
-                                                              {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                                              {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
                                                               {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                                               {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
                                                               <th>Tempo Estimado / Realizado</th>
@@ -2185,16 +3966,16 @@ const DelegarTarefas = () => {
                                                         <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
                                                         Realizado: {tempoRealizadoTarefaDetalhes > 0 ? formatarTempoEstimado(tempoRealizadoTarefaDetalhes, true) : '0s'}
                                                       </span>
-                                                      <span className="atribuicoes-tarefa-detalhes-count">
-                                                        {registrosTarefa.length} registro(s)
-                                                      </span>
+                                                    <span className="atribuicoes-tarefa-detalhes-count">
+                                                      {registrosTarefa.length} registro(s)
+                                                    </span>
                                                     </div>
                                                   </div>
                                                   <table className="atribuicoes-detalhes-table">
                                                     <thead>
                                                       <tr>
                                                         <th>Data</th>
-                                                        {filtroPrincipal !== 'produto' && <th>Produto</th>}
+                                                        {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
                                                         {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
                                                         {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
                                                         <th>Tempo Estimado / Realizado</th>
@@ -2408,6 +4189,26 @@ const DelegarTarefas = () => {
         confirmButtonClass="btn-danger"
         loading={deleteLoading}
       />
+
+      {/* Card lateral de detalhes */}
+      {detalheAberto && detalhesDados && (
+        <DetailSideCard
+          entidadeId={detalheAberto.entidadeId}
+          tipo={detalheAberto.tipo}
+          dados={detalhesDados}
+          onClose={() => {
+            setDetalheAberto(null);
+            setDetalhesDados(null);
+          }}
+          position={detalheAberto.position}
+          getTempoRealizado={getTempoRealizado}
+          formatarTempoEstimado={formatarTempoEstimado}
+          formatarData={formatarData}
+          calcularCustoPorTempo={calcularCustoPorTempo}
+          formatarValorMonetario={formatarValorMonetario}
+          getNomeCliente={getNomeCliente}
+        />
+      )}
     </Layout>
   );
 };

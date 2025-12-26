@@ -1,4 +1,5 @@
 import React from 'react';
+import TimerButton from '../../../components/common/TimerButton';
 import './TarefaCard.css';
 
 /**
@@ -23,9 +24,6 @@ const TarefaCard = ({
   obterTempoRealizadoFormatado
 }) => {
   const handleButtonClick = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
     if (isAtivo) {
       onPararTempo?.(registro);
     } else {
@@ -33,27 +31,22 @@ const TarefaCard = ({
     }
   };
 
-  const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
-  const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
-  const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
-
   return (
     <div className="painel-usuario-tarefa-card">
       <div className="painel-usuario-tarefa-top">
         <div className="painel-usuario-tarefa-nome">
           {getNomeTarefa?.(registro.tarefa_id) || `Tarefa #${registro.tarefa_id}`}
         </div>
-        <button
-          type="button"
-          className={btnClass}
-          title={btnTitle}
+        <TimerButton
+          isActive={isAtivo}
           onClick={handleButtonClick}
-          data-tarefa-id={registro.tarefa_id || ''}
-          data-cliente-id={registro.cliente_id || ''}
-          data-action={isAtivo ? 'parar' : 'iniciar'}
-        >
-          <i className={`fas ${btnIcon}`}></i>
-        </button>
+          className="timer-button-painel"
+          dataAttributes={{
+            'data-tarefa-id': registro.tarefa_id || '',
+            'data-cliente-id': registro.cliente_id || '',
+            'data-action': isAtivo ? 'parar' : 'iniciar'
+          }}
+        />
       </div>
       <div className="painel-usuario-tarefa-tags">
         <span className="painel-usuario-badge-estimado">
@@ -80,4 +73,7 @@ const TarefaCard = ({
 };
 
 export default TarefaCard;
+
+
+
 
