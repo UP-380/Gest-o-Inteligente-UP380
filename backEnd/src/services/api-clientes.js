@@ -11,11 +11,12 @@ const { buscarTodosComPaginacao } = require('./database-utils');
 require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+// Aceitar ambos os nomes: SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Validar que as credenciais foram fornecidas
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ ERRO CRÍTICO: SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar definidas nas variáveis de ambiente!');
+  console.error('❌ ERRO CRÍTICO: SUPABASE_URL e SUPABASE_SERVICE_KEY (ou SUPABASE_SERVICE_ROLE_KEY) devem estar definidas nas variáveis de ambiente!');
   console.error('   Configure estas variáveis no arquivo .env.production');
   process.exit(1);
 }
