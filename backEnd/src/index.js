@@ -90,14 +90,19 @@ if (!SESSION_SECRET && IS_PROD) {
   console.error('⚠️  AVISO: SESSION_SECRET não definida. Usando valor padrão (NÃO RECOMENDADO PARA PRODUÇÃO)');
 }
 
+// Configurar trust proxy para funcionar corretamente com nginx
+app.set('trust proxy', 1); // Confiar no primeiro proxy (nginx)
+
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: IS_PROD ? true : false, // true em produção (HTTPS), false em desenvolvimento
+    // Em produção, usar secure apenas se realmente estiver em HTTPS (nginx já faz isso)
+    // O trust proxy permite que o Express detecte HTTPS através do X-Forwarded-Proto
+    secure: IS_PROD ? 'auto' : false, // 'auto' detecta HTTPS automaticamente via proxy
     httpOnly: true,
-    sameSite: IS_PROD ? 'lax' : 'lax', // 'lax' funciona melhor com proxy reverso (nginx)
+    sameSite: 'lax', // 'lax' funciona melhor com proxy reverso (nginx)
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
     domain: undefined, // Deixar undefined para funcionar com qualquer domínio
     path: '/' // Garantir que o cookie seja válido para todo o site
