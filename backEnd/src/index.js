@@ -6,8 +6,15 @@
 require('dotenv').config();
 
 // Validar variáveis de ambiente críticas
-const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+// Aceitar ambos os nomes: SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE_KEY
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const requiredVars = {
+  'SUPABASE_URL': process.env.SUPABASE_URL,
+  'SUPABASE_SERVICE_KEY': supabaseServiceKey
+};
+const missingVars = Object.entries(requiredVars)
+  .filter(([name, value]) => !value)
+  .map(([name]) => name === 'SUPABASE_SERVICE_KEY' ? 'SUPABASE_SERVICE_KEY (ou SUPABASE_SERVICE_ROLE_KEY)' : name);
 
 if (missingVars.length > 0) {
   console.error('❌ ERRO CRÍTICO: Variáveis de ambiente obrigatórias não encontradas:');

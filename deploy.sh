@@ -78,8 +78,11 @@ fi
 # Verificar se as variáveis obrigatórias estão definidas
 source .env.production 2>/dev/null || true
 
-if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
-    echo -e "${RED}❌ ERRO: SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar definidas no .env.production!${NC}"
+# Aceitar ambos os nomes: SUPABASE_SERVICE_KEY ou SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_SERVICE_KEY_VALUE="${SUPABASE_SERVICE_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}"
+
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY_VALUE" ]; then
+    echo -e "${RED}❌ ERRO: SUPABASE_URL e SUPABASE_SERVICE_KEY (ou SUPABASE_SERVICE_ROLE_KEY) devem estar definidas no .env.production!${NC}"
     exit 1
 fi
 
