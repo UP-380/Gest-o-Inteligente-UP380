@@ -6,6 +6,7 @@ import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import { colaboradoresAPI } from '../../services/api';
 import ClienteTempoInfo from './components/ClienteTempoInfo';
 import DatePicker from '../../components/vigencia/DatePicker';
+import PageHeader from '../../components/common/PageHeader';
 import './PainelUsuario.css';
 
 /**
@@ -2717,7 +2718,7 @@ const PainelUsuario = () => {
     };
 
     const handleRegistroFinalizado = async () => {
-      // Pequeno delay para garantir que o backend processou
+      // Delay maior para garantir que o backend processou completamente a finalização
       setTimeout(async () => {
         // Verificar registros ativos novamente
         await verificarRegistrosAtivos();
@@ -2727,7 +2728,15 @@ const PainelUsuario = () => {
         
         // Sincronizar TODOS os botões para garantir consistência
         sincronizarTodosBotoes();
-      }, 100);
+        
+        // Re-renderizar tarefas para atualizar os tempos realizados na tela
+        if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
+          const modo = obterModoVisualizacao();
+          if (modo === 'lista') {
+            renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
+          }
+        }
+      }, 300); // Delay aumentado para garantir processamento completo
     };
 
     window.addEventListener('registro-tempo-iniciado', handleRegistroIniciado);
@@ -2752,15 +2761,13 @@ const PainelUsuario = () => {
 
   return (
     <Layout>
-      <div className="container painel-usuario-container-wrapper">
+      <div className="container">
         <main className="main-content">
-          <div className="vinculacoes-listing-section">
-            <div className="form-header">
-              <h2 className="form-title">Minhas Tarefas</h2>
-              <p className="form-subtitle">
-                Visualize e gerencie suas tarefas atribuídas
-              </p>
-            </div>
+          <div className="painel-usuario-content-section">
+            <PageHeader 
+              title="Minhas Tarefas"
+              subtitle="Visualize e gerencie suas tarefas atribuídas"
+            />
 
             {/* Container das tarefas */}
             <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container"></div>

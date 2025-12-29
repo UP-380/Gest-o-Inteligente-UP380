@@ -767,35 +767,6 @@ const DelegarTarefas = () => {
     setHorasContratadasPorResponsavel(novasHoras);
   };
 
-  // Buscar tempos realizados para registros de tempo estimado
-  const buscarTemposRealizados = async (registros) => {
-    if (!registros || registros.length === 0) return;
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado/tempo-realizado`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ registros })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          setTemposRealizados(result.data);
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('Erro ao buscar tempos realizados:', response.status, errorText);
-      }
-    } catch (error) {
-      console.error('❌ [DelegarTarefas] Erro ao buscar tempos realizados:', error);
-    }
-  };
-
   // Obter chave única para um registro de tempo estimado
   // Se tempo_estimado_id estiver disponível, usar ele para chave mais precisa
   // Caso contrário, usar tarefa_id + responsavel_id + cliente_id + data
@@ -824,6 +795,94 @@ const DelegarTarefas = () => {
     }
     return `${tarefaId}_${responsavelId}_${clienteId}_${dataEstimado}`;
   };
+
+  // Função auxiliar para buscar tempo realizado de um registro individual usando o mesmo endpoint do PainelUsuario
+  const buscarTempoRealizadoIndividual = useCallback(async (reg) => {
+    if (!reg) return 0;
+    
+    try {
+      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+      if (!tempoEstimadoId) return 0;
+
+      // Buscar todos os registros de tempo para este tempo_estimado_id (mesmo endpoint usado no PainelUsuario)
+      const response = await fetch(
+        `${API_BASE_URL}/registro-tempo/por-tempo-estimado?tempo_estimado_id=${tempoEstimadoId}`,
+        {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          // Calcular tempo total realizado (incluindo registros ativos do dia atual)
+          let tempoTotal = 0;
+          result.data.forEach(r => {
+            let tempo = Number(r.tempo_realizado) || 0;
+            
+            // Se não tem tempo_realizado mas tem data_inicio, calcular (incluindo registros ativos)
+            if (!tempo && r.data_inicio) {
+              const dataInicio = new Date(r.data_inicio);
+              const dataFim = r.data_fim ? new Date(r.data_fim) : new Date(); // Se ativo (sem data_fim), usar agora
+              tempo = Math.max(0, dataFim.getTime() - dataInicio.getTime());
+            }
+            
+            // Converter se necessário (valor < 1 está em horas, >= 1 está em ms)
+            const tempoMs = tempo < 1 ? Math.round(tempo * 3600000) : tempo;
+            tempoTotal += tempoMs;
+          });
+          
+          return tempoTotal;
+        }
+      }
+      return 0;
+    } catch (error) {
+      console.error('Erro ao buscar tempo realizado individual:', error);
+      return 0;
+    }
+  }, []);
+
+  // Buscar tempos realizados para registros de tempo estimado
+  // Usa o mesmo método do PainelUsuario: busca individualmente por tempo_estimado_id
+  const buscarTemposRealizados = useCallback(async (registros) => {
+    if (!registros || registros.length === 0) return;
+    
+    try {
+      // Usar o mesmo endpoint do PainelUsuario para buscar tempos realizados
+      // Buscar individualmente para cada registro para garantir que registros ativos sejam incluídos
+      const novosTempos = {};
+      
+      await Promise.all(
+        registros.map(async (reg) => {
+          const chave = getChaveTempoRealizado(reg);
+          if (!chave) return;
+          
+          const tempoRealizado = await buscarTempoRealizadoIndividual(reg);
+          novosTempos[chave] = {
+            tempo_realizado: tempoRealizado,
+            quantidade_registros: 1
+          };
+        })
+      );
+      
+      // Atualizar estado com os novos tempos
+      setTemposRealizados(prev => ({ ...prev, ...novosTempos }));
+    } catch (error) {
+      console.error('❌ [DelegarTarefas] Erro ao buscar tempos realizados:', error);
+    }
+  }, [buscarTempoRealizadoIndividual]);
+
+  // Função para obter todos os registros atualmente visíveis (dos agrupamentos)
+  const obterTodosRegistrosVisiveis = useCallback(() => {
+    const todosRegistros = [];
+    registrosAgrupados.forEach(agrupamento => {
+      if (agrupamento.registros && Array.isArray(agrupamento.registros)) {
+        todosRegistros.push(...agrupamento.registros);
+      }
+    });
+    return todosRegistros;
+  }, [registrosAgrupados]);
 
   // Obter tempo realizado para um registro de tempo estimado
   const getTempoRealizado = (registro) => {
@@ -1993,6 +2052,35 @@ const DelegarTarefas = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
+
+  // Escutar eventos de início e finalização de registro de tempo para atualizar tempos realizados automaticamente
+  useEffect(() => {
+    const handleRegistroTempoAtualizado = async () => {
+      // Delay para garantir que o backend processou completamente
+      setTimeout(async () => {
+        // Obter todos os registros visíveis atualmente
+        const registrosVisiveis = obterTodosRegistrosVisiveis();
+        
+        // Se houver registros visíveis, atualizar os tempos realizados
+        if (registrosVisiveis.length > 0) {
+          await buscarTemposRealizados(registrosVisiveis);
+        }
+      }, 300); // Delay aumentado para garantir que o backend finalizou o registro completamente
+    };
+
+    // Escutar eventos de início e finalização de registro de tempo
+    window.addEventListener('registro-tempo-iniciado', handleRegistroTempoAtualizado);
+    window.addEventListener('registro-tempo-finalizado', handleRegistroTempoAtualizado);
+    window.addEventListener('registro-tempo-atualizado', handleRegistroTempoAtualizado);
+    window.addEventListener('registro-tempo-deletado', handleRegistroTempoAtualizado);
+    
+    return () => {
+      window.removeEventListener('registro-tempo-iniciado', handleRegistroTempoAtualizado);
+      window.removeEventListener('registro-tempo-finalizado', handleRegistroTempoAtualizado);
+      window.removeEventListener('registro-tempo-atualizado', handleRegistroTempoAtualizado);
+      window.removeEventListener('registro-tempo-deletado', handleRegistroTempoAtualizado);
+    };
+  }, [obterTodosRegistrosVisiveis, buscarTemposRealizados]);
 
   // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
   useEffect(() => {

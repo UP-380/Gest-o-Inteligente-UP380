@@ -1354,15 +1354,16 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
       
     // Buscar todos os registros de tempo que correspondem aos tempo_estimado_id
     // IMPORTANTE: Filtrar apenas registros onde cliente_id NÃO é NULL
+    // IMPORTANTE: Incluir registros ativos (sem data_fim) para calcular tempo parcial do dia atual
       const { data: registrosTempo, error: errorTempo } = await supabase
         .schema('up_gestaointeligente')
         .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, tempo_estimado_id')
       .in('tempo_estimado_id', tempoEstimadoIds)
       .not('cliente_id', 'is', null) // SOMENTE registros onde cliente_id não é NULL
-        .not('tempo_realizado', 'is', null)
-        .not('data_inicio', 'is', null)
-        .not('data_fim', 'is', null);
+        .not('data_inicio', 'is', null);
+        // REMOVIDO: .not('data_fim', 'is', null) - para incluir registros ativos do dia atual
+        // REMOVIDO: .not('tempo_realizado', 'is', null) - tempo_realizado pode ser null para registros ativos
 
       if (errorTempo) {
       console.error('Erro ao buscar registros de tempo:', errorTempo);
@@ -1438,7 +1439,23 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
       // Calcular tempo total realizado
       let tempoTotalRealizado = 0;
         registrosFiltrados.forEach(reg => {
-          const tempoRealizado = Number(reg.tempo_realizado) || 0;
+          let tempoRealizado = Number(reg.tempo_realizado) || 0;
+          
+          // Se o registro não tem tempo_realizado, calcular a partir de data_inicio e data_fim
+          // IMPORTANTE: Incluir registros ativos (sem data_fim) calculando tempo parcial até agora
+          if (!tempoRealizado && reg.data_inicio) {
+            const dataInicio = new Date(reg.data_inicio);
+            const dataFim = reg.data_fim ? new Date(reg.data_fim) : new Date(); // Se ativo (sem data_fim), usar agora
+            tempoRealizado = Math.max(0, dataFim.getTime() - dataInicio.getTime());
+          }
+          
+          // Se ainda não tem tempo_realizado e tem data_inicio, calcular tempo parcial
+          if (!tempoRealizado && reg.data_inicio) {
+            const dataInicio = new Date(reg.data_inicio);
+            const agora = new Date();
+            tempoRealizado = Math.max(0, agora.getTime() - dataInicio.getTime());
+          }
+          
           // Se valor < 1 (decimal), está em horas -> converter para ms
           // Se valor >= 1, já está em ms
           const tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
