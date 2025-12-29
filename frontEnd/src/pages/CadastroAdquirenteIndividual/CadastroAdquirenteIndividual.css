@@ -1,0 +1,152 @@
+.cadastro-adquirente-individual-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header da Página */
+.cadastro-adquirente-page-header {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.cadastro-adquirente-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.cadastro-adquirente-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.cadastro-adquirente-header-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.cadastro-adquirente-page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.cadastro-adquirente-page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.cadastro-adquirente-back-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cadastro-adquirente-form-section {
+  margin-bottom: 32px;
+  background: transparent;
+}
+
+.cadastro-adquirente-actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Estilos para o formulário */
+.adquirente-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.adquirente-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.adquirente-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.adquirente-form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  display: block;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.adquirente-form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  background-color: white;
+  color: #1e293b;
+  font-family: inherit;
+}
+
+.adquirente-form-input:focus {
+  outline: none;
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.adquirente-form-input.error {
+  border-color: #ef4444;
+}
+
+.adquirente-error-message {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+/* Responsividade */
+@media (max-width: 968px) {
+  .adquirente-form-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+

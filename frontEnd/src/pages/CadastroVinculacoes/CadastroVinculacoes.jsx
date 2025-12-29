@@ -35,10 +35,10 @@ const CadastroVinculacoes = () => {
   const [filtros, setFiltros] = useState({
     produto: false,
     atividade: false,
-    tipoAtividade: false,
+    tipoTarefa: false,
     cliente: false
   });
-  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoAtividade', 'cliente'
+  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoTarefa', 'cliente'
   const [ordemFiltros, setOrdemFiltros] = useState([]); // Array para rastrear ordem de aplicação
   const [filtrosAplicados, setFiltrosAplicados] = useState(false); // Rastrear se filtros foram aplicados
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null); // Armazenar últimos filtros aplicados
@@ -64,7 +64,7 @@ const CadastroVinculacoes = () => {
       if (filtrosAUsar.atividade) {
         params.append('filtro_atividade', 'true');
       }
-      if (filtrosAUsar.tipoAtividade) {
+      if (filtrosAUsar.tipoTarefa) {
         params.append('filtro_tipo_atividade', 'true');
       }
       if (filtrosAUsar.cliente) {
@@ -317,7 +317,7 @@ const CadastroVinculacoes = () => {
     const filtrosLimpos = {
       produto: false,
       atividade: false,
-      tipoAtividade: false,
+      tipoTarefa: false,
       cliente: false
     };
     setFiltros(filtrosLimpos);
@@ -342,7 +342,7 @@ const CadastroVinculacoes = () => {
     return (
       filtros.produto !== filtrosUltimosAplicados.produto ||
       filtros.atividade !== filtrosUltimosAplicados.atividade ||
-      filtros.tipoAtividade !== filtrosUltimosAplicados.tipoAtividade ||
+      filtros.tipoTarefa !== filtrosUltimosAplicados.tipoTarefa ||
       filtros.cliente !== filtrosUltimosAplicados.cliente
     );
   };
@@ -370,7 +370,7 @@ const CadastroVinculacoes = () => {
   // Aplicar filtros
   const handleApplyFilters = () => {
     // Verificar se pelo menos um filtro está selecionado
-    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoAtividade || filtros.cliente;
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.cliente;
     
     if (!temFiltroAtivo) {
       showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
@@ -397,7 +397,7 @@ const CadastroVinculacoes = () => {
         return 'PRODUTO';
       case 'atividade':
         return 'TAREFA';
-      case 'tipoAtividade':
+      case 'tipoTarefa':
         return 'TIPO DE TAREFA';
       case 'cliente':
         return 'CLIENTE';
@@ -495,15 +495,15 @@ const CadastroVinculacoes = () => {
                   onMouseLeave={() => setFiltroHover(null)}
                 />
                 <FilterVinculacao
-                  filtroKey="tipoAtividade"
-                  checked={filtros.tipoAtividade}
+                  filtroKey="tipoTarefa"
+                  checked={filtros.tipoTarefa}
                   onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('tipoAtividade')}
+                  isFiltroPai={isFiltroPai('tipoTarefa')}
                   title="Tipo de Tarefa"
                   subtitle="Filtrar por tipos de tarefa"
                   icon="fas fa-list"
-                  filtroNome={getFiltroNome('tipoAtividade')}
-                  onMouseEnter={() => setFiltroHover('tipoAtividade')}
+                  filtroNome={getFiltroNome('tipoTarefa')}
+                  onMouseEnter={() => setFiltroHover('tipoTarefa')}
                   onMouseLeave={() => setFiltroHover(null)}
                 />
                 <FilterVinculacao
@@ -554,7 +554,7 @@ const CadastroVinculacoes = () => {
                             const tarefaId = vinculado.cp_tarefa || vinculado.cp_atividade;
                             chaveAgrupamento = `atividade_${tarefaId}`;
                             nomeAgrupamento = vinculado.atividade_nome || 'Tarefa não encontrada';
-                          } else if (filtroPrincipal === 'tipoAtividade' && (vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo)) {
+                          } else if (filtroPrincipal === 'tipoTarefa' && (vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo)) {
                             const tipoId = vinculado.cp_tarefa_tipo || vinculado.cp_atividade_tipo;
                             chaveAgrupamento = `tipo_${tipoId}`;
                             nomeAgrupamento = vinculado.tipo_atividade_nome || 'Tipo não encontrado';
@@ -602,7 +602,7 @@ const CadastroVinculacoes = () => {
                                 nome: vinculado.produto_nome
                               }));
                             }
-                            if (filtroPrincipal !== 'tipoAtividade' && tipoId && vinculado.tipo_atividade_nome) {
+                            if (filtroPrincipal !== 'tipoTarefa' && tipoId && vinculado.tipo_atividade_nome) {
                               itensUnicos.tiposAtividade.add(JSON.stringify({
                                 id: tipoId,
                                 nome: vinculado.tipo_atividade_nome

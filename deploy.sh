@@ -59,20 +59,38 @@ fi
 # 3. Verificar variáveis de ambiente
 echo -e "${YELLOW}⚙️  Passo 3: Verificando variáveis de ambiente...${NC}"
 if [ ! -f ".env.production" ]; then
-    echo -e "${YELLOW}⚠️  Arquivo .env.production não encontrado.${NC}"
-    echo -e "${YELLOW}   Criando arquivo de exemplo...${NC}"
+    echo -e "${RED}❌ Arquivo .env.production não encontrado!${NC}"
+    echo -e "${YELLOW}   Criando arquivo .env.production...${NC}"
     cat > .env.production << EOF
 NODE_ENV=production
 PORT=4000
-# Adicione outras variáveis de ambiente necessárias aqui
+SUPABASE_URL=
+SUPABASE_SERVICE_KEY=
+SESSION_SECRET=
 EOF
-    echo -e "${YELLOW}⚠️  ATENÇÃO: Configure o arquivo .env.production antes de continuar!${NC}"
-    read -p "Continuar mesmo assim? (s/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-        exit 1
-    fi
+    echo -e "${RED}❌ ERRO: Configure as variáveis obrigatórias no arquivo .env.production:${NC}"
+    echo -e "${RED}   - SUPABASE_URL${NC}"
+    echo -e "${RED}   - SUPABASE_SERVICE_KEY${NC}"
+    echo -e "${RED}   - SESSION_SECRET (gere uma chave forte aleatória)${NC}"
+    exit 1
 fi
+
+# Verificar se as variáveis obrigatórias estão definidas
+source .env.production 2>/dev/null || true
+
+if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_KEY" ]; then
+    echo -e "${RED}❌ ERRO: SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar definidas no .env.production!${NC}"
+    exit 1
+fi
+
+if [ -z "$SESSION_SECRET" ]; then
+    echo -e "${YELLOW}⚠️  AVISO: SESSION_SECRET não definida. Gerando uma chave temporária...${NC}"
+    TEMP_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -d '\n')
+    echo "SESSION_SECRET=$TEMP_SECRET" >> .env.production
+    echo -e "${YELLOW}   Uma chave temporária foi adicionada. Recomenda-se gerar uma chave forte manualmente.${NC}"
+fi
+
+echo -e "${GREEN}✅ Variáveis de ambiente verificadas!${NC}"
 
 # 4. Build e subir containers
 echo -e "${YELLOW}🐳 Passo 4: Build e subida dos containers Docker...${NC}"

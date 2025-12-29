@@ -1,0 +1,604 @@
+.editar-cliente-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header da Página */
+.knowledge-page-header {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.knowledge-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.knowledge-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.knowledge-header-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Quando o ícone contém um avatar, aplicar estilos específicos */
+.knowledge-header-icon .user-avatar {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.knowledge-page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.knowledge-page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.knowledge-back-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.editar-cliente-form-section {
+  margin-bottom: 32px;
+  background: transparent;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  background: transparent;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 24px;
+}
+
+.section-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  flex: 1;
+}
+
+.section-content {
+  padding: 24px 0;
+}
+
+.editar-cliente-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .editar-cliente-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .editar-cliente-actions > div {
+    width: 100%;
+  }
+
+  .editar-cliente-actions > div:first-child {
+    margin-bottom: 16px;
+  }
+}
+
+/* Seção de Upload de Foto de Cliente */
+.cliente-foto-upload-section {
+  margin-bottom: 2rem;
+}
+
+/* Avatar Selection Section - Reutilizando estilos do ConfiguracoesPerfil */
+.config-avatar-section {
+  margin-bottom: 2rem;
+}
+
+/* Layout de duas colunas para avatares e upload */
+.avatar-layout-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: center;
+}
+
+.avatar-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.avatar-column-upload {
+  justify-content: center;
+}
+
+.avatar-column-avatars {
+  justify-content: center;
+}
+
+@media (max-width: 968px) {
+  .avatar-layout-columns {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+/* Seção de Upload de Foto Personalizada */
+.avatar-upload-section {
+  padding: 1.5rem;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  text-align: center;
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+.avatar-upload-label {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #0e3b6f;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-bottom: 0.5rem;
+}
+
+.avatar-upload-label:hover:not(:disabled) {
+  background: #144577;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(14, 59, 111, 0.2);
+}
+
+.avatar-upload-label:active {
+  transform: translateY(0);
+}
+
+.avatar-upload-label i {
+  margin-right: 0.5rem;
+}
+
+.avatar-upload-input {
+  display: none;
+}
+
+.avatar-upload-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+}
+
+.avatar-upload-loading {
+  margin-top: 1rem;
+  color: #0e3b6f;
+  font-size: 0.875rem;
+}
+
+.avatar-upload-loading i {
+  margin-right: 0.5rem;
+}
+
+.avatar-group {
+  margin-bottom: 2rem;
+}
+
+.avatar-group:last-child {
+  margin-bottom: 0;
+}
+
+.avatar-group-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.avatar-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 0.75rem;
+}
+
+.avatar-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background: white;
+  border: 2px solid #e2e8f0;
+}
+
+.avatar-option:hover {
+  border-color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.avatar-option.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.avatar-preview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+}
+
+.avatar-preview-color {
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+}
+
+.avatar-preview-image {
+  overflow: hidden;
+}
+
+.avatar-preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-tooltip {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.avatar-option:hover .avatar-tooltip {
+  opacity: 1;
+}
+
+.avatar-selected-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: #3b82f6;
+  background: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-selected-indicator i {
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .avatar-options-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .avatar-preview {
+    width: 50px;
+    height: 50px;
+  }
+
+  .avatar-preview-color {
+    font-size: 0.875rem;
+  }
+}
+
+.cliente-foto-upload {
+  margin-bottom: 1rem;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.cliente-foto-upload-label {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #0e3b6f;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-bottom: 0.5rem;
+}
+
+.cliente-foto-upload-label:hover:not(:disabled) {
+  background: #144577;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(14, 59, 111, 0.2);
+}
+
+.cliente-foto-upload-label:active {
+  transform: translateY(0);
+}
+
+.cliente-foto-upload-label i {
+  margin-right: 0.5rem;
+}
+
+.cliente-foto-upload-input {
+  display: none;
+}
+
+.cliente-foto-upload-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+}
+
+.cliente-foto-upload-loading {
+  margin-top: 1rem;
+  color: #0e3b6f;
+  font-size: 0.875rem;
+}
+
+.cliente-foto-upload-loading i {
+  margin-right: 0.5rem;
+}
+
+.cliente-foto-preview {
+  margin-bottom: 1.5rem;
+  text-align: center;
+  display: inline-block;
+  width: 100%;
+}
+
+.cliente-foto-preview img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #0e3b6f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: block;
+  margin: 0 auto;
+}
+
+.cliente-foto-fallback {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border: 3px solid #cbd5e1;
+}
+
+.cliente-foto-fallback i {
+  font-size: 48px;
+  color: #94a3b8;
+}
+
+.cliente-foto-preview-label {
+  display: block;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .cliente-foto-preview img,
+  .cliente-foto-fallback {
+    width: 100px;
+    height: 100px;
+  }
+
+  .cliente-foto-fallback i {
+    font-size: 40px;
+  }
+}
+
+/* Estilos para o formulário em duas colunas */
+.colaborador-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.form-label-small {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  display: block;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 2px;
+}
+
+.form-input-small {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  background-color: white;
+  color: #1e293b;
+  font-family: inherit;
+}
+
+.form-input-small:focus {
+  outline: none;
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.form-input-small.error {
+  border-color: #ef4444;
+}
+
+.select-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  position: relative;
+}
+
+.select-wrapper .select-icon {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: #64748b;
+  font-size: 12px;
+  z-index: 1;
+}
+
+.select-with-icon {
+  padding-right: 40px;
+}
+
+.error-message {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  cursor: help;
+}
+
+.searchable-select {
+  position: relative;
+}
+
+.searchable-input {
+  cursor: text;
+}
+
+/* Seção Vincular Financeiro */
+.form-section-financial {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.form-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-section-title i {
+  color: #0e3b6f;
+  font-size: 14px;
+}
+
+/* Responsividade */
+@media (max-width: 968px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+

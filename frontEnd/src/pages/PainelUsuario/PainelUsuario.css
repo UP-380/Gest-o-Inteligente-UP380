@@ -1,268 +1,51 @@
 /* PainelUsuario.css
  * Estilos para a tela de Painel do Usuário
- * Layout limpo e moderno com cards arrastáveis e redimensionáveis
+ * Layout limpo e moderno
  */
 
-.painel-usuario-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  padding: 20px;
-  margin-left: 250px; /* Espaço para a sidebar */
-  padding-top: 80px; /* Espaço para o header */
-}
-
-.painel-usuario-header {
-  margin-bottom: 30px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.painel-usuario-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #2c3e50;
-  margin: 0 0 8px 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.painel-usuario-title i {
-  color: #3498db;
-}
-
-.painel-usuario-subtitle {
-  font-size: 14px;
-  color: #7f8c8d;
+/* Seção de conteúdo principal do painel */
+.painel-usuario-content-section {
+  max-width: 100%;
   margin: 0;
-  line-height: 1.5;
-}
-
-.painel-usuario-content {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  min-height: calc(100vh - 200px);
-}
-
-/* Estilos do Gridstack */
-.grid-stack {
-  background: transparent;
-  min-height: 500px;
-}
-
-/* Estilos dos itens do grid (blocos) */
-.grid-item {
-  border-radius: 12px;
-  background: #ffffff;
-  border: 2px solid #e8ecef;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  overflow: visible; /* permitir que sombras internas apareçam */
-  position: relative;
-}
-
-/* Efeito hover nos blocos */
-.grid-item:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  border-color: #3498db;
-  transform: translateY(-2px);
-}
-
-/* Handle para arrastar (indicador visual de arrastabilidade) */
-.grid-item-handle {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 6px 10px;
-  background: rgba(52, 152, 219, 0.1);
-  border-radius: 6px;
-  cursor: move;
-  z-index: 10;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.grid-item:hover .grid-item-handle {
-  opacity: 1;
-}
-
-.grid-item-handle i {
-  color: #3498db;
-  font-size: 14px;
-}
-
-/* Conteúdo do bloco */
-.grid-item-content {
   width: 100%;
-  height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  min-height: 100%;
-  overflow: visible; /* permitir sombras dos cards internos */
-}
-
-.grid-item-content-board {
-  background: #ffffff;
-  width: 100%;
-  height: 100%;
+  flex-direction: column;
+  gap: 0;
   box-sizing: border-box;
-  overflow: hidden; /* Manter hidden para o container do grid */
+  overflow-x: hidden; /* Previne overflow horizontal */
+  /* Garantir que não ultrapasse os limites do container */
+  min-width: 0;
+  /* Garantir que todos os elementos filhos respeitem os limites */
+  contain: layout style;
+}
+
+/* Garantir que elementos filhos não ultrapassem os limites */
+.painel-usuario-content-section > * {
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.painel-usuario-tarefas-container {
+  width: 100%;
+  min-height: 600px; /* Altura mínima ajustada */
+  margin-top: 24px; /* Espaçamento consistente após o header */
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden; /* Previne overflow horizontal */
+}
+
+.painel-usuario-tarefas-content {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  position: relative;
+  gap: 12px;
+  box-sizing: border-box;
 }
 
-/* Indicador de bloco vazio */
-.grid-item-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #bdc3c7;
-  font-size: 32px;
-  opacity: 0.6;
-  transition: all 0.3s ease;
-}
 
-.grid-item:hover .grid-item-empty {
-  color: #3498db;
-  opacity: 0.8;
-  transform: scale(1.1);
-}
 
-.grid-item-empty i {
-  font-size: 32px;
-}
 
-/* Estilos durante o arraste */
-.grid-item.ui-draggable-dragging {
-  opacity: 0.8;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-}
-
-/* Estilos durante o redimensionamento */
-.grid-item.ui-resizable-resizing {
-  opacity: 0.9;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-/* Handle de redimensionamento customizado */
-.ui-resizable-handle {
-  background: rgba(52, 152, 219, 0.3);
-  border-radius: 4px;
-  transition: background 0.2s ease;
-}
-
-.ui-resizable-handle:hover {
-  background: rgba(52, 152, 219, 0.6);
-}
-
-/* Handles específicos para cada direção */
-.ui-resizable-se {
-  width: 16px;
-  height: 16px;
-  right: -2px;
-  bottom: -2px;
-  background: rgba(52, 152, 219, 0.5);
-  border-radius: 0 0 12px 0;
-}
-
-.ui-resizable-sw {
-  width: 16px;
-  height: 16px;
-  left: -2px;
-  bottom: -2px;
-  background: rgba(52, 152, 219, 0.5);
-  border-radius: 0 0 0 12px;
-}
-
-.ui-resizable-ne {
-  width: 16px;
-  height: 16px;
-  right: -2px;
-  top: -2px;
-  background: rgba(52, 152, 219, 0.5);
-  border-radius: 0 12px 0 0;
-}
-
-.ui-resizable-nw {
-  width: 16px;
-  height: 16px;
-  left: -2px;
-  top: -2px;
-  background: rgba(52, 152, 219, 0.5);
-  border-radius: 12px 0 0 0;
-}
-
-.ui-resizable-n,
-.ui-resizable-s {
-  height: 8px;
-  background: rgba(52, 152, 219, 0.4);
-}
-
-.ui-resizable-e,
-.ui-resizable-w {
-  width: 8px;
-  background: rgba(52, 152, 219, 0.4);
-}
-
-/* Estilos para o placeholder durante o arraste */
-.grid-stack > .ui-draggable-dragging {
-  opacity: 0.5;
-}
-
-/* Ajustes responsivos */
-@media (max-width: 768px) {
-  .painel-usuario-container {
-    margin-left: 0;
-    padding: 10px;
-    padding-top: 70px;
-  }
-
-  .painel-usuario-header {
-    padding: 15px;
-  }
-
-  .painel-usuario-title {
-    font-size: 24px;
-  }
-
-  .painel-usuario-content {
-    padding: 10px;
-  }
-}
-
-/* Override de estilos do Gridstack para melhor integração */
-.grid-stack-item-content {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-/* Animação suave ao carregar os blocos */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.grid-item {
-  animation: fadeIn 0.3s ease;
-}
 
 /* ---------- Board de tarefas ---------- */
 .painel-usuario-header-board {
@@ -377,9 +160,30 @@
   font-size: 9px; /* Mesmo tamanho do ícone do botão de stop do header */
 }
 
+.painel-usuario-play-btn:disabled,
+.painel-usuario-stop-btn:disabled {
+  opacity: 0.6;
+  cursor: wait !important;
+  pointer-events: none;
+}
+
+.painel-usuario-play-btn:disabled i,
+.painel-usuario-stop-btn:disabled i {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .painel-usuario-stop-btn {
-  border: none;
-  background: #ef4444; /* vermelho para parar */
+  border: 2px solid #ffffff; /* Borda branca para destacar quando está ativo */
+  background: #dc2626; /* Vermelho mais escuro para diferenciar do play */
   color: #ffffff;      /* ícone branco */
   border-radius: 4px; /* Bordas arredondadas similares ao botão de stop do header */
   padding: 0;
@@ -391,16 +195,17 @@
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  box-shadow: none;
-  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3); /* Sombra sutil para destacar */
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
   flex-shrink: 0;
 }
 
 .painel-usuario-stop-btn:hover {
-  background: #dc2626;
-  box-shadow: none;
+  background: #b91c1c; /* Vermelho ainda mais escuro no hover */
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.4); /* Sombra mais forte no hover */
   transform: scale(1.05);
   color: #ffffff;
+  border-color: #ffffff;
 }
 
 .painel-usuario-stop-btn i {
@@ -496,6 +301,24 @@
   line-height: 1.2;
 }
 
+.painel-usuario-timetrack-arrow {
+  cursor: pointer;
+  color: #64748b;
+  font-size: 10px;
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.painel-usuario-timetrack-arrow:hover {
+  color: #475569;
+}
+
+.painel-usuario-timetrack-arrow.fa-chevron-down {
+  transform: rotate(90deg);
+}
+
 /* ---------- Toggle de visualização ---------- */
 .painel-usuario-toggle-view {
   display: flex;
@@ -567,10 +390,10 @@
   width: 100%;
   /* Garantir que elementos filhos não saiam do container */
   contain: layout;
-  /* Garantir que o container tenha altura mínima e permita scroll */
-  min-height: 0;
+  /* Garantir que o container tenha altura mínima e permita scroll apenas quando necessário */
+  min-height: 500px; /* Altura mínima maior para dar mais espaço */
   flex: 1;
-  overflow-y: auto;
+  overflow-y: auto; /* Scroll apenas quando necessário (auto) */
   overflow-x: hidden;
 }
 

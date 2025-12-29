@@ -1,0 +1,69 @@
+.bank-logo-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bank-logo-image {
+  object-fit: contain;
+  border-radius: 8px;
+  background: white;
+  padding: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bank-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.bank-logo-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+  color: #999;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bank-logo-attribution {
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  right: 0;
+  font-size: 8px;
+  color: transparent;
+  text-decoration: none;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Para uso em tabelas */
+.bank-logo-table {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bank-logo-table .bank-logo-container {
+  flex-shrink: 0;
+}
+
+/* Para uso em cards */
+.bank-logo-card {
+  margin-bottom: 8px;
+}
+

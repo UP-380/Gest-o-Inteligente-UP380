@@ -5,7 +5,7 @@ import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
  * Componente de filtro para vinculações
  * 
  * @param {Object} props
- * @param {string} props.filtroKey - Chave do filtro ('produto', 'atividade', 'tipoAtividade')
+ * @param {string} props.filtroKey - Chave do filtro ('produto', 'atividade', 'tipoTarefa')
  * @param {boolean} props.checked - Se o filtro está marcado
  * @param {Function} props.onChange - Função chamada quando o filtro muda
  * @param {boolean} props.isFiltroPai - Se este é o filtro pai (primeiro selecionado)
@@ -46,8 +46,8 @@ const FilterVinculacao = ({
               <i className={icon}></i>
             </div>
             <div className="filtro-card-text">
-              <span className="filtro-card-title">{title}</span>
               <span className="filtro-card-subtitle">{subtitle}</span>
+              <span className="filtro-card-title">{title}</span>
             </div>
             <div className="filtro-card-check">
               <i className="fas fa-check"></i>

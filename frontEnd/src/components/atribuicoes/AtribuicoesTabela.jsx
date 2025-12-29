@@ -227,3 +227,6 @@ const AtribuicoesTabela = ({
 
 export default AtribuicoesTabela;
 
+
+
+

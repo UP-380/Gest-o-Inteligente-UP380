@@ -79,6 +79,20 @@
   padding: 0;
 }
 
+/* Garantir que ícones apareçam no dropdown */
+.date-dropdown-content i.fa-calendar-alt {
+  display: inline-block !important;
+  visibility: visible !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.date-dropdown-content i.fa-calendar-alt::before {
+  content: "\f073" !important;
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
 /* Estilos do calendário */
 .date-calendar-container {
   margin-top: 8px;

@@ -18,12 +18,37 @@
 }
 
 .sidebar-content {
-  padding: 20px 0;
+  padding: 20px 0 0 0;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 5px;
   background: #ffffff;
+  position: relative;
+}
+
+.sidebar-menu-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 10px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.sidebar-menu-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .sidebar-item {
@@ -229,5 +254,188 @@
 
 .sidebar-submenu-item i {
   font-size: 1rem;
+}
+
+/* Rodapé do Menu - Design Melhorado */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0;
+  border-top: 2px solid #e5e7eb;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  flex-shrink: 0;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-footer-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px 10px;
+  gap: 12px;
+}
+
+/* Informações do Usuário */
+.sidebar-footer-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: transparent;
+}
+
+.sidebar:not(:hover) .sidebar-footer-user {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.sidebar:hover .sidebar-footer-user {
+  background: #f3f4f6;
+}
+
+.sidebar-footer-user:hover {
+  background: #e5e7eb !important;
+  transform: translateY(-1px);
+}
+
+.sidebar-footer-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.1s;
+}
+
+.sidebar:hover .sidebar-footer-user-info {
+  opacity: 1;
+}
+
+.sidebar:not(:hover) .sidebar-footer-user-info {
+  display: none;
+}
+
+.sidebar-footer-user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-footer-user-email {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Meta informações (Versão e Copyright) */
+.sidebar-footer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sidebar:hover .sidebar-footer-meta {
+  align-items: flex-start;
+}
+
+.sidebar-footer-version-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(62, 65, 73, 0.4);
+}
+
+.sidebar-footer-version-info i {
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.sidebar:not(:hover) .sidebar-footer-version-info i {
+  display: none;
+}
+
+.sidebar:hover .sidebar-footer-version-info i {
+  display: inline-block;
+}
+
+/* Usando o mesmo estilo da marca d'água */
+.sidebar-footer .marca-dagua-texto {
+  color: rgba(62, 65, 73, 0.3);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  letter-spacing: 0.5px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.sidebar-footer-copyright {
+  font-size: 0.7rem;
+  color: rgba(62, 65, 73, 0.25);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  letter-spacing: 0.3px;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.1s;
+  white-space: nowrap;
+}
+
+.sidebar:hover .sidebar-footer-copyright {
+  opacity: 1;
+}
+
+.sidebar:not(:hover) .sidebar-footer-copyright {
+  display: none;
+}
+
+/* Responsive - Rodapé */
+@media (max-width: 768px) {
+  .sidebar-footer-content {
+    padding: 10px 8px;
+    gap: 10px;
+  }
+
+  .sidebar-footer-user {
+    padding: 6px;
+  }
+
+  .sidebar-footer .marca-dagua-texto {
+    font-size: 10px;
+  }
+
+  .sidebar-footer-copyright {
+    font-size: 0.65rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-footer-content {
+    padding: 8px 5px;
+    gap: 8px;
+  }
+
+  .sidebar-footer-user {
+    padding: 5px;
+  }
+
+  .sidebar-footer .marca-dagua-texto {
+    font-size: 9px;
+  }
+
+  .sidebar-footer-copyright {
+    font-size: 0.6rem;
+  }
 }
 

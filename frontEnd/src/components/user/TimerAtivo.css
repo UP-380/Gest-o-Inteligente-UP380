@@ -59,6 +59,36 @@
   font-size: 9px;
 }
 
+/* Botão de histórico quando não há timer ativo */
+.timer-ativo-container-historico {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  height: 27px;
+  box-sizing: border-box;
+  min-width: 40px;
+  transition: all 0.2s ease;
+  box-shadow: none !important;
+}
+
+.timer-ativo-container-historico:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timer-ativo-historico-icon {
+  font-size: 14px;
+  display: inline-block !important;
+  color: #ffffff !important;
+  font-weight: 300;
+  line-height: 1;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
 /* Wrapper para posicionar o dropdown */
 .timer-ativo-wrapper {
   position: relative;
@@ -130,21 +160,21 @@
 .timer-dropdown-tarefa-ativa {
   background: #f8f9fa;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 6px;
+  padding: 10px 12px;
 }
 
 .timer-dropdown-tarefa-nome {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: #0e3b6f;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
-.timer-dropdown-cliente {
-  font-size: 13px;
+.timer-dropdown-cliente-nome-inline {
+  font-size: 11px;
   color: #64748b;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   font-weight: 500;
 }
 
@@ -152,24 +182,24 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .timer-dropdown-tempo-atual {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   color: #0e3b6f;
-  font-family: 'Courier New', 'Monaco', monospace; /* Manter fonte monoespaçada para tempo */
+  font-family: 'Courier New', 'Monaco', monospace;
 }
 
 .timer-dropdown-tempo-estimado {
-  font-size: 14px;
+  font-size: 12px;
   color: #64748b;
   font-weight: 500;
 }
 
 .timer-dropdown-data {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
   font-weight: 400;
 }
@@ -178,7 +208,7 @@
 .timer-dropdown-historico {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .timer-dropdown-empty {
@@ -189,30 +219,185 @@
   font-weight: 400;
 }
 
-.timer-dropdown-dia {
+/* Agrupamento por data */
+.timer-dropdown-data-group {
+  margin-bottom: 12px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.timer-dropdown-data-group:last-child {
+  margin-bottom: 0;
+}
+
+.timer-dropdown-data-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.timer-dropdown-data-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0e3b6f;
+  text-transform: capitalize;
+}
+
+.timer-dropdown-data-total {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+  font-family: 'Poppins', sans-serif;
+}
+
+.timer-dropdown-clientes-por-data {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.timer-dropdown-dia-header {
+/* Agrupamento por cliente */
+.timer-dropdown-cliente {
+  margin-bottom: 8px;
+}
+
+.timer-dropdown-cliente:last-child {
+  margin-bottom: 0;
+}
+
+.timer-dropdown-cliente-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  background: #f0f9ff;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #bae6fd;
+  transition: all 0.2s ease;
 }
 
-.timer-dropdown-dia-data {
-  font-size: 13px;
+.timer-dropdown-cliente-header:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+.timer-dropdown-cliente-arrow {
+  font-size: 12px;
+  color: #64748b;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  display: inline-block !important;
+  visibility: visible !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-dropdown-cliente-arrow::before {
+  content: "\f054" !important;
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+.timer-dropdown-cliente-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.timer-dropdown-cliente-nome {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0369a1;
+  flex: 1;
+}
+
+.timer-dropdown-cliente-total {
+  font-size: 12px;
+  font-weight: 500;
+  color: #0369a1;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.2;
+}
+
+.timer-dropdown-tarefas-por-cliente {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 2px solid #e0f2fe;
+}
+
+.timer-dropdown-tarefas-por-data {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Agrupamento por tarefa */
+.timer-dropdown-tarefa {
+  margin-bottom: 8px;
+}
+
+.timer-dropdown-tarefa:last-child {
+  margin-bottom: 0;
+}
+
+.timer-dropdown-tarefa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.timer-dropdown-tarefa-header:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.timer-dropdown-tarefa-arrow {
+  font-size: 12px;
+  color: #64748b;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  display: inline-block !important;
+  visibility: visible !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-dropdown-tarefa-arrow::before {
+  content: "\f054" !important;
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+.timer-dropdown-tarefa-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.timer-dropdown-tarefa-nome-historico {
+  font-size: 14px;
   font-weight: 600;
   color: #0e3b6f;
+  flex: 1;
 }
 
-.timer-dropdown-dia-total {
-  font-size: 13px;
-  font-weight: 600;
-  color: #64748b;
+.timer-dropdown-tarefa-total {
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e3a8a;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.2;
 }
 
 .timer-dropdown-registros {
@@ -223,14 +408,20 @@
 
 .timer-dropdown-registro {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   padding: 12px;
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   gap: 12px;
   transition: all 0.2s;
+}
+
+.timer-dropdown-registro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .timer-dropdown-registro:hover {
@@ -246,10 +437,11 @@
 }
 
 .timer-dropdown-registro-tempo {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0e3b6f;
-  font-family: 'Courier New', 'Monaco', monospace; /* Manter fonte monoespaçada para tempo */
+  font-size: 12px;
+  font-weight: 400;
+  color: #1e3a8a;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.2;
 }
 
 .timer-dropdown-registro-periodo {
@@ -264,88 +456,100 @@
   flex-shrink: 0;
 }
 
-/* Botões de ação - usar os mesmos estilos das tabelas */
-/* Os botões EditButton e DeleteButton já vêm com os estilos corretos do ActionButtons.css */
-
-/* Modal de Edição */
-.timer-edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 20px;
-}
-
-.timer-edit-modal-content {
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
+/* Formulários inline de edição/deleção */
+.timer-dropdown-registro-edit-form,
+.timer-dropdown-registro-delete-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  background: #f9fafb;
+  padding: 10px;
+  border-radius: 6px;
+  margin-left: -12px;
+  margin-right: -12px;
+  margin-bottom: -12px;
 }
 
-.timer-edit-modal-header {
+.timer-edit-form-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e5e7eb;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
-.timer-edit-modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.timer-edit-modal-close {
-  background: transparent;
-  border: none;
-  color: #6b7280;
+.timer-edit-form-actions .btn-secondary,
+.timer-edit-form-actions .btn-primary {
+  padding: 6px 16px;
+  font-size: 13px;
+  border-radius: 6px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
   transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  border: none;
 }
 
-.timer-edit-modal-close:hover {
-  background: #f1f5f9;
+.timer-edit-form-actions .btn-secondary {
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+.timer-edit-form-actions .btn-secondary:hover {
+  background: #e5e7eb;
   color: #374151;
 }
 
-.timer-edit-modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.timer-edit-form-actions .btn-primary {
+  background: #0e3b6f;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+.timer-edit-form-actions .btn-primary:hover {
+  background: #0d2f56;
+}
+
+/* Tornar inputs mais discretos */
+.timer-dropdown-registro-edit-form .timer-edit-input,
+.timer-dropdown-registro-delete-form .timer-edit-input,
+.timer-dropdown-registro-edit-form textarea,
+.timer-dropdown-registro-delete-form textarea {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-color: #e5e7eb;
+}
+
+.timer-dropdown-registro-edit-form .timer-edit-justificativa-input,
+.timer-dropdown-registro-delete-form .timer-edit-justificativa-input {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-color: #e5e7eb;
+  resize: vertical;
+}
+
+/* Tornar labels mais discretos */
+.timer-dropdown-registro-edit-form .timer-edit-form-group label,
+.timer-dropdown-registro-delete-form .timer-edit-form-group label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-bottom: 2px;
 }
 
 .timer-edit-form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .timer-edit-form-group label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #374151;
+  color: #6b7280;
 }
 
 .timer-edit-input {
@@ -363,50 +567,268 @@
   box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
 }
 
+/* Linha com data e horário */
+.timer-edit-datetime-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+}
+
+.timer-edit-datetime-row .timer-edit-date-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.timer-edit-datetime-row .timer-edit-time-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* DatePicker no modal */
+.timer-edit-date-picker {
+  width: 100%;
+}
+
+.timer-edit-date-picker .filter-label {
+  display: none !important;
+}
+
+.timer-edit-date-picker .date-filter-container {
+  width: 100%;
+}
+
+.timer-edit-date-picker .date-select-display {
+  min-height: 32px;
+  height: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.timer-edit-date-picker .date-select-display .fa-calendar-alt {
+  color: #64748b !important;
+  font-size: 13px !important;
+  display: inline-block !important;
+  visibility: visible !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-edit-date-picker .date-select-display i {
+  display: inline-block !important;
+  visibility: visible !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-edit-date-picker .date-select-display i.fa-calendar-alt::before {
+  content: "\f073" !important;
+}
+
+/* Input de tempo (hora e minuto) */
+.timer-edit-time-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 10px;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  transition: all 0.2s;
+  width: fit-content;
+  min-height: 32px;
+  height: 100%;
+}
+
+.timer-edit-time-wrapper:focus-within {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.timer-edit-time-input {
+  width: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  text-align: center;
+  color: #1f2937;
+  font-weight: 500;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Remover spinners nativos completamente */
+.timer-edit-time-input::-webkit-inner-spin-button,
+.timer-edit-time-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+  display: none;
+}
+
+.timer-edit-time-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Container para input e setinhas customizadas */
+.timer-edit-time-input-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-right: 16px;
+}
+
+.timer-edit-time-input-wrapper .timer-edit-time-input {
+  padding-right: 4px;
+  padding-left: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+/* Container das setinhas */
+.timer-edit-time-spinner {
+  position: absolute;
+  right: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 20px;
+  pointer-events: none;
+  z-index: 10;
+  visibility: visible !important;
+}
+
+/* Botões das setinhas - sem fundo */
+.timer-edit-time-spinner-btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 14px;
+  height: 12px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  color: #64748b !important;
+  opacity: 0.7 !important;
+  transition: all 0.2s;
+  visibility: visible !important;
+}
+
+.timer-edit-time-spinner-btn:hover {
+  opacity: 1;
+  color: #475569;
+}
+
+.timer-edit-time-spinner-btn:active {
+  opacity: 1;
+  color: #334155;
+}
+
+.timer-edit-time-spinner-btn i {
+  font-size: 10px !important;
+  line-height: 1 !important;
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: inherit !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-edit-time-spinner-btn i.fa-chevron-up,
+.timer-edit-time-spinner-btn i.fa-chevron-down {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #64748b !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+}
+
+.timer-edit-time-spinner-btn i::before {
+  content: "" !important;
+  display: inline-block !important;
+}
+
+.timer-edit-time-spinner-btn i.fa-chevron-up::before {
+  content: "\f077" !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+.timer-edit-time-spinner-btn i.fa-chevron-down::before {
+  content: "\f078" !important;
+  font-family: "Font Awesome 5 Free" !important;
+  font-weight: 900 !important;
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+.timer-edit-time-spinner-up {
+  margin-bottom: -2px;
+}
+
+.timer-edit-time-spinner-down {
+  margin-top: -2px;
+}
+
+.timer-edit-time-input:focus {
+  outline: none;
+  background: rgba(14, 59, 111, 0.05);
+  border-radius: 4px;
+}
+
+.timer-edit-time-input::placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
+
+.timer-edit-time-label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .timer-edit-tempo-display {
   padding: 10px 12px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1e3a8a;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.2;
 }
 
-.timer-edit-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.timer-edit-modal-footer .btn-secondary,
-.timer-edit-modal-footer .btn-primary {
-  padding: 10px 20px;
+.timer-edit-justificativa-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  color: #1f2937;
+  resize: vertical;
+  min-height: 80px;
   transition: all 0.2s;
-  border: none;
 }
 
-.timer-edit-modal-footer .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+.timer-edit-justificativa-input:focus {
+  outline: none;
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
 }
 
-.timer-edit-modal-footer .btn-secondary:hover {
-  background: #e5e7eb;
-}
-
-.timer-edit-modal-footer .btn-primary {
-  background: #0e3b6f;
-  color: #ffffff;
-}
-
-.timer-edit-modal-footer .btn-primary:hover {
-  background: #0a2d4f;
+.timer-edit-justificativa-input::placeholder {
+  color: #9ca3af;
 }

@@ -4,8 +4,18 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = 'https://gijgjvfwxmkkihdmfmdg.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpamdqdmZ3eG1ra2loZG1mbWRnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjEzNzIxNywiZXhwIjoyMDU3NzEzMjE3fQ.b9F3iLwtnpYp54kPyQORmfe8hW2fLxoKlXmIXuTY99U';
+// Carregar variáveis de ambiente
+require('dotenv').config();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+// Validar que as credenciais foram fornecidas
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ ERRO CRÍTICO: SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar definidas nas variáveis de ambiente!');
+  console.error('   Configure estas variáveis no arquivo .env.production');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   db: { schema: 'up_gestaointeligente' },

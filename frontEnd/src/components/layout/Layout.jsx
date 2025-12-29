@@ -1,8 +1,6 @@
 import React from 'react';
 import Sidebar from './Sidebar';
-import MarcaDagua from '../common/MarcaDagua';
 import UserProfile from '../user/UserProfile';
-import { VERSAO_SISTEMA } from '../../config/versao';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -37,9 +35,6 @@ const Layout = ({ children }) => {
       
       {/* Conteúdo principal */}
       {children}
-
-      {/* Marca d'água de versão */}
-      <MarcaDagua version={VERSAO_SISTEMA} />
       
       {/* Container de notificações toast */}
       <div id="toastContainer" className="toast-container" aria-live="polite" aria-atomic="true"></div>

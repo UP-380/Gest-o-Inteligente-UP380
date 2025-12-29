@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
-import TipoTarefaModal from '../../components/tipo-tarefas/TipoTarefaModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import SearchInput from '../../components/common/SearchInput';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import LoadingState from '../../components/common/LoadingState';
-import EmptyState from '../../components/common/EmptyState';
 import PageHeader from '../../components/common/PageHeader';
 import { useToast } from '../../hooks/useToast';
-import { formatDate } from '../../utils/dateUtils';
+import EditButton from '../../components/common/EditButton';
+import DeleteButton from '../../components/common/DeleteButton';
 import './CadastroTipoTarefas.css';
 
 const API_BASE_URL = '/api';
 
 const CadastroTipoTarefas = () => {
+  const navigate = useNavigate();
   const showToast = useToast();
   
   // Estados principais
@@ -27,15 +28,6 @@ const CadastroTipoTarefas = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalTipoTarefas, setTotalTipoTarefas] = useState(0);
-
-  // Estados para formulário
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    nome: ''
-  });
-  const [formErrors, setFormErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
 
   // Estados para modal de confirmação de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -68,7 +60,6 @@ const CadastroTipoTarefas = () => {
         return;
       }
 
-      // Verificar se a resposta é JSON
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         const text = await response.text();
@@ -101,137 +92,6 @@ const CadastroTipoTarefas = () => {
       setLoading(false);
     }
   }, [currentPage, itemsPerPage, searchTerm, showToast]);
-
-  // Carregar tipo de tarefa por ID para edição
-  const loadTipoTarefaParaEdicao = useCallback(async (id) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/tipo-tarefa/${id}`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setFormData({
-          nome: result.data.name || result.data.nome || ''
-        });
-        setEditingId(id);
-        setShowForm(true);
-        setFormErrors({});
-      } else {
-        throw new Error(result.error || 'Erro ao carregar tipo de tarefa');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar tipo de tarefa:', error);
-      showToast('error', 'Erro ao carregar tipo de tarefa. Tente novamente.');
-    }
-  }, [showToast]);
-
-  // Validar formulário
-  const validateForm = () => {
-    const errors = {};
-
-    const nomeValue = formData.nome ? String(formData.nome).trim() : '';
-    if (!nomeValue) {
-      errors.nome = 'Nome é obrigatório';
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Salvar tipo de tarefa (criar ou atualizar)
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const nomeValue = formData.nome ? String(formData.nome).trim() : '';
-
-    // Validar
-    if (!nomeValue) {
-      showToast('error', 'Nome é obrigatório');
-      return;
-    }
-
-    setSubmitting(true);
-
-    try {
-      // Preparar payload - nome e clickup_id (obrigatório no banco)
-      const payload = {
-        nome: nomeValue,
-        clickup_id: '' // Valor padrão vazio para clickup_id obrigatório
-      };
-
-      const url = editingId 
-        ? `${API_BASE_URL}/tipo-tarefa/${editingId}`
-        : `${API_BASE_URL}/tipo-tarefa`;
-      
-      const method = editingId ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      // Verificar se a resposta é JSON
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const text = await response.text();
-        const errorMsg = text || `Erro no servidor. Status: ${response.status}`;
-        showToast('error', errorMsg);
-        return;
-      }
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error('❌ Erro na resposta:', result);
-        const errorMsg = result.error || result.details || result.message || result.hint || `Erro HTTP ${response.status}`;
-        showToast('error', errorMsg);
-        return;
-      }
-
-      if (result.success) {
-        showToast(
-          'success',
-          editingId 
-            ? 'Tipo de tarefa atualizado com sucesso!'
-            : 'Tipo de tarefa criado com sucesso!'
-        );
-        resetForm();
-        await loadTipoTarefas();
-      } else {
-        const errorMsg = result.error || result.details || 'Erro ao salvar tipo de tarefa';
-        showToast('error', errorMsg);
-      }
-    } catch (error) {
-      console.error('Erro ao salvar tipo de tarefa:', error);
-      const errorMsg = error.message || 'Erro ao salvar tipo de tarefa. Verifique sua conexão e tente novamente.';
-      showToast('error', errorMsg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // Deletar tipo de tarefa
   const handleDelete = useCallback(async () => {
@@ -271,25 +131,14 @@ const CadastroTipoTarefas = () => {
     }
   }, [tipoTarefaToDelete, loadTipoTarefas, showToast]);
 
-  // Resetar formulário
-  const resetForm = () => {
-    setFormData({
-      nome: ''
-    });
-    setEditingId(null);
-    setShowForm(false);
-    setFormErrors({});
-  };
-
-  // Abrir formulário para novo tipo de tarefa
+  // Navegar para novo tipo de tarefa
   const handleNewTipoTarefa = () => {
-    resetForm();
-    setShowForm(true);
+    navigate('/cadastro/tipo-tarefa', { state: { from: '/cadastro/tipo-tarefas' } });
   };
 
-  // Abrir formulário para edição
+  // Navegar para edição
   const handleEdit = (tipoTarefa) => {
-    loadTipoTarefaParaEdicao(tipoTarefa.id);
+    navigate(`/cadastro/tipo-tarefa?id=${tipoTarefa.id}`, { state: { from: '/cadastro/tipo-tarefas' } });
   };
 
   // Confirmar exclusão
@@ -319,36 +168,23 @@ const CadastroTipoTarefas = () => {
   const tableColumns = [
     { key: 'nome', label: 'Nome' },
     { 
-      key: 'created_at', 
-      label: 'Criado em',
-      render: (item) => formatDate(item.created_at, false)
-    },
-    { 
-      key: 'updated_at', 
-      label: 'Atualizado em',
-      render: (item) => formatDate(item.updated_at, false)
+      key: 'clickup_id', 
+      label: 'ClickUp ID',
+      render: (tipoTarefa) => tipoTarefa.clickup_id || '-'
     }
   ];
 
   // Renderizar ações da tabela
   const renderTableActions = (tipoTarefa) => (
     <>
-      <button
-        className="btn-icon btn-edit"
+      <EditButton
         onClick={() => handleEdit(tipoTarefa)}
         title="Editar"
-        disabled={showForm}
-      >
-        <i className="fas fa-edit"></i>
-      </button>
-      <button
-        className="btn-icon btn-delete"
+      />
+      <DeleteButton
         onClick={() => confirmDelete(tipoTarefa)}
         title="Deletar"
-        disabled={showForm}
-      >
-        <i className="fas fa-trash"></i>
-      </button>
+      />
     </>
   );
 
@@ -359,8 +195,8 @@ const CadastroTipoTarefas = () => {
           <CardContainer>
             <div className="tipo-tarefas-listing-section">
               <PageHeader 
-                title="Cadastro de Tipos de Tarefa"
-                subtitle="Gerencie os tipos de tarefa do sistema"
+                title="Cadastro de Tipo de Tarefas"
+                subtitle="Gerencie os tipos de tarefa cadastrados no sistema"
               />
 
               {/* Filtro de busca e botão adicionar */}
@@ -373,26 +209,12 @@ const CadastroTipoTarefas = () => {
                 <div className="listing-controls-right">
                   <ButtonPrimary
                     onClick={handleNewTipoTarefa}
-                    disabled={showForm}
                     icon="fas fa-plus"
                   >
                     Novo Tipo de Tarefa
                   </ButtonPrimary>
                 </div>
               </div>
-
-              {/* Modal de cadastro/edição */}
-              <TipoTarefaModal
-                isOpen={showForm}
-                onClose={resetForm}
-                onSubmit={handleSubmit}
-                formData={formData}
-                setFormData={setFormData}
-                formErrors={formErrors}
-                setFormErrors={setFormErrors}
-                submitting={submitting}
-                editingId={editingId}
-              />
 
               {/* Lista de tipos de tarefa */}
               <div className="listing-table-container">
@@ -404,7 +226,7 @@ const CadastroTipoTarefas = () => {
                     data={tipoTarefas}
                     renderActions={renderTableActions}
                     emptyMessage="Nenhum tipo de tarefa encontrado"
-                    emptyIcon="fa-tags"
+                    emptyIcon="fa-list-alt"
                   />
                 )}
               </div>
@@ -457,7 +279,4 @@ const CadastroTipoTarefas = () => {
 };
 
 export default CadastroTipoTarefas;
-
-
-
 

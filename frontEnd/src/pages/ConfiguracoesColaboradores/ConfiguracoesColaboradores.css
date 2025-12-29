@@ -1118,15 +1118,31 @@ select.form-input-small.error {
 }
 
 .actions-column {
-  width: 120px;
+  width: auto;
+  min-width: 240px; /* 4 botões: Editar, Ativar/Inativar, Ver Vigências, Nova Vigência */
   text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.actions-column > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 3px;
 }
 
 .action-buttons {
-  display: flex;
+  display: inline-flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .action-divider {

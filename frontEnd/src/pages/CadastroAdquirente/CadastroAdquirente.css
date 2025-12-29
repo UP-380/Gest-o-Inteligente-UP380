@@ -1,0 +1,254 @@
+.cadastro-adquirente-content {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+}
+
+/* Melhorias na tabela */
+.listing-table-container {
+  background: white;
+  border: 1px solid #e0e7ff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-top: 20px;
+}
+
+.listing-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.listing-table thead {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.listing-table th {
+  padding: 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.listing-table th:first-child {
+  padding-left: 20px;
+}
+
+.listing-table th:last-child {
+  padding-right: 20px;
+}
+
+.listing-table td {
+  padding: 16px;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.listing-table td:first-child {
+  padding-left: 20px;
+}
+
+.listing-table td:last-child {
+  padding-right: 20px;
+}
+
+.listing-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.listing-table tbody tr:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.listing-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.actions-column {
+  width: auto;
+  min-width: 100px !important; /* 2 botões: Editar, Deletar */
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.actions-column > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 3px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-edit {
+  color: #0e3b6f !important;
+}
+
+.btn-edit:hover:not(:disabled) {
+  background: #e6f0ff;
+  color: #0a2d4f !important;
+}
+
+/* ===== ANIMAÇÃO DO BOTÃO EDITAR ===== */
+.edit-anim {
+  position: relative;
+  overflow: hidden;
+}
+
+.edit-anim-icon {
+  height: 17px;
+  fill: currentColor;
+  position: relative;
+  z-index: 3;
+  transition: all 0.2s;
+  transform-origin: bottom;
+}
+
+.edit-anim:hover .edit-anim-icon {
+  transform: rotate(-15deg) translateX(5px);
+}
+
+.edit-anim::after {
+  content: "";
+  width: 25px;
+  height: 1.5px;
+  position: absolute;
+  bottom: 4px;
+  left: -5px;
+  background-color: currentColor;
+  border-radius: 2px;
+  z-index: 2;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s ease-out, left 0.5s ease-out;
+}
+
+.edit-anim:hover::after {
+  transform: scaleX(1);
+  left: 0px;
+  transform-origin: right;
+}
+
+.btn-delete {
+  color: #ef4444;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ===== ANIMAÇÃO DA LIXEIRA (BIN) ===== */
+.bin-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  color: #ef4444 !important;
+}
+
+.bin-button svg {
+  color: #ef4444 !important;
+  stroke: #ef4444 !important;
+}
+
+.bin-button .bin-top {
+  width: 15px;
+  height: 2px;
+  transition: transform 0.3s ease;
+  transform-origin: right center;
+  margin-bottom: -1px;
+}
+
+.bin-button .bin-bottom {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.3s ease;
+}
+
+.bin-button:hover:not(:disabled) {
+  color: #dc2626 !important;
+  background-color: #fef2f2;
+}
+
+.bin-button:hover:not(:disabled) svg {
+  color: #dc2626 !important;
+  stroke: #dc2626 !important;
+}
+
+.bin-button:hover:not(:disabled) .bin-top {
+  transform: rotate(45deg) translateX(2px) translateY(-1px);
+}
+
+.bin-button:hover:not(:disabled) .bin-bottom {
+  transform: scale(1.1);
+}
+
+/* Estados vazios */
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: #64748b;
+}
+
+.empty-state i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #cbd5e1;
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin: 0;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .listing-table th,
+  .listing-table td {
+    padding: 12px 8px;
+    font-size: 13px;
+  }
+  
+  .btn-icon span {
+    display: none;
+  }
+  
+  .btn-icon {
+    padding: 8px;
+    min-width: 36px;
+  }
+}

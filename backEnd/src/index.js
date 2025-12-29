@@ -2,6 +2,22 @@
 // === SERVIDOR PRINCIPAL - UP GESTÃO INTELIGENTE ===
 // =============================================================
 
+// Carregar variáveis de ambiente PRIMEIRO (antes de qualquer outro módulo)
+require('dotenv').config();
+
+// Validar variáveis de ambiente críticas
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('❌ ERRO CRÍTICO: Variáveis de ambiente obrigatórias não encontradas:');
+  missingVars.forEach(varName => {
+    console.error(`   - ${varName}`);
+  });
+  console.error('   Configure estas variáveis no arquivo .env.production');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
@@ -35,30 +51,38 @@ if (IS_PROD) {
 // ========================================
 
 // Configurar CORS para permitir credenciais do frontEnd
-// Em produção, aceitar qualquer origem (o nginx já faz o controle)
+// Em produção, aceitar qualquer origem (o nginx já faz o controle de domínio)
 const allowedOrigins = IS_PROD 
-  ? true // Aceitar qualquer origem em produção (nginx controla)
+  ? true // Aceitar qualquer origem em produção (nginx controla o domínio)
   : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:4000'];
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  maxAge: 86400 // Cache preflight por 24 horas
 }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configurar sessões
+const SESSION_SECRET = process.env.SESSION_SECRET || 'up-gestao-inteligente-secret-key-2024-fallback';
+if (!process.env.SESSION_SECRET) {
+  console.error('⚠️  AVISO: SESSION_SECRET não definida. Usando valor padrão (NÃO RECOMENDADO PARA PRODUÇÃO)');
+  console.error('   Configure SESSION_SECRET no arquivo .env.production');
+}
+
 app.use(session({
-  secret: 'up-gestao-inteligente-secret-key-2024',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // false porque estamos usando HTTP (sem HTTPS)
+    secure: IS_PROD ? true : false, // true em produção (HTTPS), false em desenvolvimento
     httpOnly: true,
-    sameSite: 'lax', // 'lax' funciona com HTTP e nginx proxy
+    sameSite: IS_PROD ? 'strict' : 'lax', // 'strict' em produção, 'lax' em desenvolvimento
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
     domain: undefined // Deixar undefined para funcionar com qualquer domínio
   }
