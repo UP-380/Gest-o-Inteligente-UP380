@@ -126,7 +126,7 @@
   padding: 8px;
   border-radius: 6px;
   transition: all 0.2s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
@@ -287,14 +287,19 @@
 }
 
 .actions-column {
-  width: 120px;
+  width: auto;
+  min-width: 100px !important; /* 2 botões: Editar, Deletar */
   text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
-.action-buttons {
-  display: flex;
+.actions-column > button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
+  vertical-align: middle;
+  margin: 0 3px;
 }
 
 /* Estados vazios e loading */

@@ -3,23 +3,36 @@
  * Layout limpo e moderno
  */
 
-/* Container específico para PainelUsuario - ocupa mais espaço horizontal */
-.container.painel-usuario-container-wrapper {
-  margin-right: 30px !important; /* Reduz margem direita de 60px para 30px (mantém espaço para bordas) */
-  width: calc(100vw - 90px) !important; /* 60px esquerda + 30px direita */
-  padding-right: 2rem !important; /* Garante padding interno adequado */
-}
-
-.vinculacoes-listing-section {
+/* Seção de conteúdo principal do painel */
+.painel-usuario-content-section {
   max-width: 100%;
   margin: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-sizing: border-box;
+  overflow-x: hidden; /* Previne overflow horizontal */
+  /* Garantir que não ultrapasse os limites do container */
+  min-width: 0;
+  /* Garantir que todos os elementos filhos respeitem os limites */
+  contain: layout style;
+}
+
+/* Garantir que elementos filhos não ultrapassem os limites */
+.painel-usuario-content-section > * {
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .painel-usuario-tarefas-container {
   width: 100%;
-  min-height: 700px; /* Aumentado para dar mais espaço vertical */
-  margin-top: 20px;
+  min-height: 600px; /* Altura mínima ajustada */
+  margin-top: 24px; /* Espaçamento consistente após o header */
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: hidden; /* Previne overflow horizontal */
 }
 
 .painel-usuario-tarefas-content {

@@ -1,21 +1,41 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Login from './pages/Login/Login';
 import Painel from './pages/Painel/Painel';
 import PainelUsuario from './pages/PainelUsuario/PainelUsuario';
 import RelatoriosClientes from './pages/DashboardClientes/DashboardClientes';
 import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardColaboradores';
-import GestaoClientes from './pages/CarteiraClientes/CarteiraClientes';
+import CadastroClientes from './pages/CadastroClientes/CadastroClientes';
 import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
 import ConfigCustoMembro from './pages/ConfigCustoMembro/ConfigCustoMembro';
-import CadastroAtividades from './pages/CadastroAtividades/CadastroAtividades';
 import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
-import CadastroTipoAtividades from './pages/CadastroTipoAtividades/CadastroTipoAtividades';
+import CadastroProdutoIndividual from './pages/CadastroProdutoIndividual/CadastroProdutoIndividual';
+import CadastroTarefas from './pages/CadastroTarefas/CadastroTarefas';
+import CadastroTarefaIndividual from './pages/CadastroTarefaIndividual/CadastroTarefaIndividual';
+import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
+import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
+import CadastroBanco from './pages/CadastroBancos/CadastroBanco';
+import CadastroBancoIndividual from './pages/CadastroBancoIndividual/CadastroBancoIndividual';
+import CadastroAdquirente from './pages/CadastroAdquirente/CadastroAdquirente';
+import CadastroAdquirenteIndividual from './pages/CadastroAdquirenteIndividual/CadastroAdquirenteIndividual';
+import CadastroSistemas from './pages/CadastroSistemas/CadastroSistemas';
+import CadastroSistemaIndividual from './pages/CadastroSistemaIndividual/CadastroSistemaIndividual';
 import DelegarTarefas from './pages/DelegarTarefas/DelegarTarefas';
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
+import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
+import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
+import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConhecimentoCliente';
+import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
+import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+
+// Componente para redirecionar rota antiga
+const RedirectToCadastroCliente = () => {
+  const { clienteId } = useParams();
+  return <Navigate to={`/cadastro/cliente?id=${clienteId}`} replace />;
+};
 
 function App() {
   return (
@@ -133,7 +153,7 @@ function App() {
           path="/cadastro/clientes"
           element={
             <ProtectedRoute>
-              <GestaoClientes />
+              <CadastroClientes />
             </ProtectedRoute>
           }
         />
@@ -154,14 +174,6 @@ function App() {
           }
         />
         <Route
-          path="/cadastro/tarefas"
-          element={
-            <ProtectedRoute>
-              <CadastroAtividades />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/cadastro/produtos"
           element={
             <ProtectedRoute>
@@ -170,10 +182,42 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/produto"
+          element={
+            <ProtectedRoute>
+              <CadastroProdutoIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tarefas"
+          element={
+            <ProtectedRoute>
+              <CadastroTarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tarefa"
+          element={
+            <ProtectedRoute>
+              <CadastroTarefaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cadastro/tipo-tarefas"
           element={
             <ProtectedRoute>
-              <CadastroTipoAtividades />
+              <CadastroTipoTarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tipo-tarefa"
+          element={
+            <ProtectedRoute>
+              <CadastroTipoTarefaIndividual />
             </ProtectedRoute>
           }
         />
@@ -182,6 +226,54 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/bancos"
+          element={
+            <ProtectedRoute>
+              <CadastroBanco />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/banco"
+          element={
+            <ProtectedRoute>
+              <CadastroBancoIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/adquirentes"
+          element={
+            <ProtectedRoute>
+              <CadastroAdquirente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/adquirente"
+          element={
+            <ProtectedRoute>
+              <CadastroAdquirenteIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/sistemas"
+          element={
+            <ProtectedRoute>
+              <CadastroSistemas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/sistema"
+          element={
+            <ProtectedRoute>
+              <CadastroSistemaIndividual />
             </ProtectedRoute>
           }
         />
@@ -202,45 +294,53 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Redirecionamentos de URLs antigas */}
         <Route
-          path="/cadastro/atividades"
+          path="/base-conhecimento"
           element={
             <ProtectedRoute>
-              <Navigate to="/cadastro/tarefas" replace />
+              <BaseConhecimento />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/cadastro/tipo-atividades"
+          path="/base-conhecimento/conteudos-clientes"
           element={
             <ProtectedRoute>
-              <Navigate to="/cadastro/tipo-tarefas" replace />
+              <ConteudosClientes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/base-conhecimento/cliente/:clienteId"
+          element={
+            <ProtectedRoute>
+              <BaseConhecimentoCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/cliente"
+          element={
+            <ProtectedRoute>
+              <CadastroCliente />
+            </ProtectedRoute>
+          }
+        />
+        {/* Redirecionamento da rota antiga */}
+        <Route
+          path="/base-conhecimento/cliente/:clienteId/editar"
+          element={
+            <ProtectedRoute>
+              <RedirectToCadastroCliente />
             </ProtectedRoute>
           }
         />
         {/* Redirecionamentos de URLs antigas de catálogo */}
         <Route
-          path="/catalogo/atividades"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/cadastro/tarefas" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/catalogo/produtos"
           element={
             <ProtectedRoute>
               <Navigate to="/cadastro/produtos" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/catalogo/tipo-atividades"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/cadastro/tipo-tarefas" replace />
             </ProtectedRoute>
           }
         />
@@ -258,6 +358,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ConfiguracoesPerfil />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/documentacao-api"
+          element={
+            <ProtectedRoute>
+              <DocumentacaoAPI />
             </ProtectedRoute>
           }
         />

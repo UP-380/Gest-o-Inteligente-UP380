@@ -7,8 +7,18 @@ const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
 const { buscarTodosComPaginacao } = require('./database-utils');
 
-const supabaseUrl = 'https://gijgjvfwxmkkihdmfmdg.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpamdqdmZ3eG1ra2loZG1mbWRnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjEzNzIxNywiZXhwIjoyMDU3NzEzMjE3fQ.b9F3iLwtnpYp54kPyQORmfe8hW2fLxoKlXmIXuTY99U';
+// Carregar variáveis de ambiente
+require('dotenv').config();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+
+// Validar que as credenciais foram fornecidas
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ ERRO CRÍTICO: SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar definidas nas variáveis de ambiente!');
+  console.error('   Configure estas variáveis no arquivo .env.production');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   db: { schema: 'up_gestaointeligente' },
@@ -1301,8 +1311,8 @@ function registrarRotasAPI(app, requireAuth = null) {
   app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteEndpoint);
   app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteIdEndpoint);
   app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req,_res,next)=>next(), getTarefasEndpoint);
-  app.get('/api/registro-tempo', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempo);
-  app.get('/api/registro-tempo-sem-tarefa', requireAuth ? requireAuth : (_req,_res,next)=>next(), getRegistrosTempoSemTarefa);
+  // REMOVIDO: /api/registro-tempo - Consolidado no registro-tempo.controller.js
+  // REMOVIDO: /api/registro-tempo-sem-tarefa - Movido para /api/registro-tempo/debug/sem-tarefa
   
   // Endpoints outros (com autenticação se disponível)
   app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req,_res,next)=>next(), getCustoHoraMembro);

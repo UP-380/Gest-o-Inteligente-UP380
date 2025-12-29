@@ -1,0 +1,20 @@
+/* Estilos para logo do banco na tabela */
+.bank-logo-table {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bank-logo-table .bank-logo-container {
+  flex-shrink: 0;
+}
+
+/* Container da tabela */
+.listing-table-container {
+  background: white;
+  border: 1px solid #e0e7ff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-top: 20px;
+}

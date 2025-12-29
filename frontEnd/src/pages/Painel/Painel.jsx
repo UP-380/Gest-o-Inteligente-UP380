@@ -40,24 +40,34 @@ const Painel = () => {
           icon: 'fa-user-cog'
         },
         {
-          label: 'Atividades',
-          path: '/cadastro/atividades',
-          icon: 'fa-tasks'
-        },
-        {
           label: 'Produtos',
           path: '/cadastro/produtos',
           icon: 'fa-box'
         },
         {
-          label: 'Tipo de Atividades',
-          path: '/cadastro/tipo-atividades',
+          label: 'Tarefas',
+          path: '/cadastro/tarefas',
+          icon: 'fa-tasks'
+        },
+        {
+          label: 'Tipo de Tarefas',
+          path: '/cadastro/tipo-tarefas',
           icon: 'fa-list-alt'
         },
         {
-          label: 'Vinculações',
-          path: '/cadastro/vinculacoes',
-          icon: 'fa-link'
+          label: 'Banco',
+          path: '/cadastro/bancos',
+          icon: 'fa-university'
+        },
+        {
+          label: 'Adquirente',
+          path: '/cadastro/adquirentes',
+          icon: 'fa-credit-card'
+        },
+        {
+          label: 'Sistemas',
+          path: '/cadastro/sistemas',
+          icon: 'fa-server'
         }
       ]
     },
@@ -70,6 +80,11 @@ const Painel = () => {
           label: 'Custo Colaborador',
           path: '/cadastro/custo-colaborador',
           icon: 'fa-dollar-sign'
+        },
+        {
+          label: 'Vinculações',
+          path: '/cadastro/vinculacoes',
+          icon: 'fa-link'
         }
       ]
     }

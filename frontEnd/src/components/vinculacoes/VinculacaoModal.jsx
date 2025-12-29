@@ -23,16 +23,12 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
   const [expandedSelects, setExpandedSelects] = useState({}); // Controla quais selects estão expandidos
   
   // Dados carregados das APIs
-  const [atividades, setAtividades] = useState([]);
   const [produtos, setProdutos] = useState([]);
-  const [tipoAtividades, setTipoAtividades] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [tarefasVinculadas, setTarefasVinculadas] = useState({}); // { produtoId: [{ id, nome }] }
 
   const opcoesPrimarias = [
     { value: 'produto', label: 'Produto' },
-    { value: 'atividade', label: 'Tarefa' },
-    { value: 'tipo-atividade', label: 'Tipo de Tarefa' },
     { value: 'cliente', label: 'Cliente' }
   ];
 
@@ -49,18 +45,6 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Carregar atividades
-      const atividadesRes = await fetch(`${API_BASE_URL}/atividades?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (atividadesRes.ok) {
-        const atividadesData = await atividadesRes.json();
-        if (atividadesData.success) {
-          setAtividades(atividadesData.data || []);
-        }
-      }
-
       // Carregar produtos
       const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
         credentials: 'include',
@@ -70,18 +54,6 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         const produtosData = await produtosRes.json();
         if (produtosData.success) {
           setProdutos(produtosData.data || []);
-        }
-      }
-
-      // Carregar tipo de atividades
-      const tipoAtividadesRes = await fetch(`${API_BASE_URL}/tipo-atividade?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (tipoAtividadesRes.ok) {
-        const tipoAtividadesData = await tipoAtividadesRes.json();
-        if (tipoAtividadesData.success) {
-          setTipoAtividades(tipoAtividadesData.data || []);
         }
       }
 
@@ -128,7 +100,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           const tiposSelecionados = [];
           if (vinculadoMapeado.cp_tarefa) tiposSelecionados.push('atividade');
           if (vinculadoMapeado.cp_produto) tiposSelecionados.push('produto');
-          if (vinculadoMapeado.cp_tarefa_tipo) tiposSelecionados.push('tipo-atividade');
+          if (vinculadoMapeado.cp_tarefa_tipo) tiposSelecionados.push('tipo-tarefa');
           if (vinculadoMapeado.cp_cliente) tiposSelecionados.push('cliente');
 
           // Configurar selects primários
@@ -145,11 +117,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           // Confirmar e criar selects secundários
           const newSecondarySelects = tiposSelecionados.map((tipo) => {
             let campoNome;
-            if (tipo === 'tipo-atividade') {
-              campoNome = 'cp_tarefa_tipo';
-            } else if (tipo === 'atividade') {
-              campoNome = 'cp_tarefa';
-            } else if (tipo === 'cliente') {
+            if (tipo === 'cliente') {
               campoNome = 'cp_cliente';
             } else {
               campoNome = `cp_${tipo}`;
@@ -207,7 +175,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
             return { ...s, value: '' };
           }
         } else {
-          // Se selecionou outro tipo (atividade, tipo-atividade)
+          // Se selecionou outro tipo (atividade, tipo-tarefa)
           // Se o outro select tem "Cliente" ou "Produto", não precisa limpar (eles podem coexistir com outros tipos)
           // Mas se o valor selecionado já está em outro select, limpar
           if (s.value === value && value !== '') {
@@ -384,12 +352,8 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
   // Obter todas as opções do select secundário baseado no tipo primário (sem filtro)
   const getAllSecondaryOptions = (primaryType) => {
     switch (primaryType) {
-      case 'atividade':
-        return atividades.map(a => ({ value: a.id, label: a.nome }));
       case 'produto':
         return produtos.map(p => ({ value: p.id, label: p.nome }));
-      case 'tipo-atividade':
-        return tipoAtividades.map(t => ({ value: t.id, label: t.nome }));
       case 'cliente':
         return clientes.map(c => ({ value: c.id, label: c.nome }));
       default:
@@ -422,7 +386,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     return {
       cp_tarefa: tiposSelecionados.includes('atividade'),
       cp_produto: tiposSelecionados.includes('produto'),
-      cp_tarefa_tipo: tiposSelecionados.includes('tipo-atividade'),
+      cp_tarefa_tipo: tiposSelecionados.includes('tipo-tarefa'),
       cp_cliente: tiposSelecionados.includes('cliente')
     };
   };
@@ -444,23 +408,15 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     };
 
     // Agrupar itens selecionados por tipo
-    const atividadesIds = [];
     const produtosIds = [];
-    const tipoAtividadesIds = [];
     const clientesIds = [];
 
     secondarySelects.forEach(select => {
       const selectedItems = select.selectedItems || [];
       if (selectedItems.length > 0) {
         switch (select.primaryType) {
-          case 'atividade':
-            atividadesIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
-            break;
           case 'produto':
             produtosIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
-            break;
-          case 'tipo-atividade':
-            tipoAtividadesIds.push(...selectedItems.map(toNumber).filter(id => id !== null));
             break;
           case 'cliente':
             // cp_cliente é TEXT, então manter como string
@@ -492,135 +448,31 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
       }
     };
 
-    // Se houver atividades e produtos, criar combinações
-    if (atividadesIds.length > 0 && produtosIds.length > 0) {
-      atividadesIds.forEach(atividadeId => {
-        produtosIds.forEach(produtoId => {
-          criarCombinacaoComClientes({
-            cp_tarefa: atividadeId,
-            cp_produto: produtoId,
-            cp_tarefa_tipo: null
-          });
-        });
-      });
-    }
-
-    // Se houver atividades e tipo de atividades, criar combinações
-    if (atividadesIds.length > 0 && tipoAtividadesIds.length > 0) {
-      atividadesIds.forEach(atividadeId => {
-        tipoAtividadesIds.forEach(tipoAtividadeId => {
-          criarCombinacaoComClientes({
-            cp_tarefa: atividadeId,
-            cp_tarefa_tipo: tipoAtividadeId,
-            cp_produto: null
-          });
-        });
-      });
-    }
-
-    // Se houver produtos e tipo de atividades, criar combinações
-    if (produtosIds.length > 0 && tipoAtividadesIds.length > 0) {
+    // Se houver produtos e clientes, criar combinações
+    if (produtosIds.length > 0 && clientesIds.length > 0) {
       produtosIds.forEach(produtoId => {
-        tipoAtividadesIds.forEach(tipoAtividadeId => {
-          criarCombinacaoComClientes({
-            cp_produto: produtoId,
-            cp_tarefa_tipo: tipoAtividadeId,
-            cp_tarefa: null
-          });
+        criarCombinacaoComClientes({
+          cp_produto: produtoId
         });
       });
     }
 
-    // Se houver apenas um tipo selecionado (sem clientes), criar registros individuais
-    if (atividadesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0 && clientesIds.length === 0) {
-      atividadesIds.forEach(atividadeId => {
-        combinacoes.push({
-          cp_tarefa: atividadeId,
-          cp_produto: null,
-          cp_tarefa_tipo: null,
-          cp_cliente: null
-        });
-      });
-    }
-
-    if (produtosIds.length > 0 && atividadesIds.length === 0 && tipoAtividadesIds.length === 0 && clientesIds.length === 0) {
+    // Se houver apenas produtos (sem clientes), criar registros individuais
+    if (produtosIds.length > 0 && clientesIds.length === 0) {
       produtosIds.forEach(produtoId => {
         combinacoes.push({
           cp_produto: produtoId,
-          cp_tarefa: null,
-          cp_tarefa_tipo: null,
           cp_cliente: null
         });
       });
     }
 
-    if (tipoAtividadesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0 && clientesIds.length === 0) {
-      tipoAtividadesIds.forEach(tipoAtividadeId => {
-        combinacoes.push({
-          cp_tarefa_tipo: tipoAtividadeId,
-          cp_tarefa: null,
-          cp_produto: null,
-          cp_cliente: null
-        });
-      });
-    }
-
-    // Se houver apenas clientes selecionados
-    if (clientesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
+    // Se houver apenas clientes (sem produtos)
+    if (clientesIds.length > 0 && produtosIds.length === 0) {
       clientesIds.forEach(clienteId => {
         combinacoes.push({
           cp_cliente: clienteId,
-          cp_tarefa: null,
-          cp_produto: null,
-          cp_tarefa_tipo: null
-        });
-      });
-    }
-
-    // Se houver atividades e clientes (sem produtos e tipo-atividade)
-    if (atividadesIds.length > 0 && clientesIds.length > 0 && produtosIds.length === 0 && tipoAtividadesIds.length === 0) {
-      atividadesIds.forEach(atividadeId => {
-        criarCombinacaoComClientes({
-          cp_tarefa: atividadeId,
-          cp_produto: null,
-          cp_tarefa_tipo: null
-        });
-      });
-    }
-
-    // Se houver produtos e clientes (sem atividades e tipo-atividade)
-    if (produtosIds.length > 0 && clientesIds.length > 0 && atividadesIds.length === 0 && tipoAtividadesIds.length === 0) {
-      produtosIds.forEach(produtoId => {
-        criarCombinacaoComClientes({
-          cp_produto: produtoId,
-          cp_tarefa: null,
-          cp_tarefa_tipo: null
-        });
-      });
-    }
-
-    // Se houver tipo-atividade e clientes (sem atividades e produtos)
-    if (tipoAtividadesIds.length > 0 && clientesIds.length > 0 && atividadesIds.length === 0 && produtosIds.length === 0) {
-      tipoAtividadesIds.forEach(tipoAtividadeId => {
-        criarCombinacaoComClientes({
-          cp_tarefa_tipo: tipoAtividadeId,
-          cp_tarefa: null,
           cp_produto: null
-        });
-      });
-    }
-
-    // Se houver todos os três tipos (atividade, produto, tipo-atividade), criar todas as combinações triplas
-    if (atividadesIds.length > 0 && produtosIds.length > 0 && tipoAtividadesIds.length > 0) {
-      atividadesIds.forEach(atividadeId => {
-        produtosIds.forEach(produtoId => {
-          tipoAtividadesIds.forEach(tipoAtividadeId => {
-            criarCombinacaoComClientes({
-              cp_tarefa: atividadeId,
-              cp_produto: produtoId,
-              cp_tarefa_tipo: tipoAtividadeId
-            });
-          });
         });
       });
     }

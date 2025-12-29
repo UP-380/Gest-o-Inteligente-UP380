@@ -40,6 +40,8 @@ registrarRotasAPI(app, null); // null = sem autenticação (backend separado)
 // ========================================
 
 // Endpoint: Registros de tempo por período com tarefas relacionadas (OTIMIZADO)
+// DEPRECATED: Este endpoint foi consolidado em /api/registro-tempo no controller principal
+// Mantido por compatibilidade. Use: GET /api/registro-tempo?data_inicio=...&data_fim=...&colaboradorId=...&clienteId=...
 app.get('/api/registro-tempo-periodo', async (req, res) => {
   try {
     const { dataInicio, dataFim, colaboradorId, clienteId } = req.query;
