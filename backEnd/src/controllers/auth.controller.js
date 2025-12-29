@@ -191,18 +191,29 @@ async function login(req, res) {
       foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null
     };
 
-    // Retornar dados do usuário (sem a senha)
-    const { senha_login: _, ...usuarioSemSenha } = usuario;
-    
-    // Adicionar caminho completo se for customizado
-    if (fotoPerfilCompleto !== usuario.foto_perfil) {
-      usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
-    }
+    // Salvar sessão explicitamente para garantir que o cookie seja definido
+    req.session.save((err) => {
+      if (err) {
+        console.error('Erro ao salvar sessão:', err);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao criar sessão'
+        });
+      }
 
-    res.json({
-      success: true,
-      message: 'Login realizado com sucesso',
-      usuario: usuarioSemSenha
+      // Retornar dados do usuário (sem a senha)
+      const { senha_login: _, ...usuarioSemSenha } = usuario;
+      
+      // Adicionar caminho completo se for customizado
+      if (fotoPerfilCompleto !== usuario.foto_perfil) {
+        usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
+      }
+
+      res.json({
+        success: true,
+        message: 'Login realizado com sucesso',
+        usuario: usuarioSemSenha
+      });
     });
   } catch (error) {
     console.error('Erro no login:', error);
