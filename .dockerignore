@@ -50,6 +50,7 @@ frontEnd/
 *.bat
 *.sh
 !deploy.sh
+!pre-deploy-check.sh
 
 # Docker
 Dockerfile*

@@ -76,10 +76,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configurar sessões
-const SESSION_SECRET = process.env.SESSION_SECRET || 'up-gestao-inteligente-secret-key-2024-fallback';
-if (!process.env.SESSION_SECRET) {
+// Gerar SESSION_SECRET automaticamente se não estiver definida (apenas em produção)
+let SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET && IS_PROD) {
+  // Gerar uma chave forte automaticamente usando crypto
+  const crypto = require('crypto');
+  SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+  // Aviso informativo (não crítico, pois foi gerado automaticamente)
+  console.error('ℹ️  INFO: SESSION_SECRET gerada automaticamente.');
+  console.error('   Para manter sessões entre reinícios, configure SESSION_SECRET no .env.production');
+} else if (!SESSION_SECRET) {
+  SESSION_SECRET = 'up-gestao-inteligente-secret-key-2024-fallback';
   console.error('⚠️  AVISO: SESSION_SECRET não definida. Usando valor padrão (NÃO RECOMENDADO PARA PRODUÇÃO)');
-  console.error('   Configure SESSION_SECRET no arquivo .env.production');
 }
 
 app.use(session({
@@ -89,10 +97,12 @@ app.use(session({
   cookie: {
     secure: IS_PROD ? true : false, // true em produção (HTTPS), false em desenvolvimento
     httpOnly: true,
-    sameSite: IS_PROD ? 'strict' : 'lax', // 'strict' em produção, 'lax' em desenvolvimento
+    sameSite: IS_PROD ? 'lax' : 'lax', // 'lax' funciona melhor com proxy reverso (nginx)
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
-    domain: undefined // Deixar undefined para funcionar com qualquer domínio
-  }
+    domain: undefined, // Deixar undefined para funcionar com qualquer domínio
+    path: '/' // Garantir que o cookie seja válido para todo o site
+  },
+  name: 'upgi.sid' // Nome específico para evitar conflitos
 }));
 
 // Middleware para proteger páginas HTML
