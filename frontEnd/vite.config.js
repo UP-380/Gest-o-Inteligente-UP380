@@ -40,13 +40,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false, // Desabilitar sourcemaps em produção para segurança
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remover console.log em produção
-        drop_debugger: true,
-      },
-    },
+    minify: 'esbuild', // Usar esbuild (padrão do Vite, já vem instalado)
     rollupOptions: {
       output: {
         manualChunks: {
