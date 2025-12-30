@@ -29,6 +29,9 @@ import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConheci
 import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
 import AtribuicaoCliente from './pages/AtribuicaoCliente/AtribuicaoCliente';
+import GestaoUsuarios from './pages/GestaoUsuarios/GestaoUsuarios';
+import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
+import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -383,6 +386,30 @@ function App() {
           element={
             <ProtectedRoute>
               <DocumentacaoAPI />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao/usuarios"
+          element={
+            <ProtectedRoute>
+              <GestaoUsuarios />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao/permissoes"
+          element={
+            <ProtectedRoute>
+              <ConfigPermissoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/planilha-horas"
+          element={
+            <ProtectedRoute>
+              <PlanilhaHoras />
             </ProtectedRoute>
           }
         />

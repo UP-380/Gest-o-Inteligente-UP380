@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { VERSAO_SISTEMA } from '../../config/versao';
+import { usePermissions } from '../../hooks/usePermissions';
 import './Sidebar.css';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { canAccessRoute, isAdmin } = usePermissions();
   const [relatoriosExpanded, setRelatoriosExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
@@ -33,7 +35,9 @@ const Sidebar = () => {
   const isConfiguracoesActive = () => {
     return isActive('/cadastro/custo-colaborador') || 
            isActive('/cadastro/vinculacoes') ||
-           isActive('/documentacao-api');
+           isActive('/documentacao-api') ||
+           isActive('/gestao/usuarios') ||
+           isActive('/gestao/permissoes');
   };
 
   const isBaseConhecimentoActive = () => {
@@ -69,7 +73,9 @@ const Sidebar = () => {
   useEffect(() => {
     const isConfiguracoesActive = location.pathname === '/cadastro/custo-colaborador' ||
                                    location.pathname === '/cadastro/vinculacoes' ||
-                                   location.pathname === '/documentacao-api';
+                                   location.pathname === '/documentacao-api' ||
+                                   location.pathname === '/gestao/usuarios' ||
+                                   location.pathname === '/gestao/permissoes';
     if (isConfiguracoesActive) {
       setConfiguracoesExpanded(true);
     }
@@ -104,122 +110,153 @@ const Sidebar = () => {
     setBaseConhecimentoExpanded(!baseConhecimentoExpanded);
   };
 
-  const menuItems = [
-    {
-      path: '/painel',
-      icon: 'fa-chart-bar',
-      label: 'Painel',
-      title: 'Painel'
-    },
-    {
-      path: '/painel-colaborador',
-      icon: 'fa-th-large',
-      label: 'Painel do Colaborador',
-      title: 'Painel do Colaborador'
-    },
-    {
-      path: '/atribuir-responsaveis',
-      icon: 'fa-user-check',
-      label: 'Atribuir Responsáveis',
-      title: 'Atribuir Responsáveis'
-    }
-  ];
+  // Filtrar itens do menu baseado em permissões
+  const menuItems = useMemo(() => {
+    const allItems = [
+      {
+        path: '/painel',
+        icon: 'fa-chart-bar',
+        label: 'Painel',
+        title: 'Painel'
+      },
+      {
+        path: '/painel-colaborador',
+        icon: 'fa-th-large',
+        label: 'Painel do Colaborador',
+        title: 'Painel do Colaborador'
+      },
+      {
+        path: '/atribuir-responsaveis',
+        icon: 'fa-user-check',
+        label: 'Atribuir Responsáveis',
+        title: 'Atribuir Responsáveis'
+      }
+    ];
+    return allItems.filter(item => canAccessRoute(item.path));
+  }, [canAccessRoute]);
 
-  const relatoriosSubItems = [
-    {
-      path: '/relatorios-clientes',
-      icon: 'fa-users',
-      label: 'Relatórios de Clientes',
-      title: 'Relatórios de Clientes'
-    },
-    {
-      path: '/relatorios-colaboradores',
-      icon: 'fa-user-tie',
-      label: 'Relatórios de Colaboradores',
-      title: 'Relatórios de Colaboradores'
-    }
-  ];
+  const relatoriosSubItems = useMemo(() => {
+    const allItems = [
+      {
+        path: '/relatorios-clientes',
+        icon: 'fa-users',
+        label: 'Relatórios de Clientes',
+        title: 'Relatórios de Clientes'
+      },
+      {
+        path: '/relatorios-colaboradores',
+        icon: 'fa-user-tie',
+        label: 'Relatórios de Colaboradores',
+        title: 'Relatórios de Colaboradores'
+      }
+    ];
+    return allItems.filter(item => canAccessRoute(item.path));
+  }, [canAccessRoute]);
 
-  const cadastrosSubItems = [
-    {
-      path: '/cadastro/clientes',
-      icon: 'fa-briefcase',
-      label: 'Clientes',
-      title: 'Clientes'
-    },
-    {
-      path: '/cadastro/colaboradores',
-      icon: 'fa-user-cog',
-      label: 'Colaboradores',
-      title: 'Colaboradores'
-    },
-    {
-      path: '/cadastro/produtos',
-      icon: 'fa-box',
-      label: 'Produtos',
-      title: 'Cadastro de Produtos'
-    },
-    {
-      path: '/cadastro/tarefas',
-      icon: 'fa-tasks',
-      label: 'Tarefas',
-      title: 'Cadastro de Tarefas'
-    },
-    {
-      path: '/cadastro/tipo-tarefas',
-      icon: 'fa-list-alt',
-      label: 'Tipo de Tarefas',
-      title: 'Cadastro de Tipo de Tarefas'
-    },
-    {
-      path: '/cadastro/bancos',
-      icon: 'fa-university',
-      label: 'Banco',
-      title: 'Cadastro de Banco'
-    },
-    {
-      path: '/cadastro/adquirentes',
-      icon: 'fa-credit-card',
-      label: 'Adquirente',
-      title: 'Cadastro de Adquirente'
-    },
-    {
-      path: '/cadastro/sistemas',
-      icon: 'fa-server',
-      label: 'Sistemas',
-      title: 'Cadastro de Sistemas'
-    }
-  ];
+  const cadastrosSubItems = useMemo(() => {
+    const allItems = [
+      {
+        path: '/cadastro/clientes',
+        icon: 'fa-briefcase',
+        label: 'Clientes',
+        title: 'Clientes'
+      },
+      {
+        path: '/cadastro/colaboradores',
+        icon: 'fa-user-cog',
+        label: 'Colaboradores',
+        title: 'Colaboradores'
+      },
+      {
+        path: '/cadastro/produtos',
+        icon: 'fa-box',
+        label: 'Produtos',
+        title: 'Cadastro de Produtos'
+      },
+      {
+        path: '/cadastro/tarefas',
+        icon: 'fa-tasks',
+        label: 'Tarefas',
+        title: 'Cadastro de Tarefas'
+      },
+      {
+        path: '/cadastro/tipo-tarefas',
+        icon: 'fa-list-alt',
+        label: 'Tipo de Tarefas',
+        title: 'Cadastro de Tipo de Tarefas'
+      },
+      {
+        path: '/cadastro/bancos',
+        icon: 'fa-university',
+        label: 'Banco',
+        title: 'Cadastro de Banco'
+      },
+      {
+        path: '/cadastro/adquirentes',
+        icon: 'fa-credit-card',
+        label: 'Adquirente',
+        title: 'Cadastro de Adquirente'
+      },
+      {
+        path: '/cadastro/sistemas',
+        icon: 'fa-server',
+        label: 'Sistemas',
+        title: 'Cadastro de Sistemas'
+      }
+    ];
+    return allItems.filter(item => canAccessRoute(item.path));
+  }, [canAccessRoute]);
 
-  const configuracoesSubItems = [
-    {
-      path: '/cadastro/custo-colaborador',
-      icon: 'fa-dollar-sign',
-      label: 'Custo Colaborador',
-      title: 'Custo Colaborador'
-    },
-    {
-      path: '/cadastro/vinculacoes',
-      icon: 'fa-link',
-      label: 'Vinculações',
-      title: 'Vinculações'
-    },
-    {
-      path: '/documentacao-api',
-      icon: 'fa-code',
-      label: 'Documentação API',
-      title: 'Documentação API'
-    }
-  ];
+  const configuracoesSubItems = useMemo(() => {
+    const allItems = [
+      {
+        path: '/cadastro/custo-colaborador',
+        icon: 'fa-dollar-sign',
+        label: 'Custo Colaborador',
+        title: 'Custo Colaborador'
+      },
+      {
+        path: '/cadastro/vinculacoes',
+        icon: 'fa-link',
+        label: 'Vinculações',
+        title: 'Vinculações'
+      },
+      {
+        path: '/documentacao-api',
+        icon: 'fa-code',
+        label: 'Documentação API',
+        title: 'Documentação API'
+      },
+      // Só mostrar gestão de usuários e configurações para administradores
+      ...(isAdmin ? [
+        {
+          path: '/gestao/usuarios',
+          icon: 'fa-users-cog',
+          label: 'Gestão de Usuários',
+          title: 'Gestão de Usuários'
+        },
+        {
+          path: '/gestao/permissoes',
+          icon: 'fa-shield-alt',
+          label: 'Configurar Permissões',
+          title: 'Configurar Permissões'
+        }
+      ] : [])
+    ];
+    return allItems.filter(item => canAccessRoute(item.path));
+  }, [canAccessRoute]);
 
-  const baseConhecimentoSubItems = [
-    {
-      path: '/base-conhecimento/conteudos-clientes',
-      icon: 'fa-briefcase',
-      label: 'Conteúdos Clientes',
-      title: 'Conteúdos Clientes'
-    }
-  ];
+  const baseConhecimentoSubItems = useMemo(() => {
+    const allItems = [
+      {
+        path: '/base-conhecimento/conteudos-clientes',
+        icon: 'fa-briefcase',
+        label: 'Conteúdos Clientes',
+        title: 'Conteúdos Clientes'
+      }
+    ];
+    return allItems.filter(item => canAccessRoute(item.path));
+  }, [canAccessRoute]);
 
   return (
     <nav className="sidebar" id="sidebar">
@@ -237,121 +274,129 @@ const Sidebar = () => {
             </Link>
           ))}
 
-          {/* Menu Relatórios com Submenu */}
-          <div className="sidebar-menu-group">
-            <button
-              type="button"
-              className={`sidebar-item sidebar-menu-toggle ${isRelatoriosActive() ? 'active' : ''}`}
-              title="Relatórios"
-              onClick={toggleRelatorios}
-              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-            >
-              <i className="fas fa-file-alt"></i>
-              <span className="sidebar-text">Relatórios</span>
-              <i className={`fas fa-chevron-right sidebar-chevron ${relatoriosExpanded ? 'expanded' : ''}`}></i>
-            </button>
-            
-            <div className={`sidebar-submenu ${relatoriosExpanded ? 'open' : ''}`}>
-              {relatoriosSubItems.map((subItem) => (
-                <Link
-                  key={subItem.path}
-                  to={subItem.path}
-                  className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                  title={subItem.title}
-                >
-                  <i className={`fas ${subItem.icon}`}></i>
-                  <span className="sidebar-text">{subItem.label}</span>
-                </Link>
-              ))}
+          {/* Menu Relatórios com Submenu - Só exibir se houver itens */}
+          {relatoriosSubItems.length > 0 && (
+            <div className="sidebar-menu-group">
+              <button
+                type="button"
+                className={`sidebar-item sidebar-menu-toggle ${isRelatoriosActive() ? 'active' : ''}`}
+                title="Relatórios"
+                onClick={toggleRelatorios}
+                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <i className="fas fa-file-alt"></i>
+                <span className="sidebar-text">Relatórios</span>
+                <i className={`fas fa-chevron-right sidebar-chevron ${relatoriosExpanded ? 'expanded' : ''}`}></i>
+              </button>
+              
+              <div className={`sidebar-submenu ${relatoriosExpanded ? 'open' : ''}`}>
+                {relatoriosSubItems.map((subItem) => (
+                  <Link
+                    key={subItem.path}
+                    to={subItem.path}
+                    className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                    title={subItem.title}
+                  >
+                    <i className={`fas ${subItem.icon}`}></i>
+                    <span className="sidebar-text">{subItem.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Menu Cadastros com Submenu */}
-          <div className="sidebar-menu-group">
-            <button
-              type="button"
-              className={`sidebar-item sidebar-menu-toggle ${isCadastrosActive() ? 'active' : ''}`}
-              title="Cadastros"
-              onClick={toggleCadastros}
-              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-            >
-              <i className="fas fa-database"></i>
-              <span className="sidebar-text">Cadastros</span>
-              <i className={`fas fa-chevron-right sidebar-chevron ${cadastrosExpanded ? 'expanded' : ''}`}></i>
-            </button>
-            
-            <div className={`sidebar-submenu ${cadastrosExpanded ? 'open' : ''}`}>
-              {cadastrosSubItems.map((subItem) => (
-                <Link
-                  key={subItem.path}
-                  to={subItem.path}
-                  className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                  title={subItem.title}
-                >
-                  <i className={`fas ${subItem.icon}`}></i>
-                  <span className="sidebar-text">{subItem.label}</span>
-                </Link>
-              ))}
+          {/* Menu Cadastros com Submenu - Só exibir se houver itens */}
+          {cadastrosSubItems.length > 0 && (
+            <div className="sidebar-menu-group">
+              <button
+                type="button"
+                className={`sidebar-item sidebar-menu-toggle ${isCadastrosActive() ? 'active' : ''}`}
+                title="Cadastros"
+                onClick={toggleCadastros}
+                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <i className="fas fa-database"></i>
+                <span className="sidebar-text">Cadastros</span>
+                <i className={`fas fa-chevron-right sidebar-chevron ${cadastrosExpanded ? 'expanded' : ''}`}></i>
+              </button>
+              
+              <div className={`sidebar-submenu ${cadastrosExpanded ? 'open' : ''}`}>
+                {cadastrosSubItems.map((subItem) => (
+                  <Link
+                    key={subItem.path}
+                    to={subItem.path}
+                    className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                    title={subItem.title}
+                  >
+                    <i className={`fas ${subItem.icon}`}></i>
+                    <span className="sidebar-text">{subItem.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Menu Base de Conhecimento com Submenu */}
-          <div className="sidebar-menu-group">
-            <button
-              type="button"
-              className={`sidebar-item sidebar-menu-toggle ${isBaseConhecimentoActive() ? 'active' : ''}`}
-              title="Base de Conhecimento"
-              onClick={toggleBaseConhecimento}
-              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-            >
-              <i className="fas fa-book"></i>
-              <span className="sidebar-text">Base de Conhecimento</span>
-              <i className={`fas fa-chevron-right sidebar-chevron ${baseConhecimentoExpanded ? 'expanded' : ''}`}></i>
-            </button>
-            
-            <div className={`sidebar-submenu ${baseConhecimentoExpanded ? 'open' : ''}`}>
-              {baseConhecimentoSubItems.map((subItem) => (
-                <Link
-                  key={subItem.path}
-                  to={subItem.path}
-                  className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                  title={subItem.title}
-                >
-                  <i className={`fas ${subItem.icon}`}></i>
-                  <span className="sidebar-text">{subItem.label}</span>
-                </Link>
-              ))}
+          {/* Menu Base de Conhecimento com Submenu - Só exibir se houver itens */}
+          {baseConhecimentoSubItems.length > 0 && (
+            <div className="sidebar-menu-group">
+              <button
+                type="button"
+                className={`sidebar-item sidebar-menu-toggle ${isBaseConhecimentoActive() ? 'active' : ''}`}
+                title="Base de Conhecimento"
+                onClick={toggleBaseConhecimento}
+                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <i className="fas fa-book"></i>
+                <span className="sidebar-text">Base de Conhecimento</span>
+                <i className={`fas fa-chevron-right sidebar-chevron ${baseConhecimentoExpanded ? 'expanded' : ''}`}></i>
+              </button>
+              
+              <div className={`sidebar-submenu ${baseConhecimentoExpanded ? 'open' : ''}`}>
+                {baseConhecimentoSubItems.map((subItem) => (
+                  <Link
+                    key={subItem.path}
+                    to={subItem.path}
+                    className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                    title={subItem.title}
+                  >
+                    <i className={`fas ${subItem.icon}`}></i>
+                    <span className="sidebar-text">{subItem.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Menu Configurações com Submenu */}
-          <div className="sidebar-menu-group">
-            <button
-              type="button"
-              className={`sidebar-item sidebar-menu-toggle ${isConfiguracoesActive() ? 'active' : ''}`}
-              title="Configurações"
-              onClick={toggleConfiguracoes}
-              style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
-            >
-              <i className="fas fa-cog"></i>
-              <span className="sidebar-text">Configurações</span>
-              <i className={`fas fa-chevron-right sidebar-chevron ${configuracoesExpanded ? 'expanded' : ''}`}></i>
-            </button>
-            
-            <div className={`sidebar-submenu ${configuracoesExpanded ? 'open' : ''}`}>
-              {configuracoesSubItems.map((subItem) => (
-                <Link
-                  key={subItem.path}
-                  to={subItem.path}
-                  className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                  title={subItem.title}
-                >
-                  <i className={`fas ${subItem.icon}`}></i>
-                  <span className="sidebar-text">{subItem.label}</span>
-                </Link>
-              ))}
+          {/* Menu Configurações com Submenu - Só exibir se houver itens */}
+          {configuracoesSubItems.length > 0 && (
+            <div className="sidebar-menu-group">
+              <button
+                type="button"
+                className={`sidebar-item sidebar-menu-toggle ${isConfiguracoesActive() ? 'active' : ''}`}
+                title="Configurações"
+                onClick={toggleConfiguracoes}
+                style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <i className="fas fa-cog"></i>
+                <span className="sidebar-text">Configurações</span>
+                <i className={`fas fa-chevron-right sidebar-chevron ${configuracoesExpanded ? 'expanded' : ''}`}></i>
+              </button>
+              
+              <div className={`sidebar-submenu ${configuracoesExpanded ? 'open' : ''}`}>
+                {configuracoesSubItems.map((subItem) => (
+                  <Link
+                    key={subItem.path}
+                    to={subItem.path}
+                    className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                    title={subItem.title}
+                  >
+                    <i className={`fas ${subItem.icon}`}></i>
+                    <span className="sidebar-text">{subItem.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Rodapé do Menu */}

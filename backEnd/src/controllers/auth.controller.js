@@ -119,12 +119,42 @@ async function login(req, res) {
     }
 
     // Buscar usuário na tabela usuarios do schema up_gestaointeligente
-    const { data: usuarios, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('usuarios')
-      .select('id, email_usuario, senha_login, nome_usuario, foto_perfil')
-      .eq('email_usuario', email.toLowerCase().trim())
-      .limit(1);
+    let usuarios = null;
+    let error = null;
+    
+    try {
+      const result = await supabase
+        .schema('up_gestaointeligente')
+        .from('usuarios')
+        .select('id, email_usuario, senha_login, nome_usuario, foto_perfil, permissoes')
+        .eq('email_usuario', email.toLowerCase().trim())
+        .limit(1);
+      
+      usuarios = result.data;
+      error = result.error;
+    } catch (selectError) {
+      // Se der erro ao fazer select (ex: coluna permissoes não existe), tentar sem
+      console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
+      try {
+        const resultFallback = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, email_usuario, senha_login, nome_usuario, foto_perfil')
+          .eq('email_usuario', email.toLowerCase().trim())
+          .limit(1);
+        
+        usuarios = resultFallback.data;
+        error = resultFallback.error;
+        
+        // Se conseguiu buscar sem permissoes, adicionar null
+        if (usuarios && usuarios.length > 0) {
+          usuarios[0].permissoes = null;
+        }
+      } catch (fallbackError) {
+        console.error('Erro ao buscar usuário no login (fallback):', fallbackError);
+        error = fallbackError;
+      }
+    }
 
     if (error) {
       console.error('Erro ao buscar usuário:', error);
@@ -188,7 +218,8 @@ async function login(req, res) {
       email_usuario: usuario.email_usuario,
       nome_usuario: usuario.nome_usuario,
       foto_perfil: usuario.foto_perfil || null,
-      foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null
+      foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null,
+      permissoes: usuario.permissoes !== undefined ? usuario.permissoes : null
     };
 
     // Salvar sessão explicitamente para garantir que o cookie seja definido
@@ -207,6 +238,11 @@ async function login(req, res) {
       // Adicionar caminho completo se for customizado
       if (fotoPerfilCompleto !== usuario.foto_perfil) {
         usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
+      }
+      
+      // Garantir que permissoes esteja presente
+      if (!usuarioSemSenha.permissoes) {
+        usuarioSemSenha.permissoes = null;
       }
 
       res.json({
@@ -258,14 +294,44 @@ async function checkAuth(req, res) {
       });
     }
 
-    if (req.session.usuario) {
-      // Buscar dados atualizados do usuário do banco (incluindo foto_perfil)
-      const { data: usuarioAtualizado, error: userError } = await supabase
-        .schema('up_gestaointeligente')
-        .from('usuarios')
-        .select('id, email_usuario, nome_usuario, foto_perfil')
-        .eq('id', req.session.usuario.id)
-        .maybeSingle();
+      if (req.session.usuario) {
+      // Buscar dados atualizados do usuário do banco (incluindo foto_perfil e permissoes)
+      let usuarioAtualizado = null;
+      let userError = null;
+      
+      try {
+        const result = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, email_usuario, nome_usuario, foto_perfil, permissoes')
+          .eq('id', req.session.usuario.id)
+          .maybeSingle();
+        
+        usuarioAtualizado = result.data;
+        userError = result.error;
+      } catch (selectError) {
+        // Se der erro ao fazer select (ex: coluna não existe), tentar sem permissoes
+        console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
+        try {
+          const resultFallback = await supabase
+            .schema('up_gestaointeligente')
+            .from('usuarios')
+            .select('id, email_usuario, nome_usuario, foto_perfil')
+            .eq('id', req.session.usuario.id)
+            .maybeSingle();
+          
+          usuarioAtualizado = resultFallback.data;
+          userError = resultFallback.error;
+          
+          // Se conseguiu buscar sem permissoes, adicionar null
+          if (usuarioAtualizado) {
+            usuarioAtualizado.permissoes = null;
+          }
+        } catch (fallbackError) {
+          console.error('Erro ao buscar usuário no checkAuth (fallback):', fallbackError);
+          userError = fallbackError;
+        }
+      }
 
       if (userError) {
         console.error('Erro ao buscar usuário no checkAuth:', userError);
@@ -325,7 +391,8 @@ async function checkAuth(req, res) {
           email_usuario: usuarioAtualizado.email_usuario,
           nome_usuario: usuarioAtualizado.nome_usuario,
           foto_perfil: usuarioAtualizado.foto_perfil || null,
-          foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null
+          foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null,
+          permissoes: usuarioAtualizado.permissoes !== undefined ? usuarioAtualizado.permissoes : null
         };
       }
 
