@@ -32,20 +32,46 @@ const ConteudosClientes = () => {
   
   // Estados do filtro de clientes
   const [filtroClienteId, setFiltroClienteId] = useState(null);
-  const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos', 'ativo', 'inativo'
+  const [filtroStatus, setFiltroStatus] = useState('ativo'); // 'todos', 'ativo', 'inativo'
   const [clientesParaFiltro, setClientesParaFiltro] = useState([]);
   
   // Estados do DetailSideCard
   const [detailCard, setDetailCard] = useState(null); // { clienteId, tipo, dados }
   const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
-  
-  // Estados para informações de completude (cache por cliente)
-  const [informacoesCache, setInformacoesCache] = useState({}); // Map de cliente_id -> { temConta, temSistema, temAdquirente }
 
-  // Carregar clientes para o filtro
-  const loadClientesParaFiltro = useCallback(async () => {
+  // Carregar clientes para o filtro - buscar baseado no status selecionado
+  const loadClientesParaFiltro = useCallback(async (statusFiltro = null) => {
     try {
-      const result = await clientesAPI.getAll(null, false);
+      // Buscar todos os clientes sem limite de paginação
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '10000' // Limite alto para pegar todos os clientes
+      });
+
+      // Adicionar filtro de status se não for 'todos'
+      if (statusFiltro && statusFiltro !== 'todos') {
+        params.append('status', statusFiltro);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/clientes?${params}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
       if (result.success && result.data && Array.isArray(result.data)) {
         // Garantir que todos os clientes tenham nome
         const clientesComDados = result.data.map(cliente => ({
@@ -53,6 +79,7 @@ const ConteudosClientes = () => {
           nome: cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || `Cliente #${cliente.id}`,
           status: cliente.status || 'ativo'
         }));
+        console.log(`✅ Carregados ${clientesComDados.length} clientes para o filtro (status: ${statusFiltro || 'todos'})`);
         setClientesParaFiltro(clientesComDados);
       }
     } catch (error) {
@@ -61,66 +88,6 @@ const ConteudosClientes = () => {
     }
   }, []);
 
-  // Carregar informações de completude para múltiplos clientes
-  const carregarInformacoesCompletude = useCallback(async (clientesArray) => {
-    if (!clientesArray || clientesArray.length === 0) return;
-
-    // Carregar informações para cada cliente de forma paralela
-    const promises = clientesArray.map(async (cliente) => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${cliente.id}`, {
-          credentials: 'include',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.status === 401) {
-          return null;
-        }
-
-        if (!response.ok) {
-          return null;
-        }
-
-        const result = await response.json();
-        if (result.success && result.data) {
-          return {
-            clienteId: cliente.id,
-            temConta: (result.data.contasBancarias || []).length > 0,
-            temSistema: (result.data.sistemas || []).length > 0,
-            temAdquirente: (result.data.adquirentes || []).length > 0
-          };
-        }
-        return null;
-      } catch (error) {
-        console.error(`Erro ao carregar informações do cliente ${cliente.id}:`, error);
-        return null;
-      }
-    });
-
-    // Aguardar todas as requisições
-    const resultados = await Promise.all(promises);
-
-    // Atualizar cache apenas com os resultados válidos
-    const novoCache = {};
-    resultados.forEach(result => {
-      if (result) {
-        novoCache[result.clienteId] = {
-          temConta: result.temConta,
-          temSistema: result.temSistema,
-          temAdquirente: result.temAdquirente
-        };
-      }
-    });
-
-    // Atualizar o cache de forma incremental
-    setInformacoesCache(prev => ({
-      ...prev,
-      ...novoCache
-    }));
-  }, []);
 
   // Carregar clientes
   const loadClientes = useCallback(async () => {
@@ -166,6 +133,8 @@ const ConteudosClientes = () => {
       if (result.success) {
         let clientesData = result.data || [];
         
+        console.log('📋 DADOS DO GETCLIENTES (primeiro cliente):', clientesData[0]);
+        
         // Aplicar filtro de cliente no frontend se houver
         if (temFiltroCliente) {
           const filtroIds = filtroClienteId.map(id => String(id).trim());
@@ -179,21 +148,18 @@ const ConteudosClientes = () => {
           clientesData = clientesFiltrados.slice(offset, offset + itemsPerPage);
           
           // Total é o número de clientes filtrados
-          setTotalClientes(clientesFiltrados.length);
-          setTotalPages(Math.ceil(clientesFiltrados.length / itemsPerPage));
+          const totalFiltrados = clientesFiltrados.length;
+          setTotalClientes(totalFiltrados);
+          setTotalPages(Math.max(1, Math.ceil(totalFiltrados / itemsPerPage)));
         } else {
-          setTotalClientes(result.total || 0);
-          setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
+          const total = result.total || 0;
+          setTotalClientes(total);
+          setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
         }
         
+        // USAR DADOS DIRETAMENTE DO GETCLIENTES (sem buscar individualmente)
+        console.log('📦 Usando dados do getClientes:', clientesData);
         setClientes(clientesData);
-        
-        // Carregar informações de completude para todos os clientes visíveis (assíncrono, não bloqueia)
-        if (clientesData.length > 0) {
-          setTimeout(() => {
-            carregarInformacoesCompletude(clientesData);
-          }, 0);
-        }
       } else {
         throw new Error(result.error || 'Erro ao carregar clientes');
       }
@@ -204,14 +170,14 @@ const ConteudosClientes = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, filtroClienteId, filtroStatus, showToast, carregarInformacoesCompletude]);
+  }, [currentPage, itemsPerPage, filtroClienteId, filtroStatus, showToast]);
 
   // Abrir base de conhecimento do cliente
   const handleViewKnowledge = (cliente) => {
     navigate(`/base-conhecimento/cliente/${cliente.id}`);
   };
 
-  // Buscar dados para o DetailSideCard e atualizar cache de informações
+  // Buscar dados para o DetailSideCard
   const loadDadosParaCard = useCallback(async (clienteId, tipo) => {
     try {
       const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${clienteId}`, {
@@ -233,16 +199,6 @@ const ConteudosClientes = () => {
 
       const result = await response.json();
       if (result.success && result.data) {
-        // Atualizar cache de informações de completude
-        setInformacoesCache(prev => ({
-          ...prev,
-          [clienteId]: {
-            temConta: (result.data.contasBancarias || []).length > 0,
-            temSistema: (result.data.sistemas || []).length > 0,
-            temAdquirente: (result.data.adquirentes || []).length > 0
-          }
-        }));
-        
         return result.data;
       }
       return null;
@@ -255,12 +211,6 @@ const ConteudosClientes = () => {
 
   // Abrir DetailSideCard
   const handleOpenContas = async (cliente, e) => {
-    // Verificar cache antes de abrir
-    const cacheInfo = informacoesCache[cliente.id];
-    if (cacheInfo && cacheInfo.temConta === false) {
-      return;
-    }
-    
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
@@ -288,12 +238,6 @@ const ConteudosClientes = () => {
   };
 
   const handleOpenSistemas = async (cliente, e) => {
-    // Verificar cache antes de abrir
-    const cacheInfo = informacoesCache[cliente.id];
-    if (cacheInfo && cacheInfo.temSistema === false) {
-      return;
-    }
-    
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
@@ -321,12 +265,6 @@ const ConteudosClientes = () => {
   };
 
   const handleOpenAdquirentes = async (cliente, e) => {
-    // Verificar cache antes de abrir
-    const cacheInfo = informacoesCache[cliente.id];
-    if (cacheInfo && cacheInfo.temAdquirente === false) {
-      return;
-    }
-    
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
@@ -373,6 +311,7 @@ const ConteudosClientes = () => {
 
   // Renderizar card de cliente
   const renderClientCard = (cliente) => {
+    // O endpoint getClientes já retorna os dados completos com foto_perfil resolvida
     // Priorizar nome_amigavel, depois nome_fantasia, depois razao_social
     const nomeExibicao = cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || 'Sem nome';
     const cnpj = cliente.cpf_cnpj || cliente.cnpj || '';
@@ -383,35 +322,30 @@ const ConteudosClientes = () => {
     const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconHoverColor = isAtivo ? '#144577' : '#f97316';
     
-    // Verificar cache de informações de completude
-    const cacheInfo = informacoesCache[cliente.id];
-    const temConta = cacheInfo ? cacheInfo.temConta : null; // null = ainda não verificado, false = sem dados, true = com dados
-    const temSistema = cacheInfo ? cacheInfo.temSistema : null;
-    const temAdquirente = cacheInfo ? cacheInfo.temAdquirente : null;
+    // Todos os ícones sempre usam a cor normal (sem validações de completude para otimização)
+    const contaIconColor = iconColor;
+    const sistemaIconColor = iconColor;
+    const adquirenteIconColor = iconColor;
     
-    // Cores dos ícones: cinza claro se não houver dados (false), cor normal se houver (true) ou ainda não verificado (null)
-    const contaIconColor = temConta === false ? '#d1d5db' : iconColor;
-    const sistemaIconColor = temSistema === false ? '#d1d5db' : iconColor;
-    const adquirenteIconColor = temAdquirente === false ? '#d1d5db' : iconColor;
-    
-    // Desabilitar botões quando não houver dados confirmados
-    const contaDisabled = temConta === false;
-    const sistemaDisabled = temSistema === false;
-    const adquirenteDisabled = temAdquirente === false;
+    // Botões sempre habilitados (sem validações)
+    const contaDisabled = false;
+    const sistemaDisabled = false;
+    const adquirenteDisabled = false;
+
+    // Sempre mostrar razão social se existir (mesmo que seja igual ao nome de exibição)
+    // Isso é importante para casos onde todos os campos são iguais mas queremos mostrar a informação completa
+    const deveMostrarRazaoSocial = cliente.razao_social && cliente.razao_social.trim() !== '';
 
     return (
-      <div key={cliente.id} className="cliente-knowledge-card">
+      <div key={cliente.id} className={`cliente-knowledge-card ${!isAtivo ? 'cliente-knowledge-card-inactive' : ''}`}>
         <div className="cliente-knowledge-card-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
             <Avatar
-              avatarId={
-                cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-') && !cliente.foto_perfil_path
-                  ? DEFAULT_AVATAR
-                  : (cliente.foto_perfil || DEFAULT_AVATAR)
-              }
+              avatarId={cliente.foto_perfil || DEFAULT_AVATAR}
               nomeUsuario={nomeExibicao}
               size="medium"
-              customImagePath={cliente.foto_perfil_path || null}
+              entityType="cliente"
+              entityId={cliente.id}
             />
             <h3 
               className="cliente-knowledge-card-title"
@@ -427,7 +361,7 @@ const ConteudosClientes = () => {
           )}
         </div>
         <div className="cliente-knowledge-card-body">
-          {cliente.razao_social && cliente.razao_social !== nomeExibicao && (
+          {deveMostrarRazaoSocial && (
             <div className="cliente-knowledge-card-field">
               <label>Razão Social</label>
               <div className="cliente-knowledge-card-value">{cliente.razao_social}</div>
@@ -503,21 +437,29 @@ const ConteudosClientes = () => {
 
   // Handler para mudança no filtro de status
   const handleFiltroStatusChange = useCallback((e) => {
-    setFiltroStatus(e.target.value);
+    const novoStatus = e.target.value;
+    setFiltroStatus(novoStatus);
     setCurrentPage(1);
-  }, []);
+    // Limpar filtro de cliente quando mudar o status
+    setFiltroClienteId(null);
+    // Recarregar clientes do filtro baseado no novo status
+    loadClientesParaFiltro(novoStatus);
+  }, [loadClientesParaFiltro]);
 
   // Limpar filtros
   const limparFiltros = useCallback(() => {
     setFiltroClienteId(null);
     setFiltroStatus('todos');
     setCurrentPage(1);
-  }, []);
-
-  // Carregar dados iniciais
-  useEffect(() => {
-    loadClientesParaFiltro();
+    // Recarregar clientes do filtro com status 'todos'
+    loadClientesParaFiltro('todos');
   }, [loadClientesParaFiltro]);
+
+  // Carregar dados iniciais apenas uma vez
+  useEffect(() => {
+    loadClientesParaFiltro('ativo'); // Carregar clientes ativos por padrão
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Carregar apenas na montagem inicial
 
   useEffect(() => {
     loadClientes();
@@ -621,15 +563,7 @@ const ConteudosClientes = () => {
                 showActions={true}
                 style={{ marginBottom: '24px' }}
               >
-                <div className="filter-group" style={{ flex: '1', minWidth: '300px' }}>
-                  <FilterClientes
-                    value={filtroClienteId}
-                    onChange={handleFiltroClienteChange}
-                    options={clientesParaFiltro}
-                    disabled={false}
-                  />
-                </div>
-                
+                {/* Status primeiro */}
                 <div className="filter-group" style={{ flex: '0 0 auto', minWidth: '200px' }}>
                   <label className="filter-label">Status</label>
                   <select
@@ -654,6 +588,16 @@ const ConteudosClientes = () => {
                     <option value="ativo">Ativo</option>
                     <option value="inativo">Inativo</option>
                   </select>
+                </div>
+                
+                {/* Cliente depois (filtrado pelo status) */}
+                <div className="filter-group" style={{ flex: '1', minWidth: '300px' }}>
+                  <FilterClientes
+                    value={filtroClienteId}
+                    onChange={handleFiltroClienteChange}
+                    options={clientesParaFiltro}
+                    disabled={false}
+                  />
                 </div>
               </FiltersCard>
 
@@ -763,17 +707,16 @@ const ConteudosClientes = () => {
                     {clientes.map(cliente => renderClientCard(cliente))}
                   </div>
                   
-                  {totalPages > 1 && (
-                    <div style={{ marginTop: '32px' }}>
-                      <Pagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onPageChange={setCurrentPage}
-                        itemsPerPage={itemsPerPage}
-                        totalItems={totalClientes}
-                        onItemsPerPageChange={setItemsPerPage}
-                      />
-                    </div>
+                  {totalClientes > 0 && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPage}
+                      itemsPerPage={itemsPerPage}
+                      totalItems={totalClientes}
+                      onItemsPerPageChange={setItemsPerPage}
+                      itemName="clientes"
+                    />
                   )}
                 </>
               ) : (
@@ -786,7 +729,7 @@ const ConteudosClientes = () => {
                     emptyIcon="fa-users"
                   />
 
-                  {totalPages > 1 && (
+                  {totalClientes > 0 && (
                     <Pagination
                       currentPage={currentPage}
                       totalPages={totalPages}
@@ -794,6 +737,7 @@ const ConteudosClientes = () => {
                       itemsPerPage={itemsPerPage}
                       totalItems={totalClientes}
                       onItemsPerPageChange={setItemsPerPage}
+                      itemName="clientes"
                     />
                   )}
                 </>

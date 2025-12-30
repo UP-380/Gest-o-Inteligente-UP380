@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { isColorAvatar, isImageAvatar, isCustomAvatar, getAvatarColor, getAvatarImagePath, getInitialsFromName, DEFAULT_AVATAR } from '../../utils/avatars';
-import { authAPI } from '../../services/api';
+import { authAPI, clientesAPI } from '../../services/api';
 import './Avatar.css';
 
 const Avatar = ({ 
@@ -19,7 +19,8 @@ const Avatar = ({
   nomeUsuario = '', 
   size = 'normal',
   className = '',
-  customImagePath = null // Caminho completo da imagem customizada (opcional)
+  entityType = 'user', // 'user' ou 'cliente'
+  entityId = null // ID da entidade (necessário se entityType for 'cliente' e avatarId for custom-{id})
 }) => {
   // Usar avatar padrão se não fornecido
   const fotoPerfil = avatarId || DEFAULT_AVATAR;
@@ -27,20 +28,29 @@ const Avatar = ({
   // Determinar tipo e configuração do avatar
   let avatarConfig = null;
   
-  if (isColorAvatar(fotoPerfil)) {
+  // Verificar se foto_perfil é uma URL (avatar customizado já resolvido) ou custom-{id}
+  const isUrlAvatar = fotoPerfil && (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://'));
+  const isCustomAvatarId = fotoPerfil && fotoPerfil.startsWith('custom-');
+
+  if (isUrlAvatar) {
+    // Avatar customizado - foto_perfil já contém a URL completa (resolvida pelo backend)
+    avatarConfig = {
+      type: 'custom',
+      path: fotoPerfil // URL completa já resolvida
+    };
+  } else if (isCustomAvatarId) {
+    // Avatar customizado não resolvido (custom-{id}) - será resolvido via API
+    avatarConfig = {
+      type: 'custom',
+      path: null, // Será buscado via API usando metadados
+      customId: fotoPerfil
+    };
+  } else if (isColorAvatar(fotoPerfil)) {
     const colorConfig = getAvatarColor(fotoPerfil);
     avatarConfig = {
       type: 'color',
       gradient: colorConfig ? colorConfig.gradient : 'linear-gradient(135deg, #4a90e2, #357abd)',
       initials: getInitialsFromName(nomeUsuario)
-    };
-  } else if (isCustomAvatar(fotoPerfil)) {
-    // Avatar customizado - será resolvido via state
-    const userId = fotoPerfil.replace('custom-', '');
-    avatarConfig = {
-      type: 'custom',
-      path: null, // Será buscado via API
-      userId: userId
     };
   } else if (isImageAvatar(fotoPerfil)) {
     const imagePath = getAvatarImagePath(fotoPerfil);
@@ -57,39 +67,42 @@ const Avatar = ({
     };
   }
 
-  // State para armazenar o caminho da imagem customizada
-  const [customImagePathState, setCustomImagePathState] = useState(customImagePath);
-  const [loadingCustomImage, setLoadingCustomImage] = useState(false);
-  const [hasTriedFetch, setHasTriedFetch] = useState(false); // Flag para evitar requisições repetidas
   const [imageLoaded, setImageLoaded] = useState(false); // Flag para controlar quando a imagem carregou
+  const [customImagePath, setCustomImagePath] = useState(avatarConfig.type === 'custom' ? avatarConfig.path : null);
+  const [loadingCustomImage, setLoadingCustomImage] = useState(false);
 
-  // Resetar estado quando avatarId ou customImagePath mudarem
+  // Buscar avatar customizado via API se necessário (apenas se for custom-{id} e não tiver URL já resolvida)
   useEffect(() => {
-    setCustomImagePathState(customImagePath);
-    setHasTriedFetch(false);
-    setLoadingCustomImage(false);
-    setImageLoaded(false);
-  }, [avatarId, customImagePath]);
-
-  // Usar o caminho fornecido como prop ou buscar via API (APENAS UMA VEZ)
-  useEffect(() => {
-    // Se já temos o caminho fornecido como prop, usar ele (prioridade máxima)
-    if (customImagePath) {
-      setCustomImagePathState(customImagePath);
-      setHasTriedFetch(true); // Marcar como tentado para não buscar via API
-      return;
-    }
-    
-    // Se é avatar customizado, ainda não temos caminho, e ainda não tentamos buscar
-    // IMPORTANTE: Só buscar via API se NÃO tivermos customImagePath como prop
-    if (avatarConfig?.type === 'custom' && !customImagePath && !customImagePathState && !loadingCustomImage && !hasTriedFetch) {
+    // Só buscar via API se:
+    // 1. É tipo custom
+    // 2. Tem customId (ou seja, é custom-{id}, não URL já resolvida)
+    // 3. Não tem avatarConfig.path (URL já resolvida pelo backend)
+    // 4. Não tem customImagePath já definido
+    // 5. Não está carregando
+    if (
+      avatarConfig.type === 'custom' && 
+      avatarConfig.customId && 
+      !avatarConfig.path && // Não tem URL já resolvida pelo backend
+      !customImagePath && 
+      !loadingCustomImage
+    ) {
       setLoadingCustomImage(true);
-      setHasTriedFetch(true); // Marcar que já tentamos, mesmo se falhar
       
-      authAPI.getCustomAvatarPath()
+      // Determinar qual API usar e qual ID passar
+      let fetchAvatar;
+      if (entityType === 'cliente') {
+        // Para cliente, usar entityId se fornecido, ou extrair do customId
+        const clienteId = entityId || avatarConfig.customId.replace('custom-', '');
+        fetchAvatar = clientesAPI.getClienteCustomAvatarPath(clienteId);
+      } else {
+        // Para usuário, usar API de auth (busca do usuário logado)
+        fetchAvatar = authAPI.getCustomAvatarPath();
+      }
+      
+      fetchAvatar
         .then(result => {
           if (result.success && result.imagePath) {
-            setCustomImagePathState(result.imagePath);
+            setCustomImagePath(result.imagePath);
           }
         })
         .catch(() => {
@@ -99,19 +112,21 @@ const Avatar = ({
           setLoadingCustomImage(false);
         });
     }
-  }, [avatarConfig?.type, customImagePath, avatarId, customImagePathState, loadingCustomImage, hasTriedFetch]);
+  }, [avatarConfig.type, avatarConfig.customId, avatarConfig.path, customImagePath, loadingCustomImage, entityType, entityId]);
 
   // Classes CSS baseadas no tamanho
   const sizeClass = `avatar-${size}`;
   const baseClass = `user-avatar ${sizeClass} ${className}`.trim();
 
   if (avatarConfig.type === 'image' || avatarConfig.type === 'custom') {
-    // Para avatar customizado, usar o caminho buscado via API ou fornecido como prop
-    let imagePath = avatarConfig.type === 'custom' ? customImagePathState : avatarConfig.path;
+    // Para avatar customizado, usar URL resolvida (já vem do backend ou foi buscada via API)
+    // Priorizar customImagePath (URL buscada via API), depois avatarConfig.path (URL do backend), ou null
+    const imagePath = avatarConfig.type === 'custom' 
+      ? (customImagePath || avatarConfig.path) 
+      : avatarConfig.path;
     
-    // Se ainda não temos o caminho e é customizado, mostrar loading ou fallback
-    if (avatarConfig.type === 'custom' && !imagePath && loadingCustomImage) {
-      // Mostrar iniciais enquanto carrega
+    // Se ainda está carregando (buscando via API) e não temos caminho ainda, mostrar fallback com iniciais
+    if ((avatarConfig.type === 'custom' && loadingCustomImage && !imagePath) || (!imagePath && avatarConfig.type !== 'custom')) {
       return (
         <div
           className={baseClass}
@@ -122,16 +137,14 @@ const Avatar = ({
       );
     }
     
-    // Se não temos caminho para customizado, não tentar carregar (mostrar fallback com iniciais)
-    if (avatarConfig.type === 'custom' && !imagePath) {
-      // Não tentar construir caminho - o arquivo tem timestamp no nome
-      // Se não temos o caminho correto, mostrar avatar com iniciais
+    // Se não temos caminho mesmo após não estar carregando, mostrar fallback
+    if (!imagePath) {
       return (
         <div
           className={baseClass}
           style={{ background: 'linear-gradient(135deg, #4a90e2, #357abd)' }}
         >
-          {avatarConfig.initials || getInitialsFromName(nomeUsuario)}
+          {getInitialsFromName(nomeUsuario)}
         </div>
       );
     }

@@ -216,9 +216,10 @@ const TarefasList = ({ usuario: usuarioProp }) => {
           const membro = result.data.find(m => String(m.id) === String(membroId));
           if (membro) {
             setNomeColaborador(membro.nome);
-            // Se houver foto, buscar (pode estar em outro campo)
-            if (membro.foto_perfil_path) {
-              setFotoPerfilColaborador(membro.foto_perfil_path);
+            // Avatar é resolvido automaticamente pelo componente Avatar via Supabase Storage
+            // Usar foto_perfil diretamente
+            if (membro.foto_perfil) {
+              setFotoPerfilColaborador(membro.foto_perfil);
             }
           }
         }
@@ -351,12 +352,14 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         <div className="tarefas-list-summary-left">
           <span className="tarefas-badge tarefas-badge-responsavel">RESPONSÁVEL</span>
           <h3 className="tarefas-summary-title">
-            {fotoPerfilColaborador || usuario?.foto_perfil_path || usuario?.avatar_id ? (
+            {fotoPerfilColaborador || usuario?.foto_perfil ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Avatar
-                  avatarId={fotoPerfilColaborador || usuario?.foto_perfil_path || usuario?.avatar_id}
+                  avatarId={fotoPerfilColaborador || usuario?.foto_perfil}
                   nomeUsuario={nomeColaborador || getNomeUsuario()}
                   size="tiny"
+                  entityType="user"
+                  entityId={usuario?.id}
                 />
                 <span>{nomeColaborador || getNomeUsuario()}</span>
               </div>

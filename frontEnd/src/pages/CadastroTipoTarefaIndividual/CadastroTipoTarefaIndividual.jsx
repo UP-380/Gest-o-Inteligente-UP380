@@ -221,10 +221,7 @@ const CadastroTipoTarefaIndividual = () => {
                   </div>
                   <button
                     className="btn-secondary cadastro-tipo-tarefa-back-btn"
-                    onClick={() => {
-                      const fromPath = location.state?.from || '/cadastro/tipo-tarefas';
-                      navigate(fromPath);
-                    }}
+                    onClick={() => navigate(-1)}
                     disabled={submitting}
                   >
                     <i className="fas fa-arrow-left"></i>

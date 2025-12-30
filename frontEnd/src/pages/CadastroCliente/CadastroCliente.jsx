@@ -36,6 +36,7 @@ const CadastroCliente = () => {
     razao: '',
     fantasia: '',
     amigavel: '',
+    nome: '',
     cnpj: '',
     status: '',
     kaminoNome: '',
@@ -50,7 +51,6 @@ const CadastroCliente = () => {
   // Estados para foto de perfil
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoPreview, setFotoPreview] = useState(null);
-  const [customFotoPath, setCustomFotoPath] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [imageToCrop, setImageToCrop] = useState(null);
   const [showAvatarCard, setShowAvatarCard] = useState(false);
@@ -157,6 +157,8 @@ const CadastroCliente = () => {
           fantasia: clienteData.nome_fantasia || clienteData.fantasia || '',
           // Mapear nome_amigavel -> amigavel
           amigavel: clienteData.nome_amigavel || clienteData.amigavel || '',
+          // Mapear nome -> nome (campo da tabela cp_clientes)
+          nome: clienteData.nome || '',
           // Mapear cpf_cnpj -> cnpj (já limpo)
           cnpj: cnpjLimpo,
           status: clienteData.status || '',
@@ -170,21 +172,14 @@ const CadastroCliente = () => {
           uploadedFotoPath: null
         }));
 
-        // Sempre tentar carregar o caminho da foto customizada se houver
-        if (fotoPerfilValue && isCustomAvatar(fotoPerfilValue)) {
-          if (clienteData.foto_perfil_path) {
-            setCustomFotoPath(clienteData.foto_perfil_path);
-          } else {
-            // Se não tiver o caminho, tentar buscar o arquivo mais recente
-            setCustomFotoPath(null);
-          }
-        } else {
-          // Se não for custom, limpar o caminho
-          setCustomFotoPath(null);
-        }
-        
         // Limpar foto preview quando carregar dados do backend
         setFotoPreview(null);
+        
+        // Atualizar formData com foto_perfil
+        setFormData(prev => ({
+          ...prev,
+          foto_perfil: clienteData.foto_perfil || DEFAULT_AVATAR
+        }));
       } else {
         throw new Error(result.error || 'Erro ao carregar dados do cliente');
       }
@@ -238,7 +233,6 @@ const CadastroCliente = () => {
       uploadedFotoPath: null
     }));
     setFotoPreview(null);
-    setCustomFotoPath(null);
   };
 
   // Função para salvar apenas o avatar
@@ -281,31 +275,49 @@ const CadastroCliente = () => {
       const result = await response.json();
 
       if (result.success) {
-        // Atualizar apenas o estado do cliente com foto_perfil atualizado (sem recarregar tudo)
+        // Fazer GET para buscar dados atualizados do cliente (foto_perfil já contém URL completa)
+        const idToUse = formData.id || clienteId;
+        try {
+          const getResponse = await fetch(`${API_BASE_URL}/clientes/${idToUse}`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+
+          if (getResponse.ok) {
+            const getResult = await getResponse.json();
+            if (getResult.success && getResult.data?.cliente) {
+              const clienteAtualizado = getResult.data.cliente;
+              
+              // Atualizar estado do cliente com dados completos
+              setCliente(prev => ({
+                ...prev,
+                ...clienteAtualizado,
+                foto_perfil: clienteAtualizado.foto_perfil || fotoPerfilValue
+              }));
+              
+              // Atualizar formData também
+              setFormData(prev => ({
+                ...prev,
+                foto_perfil: clienteAtualizado.foto_perfil || fotoPerfilValue
+              }));
+            }
+          }
+        } catch (getError) {
+          console.error('Erro ao buscar dados atualizados do cliente:', getError);
+          // Não falhar o salvamento se o GET falhar, apenas logar o erro
+        }
+        
+        // Atualizar também o estado baseado no resultado do PUT (fallback)
         if (result.cliente) {
           setCliente(prev => ({
             ...prev,
-            foto_perfil: result.cliente.foto_perfil || fotoPerfilValue,
-            foto_perfil_path: result.cliente.foto_perfil_path || prev?.foto_perfil_path
+            foto_perfil: result.cliente.foto_perfil || fotoPerfilValue
           }));
-        } else {
-          // Se não retornou cliente completo, atualizar apenas foto_perfil
-          setCliente(prev => ({
+          
+          setFormData(prev => ({
             ...prev,
-            foto_perfil: fotoPerfilValue
+            foto_perfil: result.cliente.foto_perfil || fotoPerfilValue
           }));
-        }
-        
-        // Se houver foto customizada, manter o caminho se já estiver definido
-        if (isCustomAvatar(fotoPerfilValue)) {
-          // Se o backend retornou foto_perfil_path, usar ele
-          if (result.cliente?.foto_perfil_path) {
-            setCustomFotoPath(result.cliente.foto_perfil_path);
-          }
-          // Senão, manter o customFotoPath que já estava definido
-        } else {
-          // Se não for custom, limpar o caminho
-          setCustomFotoPath(null);
         }
         
         // Limpar preview temporário
@@ -333,13 +345,20 @@ const CadastroCliente = () => {
       const result = await clientesAPI.uploadClienteFoto(croppedFile, formData.id || clienteId);
       
       if (result.success) {
-        setCustomFotoPath(result.imagePath);
+        // foto_perfil já contém a URL completa do Supabase Storage
         setFotoPreview(URL.createObjectURL(croppedFile));
+        
+        // Atualizar formData e cliente com a URL completa
+        const fotoPerfilUrl = result.cliente.foto_perfil || result.imagePath || DEFAULT_AVATAR;
         
         setFormData(prev => ({
           ...prev,
-          foto_perfil: result.cliente.foto_perfil || DEFAULT_AVATAR,
-          uploadedFotoPath: result.imagePath
+          foto_perfil: fotoPerfilUrl
+        }));
+        
+        setCliente(prev => ({
+          ...prev,
+          foto_perfil: fotoPerfilUrl
         }));
         
         // Reabrir o card após upload para permitir salvar
@@ -380,6 +399,7 @@ const CadastroCliente = () => {
         razao_social: sanitize(formData.razao),
         nome_fantasia: sanitize(formData.fantasia),
         nome_amigavel: sanitize(formData.amigavel),
+        nome: sanitize(formData.nome),
         cpf_cnpj: sanitize(formData.cnpj),
         status: sanitize(formData.status),
         nome_cli_kamino: sanitize(formData.kaminoNome),
@@ -413,8 +433,7 @@ const CadastroCliente = () => {
           setCliente(prev => ({
             ...prev,
             ...result.cliente,
-            foto_perfil: result.cliente.foto_perfil || prev?.foto_perfil,
-            foto_perfil_path: result.cliente.foto_perfil_path || prev?.foto_perfil_path
+            foto_perfil: result.cliente.foto_perfil || prev?.foto_perfil
           }));
           
           // Atualizar formData também para manter sincronizado
@@ -469,9 +488,9 @@ const CadastroCliente = () => {
                 <p style={{ color: '#64748b', marginBottom: '24px' }}>Não foi possível carregar os dados do cliente.</p>
                 <button
                   className="btn-secondary"
-                  onClick={() => navigate('/cadastro/clientes')}
+                  onClick={() => navigate(-1)}
                 >
-                  Voltar para lista de clientes
+                  Voltar
                 </button>
               </div>
             </CardContainer>
@@ -492,9 +511,9 @@ const CadastroCliente = () => {
                 <p style={{ color: '#64748b' }}>Funcionalidade de novo cadastro em desenvolvimento.</p>
                 <button
                   className="btn-secondary"
-                  onClick={() => navigate('/cadastro/clientes')}
+                  onClick={() => navigate(-1)}
                 >
-                  Voltar para lista de clientes
+                  Voltar
                 </button>
               </div>
             </CardContainer>
@@ -526,20 +545,9 @@ const CadastroCliente = () => {
                         title="Clique para alterar a foto de perfil"
                       >
                         <Avatar
-                          avatarId={
-                            (() => {
-                              const fotoPerfil = formData.foto_perfil || cliente?.foto_perfil;
-                              const fotoPath = customFotoPath || cliente?.foto_perfil_path;
-                              // Se é custom mas não tem path, usar avatar padrão
-                              if (fotoPerfil && fotoPerfil.startsWith('custom-') && !fotoPath) {
-                                return DEFAULT_AVATAR;
-                              }
-                              return fotoPerfil || DEFAULT_AVATAR;
-                            })()
-                          }
+                          avatarId={formData.foto_perfil || cliente?.foto_perfil || DEFAULT_AVATAR}
                           nomeUsuario={formData.amigavel || cliente?.nome_amigavel || cliente?.nome_fantasia || cliente?.fantasia || cliente?.razao_social || cliente?.razao || cliente?.nome || 'Cliente'}
                           size="large"
-                          customImagePath={customFotoPath || cliente?.foto_perfil_path || null}
                         />
                       </div>
                       
@@ -569,10 +577,7 @@ const CadastroCliente = () => {
                   </div>
                   <button
                     className="btn-secondary cadastro-cliente-back-btn"
-                    onClick={() => {
-                      const fromPath = location.state?.from || '/cadastro/clientes';
-                      navigate(fromPath);
-                    }}
+                    onClick={() => navigate(-1)}
                   >
                     <i className="fas fa-arrow-left"></i>
                     Voltar

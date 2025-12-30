@@ -105,14 +105,6 @@ function App() {
         />
         {/* Redirecionamentos de URLs antigas */}
         <Route
-          path="/carteira-clientes"
-          element={
-            <ProtectedRoute>
-              <Navigate to="/cadastro/clientes" replace />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/gestao-clientes"
           element={
             <ProtectedRoute>
