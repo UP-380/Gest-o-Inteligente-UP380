@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import TarefasDetalhadasList from './TarefasDetalhadasList';
+import ClientesDetalhadosList from './ClientesDetalhadosList';
+import ProdutosDetalhadosList from './ProdutosDetalhadosList';
+import ResponsaveisDetalhadosList from './ResponsaveisDetalhadosList';
 import './DetailSideCard.css';
 
 const API_BASE_URL = '/api';
@@ -40,8 +43,47 @@ const formatarDataHora = (dataInput) => {
 const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRealizado, formatarTempoEstimado, formatarData, calcularCustoPorTempo, formatarValorMonetario, getNomeCliente }) => {
   const cardRef = useRef(null);
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
+  const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
+  const [produtosExpandidos, setProdutosExpandidos] = useState(new Set());
+  const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
   const [registrosIndividuais, setRegistrosIndividuais] = useState({});
   const [carregandoRegistros, setCarregandoRegistros] = useState({});
+  const [nomesColaboradoresPorUsuarioId, setNomesColaboradoresPorUsuarioId] = useState(new Map());
+
+  // Buscar nomes de colaboradores por usuario_id
+  useEffect(() => {
+    const carregarNomesColaboradores = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/membros-id-nome`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const mapa = new Map();
+            result.data.forEach(membro => {
+              if (membro.usuario_id) {
+                mapa.set(String(membro.usuario_id), membro.nome);
+              }
+            });
+            setNomesColaboradoresPorUsuarioId(mapa);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar nomes de colaboradores:', error);
+      }
+    };
+
+    carregarNomesColaboradores();
+  }, []);
+
+  // Função para buscar nome do colaborador por usuario_id
+  const getNomeColaboradorPorUsuarioId = (usuarioId) => {
+    if (!usuarioId) return null;
+    return nomesColaboradoresPorUsuarioId.get(String(usuarioId)) || null;
+  };
 
   useEffect(() => {
     // Fechar ao clicar fora
@@ -159,13 +201,13 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
   const tipoInfo = tipoLabels[tipo] || { label: tipo, icon: 'fa-info-circle', color: '#4b5563' };
 
-  // Calcular posição
+  // Calcular posição - estilo igual ao servidor original
   let cardStyle = {
     position: 'absolute',
     width: '500px',
     minWidth: '420px',
     maxWidth: '560px',
-    maxHeight: '50vh',
+    maxHeight: '75vh',
     background: '#fff',
     border: '1px solid #e5e7eb',
     borderRadius: '12px',
@@ -181,7 +223,6 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
   };
 
   if (position) {
-    // Position vem como objeto { left: '500px', top: '300px' }
     cardStyle.left = position.left;
     cardStyle.top = position.top;
     cardStyle.position = 'absolute';
@@ -193,7 +234,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     cardStyle.transform = 'translate(-50%, -50%) scale(0.95)';
   }
 
-  // Aplicar animação após montagem
+  // Aplicar animação após montagem (apenas uma vez)
   useEffect(() => {
     const card = cardRef.current;
     if (card) {
@@ -206,11 +247,11 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         }
       });
     }
-  }, [position]);
+  }, [position]); // Apenas quando position muda (abre/fecha), não em scroll
 
-  // Se for tarefas, os dados já vêm agrupados com tempo realizado total e registros
+  // Se for tarefas, clientes, produtos ou responsáveis, os dados já vêm agrupados com tempo realizado total e registros
   // Para outros tipos, agrupar por nome (para mostrar apenas uma vez cada item)
-  const itensLista = tipo === 'tarefas' 
+  const itensLista = (tipo === 'tarefas' || tipo === 'clientes' || tipo === 'produtos' || tipo === 'responsaveis')
     ? dados.registros 
     : (() => {
         const itensUnicos = {};
@@ -239,6 +280,42 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         if (tarefa) {
           buscarRegistrosIndividuais(tarefa);
         }
+      }
+      return newExpanded;
+    });
+  };
+
+  const toggleCliente = (clienteId) => {
+    setClientesExpandidos(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(clienteId)) {
+        newExpanded.delete(clienteId);
+      } else {
+        newExpanded.add(clienteId);
+      }
+      return newExpanded;
+    });
+  };
+
+  const toggleProduto = (produtoId) => {
+    setProdutosExpandidos(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(produtoId)) {
+        newExpanded.delete(produtoId);
+      } else {
+        newExpanded.add(produtoId);
+      }
+      return newExpanded;
+    });
+  };
+
+  const toggleResponsavel = (responsavelId) => {
+    setResponsaveisExpandidos(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(responsavelId)) {
+        newExpanded.delete(responsavelId);
+      } else {
+        newExpanded.add(responsavelId);
       }
       return newExpanded;
     });
@@ -274,6 +351,52 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               formatarTempoHMS={formatarTempoHMS}
               onToggleTarefa={toggleTarefa}
               getNomeCliente={getNomeCliente}
+              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+            />
+          ) : tipo === 'clientes' ? (
+            <ClientesDetalhadosList
+              clientes={itensLista}
+              clientesExpandidos={clientesExpandidos}
+              registrosIndividuais={registrosIndividuais}
+              carregandoRegistros={carregandoRegistros}
+              formatarTempoEstimado={formatarTempoEstimado}
+              calcularCustoPorTempo={calcularCustoPorTempo}
+              formatarValorMonetario={formatarValorMonetario}
+              formatarDataHora={formatarDataHora}
+              formatarTempoHMS={formatarTempoHMS}
+              onToggleCliente={toggleCliente}
+              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
+              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+            />
+          ) : tipo === 'produtos' ? (
+            <ProdutosDetalhadosList
+              produtos={itensLista}
+              produtosExpandidos={produtosExpandidos}
+              registrosIndividuais={registrosIndividuais}
+              carregandoRegistros={carregandoRegistros}
+              formatarTempoEstimado={formatarTempoEstimado}
+              calcularCustoPorTempo={calcularCustoPorTempo}
+              formatarValorMonetario={formatarValorMonetario}
+              formatarDataHora={formatarDataHora}
+              formatarTempoHMS={formatarTempoHMS}
+              onToggleProduto={toggleProduto}
+              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
+              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+            />
+          ) : tipo === 'responsaveis' ? (
+            <ResponsaveisDetalhadosList
+              responsaveis={itensLista}
+              responsaveisExpandidos={responsaveisExpandidos}
+              registrosIndividuais={registrosIndividuais}
+              carregandoRegistros={carregandoRegistros}
+              formatarTempoEstimado={formatarTempoEstimado}
+              calcularCustoPorTempo={calcularCustoPorTempo}
+              formatarValorMonetario={formatarValorMonetario}
+              formatarDataHora={formatarDataHora}
+              formatarTempoHMS={formatarTempoHMS}
+              onToggleResponsavel={toggleResponsavel}
+              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
+              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
             />
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

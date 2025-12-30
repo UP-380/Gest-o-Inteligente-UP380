@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useHistoricoTempo } from '../../hooks/useHistoricoTempo';
 import RegistroTempoItem from './RegistroTempoItem';
 import './HistoTempoRastreado.css';
+
+const API_BASE_URL = '/api';
 
 /**
  * Componente para exibir o histórico de tempo rastreado
@@ -52,6 +54,13 @@ const HistoTempoRastreado = ({
 }) => {
   const [clientesExpandidos, setClientesExpandidos] = useState({});
   const [tarefasExpandidas, setTarefasExpandidas] = useState({});
+  const [nomesClientesCache, setNomesClientesCache] = useState({});
+  const nomesClientesCacheRef = useRef({});
+  
+  // Sincronizar ref com estado do cache
+  useEffect(() => {
+    nomesClientesCacheRef.current = nomesClientesCache;
+  }, [nomesClientesCache]);
   
   // Usar hook interno ou props externas
   const {
@@ -66,11 +75,97 @@ const HistoTempoRastreado = ({
   // Usar dados externos se fornecidos, caso contrário usar hook
   const historicoAgrupadoPorData = historicoAgrupadoPorDataExterno || historicoAgrupadoPorDataHook;
   const nomesTarefas = nomesTarefasExterno || nomesTarefasHook;
-  const nomesClientes = nomesClientesExterno || {};
+  const nomesClientesExternoObj = nomesClientesExterno || {};
   const formatarTempoHMS = formatarTempoHMSExterno || formatarTempoHMSHook;
   const formatarPeriodo = formatarPeriodoExterno || formatarPeriodoHook;
   const calcularTotal = calcularTotalExterno || calcularTotalHook;
   const handleBuscarHistorico = onBuscarHistorico || buscarHistorico;
+
+  // Buscar nome do cliente usando o mesmo endpoint e lógica do PainelUsuario
+  const buscarNomeCliente = useCallback(async (clienteId) => {
+    if (!clienteId) return null;
+    
+    const idStr = String(clienteId).trim();
+    
+    // Verificar se já está no cache externo
+    if (nomesClientesExternoObj[idStr]) {
+      return nomesClientesExternoObj[idStr];
+    }
+    
+    // Verificar se já está no cache interno
+    const cacheAtual = nomesClientesCacheRef.current;
+    if (cacheAtual[idStr]) {
+      return cacheAtual[idStr];
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.success && result.data && result.data.cliente) {
+        const cliente = result.data.cliente;
+        // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social (mesma lógica do PainelUsuario)
+        const nome = cliente.nome || 
+                     cliente.nome_amigavel || 
+                     cliente.amigavel ||
+                     cliente.nome_fantasia || 
+                     cliente.fantasia ||
+                     cliente.razao_social || 
+                     cliente.razao ||
+                     null;
+        
+        if (nome) {
+          // Atualizar cache interno
+          const novos = { ...nomesClientesCacheRef.current };
+          novos[idStr] = nome;
+          nomesClientesCacheRef.current = novos;
+          setNomesClientesCache(novos);
+          
+          return nome;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Erro ao buscar nome do cliente:', error);
+      return null;
+    }
+  }, [nomesClientesExternoObj]);
+  
+  // Função síncrona para obter nome do cliente (retorna do cache ou string vazia)
+  const getNomeCliente = useCallback((id) => {
+    if (!id) return '';
+    const idStr = String(id).trim();
+    
+    // Primeiro verificar cache externo
+    if (nomesClientesExternoObj[idStr]) {
+      return nomesClientesExternoObj[idStr];
+    }
+    
+    // Depois verificar cache interno (usar estado para garantir re-render)
+    const nome = nomesClientesCache[idStr];
+    
+    // Se não estiver no cache, disparar busca assíncrona
+    if (!nome) {
+      buscarNomeCliente(idStr).catch(() => {});
+      return ''; // Retornar string vazia enquanto carrega
+    }
+    
+    return nome;
+  }, [nomesClientesExternoObj, nomesClientesCache, buscarNomeCliente]);
 
   if (!historicoAgrupadoPorData || historicoAgrupadoPorData.length === 0) {
     return (
@@ -107,7 +202,8 @@ const HistoTempoRastreado = ({
                 const totalCliente = Object.values(grupoCliente.tarefas || {}).reduce((total, tarefa) => {
                   return total + calcularTotal(tarefa.registros);
                 }, 0);
-                const nomeCliente = nomesClientes[clienteId] || `Cliente #${clienteId}`;
+                // Usar getNomeCliente que busca de forma assíncrona se não estiver no cache
+                const nomeCliente = getNomeCliente(clienteId);
                 const chaveCliente = `${grupoData.data}_${clienteId}`;
                 const isClienteExpandido = clientesExpandidos[chaveCliente] || false;
                 
@@ -121,7 +217,7 @@ const HistoTempoRastreado = ({
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         <i className={`fas fa-chevron-right timer-dropdown-cliente-arrow ${isClienteExpandido ? 'expanded' : ''}`}></i>
                         <span className="timer-dropdown-cliente-nome">
-                          {nomeCliente}
+                          {nomeCliente || <span style={{ opacity: 0.5 }}>Carregando...</span>}
                         </span>
                       </div>
                       <span className="timer-dropdown-cliente-total">

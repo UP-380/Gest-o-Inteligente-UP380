@@ -27,13 +27,13 @@ const ClienteTempoEstimado = ({
   
   const className = modoQuadro 
     ? 'painel-usuario-grupo-tempo-total has-tooltip painel-usuario-quadro-tempo'
-    : 'painel-usuario-grupo-tempo-total has-tooltip';
+    : 'painel-usuario-grupo-tempo-total';
 
   return (
     <span className={className}>
       <i className="fas fa-clock" style={{ color: '#0e3b6f', fontSize: '12px', marginRight: '4px' }}></i>
       {tempoEstimadoFormatado}
-      <div className="filter-tooltip">Tempo estimado</div>
+      {modoQuadro && <div className="filter-tooltip">Tempo estimado</div>}
     </span>
   );
 };

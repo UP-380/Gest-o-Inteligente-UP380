@@ -1,21 +1,213 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../contexts/AuthContext';
-import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import { colaboradoresAPI } from '../../services/api';
 import ClienteTempoInfo from './components/ClienteTempoInfo';
-import DatePicker from '../../components/vigencia/DatePicker';
 import PageHeader from '../../components/common/PageHeader';
+import Avatar from '../../components/user/Avatar';
+import IconButton from '../../components/common/IconButton';
+import DetailSideCard from '../../components/clients/DetailSideCard';
+import { DEFAULT_AVATAR } from '../../utils/avatars';
 import './PainelUsuario.css';
+import '../../pages/ConteudosClientes/ConteudosClientes.css';
+
+const API_BASE_URL = '/api';
+
+// Componente React para renderizar cards de clientes (mesmo que ConteudosClientes)
+const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpenSistemas, onOpenAdquirentes, onViewKnowledge, selectedClienteId, onSelectCliente }) => {
+  const aplicarMascaraCpfCnpj = (valor) => {
+    if (!valor) return '';
+    const apenasNumeros = valor.replace(/\D/g, '');
+    const numeroLimitado = apenasNumeros.substring(0, 14);
+    return numeroLimitado
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  };
+
+  const renderClientCard = (cliente) => {
+    const nomeExibicao = cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || 'Sem nome';
+    const cnpj = cliente.cpf_cnpj || cliente.cnpj || '';
+    const status = cliente.status || '';
+    const isAtivo = status === 'ativo';
+    const titleColor = isAtivo ? '#0e3b6f' : '#ff9800';
+    const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
+    const iconHoverColor = isAtivo ? '#144577' : '#f97316';
+    
+    const cacheInfo = informacoesCache[cliente.id];
+    const temConta = cacheInfo ? cacheInfo.temConta : null;
+    const temSistema = cacheInfo ? cacheInfo.temSistema : null;
+    const temAdquirente = cacheInfo ? cacheInfo.temAdquirente : null;
+    
+    const contaIconColor = temConta === false ? '#d1d5db' : iconColor;
+    const sistemaIconColor = temSistema === false ? '#d1d5db' : iconColor;
+    const adquirenteIconColor = temAdquirente === false ? '#d1d5db' : iconColor;
+    
+    const contaDisabled = temConta === false;
+    const sistemaDisabled = temSistema === false;
+    const adquirenteDisabled = temAdquirente === false;
+    
+    // Verificar se este cliente está selecionado (seleção única)
+    const isSelected = selectedClienteId && String(selectedClienteId).trim() === String(cliente.id).trim();
+    // Verificar se há algum cliente selecionado (para aplicar estilo apagado nos não selecionados)
+    const hasAnySelected = selectedClienteId !== null && selectedClienteId !== undefined;
+
+    return (
+      <div 
+        key={cliente.id} 
+        className="cliente-knowledge-card"
+        style={{
+          // Simplesmente mudar a cor da borda quando selecionado - mesma espessura, não altera tamanho
+          border: isSelected ? '1px solid #0e3b6f' : '1px solid #e5e7eb',
+          boxShadow: isSelected 
+            ? '0 4px 12px rgba(14, 59, 111, 0.2)' 
+            : '0 1px 3px rgba(0, 0, 0, 0.1)',
+          cursor: onSelectCliente ? 'pointer' : 'default',
+          // Aplicar estilo apagado quando há seleção mas este não está selecionado
+          opacity: hasAnySelected && !isSelected ? 0.5 : 1,
+          filter: hasAnySelected && !isSelected ? 'grayscale(0.3)' : 'none',
+          transition: 'opacity 0.2s ease, filter 0.2s ease'
+        }}
+        onClick={onSelectCliente ? (e) => {
+          // Não disparar seleção se clicar nos botões
+          if (e.target.closest('button') || e.target.closest('.cliente-knowledge-icon-button') || e.target.closest('.icon-button')) {
+            return;
+          }
+          onSelectCliente(cliente.id);
+        } : undefined}
+      >
+        <div className="cliente-knowledge-card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            <Avatar
+              avatarId={
+                cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-') && !cliente.foto_perfil_path
+                  ? DEFAULT_AVATAR
+                  : (cliente.foto_perfil || DEFAULT_AVATAR)
+              }
+              nomeUsuario={nomeExibicao}
+              size="medium"
+              customImagePath={cliente.foto_perfil_path || null}
+            />
+            <h3 
+              className="cliente-knowledge-card-title"
+              style={{ color: titleColor, flex: 1 }}
+            >
+              {nomeExibicao}
+            </h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {status && (
+              <span className={`cliente-knowledge-status-badge ${status === 'ativo' ? 'active' : 'inactive'}`}>
+                {status === 'ativo' ? 'Ativo' : 'Inativo'}
+              </span>
+            )}
+            {/* Checkbox de seleção - no canto superior direito */}
+            {onSelectCliente && (
+              <div 
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  minWidth: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '2px solid #0e3b6f',
+                  borderRadius: '4px',
+                  backgroundColor: isSelected ? '#0e3b6f' : 'transparent',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease'
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectCliente(cliente.id);
+                }}
+              >
+                {isSelected && (
+                  <i className="fas fa-check" style={{ color: '#fff', fontSize: '12px' }}></i>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="cliente-knowledge-card-body">
+          {cliente.razao_social && cliente.razao_social !== nomeExibicao && (
+            <div className="cliente-knowledge-card-field">
+              <label>Razão Social</label>
+              <div className="cliente-knowledge-card-value">{cliente.razao_social}</div>
+            </div>
+          )}
+          {cnpj && (
+            <div className="cliente-knowledge-card-field">
+              <label>CNPJ</label>
+              <div className="cliente-knowledge-card-value">{aplicarMascaraCpfCnpj(cnpj)}</div>
+            </div>
+          )}
+        </div>
+        <div className="cliente-knowledge-card-footer">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div className="cliente-knowledge-icons-row">
+              <button
+                className={`cliente-knowledge-icon-button ${contaDisabled ? 'disabled-icon' : ''}`}
+                onClick={(e) => !contaDisabled && onOpenContas(cliente, e)}
+                disabled={contaDisabled}
+                title={contaDisabled ? "Nenhuma conta bancária cadastrada" : "Gerenciar Contas Bancárias"}
+                style={{ color: contaIconColor }}
+              >
+                <i className="fas fa-university"></i>
+              </button>
+              <button
+                className={`cliente-knowledge-icon-button ${sistemaDisabled ? 'disabled-icon' : ''}`}
+                onClick={(e) => !sistemaDisabled && onOpenSistemas(cliente, e)}
+                disabled={sistemaDisabled}
+                title={sistemaDisabled ? "Nenhum sistema cadastrado" : "Gerenciar Sistemas"}
+                style={{ color: sistemaIconColor }}
+              >
+                <i className="fas fa-server"></i>
+              </button>
+              <button
+                className={`cliente-knowledge-icon-button ${adquirenteDisabled ? 'disabled-icon' : ''}`}
+                onClick={(e) => !adquirenteDisabled && onOpenAdquirentes(cliente, e)}
+                disabled={adquirenteDisabled}
+                title={adquirenteDisabled ? "Nenhum adquirente cadastrado" : "Gerenciar Adquirentes"}
+                style={{ color: adquirenteIconColor }}
+              >
+                <i className="fas fa-credit-card"></i>
+              </button>
+            </div>
+            <IconButton
+              icon="fa-eye"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewKnowledge(cliente);
+              }}
+              title="Visualizar Base de Conhecimento"
+              color={iconColor}
+              hoverColor={iconHoverColor}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!clientes || clientes.length === 0) return null;
+
+  return (
+    <div className="clientes-knowledge-grid" style={{ marginBottom: '24px' }}>
+      {clientes.map(cliente => renderClientCard(cliente))}
+    </div>
+  );
+};
 
 /**
  * Componente PainelUsuario
  * Tela de visualização de tarefas do usuário
  * Exibe tarefas atribuídas ao usuário logado
  */
-const RESPONSAVEL_ID_FIXO = '87902612'; // ID vinculado ao usuário logado (João Pedro)
-
 const PainelUsuario = () => {
   const { usuario } = useAuth();
   const tarefasContainerRef = useRef(null);
@@ -28,7 +220,52 @@ const PainelUsuario = () => {
   const timetracksExpandidosRef = useRef(new Set()); // Ref para acesso síncrono ao estado de expansão
   const [timetracksData, setTimetracksData] = useState(new Map()); // Map<chave, registros[]> - cache de registros de tempo
   const timetracksDataRef = useRef(new Map()); // Ref para acesso síncrono aos dados
-  const [modoVisualizacao, setModoVisualizacao] = useState({}); // objeto com { cardId: 'quadro' | 'lista' }
+  const [dataTarefasSelecionada, setDataTarefasSelecionada] = useState(new Date()); // Data selecionada para exibir tarefas (inicia com hoje)
+  const carregarMinhasTarefasRef = useRef(null); // Ref para a função de carregar tarefas
+
+  // ID fixo para o card de tarefas (não usa mais grid, então só um card)
+  const CARD_ID_TAREFAS = 'tarefas-card-1';
+
+  const [modoVisualizacao, setModoVisualizacao] = useState({ [CARD_ID_TAREFAS]: 'quadro' }); // objeto com { cardId: 'quadro' | 'lista' }
+  const preferenciaCarregadaRef = useRef(false); // Ref para controlar se a preferência já foi carregada
+  const modoVisualizacaoRef = useRef({ [CARD_ID_TAREFAS]: 'quadro' }); // Ref para preservar o modo atual mesmo durante re-renderizações
+
+  // Carregar preferência de visualização do servidor apenas na primeira montagem (quando a página é recarregada)
+  // O valor vem da coluna "view_modelo_painel" da tabela "usuarios"
+  // Não recarregar quando desplugar para manter o modo atual
+  useEffect(() => {
+    if (preferenciaCarregadaRef.current) return; // Já carregou uma vez, não recarregar
+    
+    const carregarPreferenciaVisualizacao = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/preferencia-view-mode`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const modo = result.data.modo || 'quadro';
+            // Na primeira montagem, sempre usar o valor do banco (view_modelo_painel)
+            setModoVisualizacao({ [CARD_ID_TAREFAS]: modo });
+            modoVisualizacaoRef.current = { [CARD_ID_TAREFAS]: modo };
+          }
+        }
+        preferenciaCarregadaRef.current = true;
+      } catch (error) {
+        // Em caso de erro, usar padrão 'quadro'
+        preferenciaCarregadaRef.current = true;
+        setModoVisualizacao({ [CARD_ID_TAREFAS]: 'quadro' });
+        modoVisualizacaoRef.current = { [CARD_ID_TAREFAS]: 'quadro' };
+      }
+    };
+
+    carregarPreferenciaVisualizacao();
+  }, []);
   const [nomesCache, setNomesCache] = useState({
     produtos: {},
     tarefas: {},
@@ -53,11 +290,6 @@ const PainelUsuario = () => {
   const registrosAtivosRef = useRef(new Map()); // Ref para acesso em funções não-hook
   const [temposRealizados, setTemposRealizados] = useState(new Map()); // Map<chave, tempo_realizado_ms>
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
-  const [dataTarefasSelecionada, setDataTarefasSelecionada] = useState(new Date()); // Data selecionada para exibir tarefas (inicia com hoje)
-  const carregarMinhasTarefasRef = useRef(null); // Ref para a função de carregar tarefas
-
-  // ID fixo para o card de tarefas (não usa mais grid, então só um card)
-  const CARD_ID_TAREFAS = 'tarefas-card-1';
 
   const toggleTarefa = useCallback((agrupadorId, tarefaId) => {
     setTarefasExpandidas((prev) => {
@@ -119,7 +351,81 @@ const PainelUsuario = () => {
     // Fallback
     return `Tarefa #${idStr}`;
   };
-  const getNomeCliente = (id) => nomesCache.clientes[String(id)] || `Cliente #${id}`;
+  
+  // Função para buscar nome do cliente usando o endpoint de base-conhecimento
+  const buscarNomeCliente = useCallback(async (clienteId) => {
+    if (!clienteId) return null;
+    
+    const idStr = String(clienteId).trim();
+    
+    // Verificar se já está no cache
+    const cacheAtual = nomesCacheRef.current;
+    if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
+      return cacheAtual.clientes[idStr];
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.success && result.data && result.data.cliente) {
+        const cliente = result.data.cliente;
+        // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
+        const nome = cliente.nome || 
+                     cliente.nome_amigavel || 
+                     cliente.amigavel ||
+                     cliente.nome_fantasia || 
+                     cliente.fantasia ||
+                     cliente.razao_social || 
+                     cliente.razao ||
+                     null;
+        
+        if (nome) {
+          // Atualizar cache
+          const novos = { ...nomesCacheRef.current };
+          novos.clientes[idStr] = nome;
+          nomesCacheRef.current = novos;
+          setNomesCache(novos);
+          
+          return nome;
+        }
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+  
+  // Função síncrona para obter nome do cliente (retorna do cache ou string vazia)
+  const getNomeCliente = (id) => {
+    if (!id) return '';
+    const idStr = String(id).trim();
+    const cacheAtual = nomesCacheRef.current;
+    const nome = cacheAtual.clientes && cacheAtual.clientes[idStr];
+    
+    // Se não estiver no cache, disparar busca assíncrona
+    if (!nome) {
+      buscarNomeCliente(idStr).catch(() => {});
+      return ''; // Retornar string vazia enquanto carrega
+    }
+    
+    return nome;
+  };
+  
   const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || `Colaborador #${id}`;
 
   const formatarTempoComCusto = (tempo, responsavelId) => {
@@ -198,6 +504,14 @@ const PainelUsuario = () => {
       renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
     }
   }, [dataTarefasSelecionada]);
+
+  // Efeito para atualizar renderização quando nomes de clientes forem carregados
+  useEffect(() => {
+    // Atualizar renderização quando o cache de nomes de clientes mudar
+    if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
+      atualizarRenderizacaoTarefas();
+    }
+  }, [nomesCache.clientes, atualizarRenderizacaoTarefas]);
 
   // Helper: Atualizar apenas o botão de um tempo estimado específico
   // Cada tempo estimado é totalmente independente
@@ -305,7 +619,7 @@ const PainelUsuario = () => {
       const porcentagem = (tempoRealizadoMs / tempoEstimado) * 100;
       const porcentagemLimitada = Math.min(100, porcentagem);
       const porcentagemExcessoBruta = porcentagem > 100 ? porcentagem - 100 : 0;
-      const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(10, porcentagemExcessoBruta) : 0;
+      const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(8, porcentagemExcessoBruta) : 0;
       const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
       const porcentagemFormatada = porcentagem.toFixed(0);
       
@@ -326,11 +640,15 @@ const PainelUsuario = () => {
             }
             
             if (porcentagemExcesso > 0) {
+              // No modo quadro, usar tamanho fixo para garantir visibilidade
+              const isQuadro = barraBase?.classList.contains('painel-usuario-barra-progresso-base-quadro');
+              const excedenteWidth = isQuadro ? '25px' : `${porcentagemExcesso}%`;
+              
               if (!barraFillExcesso) {
                 // Criar elemento de excesso se não existir
                 const excessoEl = document.createElement('div');
                 excessoEl.className = 'painel-usuario-barra-progresso-fill-excesso';
-                excessoEl.style.width = `${porcentagemExcesso}%`;
+                excessoEl.style.width = excedenteWidth;
                 excessoEl.style.background = '#dc2626';
                 excessoEl.style.left = '100%';
                 excessoEl.style.position = 'absolute';
@@ -339,7 +657,7 @@ const PainelUsuario = () => {
                   barraBase.appendChild(excessoEl);
                 }
               } else {
-                barraFillExcesso.style.width = `${porcentagemExcesso}%`;
+                barraFillExcesso.style.width = excedenteWidth;
               }
             } else if (barraFillExcesso) {
               // Remover elemento de excesso se não houver mais excesso
@@ -423,12 +741,13 @@ const PainelUsuario = () => {
     }
     
     return `
-      <div class="painel-usuario-timetracks-list" style="margin-top: 8px; padding-left: 12px; display: flex; flex-direction: column; gap: 6px;">
+      <div class="painel-usuario-timetracks-list" style="display: flex; flex-direction: column; gap: 6px; padding-left: 24px; margin-top: 4px; border-left: 2px solid #ffd8a8;">
         ${registros.map((registro, idx) => {
           const tempoRealizado = Number(registro.tempo_realizado) || 0;
           let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
           if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
           const tempoFormatado = formatarTempoHMS(tempoMs);
+          const tempoDecimal = (tempoMs / 3600000).toFixed(2);
           
           let dataRegistro = null;
           if (registro.data_inicio) {
@@ -445,12 +764,15 @@ const PainelUsuario = () => {
                 hour: '2-digit',
                 minute: '2-digit'
               })
-            : '';
+            : '—';
           
           return `
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; background: #f9fafb; padding: 6px 10px; border-radius: 6px; border: 1px solid #e5e7eb;">
-              <span style="font-weight: 600; color: #374151;">${tempoFormatado}</span>
-              <span style="color: #6b7280;">${dataFormatada}</span>
+            <div class="painel-usuario-registro-item-simples" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 8px; color: #374151;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-stopwatch" style="color: #94a3b8;"></i>
+                <span class="painel-usuario-registro-tempo-badge" title="${tempoDecimal}h" style="background: #fff4e6; border: 1px solid #ffd8a8; color: #fd7e14; padding: 2px 6px; border-radius: 999px; font-size: 11px; font-weight: 500;">${tempoFormatado}</span>
+              </div>
+              ${dataFormatada !== '—' ? `<div style="color: #6b7280;">${dataFormatada}</div>` : ''}
             </div>
           `;
         }).join('')}
@@ -470,10 +792,9 @@ const PainelUsuario = () => {
     // Calcular porcentagem (realizado / estimado * 100)
     const porcentagem = (tempoRealizado / tempoEstimado) * 100;
     const porcentagemLimitada = Math.min(100, porcentagem); // Limitar a 100% para a barra base
-    // Limitar a barra de excesso a um máximo de 10% da largura da barra base
-    // Isso garante que sempre apareça quando houver excesso, mas nunca fique muito grande
+    // Calcular o excedente: se > 100%, mostrar uma barra vermelha adicional
     const porcentagemExcessoBruta = porcentagem > 100 ? porcentagem - 100 : 0;
-    const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(10, porcentagemExcessoBruta) : 0;
+    const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(8, porcentagemExcessoBruta) : 0;
     
     // Cor: laranja padrão (#f59e0b) se <= 100%, vermelho se > 100%
     const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
@@ -481,6 +802,10 @@ const PainelUsuario = () => {
     const porcentagemFormatada = porcentagem.toFixed(0);
     
     if (modo === 'quadro') {
+      // No modo quadro, usar tamanho fixo em pixels para o excedente para garantir visibilidade
+      // O CSS vai limitar o máximo para não sobrepor a porcentagem
+      const excedenteWidth = porcentagemExcessoBruta > 0 ? '25px' : '0px';
+      
       // Modo quadro: barra abaixo do nome
       return `
         <div class="painel-usuario-barra-progresso-wrapper painel-usuario-barra-progresso-quadro" style="margin-top: 8px;">
@@ -490,10 +815,10 @@ const PainelUsuario = () => {
                 class="painel-usuario-barra-progresso-fill" 
                 style="width: ${porcentagemLimitada}%; background: ${corBarra};"
               ></div>
-              ${porcentagemExcesso > 0 ? `
+              ${porcentagemExcessoBruta > 0 ? `
                 <div 
                   class="painel-usuario-barra-progresso-fill-excesso" 
-                  style="width: ${porcentagemExcesso}%; background: #dc2626; left: 100%;"
+                  style="width: ${excedenteWidth}; background: #dc2626; left: 100%;"
                 ></div>
               ` : ''}
             </div>
@@ -783,8 +1108,9 @@ const PainelUsuario = () => {
   // Função auxiliar para atualizar tempos realizados totais nos headers dos clientes
   const atualizarTemposRealizadosHeaders = useCallback(() => {
     const temposAtuais = temposRealizadosRef.current;
-    const headersClientes = document.querySelectorAll('.painel-usuario-grupo-cliente-header');
     
+    // Atualizar headers no modo LISTA
+    const headersClientes = document.querySelectorAll('.painel-usuario-grupo-cliente-header');
     headersClientes.forEach((header) => {
       const clienteCard = header.closest('.painel-usuario-cliente-card');
       if (!clienteCard) return;
@@ -823,13 +1149,12 @@ const PainelUsuario = () => {
         const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
         if (tempoRealizadoElement) {
           // Atualizar elemento existente
-          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div>`;
-          tempoRealizadoElement.classList.add('has-tooltip');
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
         } else {
           // Criar novo elemento
           tempoRealizadoElement = document.createElement('span');
-          tempoRealizadoElement.className = 'painel-usuario-grupo-tempo-realizado has-tooltip';
-          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div>`;
+          tempoRealizadoElement.className = 'painel-usuario-grupo-tempo-realizado';
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
           
           // Inserir após o tempo estimado (se existir) ou antes do count
           const tempoTotalElement = header.querySelector('.painel-usuario-grupo-tempo-total');
@@ -847,7 +1172,65 @@ const PainelUsuario = () => {
         tempoRealizadoElement.remove();
       }
     });
-  }, [criarChaveTempo]);
+    
+    // Atualizar headers no modo QUADRO (colunas)
+    const colunas = document.querySelectorAll('.painel-usuario-coluna');
+    colunas.forEach((coluna) => {
+      const colunaHeader = coluna.querySelector('div[style*="padding: 10px 12px"]');
+      if (!colunaHeader) return;
+      
+      // Obter o nome do cliente do header
+      const clienteNomeEl = colunaHeader.querySelector('div:first-child');
+      if (!clienteNomeEl) return;
+      const clienteNome = clienteNomeEl.textContent.trim();
+      
+      // Encontrar todas as tarefas desta coluna
+      const tarefasCards = Array.from(coluna.querySelectorAll('.painel-usuario-tarefa-card'));
+      if (tarefasCards.length === 0) return;
+      
+      // Calcular tempo realizado total do cliente
+      let tempoRealizadoTotal = 0;
+      tarefasCards.forEach((tarefaCard) => {
+        const btn = tarefaCard.querySelector('[data-tempo-estimado-id]');
+        if (!btn) return;
+        
+        const tempoEstimadoId = btn.getAttribute('data-tempo-estimado-id');
+        if (!tempoEstimadoId) return;
+        
+        // Encontrar o registro completo
+        const reg = tarefasRegistrosRef.current.find(r => 
+          String(r.id || r.tempo_estimado_id).trim() === tempoEstimadoId
+        );
+        
+        if (reg) {
+          const chaveTempo = criarChaveTempo(reg);
+          if (chaveTempo) {
+            const tempoRealizado = temposAtuais.get(chaveTempo) || 0;
+            tempoRealizadoTotal += tempoRealizado;
+          }
+        }
+      });
+      
+      // Atualizar o componente React ClienteTempoInfo que está no tempoInfoContainer
+      const tempoInfoContainer = colunaHeader.querySelector('div[style*="margin-left: auto"]');
+      if (tempoInfoContainer) {
+        // O componente React já está renderizado, precisamos re-renderizá-lo com os novos dados
+        // Mas como é React, vamos atualizar via DOM direto ou re-renderizar
+        // Por enquanto, vamos atualizar diretamente o elemento de tempo realizado se existir
+        const tempoRealizadoEl = tempoInfoContainer.querySelector('.painel-usuario-grupo-tempo-realizado');
+        if (tempoRealizadoTotal > 0) {
+          const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
+          if (tempoRealizadoEl) {
+            // Atualizar apenas o texto do tempo, mantendo a estrutura React
+            const tempoValorEl = tempoRealizadoEl.querySelector('span:not(.painel-usuario-realizado-icon-inline)');
+            if (tempoValorEl) {
+              tempoValorEl.textContent = tempoRealizadoFormatado;
+            }
+          }
+        }
+      }
+    });
+  }, [criarChaveTempo, formatarTempoHMS]);
 
   // Função para buscar tempos realizados de todas as tarefas
   const buscarTemposRealizados = useCallback(async () => {
@@ -963,44 +1346,122 @@ const PainelUsuario = () => {
   };
 
   const obterModoVisualizacao = () => {
-    return modoVisualizacao[CARD_ID_TAREFAS] || 'quadro';
+    // Usar ref para garantir que sempre retorna o modo atual, mesmo durante re-renderizações
+    return modoVisualizacaoRef.current[CARD_ID_TAREFAS] || modoVisualizacao[CARD_ID_TAREFAS] || 'quadro';
   };
+  
+  // Sincronizar ref com estado sempre que o modo mudar
+  useEffect(() => {
+    modoVisualizacaoRef.current = modoVisualizacao;
+  }, [modoVisualizacao]);
 
-  const alternarModoVisualizacao = useCallback((modoDesejado = null) => {
+  const alternarModoVisualizacao = useCallback(async (modoDesejado = null) => {
     const cardId = CARD_ID_TAREFAS;
+    
+    // Calcular o novo modo
+    const modoAtual = modoVisualizacao[cardId] || 'quadro';
+    const novoModo = modoDesejado || (modoAtual === 'lista' ? 'quadro' : 'lista');
+    
+    // Atualizar o estado do modo imediatamente
     setModoVisualizacao((prev) => {
-      // Se modoDesejado foi fornecido, usa ele. Senão, alterna entre os modos
-      const novoModo = modoDesejado || (prev[cardId] === 'lista' ? 'quadro' : 'lista');
-      const novo = { ...prev, [cardId]: novoModo };
-      // Re-renderizar tarefas após mudar o modo
-      setTimeout(() => {
-        const card = tarefasContainerRef.current;
-        if (card) {
-          // Obter a data atual do header se disponível, senão usar dataTarefasSelecionada
-          const header = card.querySelector('.painel-usuario-header-board');
-          let dataParaUsar = dataTarefasSelecionada || new Date();
-          
-          if (header) {
-            const dataDoHeader = obterDataDoHeader(header);
-            if (dataDoHeader) {
-              dataParaUsar = dataDoHeader;
-            }
-          }
-          
-          // Normalizar a data
-          dataParaUsar = new Date(dataParaUsar);
-          dataParaUsar.setHours(0, 0, 0, 0);
-          
-          // Sempre recarregar as tarefas para garantir que está usando a data correta
-          // Isso evita problemas de registros desatualizados
-          if (carregarMinhasTarefasRef.current) {
-            carregarMinhasTarefasRef.current(card, dataParaUsar);
+      return { ...prev, [cardId]: novoModo };
+    });
+
+    // Salvar preferência no servidor
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/preferencia-view-mode`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ modo: novoModo }),
+      });
+
+      if (!response.ok) {
+        // Erro ao salvar preferência - não crítico
+      }
+    } catch (error) {
+      // Erro ao salvar preferência - não crítico
+    }
+    
+    // Re-renderizar tarefas imediatamente (sem afetar cards de clientes)
+    const card = tarefasContainerRef.current;
+    if (card) {
+      // Encontrar o wrapper existente
+      const wrapper = card.querySelector('div[style*="flex-direction: column"]');
+      if (wrapper && tarefasRegistrosRef.current.length > 0) {
+        // Obter a data atual do header se disponível
+        const header = wrapper.querySelector('.painel-usuario-header-board');
+        let dataParaUsar = dataTarefasSelecionada || new Date();
+        
+        if (header) {
+          const dataDoHeader = obterDataDoHeader(header);
+          if (dataDoHeader) {
+            dataParaUsar = dataDoHeader;
           }
         }
-      }, 50);
-      return novo;
-    });
-  }, []);
+        
+        // Normalizar a data
+        dataParaUsar = new Date(dataParaUsar);
+        dataParaUsar.setHours(0, 0, 0, 0);
+        
+        // Filtrar registros por clientes selecionados
+        // Não usar clientesSelecionadosIds diretamente aqui para evitar dependência
+        // A filtragem será feita em renderTarefasNoCard ou será renderizado sem filtro aqui
+        let registrosFiltrados = tarefasRegistrosRef.current;
+        
+        // Remover containers antigos de tarefas
+        const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
+        let boardContainer = null;
+        const wrapperChildren = Array.from(wrapper.children);
+        for (const child of wrapperChildren) {
+          if (child.classList && child.classList.contains('painel-usuario-header-board')) continue;
+          const clientesGrid = child.querySelector('.clientes-knowledge-grid');
+          if (clientesGrid) continue;
+          const style = window.getComputedStyle(child);
+          if (style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+            boardContainer = child;
+            break;
+          }
+        }
+        
+        if (listaContainer) listaContainer.remove();
+        if (boardContainer) boardContainer.remove();
+        
+        // Atualizar toggle no header IMEDIATAMENTE
+        if (header) {
+          const toggleView = header.querySelector('.painel-usuario-toggle-view');
+          if (toggleView) {
+            const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
+            const btnLista = toggleView.querySelector('button[data-mode="lista"]');
+            
+            if (btnQuadro && btnLista) {
+              if (novoModo === 'quadro') {
+                btnQuadro.classList.add('active');
+                btnLista.classList.remove('active');
+              } else {
+                btnQuadro.classList.remove('active');
+                btnLista.classList.add('active');
+              }
+            }
+          }
+        }
+        
+        // Renderizar tarefas no novo modo IMEDIATAMENTE
+        if (novoModo === 'lista') {
+          renderTarefasEmLista(registrosFiltrados, wrapper, dataParaUsar);
+        } else {
+          renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaUsar);
+        }
+      } else if (tarefasRegistrosRef.current.length > 0) {
+        // Se não encontrar wrapper, fazer renderização completa
+        renderTarefasNoCard(tarefasRegistrosRef.current, card, dataTarefasSelecionada);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataTarefasSelecionada, modoVisualizacao]);
 
   // Função auxiliar para verificar se uma data é hoje
   const ehHoje = (data) => {
@@ -1078,25 +1539,543 @@ const PainelUsuario = () => {
     return dataTarefasSelecionada || new Date();
   };
 
+  const navigate = useNavigate();
+  
+  // Estados para DetailSideCard de clientes
+  const [detailCardCliente, setDetailCardCliente] = useState(null);
+  const [detailCardClientePosition, setDetailCardClientePosition] = useState(null);
+  
+  // Estado para cache de informações de completude dos clientes
+  const [informacoesCacheClientes, setInformacoesCacheClientes] = useState({});
+  
+  // Estado para cliente selecionado para filtrar tarefas (seleção única)
+  const [clienteSelecionadoId, setClienteSelecionadoId] = useState(null);
+
+  // Função para buscar clientes por IDs
+  const buscarClientesPorIds = useCallback(async (clienteIds) => {
+    if (!clienteIds || clienteIds.length === 0) return [];
+    
+    try {
+      // Buscar todos os clientes e filtrar pelos IDs
+      const response = await fetch('/api/clientes?page=1&limit=10000', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const idsSet = new Set(clienteIds.map(id => String(id).trim()));
+          return result.data.filter(cliente => idsSet.has(String(cliente.id).trim()));
+        }
+      }
+      } catch (error) {
+        // Erro ao buscar clientes - não crítico
+      }
+    return [];
+  }, []);
+
+  // Carregar informações de completude para múltiplos clientes
+  const carregarInformacoesCompletudeClientes = useCallback(async (clientesArray) => {
+    if (!clientesArray || clientesArray.length === 0) return;
+
+    const promises = clientesArray.map(async (cliente) => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${cliente.id}`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.status === 401) {
+          return null;
+        }
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+          return {
+            clienteId: cliente.id,
+            temConta: (result.data.contasBancarias || []).length > 0,
+            temSistema: (result.data.sistemas || []).length > 0,
+            temAdquirente: (result.data.adquirentes || []).length > 0
+          };
+        }
+        return null;
+      } catch (error) {
+        return null;
+      }
+    });
+
+    const resultados = await Promise.all(promises);
+    const novoCache = {};
+    resultados.forEach(result => {
+      if (result) {
+        novoCache[result.clienteId] = {
+          temConta: result.temConta,
+          temSistema: result.temSistema,
+          temAdquirente: result.temAdquirente
+        };
+      }
+    });
+
+    setInformacoesCacheClientes(prev => ({
+      ...prev,
+      ...novoCache
+    }));
+  }, []);
+
+  // Buscar dados para o DetailSideCard
+  const loadDadosParaCardCliente = useCallback(async (clienteId, tipo) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${clienteId}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        // Atualizar cache de informações de completude
+        setInformacoesCacheClientes(prev => ({
+          ...prev,
+          [clienteId]: {
+            temConta: (result.data.contasBancarias || []).length > 0,
+            temSistema: (result.data.sistemas || []).length > 0,
+            temAdquirente: (result.data.adquirentes || []).length > 0
+          }
+        }));
+        
+        return result.data;
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  // Handlers para DetailSideCard
+  const handleOpenContasCliente = useCallback(async (cliente, e) => {
+    const cacheInfo = informacoesCacheClientes[cliente.id];
+    if (cacheInfo && cacheInfo.temConta === false) {
+      return;
+    }
+    
+    if (e) {
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      const documentLeft = rect.left + scrollLeft;
+      const documentTop = rect.top + scrollTop;
+      
+      setDetailCardClientePosition({
+        left: documentLeft + rect.width + 20,
+        top: documentTop
+      });
+    }
+
+    const dados = await loadDadosParaCardCliente(cliente.id, 'contas-bancarias');
+    if (dados && dados.contasBancarias && dados.contasBancarias.length > 0) {
+      setDetailCardCliente({
+        clienteId: cliente.id,
+        tipo: 'contas-bancarias',
+        dados: { contasBancarias: dados.contasBancarias || [] }
+      });
+    }
+  }, [informacoesCacheClientes, loadDadosParaCardCliente]);
+
+  const handleOpenSistemasCliente = useCallback(async (cliente, e) => {
+    const cacheInfo = informacoesCacheClientes[cliente.id];
+    if (cacheInfo && cacheInfo.temSistema === false) {
+      return;
+    }
+    
+    if (e) {
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      const documentLeft = rect.left + scrollLeft;
+      const documentTop = rect.top + scrollTop;
+      
+      setDetailCardClientePosition({
+        left: documentLeft + rect.width + 20,
+        top: documentTop
+      });
+    }
+
+    const dados = await loadDadosParaCardCliente(cliente.id, 'sistemas');
+    if (dados && dados.sistemas && dados.sistemas.length > 0) {
+      setDetailCardCliente({
+        clienteId: cliente.id,
+        tipo: 'sistemas',
+        dados: { sistemas: dados.sistemas || [] }
+      });
+    }
+  }, [informacoesCacheClientes, loadDadosParaCardCliente]);
+
+  const handleOpenAdquirentesCliente = useCallback(async (cliente, e) => {
+    const cacheInfo = informacoesCacheClientes[cliente.id];
+    if (cacheInfo && cacheInfo.temAdquirente === false) {
+      return;
+    }
+    
+    if (e) {
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      const documentLeft = rect.left + scrollLeft;
+      const documentTop = rect.top + scrollTop;
+      
+      setDetailCardClientePosition({
+        left: documentLeft + rect.width + 20,
+        top: documentTop
+      });
+    }
+
+    const dados = await loadDadosParaCardCliente(cliente.id, 'adquirentes');
+    if (dados && dados.adquirentes && dados.adquirentes.length > 0) {
+      setDetailCardCliente({
+        clienteId: cliente.id,
+        tipo: 'adquirentes',
+        dados: { adquirentes: dados.adquirentes || [] }
+      });
+    }
+  }, [informacoesCacheClientes, loadDadosParaCardCliente]);
+
+  const handleViewKnowledgeCliente = useCallback((cliente) => {
+    navigate(`/base-conhecimento/cliente/${cliente.id}`);
+  }, [navigate]);
+
+  const handleCloseDetailCliente = useCallback(() => {
+    setDetailCardCliente(null);
+    setDetailCardClientePosition(null);
+  }, []);
+
+  // Handler para selecionar/deselecionar cliente para filtrar tarefas (seleção única)
+  const handleSelectCliente = useCallback((clienteId) => {
+    setClienteSelecionadoId((prev) => {
+      // Se já está selecionado, deselecionar (toggle)
+      if (prev && String(prev).trim() === String(clienteId).trim()) {
+        return null;
+      }
+      // Caso contrário, selecionar o novo cliente
+      return clienteId;
+    });
+  }, []);
+
+
+  // Refs para armazenar dados dos cards de clientes
+  const clientesCardsRootRef = useRef(null);
+  const clientesCardsContainerRef = useRef(null);
+  const clientesCardsDataRef = useRef(null);
+
+  // Função para renderizar cards de clientes usando React
+  const renderizarCardsClientes = useCallback((clientes, container) => {
+    if (!clientes || clientes.length === 0) {
+      if (clientesCardsRootRef.current) {
+        try {
+          clientesCardsRootRef.current.unmount();
+        } catch (e) {
+          // Ignorar erros
+        }
+        clientesCardsRootRef.current = null;
+      }
+      clientesCardsContainerRef.current = null;
+      clientesCardsDataRef.current = null;
+      if (container && container.parentNode) {
+        container.innerHTML = '';
+      }
+      return;
+    }
+
+    // Verificar se o container ainda está no DOM
+    if (!container || !container.parentNode) {
+      return;
+    }
+
+    // Salvar referências
+    clientesCardsContainerRef.current = container;
+    clientesCardsDataRef.current = clientes;
+
+    // Limpar root anterior se existir (mas manter o container)
+    if (clientesCardsRootRef.current) {
+      try {
+        clientesCardsRootRef.current.unmount();
+      } catch (e) {
+        // Ignorar erros ao desmontar
+      }
+      clientesCardsRootRef.current = null;
+    }
+    
+    // Limpar apenas o conteúdo HTML, mas manter o container
+    container.innerHTML = '';
+    
+    // Criar novo root para React
+    try {
+      const root = createRoot(container);
+      clientesCardsRootRef.current = root;
+      
+      // Renderizar componente React
+      root.render(
+        <ClienteKnowledgeCards
+          clientes={clientes}
+          informacoesCache={informacoesCacheClientes}
+          onOpenContas={handleOpenContasCliente}
+          onOpenSistemas={handleOpenSistemasCliente}
+          onOpenAdquirentes={handleOpenAdquirentesCliente}
+          onViewKnowledge={handleViewKnowledgeCliente}
+          selectedClienteId={clienteSelecionadoId}
+          onSelectCliente={handleSelectCliente}
+        />
+      );
+      
+      // Carregar informações de completude após renderizar
+      carregarInformacoesCompletudeClientes(clientes);
+      } catch (error) {
+        // Erro ao renderizar cards de clientes - não crítico
+      }
+  }, [informacoesCacheClientes, handleOpenContasCliente, handleOpenSistemasCliente, handleOpenAdquirentesCliente, handleViewKnowledgeCliente, carregarInformacoesCompletudeClientes, clienteSelecionadoId, handleSelectCliente]);
+  
+  // Atualizar componente quando cache ou seleção mudar
+  useEffect(() => {
+    if (clientesCardsRootRef.current && clientesCardsDataRef.current) {
+      clientesCardsRootRef.current.render(
+        <ClienteKnowledgeCards
+          clientes={clientesCardsDataRef.current}
+          informacoesCache={informacoesCacheClientes}
+          onOpenContas={handleOpenContasCliente}
+          onOpenSistemas={handleOpenSistemasCliente}
+          onOpenAdquirentes={handleOpenAdquirentesCliente}
+          onViewKnowledge={handleViewKnowledgeCliente}
+          selectedClienteId={clienteSelecionadoId}
+          onSelectCliente={handleSelectCliente}
+        />
+      );
+    }
+  }, [informacoesCacheClientes, handleOpenContasCliente, handleOpenSistemasCliente, handleOpenAdquirentesCliente, handleViewKnowledgeCliente, clienteSelecionadoId, handleSelectCliente]);
+
+  // Função para atualizar apenas as tarefas (sem recriar cards de clientes)
+  const atualizarApenasTarefas = useCallback((registros, wrapper, dataSelecionada = null) => {
+    // Filtrar registros por cliente selecionado (seleção única)
+    let registrosFiltrados = registros;
+    if (clienteSelecionadoId) {
+      const selectedId = String(clienteSelecionadoId).trim();
+      registrosFiltrados = registros.filter(reg => {
+        const regClienteId = String(reg.cliente_id || '').trim();
+        return regClienteId === selectedId;
+      });
+    }
+
+    // Remover containers antigos de tarefas (preservar header e container de clientes)
+    const wrapperChildren = Array.from(wrapper.children);
+    const clientesContainerRef = clientesCardsContainerRef.current;
+    
+    wrapperChildren.forEach(child => {
+      // Preservar header
+      if (child.classList && child.classList.contains('painel-usuario-header-board')) return;
+      
+      // Preservar container de clientes (o container passado para React, não o div interno)
+      if (clientesContainerRef && child === clientesContainerRef) return;
+      
+      // Verificar se é container de tarefas (lista ou board)
+      const isListaContainer = child.classList && child.classList.contains('painel-usuario-lista-container');
+      const style = window.getComputedStyle(child);
+      const isBoardContainer = style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll');
+      
+      if (isListaContainer || isBoardContainer) {
+        child.remove();
+      }
+    });
+    
+    // Atualizar contador no header - buscar de forma mais robusta
+    const header = wrapper.querySelector('.painel-usuario-header-board');
+    if (header) {
+      const headerLeft = header.firstElementChild; // Primeiro filho deve ser o headerLeft
+      if (headerLeft) {
+        // Procurar o subtitle (último filho do headerLeft que tem marginLeft: auto)
+        const children = Array.from(headerLeft.children);
+        const subtitle = children.find(child => {
+          const style = child.style.cssText || window.getComputedStyle(child).cssText;
+          return style.includes('margin-left: auto') || style.includes('marginLeft: auto') || child.style.marginLeft === 'auto';
+        });
+        
+        if (subtitle) {
+          // Atualizar apenas o texto, preservando o botão e seus event listeners
+          const btnLimpar = subtitle.querySelector('button');
+          
+          // Remover apenas os nós de texto
+          const textNodes = Array.from(subtitle.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+          textNodes.forEach(node => node.remove());
+          
+          // Adicionar o novo texto
+          if (btnLimpar) {
+            // Se houver botão, adicionar texto após o botão
+            subtitle.insertBefore(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`), btnLimpar.nextSibling);
+          } else {
+            // Se não houver botão, adicionar texto no final
+            subtitle.appendChild(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`));
+          }
+        }
+      }
+      
+      // Atualizar o toggle para refletir o modo atual
+      const toggleView = header.querySelector('.painel-usuario-toggle-view');
+      if (toggleView) {
+        const modo = obterModoVisualizacao();
+        const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
+        const btnLista = toggleView.querySelector('button[data-mode="lista"]');
+        
+        if (btnQuadro && btnLista) {
+          // Atualizar classes active
+          if (modo === 'quadro') {
+            btnQuadro.classList.add('active');
+            btnLista.classList.remove('active');
+          } else {
+            btnQuadro.classList.remove('active');
+            btnLista.classList.add('active');
+          }
+        }
+      }
+    }
+
+    // Renderizar tarefas novamente
+    const modo = obterModoVisualizacao();
+    const dataParaRenderizar = dataSelecionada || dataTarefasSelecionada || new Date();
+    
+    if (modo === 'lista') {
+      renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
+    } else {
+      renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaRenderizar);
+    }
+  }, [clienteSelecionadoId]);
+
   const renderTarefasNoCard = (registros, target, dataSelecionada = null) => {
     const card = target || tarefasContainerRef.current;
     if (!card) {
       return;
     }
-    card.innerHTML = '';
+    
     card.classList.add('painel-usuario-tarefas-content');
+    
+    // Verificar se já existe um wrapper com cards de clientes
+    let wrapper = card.querySelector('div[style*="flex-direction: column"]');
+    let clientesContainer = null;
+    
+      if (wrapper) {
+      // Se o wrapper já existe, preservar o container de clientes
+      // Procurar pelo container que contém os cards de clientes (tem a classe clientes-knowledge-grid)
+      const clientesGrid = wrapper.querySelector('.clientes-knowledge-grid');
+      if (clientesGrid && clientesGrid.parentNode) {
+        clientesContainer = clientesGrid.parentNode;
+      } else {
+        // Se não encontrar pelo grid, procurar pelo primeiro div que não é header
+        clientesContainer = wrapper.querySelector('div[style*="width: 100%"]:not(.painel-usuario-header-board)');
+      }
+      
+      // Remover apenas o header e as tarefas, mantendo os cards de clientes
+      const header = wrapper.querySelector('.painel-usuario-header-board');
+      const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
+      
+      // Para o board, procurar de forma mais específica
+      let boardContainer = null;
+      const wrapperChildren = Array.from(wrapper.children);
+      for (const child of wrapperChildren) {
+        if (child.classList && child.classList.contains('painel-usuario-header-board')) continue;
+        if (child === clientesContainer) continue;
+        const style = window.getComputedStyle(child);
+        if (style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+          boardContainer = child;
+          break;
+        }
+      }
+      
+      if (header) header.remove();
+      if (listaContainer) listaContainer.remove();
+      if (boardContainer) boardContainer.remove();
+    } else {
+      // Se não existe wrapper, criar um novo (primeira renderização)
+      card.innerHTML = '';
+      
+      wrapper = document.createElement('div');
+      wrapper.style.width = '100%';
+      wrapper.style.minHeight = '600px';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.gap = '12px';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.style.minWidth = '0';
+      
+      // Criar container para cards de clientes
+      clientesContainer = document.createElement('div');
+      clientesContainer.style.width = '100%';
+      wrapper.appendChild(clientesContainer);
+      card.appendChild(wrapper);
+    }
 
     const cardId = obterCardId();
     const modo = obterModoVisualizacao();
 
-    const wrapper = document.createElement('div');
-    wrapper.style.width = '100%';
-    wrapper.style.minHeight = '600px'; // Altura mínima para dar mais espaço
-    wrapper.style.display = 'flex';
-    wrapper.style.flexDirection = 'column';
-    wrapper.style.gap = '12px';
-    wrapper.style.boxSizing = 'border-box';
-    wrapper.style.minWidth = '0';
+    // Filtrar registros por cliente selecionado (seleção única)
+    let registrosFiltrados = registros;
+    if (clienteSelecionadoId) {
+      const selectedId = String(clienteSelecionadoId).trim();
+      registrosFiltrados = registros.filter(reg => {
+        const regClienteId = String(reg.cliente_id || '').trim();
+        return regClienteId === selectedId;
+      });
+    }
+
+    // Renderizar cards de clientes ANTES das tarefas (apenas se não existirem)
+    if (!clientesContainer || !clientesContainer.querySelector('.clientes-knowledge-grid')) {
+      // Sempre mostrar todos os clientes que têm tarefas (não filtrar os cards, apenas as tarefas)
+      const clientesIdsSet = new Set();
+      registros.forEach(reg => {
+        if (reg.cliente_id) {
+          clientesIdsSet.add(String(reg.cliente_id).trim());
+        }
+      });
+      
+      // Se não existe container, criar um novo
+      if (!clientesContainer) {
+        clientesContainer = document.createElement('div');
+        clientesContainer.style.width = '100%';
+        wrapper.insertBefore(clientesContainer, wrapper.firstChild);
+      }
+      
+      // Buscar e renderizar clientes apenas se ainda não foram renderizados
+      if (clientesIdsSet.size > 0 && (!clientesCardsRootRef.current || !clientesCardsDataRef.current)) {
+        const clientesIdsArray = Array.from(clientesIdsSet);
+        buscarClientesPorIds(clientesIdsArray).then(clientes => {
+          // Verificar se o container ainda existe no DOM antes de renderizar
+          if (clientes && clientes.length > 0 && clientesContainer && clientesContainer.parentNode) {
+            renderizarCardsClientes(clientes, clientesContainer);
+          }
+        }).catch(error => {
+          // Erro ao buscar clientes - não crítico
+        });
+      }
+    }
 
     const header = document.createElement('div');
     header.className = 'painel-usuario-header-board';
@@ -1514,8 +2493,12 @@ const PainelUsuario = () => {
     const subtitle = document.createElement('div');
     subtitle.style.fontSize = '12px';
     subtitle.style.color = '#6b7280';
-    subtitle.textContent = `${registros.length} tarefa(s)`;
+    subtitle.style.display = 'flex';
+    subtitle.style.alignItems = 'center';
+    subtitle.style.gap = '8px';
     subtitle.style.marginLeft = 'auto';
+    
+    subtitle.appendChild(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`));
     headerLeft.appendChild(subtitle);
     
     header.appendChild(headerLeft);
@@ -1548,17 +2531,26 @@ const PainelUsuario = () => {
     toggleView.appendChild(btnLista);
     
     header.appendChild(toggleView);
-    wrapper.appendChild(header);
-
-    // Renderizar baseado no modo
-    const dataParaRenderizar = dataSelecionada || dataTarefasSelecionada || new Date();
-    if (modo === 'lista') {
-      renderTarefasEmLista(registros, wrapper, dataParaRenderizar);
+    
+    // Inserir header após o container de clientes (se existir) ou no início
+    if (clientesContainer && clientesContainer.parentNode === wrapper) {
+      wrapper.insertBefore(header, clientesContainer.nextSibling);
     } else {
-      renderTarefasEmQuadro(registros, wrapper, dataParaRenderizar);
+      wrapper.appendChild(header);
     }
 
-    card.appendChild(wrapper);
+    // Renderizar baseado no modo (usar registros filtrados)
+    const dataParaRenderizar = dataSelecionada || dataTarefasSelecionada || new Date();
+    if (modo === 'lista') {
+      renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
+    } else {
+      renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaRenderizar);
+    }
+    
+    // Garantir que o wrapper está no card (apenas se for primeira renderização)
+    if (!card.contains(wrapper)) {
+      card.appendChild(wrapper);
+    }
   };
 
   const toggleClienteLista = useCallback((clienteNome) => {
@@ -1643,12 +2635,23 @@ const PainelUsuario = () => {
       // Agrupar por cliente
       const gruposPorCliente = registros.reduce((acc, reg) => {
         const clienteNome = reg.cliente_nome || reg.cliente || getNomeCliente(reg.cliente_id);
-        if (!acc[clienteNome]) acc[clienteNome] = [];
-        acc[clienteNome].push(reg);
+        // Só agrupar se tiver um nome válido (não vazio e não contém "#")
+        if (clienteNome && clienteNome.trim() && !clienteNome.includes('#')) {
+          if (!acc[clienteNome]) acc[clienteNome] = [];
+          acc[clienteNome].push(reg);
+        } else if (reg.cliente_id) {
+          // Se não tiver nome ainda, disparar busca e usar um grupo temporário
+          buscarNomeCliente(reg.cliente_id).catch(() => {});
+          const tempKey = `_loading_${reg.cliente_id}`;
+          if (!acc[tempKey]) acc[tempKey] = [];
+          acc[tempKey].push(reg);
+        }
         return acc;
       }, {});
 
       Object.entries(gruposPorCliente).forEach(([clienteNome, items]) => {
+        // Pular grupos temporários de carregamento
+        if (clienteNome.startsWith('_loading_')) return;
         const isExpanded = clientesExpandidosLista.has(clienteNome);
         
         // Calcular tempo estimado total do cliente
@@ -1688,8 +2691,8 @@ const PainelUsuario = () => {
             <i class="fas fa-chevron-${isExpanded ? 'down' : 'right'}" style="color: #64748b; font-size: 12px; width: 16px; display: flex; align-items: center; justify-content: center;"></i>
             <span class="painel-usuario-grupo-badge-orange">CLIENTE</span>
             <h3 class="painel-usuario-grupo-title">${clienteNome}</h3>
-            ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total has-tooltip"><i class="fas fa-clock" style="color: #0e3b6f; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}<div class="filter-tooltip">Tempo estimado</div></span>` : ''}
-            ${tempoRealizadoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-realizado has-tooltip"><i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}<div class="filter-tooltip">Tempo realizado</div></span>` : ''}
+            ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total"><i class="fas fa-clock" style="color: #0e3b6f; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}</span>` : ''}
+            ${tempoRealizadoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-realizado"><i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}</span>` : ''}
             <span class="painel-usuario-grupo-count">Tarefas: ${items.length}</span>
           </div>
         `;
@@ -1919,7 +2922,31 @@ const PainelUsuario = () => {
     wrapper.appendChild(lista);
   };
 
-  const renderTarefasEmQuadro = (registros, wrapper, dataSelecionada = null) => {
+  const renderTarefasEmQuadro = (registros, target, dataSelecionada = null) => {
+    // Se receber o card principal, encontrar o wrapper interno
+    let wrapper = target;
+    if (target && target.classList && target.classList.contains('painel-usuario-tarefas-content')) {
+      wrapper = target.querySelector('div[style*="flex-direction: column"]');
+    }
+    
+    // Se ainda não tiver wrapper, usar renderTarefasNoCard que cria a estrutura correta
+    if (!wrapper) {
+      renderTarefasNoCard(registros, target, dataSelecionada);
+      return;
+    }
+    
+    // Remover boardContainer existente para evitar duplicação
+    const wrapperChildren = Array.from(wrapper.children);
+    for (const child of wrapperChildren) {
+      if (child.classList && child.classList.contains('painel-usuario-header-board')) continue;
+      const clientesGrid = child.querySelector('.clientes-knowledge-grid');
+      if (clientesGrid) continue;
+      const style = window.getComputedStyle(child);
+      if (style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+        child.remove();
+        break;
+      }
+    }
 
     const board = document.createElement('div');
     board.style.flex = '1';
@@ -1947,12 +2974,23 @@ const PainelUsuario = () => {
       // Agrupar por cliente
       const gruposPorCliente = registros.reduce((acc, reg) => {
         const clienteNome = reg.cliente_nome || reg.cliente || getNomeCliente(reg.cliente_id);
-        if (!acc[clienteNome]) acc[clienteNome] = [];
-        acc[clienteNome].push(reg);
+        // Só agrupar se tiver um nome válido (não vazio e não contém "#")
+        if (clienteNome && clienteNome.trim() && !clienteNome.includes('#')) {
+          if (!acc[clienteNome]) acc[clienteNome] = [];
+          acc[clienteNome].push(reg);
+        } else if (reg.cliente_id) {
+          // Se não tiver nome ainda, disparar busca e usar um grupo temporário
+          buscarNomeCliente(reg.cliente_id).catch(() => {});
+          const tempKey = `_loading_${reg.cliente_id}`;
+          if (!acc[tempKey]) acc[tempKey] = [];
+          acc[tempKey].push(reg);
+        }
         return acc;
       }, {});
 
       Object.entries(gruposPorCliente).forEach(([clienteNome, items]) => {
+        // Pular grupos temporários de carregamento
+        if (clienteNome.startsWith('_loading_')) return;
         // Calcular tempo estimado total do cliente
         const tempoTotal = items.reduce((sum, reg) => {
           const tempo = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
@@ -1971,8 +3009,9 @@ const PainelUsuario = () => {
         const coluna = document.createElement('div');
         coluna.className = 'painel-usuario-coluna';
         coluna.style.minWidth = '240px';
-        coluna.style.maxWidth = '320px';
-        coluna.style.flex = '1 1 240px';
+        coluna.style.maxWidth = 'none'; // Remover maxWidth para permitir expansão
+        coluna.style.flex = '0 0 auto'; // Mudar para auto para permitir expansão baseada no conteúdo
+        coluna.style.width = 'auto'; // Permitir largura automática
         coluna.style.display = 'flex';
         coluna.style.flexDirection = 'column';
 
@@ -1987,12 +3026,15 @@ const PainelUsuario = () => {
         colunaHeader.style.alignItems = 'center';
         colunaHeader.style.justifyContent = 'space-between';
         colunaHeader.style.gap = '12px';
-        colunaHeader.style.flexWrap = 'wrap';
+        colunaHeader.style.flexWrap = 'nowrap'; // Mudar para nowrap para manter tudo na mesma linha
+        colunaHeader.style.minWidth = '0'; // Permitir que o flex item encolha se necessário
         
         // Nome do cliente
         const clienteNomeEl = document.createElement('div');
         clienteNomeEl.textContent = clienteNome;
-        clienteNomeEl.style.flexShrink = '0';
+        clienteNomeEl.style.flexShrink = '0'; // Não encolher o nome
+        clienteNomeEl.style.whiteSpace = 'nowrap'; // Não quebrar o nome
+        clienteNomeEl.style.overflow = 'visible'; // Permitir que o nome seja visível mesmo se longo
         colunaHeader.appendChild(clienteNomeEl);
         
         // Container para as informações de tempo (na mesma linha, alinhado à direita)
@@ -2000,8 +3042,9 @@ const PainelUsuario = () => {
         tempoInfoContainer.style.display = 'flex';
         tempoInfoContainer.style.alignItems = 'center';
         tempoInfoContainer.style.gap = '8px';
-        tempoInfoContainer.style.flexWrap = 'wrap';
+        tempoInfoContainer.style.flexWrap = 'nowrap'; // Mudar para nowrap para manter tudo na mesma linha
         tempoInfoContainer.style.marginLeft = 'auto';
+        tempoInfoContainer.style.flexShrink = '0'; // Não encolher o container de tempo
         colunaHeader.appendChild(tempoInfoContainer);
         
         // Renderizar componente React de informações de tempo
@@ -2303,17 +3346,52 @@ const PainelUsuario = () => {
       }
     }
     
-    // Para clientes, tenta usar cache de lista em vez de chamar /clientes/:id
+    // Para clientes, usar o endpoint de base-conhecimento para buscar nomes
     if (clientesIds.size > 0) {
       const clientesIdsArray = Array.from(clientesIds);
       const clientesFaltando = clientesIdsArray.filter(id => !novos.clientes[id]);
+      
       if (clientesFaltando.length > 0) {
-        const lista = await carregarClientesLista();
-        clientesFaltando.forEach(id => {
-          if (lista && lista[id]) {
-            novos.clientes[id] = lista[id];
-          } else {
-            novos.clientes[id] = `cliente #${id}`;
+        // Buscar nomes em paralelo usando o endpoint de base-conhecimento
+        const promessasBusca = clientesFaltando.map(async (id) => {
+          try {
+            const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${id}`, {
+              credentials: 'include',
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data && result.data.cliente) {
+                const cliente = result.data.cliente;
+                // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
+                const nome = cliente.nome || 
+                             cliente.nome_amigavel || 
+                             cliente.amigavel ||
+                             cliente.nome_fantasia || 
+                             cliente.fantasia ||
+                             cliente.razao_social || 
+                             cliente.razao ||
+                             null;
+                
+                if (nome) {
+                  return { id: String(id), nome };
+                }
+              }
+            }
+        } catch (error) {
+          // Erro ao buscar nome do cliente - não crítico
+        }
+          return null;
+        });
+
+        const resultados = await Promise.all(promessasBusca);
+        resultados.forEach((resultado) => {
+          if (resultado && resultado.nome) {
+            novos.clientes[resultado.id] = resultado.nome;
           }
         });
       }
@@ -2381,14 +3459,17 @@ const PainelUsuario = () => {
           const mapa = {};
           result.data.forEach((c) => {
             const id = String(c.id || c.cliente_id || '').trim();
+            // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
+            // NUNCA exibir ID do cliente
             const nome =
               c.nome ||
+              c.nome_amigavel ||
               c.nome_fantasia ||
               c.razao_social ||
               c.cliente_nome ||
               c.nome_cliente ||
-              `Cliente #${id}`;
-            if (id) mapa[id] = nome;
+              null; // Retornar null em vez de "Cliente #${id}"
+            if (id && nome) mapa[id] = nome;
           });
           setClientesListaCache(mapa);
           return mapa;
@@ -2517,8 +3598,7 @@ const PainelUsuario = () => {
       const responsavelIdDescoberto = await descobrirResponsavelId();
       const idsPossiveis = [
         ...idsPossiveisBase,
-        responsavelIdDescoberto,
-        RESPONSAVEL_ID_FIXO
+        responsavelIdDescoberto
       ].filter(Boolean);
 
       const nomesPossiveis = [
@@ -2536,9 +3616,12 @@ const PainelUsuario = () => {
         idsUnicos.forEach((id) => params.append('responsavel_id', id));
       }
 
+      // IMPORTANTE: Enviar apenas a data selecionada para otimizar a busca
+      // O backend deve retornar APENAS os registros desta data específica
       params.append('data_inicio', dataStr);
       params.append('data_fim', dataStr);
-      params.append('limit', '200');
+      // Limite maior para garantir que não perdemos dados, mas o backend deve filtrar pela data
+      params.append('limit', '100');
       params.append('page', '1');
 
       const response = await fetch(`/api/tempo-estimado?${params}`, {
@@ -2554,7 +3637,8 @@ const PainelUsuario = () => {
         }
       }
 
-      // Filtra em memória apenas registros da data selecionada E do responsável correto
+      // Filtra em memória APENAS para garantir que temos apenas a data selecionada
+      // Isso é uma segurança adicional caso o backend retorne dados de outras datas
       const ehDataSelecionada = (data) => {
         if (!data) return false;
         if (typeof data === 'string') {
@@ -2572,14 +3656,18 @@ const PainelUsuario = () => {
         }
       };
       
-      // Filtrar por data selecionada E responsável
+      // Filtrar APENAS registros da data selecionada E do responsável correto
+      // Garantir que não carregamos dados de outras datas
       const idsUnicosSet = new Set(idsUnicos);
       registros = registros.filter((r) => {
         const dataOk = ehDataSelecionada(r.data);
         const responsavelOk = idsUnicosSet.has(String(r.responsavel_id)) || 
                              idsUnicosSet.has(Number(r.responsavel_id));
         return dataOk && responsavelOk;
-              });
+      });
+      
+      // Se após filtrar não há registros, significa que não há tarefas para esta data
+      // Não fazer fallbacks que carregariam outras datas
 
       // Remover fallbacks que podem trazer dados incorretos
       // Se não encontrou nada, é porque realmente não há tarefas para hoje do usuário
@@ -2726,16 +3814,24 @@ const PainelUsuario = () => {
         // Buscar tempos realizados atualizados
         await buscarTemposRealizados();
         
+        // Atualizar tempo realizado no DOM diretamente para todas as tarefas
+        // Isso garante que o tempo seja atualizado imediatamente, igual ao botão na tarefa
+        tarefasRegistrosRef.current.forEach((reg) => {
+          const chaveTempo = criarChaveTempo(reg);
+          if (chaveTempo) {
+            const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
+            atualizarTempoRealizadoEBarraProgresso(reg, tempoRealizadoMs);
+          }
+        });
+        
+        // Atualizar headers dos clientes com os novos tempos realizados
+        atualizarTemposRealizadosHeaders();
+        
         // Sincronizar TODOS os botões para garantir consistência
         sincronizarTodosBotoes();
         
-        // Re-renderizar tarefas para atualizar os tempos realizados na tela
-        if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
-          const modo = obterModoVisualizacao();
-          if (modo === 'lista') {
-            renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
-          }
-        }
+        // NÃO re-renderizar tudo - isso causa fechamento/abertura dos clientes
+        // Os tempos já foram atualizados diretamente no DOM acima
       }, 300); // Delay aumentado para garantir processamento completo
     };
 
@@ -2746,7 +3842,7 @@ const PainelUsuario = () => {
       window.removeEventListener('registro-tempo-iniciado', handleRegistroIniciado);
       window.removeEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
     };
-  }, [verificarRegistrosAtivos, buscarTemposRealizados, sincronizarTodosBotoes]);
+  }, [verificarRegistrosAtivos, buscarTemposRealizados, sincronizarTodosBotoes, criarChaveTempo, atualizarTempoRealizadoEBarraProgresso, clientesExpandidosLista, dataTarefasSelecionada]);
 
   // Re-renderizar tarefas quando clientes expandidos mudarem (modo lista)
   useEffect(() => {
@@ -2758,6 +3854,109 @@ const PainelUsuario = () => {
     }
   }, [clientesExpandidosLista]);
 
+  // Re-renderizar tarefas quando clientes selecionados mudarem (apenas filtro, sem recarregar dados)
+  useEffect(() => {
+    // Aguardar um pouco para garantir que o estado foi atualizado
+    const timeoutId = setTimeout(() => {
+      if (tarefasRegistrosRef.current.length > 0 && tarefasContainerRef.current) {
+        // Encontrar o wrapper existente (não recriar tudo)
+        const card = tarefasContainerRef.current;
+        const wrapper = card.querySelector('div[style*="flex-direction: column"]');
+        
+        if (wrapper) {
+          // Atualizar apenas as tarefas, preservando cards de clientes e header
+          // Usar a lógica diretamente aqui para evitar dependência circular
+          const registrosFiltrados = clienteSelecionadoId
+            ? (() => {
+                const selectedId = String(clienteSelecionadoId).trim();
+                return tarefasRegistrosRef.current.filter(reg => {
+                  const regClienteId = String(reg.cliente_id || '').trim();
+                  return regClienteId === selectedId;
+                });
+              })()
+            : tarefasRegistrosRef.current;
+          
+          // Remover containers antigos de tarefas
+          const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
+          let boardContainer = null;
+          const wrapperChildren = Array.from(wrapper.children);
+          for (const child of wrapperChildren) {
+            if (child.classList && child.classList.contains('painel-usuario-header-board')) continue;
+            const clientesGrid = child.querySelector('.clientes-knowledge-grid');
+            if (clientesGrid) continue;
+            const style = window.getComputedStyle(child);
+            if (style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+              boardContainer = child;
+              break;
+            }
+          }
+          
+          if (listaContainer) listaContainer.remove();
+          if (boardContainer) boardContainer.remove();
+          
+          // Atualizar contador no header
+          const header = wrapper.querySelector('.painel-usuario-header-board');
+          if (header) {
+            const headerLeft = header.firstElementChild;
+            if (headerLeft) {
+              const children = Array.from(headerLeft.children);
+              const subtitle = children.find(child => {
+                const style = child.style.cssText || window.getComputedStyle(child).cssText;
+                return style.includes('margin-left: auto') || style.includes('marginLeft: auto') || child.style.marginLeft === 'auto';
+              });
+              
+              if (subtitle) {
+                const btnLimpar = subtitle.querySelector('button');
+                const textNodes = Array.from(subtitle.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+                textNodes.forEach(node => node.remove());
+                if (btnLimpar) {
+                  subtitle.insertBefore(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`), btnLimpar.nextSibling);
+                } else {
+                  subtitle.appendChild(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`));
+                }
+              }
+            }
+            
+            // Atualizar o toggle para refletir o modo atual
+            const toggleView = header.querySelector('.painel-usuario-toggle-view');
+            if (toggleView) {
+              const modo = obterModoVisualizacao();
+              const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
+              const btnLista = toggleView.querySelector('button[data-mode="lista"]');
+              
+              if (btnQuadro && btnLista) {
+                // Atualizar classes active
+                if (modo === 'quadro') {
+                  btnQuadro.classList.add('active');
+                  btnLista.classList.remove('active');
+                } else {
+                  btnQuadro.classList.remove('active');
+                  btnLista.classList.add('active');
+                }
+              }
+            }
+          }
+          
+          // Renderizar tarefas novamente
+          const modo = obterModoVisualizacao();
+          const dataParaRenderizar = dataTarefasSelecionada || new Date();
+          
+          if (modo === 'lista') {
+            renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
+          } else {
+            renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaRenderizar);
+          }
+        } else {
+          // Se não encontrar wrapper, fazer renderização completa (caso inicial)
+          renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
+        }
+      }
+    }, 50);
+    
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSelecionadoId]);
+
 
   return (
     <Layout>
@@ -2766,7 +3965,7 @@ const PainelUsuario = () => {
           <div className="painel-usuario-content-section">
             <PageHeader 
               title="Minhas Tarefas"
-              subtitle="Visualize e gerencie suas tarefas atribuídas"
+              subtitle="Visualize suas tarefas atribuídas"
             />
 
             {/* Container das tarefas */}
@@ -2774,6 +3973,17 @@ const PainelUsuario = () => {
           </div>
         </main>
       </div>
+
+      {/* DetailSideCard para clientes */}
+      {detailCardCliente && (
+        <DetailSideCard
+          clienteId={detailCardCliente.clienteId}
+          tipo={detailCardCliente.tipo}
+          dados={detailCardCliente.dados}
+          onClose={handleCloseDetailCliente}
+          position={detailCardClientePosition}
+        />
+      )}
     </Layout>
   );
 };
