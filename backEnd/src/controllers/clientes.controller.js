@@ -6,48 +6,65 @@ const supabase = require('../config/database');
 const { clearCache } = require('../config/cache');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { uploadImageToStorage, deleteImageFromStorage, resolveAvatarUrl } = require('../utils/storage');
 
-// Configurar multer para upload de fotos de clientes
-const getClienteUploadPath = () => {
-  if (process.env.UPLOAD_CLIENTE_AVATAR_PATH) {
-    return process.env.UPLOAD_CLIENTE_AVATAR_PATH;
-  }
-  
-  if (process.env.NODE_ENV === 'production') {
-    return '/app/frontEnd/public/assets/images/avatars/clientes';
-  }
-  
-  return path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
-};
+// ========================================
+// CONSTANTES E CONFIGURAÇÕES
+// ========================================
 
-const clienteStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    try {
-      const uploadPath = getClienteUploadPath();
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
+// Campos do cliente a serem selecionados (todos os campos da tabela)
+const CLIENTE_FIELDS = '*';
+
+// ========================================
+// FUNÇÕES AUXILIARES
+// ========================================
+
+/**
+ * Processa um cliente: resolve foto_perfil e mantém TODOS os campos originais
+ * @param {Object} cliente - Dados do cliente do banco
+ * @returns {Promise<Object>} Cliente processado com foto_perfil resolvido
+ */
+async function processarCliente(cliente) {
+  if (!cliente) return null;
+
+  // Resolver foto_perfil: se for custom-{id}, buscar URL no Storage
+  let fotoPerfilUrl = cliente.foto_perfil;
+  if (cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-')) {
+    const resolvedUrl = await resolveAvatarUrl(cliente.foto_perfil, 'cliente');
+    // Se resolveu com sucesso, usar a URL; caso contrário, manter o custom-{id} para o frontend resolver
+    if (resolvedUrl) {
+      fotoPerfilUrl = resolvedUrl;
+    }
+    // Se não resolveu, mantém o custom-{id} original para o frontend tentar resolver
+  }
+
+  // Retornar TODOS os campos originais do cliente + foto_perfil resolvida
+  // NÃO sobrescrever nenhum campo para preservar os dados originais
+  return {
+    ...cliente,
+    foto_perfil: fotoPerfilUrl // URL resolvida ou custom-{id} ou valor original
+  };
+}
+
+/**
+ * Valida se o ID foi fornecido
+ * @param {string} id - ID a validar
+ * @returns {Object|null} Objeto de erro ou null se válido
+ */
+function validarId(id) {
+  if (!id) {
+    return {
+      status: 400,
+      json: {
+        success: false,
+        error: 'ID do cliente é obrigatório'
       }
-      
-      fs.accessSync(uploadPath, fs.constants.W_OK);
-      cb(null, uploadPath);
-    } catch (error) {
-      cb(error);
-    }
-  },
-  filename: function (req, file, cb) {
-    try {
-      const clienteId = req.params.clienteId || 'unknown';
-      const timestamp = Date.now();
-      const ext = path.extname(file.originalname);
-      cb(null, `cliente-${clienteId}-${timestamp}${ext}`);
-    } catch (error) {
-      cb(error);
-    }
+    };
   }
-});
+  return null;
+}
 
+// Configurar multer para usar memória (arquivo será enviado para Supabase Storage)
 const clienteFileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|gif|webp/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -61,7 +78,7 @@ const clienteFileFilter = (req, file, cb) => {
 };
 
 const uploadClienteFoto = multer({
-  storage: clienteStorage,
+  storage: multer.memoryStorage(), // Usar memória para enviar para Supabase Storage
   limits: {
     fileSize: 15 * 1024 * 1024 // 15MB máximo
   },
@@ -157,11 +174,9 @@ async function deletarCliente(req, res) {
   try {
     const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do cliente é obrigatório'
-      });
+    const idError = validarId(id);
+    if (idError) {
+      return res.status(idError.status).json(idError.json);
     }
 
     console.log('🗑️ Deletando cliente com ID:', id);
@@ -222,34 +237,8 @@ async function deletarCliente(req, res) {
       });
     }
 
-    // Deletar fotos de perfil customizadas do cliente
-    const fs = require('fs');
-    const path = require('path');
-    const customDir = process.env.NODE_ENV === 'production'
-      ? '/app/frontEnd/public/assets/images/avatars/clientes'
-      : path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
-
-    if (fs.existsSync(customDir)) {
-      try {
-        const files = fs.readdirSync(customDir);
-        const idStr = String(id);
-        const clienteFiles = files.filter(file => file.startsWith(`cliente-${idStr}-`));
-        
-        clienteFiles.forEach(file => {
-          const filePath = path.join(customDir, file);
-          try {
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-              console.log(`🗑️ Foto removida: ${file}`);
-            }
-          } catch (unlinkError) {
-            console.error(`⚠️ Erro ao deletar foto ${file}:`, unlinkError);
-          }
-        });
-      } catch (readError) {
-        console.error('❌ Erro ao limpar fotos:', readError);
-      }
-    }
+    // Nota: Fotos estão no Supabase Storage e são gerenciadas via metadados
+    // Não é necessário limpar arquivos do sistema de arquivos
 
     // Deletar do banco
     const { error } = await supabase
@@ -291,11 +280,83 @@ async function deletarCliente(req, res) {
 }
 
 // ========================================
-// === GET /api/clientes ===
+// === GET /api/clientes OU /api/clientes/:id ===
+// Endpoint unificado que:
+// - Com ID: retorna cliente específico
+// - Sem ID: retorna lista paginada com filtros
+// Ambos usam o mesmo processamento (processarCliente)
 // ========================================
-async function getCarteiraClientes(req, res) {
-  console.log('📡 Endpoint /api/clientes chamado');
+async function getClientes(req, res) {
+  console.log('\n\n\n');
+  console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+  console.log('🚀 ========== GETCLIENTES CHAMADO ==========');
+  console.log('🚀 URL:', req.url);
+  console.log('🚀 METHOD:', req.method);
+  console.log('🚀 req.params:', JSON.stringify(req.params));
+  console.log('🚀 req.query:', JSON.stringify(req.query));
+  console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
+  console.log('\n\n\n');
+  
   try {
+    const { id } = req.params;
+
+    // ============================================
+    // CASO 1: BUSCAR CLIENTE ESPECÍFICO POR ID
+    // ============================================
+    if (id) {
+      console.log('🔍 Entrando no caso 1: BUSCAR POR ID');
+      const idError = validarId(id);
+      if (idError) {
+        return res.status(idError.status).json(idError.json);
+      }
+
+      console.log('📡 Buscando cliente por ID:', id);
+
+      const { data: cliente, error } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_cliente')
+        .select(CLIENTE_FIELDS)
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Erro ao buscar cliente:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar cliente',
+          details: error.message
+        });
+      }
+
+      if (!cliente) {
+        return res.status(404).json({
+          success: false,
+          error: 'Cliente não encontrado'
+        });
+      }
+
+      // Processar cliente usando função auxiliar
+      console.log('📥 DADOS BRUTOS DO BANCO (por ID):', cliente);
+      const clienteCompleto = await processarCliente(cliente);
+      console.log('📤 DADOS PROCESSADOS (por ID):', clienteCompleto);
+
+      const resposta = {
+        success: true,
+        data: {
+          cliente: clienteCompleto
+        }
+      };
+      
+      console.log('📨 RESPOSTA FINAL (por ID):', resposta);
+      return res.json(resposta);
+    }
+
+    // ============================================
+    // CASO 2: LISTAR CLIENTES COM PAGINAÇÃO E FILTROS
+    // ============================================
+    console.log('📋 ========== Entrando no caso 2: LISTAGEM ==========');
+    console.log('📡 Endpoint /api/clientes chamado - listagem');
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const search = (req.query.search || '').trim();
@@ -308,21 +369,27 @@ async function getCarteiraClientes(req, res) {
     let baseQuery = supabase
       .schema('up_gestaointeligente')
       .from('cp_cliente')
-      .select('*');
+      .select(CLIENTE_FIELDS);
 
     let countQuery = supabase
       .schema('up_gestaointeligente')
       .from('cp_cliente')
       .select('id', { count: 'exact', head: true });
 
+    // Aplicar filtro de busca (search)
     if (search) {
       const ilike = `%${search}%`;
       baseQuery = baseQuery.or(`nome.ilike.${ilike},razao_social.ilike.${ilike},nome_fantasia.ilike.${ilike},nome_amigavel.ilike.${ilike}`);
       countQuery = countQuery.or(`nome.ilike.${ilike},razao_social.ilike.${ilike},nome_fantasia.ilike.${ilike},nome_amigavel.ilike.${ilike}`);
     }
 
-    // Removida validação de status e incompletos - sempre retorna todos os clientes
+    // Aplicar filtro de status
+    if (status && status !== 'todos') {
+      baseQuery = baseQuery.eq('status', status);
+      countQuery = countQuery.eq('status', status);
+    }
 
+    // Ordenar e paginar
     baseQuery = baseQuery.order('razao_social', { ascending: true }).range(offset, offset + limit - 1);
 
     const [{ data, error: dataErr }, { count, error: countErr }] = await Promise.all([
@@ -332,59 +399,25 @@ async function getCarteiraClientes(req, res) {
 
     if (dataErr || countErr) {
       const err = dataErr || countErr;
-      console.error('Erro na carteira de clientes:', err);
+      console.error('Erro ao listar clientes:', err);
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
     }
 
-    // Processar fotos de perfil customizadas
-    const fs = require('fs');
-    const path = require('path');
-    const customDir = process.env.NODE_ENV === 'production'
-      ? '/app/frontEnd/public/assets/images/avatars/clientes'
-      : path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
+    // Processar todos os clientes usando a mesma função auxiliar
+    console.log('🔄 Processando', data.length, 'clientes...');
+    console.log('📥 DADOS BRUTOS DO BANCO (primeiro cliente):', data[0]);
     
-    // Buscar todas as fotos de uma vez para melhor performance
-    let fotosMap = {};
-    if (fs.existsSync(customDir)) {
-      try {
-        const files = fs.readdirSync(customDir);
-        // Criar um mapa de cliente_id -> arquivo mais recente
-        // Formato do arquivo: cliente-{uuid}-{timestamp}.{ext}
-        files.forEach(file => {
-          // Regex para capturar UUID completo (com hífens) e timestamp
-          const match = file.match(/^cliente-(.+?)-(\d+)\./);
-          if (match) {
-            const clienteId = String(match[1]); // UUID completo como string
-            const timestamp = parseInt(match[2] || '0');
-            
-            if (!fotosMap[clienteId] || timestamp > parseInt(fotosMap[clienteId].match(/-(\d+)\./)?.[1] || '0')) {
-              fotosMap[clienteId] = file;
-            }
-          }
-        });
-      } catch (readError) {
-        console.error('❌ Erro ao ler diretório de fotos:', readError);
-      }
-    }
-    
-    const clientesProcessados = (data || []).map(cliente => {
-      // Criar uma cópia do cliente para não modificar o original
-      const clienteProcessado = { ...cliente };
-      
-      // Se for avatar customizado, buscar o caminho completo da imagem
-      if (cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-')) {
-        // Garantir que o ID seja string para comparação
-        const clienteIdStr = String(cliente.id);
-        const fotoFile = fotosMap[clienteIdStr];
-        if (fotoFile) {
-          clienteProcessado.foto_perfil_path = `/assets/images/avatars/clientes/${fotoFile}`;
-        }
-      }
-      return clienteProcessado;
-    });
+    const clientesProcessados = await Promise.all((data || []).map(async (cliente) => {
+      const processado = await processarCliente(cliente);
+      return processado;
+    }));
+
+    console.log('📤 DADOS PROCESSADOS (primeiro cliente):', clientesProcessados[0]);
+    console.log('✅ Total de clientes processados:', clientesProcessados.length);
 
     const totalPages = Math.max(1, Math.ceil((count || 0) / limit));
-    return res.json({
+    
+    const resposta = {
       success: true,
       data: clientesProcessados,
       count: clientesProcessados.length,
@@ -392,7 +425,15 @@ async function getCarteiraClientes(req, res) {
       page,
       limit,
       totalPages
+    };
+    
+    console.log('📨 RESPOSTA FINAL (estrutura):', {
+      success: resposta.success,
+      dataLength: resposta.data.length,
+      primeiroCliente: resposta.data[0]
     });
+    
+    return res.json(resposta);
   } catch (e) {
     console.error('Erro no endpoint /api/clientes:', e);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
@@ -416,11 +457,9 @@ async function atualizarClientePorId(req, res) {
       foto_perfil
     } = req.body;
     
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do cliente é obrigatório'
-      });
+    const idError = validarId(id);
+    if (idError) {
+      return res.status(idError.status).json(idError.json);
     }
     
     console.log('📝 Atualizando cliente por ID:', id);
@@ -516,79 +555,11 @@ async function atualizarClientePorId(req, res) {
       });
     }
     
-    // Se estava usando foto customizada e mudou para avatar padrão, limpar fotos antigas
-    if (clienteAntesUpdate?.foto_perfil && 
-        clienteAntesUpdate.foto_perfil.startsWith('custom-') && 
-        foto_perfil && 
-        !foto_perfil.startsWith('custom-')) {
-      // Mudou de foto customizada para avatar padrão - limpar fotos antigas
-      const fs = require('fs');
-      const path = require('path');
-      const customDir = process.env.NODE_ENV === 'production'
-        ? '/app/frontEnd/public/assets/images/avatars/clientes'
-        : path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
-      
-      if (fs.existsSync(customDir)) {
-        try {
-          const files = fs.readdirSync(customDir);
-          const idStr = String(id);
-          const clienteFiles = files.filter(file => file.startsWith(`cliente-${idStr}-`));
-          
-          // Deletar todas as fotos antigas do cliente
-          clienteFiles.forEach(file => {
-            const filePath = path.join(customDir, file);
-            try {
-              if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-                console.log(`🗑️ Foto antiga removida (mudança para avatar padrão): ${file}`);
-              }
-            } catch (unlinkError) {
-              console.error(`⚠️ Erro ao deletar foto antiga ${file}:`, unlinkError);
-            }
-          });
-        } catch (readError) {
-          console.error('❌ Erro ao limpar fotos antigas:', readError);
-        }
-      }
-    }
+    // Nota: Fotos estão no Supabase Storage e são gerenciadas via metadados
+    // Se mudou para avatar padrão, o Storage será limpo na próxima atualização de foto
     
-    // Buscar foto_perfil_path se for foto customizada
-    let fotoPerfilPath = null;
-    if (clienteAtualizado.foto_perfil && clienteAtualizado.foto_perfil.startsWith('custom-')) {
-      const fs = require('fs');
-      const path = require('path');
-      const customDir = process.env.NODE_ENV === 'production'
-        ? '/app/frontEnd/public/assets/images/avatars/clientes'
-        : path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
-      
-      if (fs.existsSync(customDir)) {
-        try {
-          const files = fs.readdirSync(customDir);
-          const idStr = String(id);
-          const clienteFiles = files.filter(file => file.startsWith(`cliente-${idStr}-`));
-          
-          if (clienteFiles.length > 0) {
-            // Ordenar por timestamp (mais recente primeiro)
-            clienteFiles.sort((a, b) => {
-              const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-              const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-              return timestampB - timestampA;
-            });
-            
-            const latestFile = clienteFiles[0];
-            fotoPerfilPath = `/assets/images/avatars/clientes/${latestFile}`;
-          }
-        } catch (readError) {
-          console.error('❌ Erro ao buscar foto_perfil_path:', readError);
-        }
-      }
-    }
-    
-    // Adicionar foto_perfil_path ao retorno
+    // Retornar cliente atualizado
     const clienteRetorno = { ...clienteAtualizado };
-    if (fotoPerfilPath) {
-      clienteRetorno.foto_perfil_path = fotoPerfilPath;
-    }
     
     // Se o status mudou, sincronizar com contratos_clientes
     if (statusMudou && statusNovo) {
@@ -625,114 +596,15 @@ async function atualizarClientePorId(req, res) {
 }
 
 // ========================================
-// === GET /api/clientes/:id ===
+// === GET /api/clientes/:id (ALIAS) ===
+// Mantido por compatibilidade - apenas chama getClientes
 // ========================================
-async function getClientePorId(req, res) {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do cliente é obrigatório'
-      });
-    }
-
-    console.log('📡 Buscando cliente por ID:', id);
-
-    const { data: cliente, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('cp_cliente')
-      .select('id, nome, razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status, nome_cli_kamino, id_cli_kamino, foto_perfil')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ Erro ao buscar cliente:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar cliente',
-        details: error.message
-      });
-    }
-
-    if (!cliente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Cliente não encontrado'
-      });
-    }
-
-    // Se for avatar customizado, buscar o caminho completo da imagem
-    let fotoPerfilCompleto = cliente.foto_perfil;
-    if (cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-')) {
-      const fs = require('fs');
-      const path = require('path');
-      const customDir = process.env.NODE_ENV === 'production'
-        ? '/app/frontEnd/public/assets/images/avatars/clientes'
-        : path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/clientes');
-      
-      if (fs.existsSync(customDir)) {
-        try {
-          const files = fs.readdirSync(customDir);
-          // Garantir que o ID seja string para comparação
-          const idStr = String(id);
-          const clienteFiles = files.filter(file => file.startsWith(`cliente-${idStr}-`));
-          
-          if (clienteFiles.length > 0) {
-            // Ordenar por timestamp (mais recente primeiro)
-            clienteFiles.sort((a, b) => {
-              const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-              const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-              return timestampB - timestampA;
-            });
-            
-            const latestFile = clienteFiles[0];
-            fotoPerfilCompleto = `/assets/images/avatars/clientes/${latestFile}`;
-          }
-        } catch (readError) {
-          // Erro ao ler diretório - usar foto_perfil original
-          console.error('❌ Erro ao ler diretório de fotos de clientes:', readError);
-          fotoPerfilCompleto = cliente.foto_perfil;
-        }
-      }
-    }
-
-    // Usar nome_amigavel se disponível, senão nome_fantasia, senão razao_social
-    const nomeExibicao = cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || 'Cliente';
-
-    const clienteCompleto = {
-      ...cliente,
-      nome: nomeExibicao
-    };
-
-    // Adicionar caminho completo se for customizado
-    if (fotoPerfilCompleto !== cliente.foto_perfil) {
-      clienteCompleto.foto_perfil_path = fotoPerfilCompleto;
-    }
-
-    return res.json({
-      success: true,
-      data: {
-        cliente: clienteCompleto
-      }
-    });
-  } catch (error) {
-    console.error('❌ Erro inesperado ao buscar cliente:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
-  }
-}
+const getClientePorId = getClientes;
 
 // ========================================
 // === POST /api/clientes/:clienteId/upload-foto ===
 // ========================================
 async function uploadClienteFotoPerfil(req, res) {
-  let uploadedFilePath = null;
-  
   try {
     const clienteId = req.params.clienteId;
     
@@ -750,28 +622,7 @@ async function uploadClienteFotoPerfil(req, res) {
       });
     }
 
-    uploadedFilePath = req.file.path;
-    if (!fs.existsSync(uploadedFilePath)) {
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao salvar arquivo no servidor'
-      });
-    }
-
-    // Ajustar permissões do arquivo
-    try {
-      fs.chmodSync(uploadedFilePath, 0o644);
-    } catch (chmodError) {
-      // Não falhar o upload por causa disso
-    }
-
-    // Caminho relativo da imagem
-    const imagePath = `/assets/images/avatars/clientes/${req.file.filename}`;
-    
-    // ID único para a imagem customizada
-    const customFotoId = `custom-${clienteId}`;
-
-    // Buscar dados do cliente
+    // Buscar dados do cliente primeiro para validar
     const { data: clienteAtual, error: clienteError } = await supabase
       .schema('up_gestaointeligente')
       .from('cp_cliente')
@@ -780,14 +631,6 @@ async function uploadClienteFotoPerfil(req, res) {
       .maybeSingle();
 
     if (clienteError) {
-      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-        try {
-          fs.unlinkSync(uploadedFilePath);
-        } catch (unlinkError) {
-          // Ignorar erro ao deletar
-        }
-      }
-      
       return res.status(500).json({
         success: false,
         error: 'Erro ao processar upload',
@@ -796,40 +639,62 @@ async function uploadClienteFotoPerfil(req, res) {
     }
 
     if (!clienteAtual) {
-      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-        try {
-          fs.unlinkSync(uploadedFilePath);
-        } catch (unlinkError) {
-          // Ignorar erro ao deletar
-        }
-      }
-      
       return res.status(404).json({
         success: false,
         error: 'Cliente não encontrado'
       });
     }
 
-    // Retornar dados com o ID da foto customizada (sem atualizar o banco ainda)
+    // Preparar nome do arquivo para o Supabase Storage
+    const timestamp = Date.now();
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const fileName = `cliente-${clienteId}-${timestamp}${ext}`;
+    const bucketName = 'cliente-avatars';
+
+    // Deletar avatares antigos do cliente no storage
+    const { deleteOldAvatarFiles } = require('../utils/storage');
+    await deleteOldAvatarFiles(bucketName, clienteId, 'cliente');
+
+    // Fazer upload para Supabase Storage
+    const uploadResult = await uploadImageToStorage(
+      req.file.buffer,
+      bucketName,
+      fileName,
+      req.file.mimetype
+    );
+
+    // Salvar identificador customizado no banco (custom-{id}) ao invés da URL completa
+    const customFotoId = `custom-${clienteId}`;
+    
+    const { error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_cliente')
+      .update({ foto_perfil: customFotoId })
+      .eq('id', clienteId);
+
+    if (updateError) {
+      console.error('❌ Erro ao atualizar foto_perfil no banco:', updateError);
+      // Tentar deletar o arquivo do storage se falhar
+      await deleteImageFromStorage(bucketName, fileName);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar foto no banco de dados',
+        details: updateError.message
+      });
+    }
+
+    // Retornar dados com o identificador customizado e a URL para preview
     res.json({
       success: true,
-      message: 'Foto carregada com sucesso. Clique em "Salvar" para confirmar.',
+      message: 'Foto carregada e salva com sucesso.',
       cliente: {
         ...clienteAtual,
-        foto_perfil: customFotoId
+        foto_perfil: customFotoId // Identificador customizado
       },
-      imagePath: imagePath
+      imagePath: uploadResult.publicUrl // URL pública para preview imediato
     });
   } catch (error) {
     console.error('❌ Erro inesperado ao fazer upload de foto de cliente:', error);
-    
-    if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-      try {
-        fs.unlinkSync(uploadedFilePath);
-      } catch (unlinkError) {
-        // Ignorar erro ao deletar
-      }
-    }
     
     res.status(500).json({
       success: false,
@@ -839,14 +704,53 @@ async function uploadClienteFotoPerfil(req, res) {
   }
 }
 
+// ========================================
+// === GET /api/clientes/:id/custom-avatar-path ===
+// ========================================
+async function getClienteCustomAvatarPath(req, res) {
+  try {
+    const { id } = req.params;
+
+    const idError = validarId(id);
+    if (idError) {
+      return res.status(idError.status).json(idError.json);
+    }
+
+    const customId = `custom-${id}`;
+
+    // Buscar URL do avatar customizado no Supabase Storage usando metadados
+    const avatarUrl = await resolveAvatarUrl(customId, 'cliente');
+
+    if (!avatarUrl) {
+      return res.json({
+        success: false,
+        imagePath: null
+      });
+    }
+
+    res.json({
+      success: true,
+      imagePath: avatarUrl
+    });
+  } catch (error) {
+    console.error('Erro ao buscar caminho do avatar customizado do cliente:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getClientesKamino,
   getClientesIncompletosCount,
-  getCarteiraClientes,
+  getClientes,
   atualizarClientePorId,
   getClientePorId,
   deletarCliente,
   uploadClienteFotoPerfil,
-  uploadClienteFoto // Exportar multer para usar nas rotas
+  uploadClienteFoto, // Exportar multer para usar nas rotas
+  getClienteCustomAvatarPath
 };
 

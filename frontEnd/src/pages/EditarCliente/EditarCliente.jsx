@@ -46,7 +46,6 @@ const EditarCliente = () => {
   // Estados para foto de perfil
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const [fotoPreview, setFotoPreview] = useState(null);
-  const [customFotoPath, setCustomFotoPath] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [imageToCrop, setImageToCrop] = useState(null);
 
@@ -161,19 +160,6 @@ const EditarCliente = () => {
           uploadedFotoPath: null
         }));
 
-        // Sempre tentar carregar o caminho da foto customizada se houver
-        if (fotoPerfilValue && isCustomAvatar(fotoPerfilValue)) {
-          if (clienteData.foto_perfil_path) {
-            setCustomFotoPath(clienteData.foto_perfil_path);
-          } else {
-            // Se não tiver o caminho, tentar buscar o arquivo mais recente
-            setCustomFotoPath(null);
-          }
-        } else {
-          // Se não for custom, limpar o caminho
-          setCustomFotoPath(null);
-        }
-        
         // Limpar foto preview quando carregar dados do backend
         setFotoPreview(null);
       } else {
@@ -231,13 +217,19 @@ const EditarCliente = () => {
       const result = await clientesAPI.uploadClienteFoto(croppedFile, formData.id || clienteId);
       
       if (result.success) {
-        setCustomFotoPath(result.imagePath);
+        // foto_perfil já contém a URL completa do Supabase Storage
         setFotoPreview(URL.createObjectURL(croppedFile));
+        
+        const fotoPerfilUrl = result.cliente.foto_perfil || result.imagePath || DEFAULT_AVATAR;
         
         setFormData(prev => ({
           ...prev,
-          foto_perfil: result.cliente.foto_perfil || DEFAULT_AVATAR,
-          uploadedFotoPath: result.imagePath
+          foto_perfil: fotoPerfilUrl
+        }));
+        
+        setCliente(prev => ({
+          ...prev,
+          foto_perfil: fotoPerfilUrl
         }));
         
         showToast('success', 'Foto carregada! Clique em "Salvar" para confirmar.');
@@ -312,7 +304,7 @@ const EditarCliente = () => {
       if (result.success) {
         showToast('success', 'Cliente atualizado com sucesso!');
         
-        // Recarregar dados do cliente para obter foto_perfil_path atualizado
+        // Recarregar dados do cliente (avatar é resolvido automaticamente via Supabase Storage)
         // Isso atualiza o estado do cliente e formData com os dados mais recentes
         await loadCliente();
       } else {
@@ -351,9 +343,9 @@ const EditarCliente = () => {
                 <p style={{ color: '#64748b', marginBottom: '24px' }}>Não foi possível carregar os dados do cliente.</p>
                 <button
                   className="btn-secondary"
-                  onClick={() => navigate('/cadastro/clientes')}
+                  onClick={() => navigate(-1)}
                 >
-                  Voltar para lista de clientes
+                  Voltar
                 </button>
               </div>
             </CardContainer>
@@ -375,14 +367,9 @@ const EditarCliente = () => {
                   <div className="knowledge-header-left">
                     <div className="knowledge-header-icon">
                       <Avatar
-                        avatarId={
-                          cliente?.foto_perfil && cliente.foto_perfil.startsWith('custom-') && !cliente?.foto_perfil_path
-                            ? DEFAULT_AVATAR
-                            : (cliente?.foto_perfil || DEFAULT_AVATAR)
-                        }
+                        avatarId={cliente?.foto_perfil || DEFAULT_AVATAR}
                         nomeUsuario={cliente?.nome_fantasia || cliente?.fantasia || cliente?.razao_social || cliente?.razao || cliente?.nome_amigavel || cliente?.amigavel || cliente?.nome || 'Cliente'}
                         size="large"
-                        customImagePath={cliente?.foto_perfil_path || null}
                       />
                     </div>
                     <div>
@@ -396,10 +383,7 @@ const EditarCliente = () => {
                   </div>
                   <button
                     className="btn-secondary knowledge-back-btn"
-                    onClick={() => {
-                      const fromPath = location.state?.from || '/cadastro/clientes';
-                      navigate(fromPath);
-                    }}
+                    onClick={() => navigate(-1)}
                   >
                     <i className="fas fa-arrow-left"></i>
                     Voltar
@@ -420,10 +404,10 @@ const EditarCliente = () => {
                   <div className="section-content">
                     <div className="config-avatar-section">
                       {/* Preview da foto atual (customizada) - acima das colunas */}
-                      {(fotoPreview || (isCustomAvatar(formData.foto_perfil) && customFotoPath)) && (
+                      {(fotoPreview || (formData.foto_perfil && (formData.foto_perfil.startsWith('http://') || formData.foto_perfil.startsWith('https://')))) && (
                         <div className="cliente-foto-preview" style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
                           <img
-                            src={fotoPreview || customFotoPath}
+                            src={fotoPreview || formData.foto_perfil}
                             alt="Foto do cliente"
                             onError={(e) => {
                               e.target.style.display = 'none';
@@ -487,7 +471,6 @@ const EditarCliente = () => {
                                       uploadedFotoPath: null
                                     }));
                                     setFotoPreview(null);
-                                    setCustomFotoPath(null);
                                   }
                                 }}
                                   >
@@ -598,8 +581,7 @@ const EditarCliente = () => {
                       type="button"
                       className="btn-secondary"
                       onClick={() => {
-                        const fromPath = location.state?.from || '/cadastro/clientes';
-                        navigate(fromPath);
+                        navigate(-1);
                       }}
                       disabled={submitting}
                       style={{

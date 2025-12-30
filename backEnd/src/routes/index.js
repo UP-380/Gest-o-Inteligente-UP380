@@ -74,7 +74,8 @@ router.get('/api/auth/custom-avatar-path', requireAuth, authController.getCustom
 router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKamino);
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 // IMPORTANTE: Rota genérica (listar) deve vir ANTES da específica (por ID)
-router.get('/api/clientes', requireAuth, clientesController.getCarteiraClientes);
+router.get('/api/clientes', requireAuth, clientesController.getClientes);
+router.get('/api/clientes/:id/custom-avatar-path', requireAuth, clientesController.getClienteCustomAvatarPath);
 router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId);
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
 router.delete('/api/clientes/:id', requireAuth, clientesController.deletarCliente);
@@ -378,10 +379,6 @@ router.get('/painel', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 });
 
-// Rota para a página de carteira de clientes - COM autenticação
-router.get('/carteira-clientes', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
-});
 router.get('/cadastro/clientes', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 });

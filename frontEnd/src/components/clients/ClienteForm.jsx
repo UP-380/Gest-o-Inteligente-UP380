@@ -125,6 +125,30 @@ const ClienteForm = ({
 
         <div className="form-group">
           <label className="form-label-small">
+            Nome
+          </label>
+          <input
+            type="text"
+            className={`form-input-small ${formErrors.nome ? 'error' : ''}`}
+            value={formData.nome || ''}
+            onChange={(e) => {
+              setFormData({ ...formData, nome: e.target.value });
+              if (formErrors.nome) {
+                setFormErrors({ ...formErrors, nome: '' });
+              }
+            }}
+            placeholder="Digite o nome"
+            disabled={submitting}
+          />
+          {formErrors.nome && (
+            <span className="error-message">{formErrors.nome}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label-small">
             CNPJ
           </label>
           <input

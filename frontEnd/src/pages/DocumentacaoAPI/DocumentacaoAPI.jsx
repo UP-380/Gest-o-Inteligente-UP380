@@ -741,7 +741,7 @@ const AutenticacaoSection = () => {
     "email_usuario": "usuario@exemplo.com",
     "nome_usuario": "Nome do Usuário",
     "foto_perfil": "color-blue",
-    "foto_perfil_path": "/assets/images/avatars/custom/custom-userId-123456.jpg"
+    "foto_perfil_path": null // DEPRECADO: Avatares são resolvidos via Supabase Storage
   }
 }`}</pre>
     </div>
@@ -779,7 +779,7 @@ const AutenticacaoSection = () => {
         <tr>
           <td><code>foto_perfil_path</code></td>
           <td>string | null</td>
-          <td>Caminho completo da foto (apenas se for avatar customizado, caso contrário <code>null</code>)</td>
+          <td><strong>DEPRECADO:</strong> Avatares customizados são resolvidos automaticamente via Supabase Storage. O componente Avatar resolve via <code>resolveAvatarUrl</code>. Este campo não é mais usado.</td>
         </tr>
       </tbody>
     </table>
@@ -1029,7 +1029,7 @@ else:
     "email_usuario": "usuario@exemplo.com",
     "nome_usuario": "Nome do Usuário",
     "foto_perfil": "color-blue",
-    "foto_perfil_path": "/assets/images/avatars/custom/custom-userId-123456.jpg"
+    "foto_perfil_path": null // DEPRECADO: Avatares são resolvidos via Supabase Storage
   }
 }`}</pre>
     </div>
@@ -1302,7 +1302,7 @@ const ClientesSection = () => (
       "nome_cli_kamino": "Cliente Kamino",
       "id_cli_kamino": "123",
       "foto_perfil": "custom-550e8400-e29b-41d4-a716-446655440000",
-      "foto_perfil_path": "/assets/images/avatars/clientes/cliente-550e8400-e29b-41d4-a716-446655440000-123456789.jpg",
+      "foto_perfil_path": null, // DEPRECADO: Avatares são resolvidos via Supabase Storage
       "created_at": "2024-01-01T00:00:00.000Z",
       "updated_at": "2024-01-01T00:00:00.000Z"
     }
@@ -1460,7 +1460,7 @@ const ClientesSection = () => (
     "nome_cli_kamino": "Cliente Kamino",
     "id_cli_kamino": "123",
     "foto_perfil": "custom-550e8400-e29b-41d4-a716-446655440000",
-    "foto_perfil_path": "/assets/images/avatars/clientes/cliente-550e8400-e29b-41d4-a716-446655440000-123456789.jpg",
+    "foto_perfil_path": null, // DEPRECADO: Avatares são resolvidos via Supabase Storage
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-01T00:00:00.000Z"
   }

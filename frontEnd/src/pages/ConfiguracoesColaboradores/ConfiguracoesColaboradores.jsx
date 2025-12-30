@@ -19,6 +19,7 @@ import EditButton from '../../components/common/EditButton';
 import VigenciaTable from '../../components/vigencia/VigenciaTable';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useToast } from '../../hooks/useToast';
+import Avatar from '../../components/user/Avatar';
 import {
   formatarDataBR,
   formatarMoeda,
@@ -1990,7 +1991,18 @@ const GestaoColaboradores = () => {
                     {
                       key: 'nome',
                       label: 'Nome',
-                      render: (colaborador) => colaborador.nome || '-'
+                      render: (colaborador) => (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <Avatar
+                            avatarId={colaborador.foto_perfil}
+                            nomeUsuario={colaborador.nome || ''}
+                            size="small"
+                            entityType="user"
+                            entityId={colaborador.usuario_id}
+                          />
+                          <span>{colaborador.nome || '-'}</span>
+                        </div>
+                      )
                     },
                     {
                       key: 'cpf',

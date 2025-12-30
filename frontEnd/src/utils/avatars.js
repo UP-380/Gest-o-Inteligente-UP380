@@ -123,15 +123,16 @@ export const isCustomAvatar = (avatarId) => {
 
 /**
  * Obtém o caminho da imagem customizada
- * Para avatares customizados, precisamos buscar o arquivo mais recente do usuário
+ * DEPRECADO: Avatares customizados agora são resolvidos automaticamente via Supabase Storage
+ * O componente Avatar resolve via resolveAvatarUrl do Supabase Storage
+ * Esta função retorna null - o Avatar resolve automaticamente
  */
 export const getCustomAvatarPath = (avatarId, userId = null) => {
   if (!isCustomAvatar(avatarId)) return null;
   
-  // Se temos userId, podemos tentar buscar o arquivo mais recente
-  // Por enquanto, retornamos um caminho genérico que será resolvido pelo backend
-  // O backend retornará o caminho completo após o upload
-  return `/assets/images/avatars/custom/${avatarId}.jpg`; // Tentativa genérica
+  // Avatares customizados são resolvidos automaticamente pelo componente Avatar
+  // via Supabase Storage (resolveAvatarUrl). Não retornar caminho do filesystem antigo.
+  return null; // Avatar resolve via Supabase Storage
 };
 
 /**
@@ -154,19 +155,15 @@ export const getAvatarImage = (avatarId) => {
  * Obtém o caminho da imagem do avatar
  */
 export const getAvatarImagePath = (avatarId, customImagePath = null) => {
-  // Se for avatar customizado e tiver caminho fornecido, usar ele
+  // Se for avatar customizado e tiver URL já resolvida (do Supabase Storage), usar ela
   if (isCustomAvatar(avatarId) && customImagePath) {
-    return customImagePath;
+    return customImagePath; // URL do Supabase Storage já resolvida
   }
   
-  // Se for avatar customizado sem caminho, tentar buscar
+  // Se for avatar customizado sem URL, retornar null
+  // O componente Avatar resolve automaticamente via Supabase Storage (resolveAvatarUrl)
   if (isCustomAvatar(avatarId)) {
-    // Tentar diferentes extensões
-    const userId = avatarId.replace('custom-', '');
-    const extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-    // Por enquanto, retornar null e deixar o componente Avatar lidar com isso
-    // O backend deve retornar o caminho completo após upload
-    return null;
+    return null; // Avatar resolve via Supabase Storage automaticamente
   }
   
   // Avatar de imagem padrão
