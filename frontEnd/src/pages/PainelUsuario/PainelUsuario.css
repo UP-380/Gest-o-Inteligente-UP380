@@ -134,11 +134,11 @@
   border: none;
   background: #ef4444; /* invertido: fundo vermelho */
   color: #fee2e2;      /* ícone claro */
-  border-radius: 4px; /* Bordas arredondadas similares ao botão de stop do header */
+  border-radius: 50%; /* Botão circular */
   padding: 0;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -185,11 +185,11 @@
   border: 2px solid #ffffff; /* Borda branca para destacar quando está ativo */
   background: #dc2626; /* Vermelho mais escuro para diferenciar do play */
   color: #ffffff;      /* ícone branco */
-  border-radius: 4px; /* Bordas arredondadas similares ao botão de stop do header */
+  border-radius: 50%; /* Botão circular */
   padding: 0;
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -222,8 +222,8 @@
 }
 
 /* Estilo para os badges ficarem na mesma linha no modo lista */
-.painel-usuario-tarefa-item-lista .painel-usuario-tarefa-tags.painel-usuario-tarefa-tags-lista,
-.painel-usuario-tarefa-tags.painel-usuario-tarefa-tags-lista {
+.painel-usuario-tarefa-item-lispainel-usuarioaborador-tarepainel-usuario-colaborador-tarefa-tags-lista,
+.painel-usuario-tarefa-tpainel-usuarioaborador-tarefa-tags-lista {
   flex-direction: row !important;
   gap: 12px !important;
   align-items: center !important;
@@ -315,9 +315,6 @@
   color: #475569;
 }
 
-.painel-usuario-timetrack-arrow.fa-chevron-down {
-  transform: rotate(90deg);
-}
 
 /* ---------- Toggle de visualização ---------- */
 .painel-usuario-toggle-view {
@@ -450,9 +447,14 @@
 }
 
 /* Modo quadro: reduzir largura da barra para evitar sobreposição com porcentagem */
+.painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro {
+  overflow: visible; /* Permitir que o excedente apareça */
+}
+
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro .painel-usuario-barra-progresso-base {
-  flex: 0 1 calc(100% - 100px);
-  max-width: calc(100% - 100px);
+  flex: 0 1 calc(100% - 55px); /* Aumentado para 55px para garantir espaço para porcentagem */
+  max-width: calc(100% - 55px);
+  overflow: visible; /* Mudado para visible para permitir que o excedente apareça */
 }
 
 .painel-usuario-barra-progresso-container {
@@ -466,9 +468,14 @@
   height: 6px;
   background: #e5e7eb;
   border-radius: 3px;
-  overflow: visible;
+  overflow: hidden; /* Mudado de visible para hidden para evitar sobreposição */
   position: relative;
   min-width: 60px;
+}
+
+/* No modo quadro, permitir que o excedente apareça mas limitar seu tamanho */
+.painel-usuario-barra-progresso-base.painel-usuario-barra-progresso-base-quadro {
+  overflow: visible; /* Permitir que o excedente apareça */
 }
 
 .painel-usuario-barra-progresso-fill {
@@ -487,15 +494,28 @@
   transition: width 0.3s ease;
   position: absolute;
   top: 0;
+  left: 100%; /* Começar do final da barra base */
   z-index: 2;
+  /* Não limitar max-width aqui, será controlado pelo JavaScript */
+}
+
+/* No modo quadro, limitar o excedente para não sobrepor a porcentagem */
+.painel-usuario-barra-progresso-base-quadro .painel-usuario-barra-progresso-fill-excesso {
+  max-width: 35px; /* Limitar a aproximadamente 35px para não sobrepor a porcentagem */
+  min-width: 6px; /* Garantir que seja visível mesmo quando pequeno */
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
 }
 
 .painel-usuario-barra-progresso-label {
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
-  min-width: 35px;
+  min-width: 45px; /* Aumentado para garantir espaço suficiente */
   text-align: right;
+  flex-shrink: 0; /* Garantir que a porcentagem nunca encolha */
+  z-index: 10; /* Garantir que fique acima da barra */
+  position: relative; /* Para o z-index funcionar */
 }
 
 .painel-usuario-tarefa-item-lista {
@@ -624,12 +644,14 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo {
+.painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo {
   font-size: 11px;
   padding: 2px 6px;
+  white-space: nowrap; /* Não quebrar linha */
+  flex-shrink: 0; /* Não encolher */
 }
 
-.painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo i {
+.painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo i {
   font-size: 10px;
 }
 
@@ -707,12 +729,14 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo {
+.painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo {
   font-size: 11px;
   padding: 2px 6px;
+  white-space: nowrap; /* Não quebrar linha */
+  flex-shrink: 0; /* Não encolher */
 }
 
-.painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo i {
+.painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo i {
   font-size: 10px;
 }
 
@@ -736,9 +760,11 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-count.painel-usuario-quadro-count {
+.painel-usuario-grupo-copainel-usuarioaborador-quadro-count {
   font-size: 11px;
   padding: 2px 6px;
+  white-space: nowrap; /* Não quebrar linha */
+  flex-shrink: 0; /* Não encolher */
 }
 
 .painel-usuario-grupo-cliente-content {
@@ -776,5 +802,38 @@
 
 .painel-usuario-grupo-cliente-content-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Estilos para timetracks individuais - alinhados com TarefasDetalhadasList */
+.painel-usuario-timetracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 24px;
+  margin-top: 4px;
+  border-left: 2px solid #ffd8a8;
+}
+
+.painel-usuario-registro-item-simples {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #374151;
+}
+
+.painel-usuario-registro-tempo-badge {
+  background: #fff4e6;
+  border: 1px solid #ffd8a8;
+  color: #fd7e14;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
 }
 

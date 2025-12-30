@@ -29,7 +29,6 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
   const carregarTarefas = useCallback(async () => {
     if (!usuario) {
-      console.error('❌ [TarefasList] Usuário não identificado:', usuario);
       setError('Usuário não identificado');
       setLoading(false);
       return;
@@ -39,13 +38,6 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       setLoading(true);
       setError(null);
 
-      // Log detalhado do objeto usuário para debug
-      console.log('🔍 [TarefasList] Objeto usuário completo:', usuario);
-      console.log('🔍 [TarefasList] Campos disponíveis:', Object.keys(usuario));
-      console.log('🔍 [TarefasList] membro_id:', usuario.membro_id);
-      console.log('🔍 [TarefasList] id:', usuario.id);
-      console.log('🔍 [TarefasList] colaborador_id:', usuario.colaborador_id);
-
       // Identificar o ID do membro/responsável do usuário
       // O responsavel_id na tabela tempo_estimado corresponde ao membro.id (não ao usuario.id)
       // Precisamos buscar qual membro.id tem usuario_id igual ao usuario.id
@@ -53,10 +45,8 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       let responsavelId = usuario.membro_id;
       
       // Se não temos membro_id explicitamente, buscar o membro que corresponde ao usuario.id
-      // ESTRATÉGIA: Tentar múltiplas abordagens para encontrar o membro_id correto
       if (!responsavelId && usuario.id) {
         try {
-          console.log('🔍 [TarefasList] Buscando membro através de usuario.id:', usuario.id);
 
           // Estratégia principal: buscar a lista de colaboradores e tentar mapear pelo nome ou pelo id
           const nomesPossiveis = [
@@ -87,21 +77,16 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
               if (membro) {
                 responsavelId = membro.id;
-                console.log('✅ [TarefasList] Membro encontrado via lista de colaboradores:', membro);
               } else {
-                console.warn('⚠️ [TarefasList] Nenhum membro correspondente encontrado na lista. Usando usuario.id como fallback:', usuario.id);
                 responsavelId = usuario.id;
               }
             } else {
-              console.warn('⚠️ [TarefasList] Lista de colaboradores não retornou dados. Usando usuario.id como fallback:', usuario.id);
               responsavelId = usuario.id;
             }
           } else {
-            console.warn('⚠️ [TarefasList] Falha ao buscar colaboradores. Usando usuario.id como fallback:', usuario.id);
             responsavelId = usuario.id;
           }
         } catch (err) {
-          console.warn('⚠️ [TarefasList] Erro ao buscar membro:', err);
           // Fallback: usar usuario.id diretamente
           responsavelId = usuario.id || usuario.colaborador_id;
         }
@@ -111,33 +96,21 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       }
       
       if (!responsavelId) {
-        console.error('❌ [TarefasList] ID do membro não encontrado no perfil do usuário. Campos disponíveis:', Object.keys(usuario));
         setError('ID do membro não encontrado no perfil do usuário');
         setLoading(false);
         return;
       }
-      
-      console.log('✅ [TarefasList] Responsável ID a ser usado:', responsavelId);
 
       // Buscar tarefas atribuídas usando o endpoint de tempo-estimado
-      // com filtro de responsável igual ao ID do usuário logado
       const params = new URLSearchParams({
         page: '1',
-        limit: '1000', // Buscar muitas tarefas
+        limit: '1000',
         filtro_responsavel: 'true'
       });
       
-      // Adicionar o ID do responsável (múltiplos parâmetros responsavel_id)
-      // IMPORTANTE: responsavel_id na tabela tempo_estimado é o membro.id, não usuario.id
-      // Vamos tentar com o ID encontrado e também adicionar logs para debug
       params.append('responsavel_id', String(responsavelId).trim());
-      
-      // DEBUG: Vamos também tentar buscar SEM filtro primeiro para ver o que retorna
-      // Mas por enquanto vamos com o filtro mesmo
 
       const url = `/api/tempo-estimado?${params}`;
-      console.log('📡 [TarefasList] Buscando tarefas para responsável:', responsavelId);
-      console.log('📡 [TarefasList] URL completa:', url);
       
       const response = await fetch(url, {
         credentials: 'include',
@@ -146,53 +119,12 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Erro na resposta:', response.status, errorText);
         throw new Error(`Erro ao carregar tarefas (${response.status})`);
       }
 
       const result = await response.json();
-      
-      console.log('📥 [TarefasList] Resposta da API:', {
-        success: result.success,
-        dataLength: result.data ? (Array.isArray(result.data) ? result.data.length : 'não é array') : 'null',
-        total: result.total,
-        message: result.message,
-        dataPreview: Array.isArray(result.data) ? result.data.slice(0, 3) : result.data,
-        responsavelIdUsado: responsavelId
-      });
-      
-      // Se não retornou dados mas temos um total > 0, pode ser problema de filtro
-      if (result.success && result.total > 0 && (!result.data || result.data.length === 0)) {
-        console.warn('⚠️ [TarefasList] ATENÇÃO: Total > 0 mas data vazia. Pode ser problema de paginação ou filtro.');
-      }
-
-      // Se não retornou dados, tentar buscar sem filtro para debug
-      if (result.success && (!result.data || result.data.length === 0)) {
-        console.warn('⚠️ [TarefasList] Nenhum registro retornado com filtro. Tentando buscar sem filtro para debug...');
-        try {
-          const debugParams = new URLSearchParams({
-            page: '1',
-            limit: '10',
-            filtro_responsavel: 'true'
-          });
-          const debugResponse = await fetch(`/api/tempo-estimado?${debugParams}`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-          });
-          if (debugResponse.ok) {
-            const debugResult = await debugResponse.json();
-            if (debugResult.success && debugResult.data && Array.isArray(debugResult.data) && debugResult.data.length > 0) {
-              console.log('📋 [TarefasList] DEBUG - Primeiros registros (sem filtro de responsável):', debugResult.data.slice(0, 3));
-              console.log('📋 [TarefasList] DEBUG - responsavel_ids encontrados:', [...new Set(debugResult.data.map(r => r.responsavel_id))].slice(0, 10));
-            }
-          }
-        } catch (e) {
-          console.warn('⚠️ [TarefasList] Erro na busca de debug:', e);
-        }
-      }
 
       if (result.success && result.data && Array.isArray(result.data)) {
-        console.log('✅ [TarefasList] Total de registros retornados:', result.data.length);
         
         // Agrupar tarefas por agrupador_id (mesmo formato da página de atribuir)
         const tarefasMap = new Map();
@@ -257,25 +189,12 @@ const TarefasList = ({ usuario: usuarioProp }) => {
           buscarNomeColaborador(responsavelId);
           buscarCustoERecalcular(responsavelId, tarefasArray, tempoTotalCalculado);
         }
-        
-        // Log para debug
-        console.log('Tarefas carregadas:', tarefasArray.length, tarefasArray);
-        console.log('Tempo total calculado:', tempoTotalCalculado, 'ms');
       } else {
         setTarefas([]);
         setTempoTotal(0);
         setCustoTotal(null);
-        console.warn('⚠️ [TarefasList] Nenhuma tarefa retornada ou formato inválido:', {
-          success: result.success,
-          hasData: !!result.data,
-          isArray: Array.isArray(result.data),
-          dataType: typeof result.data,
-          message: result.message,
-          error: result.error
-        });
       }
     } catch (err) {
-      console.error('Erro ao carregar tarefas:', err);
       setError('Erro ao carregar tarefas. Tente novamente.');
       setTarefas([]);
     } finally {
@@ -306,7 +225,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         }
       }
     } catch (err) {
-      console.error('Erro ao buscar nome do colaborador:', err);
+      // Erro silencioso - não é crítico
     }
   };
 
@@ -335,7 +254,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         }
       }
     } catch (err) {
-      console.error('Erro ao buscar custo:', err);
+      // Erro silencioso - não é crítico
     }
   };
 

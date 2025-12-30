@@ -5,7 +5,7 @@
   justify-content: space-between;
   gap: 15px;
   background: #1f2937; /* Fundo escuro */
-  border-radius: 6px; /* Bordas arredondadas similares ao botão Quadro */
+  border-radius: 12px; /* Bordas mais arredondadas para combinar com o botão */
   padding: 6px 3px 6px 15px; /* Menos padding à direita para botão mais próximo do canto */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   visibility: visible !important;
@@ -66,7 +66,7 @@
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 12px; /* Bordas mais arredondadas para combinar */
   padding: 6px 10px;
   height: 27px;
   box-sizing: border-box;

@@ -45,12 +45,42 @@ async function login(req, res) {
     }
 
     // Buscar usuário na tabela usuarios do schema up_gestaointeligente
-    const { data: usuarios, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('usuarios')
-      .select('id, email_usuario, senha_login, nome_usuario, foto_perfil')
-      .eq('email_usuario', email.toLowerCase().trim())
-      .limit(1);
+    let usuarios = null;
+    let error = null;
+    
+    try {
+      const result = await supabase
+        .schema('up_gestaointeligente')
+        .from('usuarios')
+        .select('id, email_usuario, senha_login, nome_usuario, foto_perfil, permissoes')
+        .eq('email_usuario', email.toLowerCase().trim())
+        .limit(1);
+      
+      usuarios = result.data;
+      error = result.error;
+    } catch (selectError) {
+      // Se der erro ao fazer select (ex: coluna permissoes não existe), tentar sem
+      console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
+      try {
+        const resultFallback = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, email_usuario, senha_login, nome_usuario, foto_perfil')
+          .eq('email_usuario', email.toLowerCase().trim())
+          .limit(1);
+        
+        usuarios = resultFallback.data;
+        error = resultFallback.error;
+        
+        // Se conseguiu buscar sem permissoes, adicionar null
+        if (usuarios && usuarios.length > 0) {
+          usuarios[0].permissoes = null;
+        }
+      } catch (fallbackError) {
+        console.error('Erro ao buscar usuário no login (fallback):', fallbackError);
+        error = fallbackError;
+      }
+    }
 
     if (error) {
       console.error('Erro ao buscar usuário:', error);
@@ -96,6 +126,10 @@ async function login(req, res) {
       id: usuario.id,
       email_usuario: usuario.email_usuario,
       nome_usuario: usuario.nome_usuario,
+      foto_perfil: usuario.foto_perfil || null,
+      foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null,
+      permissoes: usuario.permissoes !== undefined ? usuario.permissoes : null
+=======
       foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
     };
 
@@ -111,7 +145,20 @@ async function login(req, res) {
 
       // Retornar dados do usuário (sem a senha) com foto_perfil resolvida
       const { senha_login: _, ...usuarioSemSenha } = usuario;
+
+      
+      // Adicionar caminho completo se for customizado
+      if (fotoPerfilCompleto !== usuario.foto_perfil) {
+        usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
+      }
+      
+      // Garantir que permissoes esteja presente
+      if (!usuarioSemSenha.permissoes) {
+        usuarioSemSenha.permissoes = null;
+      }
+
       usuarioSemSenha.foto_perfil = fotoPerfilUrl || usuario.foto_perfil;
+
 
       res.json({
         success: true,
@@ -162,14 +209,44 @@ async function checkAuth(req, res) {
       });
     }
 
-    if (req.session.usuario) {
-      // Buscar dados atualizados do usuário do banco (incluindo foto_perfil)
-      const { data: usuarioAtualizado, error: userError } = await supabase
-        .schema('up_gestaointeligente')
-        .from('usuarios')
-        .select('id, email_usuario, nome_usuario, foto_perfil')
-        .eq('id', req.session.usuario.id)
-        .maybeSingle();
+      if (req.session.usuario) {
+      // Buscar dados atualizados do usuário do banco (incluindo foto_perfil e permissoes)
+      let usuarioAtualizado = null;
+      let userError = null;
+      
+      try {
+        const result = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, email_usuario, nome_usuario, foto_perfil, permissoes')
+          .eq('id', req.session.usuario.id)
+          .maybeSingle();
+        
+        usuarioAtualizado = result.data;
+        userError = result.error;
+      } catch (selectError) {
+        // Se der erro ao fazer select (ex: coluna não existe), tentar sem permissoes
+        console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
+        try {
+          const resultFallback = await supabase
+            .schema('up_gestaointeligente')
+            .from('usuarios')
+            .select('id, email_usuario, nome_usuario, foto_perfil')
+            .eq('id', req.session.usuario.id)
+            .maybeSingle();
+          
+          usuarioAtualizado = resultFallback.data;
+          userError = resultFallback.error;
+          
+          // Se conseguiu buscar sem permissoes, adicionar null
+          if (usuarioAtualizado) {
+            usuarioAtualizado.permissoes = null;
+          }
+        } catch (fallbackError) {
+          console.error('Erro ao buscar usuário no checkAuth (fallback):', fallbackError);
+          userError = fallbackError;
+        }
+      }
 
       if (userError) {
         console.error('Erro ao buscar usuário no checkAuth:', userError);
@@ -195,6 +272,9 @@ async function checkAuth(req, res) {
           id: usuarioAtualizado.id,
           email_usuario: usuarioAtualizado.email_usuario,
           nome_usuario: usuarioAtualizado.nome_usuario,
+          foto_perfil: usuarioAtualizado.foto_perfil || null,
+          foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null,
+          permissoes: usuarioAtualizado.permissoes !== undefined ? usuarioAtualizado.permissoes : null
           foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
         };
       }
@@ -555,6 +635,102 @@ async function getCustomAvatarPath(req, res) {
   }
 }
 
+// GET - Buscar preferência de modo de visualização do painel
+async function getPreferenciaViewMode(req, res) {
+  try {
+    if (!req.session || !req.session.usuario) {
+      return res.status(401).json({
+        success: false,
+        error: 'Não autenticado'
+      });
+    }
+
+    const userId = req.session.usuario.id;
+
+    const { data: usuario, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('usuarios')
+      .select('view_modelo_painel')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar preferência de visualização:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar preferência'
+      });
+    }
+
+    // Retornar o modo salvo ou 'quadro' como padrão
+    const modo = usuario?.view_modelo_painel || 'quadro';
+
+    return res.json({
+      success: true,
+      data: { modo }
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar preferência:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// PUT - Salvar preferência de modo de visualização do painel
+async function updatePreferenciaViewMode(req, res) {
+  try {
+    if (!req.session || !req.session.usuario) {
+      return res.status(401).json({
+        success: false,
+        error: 'Não autenticado'
+      });
+    }
+
+    const userId = req.session.usuario.id;
+    const { modo } = req.body;
+
+    // Validar que o modo é válido
+    if (modo !== 'quadro' && modo !== 'lista') {
+      return res.status(400).json({
+        success: false,
+        error: 'Modo inválido. Deve ser "quadro" ou "lista"'
+      });
+    }
+
+    // Atualizar ou inserir a preferência
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('usuarios')
+      .update({ view_modelo_painel: modo })
+      .eq('id', userId)
+      .select('view_modelo_painel')
+      .single();
+
+    if (error) {
+      console.error('Erro ao salvar preferência de visualização:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar preferência',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Preferência salva com sucesso',
+      data: { modo: data.view_modelo_painel }
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao salvar preferência:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
 module.exports = {
   login,
   logout,
@@ -562,6 +738,8 @@ module.exports = {
   updateProfile,
   uploadAvatar,
   getCustomAvatarPath,
+  getPreferenciaViewMode,
+  updatePreferenciaViewMode,
   upload // Exportar multer para usar nas rotas
 };
 

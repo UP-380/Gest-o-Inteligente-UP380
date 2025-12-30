@@ -120,7 +120,8 @@ const RelatoriosClientes = () => {
   // Carregar colaboradores
   const carregarColaboradores = useCallback(async () => {
     try {
-      const result = await colaboradoresAPI.getAll();
+      // Nas telas de relatórios, buscar TODOS os membros (incluindo os sem usuário vinculado)
+      const result = await colaboradoresAPI.getAllIncludingWithoutUser();
       if (result.success && result.data && Array.isArray(result.data)) {
         setTodosColaboradores(result.data);
       }

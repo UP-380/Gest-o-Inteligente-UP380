@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
-import AtribuicaoModal from '../../components/atribuicoes/AtribuicaoModal';
 import FiltersCard from '../../components/filters/FiltersCard';
 import FilterVinculacao from '../../components/filters/FilterVinculacao';
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
@@ -25,9 +25,8 @@ import './DelegarTarefas.css';
 const API_BASE_URL = '/api';
 
 const DelegarTarefas = () => {
+  const navigate = useNavigate();
   const showToast = useToast();
-  const [showModal, setShowModal] = useState(false);
-  const [editingAgrupamento, setEditingAgrupamento] = useState(null);
   const [registrosAgrupados, setRegistrosAgrupados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -125,57 +124,138 @@ const DelegarTarefas = () => {
   // Estado para controlar expansão dos dashboards
   const [dashboardsExpandidos, setDashboardsExpandidos] = useState(false);
   
-  // Estado para controlar qual detalhe está aberto (entidadeId + tipo)
-  const [detalheAberto, setDetalheAberto] = useState(null); // { entidadeId, tipo, position }
-  const [detalhesDados, setDetalhesDados] = useState(null);
-  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
+  // Estados do DetailSideCard (EXATAMENTE como na referência Contas Bancárias)
+  const [detailCard, setDetailCard] = useState(null); // { entidadeId, tipo, dados }
+  const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
 
-  // Função para calcular posição do card lateral (igual à tela de relatórios)
-  const calcularPosicaoCard = useCallback((event) => {
-    if (!event || !event.target) {
-      return { left: '50%', top: '50%' };
+  // Função auxiliar para normalizar tempo realizado (usada em buscarDetalhesPorTipo)
+  const normalizarTempoRealizado = (tempo) => {
+    if (tempo === null || tempo === undefined) return 0;
+    let tempoNormalizado = Number(tempo) || 0;
+    // Converter horas decimais para milissegundos se necessário
+    if (tempoNormalizado > 0 && tempoNormalizado < 1) {
+      tempoNormalizado = Math.round(tempoNormalizado * 3600000);
+    }
+    // Se resultado < 1 segundo, arredondar para 1 segundo
+    if (tempoNormalizado > 0 && tempoNormalizado < 1000) {
+      tempoNormalizado = 1000;
+    }
+    return tempoNormalizado;
+  };
+
+  // Função para buscar detalhes de tarefas (versão simplificada para handleOpenTarefas)
+  const buscarDetalhesTarefas = (entidadeId, tipoEntidade, agrupamentos) => {
+    // Filtrar agrupamentos pela entidade
+    const agrupamentosFiltrados = agrupamentos.filter(agr => {
+      const primeiroRegistro = agr.primeiroRegistro;
+      if (tipoEntidade === 'responsavel') {
+        return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+      } else if (tipoEntidade === 'cliente') {
+        const clienteIds = String(primeiroRegistro.cliente_id || '')
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
+        return clienteIds.includes(String(entidadeId));
+      } else if (tipoEntidade === 'produto') {
+        return String(primeiroRegistro.produto_id) === String(entidadeId);
+      } else if (tipoEntidade === 'atividade') {
+        return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+      }
+      return false;
+    });
+
+    // Agrupar por tarefa e calcular tempo realizado total
+    const tarefasMap = new Map();
+
+    agrupamentosFiltrados.forEach(agr => {
+      agr.registros.forEach(reg => {
+        if (!reg.tarefa_id) return;
+        
+        // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+        if (tipoEntidade === 'cliente') {
+          const clienteIds = String(reg.cliente_id || '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id.length > 0);
+          if (!clienteIds.includes(String(entidadeId))) return;
+        }
+        
+        const tarefaId = String(reg.tarefa_id);
+        const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+        
+        if (!tarefasMap.has(tarefaId)) {
+          tarefasMap.set(tarefaId, {
+            id: tarefaId,
+            nome: nomeTarefa,
+            tipo: 'tarefa',
+            tempoRealizado: 0,
+            tempoEstimado: 0,
+            responsavelId: reg.responsavel_id || null,
+            clienteId: reg.cliente_id || null,
+            registros: []
+          });
+        }
+        
+        const tarefa = tarefasMap.get(tarefaId);
+        
+        // Calcular tempo realizado deste registro
+        const tempoRealizadoReg = getTempoRealizado(reg);
+        const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+        tarefa.tempoRealizado += tempoRealizadoValor;
+        
+        // Calcular tempo estimado deste registro
+        const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+        tarefa.tempoEstimado += tempoEstimadoReg;
+        
+        // Adicionar registro para poder buscar detalhes individuais depois
+        tarefa.registros.push({
+          ...reg,
+          tempoRealizado: tempoRealizadoValor
+        });
+      });
+    });
+
+    return Array.from(tarefasMap.values());
+  };
+
+  // Handler genérico para abrir card (EXATAMENTE como handleOpenContas)
+  const handleOpenCard = (entidade, tipo, e, buscarDetalhesFn) => {
+    if (e) {
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      
+      // Posição no documento (considerando scroll)
+      const documentLeft = rect.left + scrollLeft;
+      const documentTop = rect.top + scrollTop;
+      
+      setDetailCardPosition({
+        left: documentLeft + rect.width + 20,
+        top: documentTop
+      });
     }
 
-    const triggerElement = event.target;
-    const arrowRect = triggerElement.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-    
-    // Posição no documento (considerando scroll)
-    const documentLeft = arrowRect.left + scrollLeft;
-    const documentTop = arrowRect.top + scrollTop;
-    
-    // Tamanho estimado do card (será ajustado depois)
-    const cardWidth = 500;
-    const cardHeight = 400;
-    
-    // Tentar posicionar à direita do botão
-    let calculatedLeft = documentLeft + arrowRect.width + 10;
-    let calculatedTop = documentTop;
-    
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    
-    // Se não cabe à direita, posicionar à esquerda
-    if ((calculatedLeft - scrollLeft) + cardWidth > vw) {
-      calculatedLeft = documentLeft - cardWidth - 10;
+    const detalhes = buscarDetalhesFn(entidade.id, filtroPrincipal, registrosAgrupados);
+    if (detalhes && detalhes.length > 0) {
+      setDetailCard({
+        entidadeId: entidade.id,
+        tipo: tipo,
+        dados: { registros: detalhes }
+      });
     }
-    
-    // Garantir que não saia da tela à esquerda
-    if ((calculatedLeft - scrollLeft) < 10) {
-      calculatedLeft = scrollLeft + 10;
-    }
-    
-    // Ajustar verticalmente se necessário
-    if ((calculatedTop - scrollTop) + cardHeight > vh) {
-      calculatedTop = scrollTop + vh - cardHeight - 10;
-    }
-    if ((calculatedTop - scrollTop) < 10) {
-      calculatedTop = scrollTop + 10;
-    }
-    
-    return { left: `${calculatedLeft}px`, top: `${calculatedTop}px` };
-  }, []);
+  };
+
+  // Handler para abrir card de tarefas (EXATAMENTE como handleOpenContas)
+  const handleOpenTarefas = (entidade, e) => {
+    handleOpenCard(entidade, 'tarefas', e, buscarDetalhesTarefas);
+  };
+
+  // Fechar DetailSideCard (EXATAMENTE como na referência)
+  const handleCloseDetail = () => {
+    setDetailCard(null);
+    setDetailCardPosition(null);
+  };
 
   // Carregar clientes, colaboradores e membros ao montar
   useEffect(() => {
@@ -651,23 +731,20 @@ const DelegarTarefas = () => {
     }
   }, [clientes, colaboradores, membros]);
 
-  // Handlers do modal
+  // Handlers de navegação
   const handleNewAtribuicao = () => {
-    setEditingAgrupamento(null);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = (saved = false) => {
-    setShowModal(false);
-    setEditingAgrupamento(null);
-    if (saved && filtrosAplicados) {
-      loadRegistrosTempoEstimado(filtros);
-    }
+    navigate('/atribuicao/nova');
   };
 
   const handleEditAtribuicao = (agrupamento) => {
-    setEditingAgrupamento(agrupamento);
-    setShowModal(true);
+    // Buscar o cliente_id do primeiro registro do agrupamento
+    if (agrupamento.registros && agrupamento.registros.length > 0) {
+      const clienteId = agrupamento.registros[0].cliente_id;
+      navigate(`/atribuicao/cliente/${clienteId}?agrupador_id=${agrupamento.agrupador_id}`);
+    } else {
+      // Se não houver registros, navegar para nova atribuição
+      navigate('/atribuicao/nova');
+    }
   };
 
   // Agrupar registros por agrupador_id
@@ -1610,29 +1687,33 @@ const DelegarTarefas = () => {
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <i className="fas fa-clock painel-usuario-estimado-icon-inline"></i>
+                <i className="fas fa-clock painel-colaborador-estimado-icon-inline"></i>
                 <span className="barra-progresso-tempo-label">Estimado</span>
               </div>
+              <div className="barra-progresso-tempo-badge-wrapper">
               <span className="barra-progresso-tempo-badge estimado">
                 <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(estimado, true)}</span>
               </span>
               <span className={`barra-progresso-tempo-custo estimado ${custoEstimado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
                 {custoEstimado !== null ? formatarValorMonetario(custoEstimado) : '\u00A0'}
               </span>
+              </div>
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <i className="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                <i className="fas fa-stopwatch painel-colaborador-realizado-icon-inline"></i>
                 <span className="barra-progresso-tempo-label">Realizado</span>
               </div>
+              <div className="barra-progresso-tempo-badge-wrapper">
               <span className="barra-progresso-tempo-badge realizado">
                 <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(realizado, true)}</span>
               </span>
               <span className={`barra-progresso-tempo-custo realizado ${custoRealizado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
                 {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
               </span>
+              </div>
             </div>
           </div>
           {mostrarContratadasDisponivel && (
@@ -2172,7 +2253,6 @@ const DelegarTarefas = () => {
                 <ButtonPrimary
                   onClick={handleNewAtribuicao}
                   icon="fas fa-plus"
-                  disabled={showModal}
                 >
                   Nova Atribuição
                 </ButtonPrimary>
@@ -2492,6 +2572,21 @@ const DelegarTarefas = () => {
                           };
                         };
 
+                        // Função auxiliar para normalizar tempo realizado (converter horas decimais para milissegundos e garantir mínimo de 1 segundo)
+                        const normalizarTempoRealizado = (tempo) => {
+                          if (tempo === null || tempo === undefined) return 0;
+                          let tempoNormalizado = Number(tempo) || 0;
+                          // Converter horas decimais para milissegundos se necessário
+                          if (tempoNormalizado > 0 && tempoNormalizado < 1) {
+                            tempoNormalizado = Math.round(tempoNormalizado * 3600000);
+                          }
+                          // Se resultado < 1 segundo, arredondar para 1 segundo
+                          if (tempoNormalizado > 0 && tempoNormalizado < 1000) {
+                            tempoNormalizado = 1000;
+                          }
+                          return tempoNormalizado;
+                        };
+
                         // Função para buscar detalhes (tarefas, clientes, produtos, responsáveis) relacionados a uma entidade
                         const buscarDetalhesPorTipo = (entidadeId, tipoEntidade, tipoDetalhe, agrupamentos) => {
                           // Filtrar agrupamentos pela entidade
@@ -2500,7 +2595,12 @@ const DelegarTarefas = () => {
                             if (tipoEntidade === 'responsavel') {
                               return String(primeiroRegistro.responsavel_id) === String(entidadeId);
                             } else if (tipoEntidade === 'cliente') {
-                              return String(primeiroRegistro.cliente_id) === String(entidadeId);
+                              // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
+                              const clienteIds = String(primeiroRegistro.cliente_id || '')
+                                .split(',')
+                                .map(id => id.trim())
+                                .filter(id => id.length > 0);
+                              return clienteIds.includes(String(entidadeId));
                             } else if (tipoEntidade === 'produto') {
                               return String(primeiroRegistro.produto_id) === String(entidadeId);
                             } else if (tipoEntidade === 'atividade') {
@@ -2516,6 +2616,15 @@ const DelegarTarefas = () => {
                             agrupamentosFiltrados.forEach(agr => {
                               agr.registros.forEach(reg => {
                                 if (!reg.tarefa_id) return;
+                                
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (tipoEntidade === 'cliente') {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
                                 
                                 const tarefaId = String(reg.tarefa_id);
                                 const nomeTarefa = getNomeTarefa(reg.tarefa_id);
@@ -2537,7 +2646,7 @@ const DelegarTarefas = () => {
                                 
                                 // Calcular tempo realizado deste registro
                                 const tempoRealizadoReg = getTempoRealizado(reg);
-                                const tempoRealizadoValor = tempoRealizadoReg !== null ? tempoRealizadoReg : 0;
+                                const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
                                 tarefa.tempoRealizado += tempoRealizadoValor;
                                 
                                 // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
@@ -2555,38 +2664,448 @@ const DelegarTarefas = () => {
                             return Array.from(tarefasMap.values());
                           }
 
-                          // Para outros tipos (produtos, clientes, responsáveis), manter lógica simples
-                          const registrosDetalhes = [];
-                          const idsUnicos = new Set();
+                          // Se for clientes, agrupar por cliente e calcular tempo realizado total, tempo estimado e tarefas
+                          if (tipoDetalhe === 'clientes') {
+                            const clientesMap = new Map();
 
                           agrupamentosFiltrados.forEach(agr => {
                             agr.registros.forEach(reg => {
-                              let idDetalhe = null;
-                              let nomeDetalhe = null;
-                              let registroIncluir = null;
-
-                              if (tipoDetalhe === 'produtos' && reg.produto_id) {
-                                idDetalhe = String(reg.produto_id);
-                                nomeDetalhe = getNomeProduto(reg.produto_id);
-                                registroIncluir = { ...reg, tipo: 'produto', nome: nomeDetalhe };
-                              } else if (tipoDetalhe === 'clientes' && reg.cliente_id) {
-                                idDetalhe = String(reg.cliente_id);
-                                nomeDetalhe = getNomeCliente(reg.cliente_id);
-                                registroIncluir = { ...reg, tipo: 'cliente', nome: nomeDetalhe };
-                              } else if (tipoDetalhe === 'responsaveis' && reg.responsavel_id) {
-                                idDetalhe = String(reg.responsavel_id);
-                                nomeDetalhe = getNomeColaborador(reg.responsavel_id);
-                                registroIncluir = { ...reg, tipo: 'responsavel', nome: nomeDetalhe };
-                              }
-
-                              if (idDetalhe && !idsUnicos.has(idDetalhe)) {
-                                idsUnicos.add(idDetalhe);
-                                registrosDetalhes.push(registroIncluir);
-                              }
+                                if (!reg.cliente_id) return;
+                                
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (tipoEntidade === 'cliente') {
+                                  const clienteIdsTemp = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIdsTemp.includes(String(entidadeId))) return;
+                                }
+                                
+                                // cliente_id pode conter múltiplos IDs separados por ", "
+                                const clienteIds = String(reg.cliente_id)
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+                                
+                                clienteIds.forEach(clienteId => {
+                                  const clienteIdStr = String(clienteId).trim();
+                                  
+                                  if (!clientesMap.has(clienteIdStr)) {
+                                    const nomeCliente = getNomeCliente(clienteId);
+                                    clientesMap.set(clienteIdStr, {
+                                      id: clienteIdStr,
+                                      nome: nomeCliente,
+                                      tipo: 'cliente',
+                                      tempoRealizado: 0,
+                                      tempoEstimado: 0,
+                                      responsavelId: reg.responsavel_id || entidadeId, // Usar entidadeId se for responsável
+                                      tarefas: new Map(), // Map de tarefas por cliente
+                                      registros: [] // Registros de tempo estimado relacionados
+                                    });
+                                  }
+                                  
+                                  const cliente = clientesMap.get(clienteIdStr);
+                                  
+                                  // Calcular tempo realizado deste registro
+                                  const tempoRealizadoReg = getTempoRealizado(reg);
+                                  const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                  cliente.tempoRealizado += tempoRealizadoValor;
+                                  
+                                  // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
+                                  const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                  cliente.tempoEstimado += tempoEstimadoReg;
+                                  
+                                  // Agrupar tarefas por cliente
+                                  if (reg.tarefa_id) {
+                                    const tarefaId = String(reg.tarefa_id);
+                                    const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                    
+                                    if (!cliente.tarefas.has(tarefaId)) {
+                                      cliente.tarefas.set(tarefaId, {
+                                        id: tarefaId,
+                                        nome: nomeTarefa,
+                                        tempoRealizado: 0,
+                                        tempoEstimado: 0,
+                                        responsavelId: reg.responsavel_id || entidadeId, // Guardar responsavelId para calcular custo
+                                        registros: []
+                                      });
+                                    }
+                                    
+                                    const tarefa = cliente.tarefas.get(tarefaId);
+                                    tarefa.tempoRealizado += tempoRealizadoValor;
+                                    tarefa.tempoEstimado += tempoEstimadoReg;
+                                    tarefa.registros.push({
+                                      ...reg,
+                                      tempoRealizado: tempoRealizadoValor
+                                    });
+                                  }
+                                  
+                                  // Adicionar registro para poder buscar detalhes individuais depois
+                                  cliente.registros.push({
+                                    ...reg,
+                                    tempoRealizado: tempoRealizadoValor
+                                  });
+                                });
+                              });
                             });
-                          });
 
-                          return registrosDetalhes;
+                            // Converter Map de tarefas para array em cada cliente
+                            const clientesArray = Array.from(clientesMap.values()).map(cliente => ({
+                              ...cliente,
+                              tarefas: Array.from(cliente.tarefas.values())
+                            }));
+
+                            return clientesArray;
+                          }
+
+                          // Se for produtos, agrupar por produto -> cliente -> tarefa (ou produto -> tarefa se filtro pai é cliente)
+                          if (tipoDetalhe === 'produtos') {
+                            const produtosMap = new Map();
+                            const isFiltroPaiCliente = tipoEntidade === 'cliente';
+
+                            agrupamentosFiltrados.forEach(agr => {
+                              agr.registros.forEach(reg => {
+                                if (!reg.produto_id) return;
+                                
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (isFiltroPaiCliente) {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
+                                
+                                const produtoId = String(reg.produto_id).trim();
+                                
+                                if (!produtosMap.has(produtoId)) {
+                                  const nomeProduto = getNomeProduto(reg.produto_id);
+                                  produtosMap.set(produtoId, {
+                                    id: produtoId,
+                                    nome: nomeProduto,
+                                    tipo: 'produto',
+                                    tempoRealizado: 0,
+                                    tempoEstimado: 0,
+                                    responsavelId: reg.responsavel_id || entidadeId,
+                                    clientes: isFiltroPaiCliente ? null : new Map(), // Não criar hierarquia de clientes se filtro pai é cliente
+                                    tarefas: isFiltroPaiCliente ? new Map() : null, // Criar hierarquia de tarefas diretamente se filtro pai é cliente
+                                    registros: []
+                                  });
+                                }
+                                
+                                const produto = produtosMap.get(produtoId);
+                                
+                                // Calcular tempo realizado deste registro
+                                const tempoRealizadoReg = getTempoRealizado(reg);
+                                const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                produto.tempoRealizado += tempoRealizadoValor;
+                                
+                                // Calcular tempo estimado deste registro
+                                const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                produto.tempoEstimado += tempoEstimadoReg;
+                                
+                                if (isFiltroPaiCliente) {
+                                  // Se filtro pai é cliente, agrupar tarefas diretamente no produto (sem hierarquia de clientes)
+                                  if (reg.tarefa_id) {
+                                    const tarefaId = String(reg.tarefa_id);
+                                    const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                    
+                                    if (!produto.tarefas.has(tarefaId)) {
+                                      produto.tarefas.set(tarefaId, {
+                                        id: tarefaId,
+                                        nome: nomeTarefa,
+                                        tempoRealizado: 0,
+                                        tempoEstimado: 0,
+                                        responsavelId: reg.responsavel_id || entidadeId,
+                                        registros: []
+                                      });
+                                    }
+                                    
+                                    const tarefa = produto.tarefas.get(tarefaId);
+                                    tarefa.tempoRealizado += tempoRealizadoValor;
+                                    tarefa.tempoEstimado += tempoEstimadoReg;
+                                    tarefa.registros.push({
+                                      ...reg,
+                                      tempoRealizado: tempoRealizadoValor
+                                    });
+                                  }
+                                } else {
+                                  // Se filtro pai não é cliente, manter hierarquia produto -> cliente -> tarefa
+                                  if (reg.cliente_id) {
+                                    const clienteIds = String(reg.cliente_id)
+                                      .split(',')
+                                      .map(id => id.trim())
+                                      .filter(id => id.length > 0);
+                                    
+                                    clienteIds.forEach(clienteId => {
+                                      const clienteIdStr = String(clienteId).trim();
+                                      
+                                      if (!produto.clientes.has(clienteIdStr)) {
+                                        const nomeCliente = getNomeCliente(clienteId);
+                                        produto.clientes.set(clienteIdStr, {
+                                          id: clienteIdStr,
+                                          nome: nomeCliente,
+                                          tempoRealizado: 0,
+                                          tempoEstimado: 0,
+                                          tarefas: new Map(),
+                                          registros: []
+                                        });
+                                      }
+                                      
+                                      const cliente = produto.clientes.get(clienteIdStr);
+                                      cliente.tempoRealizado += tempoRealizadoValor;
+                                      cliente.tempoEstimado += tempoEstimadoReg;
+                                      
+                                      if (reg.tarefa_id) {
+                                        const tarefaId = String(reg.tarefa_id);
+                                        const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                        
+                                        if (!cliente.tarefas.has(tarefaId)) {
+                                          cliente.tarefas.set(tarefaId, {
+                                            id: tarefaId,
+                                            nome: nomeTarefa,
+                                            tempoRealizado: 0,
+                                            tempoEstimado: 0,
+                                            responsavelId: reg.responsavel_id || entidadeId,
+                                            registros: []
+                                          });
+                                        }
+                                        
+                                        const tarefa = cliente.tarefas.get(tarefaId);
+                                        tarefa.tempoRealizado += tempoRealizadoValor;
+                                        tarefa.tempoEstimado += tempoEstimadoReg;
+                                        tarefa.registros.push({
+                                          ...reg,
+                                          tempoRealizado: tempoRealizadoValor
+                                        });
+                                      }
+                                      
+                                      cliente.registros.push({
+                                        ...reg,
+                                        tempoRealizado: tempoRealizadoValor
+                                      });
+                                    });
+                                  }
+                                }
+                                
+                                // Adicionar registro para poder buscar detalhes individuais depois
+                                produto.registros.push({
+                                  ...reg,
+                                  tempoRealizado: tempoRealizadoValor
+                                });
+                              });
+                            });
+
+                            // Converter Maps para arrays
+                            if (isFiltroPaiCliente) {
+                              // Se filtro pai é cliente, retornar produtos com tarefas diretamente
+                              return Array.from(produtosMap.values()).map(produto => ({
+                                ...produto,
+                                tarefas: Array.from(produto.tarefas.values())
+                              }));
+                            } else {
+                              // Se filtro pai não é cliente, retornar produtos com hierarquia de clientes
+                              return Array.from(produtosMap.values()).map(produto => ({
+                                ...produto,
+                                clientes: Array.from(produto.clientes.values()).map(cliente => ({
+                                  ...cliente,
+                                  tarefas: Array.from(cliente.tarefas.values())
+                                }))
+                              }));
+                            }
+                          }
+
+                          // Se for responsáveis, agrupar por responsável -> produto -> cliente -> tarefa (ou responsável -> produto -> tarefa se filtro pai é cliente)
+                          if (tipoDetalhe === 'responsaveis') {
+                            const responsaveisMap = new Map();
+                            const isFiltroPaiCliente = tipoEntidade === 'cliente';
+
+                            agrupamentosFiltrados.forEach(agr => {
+                              agr.registros.forEach(reg => {
+                                if (!reg.responsavel_id) return;
+                                
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (isFiltroPaiCliente) {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
+                                
+                                const responsavelId = String(reg.responsavel_id).trim();
+                                
+                                if (!responsaveisMap.has(responsavelId)) {
+                                  const nomeResponsavel = getNomeColaborador(reg.responsavel_id);
+                                  responsaveisMap.set(responsavelId, {
+                                    id: responsavelId,
+                                    nome: nomeResponsavel,
+                                    tipo: 'responsavel',
+                                    tempoRealizado: 0,
+                                    tempoEstimado: 0,
+                                    responsavelId: responsavelId,
+                                    produtos: new Map(),
+                                    registros: []
+                                  });
+                                }
+                                
+                                const responsavel = responsaveisMap.get(responsavelId);
+                                
+                                // Calcular tempo realizado deste registro
+                                const tempoRealizadoReg = getTempoRealizado(reg);
+                                const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                responsavel.tempoRealizado += tempoRealizadoValor;
+                                
+                                // Calcular tempo estimado deste registro
+                                const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                responsavel.tempoEstimado += tempoEstimadoReg;
+                                
+                                // Agrupar por produto dentro do responsável
+                                if (reg.produto_id) {
+                                  const produtoId = String(reg.produto_id).trim();
+                                  
+                                  if (!responsavel.produtos.has(produtoId)) {
+                                    const nomeProduto = getNomeProduto(reg.produto_id);
+                                    responsavel.produtos.set(produtoId, {
+                                      id: produtoId,
+                                      nome: nomeProduto,
+                                      tempoRealizado: 0,
+                                      tempoEstimado: 0,
+                                      clientes: isFiltroPaiCliente ? null : new Map(), // Não criar hierarquia de clientes se filtro pai é cliente
+                                      tarefas: isFiltroPaiCliente ? new Map() : null, // Criar hierarquia de tarefas diretamente se filtro pai é cliente
+                                      registros: []
+                                    });
+                                  }
+                                  
+                                  const produto = responsavel.produtos.get(produtoId);
+                                  produto.tempoRealizado += tempoRealizadoValor;
+                                  produto.tempoEstimado += tempoEstimadoReg;
+                                  
+                                  if (isFiltroPaiCliente) {
+                                    // Se filtro pai é cliente, agrupar tarefas diretamente no produto (sem hierarquia de clientes)
+                                    if (reg.tarefa_id) {
+                                      const tarefaId = String(reg.tarefa_id);
+                                      const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                      
+                                      if (!produto.tarefas.has(tarefaId)) {
+                                        produto.tarefas.set(tarefaId, {
+                                          id: tarefaId,
+                                          nome: nomeTarefa,
+                                          tempoRealizado: 0,
+                                          tempoEstimado: 0,
+                                          responsavelId: responsavelId,
+                                          registros: []
+                                        });
+                                      }
+                                      
+                                      const tarefa = produto.tarefas.get(tarefaId);
+                                      tarefa.tempoRealizado += tempoRealizadoValor;
+                                      tarefa.tempoEstimado += tempoEstimadoReg;
+                                      tarefa.registros.push({
+                                        ...reg,
+                                        tempoRealizado: tempoRealizadoValor
+                                      });
+                                    }
+                                  } else {
+                                    // Se filtro pai não é cliente, manter hierarquia responsável -> produto -> cliente -> tarefa
+                                    if (reg.cliente_id) {
+                                      const clienteIds = String(reg.cliente_id)
+                                        .split(',')
+                                        .map(id => id.trim())
+                                        .filter(id => id.length > 0);
+                                      
+                                      clienteIds.forEach(clienteId => {
+                                        const clienteIdStr = String(clienteId).trim();
+                                        
+                                        if (!produto.clientes.has(clienteIdStr)) {
+                                          const nomeCliente = getNomeCliente(clienteId);
+                                          produto.clientes.set(clienteIdStr, {
+                                            id: clienteIdStr,
+                                            nome: nomeCliente,
+                                            tempoRealizado: 0,
+                                            tempoEstimado: 0,
+                                            tarefas: new Map(),
+                                            registros: []
+                                          });
+                                        }
+                                        
+                                        const cliente = produto.clientes.get(clienteIdStr);
+                                        cliente.tempoRealizado += tempoRealizadoValor;
+                                        cliente.tempoEstimado += tempoEstimadoReg;
+                                        
+                                        if (reg.tarefa_id) {
+                                          const tarefaId = String(reg.tarefa_id);
+                                          const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+                                          
+                                          if (!cliente.tarefas.has(tarefaId)) {
+                                            cliente.tarefas.set(tarefaId, {
+                                              id: tarefaId,
+                                              nome: nomeTarefa,
+                                              tempoRealizado: 0,
+                                              tempoEstimado: 0,
+                                              responsavelId: responsavelId,
+                                              registros: []
+                                            });
+                                          }
+                                          
+                                          const tarefa = cliente.tarefas.get(tarefaId);
+                                          tarefa.tempoRealizado += tempoRealizadoValor;
+                                          tarefa.tempoEstimado += tempoEstimadoReg;
+                                          tarefa.registros.push({
+                                            ...reg,
+                                            tempoRealizado: tempoRealizadoValor
+                                          });
+                                        }
+                                        
+                                        cliente.registros.push({
+                                          ...reg,
+                                          tempoRealizado: tempoRealizadoValor
+                                        });
+                                      });
+                                    }
+                                  }
+                                  
+                                  produto.registros.push({
+                                    ...reg,
+                                    tempoRealizado: tempoRealizadoValor
+                                  });
+                                }
+                                
+                                // Adicionar registro para poder buscar detalhes individuais depois
+                                responsavel.registros.push({
+                                  ...reg,
+                                  tempoRealizado: tempoRealizadoValor
+                                });
+                              });
+                            });
+
+                            // Converter Maps para arrays
+                            if (isFiltroPaiCliente) {
+                              // Se filtro pai é cliente, retornar responsáveis com produtos e tarefas diretamente
+                              return Array.from(responsaveisMap.values()).map(responsavel => ({
+                                ...responsavel,
+                                produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                                  ...produto,
+                                  tarefas: Array.from(produto.tarefas.values())
+                                }))
+                              }));
+                            } else {
+                              // Se filtro pai não é cliente, retornar responsáveis com hierarquia completa
+                              return Array.from(responsaveisMap.values()).map(responsavel => ({
+                                ...responsavel,
+                                produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                                  ...produto,
+                                  clientes: Array.from(produto.clientes.values()).map(cliente => ({
+                                    ...cliente,
+                                    tarefas: Array.from(cliente.tarefas.values())
+                                  }))
+                                }))
+                              }));
+                            }
+                          }
+
+                          // Para outros tipos, retornar vazio
+                          return [];
                         };
 
                         // Função genérica para calcular tempo por qualquer entidade
@@ -2702,7 +3221,7 @@ const DelegarTarefas = () => {
                             });
                             return acc + registrosNoPeriodo.reduce((sum, reg) => {
                               const tempoRealizadoReg = getTempoRealizado(reg);
-                              return sum + (tempoRealizadoReg || 0);
+                              return sum + normalizarTempoRealizado(tempoRealizadoReg);
                             }, 0);
                           }, 0);
                           
@@ -2889,10 +3408,52 @@ const DelegarTarefas = () => {
                             registrosAgrupados
                           );
                           
-                          if (tempoInfo && tempoInfo.estimado > 0) {
-                            entidadesComTempo.push({ entidade, tempoInfo });
+                          // Obter responsavelId para calcular custo quando filtro principal não é responsavel
+                          let responsavelIdParaCusto = null;
+                          if (filtroPrincipal !== 'responsavel') {
+                            // Buscar o responsavelId mais comum nos registros desta entidade
+                            const responsaveisCount = new Map();
+                            registrosAgrupados.forEach(agr => {
+                              const primeiroRegistro = agr.primeiroRegistro;
+                              let pertence = false;
+                              if (filtroPrincipal === 'cliente') {
+                                const clienteIds = String(primeiroRegistro.cliente_id || '')
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+                                pertence = clienteIds.includes(String(entidade.id));
+                              } else if (filtroPrincipal === 'produto') {
+                                pertence = String(primeiroRegistro.produto_id) === String(entidade.id);
+                              } else if (filtroPrincipal === 'atividade') {
+                                pertence = String(primeiroRegistro.tarefa_id) === String(entidade.id);
+                              }
+                              
+                              if (pertence && primeiroRegistro.responsavel_id) {
+                                const respId = String(primeiroRegistro.responsavel_id);
+                                responsaveisCount.set(respId, (responsaveisCount.get(respId) || 0) + 1);
+                              }
+                            });
+                            
+                            // Pegar o responsavelId mais frequente
+                            if (responsaveisCount.size > 0) {
+                              let maxCount = 0;
+                              let responsavelMaisFrequente = null;
+                              responsaveisCount.forEach((count, respId) => {
+                                if (count > maxCount) {
+                                  maxCount = count;
+                                  responsavelMaisFrequente = respId;
+                                }
+                              });
+                              responsavelIdParaCusto = responsavelMaisFrequente;
+                            }
                           } else {
-                            entidadesSemTempo.push({ entidade, tempoInfo: null });
+                            responsavelIdParaCusto = entidade.id;
+                          }
+                          
+                          if (tempoInfo && tempoInfo.estimado > 0) {
+                            entidadesComTempo.push({ entidade, tempoInfo, responsavelIdParaCusto });
+                          } else {
+                            entidadesSemTempo.push({ entidade, tempoInfo: null, responsavelIdParaCusto });
                           }
                         });
                         
@@ -2915,7 +3476,7 @@ const DelegarTarefas = () => {
                           
                           return (
                           <>
-                            {dashboardsParaExibir.map(({ entidade, tempoInfo }) => {
+                            {dashboardsParaExibir.map(({ entidade, tempoInfo, responsavelIdParaCusto }) => {
                           // Sempre exibir o card, mesmo se não houver tempo estimado (para identificar quem falta estimar)
                           if (!tempoInfo) {
                             // Se não há tempoInfo, criar um objeto vazio para exibir valores zerados
@@ -2950,71 +3511,93 @@ const DelegarTarefas = () => {
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-list"></i>
                                           <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          {estatisticas.totalTarefas > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'tarefas',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de tarefas"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-briefcase"></i>
                                           <span>Clientes: {estatisticas.totalClientes}</span>
-                                          {estatisticas.totalClientes > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de clientes"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'clientes',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-box"></i>
                                           <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          {estatisticas.totalProdutos > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de produtos"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'produtos',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                       </>
                                     )}
@@ -3023,71 +3606,93 @@ const DelegarTarefas = () => {
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-list"></i>
                                           <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          {estatisticas.totalTarefas > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'tarefas',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de tarefas"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-box"></i>
                                           <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          {estatisticas.totalProdutos > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de produtos"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'produtos',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-user-tie"></i>
                                           <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          {estatisticas.totalResponsaveis > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de responsáveis"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'responsaveis',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                       </>
                                     )}
@@ -3096,71 +3701,93 @@ const DelegarTarefas = () => {
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-list"></i>
                                           <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          {estatisticas.totalTarefas > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'tarefas',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de tarefas"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-briefcase"></i>
                                           <span>Clientes: {estatisticas.totalClientes}</span>
-                                          {estatisticas.totalClientes > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de clientes"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'clientes',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-user-tie"></i>
                                           <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          {estatisticas.totalResponsaveis > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de responsáveis"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'responsaveis',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                       </>
                                     )}
@@ -3169,71 +3796,116 @@ const DelegarTarefas = () => {
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-box"></i>
                                           <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          {estatisticas.totalProdutos > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de produtos"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'produtos',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-briefcase"></i>
                                           <span>Clientes: {estatisticas.totalClientes}</span>
-                                          {estatisticas.totalClientes > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de clientes"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'clientes',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                         <div className="tempo-disponivel-stat-item">
                                           <i className="fas fa-user-tie"></i>
                                           <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          {estatisticas.totalResponsaveis > 0 && (
                                             <span
-                                              className="resumo-arrow produtos-arrow"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const position = calcularPosicaoCard(e);
-                                                setDetalheAberto({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  position
-                                                });
-                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                setDetalhesDados({ registros: detalhes });
-                                              }}
-                                              title="Ver detalhes de responsáveis"
+                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              &gt;
+                                              <span
+                                                className="resumo-arrow-anchor"
+                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                  e.stopPropagation();
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                  
+                                                  // Posição no documento (considerando scroll)
+                                                  const documentLeft = rect.left + scrollLeft;
+                                                  const documentTop = rect.top + scrollTop;
+                                                  
+                                                  const position = {
+                                                    left: documentLeft + rect.width + 20,
+                                                    top: documentTop
+                                                  };
+                                                  setDetailCardPosition(position);
+                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                  if (detalhes && detalhes.length > 0) {
+                                                    setDetailCard({
+                                                      entidadeId: entidade.id,
+                                                      tipo: 'responsaveis',
+                                                      dados: { registros: detalhes }
+                                                    });
+                                                  }
+                                                } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
                                             </span>
-                                          )}
                                         </div>
                                       </>
                                     )}
@@ -3243,7 +3915,7 @@ const DelegarTarefas = () => {
                                     estimado={0}
                                     realizado={0}
                                     sobrando={0}
-                                    responsavelId={filtroPrincipal === 'responsavel' ? entidade.id : null}
+                                    responsavelId={responsavelIdParaCusto}
                                     mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                   />
                                 </div>
@@ -3282,74 +3954,75 @@ const DelegarTarefas = () => {
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-list"></i>
                                         <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                        {estatisticas.totalTarefas > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'tarefas',
-                                                position: { left: rect.right + 10, top: rect.top }
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de tarefas"
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                          title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-briefcase"></i>
                                         <span>Clientes: {estatisticas.totalClientes}</span>
-                                        {estatisticas.totalClientes > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalClientes > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'clientes',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de clientes"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-box"></i>
                                         <span>Produtos: {estatisticas.totalProdutos}</span>
-                                        {estatisticas.totalProdutos > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalProdutos > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'produtos',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de produtos"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                     </>
                                   )}
@@ -3358,74 +4031,75 @@ const DelegarTarefas = () => {
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-list"></i>
                                         <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                        {estatisticas.totalTarefas > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'tarefas',
-                                                position: { left: rect.right + 10, top: rect.top }
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de tarefas"
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                          title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-box"></i>
                                         <span>Produtos: {estatisticas.totalProdutos}</span>
-                                        {estatisticas.totalProdutos > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalProdutos > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'produtos',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de produtos"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-user-tie"></i>
                                         <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                        {estatisticas.totalResponsaveis > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'responsaveis',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de responsáveis"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                     </>
                                   )}
@@ -3434,74 +4108,75 @@ const DelegarTarefas = () => {
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-list"></i>
                                         <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                        {estatisticas.totalTarefas > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'tarefas',
-                                                position: { left: rect.right + 10, top: rect.top }
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'tarefas', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de tarefas"
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                          title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-briefcase"></i>
                                         <span>Clientes: {estatisticas.totalClientes}</span>
-                                        {estatisticas.totalClientes > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalClientes > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'clientes',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de clientes"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-user-tie"></i>
                                         <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                        {estatisticas.totalResponsaveis > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'responsaveis',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de responsáveis"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                     </>
                                   )}
@@ -3510,74 +4185,95 @@ const DelegarTarefas = () => {
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-box"></i>
                                         <span>Produtos: {estatisticas.totalProdutos}</span>
-                                        {estatisticas.totalProdutos > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalProdutos > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'produtos',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de produtos"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'produtos',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-briefcase"></i>
                                         <span>Clientes: {estatisticas.totalClientes}</span>
-                                        {estatisticas.totalClientes > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalClientes > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'clientes',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de clientes"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'clientes',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                       <div className="tempo-disponivel-stat-item">
                                         <i className="fas fa-user-tie"></i>
                                         <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                        {estatisticas.totalResponsaveis > 0 && (
                                           <span
-                                            className="resumo-arrow produtos-arrow"
-                                            onClick={(e) => {
+                                          className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                          onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
                                               e.stopPropagation();
                                               const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
                                               const rect = elemento.getBoundingClientRect();
-                                              setDetalheAberto({
-                                                entidadeId: entidade.id,
-                                                tipo: 'responsaveis',
-                                                position: { left: rect.right + 10, top: rect.top }
+                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                              const documentLeft = rect.left + scrollLeft;
+                                              const documentTop = rect.top + scrollTop;
+                                              setDetailCardPosition({
+                                                left: documentLeft + rect.width + 20,
+                                                top: documentTop
                                               });
                                               const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              setDetalhesDados({ registros: detalhes });
-                                            }}
-                                            title="Ver detalhes de responsáveis"
+                                              if (detalhes && detalhes.length > 0) {
+                                                setDetailCard({
+                                                  entidadeId: entidade.id,
+                                                  tipo: 'responsaveis',
+                                                  dados: { registros: detalhes }
+                                                });
+                                              }
+                                          } : undefined}
+                                          title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                           >
                                             &gt;
                                           </span>
-                                        )}
                                       </div>
                                     </>
                                   )}
@@ -3587,7 +4283,7 @@ const DelegarTarefas = () => {
                                   estimado={tempoInfo.estimado}
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
-                                  responsavelId={filtroPrincipal === 'responsavel' ? entidade.id : null}
+                                  responsavelId={responsavelIdParaCusto}
                                   mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                 />
                               </div>
@@ -3616,7 +4312,8 @@ const DelegarTarefas = () => {
                   </div>
                 )}
                 
-                {(() => {
+                {/* LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
+                {false && (() => {
                   // Se há filtro principal, agrupar por ele
                   if (filtroPrincipal) {
                     const agrupados = {};
@@ -4163,6 +4860,7 @@ const DelegarTarefas = () => {
                     );
                   }
                 })()}
+                {/* FIM DA LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
               </div>
             )}
 
@@ -4238,12 +4936,6 @@ const DelegarTarefas = () => {
         </main>
       </div>
 
-      <AtribuicaoModal
-        isOpen={showModal}
-        onClose={handleCloseModal}
-        editingAgrupamento={editingAgrupamento}
-      />
-
       {/* Modal de confirmação para exclusão */}
       <ConfirmModal
         isOpen={showDeleteConfirmModal}
@@ -4275,17 +4967,14 @@ const DelegarTarefas = () => {
         loading={deleteLoading}
       />
 
-      {/* Card lateral de detalhes */}
-      {detalheAberto && detalhesDados && (
+      {/* DetailSideCard */}
+      {detailCard && (
         <DetailSideCard
-          entidadeId={detalheAberto.entidadeId}
-          tipo={detalheAberto.tipo}
-          dados={detalhesDados}
-          onClose={() => {
-            setDetalheAberto(null);
-            setDetalhesDados(null);
-          }}
-          position={detalheAberto.position}
+          entidadeId={detailCard.entidadeId}
+          tipo={detailCard.tipo}
+          dados={detailCard.dados}
+          onClose={handleCloseDetail}
+          position={detailCardPosition}
           getTempoRealizado={getTempoRealizado}
           formatarTempoEstimado={formatarTempoEstimado}
           formatarData={formatarData}

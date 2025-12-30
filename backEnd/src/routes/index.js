@@ -31,6 +31,8 @@ const clienteContaBancariaController = require('../controllers/cliente-conta-ban
 const clienteSistemaController = require('../controllers/cliente-sistema.controller');
 const clienteAdquirenteController = require('../controllers/cliente-adquirente.controller');
 const baseConhecimentoController = require('../controllers/base-conhecimento.controller');
+const usuariosController = require('../controllers/usuarios.controller');
+const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -41,6 +43,8 @@ router.post('/api/login', authController.login);
 router.post('/api/logout', authController.logout);
 router.get('/api/auth/check', authController.checkAuth);
 router.put('/api/auth/profile', requireAuth, authController.updateProfile);
+router.get('/api/auth/preferencia-view-mode', requireAuth, authController.getPreferenciaViewMode);
+router.put('/api/auth/preferencia-view-mode', requireAuth, authController.updatePreferenciaViewMode);
 // Middleware para tratar erros do multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -264,6 +268,14 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
+
+// Rotas de Usuários (Gestão de Permissões)
+router.get('/api/usuarios', requireAuth, usuariosController.getUsuarios);
+router.put('/api/usuarios/:id/permissoes', requireAuth, usuariosController.atualizarPermissoes);
+
+// Rotas de Configurações de Permissões
+router.get('/api/permissoes-config', requireAuth, permissoesConfigController.getPermissoesConfig);
+router.put('/api/permissoes-config/:nivel', requireAuth, permissoesConfigController.atualizarPermissoesConfig);
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {

@@ -21,6 +21,11 @@ const Painel = () => {
           label: 'Relatórios de Colaboradores',
           path: '/relatorios-colaboradores',
           icon: 'fa-user-tie'
+        },
+        {
+          label: 'Planilha de Horas',
+          path: '/planilha-horas',
+          icon: 'fa-clock'
         }
       ]
     },
