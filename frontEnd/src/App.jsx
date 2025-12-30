@@ -12,6 +12,8 @@ import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroProdutoIndividual from './pages/CadastroProdutoIndividual/CadastroProdutoIndividual';
 import CadastroTarefas from './pages/CadastroTarefas/CadastroTarefas';
 import CadastroTarefaIndividual from './pages/CadastroTarefaIndividual/CadastroTarefaIndividual';
+import CadastroSubtarefas from './pages/CadastroSubtarefas/CadastroSubtarefas';
+import CadastroSubtarefaIndividual from './pages/CadastroSubtarefaIndividual/CadastroSubtarefaIndividual';
 import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
 import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
@@ -194,6 +196,22 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroTarefaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/subtarefas"
+          element={
+            <ProtectedRoute>
+              <CadastroSubtarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/subtarefa"
+          element={
+            <ProtectedRoute>
+              <CadastroSubtarefaIndividual />
             </ProtectedRoute>
           }
         />

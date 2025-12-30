@@ -50,6 +50,11 @@ const Painel = () => {
           icon: 'fa-tasks'
         },
         {
+          label: 'Subtarefas',
+          path: '/cadastro/subtarefas',
+          icon: 'fa-list-ul'
+        },
+        {
           label: 'Tipo de Tarefas',
           path: '/cadastro/tipo-tarefas',
           icon: 'fa-list-alt'

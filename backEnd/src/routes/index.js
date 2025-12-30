@@ -11,6 +11,7 @@ const authController = require('../controllers/auth.controller');
 const clientesController = require('../controllers/clientes.controller');
 const tarefasController = require('../controllers/tarefas.controller');
 const tarefaController = require('../controllers/tarefa.controller');
+const subtarefaController = require('../controllers/subtarefa.controller');
 const tipoTarefaController = require('../controllers/tipo-tarefa.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
@@ -225,6 +226,13 @@ router.get('/api/tarefa/:id', requireAuth, tarefaController.getTarefaPorId);
 router.post('/api/tarefa', requireAuth, tarefaController.criarTarefa);
 router.put('/api/tarefa/:id', requireAuth, tarefaController.atualizarTarefa);
 router.delete('/api/tarefa/:id', requireAuth, tarefaController.deletarTarefa);
+
+// Rotas de Subtarefa (cp_subtarefa) - CRUD completo
+router.get('/api/subtarefa', requireAuth, subtarefaController.getSubtarefas);
+router.get('/api/subtarefa/:id', requireAuth, subtarefaController.getSubtarefaPorId);
+router.post('/api/subtarefa', requireAuth, subtarefaController.criarSubtarefa);
+router.put('/api/subtarefa/:id', requireAuth, subtarefaController.atualizarSubtarefa);
+router.delete('/api/subtarefa/:id', requireAuth, subtarefaController.deletarSubtarefa);
 
 // Rotas de Tipo de Tarefa (cp_tarefa_tipo) (CRUD completo)
 router.get('/api/tipo-tarefa', requireAuth, tipoTarefaController.getTipoTarefas);

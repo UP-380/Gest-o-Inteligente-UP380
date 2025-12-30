@@ -134,11 +134,14 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
           sistema_id: result.data.sistema_id || '',
           servidor: result.data.servidor || '',
           usuario_servidor: result.data.usuario_servidor || '',
+          senha_servidor: result.data.senha_servidor || '',
           vpn: result.data.vpn || '',
           usuario_vpn: result.data.usuario_vpn || '',
           senha_vpn: result.data.senha_vpn || '',
           usuario_sistema: result.data.usuario_sistema || '',
-          senha_sistema: result.data.senha_sistema || ''
+          senha_sistema: result.data.senha_sistema || '',
+          link_acesso: result.data.link_acesso || '',
+          observacoes: result.data.observacoes || ''
         });
         setEditingId(id);
         setShowForm(true);
@@ -170,11 +173,14 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
         sistema_id: formData.sistema_id,
         servidor: formData.servidor || null,
         usuario_servidor: formData.usuario_servidor || null,
+        senha_servidor: formData.senha_servidor || null,
         vpn: formData.vpn || null,
         usuario_vpn: formData.usuario_vpn || null,
         senha_vpn: formData.senha_vpn || null,
         usuario_sistema: formData.usuario_sistema || null,
-        senha_sistema: formData.senha_sistema || null
+        senha_sistema: formData.senha_sistema || null,
+        link_acesso: formData.link_acesso || null,
+        observacoes: formData.observacoes || null
       };
 
       const url = editingId 
@@ -270,11 +276,14 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
       sistema_id: '',
       servidor: '',
       usuario_servidor: '',
+      senha_servidor: '',
       vpn: '',
       usuario_vpn: '',
       senha_vpn: '',
       usuario_sistema: '',
-      senha_sistema: ''
+      senha_sistema: '',
+      link_acesso: '',
+      observacoes: ''
     });
     setEditingId(null);
     setShowForm(false);

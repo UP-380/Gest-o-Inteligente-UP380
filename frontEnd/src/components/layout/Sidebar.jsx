@@ -23,6 +23,7 @@ const Sidebar = () => {
            isActive('/cadastro/colaboradores') || 
            isActive('/cadastro/produtos') || location.pathname.startsWith('/cadastro/produto') || 
            isActive('/cadastro/tarefas') || location.pathname.startsWith('/cadastro/tarefa') || 
+           isActive('/cadastro/subtarefas') || location.pathname.startsWith('/cadastro/subtarefa') ||
            isActive('/cadastro/tipo-tarefas') || location.pathname.startsWith('/cadastro/tipo-tarefa') || 
            isActive('/cadastro/bancos') ||
            isActive('/cadastro/banco') ||
@@ -55,6 +56,7 @@ const Sidebar = () => {
                               location.pathname === '/cadastro/colaboradores' || 
                               (location.pathname === '/cadastro/produtos' || location.pathname.startsWith('/cadastro/produto')) || 
                               (location.pathname === '/cadastro/tarefas' || location.pathname.startsWith('/cadastro/tarefa')) || 
+                              (location.pathname === '/cadastro/subtarefas' || location.pathname.startsWith('/cadastro/subtarefa')) ||
                               (location.pathname === '/cadastro/tipo-tarefas' || location.pathname.startsWith('/cadastro/tipo-tarefa')) || 
                               location.pathname === '/cadastro/bancos' ||
                               location.pathname === '/cadastro/banco' ||
@@ -164,6 +166,12 @@ const Sidebar = () => {
       icon: 'fa-tasks',
       label: 'Tarefas',
       title: 'Cadastro de Tarefas'
+    },
+    {
+      path: '/cadastro/subtarefas',
+      icon: 'fa-list-ul',
+      label: 'Subtarefas',
+      title: 'Cadastro de Subtarefas'
     },
     {
       path: '/cadastro/tipo-tarefas',
