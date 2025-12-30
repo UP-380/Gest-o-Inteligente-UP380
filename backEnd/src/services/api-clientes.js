@@ -350,7 +350,46 @@ async function getMembrosIdNome(req, res) {
     const membros = (data || []).map(row => ({
       id: row.id,
       nome: row.nome,
-      status: row.status || 'ativo' // Incluir status, assumir 'ativo' se não estiver definido
+      status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
+      usuario_id: row.usuario_id // Incluir usuario_id para permitir busca por usuario_id
+    }));
+
+    return res.json({
+      success: true,
+      data: membros,
+      count: membros.length
+    });
+  } catch (e) {
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// Função para buscar TODOS os membros (incluindo os sem usuário vinculado)
+async function getMembrosIdNomeTodos(req, res) {
+  try {
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .select('id, nome, status, usuario_id')
+      .not('id', 'is', null)
+      // NÃO filtrar por usuario_id - retornar todos os membros
+      .order('nome', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar membros'
+      });
+    }
+
+    const membros = (data || []).map(row => ({
+      id: row.id,
+      nome: row.nome,
+      status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
+      usuario_id: row.usuario_id // Incluir usuario_id (pode ser null)
     }));
 
     return res.json({
@@ -1303,6 +1342,7 @@ function registrarRotasAPI(app, requireAuth = null) {
   // Endpoints de ID/Nome (com autenticação se disponível)
   app.get('/api/cp_clientes-id-nome', requireAuth ? requireAuth : (_req,_res,next)=>next(), getcp_clientesIdNome);
   app.get('/api/membros-id-nome', requireAuth ? requireAuth : (_req,_res,next)=>next(), getMembrosIdNome);
+  app.get('/api/membros-id-nome-todos', requireAuth ? requireAuth : (_req,_res,next)=>next(), getMembrosIdNomeTodos);
   
   // Endpoints do Dashboard Clientes (com autenticação se disponível)
   // IMPORTANTE: Estes endpoints são usados pelo Dashboard Clientes React e HTML

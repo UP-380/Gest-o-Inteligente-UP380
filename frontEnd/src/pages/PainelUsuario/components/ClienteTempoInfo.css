@@ -4,6 +4,8 @@
 /* Estilos específicos para o modo quadro */
 .painel-usuario-quadro-tempo {
   font-size: 11px !important;
+  white-space: nowrap !important; /* Não quebrar linha */
+  flex-shrink: 0 !important; /* Não encolher */
 }
 
 .painel-usuario-quadro-tempo i {
@@ -12,6 +14,8 @@
 
 .painel-usuario-quadro-count {
   font-size: 11px !important;
+  white-space: nowrap !important; /* Não quebrar linha */
+  flex-shrink: 0 !important; /* Não encolher */
 }
 
 

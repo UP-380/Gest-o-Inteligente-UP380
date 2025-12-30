@@ -28,6 +28,7 @@ import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
 import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConhecimentoCliente';
 import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
+import AtribuicaoCliente from './pages/AtribuicaoCliente/AtribuicaoCliente';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -52,7 +53,7 @@ function App() {
           }
         />
         <Route
-          path="/painel-usuario"
+          path="/painel-colaborador"
           element={
             <ProtectedRoute>
               <PainelUsuario />
@@ -315,6 +316,22 @@ function App() {
           element={
             <ProtectedRoute>
               <BaseConhecimentoCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/atribuicao/cliente/:clienteId"
+          element={
+            <ProtectedRoute>
+              <AtribuicaoCliente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/atribuicao/nova"
+          element={
+            <ProtectedRoute>
+              <AtribuicaoCliente />
             </ProtectedRoute>
           }
         />

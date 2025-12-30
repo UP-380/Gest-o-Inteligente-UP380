@@ -112,10 +112,10 @@ const Sidebar = () => {
       title: 'Painel'
     },
     {
-      path: '/painel-usuario',
+      path: '/painel-colaborador',
       icon: 'fa-th-large',
-      label: 'Painel do Usuário',
-      title: 'Painel do Usuário'
+      label: 'Painel do Colaborador',
+      title: 'Painel do Colaborador'
     },
     {
       path: '/atribuir-responsaveis',

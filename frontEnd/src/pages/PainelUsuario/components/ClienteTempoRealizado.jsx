@@ -18,13 +18,13 @@ const ClienteTempoRealizado = ({
   const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
   const className = modoQuadro
     ? 'painel-usuario-grupo-tempo-realizado has-tooltip painel-usuario-quadro-tempo'
-    : 'painel-usuario-grupo-tempo-realizado has-tooltip';
+    : 'painel-usuario-grupo-tempo-realizado';
 
   return (
     <span className={className}>
       <i className="fas fa-stopwatch painel-usuario-realizado-icon-inline" style={{ marginRight: '4px' }}></i>
       {tempoRealizadoFormatado}
-      <div className="filter-tooltip">Tempo realizado</div>
+      {modoQuadro && <div className="filter-tooltip">Tempo realizado</div>}
     </span>
   );
 };

@@ -238,40 +238,56 @@ const TimerAtivo = () => {
           
           if (clientesIds.length > 0) {
             try {
-              // Buscar clientes individualmente em paralelo
+              // Buscar clientes individualmente em paralelo usando o mesmo endpoint do PainelUsuario
               const clientesPromises = clientesIds.map(async (clienteId) => {
                 try {
-                  const clienteResponse = await fetch(`/api/clientes/${clienteId}`, {
+                  const idStr = String(clienteId).trim();
+                  const clienteResponse = await fetch(`/api/base-conhecimento/cliente/${idStr}`, {
                     credentials: 'include',
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                      'Accept': 'application/json',
+                      'Content-Type': 'application/json'
+                    }
                   });
                   
                   if (clienteResponse.ok) {
                     const clienteResult = await clienteResponse.json();
-                    if (clienteResult.success && clienteResult.data) {
-                      return { id: clienteId, nome: clienteResult.data.nome || clienteResult.data.nome_fantasia || clienteResult.data.razao_social || `Cliente #${clienteId}` };
+                    if (clienteResult.success && clienteResult.data && clienteResult.data.cliente) {
+                      const cliente = clienteResult.data.cliente;
+                      // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social (mesma lógica do PainelUsuario)
+                      const nome = cliente.nome || 
+                                   cliente.nome_amigavel || 
+                                   cliente.amigavel ||
+                                   cliente.nome_fantasia || 
+                                   cliente.fantasia ||
+                                   cliente.razao_social || 
+                                   cliente.razao ||
+                                   null;
+                      if (nome) {
+                        return { id: clienteId, nome: nome };
+                      }
                     }
                   }
                 } catch (error) {
                   console.warn(`[TimerAtivo] Erro ao buscar cliente ${clienteId}:`, error);
                 }
-                return { id: clienteId, nome: `Cliente #${clienteId}` };
+                // Não retornar "Cliente #ID" - deixar null para que HistoTempoRastreado busque assincronamente
+                return { id: clienteId, nome: null };
               });
               
               const clientesData = await Promise.all(clientesPromises);
               const nomes = {};
               clientesData.forEach(cliente => {
-                nomes[cliente.id] = cliente.nome;
+                // Só adicionar ao cache se tiver nome válido
+                if (cliente.nome) {
+                  nomes[cliente.id] = cliente.nome;
+                }
               });
               setNomesClientes(nomes);
             } catch (error) {
               console.warn('[TimerAtivo] Erro ao buscar nomes dos clientes:', error);
-              // Fallback: criar nomes padrão
-              const nomes = {};
-              clientesIds.forEach(clienteId => {
-                nomes[clienteId] = `Cliente #${clienteId}`;
-              });
-              setNomesClientes(nomes);
+              // Não criar fallback com "Cliente #ID" - deixar vazio para busca assíncrona
+              setNomesClientes({});
             }
           } else {
             setNomesClientes({});

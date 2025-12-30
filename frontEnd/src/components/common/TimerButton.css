@@ -88,15 +88,19 @@
 }
 
 
-/* Variante para uso no header (timer ativo) */
+/* Variante para uso no header (timer ativo) - Mesmo estilo do painel */
 .timer-button-header {
-  width: 20px;
-  height: 20px;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  border-radius: 50%; /* Botão circular */
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
 /* Variante para uso no painel de usuário */
 .timer-button-painel {
   width: 20px;
   height: 20px;
+  border-radius: 50%; /* Botão circular */
 }
 

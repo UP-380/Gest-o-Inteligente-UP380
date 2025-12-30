@@ -1027,6 +1027,9 @@
   border: 1px solid #e2e8f0;
   border-radius: 8.4px; /* 12px * 0.7 = 8.4px */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tempo-disponivel-title {
@@ -1040,14 +1043,17 @@
 
 .tempo-disponivel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); /* 280px * 0.7 = 196px */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); /* Reduzido de 290px para 260px */
   gap: 14px; /* Aumentado de 8.4px para 14px para mais espaçamento entre dashboards */
   max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (min-width: 1200px) {
   .tempo-disponivel-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* Mudado para auto-fit com minmax */
+    max-width: 100%;
   }
 }
 
@@ -1062,6 +1068,9 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
   max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0; /* Permite que o card encolha abaixo do minmax */
 }
 
 .tempo-disponivel-card-header {
@@ -1162,19 +1171,36 @@
 
 /* Seta de ver detalhes */
 .resumo-arrow {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-left: auto;
+  /* SEM padding aqui - o padding fica apenas no elemento âncora */
+  user-select: none;
+}
+
+.resumo-arrow-anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
   cursor: pointer;
   color: #0e3b6f;
   font-size: 14px;
   font-weight: 600;
-  margin-left: auto;
-  padding: 2px 6px;
-  transition: all 0.2s ease;
-  user-select: none;
+  padding: 2px;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.resumo-arrow:hover {
+.resumo-arrow:hover .resumo-arrow-anchor {
   color: #0c2f5a;
   transform: translateX(2px);
+}
+
+.resumo-arrow-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Avatar no card de tempo disponível */
@@ -1260,12 +1286,12 @@
 
 .barra-progresso-tempo-custo {
   display: block;
-  font-size: 10px; /* Reduzido de 12px para 10px */
+  font-size: 10px;
   font-weight: 600;
-  text-align: left;
-  margin-top: 2.8px; /* 4px * 0.7 = 2.8px */
+  text-align: center;
   line-height: 1.2;
-  min-height: 14px; /* Altura mínima para reservar espaço */
+  margin-top: 2px;
+  min-height: 14px; /* Garante altura mínima mesmo quando vazio */
 }
 
 .barra-progresso-tempo-custo.estimado {
@@ -1278,6 +1304,7 @@
 
 .barra-progresso-tempo-custo-placeholder {
   visibility: hidden; /* Oculta o conteúdo, mas mantém o espaço */
+  height: 14px; /* Garante altura mesmo quando invisível */
 }
 
 .barra-progresso-tempo-badge-tempo {
@@ -1326,18 +1353,24 @@
   display: flex;
   flex-direction: column;
   gap: 2.8px; /* 4px * 0.7 = 2.8px */
+  align-items: flex-start; /* Alinhar à esquerda para alinhar títulos e badges */
+  width: 100%; /* Ocupar toda a largura disponível do grid */
 }
 
 .barra-progresso-tempo-item-content {
   display: flex;
   flex-direction: column;
   gap: 2.8px; /* 4px * 0.7 = 2.8px */
+  align-items: flex-start; /* Alinhar títulos à esquerda */
+  width: 100%; /* Ocupar toda a largura disponível do grid */
 }
 
 .barra-progresso-tempo-item-header {
   display: flex;
   align-items: center;
   gap: 2.8px; /* 4px * 0.7 = 2.8px */
+  width: 100%; /* Ocupar toda a largura para alinhar à esquerda */
+  justify-content: flex-start; /* Alinhar conteúdo à esquerda */
 }
 
 .barra-progresso-tempo-item-header i {
@@ -1345,11 +1378,11 @@
   flex-shrink: 0;
 }
 
-.barra-progresso-tempo-item-header .painel-usuario-estimado-icon-inline {
+.barra-progresso-tempo-item-header .painel-colaborador-estimado-icon-inline {
   color: #0e3b6f !important; /* Azul padrão do sistema - mesma cor do painel */
 }
 
-.barra-progresso-tempo-item-header .painel-usuario-realizado-icon-inline {
+.barra-progresso-tempo-item-header .painel-colaborador-realizado-icon-inline {
   color: #fd7e14 !important; /* Laranja padrão do sistema - mesma cor do painel */
 }
 
@@ -1384,6 +1417,16 @@
   letter-spacing: 0.2px; /* Mantido tamanho original */
 }
 
+.barra-progresso-tempo-badge-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Alinhar à esquerda para alinhar com o título */
+  gap: 2px;
+  min-height: 44px; /* Altura do badge (28px) + altura do custo (~14px) + gap (2px) */
+  justify-content: flex-start;
+  width: 128px; /* Largura fixa para garantir espaçamento uniforme */
+}
+
 .barra-progresso-tempo-badge {
   display: inline-flex;
   align-items: center;
@@ -1397,6 +1440,8 @@
   color: #374151;
   border: 1px solid #e5e7eb;
   min-height: 28px; /* 40px * 0.7 = 28px */
+  width: 128px; /* Largura fixa para garantir espaçamento uniforme */
+  box-sizing: border-box;
 }
 
 .barra-progresso-tempo-badge.estimado {

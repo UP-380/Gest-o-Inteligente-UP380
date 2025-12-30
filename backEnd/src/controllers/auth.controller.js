@@ -779,6 +779,102 @@ async function getCustomAvatarPath(req, res) {
   }
 }
 
+// GET - Buscar preferência de modo de visualização do painel
+async function getPreferenciaViewMode(req, res) {
+  try {
+    if (!req.session || !req.session.usuario) {
+      return res.status(401).json({
+        success: false,
+        error: 'Não autenticado'
+      });
+    }
+
+    const userId = req.session.usuario.id;
+
+    const { data: usuario, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('usuarios')
+      .select('view_modelo_painel')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar preferência de visualização:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar preferência'
+      });
+    }
+
+    // Retornar o modo salvo ou 'quadro' como padrão
+    const modo = usuario?.view_modelo_painel || 'quadro';
+
+    return res.json({
+      success: true,
+      data: { modo }
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar preferência:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
+// PUT - Salvar preferência de modo de visualização do painel
+async function updatePreferenciaViewMode(req, res) {
+  try {
+    if (!req.session || !req.session.usuario) {
+      return res.status(401).json({
+        success: false,
+        error: 'Não autenticado'
+      });
+    }
+
+    const userId = req.session.usuario.id;
+    const { modo } = req.body;
+
+    // Validar que o modo é válido
+    if (modo !== 'quadro' && modo !== 'lista') {
+      return res.status(400).json({
+        success: false,
+        error: 'Modo inválido. Deve ser "quadro" ou "lista"'
+      });
+    }
+
+    // Atualizar ou inserir a preferência
+    const { data, error } = await supabase
+      .schema('up_gestaointeligente')
+      .from('usuarios')
+      .update({ view_modelo_painel: modo })
+      .eq('id', userId)
+      .select('view_modelo_painel')
+      .single();
+
+    if (error) {
+      console.error('Erro ao salvar preferência de visualização:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar preferência',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Preferência salva com sucesso',
+      data: { modo: data.view_modelo_painel }
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao salvar preferência:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+}
+
 module.exports = {
   login,
   logout,
@@ -786,6 +882,8 @@ module.exports = {
   updateProfile,
   uploadAvatar,
   getCustomAvatarPath,
+  getPreferenciaViewMode,
+  updatePreferenciaViewMode,
   upload // Exportar multer para usar nas rotas
 };
 

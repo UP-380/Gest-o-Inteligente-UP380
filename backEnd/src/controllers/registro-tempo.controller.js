@@ -452,7 +452,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
       });
     }
 
-    console.log(`[getRegistrosPorTempoEstimado] Buscando registros para tempo_estimado_id: ${tempo_estimado_id}`);
 
     // Buscar todos os registros para este tempo_estimado_id (incluindo finalizados e não finalizados)
     // Filtrar apenas registros onde cliente_id NÃO é NULL
@@ -465,7 +464,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
       .order('data_inicio', { ascending: false });
 
     if (error) {
-      console.error('[getRegistrosPorTempoEstimado] Erro ao buscar registros de tempo:', error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao buscar registros de tempo',
@@ -473,7 +471,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
       });
     }
 
-    console.log(`[getRegistrosPorTempoEstimado] Encontrados ${(registros || []).length} registros`);
 
     return res.json({
       success: true,
@@ -481,7 +478,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
       count: (registros || []).length
     });
   } catch (error) {
-    console.error('[getRegistrosPorTempoEstimado] Erro inesperado:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',

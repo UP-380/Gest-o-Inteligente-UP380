@@ -98,9 +98,10 @@ const RelatoriosColaboradores = () => {
   }, []);
 
   // Carregar colaboradores - sempre carrega todas as opções
+  // Nas telas de relatórios, buscar TODOS os membros (incluindo os sem usuário vinculado)
   const carregarColaboradores = useCallback(async () => {
     try {
-      const result = await colaboradoresAPI.getAll();
+      const result = await colaboradoresAPI.getAllIncludingWithoutUser();
       if (result.success && result.data && Array.isArray(result.data)) {
         setTodosColaboradores(result.data);
       }

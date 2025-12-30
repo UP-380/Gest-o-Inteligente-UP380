@@ -437,7 +437,7 @@ export const clientesAPI = {
 
 export const colaboradoresAPI = {
   /**
-   * Busca todos os colaboradores (membros-id-nome)
+   * Busca todos os colaboradores (membros-id-nome) - apenas com usuários vinculados
    * @param {boolean} useCache - Se deve usar cache (padrão: true)
    */
   async getAll(useCache = true) {
@@ -449,6 +449,34 @@ export const colaboradoresAPI = {
     }
 
     const result = await request(`${API_BASE_URL}/membros-id-nome`);
+    
+    if (result.success && result.data && Array.isArray(result.data)) {
+      // Garantir que todos os colaboradores tenham status
+      const colaboradoresComStatus = result.data.map(colab => ({
+        ...colab,
+        status: colab.status || 'ativo'
+      }));
+      
+      if (useCache) cache.set(cacheKey, colaboradoresComStatus);
+      return { ...result, data: colaboradoresComStatus };
+    }
+    
+    return result;
+  },
+
+  /**
+   * Busca TODOS os colaboradores (incluindo os sem usuário vinculado) - para relatórios
+   * @param {boolean} useCache - Se deve usar cache (padrão: true)
+   */
+  async getAllIncludingWithoutUser(useCache = true) {
+    const cacheKey = 'api_cache_colaboradores_all_todos';
+    
+    if (useCache) {
+      const cached = cache.get(cacheKey);
+      if (cached) return { success: true, data: cached };
+    }
+
+    const result = await request(`${API_BASE_URL}/membros-id-nome-todos`);
     
     if (result.success && result.data && Array.isArray(result.data)) {
       // Garantir que todos os colaboradores tenham status

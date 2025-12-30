@@ -40,6 +40,8 @@ router.post('/api/login', authController.login);
 router.post('/api/logout', authController.logout);
 router.get('/api/auth/check', authController.checkAuth);
 router.put('/api/auth/profile', requireAuth, authController.updateProfile);
+router.get('/api/auth/preferencia-view-mode', requireAuth, authController.getPreferenciaViewMode);
+router.put('/api/auth/preferencia-view-mode', requireAuth, authController.updatePreferenciaViewMode);
 // Middleware para tratar erros do multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
