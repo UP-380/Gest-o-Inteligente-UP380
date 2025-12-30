@@ -120,32 +120,9 @@ app.use(express.static(path.join(__dirname, '../../')));
 // Em produção, o nginx serve os arquivos estáticos, mas mantemos como fallback
 app.use(express.static(path.join(__dirname, '../../frontEnd/dist')));
 
-// Verificar e criar diretório de uploads na inicialização (apenas em produção)
-if (IS_PROD) {
-  const uploadPath = '/app/frontEnd/public/assets/images/avatars/custom';
-  try {
-    if (!fs.existsSync(uploadPath)) {
-      console.error('📁 Criando diretório de uploads na inicialização...');
-      fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
-      console.error('✅ Diretório de uploads criado:', uploadPath);
-    } else {
-      // Verificar permissões
-      try {
-        fs.accessSync(uploadPath, fs.constants.W_OK);
-        console.error('✅ Diretório de uploads verificado e acessível:', uploadPath);
-      } catch (accessError) {
-        console.error('⚠️  AVISO: Diretório de uploads existe mas sem permissão de escrita:', uploadPath);
-        console.error('   Isso pode causar erros ao fazer upload de avatares.');
-        console.error('   Execute no container: chmod 755 ' + uploadPath);
-      }
-    }
-  } catch (error) {
-    console.error('❌ ERRO CRÍTICO: Não foi possível criar/verificar diretório de uploads:', uploadPath);
-    console.error('   Erro:', error.message);
-    console.error('   Code:', error.code);
-    console.error('   Isso pode causar falhas no upload de avatares!');
-  }
-}
+// REMOVIDO: Código antigo de criação de diretórios de upload
+// Agora os avatares são armazenados no Supabase Storage, não no filesystem
+// if (IS_PROD) { ... }
 
 // Rota de health check (ANTES das outras rotas para garantir acesso)
 app.get('/health', (req, res) => {

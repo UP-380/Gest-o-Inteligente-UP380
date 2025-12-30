@@ -219,10 +219,7 @@ const CadastroProdutoIndividual = () => {
                   </div>
                   <button
                     className="btn-secondary cadastro-produto-back-btn"
-                    onClick={() => {
-                      const fromPath = location.state?.from || '/cadastro/produtos';
-                      navigate(fromPath);
-                    }}
+                    onClick={() => navigate(-1)}
                     disabled={submitting}
                   >
                     <i className="fas fa-arrow-left"></i>

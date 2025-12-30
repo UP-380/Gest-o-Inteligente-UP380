@@ -5,81 +5,7 @@
 const supabase = require('../config/database');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-
-// Configurar multer para upload de imagens
-// Usar caminho absoluto baseado na raiz do projeto ou variável de ambiente
-const getUploadPath = () => {
-  // Tentar usar variável de ambiente primeiro (útil para Docker/produção)
-  if (process.env.UPLOAD_AVATAR_PATH) {
-    return process.env.UPLOAD_AVATAR_PATH;
-  }
-  
-  // Em produção (Docker), usar caminho absoluto baseado no WORKDIR /app
-  if (process.env.NODE_ENV === 'production') {
-    // No Docker, o WORKDIR é /app, então o caminho deve ser absoluto
-    return '/app/frontEnd/public/assets/images/avatars/custom';
-  }
-  
-  // Fallback para caminho relativo (desenvolvimento local)
-  return path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
-};
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    try {
-      const uploadPath = getUploadPath();
-      console.error('📂 Tentando usar caminho de upload:', uploadPath);
-      
-      // Criar pasta se não existir com permissões corretas (755 = rwxr-xr-x)
-      if (!fs.existsSync(uploadPath)) {
-        try {
-          fs.mkdirSync(uploadPath, { recursive: true, mode: 0o755 });
-          console.error('📁 Diretório de upload criado:', uploadPath);
-        } catch (mkdirError) {
-          console.error('❌ Erro ao criar diretório:', mkdirError);
-          console.error('   Caminho:', uploadPath);
-          console.error('   Erro:', mkdirError.message);
-          console.error('   Code:', mkdirError.code);
-          
-          // Se for erro de permissão, dar mensagem mais clara
-          if (mkdirError.code === 'EACCES' || mkdirError.code === 'EPERM') {
-            return cb(new Error(`Sem permissão para criar diretório: ${uploadPath}. Verifique as permissões do volume Docker.`));
-          }
-          return cb(mkdirError);
-        }
-      }
-      
-      // Verificar se o diretório é acessível para escrita
-      try {
-        fs.accessSync(uploadPath, fs.constants.W_OK);
-        console.error('✅ Diretório acessível para escrita:', uploadPath);
-      } catch (accessError) {
-        console.error('❌ Erro: Diretório sem permissão de escrita:', uploadPath);
-        console.error('   Erro:', accessError.message);
-        return cb(new Error(`Diretório sem permissão de escrita: ${uploadPath}. Verifique as permissões do volume Docker.`));
-      }
-      
-      cb(null, uploadPath);
-    } catch (error) {
-      console.error('❌ Erro ao configurar diretório de upload:', error);
-      console.error('   Stack:', error.stack);
-      cb(error);
-    }
-  },
-  filename: function (req, file, cb) {
-    try {
-      // Nome do arquivo: custom-{userId}-{timestamp}.{extensão}
-      const userId = req.session?.usuario?.id || 'unknown';
-      const timestamp = Date.now();
-      const ext = path.extname(file.originalname);
-      cb(null, `custom-${userId}-${timestamp}${ext}`);
-    } catch (error) {
-      console.error('❌ Erro ao gerar nome do arquivo:', error);
-      cb(error);
-    }
-  }
-});
+const { uploadImageToStorage, deleteImageFromStorage, resolveAvatarUrl } = require('../utils/storage');
 
 // Filtro para aceitar apenas imagens
 const fileFilter = (req, file, cb) => {
@@ -95,7 +21,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(), // Usar memória para enviar para Supabase Storage
   limits: {
     fileSize: 15 * 1024 * 1024 // 15MB máximo
   },
@@ -156,29 +82,12 @@ async function login(req, res) {
       });
     }
 
-    
-
-    // Se for avatar customizado, buscar o caminho completo da imagem
-    let fotoPerfilCompleto = usuario.foto_perfil;
+    // Resolver foto_perfil: se for custom-{id}, buscar URL no Storage usando metadados
+    let fotoPerfilUrl = usuario.foto_perfil;
     if (usuario.foto_perfil && usuario.foto_perfil.startsWith('custom-')) {
-      const userId = usuario.foto_perfil.replace('custom-', '');
-      const customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
-      
-      if (fs.existsSync(customDir)) {
-        const files = fs.readdirSync(customDir);
-        const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
-        
-        if (userFiles.length > 0) {
-          // Ordenar por timestamp (mais recente primeiro)
-          userFiles.sort((a, b) => {
-            const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-            const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-            return timestampB - timestampA;
-          });
-          
-          const latestFile = userFiles[0];
-          fotoPerfilCompleto = `/assets/images/avatars/custom/${latestFile}`;
-        }
+      const resolvedUrl = await resolveAvatarUrl(usuario.foto_perfil, 'user');
+      if (resolvedUrl) {
+        fotoPerfilUrl = resolvedUrl;
       }
     }
 
@@ -187,8 +96,7 @@ async function login(req, res) {
       id: usuario.id,
       email_usuario: usuario.email_usuario,
       nome_usuario: usuario.nome_usuario,
-      foto_perfil: usuario.foto_perfil || null,
-      foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null
+      foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
     };
 
     // Salvar sessão explicitamente para garantir que o cookie seja definido
@@ -201,13 +109,9 @@ async function login(req, res) {
         });
       }
 
-      // Retornar dados do usuário (sem a senha)
+      // Retornar dados do usuário (sem a senha) com foto_perfil resolvida
       const { senha_login: _, ...usuarioSemSenha } = usuario;
-      
-      // Adicionar caminho completo se for customizado
-      if (fotoPerfilCompleto !== usuario.foto_perfil) {
-        usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
-      }
+      usuarioSemSenha.foto_perfil = fotoPerfilUrl || usuario.foto_perfil;
 
       res.json({
         success: true,
@@ -277,55 +181,21 @@ async function checkAuth(req, res) {
       }
 
       if (usuarioAtualizado) {
-        // Se for avatar customizado, buscar o caminho completo da imagem
-        let fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
-        try {
-          if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
-            const userId = usuarioAtualizado.foto_perfil.replace('custom-', '');
-            const customDir = getUploadPath();
-            
-            try {
-              if (fs.existsSync(customDir)) {
-                try {
-                  const files = fs.readdirSync(customDir);
-                  const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
-                  
-                  if (userFiles.length > 0) {
-                    // Ordenar por timestamp (mais recente primeiro)
-                    userFiles.sort((a, b) => {
-                      const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-                      const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-                      return timestampB - timestampA;
-                    });
-                    
-                    const latestFile = userFiles[0];
-                    fotoPerfilCompleto = `/assets/images/avatars/custom/${latestFile}`;
-                  }
-                } catch (readError) {
-                  // Erro ao ler diretório - usar foto_perfil original
-                  console.error('Erro ao ler diretório de avatares customizados:', readError);
-                  fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
-                }
-              }
-            } catch (existsError) {
-              // Erro ao verificar existência do diretório - usar foto_perfil original
-              console.error('Erro ao verificar diretório de avatares customizados:', existsError);
-              fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
-            }
+        // Resolver foto_perfil: se for custom-{id}, buscar URL no Storage usando metadados
+        let fotoPerfilUrl = usuarioAtualizado.foto_perfil;
+        if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
+          const resolvedUrl = await resolveAvatarUrl(usuarioAtualizado.foto_perfil, 'user');
+          if (resolvedUrl) {
+            fotoPerfilUrl = resolvedUrl;
           }
-        } catch (fileError) {
-          // Se houver erro ao processar arquivo, usar foto_perfil original
-          console.error('Erro ao processar foto de perfil:', fileError);
-          fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
         }
-        
+
         // Atualizar sessão com dados do banco
         req.session.usuario = {
           id: usuarioAtualizado.id,
           email_usuario: usuarioAtualizado.email_usuario,
           nome_usuario: usuarioAtualizado.nome_usuario,
-          foto_perfil: usuarioAtualizado.foto_perfil || null,
-          foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null
+          foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
         };
       }
 
@@ -509,59 +379,12 @@ async function updateProfile(req, res) {
       });
     }
 
-    // Se for avatar customizado, buscar o caminho completo da imagem e limpar fotos antigas
-    let fotoPerfilCompleto = usuarioAtualizado.foto_perfil;
+    // Resolver foto_perfil: se for custom-{id}, buscar URL no Storage usando metadados
+    let fotoPerfilUrl = usuarioAtualizado.foto_perfil;
     if (usuarioAtualizado.foto_perfil && usuarioAtualizado.foto_perfil.startsWith('custom-')) {
-      const userIdFromAvatar = usuarioAtualizado.foto_perfil.replace('custom-', '');
-      const customDir = getUploadPath();
-      
-      if (fs.existsSync(customDir)) {
-        const files = fs.readdirSync(customDir);
-        const userFiles = files.filter(file => file.startsWith(`custom-${userIdFromAvatar}-`));
-        
-        if (userFiles.length > 0) {
-          // Ordenar por timestamp (mais recente primeiro)
-          userFiles.sort((a, b) => {
-            const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-            const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-            return timestampB - timestampA;
-          });
-          
-          const latestFile = userFiles[0];
-          fotoPerfilCompleto = `/assets/images/avatars/custom/${latestFile}`;
-          
-          // Deletar fotos antigas (manter apenas a mais recente)
-          if (userFiles.length > 1) {
-            for (let i = 1; i < userFiles.length; i++) {
-              const oldFilePath = path.join(customDir, userFiles[i]);
-              if (fs.existsSync(oldFilePath)) {
-                fs.unlinkSync(oldFilePath);
-                console.log(`🗑️ Foto antiga removida: ${userFiles[i]}`);
-              }
-            }
-          }
-        }
-      }
-      
-      // Se estava usando outro avatar customizado antes, limpar fotos antigas
-      if (usuarioExistente.foto_perfil && usuarioExistente.foto_perfil.startsWith('custom-') && 
-          usuarioExistente.foto_perfil !== usuarioAtualizado.foto_perfil) {
-        const oldUserId = usuarioExistente.foto_perfil.replace('custom-', '');
-        if (oldUserId !== userIdFromAvatar.toString()) {
-          const customDir = getUploadPath();
-          if (fs.existsSync(customDir)) {
-            const files = fs.readdirSync(customDir);
-            files.forEach(file => {
-              if (file.startsWith(`custom-${oldUserId}-`)) {
-                const oldFilePath = path.join(customDir, file);
-                if (fs.existsSync(oldFilePath)) {
-                  fs.unlinkSync(oldFilePath);
-                  console.log(`🗑️ Foto antiga removida (mudança de avatar): ${file}`);
-                }
-              }
-            });
-          }
-        }
+      const resolvedUrl = await resolveAvatarUrl(usuarioAtualizado.foto_perfil, 'user');
+      if (resolvedUrl) {
+        fotoPerfilUrl = resolvedUrl;
       }
     }
 
@@ -570,15 +393,12 @@ async function updateProfile(req, res) {
       id: usuarioAtualizado.id,
       email_usuario: usuarioAtualizado.email_usuario,
       nome_usuario: usuarioAtualizado.nome_usuario,
-      foto_perfil: usuarioAtualizado.foto_perfil || null,
-      foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null
+      foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
     };
 
-    // Adicionar caminho completo ao objeto de retorno
+    // Retornar usuário atualizado com foto_perfil resolvida
     const usuarioRetorno = { ...usuarioAtualizado };
-    if (fotoPerfilCompleto !== usuarioAtualizado.foto_perfil) {
-      usuarioRetorno.foto_perfil_path = fotoPerfilCompleto;
-    }
+    usuarioRetorno.foto_perfil = fotoPerfilUrl || usuarioAtualizado.foto_perfil;
 
     console.log('✅ Perfil atualizado com sucesso para usuário:', usuarioAtualizado.email_usuario);
 
@@ -598,8 +418,6 @@ async function updateProfile(req, res) {
 }
 
 async function uploadAvatar(req, res) {
-  let uploadedFilePath = null;
-  
   try {
     console.error('📤 Iniciando upload de avatar...');
     
@@ -624,38 +442,8 @@ async function uploadAvatar(req, res) {
     }
 
     console.error(`📁 Arquivo recebido: ${req.file.originalname} (${req.file.size} bytes)`);
-    console.error(`📂 Caminho salvo: ${req.file.path}`);
 
-    // Verificar se o arquivo foi realmente salvo
-    uploadedFilePath = req.file.path;
-    if (!fs.existsSync(uploadedFilePath)) {
-      console.error('❌ Erro: Arquivo não foi salvo corretamente:', uploadedFilePath);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao salvar arquivo no servidor'
-      });
-    }
-
-    // Ajustar permissões do arquivo para que nginx possa ler (644 = rw-r--r--)
-    try {
-      fs.chmodSync(uploadedFilePath, 0o644);
-      console.error('✅ Permissões do arquivo ajustadas para leitura pública');
-    } catch (chmodError) {
-      console.error('⚠️ Aviso: Não foi possível ajustar permissões do arquivo:', chmodError.message);
-      // Não falhar o upload por causa disso, apenas avisar
-    }
-
-    // Caminho relativo da imagem (acessível pelo frontend)
-    const imagePath = `/assets/images/avatars/custom/${req.file.filename}`;
-    
-    // ID único para a imagem customizada
-    const customAvatarId = `custom-${userId}`;
-
-    console.error('🔍 Buscando dados do usuário no banco...');
-    
-    // NÃO atualizar o banco de dados aqui - apenas salvar o arquivo
-    // A atualização do banco será feita quando o usuário clicar em "Salvar Alterações"
-    // Buscar dados do usuário apenas para retornar na resposta
+    // Buscar dados do usuário primeiro para validar
     const { data: usuarioAtual, error: userError } = await supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
@@ -665,17 +453,6 @@ async function uploadAvatar(req, res) {
 
     if (userError) {
       console.error('❌ Erro ao buscar usuário:', userError);
-      
-      // Se der erro ao buscar usuário, deletar a imagem enviada
-      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-        try {
-          fs.unlinkSync(uploadedFilePath);
-          console.error('🗑️ Arquivo deletado devido a erro no banco');
-        } catch (unlinkError) {
-          console.error('⚠️ Erro ao deletar arquivo:', unlinkError);
-        }
-      }
-      
       return res.status(500).json({
         success: false,
         error: 'Erro ao processar upload',
@@ -683,40 +460,56 @@ async function uploadAvatar(req, res) {
       });
     }
 
+    // Preparar nome do arquivo para o Supabase Storage
+    const timestamp = Date.now();
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const fileName = `user-${userId}-${timestamp}${ext}`;
+    const bucketName = 'avatars';
+
+    // Fazer upload para Supabase Storage com metadados
+    const uploadResult = await uploadImageToStorage(
+      req.file.buffer,
+      bucketName,
+      fileName,
+      req.file.mimetype,
+      { entityId: userId, entityType: 'user' } // Metadados para busca
+    );
+
+    // Salvar identificador customizado no banco (custom-{id}) ao invés da URL completa
+    const customAvatarId = `custom-${userId}`;
+    
+    const { error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('usuarios')
+      .update({ foto_perfil: customAvatarId })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Erro ao atualizar foto_perfil no banco:', updateError);
+      // Tentar deletar o arquivo do storage se falhar
+      await deleteImageFromStorage(bucketName, fileName);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao salvar foto no banco de dados',
+        details: updateError.message
+      });
+    }
+
     console.error('✅ Upload concluído com sucesso');
 
-    // Retornar dados com o ID do avatar customizado (mas sem atualizar o banco ainda)
+    // Retornar dados com o identificador customizado e a URL para preview
     res.json({
       success: true,
-      message: 'Foto carregada com sucesso. Clique em "Salvar Alterações" para confirmar.',
+      message: 'Foto carregada e salva com sucesso.',
       usuario: {
         ...usuarioAtual,
-        foto_perfil: customAvatarId // ID temporário para preview
+        foto_perfil: customAvatarId // Identificador customizado
       },
-      imagePath: imagePath
+      imagePath: uploadResult.publicUrl // URL pública para preview imediato
     });
   } catch (error) {
     console.error('❌ Erro inesperado ao fazer upload de avatar:', error);
     console.error('Stack trace:', error.stack);
-    
-    // Deletar arquivo se foi criado
-    if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
-      try {
-        fs.unlinkSync(uploadedFilePath);
-        console.error('🗑️ Arquivo deletado devido a erro');
-      } catch (unlinkError) {
-        console.error('⚠️ Erro ao deletar arquivo:', unlinkError);
-      }
-    } else if (req.file && req.file.path) {
-      // Fallback: tentar deletar usando req.file.path
-      try {
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-      } catch (unlinkError) {
-        console.error('⚠️ Erro ao deletar arquivo (fallback):', unlinkError);
-      }
-    }
     
     res.status(500).json({
       success: false,
@@ -736,38 +529,21 @@ async function getCustomAvatarPath(req, res) {
     }
 
     const userId = req.session.usuario.id;
-    const customDir = getUploadPath();
-    
-    if (!fs.existsSync(customDir)) {
+    const customId = `custom-${userId}`;
+
+    // Buscar URL do avatar customizado no Supabase Storage usando metadados
+    const avatarUrl = await resolveAvatarUrl(customId, 'user');
+
+    if (!avatarUrl) {
       return res.json({
         success: false,
         imagePath: null
       });
     }
-
-    const files = fs.readdirSync(customDir);
-    const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
-    
-    if (userFiles.length === 0) {
-      return res.json({
-        success: false,
-        imagePath: null
-      });
-    }
-
-    // Ordenar por timestamp (mais recente primeiro)
-    userFiles.sort((a, b) => {
-      const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-      const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-      return timestampB - timestampA;
-    });
-
-    const latestFile = userFiles[0];
-    const imagePath = `/assets/images/avatars/custom/${latestFile}`;
 
     res.json({
       success: true,
-      imagePath: imagePath
+      imagePath: avatarUrl
     });
   } catch (error) {
     console.error('Erro ao buscar caminho do avatar customizado:', error);

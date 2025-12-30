@@ -53,18 +53,42 @@ const CadastroClientes = () => {
   const clientesKaminoMapRef = useRef(new Map());
   const currentRequestControllerRef = useRef(null);
 
-  // Carregar clientes para o filtro
+  // Carregar clientes para o filtro - buscar TODOS sem limite
   const loadClientesParaFiltro = useCallback(async () => {
     try {
-      // Usar getAll igual ao DashboardClientes
-      const result = await clientesAPI.getAll(null, false);
+      // Buscar todos os clientes sem limite de paginação
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '10000' // Limite alto para pegar todos os clientes
+      });
+
+      const response = await fetch(`${API_BASE_URL}/clientes?${params}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
       if (result.success && result.data && Array.isArray(result.data)) {
         // Garantir que todos os clientes tenham nome e status
         const clientesComDados = result.data.map(cliente => ({
           id: cliente.id,
-          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`,
+          nome: cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || `Cliente #${cliente.id}`,
           status: cliente.status || 'ativo'
         }));
+        console.log(`✅ Carregados ${clientesComDados.length} clientes para o filtro (Cadastro Clientes)`);
         setClientesParaFiltro(clientesComDados);
       }
     } catch (error) {
@@ -143,6 +167,15 @@ const CadastroClientes = () => {
       }
       
       let clientesRaw = Array.isArray(data.data) ? data.data : [];
+      
+      // Log para debug: verificar se os dados estão completos
+      if (clientesRaw.length > 0) {
+        console.log('📋 DADOS DO GETCLIENTES (Cadastro Clientes - primeiro cliente):', clientesRaw[0]);
+        const primeiroCliente = clientesRaw[0];
+        const camposEsperados = ['id', 'nome', 'razao_social', 'nome_fantasia', 'nome_amigavel', 'cpf_cnpj', 'status', 'foto_perfil'];
+        const camposPresentes = camposEsperados.filter(campo => primeiroCliente.hasOwnProperty(campo));
+        console.log(`✅ Campos presentes: ${camposPresentes.length}/${camposEsperados.length}`, camposPresentes);
+      }
       
       // Aplicar filtro de cliente no frontend se houver
       if (temFiltroCliente) {

@@ -67,12 +67,8 @@ const ConfiguracoesPerfil = () => {
         uploadedAvatarPath: null
       });
       
-      // Se tiver avatar customizado, usar o caminho fornecido pelo backend
-      if (isCustomAvatar(userData.foto_perfil) && userData.foto_perfil_path) {
-        setCustomAvatarPath(userData.foto_perfil_path);
-      } else {
-        setCustomAvatarPath(null);
-      }
+      // Avatar customizado é resolvido automaticamente pelo componente Avatar via Supabase Storage
+      // Não precisamos mais de foto_perfil_path
     }
   }, [usuario]);
 
@@ -277,7 +273,7 @@ const ConfiguracoesPerfil = () => {
       const result = await authAPI.updateProfile(dadosParaSalvar);
 
       if (result.success) {
-        // Atualizar localStorage com os novos dados (incluindo foto_perfil_path se disponível)
+        // Atualizar localStorage com os novos dados
         if (result.usuario) {
           localStorage.setItem('usuario', JSON.stringify(result.usuario));
         }
@@ -285,11 +281,7 @@ const ConfiguracoesPerfil = () => {
         // Atualizar contexto de autenticação (isso recarrega a foto automaticamente)
         await checkAuth();
         
-        // Forçar atualização do avatar no header atualizando o estado do usuário
-        // O checkAuth já faz isso, mas garantimos que o caminho da imagem esteja disponível
-        if (result.usuario?.foto_perfil_path) {
-          setCustomAvatarPath(result.usuario.foto_perfil_path);
-        }
+        // Avatar é resolvido automaticamente pelo componente Avatar via Supabase Storage
 
         // Atualizar formData com os novos dados e limpar campos de senha e foto uploadada
         setFormData(prev => ({

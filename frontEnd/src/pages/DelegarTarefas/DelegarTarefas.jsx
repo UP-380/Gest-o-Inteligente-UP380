@@ -2745,7 +2745,7 @@ const DelegarTarefas = () => {
                             entidadeId = primeiroRegistro.responsavel_id;
                             nomeEntidade = getNomeColaborador(entidadeId);
                             fotoPerfil = primeiroRegistro.responsavel_foto_perfil;
-                            fotoPerfilPath = primeiroRegistro.responsavel_foto_perfil_path || null;
+                            // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
                           } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
                             entidadeId = primeiroRegistro.cliente_id;
                             nomeEntidade = getNomeCliente(entidadeId);
@@ -3646,8 +3646,8 @@ const DelegarTarefas = () => {
                             nome: nomeAgrupamento,
                             tipo: filtroPrincipal,
                             agrupamentos: [],
-                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null,
-                            fotoPerfilPath: filtroPrincipal === 'responsavel' ? (primeiroRegistro.responsavel_foto_perfil_path || null) : null
+                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null
+                            // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
                           };
                         }
                         agrupados[chaveAgrupamento].agrupamentos.push(agrupamento);
@@ -3826,7 +3826,6 @@ const DelegarTarefas = () => {
                                                   avatarId={primeiroRegistro.responsavel_foto_perfil}
                                                   nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
                                                   size="tiny"
-                                                  customImagePath={primeiroRegistro.responsavel_foto_perfil_path || null}
                                                 />
                                                 <div className="responsavel-tooltip">
                                                   {getNomeColaborador(primeiroRegistro.responsavel_id)}
@@ -3993,7 +3992,6 @@ const DelegarTarefas = () => {
                                                                         avatarId={registro.responsavel_foto_perfil}
                                                                         nomeUsuario={getNomeColaborador(registro.responsavel_id)}
                                                                         size="tiny"
-                                                                        customImagePath={registro.responsavel_foto_perfil_path || null}
                                                                       />
                                                                       <div className="responsavel-tooltip">
                                                                         {getNomeColaborador(registro.responsavel_id)}
@@ -4109,7 +4107,6 @@ const DelegarTarefas = () => {
                                                                   avatarId={registro.responsavel_foto_perfil}
                                                                   nomeUsuario={getNomeColaborador(registro.responsavel_id)}
                                                                   size="tiny"
-                                                                  customImagePath={registro.responsavel_foto_perfil_path || null}
                                                                 />
                                                                 <div className="responsavel-tooltip">
                                                                   {getNomeColaborador(registro.responsavel_id)}

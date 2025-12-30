@@ -1306,7 +1306,8 @@ function registrarRotasAPI(app, requireAuth = null) {
   
   // Endpoints do Dashboard Clientes (com autenticação se disponível)
   // IMPORTANTE: Estes endpoints são usados pelo Dashboard Clientes React e HTML
-  app.get('/api/clientes', requireAuth ? requireAuth : (_req,_res,next)=>next(), getClientesEndpoint);
+  // REMOVIDO: app.get('/api/clientes', ...) - Agora usando o controller completo em clientes.controller.js
+  // app.get('/api/clientes', requireAuth ? requireAuth : (_req,_res,next)=>next(), getClientesEndpoint);
   app.get('/api/status', requireAuth ? requireAuth : (_req,_res,next)=>next(), getStatusEndpoint);
   app.get('/api/contratos', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosEndpoint);
   app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteEndpoint);

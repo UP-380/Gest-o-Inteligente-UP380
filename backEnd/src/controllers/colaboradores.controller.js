@@ -5,6 +5,7 @@
 const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
 const supabaseDirect = require('../config/database');
+const { resolveAvatarUrl } = require('../utils/storage');
 
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
@@ -17,7 +18,7 @@ async function getColaboradores(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome, cpf', { count: 'exact' });
+      .select('id, nome, cpf, usuario_id', { count: 'exact' });
     
     // Se status for 'inativo', filtrar apenas inativos
     // Caso contrário, mostrar apenas ativos (comportamento padrão)
@@ -118,7 +119,69 @@ async function getColaboradores(req, res) {
       }
     }
 
+    // Buscar foto_perfil dos usuários vinculados aos membros
+    if (data && data.length > 0) {
+      const usuarioIds = [...new Set(
+        data
+          .map(m => m.usuario_id)
+          .filter(Boolean)
+      )];
 
+      if (usuarioIds.length > 0) {
+        // Buscar usuarios por usuario_id
+        const { data: usuarios, error: usuariosError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, foto_perfil')
+          .in('id', usuarioIds);
+
+        if (!usuariosError && usuarios && usuarios.length > 0) {
+          // Criar mapa para lookup rápido
+          const usuarioMap = new Map();
+          usuarios.forEach(usuario => {
+            usuarioMap.set(String(usuario.id), usuario.foto_perfil);
+          });
+
+          // Adicionar foto_perfil a cada colaborador e resolver URLs customizadas
+          // Primeiro, preparar lista de avatares customizados para resolver em paralelo
+          const avataresParaResolver = [];
+          data.forEach((colaborador, index) => {
+            if (colaborador.usuario_id) {
+              const fotoPerfil = usuarioMap.get(String(colaborador.usuario_id));
+              if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
+                avataresParaResolver.push({ colaborador, fotoPerfil, index });
+              } else if (fotoPerfil) {
+                colaborador.foto_perfil = fotoPerfil;
+              } else {
+                colaborador.foto_perfil = null;
+              }
+            } else {
+              colaborador.foto_perfil = null;
+            }
+          });
+
+          // Resolver todas as URLs customizadas em paralelo
+          if (avataresParaResolver.length > 0) {
+            await Promise.all(
+              avataresParaResolver.map(async ({ colaborador, fotoPerfil }) => {
+                const resolvedUrl = await resolveAvatarUrl(fotoPerfil, 'user');
+                colaborador.foto_perfil = resolvedUrl || fotoPerfil;
+              })
+            );
+          }
+        } else {
+          // Se não encontrar usuarios, definir foto_perfil como null
+          data.forEach(colaborador => {
+            colaborador.foto_perfil = null;
+          });
+        }
+      } else {
+        // Se não houver usuario_ids, definir foto_perfil como null
+        data.forEach(colaborador => {
+          colaborador.foto_perfil = null;
+        });
+      }
+    }
 
     return res.json({
       success: true,
