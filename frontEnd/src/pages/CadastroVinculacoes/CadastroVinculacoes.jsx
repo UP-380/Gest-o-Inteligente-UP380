@@ -5,7 +5,6 @@ import ButtonPrimary from '../../components/common/ButtonPrimary';
 import FiltersCard from '../../components/filters/FiltersCard';
 import FilterVinculacao from '../../components/filters/FilterVinculacao';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
-import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import { useToast } from '../../hooks/useToast';
@@ -76,9 +75,10 @@ const CadastroVinculacoes = () => {
     produto: false,
     atividade: false,
     tipoTarefa: false,
+    subtarefa: false,
     cliente: true
   });
-  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoTarefa', 'cliente'
+  const [filtroPrincipal, setFiltroPrincipal] = useState(null); // 'produto', 'atividade', 'tipoTarefa', 'subtarefa', 'cliente'
   const [ordemFiltros, setOrdemFiltros] = useState(['cliente']); // Array para rastrear ordem de aplicação
   const [filtrosAplicados, setFiltrosAplicados] = useState(false); // Rastrear se filtros foram aplicados
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null); // Armazenar últimos filtros aplicados
@@ -107,6 +107,9 @@ const CadastroVinculacoes = () => {
       }
       if (filtrosAUsar.tipoTarefa) {
         params.append('filtro_tipo_atividade', 'true');
+      }
+      if (filtrosAUsar.subtarefa) {
+        params.append('filtro_subtarefa', 'true');
       }
       if (filtrosAUsar.cliente) {
         params.append('filtro_cliente', 'true');
@@ -253,24 +256,9 @@ const CadastroVinculacoes = () => {
 
   // Nova vinculação
   const handleNewVinculacao = () => {
-    navigate('/vinculacoes/nova');
+    navigate('/cadastro/vinculacao');
   };
 
-  // Editar vinculação
-  const handleEditVinculado = (vinculadoId, grupoData = null) => {
-    if (grupoData && filtroPrincipal) {
-      // Edição em grupo - verificar se é produto para usar página específica
-      if (filtroPrincipal === 'produto') {
-        navigate('/vinculacoes/editar-produto', { state: grupoData });
-      } else {
-        // Outros filtros usam a página de grupo genérica
-        navigate('/vinculacoes/editar-grupo', { state: grupoData });
-      }
-    } else {
-      // Edição individual
-      navigate(`/vinculacoes/editar/${vinculadoId}`);
-    }
-  };
 
   // Abrir modal de confirmação para excluir vinculado individual
   const handleRequestDeleteVinculado = (vinculadoId) => {
@@ -404,6 +392,7 @@ const CadastroVinculacoes = () => {
       produto: false,
       atividade: false,
       tipoTarefa: false,
+      subtarefa: false,
       cliente: true
     };
     setFiltros(filtrosLimpos);
@@ -429,6 +418,7 @@ const CadastroVinculacoes = () => {
       filtros.produto !== filtrosUltimosAplicados.produto ||
       filtros.atividade !== filtrosUltimosAplicados.atividade ||
       filtros.tipoTarefa !== filtrosUltimosAplicados.tipoTarefa ||
+      filtros.subtarefa !== filtrosUltimosAplicados.subtarefa ||
       filtros.cliente !== filtrosUltimosAplicados.cliente
     );
   };
@@ -441,6 +431,7 @@ const CadastroVinculacoes = () => {
         produto: false,
         atividade: false,
         tipoTarefa: false,
+        subtarefa: false,
         cliente: false,
         [filtroKey]: true
       });
@@ -451,6 +442,7 @@ const CadastroVinculacoes = () => {
         produto: false,
         atividade: false,
         tipoTarefa: false,
+        subtarefa: false,
         cliente: true
       });
       setOrdemFiltros(['cliente']);
@@ -460,7 +452,7 @@ const CadastroVinculacoes = () => {
   // Aplicar filtros
   const handleApplyFilters = () => {
     // Verificar se pelo menos um filtro está selecionado
-    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.cliente;
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.subtarefa || filtros.cliente;
     
     if (!temFiltroAtivo) {
       showToast('warning', 'Selecione um filtro para aplicar.');
@@ -489,6 +481,8 @@ const CadastroVinculacoes = () => {
         return 'TAREFA';
       case 'tipoTarefa':
         return 'TIPO DE TAREFA';
+      case 'subtarefa':
+        return 'SUBTAREFA';
       case 'cliente':
         return 'CLIENTE';
       default:
@@ -543,9 +537,8 @@ const CadastroVinculacoes = () => {
                 <div className="listing-controls-right">
                   <ButtonPrimary
                     onClick={handleNewVinculacao}
-                    icon="fas fa-plus"
                   >
-                    Nova Vinculação
+                    Vinculação
                   </ButtonPrimary>
                 </div>
               </div>
@@ -559,30 +552,7 @@ const CadastroVinculacoes = () => {
                 hasPendingChanges={hasPendingChanges()}
                 showInfoMessage={true}
               >
-                <FilterVinculacao
-                  filtroKey="produto"
-                  checked={filtros.produto}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('produto')}
-                  title="Produto"
-                  subtitle="Filtrar por produtos"
-                  icon="fas fa-box"
-                  filtroNome={getFiltroNome('produto')}
-                  onMouseEnter={() => setFiltroHover('produto')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-                <FilterVinculacao
-                  filtroKey="atividade"
-                  checked={filtros.atividade}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('atividade')}
-                  title="Tarefa"
-                  subtitle="Filtrar por tarefas"
-                  icon="fas fa-list"
-                  filtroNome={getFiltroNome('atividade')}
-                  onMouseEnter={() => setFiltroHover('atividade')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
+                {/* 1. Tipo de Tarefa */}
                 <FilterVinculacao
                   filtroKey="tipoTarefa"
                   checked={filtros.tipoTarefa}
@@ -595,6 +565,46 @@ const CadastroVinculacoes = () => {
                   onMouseEnter={() => setFiltroHover('tipoTarefa')}
                   onMouseLeave={() => setFiltroHover(null)}
                 />
+                {/* 2. Tarefa */}
+                <FilterVinculacao
+                  filtroKey="atividade"
+                  checked={filtros.atividade}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('atividade')}
+                  title="Tarefa"
+                  subtitle="Filtrar por tarefas"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('atividade')}
+                  onMouseEnter={() => setFiltroHover('atividade')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                {/* 3. Subtarefas */}
+                <FilterVinculacao
+                  filtroKey="subtarefa"
+                  checked={filtros.subtarefa}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('subtarefa')}
+                  title="Subtarefas"
+                  subtitle="Filtrar por subtarefas"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('subtarefa')}
+                  onMouseEnter={() => setFiltroHover('subtarefa')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                {/* 4. Produto */}
+                <FilterVinculacao
+                  filtroKey="produto"
+                  checked={filtros.produto}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('produto')}
+                  title="Produto"
+                  subtitle="Filtrar por produtos"
+                  icon="fas fa-box"
+                  filtroNome={getFiltroNome('produto')}
+                  onMouseEnter={() => setFiltroHover('produto')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                {/* 5. Cliente */}
                 <FilterVinculacao
                   filtroKey="cliente"
                   checked={filtros.cliente}
@@ -647,6 +657,10 @@ const CadastroVinculacoes = () => {
                             const tipoId = vinculado.cp_tarefa_tipo;
                             chaveAgrupamento = `tipo_${tipoId}`;
                             nomeAgrupamento = vinculado.tipo_atividade_nome || 'Tipo não encontrado';
+                          } else if (filtroPrincipal === 'subtarefa' && vinculado.cp_subtarefa) {
+                            const subtarefaId = vinculado.cp_subtarefa;
+                            chaveAgrupamento = `subtarefa_${subtarefaId}`;
+                            nomeAgrupamento = vinculado.subtarefa_nome || 'Subtarefa não encontrada';
                           } else if (filtroPrincipal === 'cliente' && vinculado.cp_cliente) {
                             const clienteId = String(vinculado.cp_cliente).trim();
                             chaveAgrupamento = `cliente_${clienteId}`;
@@ -713,6 +727,9 @@ const CadastroVinculacoes = () => {
                                 
                                 // Adicionar tarefa se tiver ID e nome
                                 if (tarefaId !== null && tarefaId !== undefined && atividadeNome) {
+                                  const subtarefaId = vinculado.cp_subtarefa;
+                                  const subtarefaNome = vinculado.subtarefa_nome;
+                                  
                                   // Se tem tipo de tarefa neste vinculado, adicionar à seção do tipo
                                   if (tipoTarefaId && vinculado.tipo_atividade_nome) {
                                     const tipoTarefa = produto.tiposTarefa.get(tipoTarefaId);
@@ -724,8 +741,31 @@ const CadastroVinculacoes = () => {
                                         tipoTarefa.tarefas.push({
                                           id: tarefaId,
                                           nome: atividadeNome,
+                                          vinculadoId: vinculado.id,
+                                          subtarefas: []
+                                        });
+                                      }
+                                      
+                                      // Adicionar subtarefa se houver
+                                      if (subtarefaId && subtarefaNome) {
+                                        const tarefa = tipoTarefa.tarefas.find(t => 
+                                          t.id === tarefaId || String(t.id) === String(tarefaId)
+                                        );
+                                        if (tarefa && !tarefa.subtarefas) {
+                                          tarefa.subtarefas = [];
+                                        }
+                                        if (tarefa) {
+                                          const subtarefaExistente = tarefa.subtarefas.find(s => 
+                                            s.id === subtarefaId || String(s.id) === String(subtarefaId)
+                                          );
+                                          if (!subtarefaExistente) {
+                                            tarefa.subtarefas.push({
+                                              id: subtarefaId,
+                                              nome: subtarefaNome,
                                           vinculadoId: vinculado.id
                                         });
+                                          }
+                                        }
                                       }
                                     }
                                   } else {
@@ -767,8 +807,33 @@ const CadastroVinculacoes = () => {
                                         semTipo.tarefas.push({
                                           id: tarefaId,
                                           nome: atividadeNome,
+                                          vinculadoId: vinculado.id,
+                                          subtarefas: []
+                                        });
+                                      }
+                                      
+                                      // Adicionar subtarefa se houver
+                                      const subtarefaId = vinculado.cp_subtarefa;
+                                      const subtarefaNome = vinculado.subtarefa_nome;
+                                      if (subtarefaId && subtarefaNome) {
+                                        const tarefa = semTipo.tarefas.find(t => 
+                                          t.id === tarefaId || String(t.id) === String(tarefaId)
+                                        );
+                                        if (tarefa && !tarefa.subtarefas) {
+                                          tarefa.subtarefas = [];
+                                        }
+                                        if (tarefa) {
+                                          const subtarefaExistente = tarefa.subtarefas.find(s => 
+                                            s.id === subtarefaId || String(s.id) === String(subtarefaId)
+                                          );
+                                          if (!subtarefaExistente) {
+                                            tarefa.subtarefas.push({
+                                              id: subtarefaId,
+                                              nome: subtarefaNome,
                                           vinculadoId: vinculado.id
                                         });
+                                          }
+                                        }
                                       }
                                     }
                                   }
@@ -854,22 +919,6 @@ const CadastroVinculacoes = () => {
                                 <div className="client-card-header">
                                   <h3 className="client-card-title">{grupo.nome}</h3>
                                   <div className="client-card-header-actions">
-                                    <EditButton
-                                      onClick={() => {
-                                        const grupoData = {
-                                          filtroPrincipal: filtroPrincipal,
-                                          itemPrincipal: {
-                                            tipo: filtroPrincipal,
-                                            id: String(grupo.vinculados[0]?.cp_cliente || '').trim(),
-                                            nome: grupo.nome
-                                          },
-                                          produtos: produtosArray,
-                                          vinculadosIds: grupo.vinculados.map(v => v.id)
-                                        };
-                                        handleEditVinculado(null, grupoData);
-                                      }}
-                                      title="Editar vinculação"
-                                    />
                                     <DeleteButton
                                       onClick={() => {
                                         const vinculadosIds = grupo.vinculados.map(v => {
@@ -996,30 +1045,6 @@ const CadastroVinculacoes = () => {
                                 <div className="client-card-header">
                                   <h3 className="client-card-title">{grupo.nome}</h3>
                                   <div className="client-card-header-actions">
-                                    <EditButton
-                                      onClick={() => {
-                                      // Preparar dados com hierarquia completa: tipos de tarefa com suas tarefas
-                                      const tiposTarefaComTarefas = tiposTarefaArray.map(tipoTarefa => ({
-                                        id: tipoTarefa.id,
-                                        nome: tipoTarefa.nome,
-                                        tarefas: []
-                                      }));
-                                      
-                                      const grupoData = {
-                                        filtroPrincipal: filtroPrincipal,
-                                        itemPrincipal: {
-                                          tipo: filtroPrincipal,
-                                          id: grupo.vinculados[0]?.cp_produto,
-                                          nome: grupo.nome
-                                        },
-                                        tiposTarefa: tiposTarefaComTarefas,
-                                        clientes: clientesArray,
-                                        vinculadosIds: grupo.vinculados.map(v => v.id)
-                                      };
-                                        handleEditVinculado(null, grupoData);
-                                      }}
-                                      title="Editar vinculação"
-                                    />
                                     <DeleteButton
                                       onClick={() => {
                                         const vinculadosIds = grupo.vinculados.map(v => {
@@ -1120,24 +1145,6 @@ const CadastroVinculacoes = () => {
                                 <div className="client-card-header">
                                   <h3 className="client-card-title">{grupo.nome}</h3>
                                   <div className="client-card-header-actions">
-                                    <EditButton
-                                      onClick={() => {
-                                        const grupoData = {
-                                          filtroPrincipal: filtroPrincipal,
-                                          itemPrincipal: {
-                                            tipo: filtroPrincipal,
-                                            id: grupo.vinculados[0]?.cp_tarefa,
-                                            nome: grupo.nome
-                                          },
-                                          tiposTarefa: tiposTarefaArray,
-                                          produtos: produtosArray,
-                                          clientes: clientesArray,
-                                          vinculadosIds: grupo.vinculados.map(v => v.id)
-                                        };
-                                        handleEditVinculado(null, grupoData);
-                                      }}
-                                      title="Editar vinculação"
-                                    />
                                     <DeleteButton
                                       onClick={() => {
                                         const vinculadosIds = grupo.vinculados.map(v => {
@@ -1238,24 +1245,6 @@ const CadastroVinculacoes = () => {
                                 <div className="client-card-header">
                                   <h3 className="client-card-title">{grupo.nome}</h3>
                                   <div className="client-card-header-actions">
-                                    <EditButton
-                                      onClick={() => {
-                                        const grupoData = {
-                                          filtroPrincipal: filtroPrincipal,
-                                          itemPrincipal: {
-                                            tipo: filtroPrincipal,
-                                            id: grupo.vinculados[0]?.cp_tarefa_tipo,
-                                            nome: grupo.nome
-                                          },
-                                          tarefas: tarefasArray,
-                                          produtos: produtosArray,
-                                          clientes: clientesArray,
-                                          vinculadosIds: grupo.vinculados.map(v => v.id)
-                                        };
-                                        handleEditVinculado(null, grupoData);
-                                      }}
-                                      title="Editar vinculação"
-                                    />
                                     <DeleteButton
                                       onClick={() => {
                                         const vinculadosIds = grupo.vinculados.map(v => {
@@ -1303,6 +1292,128 @@ const CadastroVinculacoes = () => {
                             );
                           }
                           
+                          // Se for subtarefa, mostrar Tarefas, Tipos de Tarefa, Produtos e Clientes vinculados
+                          if (filtroPrincipal === 'subtarefa') {
+                            const tarefasMap = new Map(); // Tarefas vinculadas à subtarefa
+                            const tiposTarefaMap = new Map(); // Tipos de tarefa vinculados à subtarefa
+                            const produtosMap = new Map(); // Produtos vinculados à subtarefa
+                            const clientesMap = new Map(); // Clientes vinculados à subtarefa
+                            
+                            grupo.vinculados.forEach(vinculado => {
+                              // Tarefas vinculadas à subtarefa
+                              if (vinculado.cp_tarefa && vinculado.atividade_nome) {
+                                const tarefaId = vinculado.cp_tarefa;
+                                if (!tarefasMap.has(tarefaId)) {
+                                  tarefasMap.set(tarefaId, {
+                                    id: tarefaId,
+                                    nome: vinculado.atividade_nome,
+                                    vinculadoId: vinculado.id
+                                  });
+                                }
+                              }
+                              
+                              // Tipos de tarefa vinculados à subtarefa
+                              if (vinculado.cp_tarefa_tipo && vinculado.tipo_atividade_nome) {
+                                const tipoId = vinculado.cp_tarefa_tipo;
+                                if (!tiposTarefaMap.has(tipoId)) {
+                                  tiposTarefaMap.set(tipoId, {
+                                    id: tipoId,
+                                    nome: vinculado.tipo_atividade_nome,
+                                    vinculadoId: vinculado.id
+                                  });
+                                }
+                              }
+                              
+                              // Produtos vinculados à subtarefa
+                              if (vinculado.cp_produto && vinculado.produto_nome) {
+                                const produtoId = vinculado.cp_produto;
+                                if (!produtosMap.has(produtoId)) {
+                                  produtosMap.set(produtoId, {
+                                    id: produtoId,
+                                    nome: vinculado.produto_nome,
+                                    vinculadoId: vinculado.id
+                                  });
+                                }
+                              }
+                              
+                              // Clientes vinculados à subtarefa
+                              if (vinculado.cp_cliente && vinculado.cliente_nome) {
+                                const clienteId = String(vinculado.cp_cliente).trim();
+                                if (!clientesMap.has(clienteId)) {
+                                  clientesMap.set(clienteId, {
+                                    id: clienteId,
+                                    nome: vinculado.cliente_nome,
+                                    vinculadoId: vinculado.id
+                                  });
+                                }
+                              }
+                            });
+                            
+                            const tarefasArray = Array.from(tarefasMap.values());
+                            const tiposTarefaArray = Array.from(tiposTarefaMap.values());
+                            const produtosArray = Array.from(produtosMap.values());
+                            const clientesArray = Array.from(clientesMap.values());
+                            
+                            return (
+                              <div key={index} className="client-card">
+                                <div className="client-card-header">
+                                  <h3 className="client-card-title">{grupo.nome}</h3>
+                                  <div className="client-card-header-actions">
+                                    <DeleteButton
+                                      onClick={() => {
+                                        const vinculadosIds = grupo.vinculados.map(v => {
+                                          const id = v.id;
+                                          if (typeof id === 'string') {
+                                            const numId = parseInt(id, 10);
+                                            return isNaN(numId) ? id : numId;
+                                          }
+                                          return id;
+                                        });
+                                        handleRequestDeleteGroup(vinculadosIds);
+                                      }}
+                                      title="Excluir todas as vinculações do grupo"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="client-card-body">
+                                  <div className="vinculado-items-container">
+                                    {/* Seção de Tarefas (expansível) */}
+                                    <ProdutoSectionExpandable
+                                      title="Tarefas Vinculadas"
+                                      icon="fas fa-tasks"
+                                      items={tarefasArray}
+                                      emptyMessage="Nenhuma tarefa vinculada a esta subtarefa"
+                                    />
+                                    
+                                    {/* Seção de Tipos de Tarefa (expansível) */}
+                                    <ProdutoSectionExpandable
+                                      title="Tipos de Tarefa Vinculados"
+                                      icon="fas fa-tags"
+                                      items={tiposTarefaArray}
+                                      emptyMessage="Nenhum tipo de tarefa vinculado a esta subtarefa"
+                                    />
+                                    
+                                    {/* Seção de Produtos (expansível) */}
+                                    <ProdutoSectionExpandable
+                                      title="Produtos Vinculados"
+                                      icon="fas fa-box"
+                                      items={produtosArray}
+                                      emptyMessage="Nenhum produto vinculado a esta subtarefa"
+                                    />
+                                    
+                                    {/* Seção de Clientes (expansível) */}
+                                    <ProdutoSectionExpandable
+                                      title="Clientes Vinculados"
+                                      icon="fas fa-briefcase"
+                                      items={clientesArray}
+                                      emptyMessage="Nenhum cliente vinculado a esta subtarefa"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          
                           // Para outros filtros, manter lógica atual
                           // Coletar itens únicos para evitar duplicatas
                           const itensUnicos = {
@@ -1316,7 +1427,7 @@ const CadastroVinculacoes = () => {
                             const tarefaId = vinculado.cp_tarefa;
                             const tipoId = vinculado.cp_tarefa_tipo;
                             
-                            if (filtroPrincipal !== 'atividade' && tarefaId && vinculado.atividade_nome) {
+                            if (filtroPrincipal !== 'atividade' && filtroPrincipal !== 'subtarefa' && tarefaId && vinculado.atividade_nome) {
                               itensUnicos.atividades.add(JSON.stringify({
                                 id: tarefaId,
                                 nome: vinculado.atividade_nome
@@ -1354,157 +1465,6 @@ const CadastroVinculacoes = () => {
                               <div className="client-card-header">
                                 <h3 className="client-card-title">{grupo.nome}</h3>
                                 <div className="client-card-header-actions">
-                                  <EditButton
-                                    onClick={() => {
-                                      // Preparar dados do grupo para edição
-                                      const grupoData = {
-                                        filtroPrincipal: filtroPrincipal,
-                                        itemPrincipal: {
-                                          tipo: filtroPrincipal,
-                                          id: filtroPrincipal === 'cliente' 
-                                            ? String(grupo.vinculados[0]?.cp_cliente || '').trim()
-                                            : filtroPrincipal === 'produto'
-                                            ? grupo.vinculados[0]?.cp_produto
-                                            : filtroPrincipal === 'atividade'
-                                            ? grupo.vinculados[0]?.cp_tarefa
-                                            : grupo.vinculados[0]?.cp_tarefa_tipo,
-                                          nome: grupo.nome
-                                        },
-                                        produtos: [],
-                                        vinculadosIds: grupo.vinculados.map(v => v.id)
-                                      };
-
-                                      // Organizar dados conforme o tipo de filtro
-                                      if (filtroPrincipal === 'cliente') {
-                                        // Agrupar por produto com suas tarefas
-                                        const produtosMap = new Map();
-                                        grupo.vinculados.forEach(vinculado => {
-                                          if (vinculado.cp_produto && vinculado.produto_nome) {
-                                            const produtoId = vinculado.cp_produto;
-                                            if (!produtosMap.has(produtoId)) {
-                                              produtosMap.set(produtoId, {
-                                                id: produtoId,
-                                                nome: vinculado.produto_nome,
-                                                tarefas: []
-                                              });
-                                            }
-                                            
-                                            const tarefaId = vinculado.cp_tarefa;
-                                            if (tarefaId && vinculado.atividade_nome) {
-                                              const produto = produtosMap.get(produtoId);
-                                              // Verificar se tarefa já foi adicionada
-                                              if (!produto.tarefas.find(t => t.id === tarefaId)) {
-                                                produto.tarefas.push({
-                                                  id: tarefaId,
-                                                  nome: vinculado.atividade_nome,
-                                                  vinculadoId: vinculado.id
-                                                });
-                                              }
-                                            }
-                                          }
-                                        });
-                                        grupoData.produtos = Array.from(produtosMap.values());
-                                      } else if (filtroPrincipal === 'produto') {
-                                        // Tarefas padrão do produto (cp_cliente = null)
-                                        const tarefasMap = new Map();
-                                        grupo.vinculados.forEach(vinculado => {
-                                          const tarefaId = vinculado.cp_tarefa;
-                                          if (tarefaId && vinculado.atividade_nome && !vinculado.cp_cliente) {
-                                            if (!tarefasMap.has(tarefaId)) {
-                                              tarefasMap.set(tarefaId, {
-                                                id: tarefaId,
-                                                nome: vinculado.atividade_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                        });
-                                        grupoData.tarefas = Array.from(tarefasMap.values());
-                                      } else if (filtroPrincipal === 'atividade') {
-                                        // Produtos e clientes vinculados à tarefa
-                                        const produtosMap = new Map();
-                                        const clientesMap = new Map();
-                                        
-                                        grupo.vinculados.forEach(vinculado => {
-                                          // Produtos vinculados à tarefa
-                                          if (vinculado.cp_produto && vinculado.produto_nome) {
-                                            const produtoId = vinculado.cp_produto;
-                                            if (!produtosMap.has(produtoId)) {
-                                              produtosMap.set(produtoId, {
-                                                id: produtoId,
-                                                nome: vinculado.produto_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                          
-                                          // Clientes vinculados à tarefa
-                                          if (vinculado.cp_cliente && vinculado.cliente_nome) {
-                                            const clienteId = String(vinculado.cp_cliente).trim();
-                                            if (!clientesMap.has(clienteId)) {
-                                              clientesMap.set(clienteId, {
-                                                id: clienteId,
-                                                nome: vinculado.cliente_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                        });
-                                        
-                                        grupoData.produtos = Array.from(produtosMap.values());
-                                        grupoData.clientes = Array.from(clientesMap.values());
-                                      } else if (filtroPrincipal === 'tipoTarefa') {
-                                        // Tarefas, produtos e clientes vinculados ao tipo
-                                        const tarefasMap = new Map();
-                                        const produtosMap = new Map();
-                                        const clientesMap = new Map();
-                                        
-                                        grupo.vinculados.forEach(vinculado => {
-                                          // Tarefas vinculadas ao tipo
-                                          const tarefaId = vinculado.cp_tarefa;
-                                          if (tarefaId && vinculado.atividade_nome) {
-                                            if (!tarefasMap.has(tarefaId)) {
-                                              tarefasMap.set(tarefaId, {
-                                                id: tarefaId,
-                                                nome: vinculado.atividade_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                          
-                                          // Produtos vinculados ao tipo
-                                          if (vinculado.cp_produto && vinculado.produto_nome) {
-                                            const produtoId = vinculado.cp_produto;
-                                            if (!produtosMap.has(produtoId)) {
-                                              produtosMap.set(produtoId, {
-                                                id: produtoId,
-                                                nome: vinculado.produto_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                          
-                                          // Clientes vinculados ao tipo
-                                          if (vinculado.cp_cliente && vinculado.cliente_nome) {
-                                            const clienteId = String(vinculado.cp_cliente).trim();
-                                            if (!clientesMap.has(clienteId)) {
-                                              clientesMap.set(clienteId, {
-                                                id: clienteId,
-                                                nome: vinculado.cliente_nome,
-                                                vinculadoId: vinculado.id
-                                              });
-                                            }
-                                          }
-                                        });
-                                        
-                                        grupoData.tarefas = Array.from(tarefasMap.values());
-                                        grupoData.produtos = Array.from(produtosMap.values());
-                                        grupoData.clientes = Array.from(clientesMap.values());
-                                      }
-                                      handleEditVinculado(null, grupoData);
-                                    }}
-                                    title="Editar vinculação"
-                                  />
                                   <DeleteButton
                                     onClick={() => {
                                       // Garantir que os IDs sejam números
@@ -1631,13 +1591,6 @@ const CadastroVinculacoes = () => {
                               )}
                             </div>
                             <div className="vinculado-item-actions">
-                              <button
-                                className="btn-edit-vinculado"
-                                onClick={() => handleEditVinculado(vinculado.id)}
-                                title="Editar vinculação"
-                              >
-                                <i className="fas fa-edit"></i>
-                              </button>
                               <button
                                 className="btn-delete-vinculado"
                                 onClick={() => handleRequestDeleteVinculado(vinculado.id)}

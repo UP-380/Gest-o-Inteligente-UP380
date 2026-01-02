@@ -158,9 +158,12 @@ router.delete('/api/tipo-atividade/:id', requireAuth, tipoAtividadeController.de
 // Rotas de Vinculados (CRUD completo)
 // IMPORTANTE: Rotas específicas devem vir ANTES de rotas com parâmetros
 router.get('/api/tarefas-por-produtos', requireAuth, vinculadosController.getTarefasPorProdutos);
+router.get('/api/tarefas-por-produto', requireAuth, vinculadosController.getTarefasPorProduto);
 router.get('/api/tarefas-por-cliente', requireAuth, vinculadosController.getTarefasPorCliente);
 router.get('/api/tarefas-por-cliente-produtos', requireAuth, vinculadosController.getTarefasPorClienteEProdutos);
 router.get('/api/produtos-por-cliente', requireAuth, vinculadosController.getProdutosPorCliente);
+router.get('/api/tarefas-por-tipo', requireAuth, vinculadosController.getTarefasPorTipo);
+router.get('/api/subtarefas-por-tarefa', requireAuth, vinculadosController.getSubtarefasPorTarefa);
 router.post('/api/vinculados/aplicar-heranca', requireAuth, vinculadosController.aplicarHeranca);
 router.get('/api/vinculados', requireAuth, vinculadosController.getVinculados);
 router.get('/api/vinculados/:id', requireAuth, vinculadosController.getVinculadoPorId);

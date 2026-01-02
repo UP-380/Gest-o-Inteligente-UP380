@@ -17,6 +17,8 @@ const SecondarySelectsSection = ({
   expandedSelects,
   onToggleExpand,
   loading = false,
+  loadingPorTipo = {},
+  onSelectOpen = null,
   tarefasVinculadas = {},
   produtos = []
 }) => {
@@ -55,7 +57,9 @@ const SecondarySelectsSection = ({
               getItemLabel={(itemId) => getItemLabel(select.primaryType, itemId)}
               isExpanded={expandedSelects[select.id] || false}
               onToggleExpand={onToggleExpand}
-              disabled={loading}
+              disabled={loading || loadingPorTipo[select.primaryType]}
+              isLoading={loadingPorTipo[select.primaryType]}
+              onSelectOpen={() => onSelectOpen && onSelectOpen(select.primaryType)}
             />
           </React.Fragment>
         );

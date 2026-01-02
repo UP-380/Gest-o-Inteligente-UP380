@@ -15,9 +15,11 @@ const CustomSelect = ({
   keepOpen = false,
   selectedItems = [],
   onSelectAll = null,
+  onToggleItem = null, // Callback para toggle de item em múltipla seleção
   hideCheckboxes = false,
   maxVisibleOptions = null,
-  enableSearch = false
+  enableSearch = false,
+  onOpen = null // Callback quando o select é aberto
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,9 +149,21 @@ const CustomSelect = ({
   }, [isOpen, enableSearch]);
 
   const handleSelect = (optionValue) => {
-    if (disabled || !onChange) return;
+    if (disabled) return;
     
-    onChange({ target: { value: optionValue } });
+    // Se há onToggleItem e keepOpen, usar toggle (múltipla seleção)
+    if (keepOpen && onToggleItem) {
+      const optionValueStr = normalizeValue(optionValue);
+      const isCurrentlySelected = selectedItemsStr.includes(optionValueStr);
+      onToggleItem(optionValue, !isCurrentlySelected);
+      // Não fechar o dropdown em múltipla seleção
+      return;
+    }
+    
+    // Seleção única (comportamento padrão)
+    if (onChange) {
+      onChange({ target: { value: optionValue } });
+    }
     
     // Fechar apenas se não for keepOpen ou se for hideCheckboxes
     if (!keepOpen || hideCheckboxes) {
@@ -165,8 +179,16 @@ const CustomSelect = ({
 
   const handleOpen = () => {
     if (!disabled) {
+      const wasClosed = !isOpen;
       setIsOpen(!isOpen);
-      if (!isOpen) {
+      if (wasClosed) {
+        // Quando está abrindo, chamar callback se fornecido
+        if (onOpen) {
+          // Chamar onOpen de forma assíncrona para não bloquear a UI
+          Promise.resolve(onOpen()).catch(err => {
+            console.error('Erro ao executar onOpen:', err);
+          });
+        }
         setTimeout(() => {
           if (searchInputRef.current) {
             searchInputRef.current.focus();
@@ -184,8 +206,29 @@ const CustomSelect = ({
   return (
     <div className="custom-select-container" ref={containerRef}>
       <div 
+        role="button"
+        tabIndex={disabled ? -1 : 0}
         className={`custom-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
-        onClick={!isOpen ? handleOpen : undefined}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!isOpen && !disabled) {
+            handleOpen();
+          }
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !disabled) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isOpen) {
+              handleOpen();
+            }
+          }
+        }}
       >
         {isOpen && enableSearch ? (
           <input
