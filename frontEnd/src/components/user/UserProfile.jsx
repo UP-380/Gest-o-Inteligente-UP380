@@ -67,35 +67,9 @@ const UserProfile = () => {
   useEffect(() => {
     if (!userData) return;
 
-    // Se já temos o caminho no userData, usar ele
-    if (userData.foto_perfil_path) {
-      setAvatarImagePath(userData.foto_perfil_path);
-      return;
-    }
-    
-    // Se for avatar de imagem padrão, construir o caminho
-    if (userData.foto_perfil && userData.foto_perfil.startsWith('image-')) {
-      const avatarId = userData.foto_perfil.replace('image-', '');
-      setAvatarImagePath(`/assets/images/avatars/avatar-${avatarId}.png`);
-      return;
-    }
-    
-    // Se for avatar customizado sem caminho, buscar via API (APENAS UMA VEZ)
-    if (userData.foto_perfil && userData.foto_perfil.startsWith('custom-') && !hasTriedFetchAvatar) {
-      setHasTriedFetchAvatar(true); // Marcar que já tentamos
-      const fetchAvatarPath = async () => {
-        try {
-          const result = await authAPI.getCustomAvatarPath();
-          if (result.success && result.imagePath) {
-            setAvatarImagePath(result.imagePath);
-          }
-        } catch (error) {
-          // Erro silencioso - avatar customizado não disponível
-        }
-      };
-      fetchAvatarPath();
-    }
-  }, [userData?.foto_perfil, userData?.foto_perfil_path]); // Usar apenas propriedades específicas, não o objeto inteiro
+    // Avatar é resolvido automaticamente pelo componente Avatar via Supabase Storage
+    // Não precisamos mais buscar foto_perfil_path manualmente
+  }, [userData?.foto_perfil]); // Usar apenas foto_perfil, não foto_perfil_path
 
   const handleAvatarClick = (e) => {
     e.stopPropagation(); // Evitar fechar o menu
@@ -133,7 +107,6 @@ const UserProfile = () => {
           avatarId={userData.foto_perfil}
           nomeUsuario={getDisplayName()}
           size="normal"
-          customImagePath={userData.foto_perfil_path || null}
         />
       </button>
 
@@ -149,7 +122,6 @@ const UserProfile = () => {
                 avatarId={userData.foto_perfil}
                 nomeUsuario={getDisplayName()}
                 size="menu"
-                customImagePath={userData.foto_perfil_path || null}
               />
             </div>
             <div className="user-info">

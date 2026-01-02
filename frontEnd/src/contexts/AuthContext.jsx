@@ -48,11 +48,8 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         // Salvar dados do usuário no localStorage se disponível
         if (data.usuario) {
-          // Garantir que foto_perfil_path esteja disponível se for avatar customizado
+          // Avatar customizado é resolvido automaticamente pelo componente Avatar via Supabase Storage
           const usuarioCompleto = { ...data.usuario };
-          if (data.usuario.foto_perfil_path) {
-            usuarioCompleto.foto_perfil_path = data.usuario.foto_perfil_path;
-          }
           localStorage.setItem('usuario', JSON.stringify(usuarioCompleto));
           setUsuario(usuarioCompleto);
         } else {

@@ -157,9 +157,9 @@ const BaseConhecimentoCliente = () => {
                 <p style={{ color: '#64748b', marginBottom: '24px' }}>Não foi possível carregar os dados do cliente.</p>
                 <button
                   className="btn-secondary"
-                  onClick={() => navigate('/base-conhecimento/conteudos-clientes')}
+                  onClick={() => navigate(-1)}
                 >
-                  Voltar para lista de clientes
+                  Voltar
                 </button>
               </div>
             </CardContainer>
@@ -183,14 +183,9 @@ const BaseConhecimentoCliente = () => {
                   <div className="knowledge-header-left">
                     <div className="knowledge-header-icon">
                       <Avatar
-                        avatarId={
-                          cliente.foto_perfil && cliente.foto_perfil.startsWith('custom-') && !cliente.foto_perfil_path
-                            ? DEFAULT_AVATAR
-                            : (cliente.foto_perfil || DEFAULT_AVATAR)
-                        }
+                        avatarId={cliente.foto_perfil || DEFAULT_AVATAR}
                         nomeUsuario={cliente.fantasia || cliente.razao || cliente.nome_amigavel || cliente.nome || 'Cliente'}
                         size="large"
-                        customImagePath={cliente.foto_perfil_path || null}
                       />
                     </div>
                     <div>
@@ -204,7 +199,7 @@ const BaseConhecimentoCliente = () => {
                   </div>
                   <button
                     className="btn-secondary knowledge-back-btn"
-                    onClick={() => navigate('/base-conhecimento/conteudos-clientes')}
+                    onClick={() => navigate(-1)}
                   >
                     <i className="fas fa-arrow-left"></i>
                     Voltar

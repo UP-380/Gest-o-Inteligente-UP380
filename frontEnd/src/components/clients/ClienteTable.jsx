@@ -1,9 +1,12 @@
 import React from 'react';
 import EditButton from '../common/EditButton';
 import DeleteButton from '../common/DeleteButton';
+import Avatar from '../user/Avatar';
+import { DEFAULT_AVATAR } from '../../utils/avatars';
 
 /**
  * Componente de tabela de clientes
+ * Exibe lista de clientes com Nome Amigável, Status e Ações
  */
 const ClienteTable = ({
   clientes,
@@ -15,18 +18,8 @@ const ClienteTable = ({
   clientesComContratosAtivos,
   showIncompleteClients
 }) => {
-  // Função para aplicar máscara de CPF/CNPJ
-  const aplicarMascaraCpfCnpj = (valor) => {
-    if (!valor) return '-';
-    const apenasNumeros = valor.replace(/\D/g, '');
-    const numeroLimitado = apenasNumeros.substring(0, 14);
-    return numeroLimitado
-      .replace(/(\d{2})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-  };
 
+  // Estado de loading
   if (loading) {
     return (
       <div className="loading-container">
@@ -36,7 +29,8 @@ const ClienteTable = ({
     );
   }
 
-  if (clientes.length === 0) {
+  // Estado vazio
+  if (!clientes || clientes.length === 0) {
     return (
       <div className="empty-state">
         <i className="fas fa-users"></i>
@@ -50,17 +44,28 @@ const ClienteTable = ({
       <thead>
         <tr>
           <th>Nome Amigável</th>
-          <th>Razão Social</th>
-          <th>Nome Fantasia</th>
-          <th>CNPJ</th>
-          <th>Cliente Kamino</th>
+          <th>Status</th>
           <th className="actions-column">Ações</th>
         </tr>
       </thead>
       <tbody>
         {clientes.map((client) => {
-          const temContratosAtivos = showIncompleteClients && clientesComContratosAtivos.has(String(client.id));
-          const isAtivo = client.status === 'ativo';
+          // Os dados completos do backend estão em client.raw (definido em CadastroClientes.jsx)
+          // Se raw não existir, usar client diretamente como fallback
+          const dadosCliente = client.raw || client;
+          
+          // Verificar se tem contratos ativos (para destacar na tabela)
+          const temContratosAtivos = showIncompleteClients && 
+            clientesComContratosAtivos && 
+            clientesComContratosAtivos.has(String(client.id));
+          
+          // Verificar se está ativo
+          const statusCliente = dadosCliente.status || client.status || 'ativo';
+          const isAtivo = statusCliente === 'ativo';
+          
+          // Extrair valores dos campos
+          const nomeAmigavel = dadosCliente.nome_amigavel || dadosCliente.nome_fantasia || dadosCliente.razao_social || dadosCliente.nome || client.nome || '-';
+          const fotoPerfil = dadosCliente.foto_perfil || null;
           
           return (
             <tr 
@@ -70,13 +75,28 @@ const ClienteTable = ({
                 backgroundColor: '#f0fdf4'
               } : {}}
             >
+              {/* Nome Amigável com Avatar */}
               <td>
-                <strong>{client.nome || '-'}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Avatar
+                    avatarId={fotoPerfil || DEFAULT_AVATAR}
+                    nomeUsuario={nomeAmigavel}
+                    size="small"
+                    entityType="cliente"
+                    entityId={client.id}
+                  />
+                  <strong>{nomeAmigavel}</strong>
+                </div>
               </td>
-              <td>{client.raw?.razao_social || '-'}</td>
-              <td>{client.raw?.nome_fantasia || '-'}</td>
-              <td>{aplicarMascaraCpfCnpj(client.raw?.cpf_cnpj || client.raw?.cnpj_cpf || '')}</td>
-              <td>{client.raw?.nome_cli_kamino || client.raw?.cli_kamino || '-'}</td>
+              
+              {/* Status */}
+              <td>
+                <span className={`status-badge ${isAtivo ? 'status-ativo' : 'status-inativo'}`}>
+                  {isAtivo ? 'Ativo' : 'Inativo'}
+                </span>
+              </td>
+              
+              {/* Ações */}
               <td className="actions-column">
                 <EditButton
                   onClick={() => onEdit(client)}
@@ -121,4 +141,3 @@ const ClienteTable = ({
 };
 
 export default ClienteTable;
-

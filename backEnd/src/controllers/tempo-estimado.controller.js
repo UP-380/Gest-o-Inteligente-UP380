@@ -5,47 +5,6 @@
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { buscarTodosComPaginacao } = require('../services/database-utils');
-const path = require('path');
-const fs = require('fs');
-
-// Função auxiliar para buscar caminho da foto customizada de um usuário
-const getCustomAvatarPathForUser = (userId) => {
-  try {
-    // Tentar usar variável de ambiente primeiro (útil para Docker/produção)
-    let customDir;
-    if (process.env.UPLOAD_AVATAR_PATH) {
-      customDir = process.env.UPLOAD_AVATAR_PATH;
-    } else if (process.env.NODE_ENV === 'production') {
-      customDir = '/app/frontEnd/public/assets/images/avatars/custom';
-    } else {
-      customDir = path.join(__dirname, '../../../frontEnd/public/assets/images/avatars/custom');
-    }
-    
-    if (!fs.existsSync(customDir)) {
-      return null;
-    }
-
-    const files = fs.readdirSync(customDir);
-    const userFiles = files.filter(file => file.startsWith(`custom-${userId}-`));
-    
-    if (userFiles.length === 0) {
-      return null;
-    }
-
-    // Ordenar por timestamp (mais recente primeiro)
-    userFiles.sort((a, b) => {
-      const timestampA = parseInt(a.match(/-(\d+)\./)?.[1] || '0');
-      const timestampB = parseInt(b.match(/-(\d+)\./)?.[1] || '0');
-      return timestampB - timestampA;
-    });
-
-    const latestFile = userFiles[0];
-    return `/assets/images/avatars/custom/${latestFile}`;
-  } catch (error) {
-    // Erro silencioso - retornar null se não conseguir buscar
-    return null;
-  }
-};
 
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
@@ -781,7 +740,8 @@ async function getTempoEstimado(req, res) {
                 usuarioMap.set(String(usuario.id), usuario.foto_perfil);
               });
 
-              // Adicionar foto_perfil e foto_perfil_path aos registros
+              // Adicionar foto_perfil aos registros
+              // O frontend resolve avatares customizados via resolveAvatarUrl do Supabase Storage
               dadosFiltrados.forEach(registro => {
                 if (registro.responsavel_id) {
                   const responsavelIdStr = String(registro.responsavel_id);
@@ -789,50 +749,35 @@ async function getTempoEstimado(req, res) {
                   if (usuarioId) {
                     const fotoPerfil = usuarioMap.get(String(usuarioId));
                     registro.responsavel_foto_perfil = fotoPerfil || null;
-                    
-                    // Se for avatar customizado, buscar o caminho da foto
-                    if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
-                      const userIdFromAvatar = fotoPerfil.replace('custom-', '');
-                      const fotoPerfilPath = getCustomAvatarPathForUser(userIdFromAvatar);
-                      registro.responsavel_foto_perfil_path = fotoPerfilPath || null;
-                    } else {
-                      registro.responsavel_foto_perfil_path = null;
-                    }
                   } else {
                     registro.responsavel_foto_perfil = null;
-                    registro.responsavel_foto_perfil_path = null;
                   }
                 } else {
                   registro.responsavel_foto_perfil = null;
-                  registro.responsavel_foto_perfil_path = null;
                 }
               });
             } else {
               // Se não encontrar usuarios, definir foto_perfil como null
               dadosFiltrados.forEach(registro => {
                 registro.responsavel_foto_perfil = null;
-                registro.responsavel_foto_perfil_path = null;
               });
             }
           } else {
             // Se não houver usuario_ids, definir foto_perfil como null
             dadosFiltrados.forEach(registro => {
               registro.responsavel_foto_perfil = null;
-              registro.responsavel_foto_perfil_path = null;
             });
           }
         } else {
           // Se não encontrar membros, definir foto_perfil como null
           dadosFiltrados.forEach(registro => {
             registro.responsavel_foto_perfil = null;
-            registro.responsavel_foto_perfil_path = null;
           });
         }
       } else {
         // Se não houver responsavel_ids, definir foto_perfil como null
         dadosFiltrados.forEach(registro => {
           registro.responsavel_foto_perfil = null;
-          registro.responsavel_foto_perfil_path = null;
         });
       }
     }

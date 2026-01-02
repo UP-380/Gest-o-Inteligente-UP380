@@ -273,6 +273,50 @@ export const clientesAPI = {
     return await response.json();
   },
   /**
+   * Busca o caminho da imagem customizada do cliente
+   * @param {string} clienteId - ID do cliente
+   */
+  async getClienteCustomAvatarPath(clienteId) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/clientes/${clienteId}/custom-avatar-path`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Se for erro 503 ou 404, retornar imediatamente sem tentar parsear
+      if (response.status === 503 || response.status === 404) {
+        return { success: false, imagePath: null };
+      }
+
+      // Verificar se a resposta é JSON
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        return { success: false, imagePath: null };
+      }
+
+      if (!response.ok) {
+        return { success: false, imagePath: null };
+      }
+
+      return await response.json();
+    } catch (error) {
+      // Em caso de erro, retornar sem sucesso (não lançar exceção para evitar loops)
+      return { success: false, imagePath: null };
+    }
+  },
+  /**
+   * Busca um cliente por ID
+   * @param {string|number} id - ID do cliente
+   */
+  async getClientePorId(id) {
+    return await request(`${API_BASE_URL}/clientes/${id}`);
+  },
+
+  /**
    * Busca todos os clientes
    * @param {string|null} status - Filtro opcional por status
    * @param {boolean} useCache - Se deve usar cache (padrão: true)

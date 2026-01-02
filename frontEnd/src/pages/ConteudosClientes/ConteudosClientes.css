@@ -71,6 +71,53 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+/* Card inativo - conteúdo em cinza claro */
+.cliente-knowledge-card-inactive {
+  opacity: 0.7;
+  background-color: #f9fafb;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-card-title {
+  color: #9ca3af !important;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-card-field label {
+  color: #d1d5db !important;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-card-value {
+  color: #9ca3af !important;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-icon-button {
+  color: #d1d5db !important;
+  opacity: 0.6;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-icon-button:hover {
+  color: #d1d5db !important;
+  opacity: 0.6;
+  background: transparent;
+}
+
+.cliente-knowledge-card-inactive .icon-button,
+.cliente-knowledge-card-inactive button.icon-button {
+  color: #d1d5db !important;
+  opacity: 0.6;
+}
+
+.cliente-knowledge-card-inactive .icon-button:hover,
+.cliente-knowledge-card-inactive button.icon-button:hover {
+  color: #d1d5db !important;
+  opacity: 0.6;
+  background-color: transparent !important;
+}
+
+/* Avatar em cards inativos */
+.cliente-knowledge-card-inactive .user-avatar {
+  opacity: 0.6;
+}
+
 /* Header do Card */
 .cliente-knowledge-card-header {
   margin-bottom: 0;
@@ -82,6 +129,10 @@
   height: auto;
   min-height: 40px;
   margin-bottom: 12px;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-card-header {
+  border-bottom-color: #e5e7eb;
 }
 
 .cliente-knowledge-card-title {
@@ -164,6 +215,10 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+}
+
+.cliente-knowledge-card-inactive .cliente-knowledge-card-footer {
+  border-top-color: #e5e7eb;
 }
 
 /* Botões de ícone no footer */
