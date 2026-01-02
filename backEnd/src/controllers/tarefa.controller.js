@@ -15,7 +15,7 @@ async function getTarefas(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('cp_tarefa')
-      .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
+      .select('id, nome, clickup_id, descricao, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
 
     // Busca por nome ou clickup_id
@@ -119,7 +119,7 @@ async function getTarefaPorId(req, res) {
 // POST - Criar nova tarefa
 async function criarTarefa(req, res) {
   try {
-    const { nome, clickup_id } = req.body;
+    const { nome, clickup_id, descricao } = req.body;
 
     // Validação do nome
     if (!nome) {
@@ -137,11 +137,31 @@ async function criarTarefa(req, res) {
       });
     }
 
+    // Função auxiliar para limpar valores (retorna null para campos opcionais)
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
+    // Função auxiliar específica para clickup_id (NOT NULL, então retorna string vazia)
+    const cleanClickupId = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return '';
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? '' : trimmed;
+    };
+
     // Preparar dados para inserção (sem ID - banco gera automaticamente)
-    // clickup_id é opcional
+    // clickup_id é obrigatório (NOT NULL), então usa string vazia se não fornecido
+    // descricao é opcional
     const dadosInsert = {
       nome: nomeTrimmed,
-      clickup_id: clickup_id ? String(clickup_id).trim() : null
+      clickup_id: cleanClickupId(clickup_id),
+      descricao: cleanValue(descricao)
     };
 
     // Inserir no banco
@@ -189,7 +209,7 @@ async function criarTarefa(req, res) {
 async function atualizarTarefa(req, res) {
   try {
     const { id } = req.params;
-    const { nome, clickup_id } = req.body;
+    const { nome, clickup_id, descricao } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -222,8 +242,27 @@ async function atualizarTarefa(req, res) {
       });
     }
 
+    // Função auxiliar para limpar valores (retorna null para campos opcionais)
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
+    // Função auxiliar específica para clickup_id (NOT NULL, então retorna string vazia)
+    const cleanClickupId = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return '';
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? '' : trimmed;
+    };
+
     // Preparar dados para atualização
     const dadosUpdate = {};
+    let temAlteracao = false;
 
     if (nome !== undefined) {
       if (!nome || !nome.trim()) {
@@ -269,11 +308,22 @@ async function atualizarTarefa(req, res) {
       }
 
       dadosUpdate.nome = nomeTrimmed;
-      dadosUpdate.updated_at = new Date().toISOString();
+      temAlteracao = true;
     }
 
     if (clickup_id !== undefined) {
-      dadosUpdate.clickup_id = clickup_id ? String(clickup_id).trim() : null;
+      // clickup_id tem NOT NULL constraint, então usa string vazia se não fornecido
+      dadosUpdate.clickup_id = cleanClickupId(clickup_id);
+      temAlteracao = true;
+    }
+
+    if (descricao !== undefined) {
+      dadosUpdate.descricao = cleanValue(descricao);
+      temAlteracao = true;
+    }
+
+    // Atualizar updated_at apenas uma vez se houver alterações
+    if (temAlteracao) {
       dadosUpdate.updated_at = new Date().toISOString();
     }
 
@@ -285,6 +335,15 @@ async function atualizarTarefa(req, res) {
       });
     }
 
+    // Log para debug
+    console.log('📝 Atualizando tarefa:', {
+      id,
+      dadosUpdate: {
+        ...dadosUpdate,
+        descricao: dadosUpdate.descricao ? `${dadosUpdate.descricao.substring(0, 50)}...` : null
+      }
+    });
+
     // Atualizar no banco
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
@@ -295,7 +354,13 @@ async function atualizarTarefa(req, res) {
       .single();
 
     if (error) {
-      console.error('Erro ao atualizar tarefa:', error);
+      console.error('❌ Erro ao atualizar tarefa:', error);
+      console.error('   Detalhes:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar tarefa',

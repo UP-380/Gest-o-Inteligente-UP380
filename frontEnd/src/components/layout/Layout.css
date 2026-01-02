@@ -22,9 +22,9 @@
     margin: 0;
     padding: 0;
     padding-left: 60px;
-    padding-right: 2rem;
+    padding-right: 1rem;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     height: 64px;
 }
@@ -36,9 +36,10 @@
 }
 
 .header-right {
-    display: flex;
-    align-items: center;
-    margin-left: auto;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: 12px;
 }
 
 .header-logo {
@@ -75,14 +76,24 @@
   }
 }
 
-@media (max-width: 480px) {
+/* Mobile - até 6 polegadas (600px) */
+@media (max-width: 600px) {
   .top-header {
-    margin-left: -45px;
+    margin-left: 0;
+    left: 0;
+    right: 0;
+    padding-left: 50px; /* Espaço para o botão hambúrguer */
+    z-index: 1000 !important; /* Abaixo do botão hambúrguer */
   }
   
   .header-container {
-    padding-left: 45px;
+    padding-left: 50px;
     padding-right: 0.75rem;
+    pointer-events: none; /* Permite cliques passarem pelo header */
+  }
+
+  .header-container > * {
+    pointer-events: auto; /* Reabilita cliques nos elementos filhos */
   }
   
   .header-left {
@@ -91,6 +102,30 @@
   
   .header-logo-img {
     height: 1.75rem;
-    max-width: 120px;
+    max-width: 140px;
+  }
+
+  .header-right {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-header {
+    padding-left: 46px; /* Espaço para o botão hambúrguer menor */
+  }
+  
+  .header-container {
+    padding-left: 46px;
+    padding-right: 0.5rem;
+  }
+  
+  .header-left {
+    padding-left: 0.25rem;
+  }
+  
+  .header-logo-img {
+    height: 1.5rem;
+    max-width: 100px;
   }
 }

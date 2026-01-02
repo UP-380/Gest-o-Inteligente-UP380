@@ -217,20 +217,30 @@ const CadastroProdutoIndividual = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary cadastro-produto-back-btn"
-                    onClick={() => navigate(-1)}
-                    disabled={submitting}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary cadastro-produto-back-btn"
+                      onClick={() => navigate(-1)}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="produto-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
               <div className="cadastro-produto-form-section">
-                <form onSubmit={handleSubmit}>
+                <form id="produto-form" onSubmit={handleSubmit}>
                   <ProdutoForm
                     formData={formData}
                     setFormData={setFormData}
@@ -238,19 +248,6 @@ const CadastroProdutoIndividual = () => {
                     setFormErrors={setFormErrors}
                     submitting={submitting}
                   />
-
-                  {/* Botões de ação */}
-                  <div className="cadastro-produto-actions">
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <ButtonPrimary
-                        type="submit"
-                        disabled={submitting}
-                        icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                      >
-                        {submitting ? 'Salvando...' : 'Salvar'}
-                      </ButtonPrimary>
-                    </div>
-                  </div>
                 </form>
               </div>
             </CardContainer>

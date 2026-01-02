@@ -839,6 +839,64 @@ export const registroTempoAPI = {
   }
 };
 
+// ============================================
+// SUBTAREFA (cp_subtarefa)
+// ============================================
+
+export const subtarefaAPI = {
+  /**
+   * Lista todas as subtarefas
+   * @param {Object} params - { page, limit, search, tarefa_id }
+   */
+  async getAll({ page = 1, limit = 50, search = '', tarefa_id = null } = {}) {
+    let url = `${API_BASE_URL}/subtarefa?page=${page}&limit=${limit}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (tarefa_id) url += `&tarefa_id=${encodeURIComponent(tarefa_id)}`;
+    return await request(url);
+  },
+
+  /**
+   * Busca subtarefa por ID
+   * @param {number|string} id - ID da subtarefa
+   */
+  async getById(id) {
+    return await request(`${API_BASE_URL}/subtarefa/${id}`);
+  },
+
+  /**
+   * Cria uma nova subtarefa
+   * @param {Object} data - { nome, descricao, tarefa_id }
+   */
+  async create(data) {
+    return await request(`${API_BASE_URL}/subtarefa`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * Atualiza uma subtarefa
+   * @param {number|string} id - ID da subtarefa
+   * @param {Object} data - { nome, descricao, tarefa_id }
+   */
+  async update(id, data) {
+    return await request(`${API_BASE_URL}/subtarefa/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * Deleta uma subtarefa
+   * @param {number|string} id - ID da subtarefa
+   */
+  async delete(id) {
+    return await request(`${API_BASE_URL}/subtarefa/${id}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
 // Exportar URL base para uso externo se necessário
 export { getApiBaseUrl };
 

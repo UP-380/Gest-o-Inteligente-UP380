@@ -1,6 +1,6 @@
 .btn-primary {
-  background: #0e3b6f;
-  color: white;
+  background: #0e3b6f !important;
+  color: white !important;
   border: none;
   padding: 12px 24px;
   border-radius: 8px;
@@ -14,7 +14,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #144577;
+  background: #144577 !important;
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(14, 59, 111, 0.3);
 }

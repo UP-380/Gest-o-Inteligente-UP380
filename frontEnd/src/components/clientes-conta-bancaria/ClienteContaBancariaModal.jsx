@@ -223,7 +223,7 @@ const ClienteContaBancariaModal = ({
                 </h4>
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Agência
@@ -349,6 +349,49 @@ const ClienteContaBancariaModal = ({
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.operador}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Chave de Acesso
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    className={`form-input ${formErrors.chave_acesso ? 'error' : ''}`}
+                    value={formData.chave_acesso || ''}
+                    onChange={handleFieldChange('chave_acesso')}
+                    placeholder="Ex: Token ou chave"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.chave_acesso ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={200}
+                  />
+                  {formErrors.chave_acesso && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.chave_acesso}
                     </span>
                   )}
                 </div>
@@ -484,6 +527,349 @@ const ClienteContaBancariaModal = ({
                     </span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Campos de Senhas Adicionais */}
+            <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ 
+                  width: '4px', 
+                  height: '20px', 
+                  backgroundColor: '#8b5cf6', 
+                  borderRadius: '2px',
+                  marginRight: '12px'
+                }}></div>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                  <i className="fas fa-lock" style={{ marginRight: '8px', color: '#8b5cf6' }}></i>
+                  Senhas Adicionais
+                </h4>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Senha 4 Dígitos
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="password"
+                    className={`form-input ${formErrors.senha_4digitos ? 'error' : ''}`}
+                    value={formData.senha_4digitos || ''}
+                    onChange={handleFieldChange('senha_4digitos')}
+                    placeholder="Ex: 1234"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.senha_4digitos ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={4}
+                  />
+                  {formErrors.senha_4digitos && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.senha_4digitos}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Senha 6 Dígitos
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="password"
+                    className={`form-input ${formErrors.senha_6digitos ? 'error' : ''}`}
+                    value={formData.senha_6digitos || ''}
+                    onChange={handleFieldChange('senha_6digitos')}
+                    placeholder="Ex: 123456"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.senha_6digitos ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={6}
+                  />
+                  {formErrors.senha_6digitos && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.senha_6digitos}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Senha 8 Dígitos
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="password"
+                    className={`form-input ${formErrors.senha_8digitos ? 'error' : ''}`}
+                    value={formData.senha_8digitos || ''}
+                    onChange={handleFieldChange('senha_8digitos')}
+                    placeholder="Ex: 12345678"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.senha_8digitos ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={8}
+                  />
+                  {formErrors.senha_8digitos && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.senha_8digitos}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Campos de Status e Acesso */}
+            <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ 
+                  width: '4px', 
+                  height: '20px', 
+                  backgroundColor: '#f59e0b', 
+                  borderRadius: '2px',
+                  marginRight: '12px'
+                }}></div>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                  <i className="fas fa-info-circle" style={{ marginRight: '8px', color: '#f59e0b' }}></i>
+                  Status e Informações Adicionais
+                </h4>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Status Cadastro
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    className={`form-input ${formErrors.status_cadastro ? 'error' : ''}`}
+                    value={formData.status_cadastro || ''}
+                    onChange={handleFieldChange('status_cadastro')}
+                    placeholder="Ex: Ativo, Pendente"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.status_cadastro ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={50}
+                  />
+                  {formErrors.status_cadastro && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.status_cadastro}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Status Acesso
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    className={`form-input ${formErrors.status_acesso ? 'error' : ''}`}
+                    value={formData.status_acesso || ''}
+                    onChange={handleFieldChange('status_acesso')}
+                    placeholder="Ex: Liberado, Bloqueado"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.status_acesso ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={50}
+                  />
+                  {formErrors.status_acesso && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.status_acesso}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '0' }}>
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Link de Acesso
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    className={`form-input ${formErrors.link_acesso ? 'error' : ''}`}
+                    value={formData.link_acesso || ''}
+                    onChange={handleFieldChange('link_acesso')}
+                    placeholder="Ex: https://banco.com.br"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.link_acesso ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={500}
+                  />
+                  {formErrors.link_acesso && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.link_acesso}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '14px' }}>
+                <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                  Observações
+                  <span style={{ 
+                    fontSize: '11px', 
+                    color: '#9ca3af', 
+                    marginLeft: '4px',
+                    fontWeight: 'normal'
+                  }}>
+                    (Opcional)
+                  </span>
+                </label>
+                <textarea
+                  className={`form-input ${formErrors.observacoes ? 'error' : ''}`}
+                  value={formData.observacoes || ''}
+                  onChange={handleFieldChange('observacoes')}
+                  placeholder="Digite observações sobre a conta bancária..."
+                  disabled={submitting}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '14px',
+                    border: formErrors.observacoes ? '2px solid #ef4444' : '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    transition: 'border-color 0.2s',
+                    backgroundColor: submitting ? '#f3f4f6' : '#fff',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                  maxLength={1000}
+                />
+                {formErrors.observacoes && (
+                  <span className="error-message" style={{ 
+                    color: '#ef4444', 
+                    fontSize: '11px', 
+                    marginTop: '3px', 
+                    display: 'block' 
+                  }}>
+                    <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                    {formErrors.observacoes}
+                  </span>
+                )}
               </div>
             </div>
           </form>

@@ -12,9 +12,15 @@ import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroProdutoIndividual from './pages/CadastroProdutoIndividual/CadastroProdutoIndividual';
 import CadastroTarefas from './pages/CadastroTarefas/CadastroTarefas';
 import CadastroTarefaIndividual from './pages/CadastroTarefaIndividual/CadastroTarefaIndividual';
+import CadastroSubtarefas from './pages/CadastroSubtarefas/CadastroSubtarefas';
+import CadastroSubtarefaIndividual from './pages/CadastroSubtarefaIndividual/CadastroSubtarefaIndividual';
 import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
 import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
+import NovaVinculacao from './pages/Vinculacoes/NovaVinculacao';
+import EditarVinculacao from './pages/Vinculacoes/EditarVinculacao';
+import EditarVinculacaoGrupo from './pages/Vinculacoes/EditarVinculacaoGrupo';
+import EditarVinculacaoProduto from './pages/Vinculacoes/EditarVinculacaoProduto';
 import CadastroBanco from './pages/CadastroBancos/CadastroBanco';
 import CadastroBancoIndividual from './pages/CadastroBancoIndividual/CadastroBancoIndividual';
 import CadastroAdquirente from './pages/CadastroAdquirente/CadastroAdquirente';
@@ -202,6 +208,22 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/subtarefas"
+          element={
+            <ProtectedRoute>
+              <CadastroSubtarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/subtarefa"
+          element={
+            <ProtectedRoute>
+              <CadastroSubtarefaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cadastro/tipo-tarefas"
           element={
             <ProtectedRoute>
@@ -222,6 +244,38 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroVinculacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vinculacoes/nova"
+          element={
+            <ProtectedRoute>
+              <NovaVinculacao />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vinculacoes/editar/:id"
+          element={
+            <ProtectedRoute>
+              <EditarVinculacao />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vinculacoes/editar-grupo"
+          element={
+            <ProtectedRoute>
+              <EditarVinculacaoGrupo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vinculacoes/editar-produto"
+          element={
+            <ProtectedRoute>
+              <EditarVinculacaoProduto />
             </ProtectedRoute>
           }
         />

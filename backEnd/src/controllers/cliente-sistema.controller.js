@@ -29,11 +29,14 @@ async function getSistemasCliente(req, res) {
         sistema_id,
         servidor,
         usuario_servidor,
+        senha_servidor,
         vpn,
         usuario_vpn,
         senha_vpn,
         usuario_sistema,
         senha_sistema,
+        link_acesso,
+        observacoes,
         created_at,
         cp_sistema (
           id,
@@ -140,11 +143,14 @@ async function criarSistemaCliente(req, res) {
       sistema_id,
       servidor,
       usuario_servidor,
+      senha_servidor,
       vpn,
       usuario_vpn,
       senha_vpn,
       usuario_sistema,
-      senha_sistema
+      senha_sistema,
+      link_acesso,
+      observacoes
     } = req.body;
 
     // Validação
@@ -187,17 +193,29 @@ async function criarSistemaCliente(req, res) {
       });
     }
 
+    // Função auxiliar para limpar valores
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
     // Preparar dados para inserção
     const dadosInsert = {
-      cliente_id: cliente_id,
+      cliente_id: String(cliente_id).trim(),
       sistema_id: parseInt(sistema_id, 10),
-      servidor: servidor ? String(servidor).trim() : null,
-      usuario_servidor: usuario_servidor ? String(usuario_servidor).trim() : null,
-      vpn: vpn ? String(vpn).trim() : null,
-      usuario_vpn: usuario_vpn ? String(usuario_vpn).trim() : null,
-      senha_vpn: senha_vpn ? String(senha_vpn).trim() : null,
-      usuario_sistema: usuario_sistema ? String(usuario_sistema).trim() : null,
-      senha_sistema: senha_sistema ? String(senha_sistema).trim() : null
+      servidor: cleanValue(servidor),
+      usuario_servidor: cleanValue(usuario_servidor),
+      senha_servidor: cleanValue(senha_servidor),
+      vpn: cleanValue(vpn),
+      usuario_vpn: cleanValue(usuario_vpn),
+      senha_vpn: cleanValue(senha_vpn),
+      usuario_sistema: cleanValue(usuario_sistema),
+      senha_sistema: cleanValue(senha_sistema),
+      link_acesso: cleanValue(link_acesso),
+      observacoes: cleanValue(observacoes)
     };
 
     // Inserir no banco
@@ -246,11 +264,14 @@ async function atualizarSistemaCliente(req, res) {
       sistema_id,
       servidor,
       usuario_servidor,
+      senha_servidor,
       vpn,
       usuario_vpn,
       senha_vpn,
       usuario_sistema,
-      senha_sistema
+      senha_sistema,
+      link_acesso,
+      observacoes
     } = req.body;
 
     if (!id) {
@@ -312,6 +333,15 @@ async function atualizarSistemaCliente(req, res) {
       }
     }
 
+    // Função auxiliar para limpar valores
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
+
     // Preparar dados para atualização
     const dadosUpdate = {};
 
@@ -319,25 +349,34 @@ async function atualizarSistemaCliente(req, res) {
       dadosUpdate.sistema_id = parseInt(sistema_id, 10);
     }
     if (servidor !== undefined) {
-      dadosUpdate.servidor = servidor ? String(servidor).trim() : null;
+      dadosUpdate.servidor = cleanValue(servidor);
     }
     if (usuario_servidor !== undefined) {
-      dadosUpdate.usuario_servidor = usuario_servidor ? String(usuario_servidor).trim() : null;
+      dadosUpdate.usuario_servidor = cleanValue(usuario_servidor);
+    }
+    if (senha_servidor !== undefined) {
+      dadosUpdate.senha_servidor = cleanValue(senha_servidor);
     }
     if (vpn !== undefined) {
-      dadosUpdate.vpn = vpn ? String(vpn).trim() : null;
+      dadosUpdate.vpn = cleanValue(vpn);
     }
     if (usuario_vpn !== undefined) {
-      dadosUpdate.usuario_vpn = usuario_vpn ? String(usuario_vpn).trim() : null;
+      dadosUpdate.usuario_vpn = cleanValue(usuario_vpn);
     }
     if (senha_vpn !== undefined) {
-      dadosUpdate.senha_vpn = senha_vpn ? String(senha_vpn).trim() : null;
+      dadosUpdate.senha_vpn = cleanValue(senha_vpn);
     }
     if (usuario_sistema !== undefined) {
-      dadosUpdate.usuario_sistema = usuario_sistema ? String(usuario_sistema).trim() : null;
+      dadosUpdate.usuario_sistema = cleanValue(usuario_sistema);
     }
     if (senha_sistema !== undefined) {
-      dadosUpdate.senha_sistema = senha_sistema ? String(senha_sistema).trim() : null;
+      dadosUpdate.senha_sistema = cleanValue(senha_sistema);
+    }
+    if (link_acesso !== undefined) {
+      dadosUpdate.link_acesso = cleanValue(link_acesso);
+    }
+    if (observacoes !== undefined) {
+      dadosUpdate.observacoes = cleanValue(observacoes);
     }
 
     // Se não há nada para atualizar

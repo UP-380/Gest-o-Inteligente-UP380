@@ -289,7 +289,7 @@ const GestaoUsuarios = () => {
                   <small className="form-help">
                     {permissaoSelecionada === 'administrador' && 'Acesso total a todas as funcionalidades do sistema'}
                     {permissaoSelecionada === 'gestor' && 'Acesso a todas as páginas do sistema'}
-                    {permissaoSelecionada === 'colaborador' && 'Acesso apenas ao Painel Colaborador e Base de Conhecimento'}
+                    {permissaoSelecionada === 'colaborador' && 'Acesso apenas a Minhas Tarefas e Base de Conhecimento'}
                   </small>
                 </div>
               </div>

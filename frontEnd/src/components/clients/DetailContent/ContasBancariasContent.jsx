@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BankLogo from '../../bancos/BankLogo';
 
 const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
@@ -131,60 +132,217 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
               background: '#fff'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <BankLogo 
+                codigo={banco.codigo} 
+                nome={banco.nome} 
+                size={32}
+                className="bank-logo-card"
+              />
               <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
                 {bancoNome}
               </span>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
-              {conta.agencia && (
-                <div>
-                  <span style={{ color: '#6b7280', fontWeight: 500 }}>Agência: </span>
-                  <ValueWithCopy value={conta.agencia} fieldId={`conta-agencia-${conta.id}`} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Dados Bancários - Ordem: Agência, Conta, Operador, Chave de Acesso */}
+              {(conta.agencia || conta.conta || conta.operador || conta.chave_acesso) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
+                  {conta.agencia && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}>Agência: </span>
+                      <ValueWithCopy value={conta.agencia} fieldId={`conta-agencia-${conta.id}`} />
+                    </div>
+                  )}
+                  {conta.conta && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}>Conta: </span>
+                      <ValueWithCopy value={conta.conta} fieldId={`conta-conta-${conta.id}`} />
+                    </div>
+                  )}
+                  {conta.operador && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}>Operador: </span>
+                      <ValueWithCopy value={conta.operador} fieldId={`conta-operador-${conta.id}`} />
+                    </div>
+                  )}
+                  {conta.chave_acesso && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}>Chave Acesso: </span>
+                      <ValueWithCopy 
+                        value={conta.chave_acesso} 
+                        fieldId={`conta-chave-acesso-${conta.id}`}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
-              {conta.conta && (
-                <div>
-                  <span style={{ color: '#6b7280', fontWeight: 500 }}>Conta: </span>
-                  <ValueWithCopy value={conta.conta} fieldId={`conta-conta-${conta.id}`} />
+
+              {/* Credenciais de Acesso */}
+              {(conta.usuario || conta.senha) && (
+                <div style={{ paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
+                    {conta.usuario && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>Usuário: </span>
+                        <ValueWithCopy value={conta.usuario} fieldId={`conta-usuario-${conta.id}`} />
+                      </div>
+                    )}
+                    {conta.senha && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>Senha: </span>
+                        <ValueWithCopy 
+                          value={conta.senha} 
+                          fieldId={`conta-senha-${conta.id}`}
+                          isPassword={true}
+                          isHidden={!isPasswordVisible}
+                        />
+                        <button
+                          onClick={() => togglePassword(conta.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px 8px',
+                            color: '#6b7280',
+                            fontSize: '14px'
+                          }}
+                          title={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+                        >
+                          <i className={`fas ${isPasswordVisible ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              {conta.operador && (
-                <div>
-                  <span style={{ color: '#6b7280', fontWeight: 500 }}>Operador: </span>
-                  <ValueWithCopy value={conta.operador} fieldId={`conta-operador-${conta.id}`} />
+
+              {/* Senhas Adicionais */}
+              {(conta.senha_4digitos || conta.senha_6digitos || conta.senha_8digitos) && (
+                <div style={{ paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af', fontWeight: 600 }}>
+                    SENHAS ADICIONAIS
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
+                    {conta.senha_4digitos && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>4 Dígitos: </span>
+                        <ValueWithCopy 
+                          value={conta.senha_4digitos} 
+                          fieldId={`conta-senha4-${conta.id}`}
+                          isPassword={true}
+                          isHidden={!isPasswordVisible}
+                        />
+                      </div>
+                    )}
+                    {conta.senha_6digitos && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>6 Dígitos: </span>
+                        <ValueWithCopy 
+                          value={conta.senha_6digitos} 
+                          fieldId={`conta-senha6-${conta.id}`}
+                          isPassword={true}
+                          isHidden={!isPasswordVisible}
+                        />
+                      </div>
+                    )}
+                    {conta.senha_8digitos && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>8 Dígitos: </span>
+                        <ValueWithCopy 
+                          value={conta.senha_8digitos} 
+                          fieldId={`conta-senha8-${conta.id}`}
+                          isPassword={true}
+                          isHidden={!isPasswordVisible}
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              {conta.usuario && (
-                <div>
-                  <span style={{ color: '#6b7280', fontWeight: 500 }}>Usuário: </span>
-                  <ValueWithCopy value={conta.usuario} fieldId={`conta-usuario-${conta.id}`} />
+
+              {/* Status e Informações Adicionais - Ordem: Status Cadastro, Status Acesso, Link de Acesso */}
+              {(conta.status_cadastro || conta.status_acesso || conta.link_acesso) && (
+                <div style={{ paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af', fontWeight: 600 }}>
+                    STATUS E INFORMAÇÕES ADICIONAIS
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
+                    {conta.status_cadastro && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>Status Cadastro: </span>
+                        <ValueWithCopy value={conta.status_cadastro} fieldId={`conta-status-cadastro-${conta.id}`} />
+                      </div>
+                    )}
+                    {conta.status_acesso && (
+                      <div>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>Status Acesso: </span>
+                        <ValueWithCopy value={conta.status_acesso} fieldId={`conta-status-acesso-${conta.id}`} />
+                      </div>
+                    )}
+                    {conta.link_acesso && (
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ color: '#6b7280', fontWeight: 500 }}>Link Acesso: </span>
+                        <a 
+                          href={conta.link_acesso} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ 
+                            color: '#3b82f6', 
+                            textDecoration: 'underline',
+                            wordBreak: 'break-all',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Abrir em nova aba"
+                        >
+                          {conta.link_acesso}
+                          <i className="fas fa-external-link-alt" style={{ fontSize: '10px', opacity: 0.7 }}></i>
+                        </a>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(conta.link_acesso, `conta-link-${conta.id}`, e);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            color: '#9ca3af',
+                            fontSize: '12px',
+                            marginLeft: '4px'
+                          }}
+                          title="Copiar link"
+                        >
+                          <i className={`fas ${copiedField === `conta-link-${conta.id}` ? 'fa-check' : 'fa-copy'}`}></i>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              {conta.senha && (
-                <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#6b7280', fontWeight: 500 }}>Senha: </span>
-                  <ValueWithCopy 
-                    value={conta.senha} 
-                    fieldId={`conta-senha-${conta.id}`}
-                    isPassword={true}
-                    isHidden={!isPasswordVisible}
-                  />
-                  <button
-                    onClick={() => togglePassword(conta.id)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px 8px',
-                      color: '#6b7280',
-                      fontSize: '14px'
-                    }}
-                    title={isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
-                  >
-                    <i className={`fas ${isPasswordVisible ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                  </button>
+
+              {/* Observações */}
+              {conta.observacoes && (
+                <div style={{ paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af', fontWeight: 600 }}>
+                    OBSERVAÇÕES
+                  </div>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#374151', 
+                    padding: '8px',
+                    background: '#f9fafb',
+                    borderRadius: '6px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {conta.observacoes}
+                  </div>
                 </div>
               )}
             </div>

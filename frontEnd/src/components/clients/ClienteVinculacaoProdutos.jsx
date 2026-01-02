@@ -134,33 +134,7 @@ const ClienteVinculacaoProdutos = ({ clienteId, onSaveVinculacao }) => {
     setSubmitting(true);
 
     try {
-      // 1. Verificar/atualizar cp_vinculacao para garantir que cp_produto está marcado
-      const responseVinculacao = await fetch(`${API_BASE_URL}/vinculacoes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          cp_cliente: false,
-          cp_produto: true,
-          cp_tarefa: false,
-          cp_tarefa_tipo: false
-        }),
-      });
-
-      if (responseVinculacao.status === 401) {
-        window.location.href = '/login';
-        return { success: false, error: 'Não autorizado' };
-      }
-
-      const resultVinculacao = await responseVinculacao.json();
-      if (!responseVinculacao.ok) {
-        const errorMsg = resultVinculacao.error || resultVinculacao.details || 'Erro ao salvar vinculação';
-        return { success: false, error: errorMsg };
-      }
-
-      // 2. Criar combinações cliente + produto
+      // Criar combinações cliente + produto
       const combinacoes = selectedProdutos.map(produtoIdStr => {
         const produtoId = parseInt(produtoIdStr, 10);
         return {

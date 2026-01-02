@@ -37,9 +37,13 @@ const FilterVinculacao = ({
           onMouseLeave={onMouseLeave}
         >
           <input
-            type="checkbox"
+            type="radio"
+            name="filtro-vinculacao"
             checked={checked}
-            onChange={(e) => onChange(filtroKey, e.target.checked)}
+            onChange={() => {
+              // Com radio, sempre marca quando clicado em outro
+              onChange(filtroKey, true);
+            }}
           />
           <div className="filtro-card-content">
             <div className="filtro-card-icon">

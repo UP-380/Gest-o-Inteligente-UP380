@@ -32,6 +32,14 @@ async function getContasBancarias(req, res) {
         operador,
         usuario,
         senha,
+        status_cadastro,
+        status_acesso,
+        observacoes,
+        chave_acesso,
+        senha_4digitos,
+        senha_6digitos,
+        senha_8digitos,
+        link_acesso,
         created_at,
         cp_banco (
           id,
@@ -42,11 +50,11 @@ async function getContasBancarias(req, res) {
       .eq('cliente_id', cliente_id)
       .order('created_at', { ascending: false });
 
-    // Busca por agência ou conta
+    // Busca por agência, conta, usuário ou observações
     if (search && search.trim()) {
       const searchTerm = search.trim();
       const ilikePattern = `%${searchTerm}%`;
-      query = query.or(`agencia.ilike.${ilikePattern},conta.ilike.${ilikePattern}`);
+      query = query.or(`agencia.ilike.${ilikePattern},conta.ilike.${ilikePattern},usuario.ilike.${ilikePattern},observacoes.ilike.${ilikePattern}`);
     }
 
     // Aplicar paginação
@@ -142,10 +150,45 @@ async function getContaBancariaPorId(req, res) {
 // POST - Criar nova conta bancária
 async function criarContaBancaria(req, res) {
   try {
-    const { cliente_id, banco_id, agencia, conta, operador, usuario, senha } = req.body;
+    const { 
+      cliente_id, 
+      banco_id, 
+      agencia, 
+      conta, 
+      operador, 
+      usuario, 
+      senha,
+      status_cadastro,
+      status_acesso,
+      observacoes,
+      chave_acesso,
+      senha_4digitos,
+      senha_6digitos,
+      senha_8digitos,
+      link_acesso
+    } = req.body;
+
+    console.log('📥 POST /clientes-contas-bancarias - Dados recebidos:', {
+      cliente_id,
+      banco_id,
+      agencia: agencia ? '***' : null,
+      conta: conta ? '***' : null,
+      operador: operador ? '***' : null,
+      usuario: usuario ? '***' : null,
+      senha: senha ? '***' : null,
+      status_cadastro,
+      status_acesso,
+      observacoes: observacoes ? '***' : null,
+      chave_acesso: chave_acesso ? '***' : null,
+      senha_4digitos: senha_4digitos ? '***' : null,
+      senha_6digitos: senha_6digitos ? '***' : null,
+      senha_8digitos: senha_8digitos ? '***' : null,
+      link_acesso
+    });
 
     // Validação
     if (!cliente_id) {
+      console.error('❌ Validação falhou: cliente_id é obrigatório');
       return res.status(400).json({
         success: false,
         error: 'ID do cliente é obrigatório'
@@ -153,22 +196,113 @@ async function criarContaBancaria(req, res) {
     }
 
     if (!banco_id) {
+      console.error('❌ Validação falhou: banco_id é obrigatório');
       return res.status(400).json({
         success: false,
         error: 'ID do banco é obrigatório'
       });
     }
 
-    // Preparar dados para inserção
-    const dadosInsert = {
-      cliente_id: cliente_id,
-      banco_id: parseInt(banco_id, 10),
-      agencia: agencia ? String(agencia).trim() : null,
-      conta: conta ? String(conta).trim() : null,
-      operador: operador ? String(operador).trim() : null,
-      usuario: usuario ? String(usuario).trim() : null,
-      senha: senha ? String(senha).trim() : null
+    // Validar se banco_id é um número válido
+    const bancoIdNum = parseInt(banco_id, 10);
+    if (isNaN(bancoIdNum) || bancoIdNum <= 0) {
+      console.error('❌ Validação falhou: banco_id deve ser um número válido:', banco_id);
+      return res.status(400).json({
+        success: false,
+        error: 'ID do banco deve ser um número válido'
+      });
+    }
+
+    // Função auxiliar para limpar valores
+    // IMPORTANTE: Preserva valores válidos, apenas remove strings vazias
+    const cleanValue = (value, fieldName = '') => {
+      // Se for undefined ou null, retorna null
+      if (value === undefined || value === null) {
+        return null;
+      }
+      
+      // Se for string vazia, retorna null
+      if (typeof value === 'string' && value.trim() === '') {
+        return null;
+      }
+      
+      // Se for número 0, preserva (pode ser um valor válido)
+      if (typeof value === 'number') {
+        return value;
+      }
+      
+      // Para strings, retorna trim() mas preserva se não estiver vazia
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed === '' ? null : trimmed;
+      }
+      
+      // Para outros tipos, retorna como está
+      return value;
     };
+
+    // Preparar dados para inserção
+    // IMPORTANTE: Incluir TODOS os campos, mesmo que sejam null
+    const dadosInsert = {
+      cliente_id: String(cliente_id).trim(),
+      banco_id: bancoIdNum,
+      agencia: cleanValue(agencia, 'agencia'),
+      conta: cleanValue(conta, 'conta'),
+      operador: cleanValue(operador, 'operador'),
+      usuario: cleanValue(usuario, 'usuario'),
+      senha: cleanValue(senha, 'senha'),
+      status_cadastro: cleanValue(status_cadastro, 'status_cadastro'),
+      status_acesso: cleanValue(status_acesso, 'status_acesso'),
+      observacoes: cleanValue(observacoes, 'observacoes'),
+      chave_acesso: cleanValue(chave_acesso, 'chave_acesso'),
+      senha_4digitos: cleanValue(senha_4digitos, 'senha_4digitos'),
+      senha_6digitos: cleanValue(senha_6digitos, 'senha_6digitos'),
+      senha_8digitos: cleanValue(senha_8digitos, 'senha_8digitos'),
+      link_acesso: cleanValue(link_acesso, 'link_acesso')
+    };
+
+    // Log detalhado de cada campo antes e depois da limpeza
+    console.log('🔍 Comparação de campos (antes → depois):');
+    const campos = [
+      { nome: 'agencia', original: agencia, processado: dadosInsert.agencia },
+      { nome: 'conta', original: conta, processado: dadosInsert.conta },
+      { nome: 'operador', original: operador, processado: dadosInsert.operador },
+      { nome: 'usuario', original: usuario, processado: dadosInsert.usuario },
+      { nome: 'senha', original: senha ? '***' : senha, processado: dadosInsert.senha ? '***' : dadosInsert.senha },
+      { nome: 'status_cadastro', original: status_cadastro, processado: dadosInsert.status_cadastro },
+      { nome: 'status_acesso', original: status_acesso, processado: dadosInsert.status_acesso },
+      { nome: 'observacoes', original: observacoes ? (observacoes.substring(0, 30) + '...') : observacoes, processado: dadosInsert.observacoes ? (dadosInsert.observacoes.substring(0, 30) + '...') : dadosInsert.observacoes },
+      { nome: 'chave_acesso', original: chave_acesso ? '***' : chave_acesso, processado: dadosInsert.chave_acesso ? '***' : dadosInsert.chave_acesso },
+      { nome: 'senha_4digitos', original: senha_4digitos ? '***' : senha_4digitos, processado: dadosInsert.senha_4digitos ? '***' : dadosInsert.senha_4digitos },
+      { nome: 'senha_6digitos', original: senha_6digitos ? '***' : senha_6digitos, processado: dadosInsert.senha_6digitos ? '***' : dadosInsert.senha_6digitos },
+      { nome: 'senha_8digitos', original: senha_8digitos ? '***' : senha_8digitos, processado: dadosInsert.senha_8digitos ? '***' : dadosInsert.senha_8digitos },
+      { nome: 'link_acesso', original: link_acesso, processado: dadosInsert.link_acesso }
+    ];
+    
+    campos.forEach(campo => {
+      if (campo.original !== campo.processado) {
+        console.log(`   ⚠️  ${campo.nome}: "${campo.original}" → "${campo.processado}"`);
+      } else {
+        console.log(`   ✅ ${campo.nome}: "${campo.original}"`);
+      }
+    });
+
+    console.log('💾 Dados preparados para inserção:');
+    console.log('   cliente_id:', dadosInsert.cliente_id);
+    console.log('   banco_id:', dadosInsert.banco_id);
+    console.log('   agencia:', dadosInsert.agencia);
+    console.log('   conta:', dadosInsert.conta);
+    console.log('   operador:', dadosInsert.operador);
+    console.log('   usuario:', dadosInsert.usuario);
+    console.log('   senha:', dadosInsert.senha ? '***' : null);
+    console.log('   status_cadastro:', dadosInsert.status_cadastro);
+    console.log('   status_acesso:', dadosInsert.status_acesso);
+    console.log('   observacoes:', dadosInsert.observacoes ? (dadosInsert.observacoes.substring(0, 50) + '...') : null);
+    console.log('   chave_acesso:', dadosInsert.chave_acesso ? '***' : null);
+    console.log('   senha_4digitos:', dadosInsert.senha_4digitos ? '***' : null);
+    console.log('   senha_6digitos:', dadosInsert.senha_6digitos ? '***' : null);
+    console.log('   senha_8digitos:', dadosInsert.senha_8digitos ? '***' : null);
+    console.log('   link_acesso:', dadosInsert.link_acesso);
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
@@ -186,21 +320,44 @@ async function criarContaBancaria(req, res) {
       .single();
 
     if (insertError) {
-      console.error('Erro ao criar conta bancária:', insertError);
+      console.error('❌ Erro ao criar conta bancária:', insertError);
+      console.error('   Código:', insertError.code);
+      console.error('   Mensagem:', insertError.message);
+      console.error('   Detalhes:', insertError.details);
+      console.error('   Hint:', insertError.hint);
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar conta bancária',
-        details: insertError.message
+        details: insertError.message,
+        code: insertError.code,
+        hint: insertError.hint
       });
     }
 
+    console.log('✅ Conta bancária criada com sucesso!');
+    console.log('📋 Dados retornados do banco:');
+    console.log('   id:', data?.id);
+    console.log('   agencia:', data?.agencia);
+    console.log('   conta:', data?.conta);
+    console.log('   operador:', data?.operador);
+    console.log('   usuario:', data?.usuario);
+    console.log('   senha:', data?.senha ? '***' : null);
+    console.log('   status_cadastro:', data?.status_cadastro);
+    console.log('   status_acesso:', data?.status_acesso);
+    console.log('   observacoes:', data?.observacoes ? (data.observacoes.substring(0, 50) + '...') : null);
+    console.log('   chave_acesso:', data?.chave_acesso ? '***' : null);
+    console.log('   senha_4digitos:', data?.senha_4digitos ? '***' : null);
+    console.log('   senha_6digitos:', data?.senha_6digitos ? '***' : null);
+    console.log('   senha_8digitos:', data?.senha_8digitos ? '***' : null);
+    console.log('   link_acesso:', data?.link_acesso);
     return res.status(201).json({
       success: true,
       message: 'Conta bancária criada com sucesso',
       data: data
     });
   } catch (error) {
-    console.error('Erro inesperado ao criar conta bancária:', error);
+    console.error('❌ Erro inesperado ao criar conta bancária:', error);
+    console.error('   Stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -213,7 +370,22 @@ async function criarContaBancaria(req, res) {
 async function atualizarContaBancaria(req, res) {
   try {
     const { id } = req.params;
-    const { banco_id, agencia, conta, operador, usuario, senha } = req.body;
+    const { 
+      banco_id, 
+      agencia, 
+      conta, 
+      operador, 
+      usuario, 
+      senha,
+      status_cadastro,
+      status_acesso,
+      observacoes,
+      chave_acesso,
+      senha_4digitos,
+      senha_6digitos,
+      senha_8digitos,
+      link_acesso
+    } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -266,6 +438,30 @@ async function atualizarContaBancaria(req, res) {
     }
     if (senha !== undefined) {
       dadosUpdate.senha = senha ? String(senha).trim() : null;
+    }
+    if (status_cadastro !== undefined) {
+      dadosUpdate.status_cadastro = status_cadastro ? String(status_cadastro).trim() : null;
+    }
+    if (status_acesso !== undefined) {
+      dadosUpdate.status_acesso = status_acesso ? String(status_acesso).trim() : null;
+    }
+    if (observacoes !== undefined) {
+      dadosUpdate.observacoes = observacoes ? String(observacoes).trim() : null;
+    }
+    if (chave_acesso !== undefined) {
+      dadosUpdate.chave_acesso = chave_acesso ? String(chave_acesso).trim() : null;
+    }
+    if (senha_4digitos !== undefined) {
+      dadosUpdate.senha_4digitos = senha_4digitos ? String(senha_4digitos).trim() : null;
+    }
+    if (senha_6digitos !== undefined) {
+      dadosUpdate.senha_6digitos = senha_6digitos ? String(senha_6digitos).trim() : null;
+    }
+    if (senha_8digitos !== undefined) {
+      dadosUpdate.senha_8digitos = senha_8digitos ? String(senha_8digitos).trim() : null;
+    }
+    if (link_acesso !== undefined) {
+      dadosUpdate.link_acesso = link_acesso ? String(link_acesso).trim() : null;
     }
 
     // Se não há nada para atualizar

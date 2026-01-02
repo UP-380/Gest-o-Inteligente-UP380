@@ -359,12 +359,14 @@ body {
     .clientes-grid {
         grid-template-columns: 1fr !important;
         gap: 12px;
+        margin-top: 1rem;
     }
 }
 
 @media (max-width: 480px) {
     .clientes-grid {
         gap: 10px;
+        margin-top: 0.75rem;
     }
 }
 
@@ -470,6 +472,7 @@ body {
 @media (max-width: 768px) {
     body {
         width: calc(100vw - 50px);
+        margin-left: 50px;
     }
     
     .container {
@@ -494,10 +497,6 @@ body {
         flex-wrap: wrap;
     }
     
-    body {
-        margin-left: 50px;
-    }
-    
     .top-header {
         margin-left: -50px;
     }
@@ -507,25 +506,129 @@ body {
     }
 }
 
-@media (max-width: 480px) {
+/* Mobile - até 6 polegadas (600px) */
+@media (max-width: 600px) {
     body {
-        margin-left: 45px;
-        width: calc(100vw - 45px);
+        margin-left: 0;
+        width: 100vw;
+        padding-top: 64px;
     }
     
     .container {
-        padding: 0.875rem;
-        width: calc(100vw - 90px); /* 45px esquerda + 45px direita */
-        margin-left: 45px;
-        margin-right: 45px;
+        padding: 0.75rem;
+        width: 100%;
+        margin-left: 0;
+        margin-right: 0;
+        padding-top: 1rem;
     }
     
+    .main-content {
+        padding: 0.75rem;
+        margin-top: 0.5rem;
+        border-radius: 12px;
+    }
+
+    .form-title {
+        font-size: 1.5rem;
+    }
+
+    .form-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .form-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .add-client-btn {
+        font-size: 0.8rem;
+        padding: 8px 12px;
+    }
+
+    .exposed-filters-section {
+        padding: 1rem;
+    }
+
+    .filters-row {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .filter-group {
+        min-width: 100%;
+    }
+
+    .filter-actions {
+        flex-direction: column;
+    }
+
+    .filter-actions button {
+        width: 100%;
+    }
+
+    .pagination-container {
+        padding: 1rem 0.75rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .pagination-limit-selector,
+    .pagination-info,
+    .pagination-controls {
+        width: 100%;
+        justify-content: center;
+    }
+
     .top-header {
-        margin-left: -45px;
+        margin-left: 0;
     }
     
     .header-container {
-        padding-left: 45px;
+        padding-left: 50px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding-top: 64px;
+    }
+    
+    .container {
+        padding: 0.5rem;
+        padding-top: 0.75rem;
+    }
+
+    .main-content {
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .form-title {
+        font-size: 1.25rem;
+    }
+
+    .add-client-btn {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+    }
+
+    .exposed-filters-section {
+        padding: 0.75rem;
+    }
+
+    .pagination-container {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .top-header {
+        margin-left: 0;
+    }
+    
+    .header-container {
+        padding-left: 46px;
     }
 }
 

@@ -26,7 +26,8 @@ const CadastroTarefaIndividual = () => {
   const [formData, setFormData] = useState({
     id: null,
     nome: '',
-    clickup_id: ''
+    clickup_id: '',
+    descricao: ''
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +65,8 @@ const CadastroTarefaIndividual = () => {
         setFormData({
           id: tarefaData.id || null,
           nome: tarefaData.nome || '',
-          clickup_id: tarefaData.clickup_id || ''
+          clickup_id: tarefaData.clickup_id || '',
+          descricao: tarefaData.descricao || ''
         });
       } else {
         throw new Error(result.error || 'Erro ao carregar tarefa');
@@ -95,9 +97,19 @@ const CadastroTarefaIndividual = () => {
     setFormErrors({});
 
     try {
+      // Limpar descricao HTML vazia do Quill (<p><br></p> ou <p></p>)
+      let descricaoValue = formData.descricao;
+      if (descricaoValue) {
+        const cleaned = descricaoValue.trim();
+        if (cleaned === '' || cleaned === '<p><br></p>' || cleaned === '<p></p>') {
+          descricaoValue = null;
+        }
+      }
+
       const payload = {
         nome: nomeValue,
-        clickup_id: formData.clickup_id ? String(formData.clickup_id).trim() : null
+        clickup_id: formData.clickup_id ? String(formData.clickup_id).trim() : null,
+        descricao: descricaoValue
       };
 
       const url = tarefaId 
@@ -145,7 +157,8 @@ const CadastroTarefaIndividual = () => {
             ...prev,
             id: result.data.id || prev.id,
             nome: result.data.nome || prev.nome,
-            clickup_id: result.data.clickup_id || prev.clickup_id || ''
+            clickup_id: result.data.clickup_id || prev.clickup_id || '',
+            descricao: result.data.descricao || prev.descricao || ''
           }));
           
           // Se foi criação, atualizar URL sem recarregar
@@ -219,20 +232,30 @@ const CadastroTarefaIndividual = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary cadastro-tarefa-back-btn"
-                    onClick={() => navigate(-1)}
-                    disabled={submitting}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary cadastro-tarefa-back-btn"
+                      onClick={() => navigate(-1)}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="tarefa-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
               <div className="cadastro-tarefa-form-section">
-                <form onSubmit={handleSubmit}>
+                <form id="tarefa-form" onSubmit={handleSubmit}>
                   <TarefaForm
                     formData={formData}
                     setFormData={setFormData}
@@ -240,19 +263,6 @@ const CadastroTarefaIndividual = () => {
                     setFormErrors={setFormErrors}
                     submitting={submitting}
                   />
-
-                  {/* Botões de ação */}
-                  <div className="cadastro-tarefa-actions">
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <ButtonPrimary
-                        type="submit"
-                        disabled={submitting}
-                        icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                      >
-                        {submitting ? 'Salvando...' : 'Salvar'}
-                      </ButtonPrimary>
-                    </div>
-                  </div>
                 </form>
               </div>
             </CardContainer>

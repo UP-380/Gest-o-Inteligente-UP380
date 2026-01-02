@@ -11,6 +11,7 @@ import './ButtonPrimary.css';
  * @param {string} props.icon - Classe do ícone FontAwesome (opcional)
  * @param {string} props.className - Classes CSS adicionais
  * @param {string} props.type - Tipo do botão (button, submit, reset)
+ * @param {string} props.form - ID do form associado (para botões submit fora do form)
  * @param {Object} props.style - Estilos inline adicionais
  */
 const ButtonPrimary = ({
@@ -20,6 +21,7 @@ const ButtonPrimary = ({
   icon,
   className = '',
   type = 'button',
+  form,
   style = {}
 }) => {
   return (
@@ -28,6 +30,7 @@ const ButtonPrimary = ({
       className={`btn-primary ${className}`}
       onClick={onClick}
       disabled={disabled}
+      form={form}
       style={style}
     >
       {icon && <i className={icon}></i>}

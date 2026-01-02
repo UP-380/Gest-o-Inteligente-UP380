@@ -8,7 +8,6 @@ import SearchInput from '../../components/common/SearchInput';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
 import LoadingState from '../../components/common/LoadingState';
-import PageHeader from '../../components/common/PageHeader';
 import { useToast } from '../../hooks/useToast';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
@@ -205,10 +204,21 @@ const CadastroBanco = () => {
         <main className="main-content">
           <CardContainer>
             <div className="bancos-listing-section">
-              <PageHeader 
-                title="Cadastro de Banco"
-                subtitle="Gerencie os bancos cadastrados no sistema"
-              />
+              <div className="cadastro-listing-page-header">
+                <div className="cadastro-listing-header-content">
+                  <div className="cadastro-listing-header-left">
+                    <div className="cadastro-listing-header-icon">
+                      <i className="fas fa-university" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                    </div>
+                    <div>
+                      <h1 className="cadastro-listing-page-title">Cadastro de Banco</h1>
+                      <p className="cadastro-listing-page-subtitle">
+                        Gerencie os bancos cadastrados no sistema
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Filtro de busca e botão adicionar */}
               <div className="listing-controls">

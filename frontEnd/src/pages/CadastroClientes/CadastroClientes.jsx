@@ -507,12 +507,19 @@ const CadastroClientes = () => {
       <div className="container">
         <main className="main-content">
           <div className="colaboradores-listing-section">
-            <div className="form-header">
-              <div>
-                <h2 className="form-title">Cadastro Clientes</h2>
-                <p className="form-subtitle">
-                  Gerencie seus clientes
-                </p>
+            <div className="cadastro-listing-page-header">
+              <div className="cadastro-listing-header-content">
+                <div className="cadastro-listing-header-left">
+                  <div className="cadastro-listing-header-icon">
+                    <i className="fas fa-briefcase" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                  </div>
+                  <div>
+                    <h1 className="cadastro-listing-page-title">Cadastro Clientes</h1>
+                    <p className="cadastro-listing-page-subtitle">
+                      Gerencie seus clientes
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 

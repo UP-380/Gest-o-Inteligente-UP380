@@ -89,11 +89,11 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
         if (result.success && result.data) {
           const vinculado = result.data;
           
-          // Mapear nomes antigos das colunas para os novos (backend retorna cp_atividade, frontend espera cp_tarefa)
+          // Backend retorna cp_tarefa diretamente (nome correto da coluna no banco)
           const vinculadoMapeado = {
             ...vinculado,
-            cp_tarefa: vinculado.cp_atividade || vinculado.cp_tarefa,
-            cp_tarefa_tipo: vinculado.cp_atividade_tipo || vinculado.cp_tarefa_tipo
+            cp_tarefa: vinculado.cp_tarefa,
+            cp_tarefa_tipo: vinculado.cp_tarefa_tipo
           };
           
           // Determinar tipos primários baseados nos campos preenchidos
@@ -375,21 +375,6 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     return option ? option.label : itemId;
   };
 
-  // Criar objeto com valores booleanos para cada coluna
-  const criarDadosVinculacao = () => {
-    // Pegar os tipos únicos dos selects primários confirmados
-    const tiposSelecionados = primarySelects
-      .filter(s => s.value !== '')
-      .map(s => s.value);
-
-    // Retornar objeto com valores booleanos
-    return {
-      cp_tarefa: tiposSelecionados.includes('atividade'),
-      cp_produto: tiposSelecionados.includes('produto'),
-      cp_tarefa_tipo: tiposSelecionados.includes('tipo-tarefa'),
-      cp_cliente: tiposSelecionados.includes('cliente')
-    };
-  };
 
 
   // Criar dados para tabela vinculados (todas as combinações)
@@ -497,40 +482,9 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
     setSubmitting(true);
 
     try {
-      // 1. Salvar na tabela cp_vinculacao (valores booleanos)
-      const dadosVinculacao = criarDadosVinculacao();
-
-      const responseVinculacao = await fetch(`${API_BASE_URL}/vinculacoes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(dadosVinculacao),
-      });
-
-      if (responseVinculacao.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const contentTypeVinculacao = responseVinculacao.headers.get('content-type') || '';
-      if (!contentTypeVinculacao.includes('application/json')) {
-        const text = await responseVinculacao.text();
-        showToast('error', text || `Erro no servidor. Status: ${responseVinculacao.status}`);
-        return;
-      }
-
-      const resultVinculacao = await responseVinculacao.json();
-
-      if (!responseVinculacao.ok) {
-        const errorMsg = resultVinculacao.error || resultVinculacao.details || resultVinculacao.message || `Erro HTTP ${responseVinculacao.status}`;
-        showToast('error', errorMsg);
-        return;
-      }
-
-      // 2. Salvar na tabela vinculados (IDs selecionados - múltiplas combinações)
+      // Salvar na tabela vinculados (IDs selecionados - múltiplas combinações)
       const combinacoesVinculados = criarDadosVinculados();
+      let sucesso = false;
       
       // Verificar se há combinações para salvar
       if (combinacoesVinculados.length > 0) {
@@ -567,6 +521,7 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
             return;
           } else {
             console.log('✅ Vinculado atualizado com sucesso');
+            sucesso = true;
           }
         } else {
           // Modo criação: criar múltiplos vinculados
@@ -590,23 +545,28 @@ const VinculacaoModal = ({ isOpen, onClose, editingVinculado = null }) => {
           if (!contentTypeVinculados.includes('application/json')) {
             const text = await responseVinculados.text();
             console.error('Erro ao salvar vinculados:', text);
-            // Não bloquear se falhar, apenas logar
+            showToast('error', text || 'Erro ao salvar vinculados');
+            return;
           } else {
             const resultVinculados = await responseVinculados.json();
             
             if (!responseVinculados.ok) {
+              console.error('Erro ao salvar vinculados:', resultVinculados);
+              showToast('error', resultVinculados.error || 'Erro ao salvar vinculados');
+              return;
             } else {
+              sucesso = true;
             }
           }
         }
+      } else {
+        showToast('error', 'Nenhuma vinculação foi criada. Verifique os dados selecionados.');
+        return;
       }
 
-      if (resultVinculacao.success || editingVinculado) {
+      if (sucesso) {
         showToast('success', editingVinculado ? 'Vinculação atualizada com sucesso!' : 'Vinculação criada com sucesso!');
         handleClose(true); // Passar true indica que foi salvo com sucesso
-      } else {
-        const errorMsg = resultVinculacao.error || resultVinculacao.details || 'Erro ao salvar vinculação';
-        showToast('error', errorMsg);
       }
     } catch (error) {
       console.error('Erro ao salvar vinculação:', error);
