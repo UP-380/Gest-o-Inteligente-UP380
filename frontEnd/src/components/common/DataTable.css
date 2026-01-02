@@ -118,9 +118,124 @@
   background-color: #fee2e2;
 }
 
+/* Responsividade para mobile */
+@media (max-width: 600px) {
+  .listing-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
 
+  .listing-table thead {
+    display: none;
+  }
 
+  .listing-table tbody {
+    display: block;
+  }
 
+  .listing-table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .listing-table td {
+    display: block;
+    padding: 0.75rem;
+    text-align: right;
+    border-bottom: 1px solid #f1f5f9;
+    border-right: none !important;
+    position: relative;
+    padding-left: 50%;
+  }
+
+  .listing-table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0.75rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+  }
+
+  .listing-table td:last-child {
+    border-bottom: none;
+  }
+
+  .listing-table .actions-column {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    min-width: auto;
+    width: 100%;
+    text-align: right;
+  }
+
+  .listing-table .actions-column:before {
+    display: none;
+  }
+
+  .listing-table .actions-column button {
+    margin: 0;
+    flex: 0 0 auto;
+  }
+}
+
+/* Alternativa: scroll horizontal para tabelas em mobile */
+@media (max-width: 600px) {
+  .listing-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -0.5rem;
+    padding: 0 0.5rem;
+  }
+
+  .listing-table-wrapper .listing-table {
+    min-width: 600px;
+  }
+
+  .listing-table-wrapper .listing-table th,
+  .listing-table-wrapper .listing-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .listing-table-wrapper .listing-table .actions-column {
+    min-width: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .listing-table td {
+    padding: 0.5rem;
+    padding-left: 45%;
+    font-size: 0.8rem;
+  }
+
+  .listing-table td:before {
+    font-size: 0.7rem;
+    left: 0.5rem;
+  }
+
+  .listing-table .actions-column {
+    padding: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .listing-table .actions-column button {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+}
 
 
 

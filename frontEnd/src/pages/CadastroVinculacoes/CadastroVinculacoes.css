@@ -35,6 +35,7 @@
   position: relative;
 }
 
+.filtro-card-option input[type="radio"],
 .filtro-card-option input[type="checkbox"] {
   position: absolute;
   opacity: 0;
@@ -73,12 +74,14 @@
   transform: translateY(-2px);
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content {
   border-color: #0e3b6f;
   background: linear-gradient(135deg, rgba(14, 59, 111, 0.05) 0%, rgba(20, 69, 119, 0.03) 100%);
   box-shadow: 0 4px 12px rgba(14, 59, 111, 0.15);
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content::before,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content::before {
   transform: scaleY(1);
 }
@@ -101,11 +104,13 @@
   transition: all 0.3s ease;
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content .filtro-card-icon,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content .filtro-card-icon {
   background: linear-gradient(135deg, #0e3b6f 0%, #144577 100%);
   transform: scale(1.05);
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content .filtro-card-icon i,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content .filtro-card-icon i {
   color: white;
 }
@@ -132,6 +137,7 @@
   line-height: 1.2;
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content .filtro-card-title,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content .filtro-card-title {
   color: #0e3b6f;
 }
@@ -155,6 +161,7 @@
   color: white;
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content .filtro-card-check,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content .filtro-card-check {
   background: #0e3b6f;
   opacity: 1;
@@ -186,17 +193,20 @@
   transform: scale(1.1);
 }
 
+.filtro-card-option input[type="radio"]:checked + .filtro-card-content .filtro-card-click-indicator,
 .filtro-card-option input[type="checkbox"]:checked + .filtro-card-content .filtro-card-click-indicator {
   display: none;
 }
 
 /* Estilo para o filtro pai (primeiro filtro selecionado) - contorno laranja */
+.filtro-card-option.filtro-pai input[type="radio"]:checked + .filtro-card-content,
 .filtro-card-option.filtro-pai input[type="checkbox"]:checked + .filtro-card-content {
   border-color: #f97316;
   background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.03) 100%);
   box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
 }
 
+.filtro-card-option.filtro-pai input[type="radio"]:checked + .filtro-card-content::before,
 .filtro-card-option.filtro-pai input[type="checkbox"]:checked + .filtro-card-content::before {
   background: #f97316;
 }
@@ -206,14 +216,17 @@
   box-shadow: 0 4px 12px rgba(249, 115, 22, 0.1);
 }
 
+.filtro-card-option.filtro-pai input[type="radio"]:checked + .filtro-card-content .filtro-card-icon,
 .filtro-card-option.filtro-pai input[type="checkbox"]:checked + .filtro-card-content .filtro-card-icon {
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
 }
 
+.filtro-card-option.filtro-pai input[type="radio"]:checked + .filtro-card-content .filtro-card-title,
 .filtro-card-option.filtro-pai input[type="checkbox"]:checked + .filtro-card-content .filtro-card-title {
   color: #f97316;
 }
 
+.filtro-card-option.filtro-pai input[type="radio"]:checked + .filtro-card-content .filtro-card-check,
 .filtro-card-option.filtro-pai input[type="checkbox"]:checked + .filtro-card-content .filtro-card-check {
   background: #f97316;
 }
@@ -644,6 +657,268 @@
 .btn-edit-vinculado i,
 .btn-delete-vinculado i {
   font-size: 14px;
+}
+
+/* Seções expansíveis na visualização por produto */
+.produto-section-expandable {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.produto-section-expandable:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.produto-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  text-align: left;
+}
+
+.produto-section-header:hover {
+  background: #f1f5f9;
+}
+
+.produto-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.produto-section-header i:first-of-type {
+  color: #0e3b6f;
+  font-size: 16px;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.produto-section-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.produto-section-count {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.produto-section-header i:last-of-type {
+  color: #64748b;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.produto-section-content {
+  padding: 0 16px 16px 16px;
+}
+
+.produto-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.produto-section-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.produto-section-item:hover {
+  background: #f0f7ff;
+  border-color: #0e3b6f;
+}
+
+.produto-section-item i {
+  color: #0e3b6f;
+  font-size: 14px;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.produto-section-empty {
+  padding: 12px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+  font-style: italic;
+  margin-top: 12px;
+}
+
+/* Visualização hierárquica: Produto com Tarefas (quando filtrar por cliente) */
+.produto-com-tarefas-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.produto-com-tarefas-card:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.produto-com-tarefas-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.produto-com-tarefas-header i {
+  color: #0e3b6f;
+  font-size: 18px;
+}
+
+.produto-com-tarefas-nome {
+  flex: 1;
+}
+
+.produto-com-tarefas-count {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.produto-com-tarefas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 30px;
+  padding-left: 16px;
+  border-left: 2px solid #e2e8f0;
+}
+
+.produto-com-tarefas-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.produto-com-tarefas-item:hover {
+  background: #f0f7ff;
+  border-color: #0e3b6f;
+}
+
+.produto-com-tarefas-item.tarefa-padrao {
+  opacity: 0.7;
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+}
+
+.produto-com-tarefas-item.tarefa-padrao:hover {
+  opacity: 1;
+  background: #fef3c7;
+}
+
+.tarefa-padrao-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: #f59e0b;
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.produto-com-tarefas-item i {
+  color: #0e3b6f;
+  font-size: 14px;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.produto-com-tarefas-empty {
+  padding: 12px;
+  margin-left: 30px;
+  padding-left: 16px;
+  text-align: left;
+  color: #94a3b8;
+  font-size: 14px;
+  font-style: italic;
+  border-left: 2px solid #e2e8f0;
+}
+
+/* Visualização hierárquica: Tipo de Tarefa com Tarefas (dentro de Produto ou Cliente) */
+.tipo-tarefa-section {
+  margin-bottom: 12px;
+  padding-left: 16px;
+  border-left: 2px solid #cbd5e1;
+}
+
+.tipo-tarefa-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #475569;
+  font-size: 14px;
+}
+
+.tipo-tarefa-header i {
+  color: #8b5cf6;
+  font-size: 14px;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.tipo-tarefa-nome {
+  flex: 1;
+  color: #475569;
+}
+
+.tipo-tarefa-count {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.tipo-tarefa-tarefas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 26px;
+  padding-left: 12px;
+  border-left: 2px solid #e2e8f0;
 }
 
 /* Paginação */

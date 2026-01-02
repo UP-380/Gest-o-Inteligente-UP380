@@ -4,37 +4,39 @@
 
 /* Header da Página */
 .conteudos-clientes-header {
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 30px;
+}
+
+.conteudos-clientes-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
 }
 
 .conteudos-clientes-header-left {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 20px;
   flex: 1;
 }
 
 .conteudos-clientes-header-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 20px;
+  width: 56px;
+  height: 56px;
+  background: #e6f0ff;
+  border-radius: 12px;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .conteudos-clientes-title {
   font-size: 28px;
   font-weight: 600;
   color: #1e293b;
-  margin: 0 0 6px 0;
+  margin: 0 0 8px 0;
   line-height: 1.2;
 }
 
@@ -42,7 +44,7 @@
   font-size: 14px;
   color: #64748b;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 /* Grid de Cards */

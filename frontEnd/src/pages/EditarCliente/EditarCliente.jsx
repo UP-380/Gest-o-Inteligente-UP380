@@ -381,18 +381,28 @@ const EditarCliente = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary knowledge-back-btn"
-                    onClick={() => navigate(-1)}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary knowledge-back-btn"
+                      onClick={() => navigate(-1)}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="editar-cliente-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
-              <form onSubmit={handleSubmit}>
+              <form id="editar-cliente-form" onSubmit={handleSubmit}>
                 {/* Seção de Foto de Perfil */}
                 <div className="editar-cliente-form-section">
                   <div className="section-header">
@@ -573,31 +583,6 @@ const EditarCliente = () => {
                       <i className="fas fa-credit-card"></i>
                       Adquirentes
                     </button>
-                  </div>
-
-                  {/* Botões de ação principais */}
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => {
-                        navigate(-1);
-                      }}
-                      disabled={submitting}
-                      style={{
-                        padding: '10px 20px',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <ButtonPrimary
-                      type="submit"
-                      disabled={submitting}
-                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                    >
-                      {submitting ? 'Salvando...' : 'Salvar'}
-                    </ButtonPrimary>
                   </div>
                 </div>
               </form>

@@ -145,7 +145,15 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
           conta: result.data.conta || '',
           operador: result.data.operador || '',
           usuario: result.data.usuario || '',
-          senha: result.data.senha || ''
+          senha: result.data.senha || '',
+          status_cadastro: result.data.status_cadastro || '',
+          status_acesso: result.data.status_acesso || '',
+          observacoes: result.data.observacoes || '',
+          chave_acesso: result.data.chave_acesso || '',
+          senha_4digitos: result.data.senha_4digitos || '',
+          senha_6digitos: result.data.senha_6digitos || '',
+          senha_8digitos: result.data.senha_8digitos || '',
+          link_acesso: result.data.link_acesso || ''
         });
         setEditingId(id);
         setShowForm(true);
@@ -172,15 +180,34 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
     setFormErrors({});
 
     try {
+      // Função auxiliar para limpar campos vazios
+      const cleanValue = (value) => {
+        if (value === undefined || value === null || value === '') {
+          return null;
+        }
+        const trimmed = String(value).trim();
+        return trimmed === '' ? null : trimmed;
+      };
+
       const payload = {
         cliente_id: clienteId,
         banco_id: formData.banco_id,
-        agencia: formData.agencia || null,
-        conta: formData.conta || null,
-        operador: formData.operador || null,
-        usuario: formData.usuario || null,
-        senha: formData.senha || null
+        agencia: cleanValue(formData.agencia),
+        conta: cleanValue(formData.conta),
+        operador: cleanValue(formData.operador),
+        usuario: cleanValue(formData.usuario),
+        senha: cleanValue(formData.senha),
+        status_cadastro: cleanValue(formData.status_cadastro),
+        status_acesso: cleanValue(formData.status_acesso),
+        observacoes: cleanValue(formData.observacoes),
+        chave_acesso: cleanValue(formData.chave_acesso),
+        senha_4digitos: cleanValue(formData.senha_4digitos),
+        senha_6digitos: cleanValue(formData.senha_6digitos),
+        senha_8digitos: cleanValue(formData.senha_8digitos),
+        link_acesso: cleanValue(formData.link_acesso)
       };
+
+      console.log('📤 Enviando payload:', { ...payload, senha: payload.senha ? '***' : null });
 
       const url = editingId 
         ? `${API_BASE_URL}/clientes-contas-bancarias/${editingId}`
@@ -203,9 +230,11 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       }
 
       const result = await response.json();
+      console.log('📥 Resposta do servidor:', result);
 
       if (!response.ok) {
         const errorMsg = result.error || result.details || `Erro HTTP ${response.status}`;
+        console.error('❌ Erro na resposta:', { status: response.status, error: errorMsg, result });
         showToast('error', errorMsg);
         return;
       }
@@ -221,10 +250,11 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
         await loadContas();
       } else {
         const errorMsg = result.error || result.details || 'Erro ao salvar conta bancária';
+        console.error('❌ Erro ao salvar:', errorMsg);
         showToast('error', errorMsg);
       }
     } catch (error) {
-      console.error('Erro ao salvar conta bancária:', error);
+      console.error('❌ Erro ao salvar conta bancária:', error);
       showToast('error', error.message || 'Erro ao salvar conta bancária. Verifique sua conexão e tente novamente.');
     } finally {
       setSubmitting(false);
@@ -275,7 +305,17 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       banco_id: '',
       agencia: '',
       conta: '',
-      tipo_conta: ''
+      operador: '',
+      usuario: '',
+      senha: '',
+      status_cadastro: '',
+      status_acesso: '',
+      observacoes: '',
+      chave_acesso: '',
+      senha_4digitos: '',
+      senha_6digitos: '',
+      senha_8digitos: '',
+      link_acesso: ''
     });
     setEditingId(null);
     setShowForm(false);

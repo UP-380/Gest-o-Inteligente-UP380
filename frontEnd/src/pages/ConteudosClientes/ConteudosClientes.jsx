@@ -38,6 +38,11 @@ const ConteudosClientes = () => {
   // Estados do DetailSideCard
   const [detailCard, setDetailCard] = useState(null); // { clienteId, tipo, dados }
   const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
+  
+  // Estados para validação de ícones (quais clientes têm dados)
+  const [clientesComContas, setClientesComContas] = useState(new Set()); // IDs de clientes que têm contas bancárias
+  const [clientesComSistemas, setClientesComSistemas] = useState(new Set()); // IDs de clientes que têm sistemas
+  const [clientesComAdquirentes, setClientesComAdquirentes] = useState(new Set()); // IDs de clientes que têm adquirentes
 
   // Carregar clientes para o filtro - buscar baseado no status selecionado
   const loadClientesParaFiltro = useCallback(async (statusFiltro = null) => {
@@ -160,6 +165,9 @@ const ConteudosClientes = () => {
         // USAR DADOS DIRETAMENTE DO GETCLIENTES (sem buscar individualmente)
         console.log('📦 Usando dados do getClientes:', clientesData);
         setClientes(clientesData);
+        
+        // Validar quais clientes têm dados (contas, sistemas, adquirentes)
+        validarDadosClientes(clientesData);
       } else {
         throw new Error(result.error || 'Erro ao carregar clientes');
       }
@@ -208,6 +216,42 @@ const ConteudosClientes = () => {
       return null;
     }
   }, [showToast]);
+
+  // Validar quais clientes têm dados (contas, sistemas, adquirentes)
+  const validarDadosClientes = useCallback(async (clientesList) => {
+    if (!clientesList || clientesList.length === 0) return;
+    
+    const contasSet = new Set();
+    const sistemasSet = new Set();
+    const adquirentesSet = new Set();
+    
+    // Validar em paralelo para todos os clientes
+    const validacoes = clientesList.map(async (cliente) => {
+      try {
+        // Usar loadDadosParaCard com qualquer tipo (todos retornam os mesmos dados completos)
+        const dados = await loadDadosParaCard(cliente.id, 'contas-bancarias');
+        if (dados) {
+          if (dados.contasBancarias && dados.contasBancarias.length > 0) {
+            contasSet.add(cliente.id);
+          }
+          if (dados.sistemas && dados.sistemas.length > 0) {
+            sistemasSet.add(cliente.id);
+          }
+          if (dados.adquirentes && dados.adquirentes.length > 0) {
+            adquirentesSet.add(cliente.id);
+          }
+        }
+      } catch (error) {
+        console.error(`Erro ao validar dados do cliente ${cliente.id}:`, error);
+      }
+    });
+    
+    await Promise.all(validacoes);
+    
+    setClientesComContas(contasSet);
+    setClientesComSistemas(sistemasSet);
+    setClientesComAdquirentes(adquirentesSet);
+  }, [loadDadosParaCard]);
 
   // Abrir DetailSideCard
   const handleOpenContas = async (cliente, e) => {
@@ -322,15 +366,20 @@ const ConteudosClientes = () => {
     const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconHoverColor = isAtivo ? '#144577' : '#f97316';
     
-    // Todos os ícones sempre usam a cor normal (sem validações de completude para otimização)
-    const contaIconColor = iconColor;
-    const sistemaIconColor = iconColor;
-    const adquirenteIconColor = iconColor;
+    // Validar se cliente tem dados para habilitar/desabilitar ícones
+    const temContas = clientesComContas.has(cliente.id);
+    const temSistemas = clientesComSistemas.has(cliente.id);
+    const temAdquirentes = clientesComAdquirentes.has(cliente.id);
     
-    // Botões sempre habilitados (sem validações)
-    const contaDisabled = false;
-    const sistemaDisabled = false;
-    const adquirenteDisabled = false;
+    // Cores dos ícones (desabilitado = cinza)
+    const contaIconColor = temContas ? iconColor : '#d1d5db';
+    const sistemaIconColor = temSistemas ? iconColor : '#d1d5db';
+    const adquirenteIconColor = temAdquirentes ? iconColor : '#d1d5db';
+    
+    // Botões desabilitados se não houver dados
+    const contaDisabled = !temContas;
+    const sistemaDisabled = !temSistemas;
+    const adquirenteDisabled = !temAdquirentes;
 
     // Sempre mostrar razão social se existir (mesmo que seja igual ao nome de exibição)
     // Isso é importante para casos onde todos os campos são iguais mas queremos mostrar a informação completa
@@ -542,17 +591,19 @@ const ConteudosClientes = () => {
             <div className="conteudos-clientes-container">
               {/* Header */}
               <div className="conteudos-clientes-header">
-                <div className="conteudos-clientes-header-left">
-                  <div className="conteudos-clientes-header-icon">
-                    <i className="fas fa-briefcase"></i>
-                  </div>
-                  <div>
-                    <h2 className="conteudos-clientes-title">
-                      Base de Conhecimento - Clientes
-                    </h2>
-                    <p className="conteudos-clientes-subtitle">
-                      Selecione um cliente para visualizar suas informações consolidadas
-                    </p>
+                <div className="conteudos-clientes-header-content">
+                  <div className="conteudos-clientes-header-left">
+                    <div className="conteudos-clientes-header-icon">
+                      <i className="fas fa-briefcase" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                    </div>
+                    <div>
+                      <h1 className="conteudos-clientes-title">
+                        Conteúdos dos Clientes
+                      </h1>
+                      <p className="conteudos-clientes-subtitle">
+                        Selecione um cliente para visualizar suas informações consolidadas
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

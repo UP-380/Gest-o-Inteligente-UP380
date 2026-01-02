@@ -20,6 +20,7 @@ const ClienteSistemaModal = ({
   const [sistemasList, setSistemasList] = useState(sistemas);
   const [showSenhaVpn, setShowSenhaVpn] = useState(false);
   const [showSenhaSistema, setShowSenhaSistema] = useState(false);
+  const [showSenhaServidor, setShowSenhaServidor] = useState(false);
 
   // Carregar sistemas se não foram fornecidos
   useEffect(() => {
@@ -224,7 +225,7 @@ const ClienteSistemaModal = ({
                 </h4>
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Servidor
@@ -305,6 +306,75 @@ const ClienteSistemaModal = ({
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario_servidor}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Senha do Servidor
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showSenhaServidor ? 'text' : 'password'}
+                      className={`form-input ${formErrors.senha_servidor ? 'error' : ''}`}
+                      value={formData.senha_servidor || ''}
+                      onChange={handleFieldChange('senha_servidor')}
+                      placeholder="Digite a senha"
+                      disabled={submitting}
+                      style={{
+                        width: '100%',
+                        padding: '9px 40px 9px 12px',
+                        fontSize: '14px',
+                        border: formErrors.senha_servidor ? '2px solid #ef4444' : '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        transition: 'border-color 0.2s',
+                        backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSenhaServidor(!showSenhaServidor)}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#6b7280',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.color = '#374151'}
+                      onMouseLeave={(e) => e.target.style.color = '#6b7280'}
+                      title={showSenhaServidor ? 'Ocultar senha' : 'Mostrar senha'}
+                    >
+                      <i className={`fas ${showSenhaServidor ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                    </button>
+                  </div>
+                  {formErrors.senha_servidor && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.senha_servidor}
                     </span>
                   )}
                 </div>
@@ -610,6 +680,115 @@ const ClienteSistemaModal = ({
                     </span>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Campos de Acesso e Informações Adicionais */}
+            <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
+                <div style={{ 
+                  width: '4px', 
+                  height: '20px', 
+                  backgroundColor: '#6b7280', 
+                  borderRadius: '2px',
+                  marginRight: '12px'
+                }}></div>
+                <h4 style={{ fontSize: '15px', fontWeight: '600', margin: 0, color: '#1f2937' }}>
+                  <i className="fas fa-info-circle" style={{ marginRight: '8px', color: '#6b7280' }}></i>
+                  Informações Adicionais
+                </h4>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '14px' }}>
+                {/* Link de Acesso */}
+                <div>
+                  <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                    Link de Acesso
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: '#9ca3af', 
+                      marginLeft: '4px',
+                      fontWeight: 'normal'
+                    }}>
+                      (Opcional)
+                    </span>
+                  </label>
+                  <input
+                    type="url"
+                    className={`form-input ${formErrors.link_acesso ? 'error' : ''}`}
+                    value={formData.link_acesso || ''}
+                    onChange={handleFieldChange('link_acesso')}
+                    placeholder="https://sistema.com.br"
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.link_acesso ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff'
+                    }}
+                    maxLength={500}
+                  />
+                  {formErrors.link_acesso && (
+                    <span className="error-message" style={{ 
+                      color: '#ef4444', 
+                      fontSize: '11px', 
+                      marginTop: '3px', 
+                      display: 'block' 
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                      {formErrors.link_acesso}
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {/* Observações */}
+              <div style={{ marginBottom: '0' }}>
+                <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
+                  Observações
+                  <span style={{ 
+                    fontSize: '11px', 
+                    color: '#9ca3af', 
+                    marginLeft: '4px',
+                    fontWeight: 'normal'
+                  }}>
+                    (Opcional)
+                  </span>
+                </label>
+                <textarea
+                  className={`form-input ${formErrors.observacoes ? 'error' : ''}`}
+                  value={formData.observacoes || ''}
+                  onChange={handleFieldChange('observacoes')}
+                  placeholder="Informações adicionais sobre o sistema..."
+                  disabled={submitting}
+                  rows="3"
+                  style={{ 
+                    resize: 'vertical', 
+                    minHeight: '80px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    fontSize: '14px',
+                    border: formErrors.observacoes ? '2px solid #ef4444' : '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    transition: 'border-color 0.2s',
+                    backgroundColor: submitting ? '#f3f4f6' : '#fff',
+                    fontFamily: 'inherit'
+                  }}
+                ></textarea>
+                {formErrors.observacoes && (
+                  <span className="error-message" style={{ 
+                    color: '#ef4444', 
+                    fontSize: '11px', 
+                    marginTop: '3px', 
+                    display: 'block' 
+                  }}>
+                    <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
+                    {formErrors.observacoes}
+                  </span>
+                )}
               </div>
             </div>
           </form>

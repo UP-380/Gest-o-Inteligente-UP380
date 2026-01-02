@@ -215,20 +215,30 @@ const CadastroAdquirenteIndividual = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary cadastro-adquirente-back-btn"
-                    onClick={() => navigate(-1)}
-                    disabled={submitting}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary cadastro-adquirente-back-btn"
+                      onClick={() => navigate(-1)}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="adquirente-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
               <div className="cadastro-adquirente-form-section">
-                <form onSubmit={handleSubmit}>
+                <form id="adquirente-form" onSubmit={handleSubmit}>
                   <AdquirenteForm
                     formData={formData}
                     setFormData={setFormData}
@@ -236,19 +246,6 @@ const CadastroAdquirenteIndividual = () => {
                     setFormErrors={setFormErrors}
                     submitting={submitting}
                   />
-
-                  {/* Botões de ação */}
-                  <div className="cadastro-adquirente-actions">
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <ButtonPrimary
-                        type="submit"
-                        disabled={submitting}
-                        icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                      >
-                        {submitting ? 'Salvando...' : 'Salvar'}
-                      </ButtonPrimary>
-                    </div>
-                  </div>
                 </form>
               </div>
             </CardContainer>

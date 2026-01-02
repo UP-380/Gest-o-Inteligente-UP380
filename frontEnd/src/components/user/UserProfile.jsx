@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../services/api';
 import Avatar from './Avatar';
-import TimerAtivo from './TimerAtivo';
 import './UserProfile.css';
 
 const UserProfile = () => {
@@ -13,23 +12,7 @@ const UserProfile = () => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarImagePath, setAvatarImagePath] = useState(null);
   const menuRef = useRef(null);
-
-  // Fechar menu ao clicar fora
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isMenuOpen]);
+  const buttonRef = useRef(null);
 
   // Obter dados do usuário do localStorage ou do contexto
   const getUserData = () => {
@@ -93,43 +76,42 @@ const UserProfile = () => {
   };
 
   return (
-    <div className="user-profile-container" ref={menuRef}>
-      {/* Timer ativo ao lado do avatar */}
-      <TimerAtivo />
-      
-      <button
-        className="user-profile-button"
+    <div 
+      className={`user-profile-container ${isMenuOpen ? 'menu-open' : ''}`}
+      ref={menuRef}
+    >
+      {/* Header do perfil sempre visível */}
+      <div 
+        className="user-profile-menu-header"
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        aria-label="Menu do usuário"
-        aria-expanded={isMenuOpen}
+        style={{ cursor: 'pointer' }}
       >
-        <Avatar
-          avatarId={userData.foto_perfil}
-          nomeUsuario={getDisplayName()}
-          size="normal"
-        />
-      </button>
-
+        <div 
+          className="user-avatar-clickable"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAvatarClick(e);
+          }}
+          style={{ cursor: avatarImagePath ? 'pointer' : 'default' }}
+        >
+          <Avatar
+            avatarId={userData.foto_perfil}
+            nomeUsuario={getDisplayName()}
+            size="menu"
+          />
+        </div>
+        <div className="user-info">
+          <div className="user-name">{getDisplayName()}</div>
+          <div className="user-email">{userData.email_usuario || ''}</div>
+        </div>
+        <i 
+          className={`fas fa-chevron-down user-profile-chevron ${isMenuOpen ? 'expanded' : ''}`}
+        ></i>
+      </div>
+      
+      {/* Menu de ações (expandido ao clicar) */}
       {isMenuOpen && (
-        <div className="user-profile-menu">
-          <div className="user-profile-menu-header">
-            <div 
-              className="user-avatar-clickable"
-              onClick={handleAvatarClick}
-              style={{ cursor: avatarImagePath ? 'pointer' : 'default' }}
-            >
-              <Avatar
-                avatarId={userData.foto_perfil}
-                nomeUsuario={getDisplayName()}
-                size="menu"
-              />
-            </div>
-            <div className="user-info">
-              <div className="user-name">{getDisplayName()}</div>
-              <div className="user-email">{userData.email_usuario || ''}</div>
-            </div>
-          </div>
-          
+        <div className="user-profile-menu-expanded">
           <div className="user-profile-menu-divider"></div>
           
           <button

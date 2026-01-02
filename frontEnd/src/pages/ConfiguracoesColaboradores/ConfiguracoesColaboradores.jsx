@@ -1728,13 +1728,18 @@ const GestaoColaboradores = () => {
         <main className="main-content">
           <CardContainer>
             <div className="colaboradores-listing-section">
-          <div className="form-header">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <div>
-                <h2 className="form-title">Cadastro Colaboradores</h2>
-                <p className="form-subtitle">
-                  Gerencie os colaboradores do sistema
-                </p>
+          <div className="cadastro-listing-page-header">
+            <div className="cadastro-listing-header-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <div className="cadastro-listing-header-left">
+                <div className="cadastro-listing-header-icon">
+                  <i className="fas fa-user-cog" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                </div>
+                <div>
+                  <h1 className="cadastro-listing-page-title">Cadastro Colaboradores</h1>
+                  <p className="cadastro-listing-page-subtitle">
+                    Gerencie os colaboradores do sistema
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => navigate('/configuracoes/custo-colaborador')}

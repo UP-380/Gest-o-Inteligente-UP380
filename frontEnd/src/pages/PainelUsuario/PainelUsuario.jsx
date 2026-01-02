@@ -5,7 +5,6 @@ import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { colaboradoresAPI } from '../../services/api';
 import ClienteTempoInfo from './components/ClienteTempoInfo';
-import PageHeader from '../../components/common/PageHeader';
 import Avatar from '../../components/user/Avatar';
 import IconButton from '../../components/common/IconButton';
 import DetailSideCard from '../../components/clients/DetailSideCard';
@@ -3963,10 +3962,21 @@ const PainelUsuario = () => {
       <div className="container">
         <main className="main-content">
           <div className="painel-usuario-content-section">
-            <PageHeader 
-              title="Minhas Tarefas"
-              subtitle="Visualize suas tarefas atribuídas"
-            />
+            <div className="painel-usuario-page-header">
+              <div className="painel-usuario-header-content">
+                <div className="painel-usuario-header-left">
+                  <div className="painel-usuario-header-icon">
+                    <i className="fas fa-th-large" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                  </div>
+                  <div>
+                    <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>
+                    <p className="painel-usuario-page-subtitle">
+                      Visualize suas tarefas atribuídas
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Container das tarefas */}
             <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container"></div>

@@ -228,20 +228,30 @@ const CadastroBancoIndividual = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary cadastro-banco-back-btn"
-                    onClick={() => navigate(-1)}
-                    disabled={submitting}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary cadastro-banco-back-btn"
+                      onClick={() => navigate(-1)}
+                      disabled={submitting}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="banco-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
               <div className="editar-cliente-form-section">
-                <form onSubmit={handleSubmit}>
+                <form id="banco-form" onSubmit={handleSubmit}>
                   <BancoForm
                     formData={formData}
                     setFormData={setFormData}
@@ -249,19 +259,6 @@ const CadastroBancoIndividual = () => {
                     setFormErrors={setFormErrors}
                     submitting={submitting}
                   />
-
-                  {/* Botões de ação */}
-                  <div className="editar-cliente-actions">
-                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <ButtonPrimary
-                        type="submit"
-                        disabled={submitting}
-                        icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                      >
-                        {submitting ? 'Salvando...' : 'Salvar'}
-                      </ButtonPrimary>
-                    </div>
-                  </div>
                 </form>
               </div>
             </CardContainer>

@@ -19,6 +19,51 @@
   contain: layout style;
 }
 
+/* Header da Página */
+.painel-usuario-page-header {
+  margin-bottom: 30px;
+}
+
+.painel-usuario-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.painel-usuario-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex: 1;
+}
+
+.painel-usuario-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #e6f0ff;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.painel-usuario-page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.painel-usuario-page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* Garantir que elementos filhos não ultrapassem os limites */
 .painel-usuario-content-section > * {
   max-width: 100%;

@@ -2397,21 +2397,21 @@ input[type="number"].form-input-small::-webkit-inner-spin-button {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #28A745 0%, #20C997 100%);
-    color: white;
-    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+    background: #0e3b6f !important;
+    color: white !important;
+    box-shadow: 0 2px 4px rgba(14, 59, 111, 0.2);
     border: none;
 }
 
 .btn-primary:hover {
-    background: linear-gradient(135deg, #28A745 0%, #20C997 100%);
+    background: #144577 !important;
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+    box-shadow: 0 4px 8px rgba(14, 59, 111, 0.3);
 }
 
 .btn-primary:active {
     transform: translateY(0);
-    background: linear-gradient(135deg, #20C997 0%, #138496 100%);
+    background: #0a2d52 !important;
 }
 
 .btn-secondary {
@@ -3857,13 +3857,13 @@ input[type="number"].form-input-small::-webkit-inner-spin-button {
     border: none;
 }
 
-.btn-primary {
-    background: linear-gradient(135deg, #0e3b6f, #144577);
+.client-card-actions .btn-primary {
+    background: #0e3b6f;
     color: white;
 }
 
-.btn-primary:hover {
-    background: linear-gradient(135deg, #144577, #1a5085);
+.client-card-actions .btn-primary:hover {
+    background: #144577;
     transform: translateY(-1px);
 }
 

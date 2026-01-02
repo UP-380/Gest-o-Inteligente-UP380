@@ -2241,11 +2241,20 @@ const DelegarTarefas = () => {
       <div className="container">
         <main className="main-content">
           <div className="vinculacoes-listing-section">
-            <div className="form-header">
-              <h2 className="form-title">Atribuir Responsáveis</h2>
-              <p className="form-subtitle">
-                Defina quais colaboradores serão responsáveis por quais tarefas, em quais períodos e com qual tempo estimado diário.
-              </p>
+            <div className="gestao-capacidade-page-header">
+              <div className="gestao-capacidade-header-content">
+                <div className="gestao-capacidade-header-left">
+                  <div className="gestao-capacidade-header-icon">
+                    <i className="fas fa-user-check" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                  </div>
+                  <div>
+                    <h1 className="gestao-capacidade-page-title">Gestão de Capacidade</h1>
+                    <p className="gestao-capacidade-page-subtitle">
+                      Defina quais colaboradores serão responsáveis por quais tarefas, em quais períodos e com qual tempo estimado diário.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="listing-controls">

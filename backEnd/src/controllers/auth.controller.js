@@ -126,11 +126,8 @@ async function login(req, res) {
       id: usuario.id,
       email_usuario: usuario.email_usuario,
       nome_usuario: usuario.nome_usuario,
-      foto_perfil: usuario.foto_perfil || null,
-      foto_perfil_path: fotoPerfilCompleto !== usuario.foto_perfil ? fotoPerfilCompleto : null,
+      foto_perfil: fotoPerfilUrl || null, // URL resolvida usando metadados
       permissoes: usuario.permissoes !== undefined ? usuario.permissoes : null
-=======
-      foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
     };
 
     // Salvar sessão explicitamente para garantir que o cookie seja definido
@@ -146,12 +143,6 @@ async function login(req, res) {
       // Retornar dados do usuário (sem a senha) com foto_perfil resolvida
       const { senha_login: _, ...usuarioSemSenha } = usuario;
 
-      
-      // Adicionar caminho completo se for customizado
-      if (fotoPerfilCompleto !== usuario.foto_perfil) {
-        usuarioSemSenha.foto_perfil_path = fotoPerfilCompleto;
-      }
-      
       // Garantir que permissoes esteja presente
       if (!usuarioSemSenha.permissoes) {
         usuarioSemSenha.permissoes = null;
@@ -272,10 +263,8 @@ async function checkAuth(req, res) {
           id: usuarioAtualizado.id,
           email_usuario: usuarioAtualizado.email_usuario,
           nome_usuario: usuarioAtualizado.nome_usuario,
-          foto_perfil: usuarioAtualizado.foto_perfil || null,
-          foto_perfil_path: fotoPerfilCompleto !== usuarioAtualizado.foto_perfil ? fotoPerfilCompleto : null,
+          foto_perfil: fotoPerfilUrl || null, // URL resolvida usando metadados
           permissoes: usuarioAtualizado.permissoes !== undefined ? usuarioAtualizado.permissoes : null
-          foto_perfil: fotoPerfilUrl || null // URL resolvida usando metadados
         };
       }
 
