@@ -2763,6 +2763,7 @@ const PainelUsuario = () => {
                   <div class="painel-usuario-tarefa-item-lista-left">
                     <div class="painel-usuario-tarefa-nome">
                       ${getNomeTarefa(reg.tarefa_id, reg)}
+                      ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
                     </div>
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
@@ -3099,6 +3100,7 @@ const PainelUsuario = () => {
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
                 ${getNomeTarefa(reg.tarefa_id, reg)}
+                ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
               </div>
               <div style="display: flex; gap: 6px; align-items: center;">
               <button

@@ -53,13 +53,26 @@ const TarefasDetalhadasList = ({
     );
   }
 
+  // Função para verificar se uma string é um UUID (ID)
+  const isUUID = (str) => {
+    if (!str || typeof str !== 'string') return false;
+    // Padrão UUID: 8-4-4-4-12 caracteres hexadecimais
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidPattern.test(str);
+  };
+
   // Agrupar tarefas por cliente
   const tarefasPorCliente = new Map();
   tarefas.forEach(tarefa => {
     const clienteId = tarefa.clienteId || 'sem-cliente';
-    const clienteNome = tarefa.clienteId && getNomeCliente 
+    let clienteNome = tarefa.clienteId && getNomeCliente 
       ? getNomeCliente(tarefa.clienteId) 
       : 'Sem Cliente';
+    
+    // Se o clienteNome for um UUID (ID), usar o nome da tarefa ao invés
+    if (isUUID(clienteNome)) {
+      clienteNome = tarefa.nome || 'Sem Cliente';
+    }
     
     if (!tarefasPorCliente.has(clienteId)) {
       tarefasPorCliente.set(clienteId, {
@@ -70,6 +83,16 @@ const TarefasDetalhadasList = ({
     }
     
     tarefasPorCliente.get(clienteId).tarefas.push(tarefa);
+  });
+  
+  // Ajustar clienteNome para usar nome da tarefa se ainda for ID ou "Sem Cliente"
+  tarefasPorCliente.forEach((grupo) => {
+    if (grupo.clienteNome === 'Sem Cliente' || isUUID(grupo.clienteNome)) {
+      // Usar o nome da primeira tarefa do grupo
+      if (grupo.tarefas.length > 0 && grupo.tarefas[0].nome) {
+        grupo.clienteNome = grupo.tarefas[0].nome;
+      }
+    }
   });
 
   return (

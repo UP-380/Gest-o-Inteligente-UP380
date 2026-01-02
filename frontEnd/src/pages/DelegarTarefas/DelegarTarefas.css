@@ -1088,17 +1088,19 @@
 
 .tempo-disponivel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); /* Reduzido de 290px para 260px */
+  grid-template-columns: repeat(auto-fill, 290px); /* Tamanho fixo de 290px (tamanho perfeito quando há 4 colunas) */
   gap: 14px; /* Aumentado de 8.4px para 14px para mais espaçamento entre dashboards */
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
+  justify-content: start; /* Alinhar cards à esquerda */
 }
 
 @media (min-width: 1200px) {
   .tempo-disponivel-grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); /* Mudado para auto-fit com minmax */
+    grid-template-columns: repeat(auto-fill, 290px); /* Tamanho fixo de 290px */
     max-width: 100%;
+    justify-content: start; /* Alinhar cards à esquerda */
   }
 }
 
@@ -1198,6 +1200,7 @@
   color: #475569;
   padding: 4px 0;
   position: relative;
+  padding-right: 28px; /* Espaço reservado para a setinha alinhada */
 }
 
 .tempo-disponivel-stat-item i {
@@ -1207,11 +1210,11 @@
   flex-shrink: 0;
 }
 
-.tempo-disponivel-stat-item span {
+.tempo-disponivel-stat-item span:not(.resumo-arrow) {
   color: #334155;
   font-weight: 500;
   line-height: 1.2;
-  flex: 1;
+  flex: 0 1 auto; /* Não expandir, apenas ocupar o espaço necessário */
 }
 
 /* Seta de ver detalhes */
@@ -1222,6 +1225,45 @@
   margin-left: auto;
   /* SEM padding aqui - o padding fica apenas no elemento âncora */
   user-select: none;
+}
+
+/* Estilo específico para produtos-arrow - área clicável limitada como na referência */
+.resumo-arrow.produtos-arrow {
+  display: inline-block;
+  margin-left: 8px; /* Espaçamento menor entre o texto e a setinha */
+  margin-right: 0; /* Sem margem à direita */
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+  width: auto;
+  min-width: 20px;
+  max-width: 20px;
+  flex-shrink: 0; /* Não encolher */
+  position: relative; /* Para não ser afetado pelo flex do pai */
+}
+
+/* Quando produtos-arrow está dentro de tempo-disponivel-stat-item, alinhar à direita */
+.tempo-disponivel-stat-item .resumo-arrow.produtos-arrow {
+  position: absolute !important;
+  right: 0 !important; /* Alinhar todas as setinhas na mesma posição */
+  top: 50% !important; /* Centralizar verticalmente */
+  transform: translateY(-50%) !important; /* Centralizar verticalmente */
+  margin-left: 0 !important; /* Remover margem esquerda */
+  margin-right: 0 !important; /* Remover margem direita */
+  display: inline-block !important;
+}
+
+.resumo-arrow.produtos-arrow:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.resumo-arrow.produtos-arrow .resumo-arrow-anchor {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  padding: 0;
+  color: inherit;
 }
 
 .resumo-arrow-anchor {
@@ -1241,6 +1283,12 @@
 .resumo-arrow:hover .resumo-arrow-anchor {
   color: #0c2f5a;
   transform: translateX(2px);
+}
+
+/* Remover hover do anchor quando estiver dentro de produtos-arrow */
+.resumo-arrow.produtos-arrow:hover .resumo-arrow-anchor {
+  color: inherit;
+  transform: none;
 }
 
 .resumo-arrow-placeholder {

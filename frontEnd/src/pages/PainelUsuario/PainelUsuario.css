@@ -175,6 +175,13 @@
   line-height: 1.35;
 }
 
+.painel-usuario-tarefa-produto {
+  font-weight: 500;
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 4px;
+}
+
 .painel-usuario-play-btn {
   border: none;
   background: #ef4444; /* invertido: fundo vermelho */

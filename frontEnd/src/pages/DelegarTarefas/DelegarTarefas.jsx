@@ -230,8 +230,27 @@ const DelegarTarefas = () => {
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
       
+      // Tamanho do card
+      const cardWidth = 500;
+      
+      // Tentar posicionar à direita do botão (comportamento padrão)
+      let calculatedLeft = documentLeft + rect.width + 20;
+      
+      const vw = window.innerWidth;
+      
+      // Se não cabe à direita (card na última coluna), posicionar à esquerda
+      if ((calculatedLeft - scrollLeft) + cardWidth > vw - 20) {
+        calculatedLeft = documentLeft - cardWidth - 20;
+      }
+      
+      // Garantir que não saia da tela à esquerda
+      if ((calculatedLeft - scrollLeft) < 20) {
+        calculatedLeft = scrollLeft + 20;
+      }
+      
+      // Manter a altura original (sem ajustes verticais)
       setDetailCardPosition({
-        left: documentLeft + rect.width + 20,
+        left: calculatedLeft,
         top: documentTop
       });
     }
@@ -645,7 +664,14 @@ const DelegarTarefas = () => {
   const loadClientes = async () => {
     setLoading(true);
     try {
-      const clientesResult = await clientesAPI.getAll(null, false);
+      // Buscar todos os clientes com limite alto para garantir que todos sejam retornados
+      const clientesResult = await clientesAPI.getPaginated({ 
+        page: 1, 
+        limit: 10000, 
+        search: null, 
+        status: null, 
+        incompletos: false 
+      });
       if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
         const clientesComDados = clientesResult.data.map(cliente => ({
           id: cliente.id,
@@ -3275,8 +3301,45 @@ const DelegarTarefas = () => {
                             fotoPerfil = primeiroRegistro.responsavel_foto_perfil;
                             // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
                           } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-                            entidadeId = primeiroRegistro.cliente_id;
-                            nomeEntidade = getNomeCliente(entidadeId);
+                            // cliente_id pode conter múltiplos IDs separados por vírgula
+                            // Processar cada ID separadamente
+                            const clienteIds = String(primeiroRegistro.cliente_id)
+                              .split(',')
+                              .map(id => id.trim())
+                              .filter(id => id.length > 0);
+                            
+                            // Processar cada cliente ID separadamente
+                            clienteIds.forEach(clienteId => {
+                              const entidadeKey = String(clienteId);
+                              if (!entidadesDosRegistros.has(entidadeKey)) {
+                                entidadesDosRegistros.set(entidadeKey, {
+                                  id: clienteId,
+                                  nome: getNomeCliente(clienteId),
+                                  fotoPerfil: null,
+                                  fotoPerfilPath: null,
+                                  registros: []
+                                });
+                              }
+                              
+                              // Adicionar todos os registros deste agrupamento que pertencem a este cliente
+                              agrupamento.registros.forEach(registro => {
+                                // Verificar se o registro pertence a este cliente
+                                const registroClienteIds = String(registro.cliente_id || '')
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+                                
+                                if (registroClienteIds.includes(String(clienteId))) {
+                                  entidadesDosRegistros.get(entidadeKey).registros.push({
+                                    ...registro,
+                                    quantidade: agrupamento.quantidade
+                                  });
+                                }
+                              });
+                            });
+                            
+                            // Pular o processamento padrão abaixo para clientes
+                            return;
                           } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
                             entidadeId = primeiroRegistro.produto_id;
                             nomeEntidade = getNomeProduto(entidadeId);
@@ -3354,7 +3417,16 @@ const DelegarTarefas = () => {
                             }
                           });
                         } else if (filtroPrincipal === 'cliente') {
-                          // Para clientes, adicionar clientes do sistema (filtrados se houver seleção)
+                          // Primeiro, adicionar todos os clientes que aparecem nos registros (mesmo sem registros de tempo realizado)
+                          entidadesDosRegistros.forEach((entidade, clienteId) => {
+                            // Se há filtro selecionado, verificar se o cliente está incluído
+                            if (!estaNosFiltrosSelecionados(clienteId, filtroClienteSelecionado)) {
+                              return; // Pular este cliente se não estiver nos filtros
+                            }
+                            todasEntidades.set(clienteId, entidade);
+                          });
+                          
+                          // Depois, adicionar clientes do sistema que não aparecem nos registros (filtrados se houver seleção)
                           clientes.forEach(cliente => {
                             const clienteId = String(cliente.id);
                             // Se há filtro selecionado, verificar se o cliente está incluído
@@ -3362,9 +3434,8 @@ const DelegarTarefas = () => {
                               return; // Pular este cliente se não estiver nos filtros
                             }
                             
-                            if (entidadesDosRegistros.has(clienteId)) {
-                              todasEntidades.set(clienteId, entidadesDosRegistros.get(clienteId));
-                            } else {
+                            // Só adicionar se ainda não foi adicionado pelos registros
+                            if (!todasEntidades.has(clienteId)) {
                               todasEntidades.set(clienteId, {
                                 id: cliente.id,
                                 nome: cliente.nome,

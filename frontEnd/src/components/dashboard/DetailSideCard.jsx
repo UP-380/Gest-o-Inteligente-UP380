@@ -367,6 +367,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               onToggleCliente={toggleCliente}
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+              getNomeCliente={getNomeCliente}
             />
           ) : tipo === 'produtos' ? (
             <ProdutosDetalhadosList
