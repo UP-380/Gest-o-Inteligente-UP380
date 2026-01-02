@@ -30,6 +30,7 @@ const clienteContaBancariaController = require('../controllers/cliente-conta-ban
 const clienteSistemaController = require('../controllers/cliente-sistema.controller');
 const clienteAdquirenteController = require('../controllers/cliente-adquirente.controller');
 const baseConhecimentoController = require('../controllers/base-conhecimento.controller');
+const clienteSubtarefaObservacaoController = require('../controllers/cliente-subtarefa-observacao.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const apiClientes = require('../services/api-clientes');
@@ -265,6 +266,13 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
+
+// Rotas de Observações Particulares de Subtarefas por Cliente
+router.get('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.getObservacao);
+router.get('/api/cliente-subtarefa-observacao/cliente/:cliente_id', requireAuth, clienteSubtarefaObservacaoController.getObservacoesPorCliente);
+router.post('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
+router.put('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
+router.delete('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.deletarObservacao);
 
 // Rotas de Usuários (Gestão de Permissões)
 router.get('/api/usuarios', requireAuth, usuariosController.getUsuarios);

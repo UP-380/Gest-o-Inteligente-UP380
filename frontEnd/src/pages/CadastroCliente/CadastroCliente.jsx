@@ -680,7 +680,15 @@ const CadastroCliente = () => {
                           <i className="fas fa-spinner fa-spin" style={{ fontSize: '20px', color: '#6b7280' }}></i>
                         </div>
                       ) : (
-                        <VinculacoesContent vinculacoes={vinculacoes} />
+                        <VinculacoesContent 
+                          vinculacoes={vinculacoes}
+                          clienteId={formData.id}
+                          onObservacaoUpdated={() => {
+                            if (formData.id) {
+                              loadVinculacoes(formData.id);
+                            }
+                          }}
+                        />
                       )}
                     </div>
                   </div>

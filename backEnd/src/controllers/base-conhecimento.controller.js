@@ -206,11 +206,33 @@ async function getBaseConhecimentoCliente(req, res) {
           .in('id', idsSubtarefas) : { data: [], error: null }
       ]);
 
+      // Buscar observações particulares do cliente para as subtarefas
+      const observacoesResult = await supabase
+        .schema('up_gestaointeligente')
+        .from('cliente_subtarefa_observacao')
+        .select('subtarefa_id, observacao')
+        .eq('cliente_id', cliente_id);
+
+      const observacoesMap = new Map();
+      if (observacoesResult.data && !observacoesResult.error) {
+        observacoesResult.data.forEach(obs => {
+          observacoesMap.set(obs.subtarefa_id, obs.observacao);
+        });
+      }
+
       // Criar maps para acesso rápido
       const tarefasMap = new Map((tarefasResult.data || []).map(t => [t.id, { nome: t.nome, descricao: t.descricao || null }]));
       const produtosMap = new Map((produtosResult.data || []).map(p => [p.id, p.nome]));
       const tiposTarefaMap = new Map((tiposTarefaResult.data || []).map(tt => [tt.id, tt.nome]));
-      const subtarefasMap = new Map((subtarefasResult.data || []).map(s => [s.id, { nome: s.nome, descricao: s.descricao || null }]));
+      const subtarefasMap = new Map((subtarefasResult.data || []).map(s => {
+        const subtarefaId = s.id;
+        const observacaoParticular = observacoesMap.get(subtarefaId) || null;
+        return [subtarefaId, { 
+          nome: s.nome, 
+          descricao: s.descricao || null,
+          observacaoParticular: observacaoParticular
+        }];
+      }));
 
       // Montar array de vinculações detalhadas
       vinculacoesDetalhadas = vinculados.map(v => {
@@ -224,7 +246,12 @@ async function getBaseConhecimentoCliente(req, res) {
           produto: produto ? { id: v.produto_id, nome: produto } : null,
           tipoTarefa: tipoTarefa ? { id: v.tarefa_tipo_id, nome: tipoTarefa } : null,
           tarefa: tarefa ? { id: v.tarefa_id, nome: tarefa.nome, descricao: tarefa.descricao } : null,
-          subtarefa: subtarefa ? { id: v.subtarefa_id, nome: subtarefa.nome, descricao: subtarefa.descricao } : null
+          subtarefa: subtarefa ? { 
+            id: v.subtarefa_id, 
+            nome: subtarefa.nome, 
+            descricao: subtarefa.descricao,
+            observacaoParticular: subtarefa.observacaoParticular
+          } : null
         };
       });
     }
