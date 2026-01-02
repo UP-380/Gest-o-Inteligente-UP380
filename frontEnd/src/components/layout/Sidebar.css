@@ -1,3 +1,77 @@
+/* Botão hambúrguer para mobile */
+.mobile-menu-toggle {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1002 !important; /* Acima do header que tem z-index 1000 */
+  background: #0e3b6f;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 44px; /* Tamanho mínimo recomendado para toque (44x44px) */
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  -webkit-tap-highlight-color: transparent; /* Remove highlight no mobile */
+  touch-action: manipulation; /* Melhora resposta no touch */
+  user-select: none; /* Previne seleção de texto ao tocar */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.mobile-menu-toggle:focus {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.mobile-menu-toggle:active {
+  background: #144577;
+  transform: scale(0.95);
+}
+
+.mobile-menu-toggle:hover {
+  background: #144577;
+  transform: scale(1.05);
+}
+
+.mobile-menu-toggle i {
+  font-size: 1.2rem;
+  pointer-events: none; /* Evita problemas de clique no ícone */
+}
+
+/* Overlay para fechar menu no mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999 !important; /* Abaixo do sidebar mas acima de tudo */
+  animation: fadeIn 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+  /* Prevenir que toques no overlay sejam processados imediatamente */
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Sidebar Styles */
 .sidebar {
   position: fixed;
@@ -8,7 +82,7 @@
   background: #ffffff;
   border-right: 2px solid #d1d5db;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, transform 0.3s ease;
   z-index: 999;
   overflow: hidden;
 }
@@ -17,14 +91,108 @@
   width: 320px; /* Aumentado para caber textos completos */
 }
 
+/* Desabilitar hover no mobile */
+@media (max-width: 600px) {
+  .sidebar:hover {
+    width: 280px !important; /* Mantém largura fixa no mobile */
+    transform: translateX(-100%) !important; /* Mantém fechado se não estiver aberto */
+  }
+  
+  .sidebar.mobile-open:hover {
+    transform: translateX(0) !important; /* Mantém aberto se estiver aberto */
+  }
+}
+
 .sidebar-content {
-  padding: 20px 0 0 0;
+  padding: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0;
   background: #ffffff;
   position: relative;
+}
+
+/* Perfil de usuário integrado como item da sidebar */
+.sidebar-user-item {
+  display: flex;
+  align-items: center;
+  padding: 15px 10px;
+  transition: all 0.3s ease;
+  position: relative;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.sidebar:not(:hover) .sidebar-user-item {
+  justify-content: center;
+  padding: 15px 0;
+  margin: 0 5px;
+}
+
+.sidebar:hover .sidebar-user-item {
+  justify-content: flex-start;
+}
+
+.sidebar-user-item .user-profile-container {
+  margin: 0;
+  width: 100%;
+  justify-content: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-container:not(.menu-open) {
+  justify-content: flex-start;
+}
+
+
+/* Ajustar avatar quando na sidebar */
+.sidebar-user-item .user-profile-button {
+  margin: 0 auto;
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-button {
+  margin: 0;
+}
+
+
+/* Separador sutil entre perfil e menu */
+.sidebar-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 8px 10px;
+  opacity: 0.3;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.sidebar:hover .sidebar-divider {
+  margin: 8px 16px;
+  opacity: 0.5;
+}
+
+.sidebar:not(:hover) .sidebar-divider {
+  margin: 8px 5px;
+}
+
+/* No mobile, sempre mostrar timer e layout completo */
+@media (max-width: 600px) {
+  .sidebar.mobile-open .sidebar-user-item {
+    justify-content: flex-start !important;
+    padding: 15px 10px !important;
+    margin: 0 10px;
+  }
+
+  .sidebar.mobile-open .sidebar-user-item .user-profile-container {
+    justify-content: flex-start !important;
+    width: 100%;
+    margin: 0;
+  }
+
+  .sidebar.mobile-open .sidebar-divider {
+    margin: 8px 10px;
+  }
 }
 
 .sidebar-menu-wrapper {
@@ -127,6 +295,18 @@
   text-overflow: clip;
 }
 
+/* Em telas pequenas, permitir quebra de linha para textos longos */
+@media (max-width: 600px) {
+  .sidebar.mobile-open .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}
+
 /* Responsive Sidebar */
 @media (max-width: 768px) {
   .sidebar {
@@ -157,32 +337,236 @@
   }
 }
 
-@media (max-width: 480px) {
+/* Mobile - até 6 polegadas (600px) */
+@media (max-width: 600px) {
+  .mobile-menu-toggle {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .sidebar-overlay {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
   .sidebar {
-    width: 45px;
+    width: 280px !important; /* Largura fixa no mobile */
+    top: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    z-index: 1000 !important; /* Acima do overlay */
+    border-right: 2px solid #d1d5db;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease !important; /* Transição suave */
+    pointer-events: auto !important;
+    /* Desabilitar interação de hover no mobile */
+    touch-action: pan-y;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+    width: 280px !important;
+  }
+
+  .sidebar.mobile-closed {
+    transform: translateX(-100%) !important;
+    width: 280px !important;
   }
   
-  .sidebar:hover {
-    width: 260px; /* Ajustado para mobile pequeno */
+  /* Forçar largura fixa mesmo no hover */
+  .sidebar:hover,
+  .sidebar.mobile-open:hover,
+  .sidebar.mobile-closed:hover {
+    width: 280px !important;
   }
   
+  /* Manter transformação baseada no estado, não no hover */
+  .sidebar.mobile-open:hover {
+    transform: translateX(0) !important;
+  }
+  
+  .sidebar.mobile-closed:hover {
+    transform: translateX(-100%) !important;
+  }
+
+
+  /* No mobile, sempre mostrar textos */
+  .sidebar.mobile-open .sidebar-text {
+    opacity: 1;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .sidebar.mobile-open .sidebar-chevron {
+    opacity: 1;
+  }
+
+  .sidebar.mobile-open .sidebar-item {
+    justify-content: flex-start;
+    padding: 15px 10px;
+    margin: 0 10px;
+  }
+
+  .sidebar.mobile-open .sidebar-item i {
+    margin: 0;
+    width: 20px;
+  }
+
+  .sidebar-item {
+    padding: 12px 10px;
+  }
+
+  .sidebar-item i {
+    font-size: 1.1rem;
+  }
+
+  .sidebar-text {
+    font-size: 0.9rem;
+    margin-left: 15px;
+  }
+
+  /* Submenu sempre visível quando expandido no mobile */
+  .sidebar.mobile-open .sidebar-submenu.open {
+    display: flex;
+    max-height: 500px;
+    opacity: 1;
+  }
+
+  .sidebar.mobile-open .sidebar-nested-submenu.open {
+    display: flex;
+    max-height: 500px;
+    opacity: 1;
+  }
+
+  /* Permitir quebra de linha para textos longos em telas pequenas */
+  .sidebar.mobile-open .sidebar-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .sidebar.mobile-open .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    margin-top: 2px;
+  }
+
+  .sidebar.mobile-open .sidebar-submenu-item {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+  }
+
+  .sidebar.mobile-open .sidebar-submenu-item .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+  }
+
+  .sidebar.mobile-open .sidebar-nested-item {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+  }
+
+  .sidebar.mobile-open .sidebar-nested-item .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-menu-toggle {
+    top: 10px;
+    left: 10px;
+    width: 40px; /* Mantém tamanho mínimo para toque */
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .mobile-menu-toggle i {
+    font-size: 1rem;
+  }
+
+  .sidebar {
+    width: 260px;
+  }
+
   .sidebar-item {
     padding: 10px 8px;
   }
-  
-  .sidebar:not(:hover) .sidebar-item {
-    justify-content: center;
-    padding: 10px 0;
-    margin: 0 5px;
+
+  .sidebar.mobile-open .sidebar-item {
+    padding: 12px 10px;
   }
-  
+
   .sidebar-item i {
     font-size: 1rem;
   }
-  
+
   .sidebar-text {
+    font-size: 0.85rem;
+    margin-left: 12px;
+  }
+
+  /* Permitir quebra de linha para textos longos em telas muito pequenas */
+  .sidebar.mobile-open .sidebar-item {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .sidebar.mobile-open .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.3;
+    overflow: visible !important;
+    text-overflow: clip !important;
     font-size: 0.8rem;
-    margin-left: 10px;
+  }
+
+  .sidebar.mobile-open .sidebar-submenu-item {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.3;
+    font-size: 0.8rem;
+  }
+
+  .sidebar.mobile-open .sidebar-submenu-item .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.3;
+    font-size: 0.8rem;
+  }
+
+  .sidebar.mobile-open .sidebar-nested-item {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.3;
+    font-size: 0.75rem;
+  }
+
+  .sidebar.mobile-open .sidebar-nested-item .sidebar-text {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    line-height: 1.3;
+    font-size: 0.75rem;
   }
 }
 
@@ -254,6 +638,59 @@
 
 .sidebar-submenu-item i {
   font-size: 1rem;
+}
+
+/* Submenu aninhado (submenu dentro de submenu) */
+.sidebar-nested-menu-group {
+  width: 100%;
+}
+
+.sidebar-nested-toggle {
+  position: relative;
+}
+
+.sidebar-nested-submenu {
+  margin-left: 20px;
+  margin-top: 5px;
+  padding-left: 10px;
+  border-left: 2px solid #d1d5db;
+  display: none;
+  flex-direction: column;
+  gap: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.sidebar-submenu.open .sidebar-nested-submenu.open {
+  display: flex;
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* Mostrar submenu aninhado quando está aberto e o sidebar está em hover */
+.sidebar:hover .sidebar-submenu.open .sidebar-nested-submenu.open {
+  display: flex;
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* Quando o sidebar não está em hover, ocultar submenu aninhado (mesmo se aberto) */
+.sidebar:not(:hover) .sidebar-nested-submenu {
+  display: none;
+  max-height: 0;
+  opacity: 0;
+}
+
+.sidebar-nested-item {
+  padding: 10px 10px;
+  font-size: 0.8rem;
+  margin-left: 0;
+}
+
+.sidebar-nested-item i {
+  font-size: 0.9rem;
 }
 
 /* Rodapé do Menu - Design Melhorado */

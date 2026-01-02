@@ -73,6 +73,51 @@
   margin: 0 auto;
 }
 
+/* Header da Página Gestão de Capacidade */
+.gestao-capacidade-page-header {
+  margin-bottom: 32px;
+}
+
+.gestao-capacidade-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.gestao-capacidade-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex: 1;
+}
+
+.gestao-capacidade-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #e6f0ff;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.gestao-capacidade-page-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.gestao-capacidade-page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
 .page-header {
   margin-bottom: 32px;
 }

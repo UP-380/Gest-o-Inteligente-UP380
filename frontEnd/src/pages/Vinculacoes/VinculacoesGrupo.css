@@ -1,0 +1,284 @@
+.grupo-edit-produtos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.grupo-edit-produto-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.grupo-edit-produto-card:hover {
+  border-color: #0e3b6f;
+  box-shadow: 0 2px 8px rgba(14, 59, 111, 0.1);
+}
+
+.grupo-edit-produto-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.grupo-edit-produto-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.grupo-edit-produto-title i {
+  color: #0e3b6f;
+  font-size: 18px;
+}
+
+.grupo-edit-produto-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-toggle-expand,
+.btn-remove-produto {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-toggle-expand:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.btn-remove-produto:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.grupo-edit-produto-body {
+  padding: 16px 20px;
+}
+
+.grupo-edit-tarefas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.grupo-edit-tarefas-empty {
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+}
+
+.grupo-edit-tarefa-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f0f7ff;
+  border: 1px solid #0e3b6f;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.grupo-edit-tarefa-item span {
+  flex: 1;
+}
+
+.btn-remove-tarefa {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove-tarefa:hover {
+  background: #fef2f2;
+}
+
+.btn-add-tarefa {
+  width: 100%;
+  padding: 10px 16px;
+  background: #f0f7ff;
+  border: 2px dashed #0e3b6f;
+  border-radius: 6px;
+  color: #0e3b6f;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-add-tarefa:hover {
+  background: #e0f2fe;
+  border-color: #144577;
+}
+
+.grupo-edit-adicionar-tarefa {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.grupo-edit-tarefa-options {
+  margin-bottom: 12px;
+}
+
+.btn-toggle-todas-tarefas {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle-todas-tarefas:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.grupo-edit-tarefas-select {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  margin-bottom: 12px;
+}
+
+.grupo-edit-tarefa-option {
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.grupo-edit-tarefa-option:last-child {
+  border-bottom: none;
+}
+
+.grupo-edit-tarefa-option:hover:not(.disabled) {
+  background: #f0f7ff;
+}
+
+.grupo-edit-tarefa-option.selected {
+  background: #0e3b6f;
+  color: white;
+}
+
+.grupo-edit-tarefa-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+.badge-added {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #d1d5db;
+  color: #6b7280;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.grupo-edit-tarefa-option.selected .badge-added {
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.grupo-edit-tarefa-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-add-produto {
+  width: 100%;
+  padding: 14px 20px;
+  background: #f0f7ff;
+  border: 2px dashed #0e3b6f;
+  border-radius: 8px;
+  color: #0e3b6f;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-add-produto:hover {
+  background: #e0f2fe;
+  border-color: #144577;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+  .grupo-edit-produto-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .grupo-edit-produto-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .grupo-edit-tarefa-actions {
+    flex-direction: column;
+  }
+
+  .grupo-edit-tarefa-actions .btn-primary,
+  .grupo-edit-tarefa-actions .btn-secondary {
+    width: 100%;
+  }
+}
+

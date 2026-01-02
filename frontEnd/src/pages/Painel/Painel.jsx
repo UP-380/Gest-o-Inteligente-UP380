@@ -50,6 +50,11 @@ const Painel = () => {
           icon: 'fa-box'
         },
         {
+          label: 'Tipo de Tarefas',
+          path: '/cadastro/tipo-tarefas',
+          icon: 'fa-list-alt'
+        },
+        {
           label: 'Tarefas',
           path: '/cadastro/tarefas',
           icon: 'fa-tasks'
@@ -58,11 +63,6 @@ const Painel = () => {
           label: 'Subtarefas',
           path: '/cadastro/subtarefas',
           icon: 'fa-list-ul'
-        },
-        {
-          label: 'Tipo de Tarefas',
-          path: '/cadastro/tipo-tarefas',
-          icon: 'fa-list-alt'
         },
         {
           label: 'Banco',

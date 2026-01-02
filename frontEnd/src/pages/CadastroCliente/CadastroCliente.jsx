@@ -575,18 +575,28 @@ const CadastroCliente = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    className="btn-secondary cadastro-cliente-back-btn"
-                    onClick={() => navigate(-1)}
-                  >
-                    <i className="fas fa-arrow-left"></i>
-                    Voltar
-                  </button>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      className="btn-secondary cadastro-cliente-back-btn"
+                      onClick={() => navigate(-1)}
+                    >
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
+                    </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="cliente-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : 'Salvar'}
+                    </ButtonPrimary>
+                  </div>
                 </div>
               </div>
 
               {/* Formulário */}
-              <form onSubmit={handleSubmit}>
+              <form id="cliente-form" onSubmit={handleSubmit}>
                 {/* Seção de Dados Básicos */}
                 <div className="editar-cliente-form-section">
                   <div className="section-header">
@@ -664,17 +674,6 @@ const CadastroCliente = () => {
                       <i className="fas fa-credit-card"></i>
                       Adquirentes
                     </button>
-                  </div>
-
-                  {/* Botões de ação principais */}
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <ButtonPrimary
-                      type="submit"
-                      disabled={submitting}
-                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
-                    >
-                      {submitting ? 'Salvando...' : 'Salvar'}
-                    </ButtonPrimary>
                   </div>
                 </div>
               </form>

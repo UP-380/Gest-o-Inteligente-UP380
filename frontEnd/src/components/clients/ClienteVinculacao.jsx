@@ -246,41 +246,7 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
     setSubmitting(true);
 
     try {
-      // 1. Salvar na tabela cp_vinculacao (valores booleanos)
-      const tiposSelecionados = secondarySelects.map(s => s.primaryType);
-      const dadosVinculacao = {
-        cp_produto: tiposSelecionados.includes('produto'),
-        cp_cliente: tiposSelecionados.includes('cliente')
-      };
-
-      const responseVinculacao = await fetch(`${API_BASE_URL}/vinculacoes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(dadosVinculacao),
-      });
-
-      if (responseVinculacao.status === 401) {
-        window.location.href = '/login';
-        return { success: false, error: 'Não autorizado' };
-      }
-
-      const contentTypeVinculacao = responseVinculacao.headers.get('content-type') || '';
-      if (!contentTypeVinculacao.includes('application/json')) {
-        const text = await responseVinculacao.text();
-        return { success: false, error: text || `Erro no servidor. Status: ${responseVinculacao.status}` };
-      }
-
-      const resultVinculacao = await responseVinculacao.json();
-
-      if (!responseVinculacao.ok) {
-        const errorMsg = resultVinculacao.error || resultVinculacao.details || resultVinculacao.message || `Erro HTTP ${responseVinculacao.status}`;
-        return { success: false, error: errorMsg };
-      }
-
-      // 2. Criar combinações com o cliente
+      // Criar combinações com o cliente
       const toNumber = (id) => {
         if (id === null || id === undefined || id === '') return null;
         const num = parseInt(String(id).trim(), 10);

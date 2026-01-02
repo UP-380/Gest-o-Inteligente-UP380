@@ -5,21 +5,49 @@
   width: 100%;
 }
 
-.form-header {
+/* Header da Página de Listagem */
+.cadastro-listing-page-header {
   margin-bottom: 30px;
 }
 
-.form-title {
+.cadastro-listing-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.cadastro-listing-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex: 1;
+}
+
+.cadastro-listing-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #e6f0ff;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.cadastro-listing-page-title {
   font-size: 28px;
   font-weight: 600;
   color: #1e293b;
   margin: 0 0 8px 0;
+  line-height: 1.2;
 }
 
-.form-subtitle {
+.cadastro-listing-page-subtitle {
   font-size: 14px;
   color: #64748b;
   margin: 0;
+  line-height: 1.5;
 }
 
 /* Controles de busca e ações */

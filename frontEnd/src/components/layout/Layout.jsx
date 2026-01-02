@@ -1,6 +1,6 @@
 import React from 'react';
 import Sidebar from './Sidebar';
-import UserProfile from '../user/UserProfile';
+import TimerAtivo from '../user/TimerAtivo';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -26,9 +26,9 @@ const Layout = ({ children }) => {
             </div>
           </div>
           
-          {/* Perfil de usuário no lado direito */}
+          {/* Timer ativo no header */}
           <div className="header-right">
-            <UserProfile />
+            <TimerAtivo />
           </div>
         </div>
       </header>

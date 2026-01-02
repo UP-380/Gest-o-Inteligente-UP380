@@ -5,7 +5,7 @@ const API_BASE_URL = '/api';
 
 /**
  * Componente reutilizável para exibir tarefas vinculadas a um cliente
- * Busca tarefas diretamente na tabela vinculados usando cp_cliente e cp_atividade
+ * Busca tarefas diretamente na tabela vinculados usando cp_cliente e cp_tarefa
  */
 const TarefasVinculadasCliente = ({ clienteId, produtos = [] }) => {
   const [tarefas, setTarefas] = useState([]);

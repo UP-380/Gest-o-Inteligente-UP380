@@ -11,6 +11,19 @@
   gap: 12px;
 }
 
+/* Quando dentro da sidebar */
+.sidebar-user-item .user-profile-container {
+  margin: 0;
+  width: 100%;
+  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-container {
+  justify-content: flex-start;
+}
+
 .user-profile-button {
   background: none;
   border: none;
@@ -51,18 +64,55 @@
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* Menu Dropdown */
-.user-profile-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 250px;
-  z-index: 1001;
+/* Menu expandido diretamente na sidebar */
+.user-profile-menu-expanded {
+  width: 100%;
+  display: none; /* Oculto por padrão, será mostrado apenas quando sidebar expandida */
+  flex-direction: column;
   animation: slideDown 0.2s ease;
-  overflow: hidden;
+}
+
+/* Mostrar menu expandido apenas quando sidebar estiver expandida E menu estiver aberto */
+.sidebar:hover .sidebar-user-item .user-profile-container.menu-open .user-profile-menu-expanded,
+.sidebar.mobile-open .sidebar-user-item .user-profile-container.menu-open .user-profile-menu-expanded {
+  display: flex;
+}
+
+/* Container quando menu está aberto */
+.sidebar-user-item .user-profile-container.menu-open {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+}
+
+/* Quando menu está fechado, manter comportamento normal */
+.sidebar-user-item .user-profile-container:not(.menu-open) {
+  justify-content: center;
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-container:not(.menu-open) {
+  justify-content: flex-start;
+}
+
+/* Chevron para indicar expansão */
+.user-profile-chevron {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #6b7280;
+  transition: transform 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.user-profile-chevron.expanded {
+  transform: rotate(180deg);
+  color: #0e3b6f;
+}
+
+.user-profile-menu-header:hover .user-profile-chevron {
+  color: #0e3b6f;
 }
 
 @keyframes slideDown {
@@ -83,6 +133,69 @@
   gap: 0.75rem;
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border-bottom: 1px solid #dee2e6;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.user-profile-menu-header:hover {
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+}
+
+/* Alinhamento quando sidebar fechada - igual aos itens do menu */
+.sidebar:not(:hover) .sidebar-user-item .user-profile-menu-header {
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  padding: 15px 0;
+  margin: 0 5px;
+  background: transparent;
+  border-bottom: none;
+  gap: 0;
+}
+
+.sidebar:not(:hover) .sidebar-user-item .user-profile-menu-header .user-info {
+  display: none; /* Ocultar nome e email quando sidebar fechada */
+}
+
+.sidebar:not(:hover) .sidebar-user-item .user-profile-menu-header .user-profile-chevron {
+  display: none; /* Ocultar chevron quando sidebar fechada */
+}
+
+.sidebar:not(:hover) .sidebar-user-item .user-profile-menu-header .user-avatar-clickable {
+  margin: 0 auto;
+}
+
+/* Ocultar menu expandido quando sidebar fechada */
+.sidebar:not(:hover) .sidebar-user-item .user-profile-menu-expanded {
+  display: none;
+}
+
+/* Alinhamento quando sidebar expandida */
+.sidebar:hover .sidebar-user-item .user-profile-menu-header,
+.sidebar.mobile-open .sidebar-user-item .user-profile-menu-header {
+  justify-content: flex-start;
+  flex-direction: row;
+  text-align: left;
+  padding: 1rem;
+  margin: 0;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-bottom: 1px solid #dee2e6;
+  gap: 0.75rem;
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-menu-header .user-info,
+.sidebar.mobile-open .sidebar-user-item .user-profile-menu-header .user-info {
+  display: block; /* Mostrar nome e email quando sidebar expandida */
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-menu-header .user-profile-chevron,
+.sidebar.mobile-open .sidebar-user-item .user-profile-menu-header .user-profile-chevron {
+  display: block; /* Mostrar chevron quando sidebar expandida */
+}
+
+.sidebar:hover .sidebar-user-item .user-profile-menu-header .user-avatar-clickable,
+.sidebar.mobile-open .sidebar-user-item .user-profile-menu-header .user-avatar-clickable {
+  margin: 0;
 }
 
 .user-avatar-menu {
@@ -116,6 +229,7 @@
 .user-info {
   flex: 1;
   min-width: 0;
+  display: block;
 }
 
 .user-name {
@@ -200,6 +314,7 @@
 @media (max-width: 768px) {
   .user-profile-container {
     margin-right: 0.75rem;
+    gap: 8px;
   }
 
   .user-avatar {
@@ -228,9 +343,11 @@
   }
 }
 
-@media (max-width: 480px) {
+/* Mobile - até 6 polegadas (600px) */
+@media (max-width: 600px) {
   .user-profile-container {
     margin-right: 0.5rem;
+    gap: 6px;
   }
 
   .user-avatar {
@@ -241,7 +358,73 @@
 
   .user-profile-menu {
     min-width: 200px;
-    right: -0.75rem;
+    right: -0.5rem;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .user-profile-menu-header {
+    padding: 0.75rem;
+  }
+
+  .user-avatar-menu {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .user-name {
+    font-size: 12px;
+  }
+
+  .user-email {
+    font-size: 10px;
+  }
+
+  .user-profile-menu-item {
+    padding: 0.625rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-profile-container {
+    margin-right: 0.25rem;
+    gap: 4px;
+  }
+
+  .user-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 10px;
+  }
+
+  .user-profile-menu {
+    min-width: 180px;
+    right: -0.5rem;
+    max-width: calc(100vw - 1.5rem);
+  }
+
+  .user-profile-menu-header {
+    padding: 0.625rem;
+  }
+
+  .user-avatar-menu {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .user-name {
+    font-size: 11px;
+  }
+
+  .user-email {
+    font-size: 9px;
+  }
+
+  .user-profile-menu-item {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8rem;
   }
 }
 

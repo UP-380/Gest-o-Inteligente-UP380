@@ -13,7 +13,7 @@ const API_BASE_URL = '/api';
 // Lista de todas as páginas disponíveis no sistema
 const TODAS_PAGINAS = [
   { path: '/painel', label: 'Painel Principal', categoria: 'Painéis' },
-  { path: '/painel-colaborador', label: 'Painel Colaborador', categoria: 'Painéis' },
+  { path: '/painel-colaborador', label: 'Minhas Tarefas', categoria: 'Painéis' },
   { path: '/relatorios-clientes', label: 'Relatórios de Clientes', categoria: 'Relatórios' },
   { path: '/relatorios-colaboradores', label: 'Relatórios de Colaboradores', categoria: 'Relatórios' },
   { path: '/planilha-horas', label: 'Planilha de Horas', categoria: 'Relatórios' },
@@ -33,7 +33,7 @@ const TODAS_PAGINAS = [
   { path: '/cadastro/sistemas', label: 'Cadastro de Sistemas', categoria: 'Cadastros' },
   { path: '/cadastro/sistema', label: 'Cadastro Individual de Sistema', categoria: 'Cadastros' },
   { path: '/cadastro/vinculacoes', label: 'Cadastro de Vinculações', categoria: 'Cadastros' },
-  { path: '/atribuir-responsaveis', label: 'Atribuir Responsáveis', categoria: 'Atribuições' },
+  { path: '/atribuir-responsaveis', label: 'Gestão de Capacidade', categoria: 'Atribuições' },
   { path: '/atribuicao/cliente', label: 'Atribuição de Cliente', categoria: 'Atribuições' },
   { path: '/atribuicao/nova', label: 'Nova Atribuição', categoria: 'Atribuições' },
   { path: '/base-conhecimento/conteudos-clientes', label: 'Base de Conhecimento - Conteúdos Clientes', categoria: 'Base de Conhecimento' },

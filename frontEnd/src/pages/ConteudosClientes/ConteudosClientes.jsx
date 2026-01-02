@@ -591,17 +591,19 @@ const ConteudosClientes = () => {
             <div className="conteudos-clientes-container">
               {/* Header */}
               <div className="conteudos-clientes-header">
-                <div className="conteudos-clientes-header-left">
-                  <div className="conteudos-clientes-header-icon">
-                    <i className="fas fa-briefcase"></i>
-                  </div>
-                  <div>
-                    <h2 className="conteudos-clientes-title">
-                      Base de Conhecimento - Clientes
-                    </h2>
-                    <p className="conteudos-clientes-subtitle">
-                      Selecione um cliente para visualizar suas informações consolidadas
-                    </p>
+                <div className="conteudos-clientes-header-content">
+                  <div className="conteudos-clientes-header-left">
+                    <div className="conteudos-clientes-header-icon">
+                      <i className="fas fa-briefcase" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                    </div>
+                    <div>
+                      <h1 className="conteudos-clientes-title">
+                        Conteúdos dos Clientes
+                      </h1>
+                      <p className="conteudos-clientes-subtitle">
+                        Selecione um cliente para visualizar suas informações consolidadas
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
