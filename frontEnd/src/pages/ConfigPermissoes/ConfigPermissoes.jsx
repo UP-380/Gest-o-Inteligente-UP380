@@ -26,7 +26,6 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
 // Lista de todas as páginas principais disponíveis no sistema
 const TODAS_PAGINAS = [
   // Painéis
-  { path: '/painel', label: 'Painel Principal', categoria: 'Painéis' },
   { path: '/painel-colaborador', label: 'Minhas Tarefas', categoria: 'Painéis' },
   
   // Relatórios

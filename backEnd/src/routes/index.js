@@ -380,7 +380,7 @@ router.get('/dashboard.clientes.html', requireAuth, (req, res) => {
 });
 
 router.get('/dashboard.html', requireAuth, (req, res) => {
-  return res.redirect('/painel');
+  return res.redirect('/painel-colaborador');
 });
 
 // Bloquear acesso direto à URL antiga
@@ -393,9 +393,9 @@ router.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../../../index.html'));
 });
 
-// Rota para o painel - COM autenticação
+// Rota para o painel - redireciona para painel-colaborador
 router.get('/painel', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+  return res.redirect('/painel-colaborador');
 });
 
 router.get('/cadastro/clientes', requireAuth, (req, res) => {

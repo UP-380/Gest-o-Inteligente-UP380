@@ -38,7 +38,7 @@ const Login = () => {
       if (result.success) {
         showToast('success', 'Login realizado com sucesso! Redirecionando...');
         setTimeout(() => {
-          navigate('/painel');
+          navigate('/painel-colaborador');
         }, 1500);
       } else {
         showToast('error', result.error || 'Email ou senha incorretos.');

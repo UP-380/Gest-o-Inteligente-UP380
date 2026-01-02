@@ -1,7 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import Login from './pages/Login/Login';
-import Painel from './pages/Painel/Painel';
 import PainelUsuario from './pages/PainelUsuario/PainelUsuario';
 import RelatoriosClientes from './pages/DashboardClientes/DashboardClientes';
 import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardColaboradores';
@@ -53,14 +52,6 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route
-          path="/painel"
-          element={
-            <ProtectedRoute>
-              <Painel />
-            </ProtectedRoute>
-          }
-        />
         <Route
           path="/painel-colaborador"
           element={

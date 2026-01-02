@@ -38,10 +38,6 @@ const ProtectedRoute = ({ children, requiredPermission = null }) => {
         // Verificar pela rota atual
         const currentRoute = location.pathname;
         if (!canAccessRoute(currentRoute)) {
-          // Se for colaborador tentando acessar /painel, redirecionar para painel-colaborador
-          if (currentRoute === '/painel') {
-            return <Navigate to="/painel-colaborador" replace />;
-          }
           // Redirecionar para painel-colaborador
           return <Navigate to="/painel-colaborador" replace />;
         }

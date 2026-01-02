@@ -51,18 +51,6 @@ const ClienteContaBancariaModal = ({
     }
   }, [isOpen]);
 
-  // Fechar modal com ESC
-  useEffect(() => {
-    const handleEsc = (e) => {
-      if (e.key === 'Escape' && isOpen && !submitting) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.addEventListener('keydown', handleEsc);
-      return () => document.removeEventListener('keydown', handleEsc);
-    }
-  }, [isOpen, submitting, onClose]);
 
   if (!isOpen) return null;
 
@@ -92,7 +80,7 @@ const ClienteContaBancariaModal = ({
   const canSave = formData.banco_id && !submitting;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" style={{ 
         maxWidth: '900px', 
         width: '95%', 
@@ -118,7 +106,7 @@ const ClienteContaBancariaModal = ({
           <button
             className="btn-icon"
             onClick={onClose}
-            title="Fechar (ESC)"
+            title="Fechar"
             disabled={submitting}
             style={{ fontSize: '18px' }}
           >
@@ -226,7 +214,7 @@ const ClienteContaBancariaModal = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                    Agência
+                    Agencia/coperativa
                     <span style={{ 
                       fontSize: '11px', 
                       color: '#9ca3af', 
@@ -269,7 +257,7 @@ const ClienteContaBancariaModal = ({
 
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
-                    Conta
+                    Conta/Convenio
                     <span style={{ 
                       fontSize: '11px', 
                       color: '#9ca3af', 

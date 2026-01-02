@@ -28,27 +28,32 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
   };
 
   const renderClientCard = (cliente) => {
+    // Priorizar nome_amigavel, depois nome_fantasia, depois razao_social
     const nomeExibicao = cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || cliente.nome || 'Sem nome';
     const cnpj = cliente.cpf_cnpj || cliente.cnpj || '';
     const status = cliente.status || '';
     const isAtivo = status === 'ativo';
+    // Cor azul do sistema: #0e3b6f, Cor laranja: #ff9800, Cor cinza claro: #d1d5db
     const titleColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconHoverColor = isAtivo ? '#144577' : '#f97316';
     
+    // Verificar cache de informações de completude
     const cacheInfo = informacoesCache[cliente.id];
-    const temConta = cacheInfo ? cacheInfo.temConta : null;
+    const temConta = cacheInfo ? cacheInfo.temConta : null; // null = ainda não verificado, false = sem dados, true = com dados
     const temSistema = cacheInfo ? cacheInfo.temSistema : null;
     const temAdquirente = cacheInfo ? cacheInfo.temAdquirente : null;
     
+    // Cores dos ícones: cinza claro se não houver dados (false), cor normal se houver (true) ou ainda não verificado (null)
     const contaIconColor = temConta === false ? '#d1d5db' : iconColor;
     const sistemaIconColor = temSistema === false ? '#d1d5db' : iconColor;
     const adquirenteIconColor = temAdquirente === false ? '#d1d5db' : iconColor;
     
+    // Desabilitar botões quando não houver dados confirmados
     const contaDisabled = temConta === false;
     const sistemaDisabled = temSistema === false;
     const adquirenteDisabled = temAdquirente === false;
-    
+
     // Verificar se este cliente está selecionado (seleção única)
     const isSelected = selectedClienteId && String(selectedClienteId).trim() === String(cliente.id).trim();
     // Verificar se há algum cliente selecionado (para aplicar estilo apagado nos não selecionados)
@@ -133,7 +138,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
           </div>
         </div>
         <div className="cliente-knowledge-card-body">
-          {cliente.razao_social && cliente.razao_social !== nomeExibicao && (
+          {cliente.razao_social && (
             <div className="cliente-knowledge-card-field">
               <label>Razão Social</label>
               <div className="cliente-knowledge-card-value">{cliente.razao_social}</div>
@@ -148,6 +153,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
         </div>
         <div className="cliente-knowledge-card-footer">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            {/* Botões de ação (ícones) */}
             <div className="cliente-knowledge-icons-row">
               <button
                 className={`cliente-knowledge-icon-button ${contaDisabled ? 'disabled-icon' : ''}`}
@@ -177,6 +183,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
                 <i className="fas fa-credit-card"></i>
               </button>
             </div>
+            {/* Botão Visualizar */}
             <IconButton
               icon="fa-eye"
               onClick={(e) => {

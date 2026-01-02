@@ -195,12 +195,6 @@ const Sidebar = () => {
   const menuItems = useMemo(() => {
     const allItems = [
       {
-        path: '/painel',
-        icon: 'fa-chart-bar',
-        label: 'Painel',
-        title: 'Painel'
-      },
-      {
         path: '/painel-colaborador',
         icon: 'fa-th-large',
         label: 'Minhas Tarefas',
