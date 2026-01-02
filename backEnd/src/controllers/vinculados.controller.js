@@ -7,83 +7,128 @@ const supabase = require('../config/database');
 // Função auxiliar para verificar duplicatas
 async function verificarDuplicata(dadosVinculado) {
   try {
+    // Extrair valores (mapear nomes do frontend para nomes do banco)
+    const tarefaId = dadosVinculado.cp_tarefa !== undefined ? dadosVinculado.cp_tarefa : dadosVinculado.tarefa_id;
+    const tarefaTipoId = dadosVinculado.cp_tarefa_tipo !== undefined ? dadosVinculado.cp_tarefa_tipo : dadosVinculado.tarefa_tipo_id;
+    const produtoId = dadosVinculado.cp_produto !== undefined ? dadosVinculado.cp_produto : dadosVinculado.produto_id;
+    const clienteId = dadosVinculado.cp_cliente !== undefined ? dadosVinculado.cp_cliente : dadosVinculado.cliente_id;
+    const subtarefaId = dadosVinculado.cp_subtarefa !== undefined ? dadosVinculado.cp_subtarefa : dadosVinculado.subtarefa_id;
+
+    // Log para debug
+    console.log('🔍 [verificarDuplicata] Verificando:', {
+      tarefa_id: tarefaId,
+      tarefa_tipo_id: tarefaTipoId,
+      produto_id: produtoId,
+      cliente_id: clienteId,
+      subtarefa_id: subtarefaId
+    });
+
     // Construir query para verificar duplicata
-    // Usar uma abordagem que funcione com NULLs
+    // IMPORTANTE: Só verificar campos que foram explicitamente fornecidos (não undefined)
+    // Se um campo não está no objeto, não devemos verificar se ele é NULL
     let query = supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
       .select('id');
 
-    // Para cada campo, adicionar condição apropriada (AND)
-    // Mapear nomes do frontend para nomes do banco: cp_tarefa → tarefa_id, etc
-    const tarefaId = dadosVinculado.cp_tarefa !== undefined ? dadosVinculado.cp_tarefa : dadosVinculado.tarefa_id;
-    const tarefaTipoId = dadosVinculado.cp_tarefa_tipo !== undefined ? dadosVinculado.cp_tarefa_tipo : dadosVinculado.tarefa_tipo_id;
-    const produtoId = dadosVinculado.cp_produto !== undefined ? dadosVinculado.cp_produto : dadosVinculado.produto_id;
-    const clienteId = dadosVinculado.cp_cliente !== undefined ? dadosVinculado.cp_cliente : dadosVinculado.cliente_id;
-
-    if (tarefaId !== undefined && tarefaId !== null) {
-      query = query.eq('tarefa_id', tarefaId);
-    } else {
-      query = query.is('tarefa_id', null);
+    // Verificar apenas campos que foram fornecidos explicitamente
+    // Se o campo não está no objeto original, não incluímos na verificação
+    const camposFornecidos = Object.keys(dadosVinculado);
+    
+    if (camposFornecidos.includes('tarefa_id') || camposFornecidos.includes('cp_tarefa')) {
+      if (tarefaId !== undefined && tarefaId !== null) {
+        query = query.eq('tarefa_id', tarefaId);
+      } else {
+        query = query.is('tarefa_id', null);
+      }
     }
 
-    if (tarefaTipoId !== undefined && tarefaTipoId !== null) {
-      query = query.eq('tarefa_tipo_id', tarefaTipoId);
-    } else {
-      query = query.is('tarefa_tipo_id', null);
+    if (camposFornecidos.includes('tarefa_tipo_id') || camposFornecidos.includes('cp_tarefa_tipo')) {
+      if (tarefaTipoId !== undefined && tarefaTipoId !== null) {
+        query = query.eq('tarefa_tipo_id', tarefaTipoId);
+      } else {
+        query = query.is('tarefa_tipo_id', null);
+      }
     }
 
-    if (produtoId !== undefined && produtoId !== null) {
-      query = query.eq('produto_id', produtoId);
-    } else {
-      query = query.is('produto_id', null);
+    if (camposFornecidos.includes('produto_id') || camposFornecidos.includes('cp_produto')) {
+      if (produtoId !== undefined && produtoId !== null) {
+        query = query.eq('produto_id', produtoId);
+      } else {
+        query = query.is('produto_id', null);
+      }
     }
 
-    if (clienteId !== undefined && clienteId !== null && clienteId !== '') {
-      query = query.eq('cliente_id', clienteId);
-    } else {
-      query = query.is('cliente_id', null);
+    if (camposFornecidos.includes('cliente_id') || camposFornecidos.includes('cp_cliente')) {
+      if (clienteId !== undefined && clienteId !== null && clienteId !== '') {
+        query = query.eq('cliente_id', clienteId);
+      } else {
+        query = query.is('cliente_id', null);
+      }
+    }
+
+    if (camposFornecidos.includes('subtarefa_id') || camposFornecidos.includes('cp_subtarefa')) {
+      if (subtarefaId !== undefined && subtarefaId !== null) {
+        query = query.eq('subtarefa_id', subtarefaId);
+      } else {
+        query = query.is('subtarefa_id', null);
+      }
     }
 
     const { data, error } = await query.limit(1);
 
     if (error) {
-      console.error('Erro ao verificar duplicata:', error);
+      console.error('❌ Erro ao verificar duplicata:', error);
       // Em caso de erro na query, tentar uma abordagem alternativa
       // Buscar todos e comparar em memória (menos eficiente, mas funciona)
       const { data: todos, error: errorTodos } = await supabase
         .schema('up_gestaointeligente')
         .from('vinculados')
-        .select('tarefa_id, tarefa_tipo_id, produto_id, cliente_id');
+        .select('tarefa_id, tarefa_tipo_id, produto_id, cliente_id, subtarefa_id');
 
       if (errorTodos) {
-        console.error('Erro ao buscar todos para verificação:', errorTodos);
+        console.error('❌ Erro ao buscar todos para verificação:', errorTodos);
         return false; // Em caso de erro, permitir inserção (será tratado pelo índice único)
       }
 
-      // Comparar em memória
-      const tarefaId = dadosVinculado.cp_tarefa !== undefined ? dadosVinculado.cp_tarefa : dadosVinculado.tarefa_id;
-      const tarefaTipoId = dadosVinculado.cp_tarefa_tipo !== undefined ? dadosVinculado.cp_tarefa_tipo : dadosVinculado.tarefa_tipo_id;
-      const produtoId = dadosVinculado.cp_produto !== undefined ? dadosVinculado.cp_produto : dadosVinculado.produto_id;
-      const clienteId = dadosVinculado.cp_cliente !== undefined ? dadosVinculado.cp_cliente : dadosVinculado.cliente_id;
-
+      // Comparar em memória apenas com campos fornecidos
       return todos.some(v => {
-        const tarefaMatch = (v.tarefa_id === tarefaId) ||
-                               (v.tarefa_id === null && (tarefaId === undefined || tarefaId === null));
-        const tarefaTipoMatch = (v.tarefa_tipo_id === tarefaTipoId) ||
-                                   (v.tarefa_tipo_id === null && (tarefaTipoId === undefined || tarefaTipoId === null));
-        const produtoMatch = (v.produto_id === produtoId) ||
-                            (v.produto_id === null && (produtoId === undefined || produtoId === null));
-        const clienteMatch = (v.cliente_id === clienteId) ||
-                            ((v.cliente_id === null || v.cliente_id === '') && (clienteId === undefined || clienteId === null || clienteId === ''));
-
-        return tarefaMatch && tarefaTipoMatch && produtoMatch && clienteMatch;
+        let match = true;
+        
+        if (camposFornecidos.includes('tarefa_id') || camposFornecidos.includes('cp_tarefa')) {
+          match = match && ((v.tarefa_id === tarefaId) || (v.tarefa_id === null && (tarefaId === undefined || tarefaId === null)));
+        }
+        
+        if (camposFornecidos.includes('tarefa_tipo_id') || camposFornecidos.includes('cp_tarefa_tipo')) {
+          match = match && ((v.tarefa_tipo_id === tarefaTipoId) || (v.tarefa_tipo_id === null && (tarefaTipoId === undefined || tarefaTipoId === null)));
+        }
+        
+        if (camposFornecidos.includes('produto_id') || camposFornecidos.includes('cp_produto')) {
+          match = match && ((v.produto_id === produtoId) || (v.produto_id === null && (produtoId === undefined || produtoId === null)));
+        }
+        
+        if (camposFornecidos.includes('cliente_id') || camposFornecidos.includes('cp_cliente')) {
+          match = match && ((v.cliente_id === clienteId) || ((v.cliente_id === null || v.cliente_id === '') && (clienteId === undefined || clienteId === null || clienteId === '')));
+        }
+        
+        if (camposFornecidos.includes('subtarefa_id') || camposFornecidos.includes('cp_subtarefa')) {
+          match = match && ((v.subtarefa_id === subtarefaId) || (v.subtarefa_id === null && (subtarefaId === undefined || subtarefaId === null)));
+        }
+        
+        return match;
       });
     }
 
-    return data && data.length > 0;
+    const encontrado = data && data.length > 0;
+    if (encontrado) {
+      console.log('⚠️ [verificarDuplicata] Duplicata encontrada!');
+    } else {
+      console.log('✅ [verificarDuplicata] Nenhuma duplicata encontrada');
+    }
+    
+    return encontrado;
   } catch (error) {
-    console.error('Erro ao verificar duplicata:', error);
+    console.error('❌ Erro ao verificar duplicata:', error);
     return false; // Em caso de erro, permitir inserção (será tratado pelo índice único)
   }
 }
@@ -91,7 +136,7 @@ async function verificarDuplicata(dadosVinculado) {
 // POST - Criar novo registro de vinculado
 async function criarVinculado(req, res) {
   try {
-    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente, cp_subtarefa } = req.body;
 
     // Preparar dados para inserção (apenas valores não nulos)
     // Mapear nomes do frontend para nomes do banco
@@ -114,11 +159,15 @@ async function criarVinculado(req, res) {
       dadosVinculado.cliente_id = String(cp_cliente).trim();
     }
 
+    if (cp_subtarefa !== undefined && cp_subtarefa !== null && cp_subtarefa !== '') {
+      dadosVinculado.subtarefa_id = parseInt(cp_subtarefa, 10);
+    }
+
     // Verificar se pelo menos um campo foi preenchido
     if (Object.keys(dadosVinculado).length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Pelo menos um campo (cp_tarefa, cp_tarefa_tipo, cp_produto ou cp_cliente) deve ser fornecido'
+        error: 'Pelo menos um campo (cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente ou cp_subtarefa) deve ser fornecido'
       });
     }
 
@@ -192,6 +241,9 @@ async function criarMultiplosVinculados(req, res) {
       });
     }
 
+    // Log do que foi recebido do frontend
+    console.log('📥 [criarMultiplosVinculados] Recebido do frontend:', JSON.stringify(vinculados, null, 2));
+
     // Preparar dados para inserção
     const dadosParaInserir = vinculados.map(item => {
       const dadosVinculado = {};
@@ -214,8 +266,14 @@ async function criarMultiplosVinculados(req, res) {
         dadosVinculado.cliente_id = String(item.cp_cliente).trim();
       }
 
+      if (item.cp_subtarefa !== undefined && item.cp_subtarefa !== null && item.cp_subtarefa !== '') {
+        dadosVinculado.subtarefa_id = parseInt(item.cp_subtarefa, 10);
+      }
+
       return dadosVinculado;
     }).filter(item => Object.keys(item).length > 0); // Remover itens vazios
+
+    console.log('📝 [criarMultiplosVinculados] Dados preparados para inserção:', JSON.stringify(dadosParaInserir, null, 2));
 
     if (dadosParaInserir.length === 0) {
       return res.status(400).json({
@@ -225,28 +283,47 @@ async function criarMultiplosVinculados(req, res) {
     }
 
     // Verificar duplicatas antes de inserir (em lote)
+    // Filtrar apenas as vinculações que NÃO existem
+    const dadosNovos = [];
     const duplicatas = [];
+    
+    console.log(`🔍 [criarMultiplosVinculados] Verificando ${dadosParaInserir.length} vinculação(ões)...`);
+    
     for (let i = 0; i < dadosParaInserir.length; i++) {
+      console.log(`\n🔍 [criarMultiplosVinculados] Verificando item ${i + 1}/${dadosParaInserir.length}:`, JSON.stringify(dadosParaInserir[i], null, 2));
       const existeDuplicata = await verificarDuplicata(dadosParaInserir[i]);
       if (existeDuplicata) {
+        console.log(`⚠️ [criarMultiplosVinculados] Item ${i + 1} é DUPLICATA`);
         duplicatas.push(i);
+      } else {
+        console.log(`✅ [criarMultiplosVinculados] Item ${i + 1} é NOVO`);
+        dadosNovos.push(dadosParaInserir[i]);
       }
     }
 
-    if (duplicatas.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: `${duplicatas.length} vinculação(ões) já existem e não podem ser duplicadas.`,
-        duplicatas: duplicatas,
-        total: dadosParaInserir.length
+    console.log(`\n📊 [criarMultiplosVinculados] Resultado da verificação:`);
+    console.log(`  - Total recebido: ${dadosParaInserir.length}`);
+    console.log(`  - Novos para inserir: ${dadosNovos.length}`);
+    console.log(`  - Duplicatas encontradas: ${duplicatas.length}`);
+
+    // Se não há novas vinculações para criar, retornar sucesso informando que já existem
+    // (modo de atualização - não é erro, apenas informativo)
+    if (dadosNovos.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        count: 0,
+        duplicatas: duplicatas.length,
+        total: dadosParaInserir.length,
+        message: `${duplicatas.length} vinculação(ões) já existem e foram mantidas.`
       });
     }
 
-    // Inserir no banco
+    // Inserir apenas as novas vinculações no banco
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
-      .insert(dadosParaInserir)
+      .insert(dadosNovos)
       .select();
 
     if (error) {
@@ -257,13 +334,72 @@ async function criarMultiplosVinculados(req, res) {
         details: error.details,
         hint: error.hint
       });
+      console.error('❌ Dados que tentaram ser inseridos:', JSON.stringify(dadosNovos, null, 2));
       
       // Verificar se é erro de duplicata
+      // Em modo de atualização/edição, duplicatas não são erros, apenas informativo
       if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
-        return res.status(409).json({
-          success: false,
-          error: 'Uma ou mais vinculações já existem. Duplicatas não são permitidas.',
-          details: error.message
+        console.log('ℹ️ [criarMultiplosVinculados] Duplicata detectada no banco (modo atualização - ignorando)');
+        
+        // Verificar quais vinculações já existem
+        const duplicatasNoBanco = [];
+        for (const item of dadosNovos) {
+          const existeDuplicata = await verificarDuplicata(item);
+          if (existeDuplicata) {
+            duplicatasNoBanco.push(item);
+          }
+        }
+        
+        // Filtrar apenas as que realmente são novas (não duplicadas)
+        const dadosRealmenteNovos = dadosNovos.filter(item => {
+          return !duplicatasNoBanco.some(dup => {
+            return JSON.stringify(dup) === JSON.stringify(item);
+          });
+        });
+        
+        // Se todas são duplicatas, retornar sucesso (modo atualização)
+        if (dadosRealmenteNovos.length === 0) {
+          return res.status(200).json({
+            success: true,
+            data: [],
+            count: 0,
+            duplicatas: dadosNovos.length,
+            total: dadosParaInserir.length,
+            message: `${dadosNovos.length} vinculação(ões) já existem e foram mantidas.`
+          });
+        }
+        
+        // Se algumas são novas, tentar inserir apenas as novas
+        console.log(`ℹ️ [criarMultiplosVinculados] ${duplicatasNoBanco.length} duplicata(s) ignorada(s), tentando inserir ${dadosRealmenteNovos.length} nova(s)`);
+        
+        // Tentar inserir apenas as novas
+        const { data: dataRetry, error: errorRetry } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .insert(dadosRealmenteNovos)
+          .select();
+        
+        if (errorRetry) {
+          // Se ainda der erro, retornar sucesso informando que já existem (modo atualização)
+          console.log('ℹ️ [criarMultiplosVinculados] Erro ao inserir, mas tratando como atualização bem-sucedida');
+          return res.status(200).json({
+            success: true,
+            data: [],
+            count: 0,
+            duplicatas: dadosParaInserir.length,
+            total: dadosParaInserir.length,
+            message: `${dadosParaInserir.length} vinculação(ões) já existem e foram mantidas.`
+          });
+        }
+        
+        // Sucesso parcial: algumas criadas, outras já existiam
+        return res.status(201).json({
+          success: true,
+          data: dataRetry || [],
+          count: dataRetry?.length || 0,
+          duplicatas: duplicatasNoBanco.length,
+          total: dadosParaInserir.length,
+          message: `${dataRetry?.length || 0} vinculação(ões) criada(s) com sucesso! ${duplicatasNoBanco.length} já existiam e foram mantidas.`
         });
       }
       
@@ -276,21 +412,36 @@ async function criarMultiplosVinculados(req, res) {
 
     console.log(`✅ ${data?.length || 0} vinculado(s) criado(s) com sucesso`);
 
-    // Após criar vinculados, verificar se há novas tarefas vinculadas a produtos (sem cliente)
-    // Se houver, vincular essas tarefas aos clientes que já estão vinculados ao produto
-    await aplicarHerancaParaNovasTarefas(data || []);
-    
-    // Aplicar herança quando vincular tarefa ao tipo de tarefa
-    await aplicarHerancaTipoTarefa(data || []);
-    
-    // Aplicar herança quando vincular tarefa ao produto (vincular tipo de tarefa ao produto)
-    await aplicarHerancaTipoTarefaParaProduto(data || []);
+    // Após criar vinculados, aplicar heranças (apenas se houver dados criados)
+    if (data && data.length > 0) {
+      try {
+        // Verificar se há novas tarefas vinculadas a produtos (sem cliente)
+        // Se houver, vincular essas tarefas aos clientes que já estão vinculados ao produto
+        await aplicarHerancaParaNovasTarefas(data);
+        
+        // Aplicar herança quando vincular tarefa ao tipo de tarefa
+        await aplicarHerancaTipoTarefa(data);
+        
+        // Aplicar herança quando vincular tarefa ao produto (vincular tipo de tarefa ao produto)
+        await aplicarHerancaTipoTarefaParaProduto(data);
+      } catch (herancaError) {
+        // Não falhar a requisição se houver erro na herança
+        console.error('❌ Erro ao aplicar heranças (não crítico):', herancaError);
+      }
+    }
+
+    // Montar mensagem informando sobre duplicatas se houver
+    let message = `${data?.length || 0} vinculado(s) criado(s) com sucesso!`;
+    if (duplicatas.length > 0) {
+      message += ` ${duplicatas.length} vinculação(ões) já existiam e foram ignoradas.`;
+    }
 
     return res.status(201).json({
       success: true,
       data: data || [],
       count: data?.length || 0,
-      message: `${data?.length || 0} vinculado(s) criado(s) com sucesso!`
+      duplicatas: duplicatas.length,
+      message: message
     });
   } catch (error) {
     console.error('Erro inesperado ao criar múltiplos vinculados:', error);
@@ -376,7 +527,8 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
           produto_id: vinculado.produto_id,
           tarefa_tipo_id: tarefaTipoId,
           tarefa_id: null,
-          cliente_id: null
+          cliente_id: null,
+          subtarefa_id: null
         };
 
         const existeDuplicata = await verificarDuplicata(novoVinculado);
@@ -387,7 +539,12 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
             .insert([novoVinculado]);
 
           if (insertError) {
-            console.error(`❌ Erro ao criar vinculado produto-tipo de tarefa:`, insertError);
+            // Ignorar erro de duplicata (pode ter sido criado entre a verificação e a inserção)
+            if (insertError.code !== '23505' && !insertError.message?.includes('duplicate') && !insertError.message?.includes('unique')) {
+              console.error(`❌ Erro ao criar vinculado produto-tipo de tarefa:`, insertError);
+            } else {
+              console.log(`ℹ️ Vinculado produto-tipo de tarefa já existe, ignorando...`);
+            }
           } else {
             console.log(`✅ Vinculado criado: Produto ${vinculado.produto_id} → Tipo de Tarefa ${tarefaTipoId}`);
           }
@@ -453,7 +610,8 @@ async function aplicarHerancaTipoTarefa(vinculadosCriados) {
         tarefa_id: v.tarefa_id,
         tarefa_tipo_id: tarefa_tipo_id,
         produto_id: v.produto_id,
-        cliente_id: v.cliente_id
+        cliente_id: v.cliente_id,
+        subtarefa_id: null
       }));
 
       // Verificar duplicatas antes de inserir
@@ -474,7 +632,12 @@ async function aplicarHerancaTipoTarefa(vinculadosCriados) {
           .insert(vinculadosParaInserir);
 
         if (insertError) {
-          console.error(`❌ Erro ao criar vinculados com tipo de tarefa:`, insertError);
+          // Ignorar erro de duplicata (pode ter sido criado entre a verificação e a inserção)
+          if (insertError.code !== '23505' && !insertError.message?.includes('duplicate') && !insertError.message?.includes('unique')) {
+            console.error(`❌ Erro ao criar vinculados com tipo de tarefa:`, insertError);
+          } else {
+            console.log(`ℹ️ Algumas vinculações com tipo de tarefa já existem, ignorando...`);
+          }
         } else {
           console.log(`✅ ${vinculadosParaInserir.length} vinculação(ões) criada(s) com sucesso`);
         }
@@ -544,7 +707,8 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
           produto_id: parseInt(produtoId, 10),
           tarefa_id: tarefaId,
           cliente_id: String(clienteId).trim(),
-          tarefa_tipo_id: null
+          tarefa_tipo_id: null,
+          subtarefa_id: null
         }));
 
         // Verificar duplicatas antes de inserir
@@ -563,7 +727,12 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
             .insert(vinculadosParaInserir);
 
           if (insertError) {
-            console.error(`❌ Erro ao vincular tarefas ao cliente ${clienteId}:`, insertError);
+            // Ignorar erro de duplicata (pode ter sido criado entre a verificação e a inserção)
+            if (insertError.code !== '23505' && !insertError.message?.includes('duplicate') && !insertError.message?.includes('unique')) {
+              console.error(`❌ Erro ao vincular tarefas ao cliente ${clienteId}:`, insertError);
+            } else {
+              console.log(`ℹ️ Algumas vinculações ao cliente ${clienteId} já existem, ignorando...`);
+            }
           } else {
             console.log(`✅ ${vinculadosParaInserir.length} tarefa(s) vinculada(s) ao cliente ${clienteId}`);
             
@@ -582,7 +751,7 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
 // GET - Listar todos os vinculados com nomes relacionados
 async function getVinculados(req, res) {
   try {
-    const { page = 1, limit = 50, filtro_produto, filtro_atividade, filtro_tipo_atividade, filtro_cliente } = req.query;
+    const { page = 1, limit = 50, filtro_produto, filtro_atividade, filtro_tipo_atividade, filtro_subtarefa, filtro_cliente } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
@@ -591,23 +760,26 @@ async function getVinculados(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('vinculados')
-      .select('id, tarefa_id, tarefa_tipo_id, produto_id, cliente_id', { count: 'exact' })
+      .select('id, tarefa_id, tarefa_tipo_id, produto_id, cliente_id, subtarefa_id', { count: 'exact' })
       .order('id', { ascending: false });
 
     // Aplicar filtros - apenas mostrar registros que têm os campos selecionados
     const temFiltroProduto = filtro_produto === 'true' || filtro_produto === '1';
     const temFiltroAtividade = filtro_atividade === 'true' || filtro_atividade === '1';
     const temFiltroTipoAtividade = filtro_tipo_atividade === 'true' || filtro_tipo_atividade === '1';
+    const temFiltroSubtarefa = filtro_subtarefa === 'true' || filtro_subtarefa === '1';
     const temFiltroCliente = filtro_cliente === 'true' || filtro_cliente === '1';
 
     console.log('🔍 Filtros recebidos:', {
       filtro_produto,
       filtro_atividade,
       filtro_tipo_atividade,
+      filtro_subtarefa,
       filtro_cliente,
       temFiltroProduto,
       temFiltroAtividade,
       temFiltroTipoAtividade,
+      temFiltroSubtarefa,
       temFiltroCliente
     });
 
@@ -622,6 +794,10 @@ async function getVinculados(req, res) {
     if (temFiltroTipoAtividade) {
       query = query.not('tarefa_tipo_id', 'is', null);
       console.log('✅ Filtro tipo atividade aplicado: tarefa_tipo_id IS NOT NULL');
+    }
+    if (temFiltroSubtarefa) {
+      query = query.not('subtarefa_id', 'is', null);
+      console.log('✅ Filtro subtarefa aplicado: subtarefa_id IS NOT NULL');
     }
     if (temFiltroCliente) {
       query = query.not('cliente_id', 'is', null);
@@ -658,6 +834,9 @@ async function getVinculados(req, res) {
     if (temFiltroTipoAtividade) {
       vinculadosFiltrados = vinculadosFiltrados.filter(v => v.tarefa_tipo_id !== null && v.tarefa_tipo_id !== undefined);
     }
+    if (temFiltroSubtarefa) {
+      vinculadosFiltrados = vinculadosFiltrados.filter(v => v.subtarefa_id !== null && v.subtarefa_id !== undefined);
+    }
     if (temFiltroCliente) {
       vinculadosFiltrados = vinculadosFiltrados.filter(v => v.cliente_id !== null && v.cliente_id !== undefined && v.cliente_id !== '');
     }
@@ -674,12 +853,14 @@ async function getVinculados(req, res) {
     const idsTarefas = [...new Set(vinculadosFiltrados?.filter(v => v.tarefa_id).map(v => parseInt(v.tarefa_id, 10)) || [])];
     const idsProdutos = [...new Set(vinculadosFiltrados?.filter(v => v.produto_id).map(v => parseInt(v.produto_id, 10)) || [])];
     const idsTipoTarefas = [...new Set(vinculadosFiltrados?.filter(v => v.tarefa_tipo_id).map(v => parseInt(v.tarefa_tipo_id, 10)) || [])];
+    const idsSubtarefas = [...new Set(vinculadosFiltrados?.filter(v => v.subtarefa_id).map(v => parseInt(v.subtarefa_id, 10)) || [])];
     // cliente_id é TEXT, então manter como string
     const idsClientes = [...new Set(vinculadosFiltrados?.filter(v => v.cliente_id && v.cliente_id.trim() !== '').map(v => String(v.cliente_id).trim()) || [])];
 
     console.log(`🔍 IDs de tarefas para buscar: [${idsTarefas.join(', ')}]`);
     console.log(`🔍 IDs de produtos para buscar: [${idsProdutos.join(', ')}]`);
     console.log(`🔍 IDs de tipo de tarefas para buscar: [${idsTipoTarefas.join(', ')}]`);
+    console.log(`🔍 IDs de subtarefas para buscar: [${idsSubtarefas.join(', ')}]`);
     console.log(`🔍 IDs de clientes para buscar: [${idsClientes.join(', ')}]`);
 
     // Buscar tarefas
@@ -758,6 +939,31 @@ async function getVinculados(req, res) {
       }
     }
 
+    // Buscar subtarefas
+    const subtarefasMap = new Map();
+    if (idsSubtarefas.length > 0) {
+      console.log(`🔍 Buscando subtarefas com IDs: [${idsSubtarefas.join(', ')}]`);
+      
+      for (const subtarefaId of idsSubtarefas) {
+        const { data: subtarefa, error: errorSubtarefa } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_subtarefa')
+          .select('id, nome')
+          .eq('id', subtarefaId)
+          .maybeSingle();
+        
+        if (errorSubtarefa) {
+          console.error(`❌ Erro ao buscar subtarefa ID ${subtarefaId}:`, errorSubtarefa);
+        } else if (subtarefa) {
+          const id = parseInt(subtarefa.id, 10);
+          subtarefasMap.set(id, subtarefa.nome);
+          console.log(`  ✅ ID ${id}: ${subtarefa.nome}`);
+        } else {
+          console.warn(`⚠️ Subtarefa ID ${subtarefaId} não encontrada na tabela cp_subtarefa`);
+        }
+      }
+    }
+
     // Buscar clientes
     // cp_cliente contém UUID (string), então buscar diretamente pelo id (UUID)
     const clientesMap = new Map();
@@ -792,15 +998,18 @@ async function getVinculados(req, res) {
       const tarefaId = v.tarefa_id ? parseInt(v.tarefa_id, 10) : null;
       const produtoId = v.produto_id ? parseInt(v.produto_id, 10) : null;
       const tipoTarefaId = v.tarefa_tipo_id ? parseInt(v.tarefa_tipo_id, 10) : null;
+      const subtarefaId = v.subtarefa_id ? parseInt(v.subtarefa_id, 10) : null;
 
       console.log(`🔍 Processando vinculado ID ${v.id}:`);
       console.log(`  - tarefa_id: ${v.tarefa_id} (tipo: ${typeof v.tarefa_id}) -> parseInt: ${tarefaId}`);
       console.log(`  - produto_id: ${v.produto_id} (tipo: ${typeof v.produto_id}) -> parseInt: ${produtoId}`);
       console.log(`  - tarefa_tipo_id: ${v.tarefa_tipo_id} (tipo: ${typeof v.tarefa_tipo_id}) -> parseInt: ${tipoTarefaId}`);
+      console.log(`  - subtarefa_id: ${v.subtarefa_id} (tipo: ${typeof v.subtarefa_id}) -> parseInt: ${subtarefaId}`);
 
       const tarefaNome = tarefaId ? tarefasMap.get(tarefaId) : null;
       const produtoNome = produtoId ? produtosMap.get(produtoId) : null;
       const tipoTarefaNome = tipoTarefaId ? tipoTarefasMap.get(tipoTarefaId) : null;
+      const subtarefaNome = subtarefaId ? subtarefasMap.get(subtarefaId) : null;
       
       // Buscar nome do cliente (cliente_id é TEXT/UUID)
       let clienteNome = null;
@@ -813,6 +1022,7 @@ async function getVinculados(req, res) {
       console.log(`  - tarefa_nome: ${tarefaNome || 'null'}`);
       console.log(`  - produto_nome: ${produtoNome || 'null'}`);
       console.log(`  - tipo_tarefa_nome: ${tipoTarefaNome || 'null'}`);
+      console.log(`  - subtarefa_nome: ${subtarefaNome || 'null'}`);
       console.log(`  - cliente_nome: ${clienteNome || 'null'}`);
 
       // Debug para cada vinculado
@@ -828,6 +1038,10 @@ async function getVinculados(req, res) {
         console.warn(`⚠️ Nome não encontrado para tipo de tarefa ID: ${tipoTarefaId}`);
         console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(tipoTarefasMap.keys()).join(', ')}]`);
       }
+      if (subtarefaId && !subtarefaNome) {
+        console.warn(`⚠️ Nome não encontrado para subtarefa ID: ${subtarefaId}`);
+        console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(subtarefasMap.keys()).join(', ')}]`);
+      }
 
       return {
         ...v,
@@ -836,11 +1050,13 @@ async function getVinculados(req, res) {
         cp_tarefa_tipo: v.tarefa_tipo_id,
         cp_produto: v.produto_id,
         cp_cliente: v.cliente_id,
+        cp_subtarefa: v.subtarefa_id,
         atividade_nome: tarefaNome, // Manter compatibilidade com frontend
         tarefa_nome: tarefaNome,
         produto_nome: produtoNome,
         tipo_atividade_nome: tipoTarefaNome, // Manter compatibilidade com frontend
         tipo_tarefa_nome: tipoTarefaNome,
+        subtarefa_nome: subtarefaNome,
         cliente_nome: clienteNome
       };
     });
@@ -848,7 +1064,7 @@ async function getVinculados(req, res) {
     console.log(`✅ Dados enriquecidos: ${dadosEnriquecidos.length} registros`);
 
     // Ajustar o total se filtros foram aplicados no código
-    const totalAjustado = temFiltroProduto || temFiltroAtividade || temFiltroTipoAtividade || temFiltroCliente
+    const totalAjustado = temFiltroProduto || temFiltroAtividade || temFiltroTipoAtividade || temFiltroSubtarefa || temFiltroCliente
       ? dadosEnriquecidos.length 
       : count || 0;
 
@@ -905,9 +1121,86 @@ async function getVinculadoPorId(req, res) {
       });
     }
 
+    // Enriquecer com nomes
+    const dadosEnriquecidos = { ...data };
+    
+    // Buscar nome da tarefa
+    if (data.tarefa_id) {
+      const { data: tarefa } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_tarefa')
+        .select('id, nome')
+        .eq('id', data.tarefa_id)
+        .maybeSingle();
+      if (tarefa) {
+        dadosEnriquecidos.tarefa_nome = tarefa.nome;
+        dadosEnriquecidos.atividade_nome = tarefa.nome;
+      }
+    }
+
+    // Buscar nome do produto
+    if (data.produto_id) {
+      const { data: produto } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_produto')
+        .select('id, nome')
+        .eq('id', data.produto_id)
+        .maybeSingle();
+      if (produto) {
+        dadosEnriquecidos.produto_nome = produto.nome;
+      }
+    }
+
+    // Buscar nome do tipo de tarefa
+    if (data.tarefa_tipo_id) {
+      const { data: tipoTarefa } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_tarefa_tipo')
+        .select('id, nome')
+        .eq('id', data.tarefa_tipo_id)
+        .maybeSingle();
+      if (tipoTarefa) {
+        dadosEnriquecidos.tipo_tarefa_nome = tipoTarefa.nome;
+        dadosEnriquecidos.tipo_atividade_nome = tipoTarefa.nome;
+      }
+    }
+
+    // Buscar nome da subtarefa
+    if (data.subtarefa_id) {
+      const { data: subtarefa } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_subtarefa')
+        .select('id, nome')
+        .eq('id', data.subtarefa_id)
+        .maybeSingle();
+      if (subtarefa) {
+        dadosEnriquecidos.subtarefa_nome = subtarefa.nome;
+      }
+    }
+
+    // Buscar nome do cliente
+    if (data.cliente_id) {
+      const { data: cliente } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_cliente')
+        .select('id, nome, nome_amigavel, nome_fantasia, razao_social')
+        .eq('id', String(data.cliente_id).trim())
+        .maybeSingle();
+      if (cliente) {
+        dadosEnriquecidos.cliente_nome = cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`;
+      }
+    }
+
+    // Adicionar campos de compatibilidade
+    dadosEnriquecidos.cp_tarefa = data.tarefa_id;
+    dadosEnriquecidos.cp_tarefa_tipo = data.tarefa_tipo_id;
+    dadosEnriquecidos.cp_produto = data.produto_id;
+    dadosEnriquecidos.cp_cliente = data.cliente_id;
+    dadosEnriquecidos.cp_subtarefa = data.subtarefa_id;
+
     return res.json({
       success: true,
-      data
+      data: dadosEnriquecidos
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar vinculado:', error);
@@ -923,7 +1216,7 @@ async function getVinculadoPorId(req, res) {
 async function atualizarVinculado(req, res) {
   try {
     const { id } = req.params;
-    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente } = req.body;
+    const { cp_tarefa, cp_tarefa_tipo, cp_produto, cp_cliente, cp_subtarefa } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -951,6 +1244,10 @@ async function atualizarVinculado(req, res) {
     // cliente_id é TEXT, então enviar como string
     if (cp_cliente !== undefined) {
       dadosVinculado.cliente_id = cp_cliente !== null && cp_cliente !== '' ? String(cp_cliente).trim() : null;
+    }
+
+    if (cp_subtarefa !== undefined) {
+      dadosVinculado.subtarefa_id = cp_subtarefa !== null && cp_subtarefa !== '' ? parseInt(cp_subtarefa, 10) : null;
     }
 
     // Verificar se pelo menos um campo foi preenchido
@@ -1481,6 +1778,8 @@ async function getTarefasPorClienteEProdutos(req, res) {
 }
 
 // GET - Buscar produtos vinculados a um cliente
+// Retorna TODOS os produtos disponíveis (não apenas os já vinculados)
+// O usuário pode escolher qualquer produto para criar novos vínculos
 async function getProdutosPorCliente(req, res) {
   try {
     const { clienteId } = req.query;
@@ -1494,71 +1793,32 @@ async function getProdutosPorCliente(req, res) {
 
     const clienteIdStr = String(clienteId).trim();
 
-    // Buscar vinculados que têm este cliente e têm produto vinculado
-    const { data: vinculados, error: vinculadosError } = await supabase
+    // Buscar TODOS os produtos disponíveis (não apenas os já vinculados)
+    // O usuário pode escolher qualquer produto para vincular ao cliente
+    const { data: produtos, error: produtosError } = await supabase
       .schema('up_gestaointeligente')
-      .from('vinculados')
-      .select('produto_id')
-      .eq('cliente_id', clienteIdStr)
-      .not('produto_id', 'is', null);
+      .from('cp_produto')
+      .select('id, nome')
+      .order('nome', { ascending: true });
 
-    if (vinculadosError) {
-      console.error('❌ Erro ao buscar vinculados:', vinculadosError);
+    if (produtosError) {
+      console.error('❌ Erro ao buscar produtos:', produtosError);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar vinculados',
-        details: vinculadosError.message
+        error: 'Erro ao buscar produtos',
+        details: produtosError.message
       });
     }
 
-    // Extrair IDs únicos de produtos
-    const produtoIds = [...new Set(
-      (vinculados || [])
-        .map(v => v.produto_id)
-        .filter(id => id !== null && id !== undefined)
-    )];
-
-    if (produtoIds.length === 0) {
-      return res.json({
-        success: true,
-        data: [],
-        count: 0
-      });
-    }
-
-    // Buscar produtos na tabela cp_produto
-    const produtosMap = new Map();
-    if (produtoIds.length > 0) {
-      console.log(`🔍 Buscando produtos com IDs: [${produtoIds.join(', ')}]`);
-      
-      // Buscar cada produto individualmente
-      for (const produtoId of produtoIds) {
-        const { data: produto, error: errorProduto } = await supabase
-          .schema('up_gestaointeligente')
-          .from('cp_produto')
-          .select('id, nome')
-          .eq('id', produtoId)
-          .maybeSingle();
-        
-        if (errorProduto) {
-          console.error(`❌ Erro ao buscar produto ID ${produtoId}:`, errorProduto);
-        } else if (produto) {
-          const id = parseInt(produto.id, 10);
-          produtosMap.set(id, { id, nome: produto.nome || null });
-          console.log(`  ✅ ID ${id}: ${produto.nome}`);
-        } else {
-          console.warn(`⚠️ Produto ID ${produtoId} não encontrado na tabela cp_produto`);
-        }
-      }
-    }
-
-    // Converter Map para array
-    const produtos = Array.from(produtosMap.values());
+    const produtosFormatados = (produtos || []).map(produto => ({
+      id: parseInt(produto.id, 10),
+      nome: produto.nome || null
+    }));
 
     return res.json({
       success: true,
-      data: produtos,
-      count: produtos.length
+      data: produtosFormatados,
+      count: produtosFormatados.length
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar produtos por cliente:', error);
@@ -1873,6 +2133,325 @@ async function aplicarHeranca(req, res) {
   }
 }
 
+// GET - Buscar tarefas vinculadas a um tipo de tarefa
+// Retorna TODAS as tarefas disponíveis (não apenas as já vinculadas)
+// O usuário pode escolher qualquer tarefa para criar novos vínculos
+async function getTarefasPorTipo(req, res) {
+  try {
+    const { tipoTarefaId } = req.query;
+    
+    if (!tipoTarefaId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "tipoTarefaId" é obrigatório. Use: ?tipoTarefaId=id'
+      });
+    }
+
+    const tipoTarefaIdNum = parseInt(tipoTarefaId, 10);
+    if (isNaN(tipoTarefaIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'tipoTarefaId deve ser um número válido'
+      });
+    }
+
+    console.log(`🔍 Buscando tarefas NÃO vinculadas ao tipo de tarefa ID: ${tipoTarefaIdNum}`);
+
+    // 1. Buscar TODAS as tarefas disponíveis
+    const { data: todasTarefas, error: tarefasError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa')
+      .select('id, nome')
+      .order('nome', { ascending: true });
+
+    if (tarefasError) {
+      console.error('❌ Erro ao buscar todas as tarefas:', tarefasError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tarefas',
+        details: tarefasError.message
+      });
+    }
+
+    // 2. Buscar tarefas que JÁ estão vinculadas a este tipo de tarefa
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('tarefa_id')
+      .eq('tarefa_tipo_id', tipoTarefaIdNum)
+      .not('tarefa_id', 'is', null);
+
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar tarefas vinculadas:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tarefas vinculadas',
+        details: vinculadosError.message
+      });
+    }
+
+    // 3. Extrair IDs das tarefas já vinculadas
+    const tarefasVinculadasIds = new Set(
+      (vinculados || [])
+        .map(v => parseInt(v.tarefa_id, 10))
+        .filter(id => !isNaN(id))
+    );
+
+    console.log(`📋 Total de tarefas: ${todasTarefas?.length || 0}`);
+    console.log(`🔗 Tarefas já vinculadas: ${tarefasVinculadasIds.size}`);
+    console.log(`✅ Tarefas disponíveis para vincular: ${(todasTarefas?.length || 0) - tarefasVinculadasIds.size}`);
+
+    // 4. Filtrar: retornar apenas tarefas NÃO vinculadas
+    const tarefasNaoVinculadas = (todasTarefas || []).filter(tarefa => {
+      const tarefaId = parseInt(tarefa.id, 10);
+      return !tarefasVinculadasIds.has(tarefaId);
+    });
+
+    const tarefasFormatadas = tarefasNaoVinculadas.map(tarefa => ({
+      id: parseInt(tarefa.id, 10),
+      nome: tarefa.nome || null
+    }));
+
+    return res.json({
+      success: true,
+      data: tarefasFormatadas,
+      count: tarefasFormatadas.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tarefas por tipo:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar subtarefas vinculadas a uma tarefa
+// Retorna todas as subtarefas da tarefa (para aplicar herança)
+// Se tarefaTipoId for fornecido, busca subtarefas vinculadas à combinação específica (tarefa_id + tarefa_tipo_id)
+// Se produtoId for fornecido, apenas para contexto (não filtra, apenas para log)
+async function getSubtarefasPorTarefa(req, res) {
+  try {
+    const { tarefaId, tarefaTipoId, produtoId, todos } = req.query;
+    
+    if (!tarefaId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "tarefaId" é obrigatório. Use: ?tarefaId=id&tarefaTipoId=id (opcional)&produtoId=id (opcional)&todos=true (opcional)'
+      });
+    }
+
+    const tarefaIdNum = parseInt(tarefaId, 10);
+    if (isNaN(tarefaIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'tarefaId deve ser um número válido'
+      });
+    }
+
+    const tarefaTipoIdNum = tarefaTipoId ? parseInt(tarefaTipoId, 10) : null;
+    if (tarefaTipoId && isNaN(tarefaTipoIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'tarefaTipoId deve ser um número válido'
+      });
+    }
+
+    const produtoIdNum = produtoId ? parseInt(produtoId, 10) : null;
+    if (produtoId && isNaN(produtoIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'produtoId deve ser um número válido'
+      });
+    }
+
+    const listarTodas = todos === 'true' || todos === '1';
+
+    if (listarTodas) {
+      console.log(`🔍 Buscando TODAS as subtarefas (independente de vínculos) para a tarefa ID ${tarefaIdNum}`);
+    } else {
+      if (tarefaTipoIdNum) {
+        if (produtoIdNum) {
+          console.log(`🔍 Buscando subtarefas vinculadas da tarefa ID ${tarefaIdNum} + tipo ${tarefaTipoIdNum} para o produto ID ${produtoIdNum}`);
+        } else {
+          console.log(`🔍 Buscando subtarefas vinculadas da tarefa ID ${tarefaIdNum} + tipo ${tarefaTipoIdNum}`);
+        }
+      } else {
+        console.log(`🔍 Buscando subtarefas vinculadas da tarefa ID ${tarefaIdNum} (sem tipo específico)`);
+      }
+    }
+
+    let subtarefasComNomes = [];
+
+    if (listarTodas) {
+      // Buscar TODAS as subtarefas da tabela cp_subtarefa, independente de vínculos
+      const { data: todasSubtarefas, error: todasSubtarefasError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_subtarefa')
+        .select('id, nome')
+        .order('nome', { ascending: true });
+
+      if (todasSubtarefasError) {
+        console.error('❌ Erro ao buscar todas as subtarefas:', todasSubtarefasError);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar todas as subtarefas',
+          details: todasSubtarefasError.message
+        });
+      }
+
+      subtarefasComNomes = (todasSubtarefas || []).map(subtarefa => ({
+        id: parseInt(subtarefa.id, 10),
+        nome: subtarefa.nome || null
+      }));
+
+      console.log(`📋 Todas as subtarefas encontradas: ${subtarefasComNomes.length}`);
+    } else {
+      // 1. Buscar subtarefas vinculadas à tarefa na tabela vinculados
+      // A relação entre subtarefa e tarefa está na tabela vinculados
+      // Buscar apenas vinculações Tarefa → Subtarefas (produto_id IS NULL e cliente_id IS NULL)
+      // Se tarefaTipoId fornecido, filtrar também por tarefa_tipo_id (buscar combinação específica)
+      let queryVinculados = supabase
+        .schema('up_gestaointeligente')
+        .from('vinculados')
+        .select('subtarefa_id')
+        .eq('tarefa_id', tarefaIdNum)
+        .is('produto_id', null) // Apenas vinculações Tarefa → Subtarefas (sem produto)
+        .is('cliente_id', null) // Apenas vinculações Tarefa → Subtarefas (sem cliente)
+        .not('subtarefa_id', 'is', null);
+
+      // Se tarefaTipoId fornecido, filtrar por combinação específica
+      if (tarefaTipoIdNum !== null) {
+        queryVinculados = queryVinculados.eq('tarefa_tipo_id', tarefaTipoIdNum);
+      }
+
+      const { data: vinculados, error: vinculadosError } = await queryVinculados;
+
+      if (vinculadosError) {
+        console.error('❌ Erro ao buscar subtarefas vinculadas:', vinculadosError);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar subtarefas vinculadas',
+          details: vinculadosError.message
+        });
+      }
+
+      // 2. Extrair IDs únicos das subtarefas
+      const subtarefasIds = [...new Set(
+        (vinculados || [])
+          .map(v => parseInt(v.subtarefa_id, 10))
+          .filter(id => !isNaN(id))
+      )];
+
+      console.log(`📋 Subtarefas vinculadas encontradas: ${subtarefasIds.length}${tarefaTipoIdNum ? ` (combinação tarefa_id=${tarefaIdNum} + tarefa_tipo_id=${tarefaTipoIdNum})` : ` (tarefa_id=${tarefaIdNum})`}`);
+
+      // 3. Buscar nomes das subtarefas na tabela cp_subtarefa
+      if (subtarefasIds.length > 0) {
+        // Buscar cada subtarefa individualmente para obter o nome
+        for (const subtarefaId of subtarefasIds) {
+          const { data: subtarefa, error: subtarefaError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('cp_subtarefa')
+            .select('id, nome')
+            .eq('id', subtarefaId)
+            .maybeSingle();
+
+          if (subtarefaError) {
+            console.error(`❌ Erro ao buscar subtarefa ${subtarefaId}:`, subtarefaError);
+          } else if (subtarefa) {
+            subtarefasComNomes.push({
+              id: parseInt(subtarefa.id, 10),
+              nome: subtarefa.nome || null
+            });
+          }
+        }
+
+        // Ordenar por nome
+        subtarefasComNomes.sort((a, b) => {
+          const nomeA = (a.nome || '').toLowerCase();
+          const nomeB = (b.nome || '').toLowerCase();
+          return nomeA.localeCompare(nomeB);
+        });
+      }
+    }
+
+    console.log(`✅ Retornando ${subtarefasComNomes.length} subtarefas${produtoIdNum ? ` para produto ${produtoIdNum}` : ''}${listarTodas ? ' (todas as subtarefas)' : ''}`);
+
+    return res.json({
+      success: true,
+      data: subtarefasComNomes,
+      count: subtarefasComNomes.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar subtarefas por tarefa:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar tarefas vinculadas a um produto (versão singular)
+// Retorna TODAS as tarefas disponíveis (não apenas as já vinculadas)
+// O usuário pode escolher qualquer tarefa para criar novos vínculos
+async function getTarefasPorProduto(req, res) {
+  try {
+    const { produtoId } = req.query;
+    
+    if (!produtoId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Parâmetro "produtoId" é obrigatório. Use: ?produtoId=id'
+      });
+    }
+
+    const produtoIdNum = parseInt(produtoId, 10);
+    if (isNaN(produtoIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'produtoId deve ser um número válido'
+      });
+    }
+
+    // Buscar TODAS as tarefas disponíveis (não apenas as já vinculadas)
+    // O usuário pode escolher qualquer tarefa para vincular ao produto
+    const { data: tarefas, error: tarefasError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa')
+      .select('id, nome')
+      .order('nome', { ascending: true });
+
+    if (tarefasError) {
+      console.error('❌ Erro ao buscar tarefas:', tarefasError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar tarefas',
+        details: tarefasError.message
+      });
+    }
+
+    const tarefasFormatadas = (tarefas || []).map(tarefa => ({
+      id: parseInt(tarefa.id, 10),
+      nome: tarefa.nome || null
+    }));
+
+    return res.json({
+      success: true,
+      data: tarefasFormatadas,
+      count: tarefasFormatadas.length
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar tarefas por produto:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarVinculado,
   criarMultiplosVinculados,
@@ -1881,9 +2460,12 @@ module.exports = {
   atualizarVinculado,
   deletarVinculado,
   getTarefasPorProdutos,
+  getTarefasPorProduto,
   getTarefasPorCliente,
   getTarefasPorClienteEProdutos,
   getProdutosPorCliente,
+  getTarefasPorTipo,
+  getSubtarefasPorTarefa,
   aplicarHeranca
 };
 
