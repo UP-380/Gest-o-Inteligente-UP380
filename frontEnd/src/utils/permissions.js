@@ -123,12 +123,13 @@ export async function initPermissoesConfig() {
 /**
  * Normaliza o nível de permissão do usuário
  * @param {string|null} permissoes - Permissões do usuário
- * @returns {string|null} Nível de permissão normalizado
+ * @returns {string|null} Nível de permissão normalizado ou null se não tiver permissão
  */
 export const normalizePermissionLevel = (permissoes) => {
   try {
-    if (!permissoes || permissoes === 'null' || permissoes === '') {
-      return PERMISSION_LEVELS.ADMINISTRADOR; // null = administrador
+    // Se for null, vazio ou 'null', não tem permissão
+    if (!permissoes || permissoes === 'null' || permissoes === '' || permissoes === null) {
+      return null; // null = sem permissão
     }
 
     // Se for string, normalizar
@@ -139,9 +140,9 @@ export const normalizePermissionLevel = (permissoes) => {
       if (normalized.startsWith('[') || normalized.startsWith('{')) {
         try {
           const parsed = JSON.parse(permissoes);
-          // Se for array vazio ou null, é administrador
+          // Se for array vazio ou null, não tem permissão
           if (!parsed || (Array.isArray(parsed) && parsed.length === 0)) {
-            return PERMISSION_LEVELS.ADMINISTRADOR;
+            return null;
           }
           // Se for array com valores, tratar como colaborador (compatibilidade)
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -159,16 +160,42 @@ export const normalizePermissionLevel = (permissoes) => {
         return normalized;
       }
       
-      // Se não reconhecer, assumir colaborador (mais restritivo)
-      return PERMISSION_LEVELS.COLABORADOR;
+      // Se não reconhecer, não tem permissão
+      return null;
     }
 
-    return PERMISSION_LEVELS.ADMINISTRADOR;
+    // Se não for string nem null, não tem permissão
+    return null;
   } catch (error) {
     console.error('Erro ao normalizar nível de permissão:', error);
-    // Em caso de erro, retornar administrador (mais permissivo) para não bloquear
-    return PERMISSION_LEVELS.ADMINISTRADOR;
+    // Em caso de erro, retornar null (sem permissão)
+    return null;
   }
+};
+
+// Mapeamento de páginas principais e suas subpáginas relacionadas
+const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
+  '/cadastro/clientes': ['/cadastro/cliente'],
+  '/cadastro/produtos': ['/cadastro/produto'],
+  '/cadastro/tarefas': ['/cadastro/tarefa'],
+  '/cadastro/tipo-tarefas': ['/cadastro/tipo-tarefa'],
+  '/cadastro/bancos': ['/cadastro/banco'],
+  '/cadastro/adquirentes': ['/cadastro/adquirente'],
+  '/cadastro/sistemas': ['/cadastro/sistema'],
+  '/atribuir-responsaveis': ['/atribuicao/cliente', '/atribuicao/nova'],
+  '/base-conhecimento/conteudos-clientes': ['/base-conhecimento/cliente'],
+};
+
+/**
+ * Verifica se uma rota é subpágina de uma página principal permitida
+ */
+const isSubpaginaPermitida = (route, allowedPages) => {
+  for (const [paginaPrincipal, subpaginas] of Object.entries(PAGINAS_PRINCIPAIS_COM_SUBPAGINAS)) {
+    if (subpaginas.includes(route) && allowedPages.includes(paginaPrincipal)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 /**
@@ -184,6 +211,11 @@ export const hasPermission = async (permissoes, route) => {
     }
 
     const level = normalizePermissionLevel(permissoes);
+    
+    // Se não tiver nível (null), não tem permissão
+    if (!level) {
+      return false;
+    }
     
     // Se for administrador, sempre permitir
     if (level === PERMISSION_LEVELS.ADMINISTRADOR) {
@@ -213,13 +245,19 @@ export const hasPermission = async (permissoes, route) => {
           return true;
         }
       }
+      
+      // Verificar se é subpágina de uma página principal permitida
+      if (isSubpaginaPermitida(normalizedRoute, allowedPages) || 
+          isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
+        return true;
+      }
     }
 
     return false;
   } catch (error) {
     console.error('Erro ao verificar permissão:', error);
-    // Em caso de erro, permitir acesso para não quebrar a aplicação
-    return true;
+    // Em caso de erro, não permitir acesso
+    return false;
   }
 };
 
@@ -233,6 +271,11 @@ export const hasPermissionSync = (permissoes, route) => {
     }
 
     const level = normalizePermissionLevel(permissoes);
+    
+    // Se não tiver nível (null), não tem permissão
+    if (!level) {
+      return false;
+    }
     
     // Se for administrador, sempre permitir
     if (level === PERMISSION_LEVELS.ADMINISTRADOR) {
@@ -258,12 +301,18 @@ export const hasPermissionSync = (permissoes, route) => {
           return true;
         }
       }
+      
+      // Verificar se é subpágina de uma página principal permitida
+      if (isSubpaginaPermitida(normalizedRoute, allowedPages) || 
+          isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
+        return true;
+      }
     }
 
     return false;
   } catch (error) {
     console.error('Erro ao verificar permissão:', error);
-    return true;
+    return false; // Em caso de erro, não permitir acesso
   }
 };
 
@@ -292,7 +341,8 @@ export const hasPagePermission = (permissoes, pageId) => {
  * @returns {boolean} true se é administrador
  */
 export const isAdmin = (permissoes) => {
-  return normalizePermissionLevel(permissoes) === PERMISSION_LEVELS.ADMINISTRADOR;
+  const level = normalizePermissionLevel(permissoes);
+  return level === PERMISSION_LEVELS.ADMINISTRADOR;
 };
 
 /**

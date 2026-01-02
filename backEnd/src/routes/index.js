@@ -260,9 +260,14 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
 
-// Rotas de Usuários (Gestão de Permissões)
+// Rotas de Usuários (CRUD completo)
+// IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.get('/api/usuarios', requireAuth, usuariosController.getUsuarios);
+router.post('/api/usuarios', requireAuth, usuariosController.criarUsuario);
 router.put('/api/usuarios/:id/permissoes', requireAuth, usuariosController.atualizarPermissoes);
+router.put('/api/usuarios/:id', requireAuth, usuariosController.atualizarUsuario);
+router.delete('/api/usuarios/:id', requireAuth, usuariosController.deletarUsuario);
+router.get('/api/membros-por-usuario/:usuarioId', requireAuth, usuariosController.getMembrosPorUsuario);
 
 // Rotas de Configurações de Permissões
 router.get('/api/permissoes-config', requireAuth, permissoesConfigController.getPermissoesConfig);

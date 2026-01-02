@@ -5,7 +5,6 @@ import FilterColaborador from '../../components/filters/FilterColaborador';
 import FilterDate from '../../components/filters/FilterDate';
 import FiltersCard from '../../components/filters/FiltersCard';
 import ToggleSwitch from '../../components/common/ToggleSwitch';
-import ButtonPrimary from '../../components/common/ButtonPrimary';
 import InactiveButton from '../../components/common/InactiveButton';
 import CardContainer from '../../components/common/CardContainer';
 import { calcularVigencia } from '../../utils/calcularVigencia';
@@ -1832,14 +1831,16 @@ const GestaoColaboradores = () => {
                     }}
                     label="Inativos"
                   />
-                  <ButtonPrimary
+                  <button
+                    className="add-client-btn active"
                     onClick={mostrarDetalhes ? handleNovaVigenciaDoFiltro : handleNewColaborador}
                     disabled={showForm}
-                    icon="fas fa-plus"
+                    type="button"
                     style={{ marginLeft: '12px' }}
                   >
+                    <i className={`fas ${mostrarDetalhes ? 'fa-calendar-plus' : 'fa-user-plus'}`}></i>
                     {mostrarDetalhes ? 'Nova Vigência' : 'Novo Colaborador'}
-                  </ButtonPrimary>
+                  </button>
                 </div>
               </div>
               <FiltersCard
@@ -1933,14 +1934,16 @@ const GestaoColaboradores = () => {
                     }}
                     label="Inativos"
                   />
-                  <ButtonPrimary
+                  <button
+                    className="add-client-btn active"
                     onClick={mostrarDetalhes ? handleNovaVigenciaDoFiltro : handleNewColaborador}
                     disabled={showForm || showModalNovaVigencia}
-                    icon="fas fa-plus"
+                    type="button"
                     style={{ marginLeft: '12px' }}
                   >
+                    <i className={`fas ${mostrarDetalhes ? 'fa-calendar-plus' : 'fa-user-plus'}`}></i>
                     {mostrarDetalhes ? 'Nova Vigência' : 'Novo Colaborador'}
-                  </ButtonPrimary>
+                  </button>
                 </div>
               </div>
               <FiltersCard

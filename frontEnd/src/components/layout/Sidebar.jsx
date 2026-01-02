@@ -36,8 +36,7 @@ const Sidebar = () => {
     return isActive('/cadastro/custo-colaborador') || 
            isActive('/cadastro/vinculacoes') ||
            isActive('/documentacao-api') ||
-           isActive('/gestao/usuarios') ||
-           isActive('/gestao/permissoes');
+           isActive('/gestao/usuarios');
   };
 
   const isBaseConhecimentoActive = () => {
@@ -74,8 +73,7 @@ const Sidebar = () => {
     const isConfiguracoesActive = location.pathname === '/cadastro/custo-colaborador' ||
                                    location.pathname === '/cadastro/vinculacoes' ||
                                    location.pathname === '/documentacao-api' ||
-                                   location.pathname === '/gestao/usuarios' ||
-                                   location.pathname === '/gestao/permissoes';
+                                   location.pathname === '/gestao/usuarios';
     if (isConfiguracoesActive) {
       setConfiguracoesExpanded(true);
     }
@@ -227,19 +225,13 @@ const Sidebar = () => {
         label: 'Documentação API',
         title: 'Documentação API'
       },
-      // Só mostrar gestão de usuários e configurações para administradores
+      // Só mostrar gestão de usuários para administradores
       ...(isAdmin ? [
         {
           path: '/gestao/usuarios',
           icon: 'fa-users-cog',
           label: 'Gestão de Usuários',
           title: 'Gestão de Usuários'
-        },
-        {
-          path: '/gestao/permissoes',
-          icon: 'fa-shield-alt',
-          label: 'Configurar Permissões',
-          title: 'Configurar Permissões'
         }
       ] : [])
     ];

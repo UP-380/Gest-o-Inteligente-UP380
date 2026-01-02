@@ -2,12 +2,55 @@
   width: 100%;
 }
 
+.form-header {
+  margin-bottom: 30px;
+}
+
+.form-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.form-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.custo-colaborador-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.custo-colaborador-btn:hover {
+  background: #f1f5f9;
+  color: #475569;
+  opacity: 1;
+}
+
 .listing-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   gap: 15px;
+}
+
+.listing-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .listing-table-container {
@@ -32,7 +75,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 10000;
 }
 
 .modal-content {
@@ -43,6 +86,18 @@
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 10001;
+}
+
+/* Garantir que o select e suas opções apareçam acima de tudo */
+.modal-content select {
+  z-index: 10002 !important;
+  position: relative;
+}
+
+.modal-content select option {
+  z-index: 10003 !important;
 }
 
 .modal-header {
@@ -179,5 +234,29 @@
 
 .btn-edit:hover {
   color: #0056b3;
+}
+
+/* Ajustar coluna de ações para se adaptar aos botões */
+.usuarios-listing-section .actions-column,
+.usuarios-listing-section th.actions-column {
+  width: auto !important;
+  min-width: auto !important;
+  max-width: none !important;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 8px 4px !important;
+}
+
+.usuarios-listing-section .actions-column > div {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.usuarios-listing-section .actions-column > div > * {
+  flex-shrink: 0;
 }
 

@@ -2,175 +2,340 @@
   width: 100%;
 }
 
-.permissoes-config-container {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-}
-
-.nivel-config-card {
-  background: #f8f9fa;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.nivel-header {
+.form-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.nivel-header h3 {
-  margin: 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.nivel-actions {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 20px;
 }
 
-.toggle-todas {
+.config-permissoes-back-btn {
+  padding: 10px 20px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  color: #333;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.toggle-todas input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.todas-paginas-info {
+.form-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #0e3b6f;
+  margin: 0 0 6px 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 15px;
-  background: #e3f2fd;
-  border-radius: 6px;
-  color: #1976d2;
+  gap: 12px;
 }
 
-.todas-paginas-info i {
-  font-size: 18px;
+.form-title i {
+  font-size: 22px;
+}
+
+.form-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.permissoes-config-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nivel-select-container {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.nivel-select-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #0e3b6f;
+  margin-bottom: 10px;
+}
+
+.nivel-select-label i {
+  color: #0e3b6f;
+  font-size: 16px;
+}
+
+.nivel-select {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px 36px 10px 12px;
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: white;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%230e3b6f' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #1e293b;
+}
+
+.nivel-select:hover:not(:disabled) {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.nivel-select:focus {
+  outline: none;
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.15);
+}
+
+.nivel-select:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.save-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 2px solid #e2e8f0;
+  margin-top: 20px;
 }
 
 .paginas-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .categoria-group {
   background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 15px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+  overflow: hidden;
+}
+
+.categoria-group:hover {
+  box-shadow: 0 2px 8px rgba(14, 59, 111, 0.1);
+  border-color: #cbd5e1;
 }
 
 .categoria-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.categoria-header h4 {
-  margin: 0;
-  font-size: 16px;
-  color: #555;
-  font-weight: 600;
-}
-
-.btn-select-categoria {
-  background: #f0f0f0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 6px 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-left: 4px solid #0e3b6f;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.2s;
   cursor: pointer;
-  font-size: 13px;
-  color: #555;
-  transition: all 0.2s;
 }
 
-.btn-select-categoria:hover:not(:disabled) {
-  background: #e0e0e0;
+.categoria-group:hover .categoria-header {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
 }
 
-.btn-select-categoria:disabled {
-  opacity: 0.5;
+.categoria-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.categoria-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #0e3b6f;
+  margin: 0;
+}
+
+.categoria-checkbox:disabled {
   cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.categoria-checkbox:indeterminate {
+  background-color: #0e3b6f;
+  border-color: #0e3b6f;
+}
+
+.categoria-expand-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  transition: all 0.2s;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.categoria-expand-btn:hover {
+  background: rgba(14, 59, 111, 0.1);
+  color: #0e3b6f;
+}
+
+.categoria-expand-btn i {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.categoria-checkbox-wrapper h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+  flex: 1;
+}
+
+.categoria-header:hover h4 {
+  color: #0e3b6f;
 }
 
 .paginas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+  padding: 16px;
+  animation: slideDown 0.3s ease-out;
+  background: #fafbfc;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 2000px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
 }
 
 .pagina-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
   background: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .pagina-checkbox:hover {
-  background: #f5f5f5;
-  border-color: #007bff;
+  background: #f8fafc;
+  border-color: #0e3b6f;
+  box-shadow: 0 2px 4px rgba(14, 59, 111, 0.1);
+  transform: translateY(-1px);
 }
 
 .pagina-checkbox.selected {
-  background: #e3f2fd;
-  border-color: #1976d2;
+  background: linear-gradient(135deg, #e6f0ff 0%, #d6e7ff 100%);
+  border-color: #0e3b6f;
+  box-shadow: 0 2px 6px rgba(14, 59, 111, 0.15);
 }
 
 .pagina-checkbox input[type="checkbox"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #0e3b6f;
 }
 
 .pagina-checkbox span {
   font-size: 14px;
-  color: #333;
+  color: #334155;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.pagina-checkbox.selected span {
+  color: #0e3b6f;
+  font-weight: 600;
 }
 
 .info-box {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 15px;
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 6px;
-  color: #856404;
+  padding: 16px;
+  background: linear-gradient(135deg, #fff4e6 0%, #ffe8cc 100%);
+  border: 2px solid #fd7e14;
+  border-radius: 8px;
+  color: #9a3412;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(253, 126, 20, 0.1);
 }
 
 .info-box i {
   font-size: 18px;
   margin-top: 2px;
+  color: #fd7e14;
+  flex-shrink: 0;
 }
 
 .info-box strong {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 6px;
+  color: #7c2d12;
+  font-size: 15px;
+  font-weight: 600;
 }
 
+.info-box p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .paginas-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-title {
+    font-size: 20px;
+  }
+  
+  .categoria-header {
+    padding: 12px;
+  }
+  
+  .paginas-grid {
+    padding: 12px;
+  }
+}

@@ -72,7 +72,7 @@ const ColaboradorModal = ({
             </button>
             <button
               type="submit"
-              className="btn-primary"
+              className="add-client-btn active"
               onClick={handleSubmit}
               disabled={submitting}
             >
