@@ -11,6 +11,15 @@
   gap: 12px;
 }
 
+/* Quando dentro do header */
+.header-user-profile .user-profile-container {
+  margin: 0;
+  margin-right: 0;
+  position: relative !important;
+  z-index: 1001;
+  overflow: visible !important;
+}
+
 /* Quando dentro da sidebar */
 .sidebar-user-item .user-profile-container {
   margin: 0;
@@ -78,7 +87,251 @@
   display: flex;
 }
 
-/* Container quando menu está aberto */
+/* Header do dropdown - escondido por padrão */
+.user-profile-dropdown-header {
+  display: none;
+}
+
+/* Header do dropdown na sidebar - sempre escondido */
+.sidebar-user-item .user-profile-dropdown-header {
+  display: none !important;
+}
+
+/* Header do dropdown no header - mostrar quando menu aberto */
+.header-user-profile .user-profile-container.menu-open .user-profile-dropdown-header {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  min-width: 240px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1002 !important;
+  display: flex !important;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+/* Estilos do header do dropdown no header */
+.header-user-profile .user-profile-container.menu-open .user-profile-dropdown-header .user-profile-dropdown-avatar {
+  flex-shrink: 0;
+}
+
+.header-user-profile .user-profile-container.menu-open .user-profile-dropdown-header .user-profile-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-user-profile .user-profile-container.menu-open .user-profile-dropdown-header .user-profile-dropdown-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #212529;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-user-profile .user-profile-container.menu-open .user-profile-dropdown-header .user-profile-dropdown-email {
+  font-size: 12px;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Menu expandido no header - mostrar como dropdown quando menu aberto */
+.header-user-profile .user-profile-container.menu-open .user-profile-menu-expanded {
+  position: absolute !important;
+  top: calc(100% + 8px + 70px) !important; /* Abaixo do header (altura ~70px) */
+  right: 0 !important;
+  width: 240px !important;
+  min-width: 240px !important;
+  background: white !important;
+  border-radius: 0 0 8px 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  z-index: 1002 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0.5rem 0 !important;
+  margin: 0 !important;
+  margin-top: -1px !important; /* Sobrepor borda do header */
+}
+
+/* Menu expandido na sidebar - comportamento normal (não dropdown) */
+.sidebar-user-item .user-profile-container.menu-open .user-profile-menu-expanded {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  width: 100% !important;
+  min-width: auto !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0.5rem 0 !important;
+  margin: 0 !important;
+  margin-top: 0 !important;
+}
+
+/* Container do menu no header quando aberto - criar dropdown */
+.header-user-profile .user-profile-container.menu-open {
+  position: relative;
+}
+
+/* Overlay para fechar ao clicar fora - removido, usando JavaScript */
+
+/* Avatar permanece no lugar quando menu aberto */
+.header-user-profile .user-profile-container.menu-open .user-profile-menu-header {
+  position: relative;
+  width: auto;
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  gap: 0;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  display: flex !important;
+}
+
+/* Dropdown completo - base - escondido por padrão */
+.user-profile-dropdown {
+  position: absolute;
+  width: 240px;
+  min-width: 240px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1002 !important;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Dropdown no header - mostrar quando no header */
+.header-user-profile .user-profile-dropdown.dropdown-header {
+  display: flex !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  position: absolute !important;
+  z-index: 1002 !important;
+  background: white !important;
+  width: 240px !important;
+  min-width: 240px !important;
+  flex-direction: column !important;
+}
+
+/* Dropdown na sidebar - esconder completamente */
+.sidebar-user-item .user-profile-dropdown {
+  display: none !important;
+}
+
+/* Menu expandido para sidebar - escondido por padrão */
+.user-profile-menu-expanded.sidebar-menu {
+  display: none;
+}
+
+/* Menu expandido na sidebar - mostrar quando sidebar expandida */
+.sidebar:hover .sidebar-user-item .user-profile-container.menu-open .user-profile-menu-expanded.sidebar-menu,
+.sidebar.mobile-open .sidebar-user-item .user-profile-container.menu-open .user-profile-menu-expanded.sidebar-menu {
+  display: flex;
+}
+
+/* Menu expandido no header - esconder (usar dropdown) */
+.header-user-profile .user-profile-menu-expanded.sidebar-menu {
+  display: none !important;
+}
+
+/* Header do dropdown - parte superior com nome e email */
+.header-user-profile .user-profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-bottom: 1px solid #dee2e6;
+}
+
+.header-user-profile .user-profile-dropdown-avatar {
+  flex-shrink: 0;
+}
+
+.header-user-profile .user-profile-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-user-profile .user-profile-dropdown-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #212529;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-user-profile .user-profile-dropdown-email {
+  font-size: 12px;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Esconder nome e email no header sempre (mesmo quando menu aberto) */
+.header-user-profile .user-profile-menu-header .user-info {
+  display: none !important;
+}
+
+.header-user-profile .user-profile-menu-header .user-profile-chevron {
+  display: none !important;
+}
+
+/* Ajustar cores do texto no dropdown */
+.header-user-profile .user-profile-container.menu-open .user-name {
+  color: #212529;
+}
+
+.header-user-profile .user-profile-container.menu-open .user-email {
+  color: #6c757d;
+}
+
+.header-user-profile .user-profile-container.menu-open .user-profile-chevron {
+  color: #6b7280;
+}
+
+/* Menu expandido no dropdown - parte inferior com botões (dentro do dropdown) */
+.header-user-profile .user-profile-dropdown .user-profile-menu-expanded {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+  margin-top: 0;
+  background: white;
+  border-radius: 0;
+}
+
+/* Ajustar padding dos itens do menu no header */
+.header-user-profile .user-profile-menu-item {
+  padding: 0.75rem 1rem;
+  color: #374151;
+}
+
+.header-user-profile .user-profile-menu-item:hover {
+  background-color: #f3f4f6;
+}
+
+/* Container quando menu está aberto na sidebar */
 .sidebar-user-item .user-profile-container.menu-open {
   width: 100%;
   flex-direction: column;
@@ -137,6 +390,39 @@
   width: 100%;
 }
 
+/* Header no header - apenas avatar quando fechado */
+.header-user-profile .user-profile-menu-header {
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  width: auto;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Estilos específicos quando no header - apenas avatar quando fechado */
+.header-user-profile .user-profile-menu-header {
+  padding: 0;
+  background: transparent;
+  border-bottom: none;
+  gap: 0;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+  width: auto;
+  height: auto;
+}
+
+.header-user-profile .user-profile-menu-header:hover {
+  background: transparent;
+}
+
+/* Avatar no header quando fechado */
+.header-user-profile .user-profile-menu-header .user-avatar-clickable {
+  margin: 0;
+}
+
 .user-profile-menu-header:hover {
   background: linear-gradient(135deg, #e9ecef, #dee2e6);
 }
@@ -146,7 +432,7 @@
   justify-content: center;
   flex-direction: column;
   text-align: center;
-  padding: 15px 0;
+  padding: 8px 0;
   margin: 0 5px;
   background: transparent;
   border-bottom: none;
@@ -176,7 +462,7 @@
   justify-content: flex-start;
   flex-direction: row;
   text-align: left;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   margin: 0;
   background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   border-bottom: 1px solid #dee2e6;
@@ -197,6 +483,41 @@
 .sidebar.mobile-open .sidebar-user-item .user-profile-menu-header .user-avatar-clickable {
   margin: 0;
 }
+
+/* Estilos para perfil no header - mostrar apenas avatar quando fechado */
+.header-user-profile .user-profile-menu-header {
+  justify-content: center;
+  flex-direction: row;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border-bottom: none;
+  gap: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+  width: auto;
+  height: auto;
+}
+
+.header-user-profile .user-profile-menu-header:hover {
+  background: transparent;
+}
+
+/* Ocultar nome, email e chevron quando menu fechado no header */
+.header-user-profile .user-profile-container:not(.menu-open) .user-profile-menu-header .user-info {
+  display: none;
+}
+
+.header-user-profile .user-profile-container:not(.menu-open) .user-profile-menu-header .user-profile-chevron {
+  display: none;
+}
+
+.header-user-profile .user-profile-menu-header .user-avatar-clickable {
+  margin: 0;
+}
+
 
 .user-avatar-menu {
   width: 48px;

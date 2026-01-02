@@ -11,6 +11,7 @@ const UserProfile = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarImagePath, setAvatarImagePath] = useState(null);
+  const [isInHeader, setIsInHeader] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
 
@@ -54,6 +55,29 @@ const UserProfile = () => {
     // Não precisamos mais buscar foto_perfil_path manualmente
   }, [userData?.foto_perfil]); // Usar apenas foto_perfil, não foto_perfil_path
 
+
+  // Fechar menu ao clicar fora (especialmente importante quando está no header)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      // Usar setTimeout para garantir que o evento seja adicionado após o render
+      setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+      }, 0);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   const handleAvatarClick = (e) => {
     e.stopPropagation(); // Evitar fechar o menu
     // Só abrir modal se for avatar de imagem (customizado ou padrão)
@@ -80,19 +104,18 @@ const UserProfile = () => {
       className={`user-profile-container ${isMenuOpen ? 'menu-open' : ''}`}
       ref={menuRef}
     >
-      {/* Header do perfil sempre visível */}
+      {/* Header do perfil - apenas avatar quando no header e fechado */}
       <div 
         className="user-profile-menu-header"
-        onClick={() => setIsMenuOpen(!isMenuOpen)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsMenuOpen(!isMenuOpen);
+        }}
         style={{ cursor: 'pointer' }}
       >
         <div 
           className="user-avatar-clickable"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAvatarClick(e);
-          }}
-          style={{ cursor: avatarImagePath ? 'pointer' : 'default' }}
+          style={{ cursor: 'pointer' }}
         >
           <Avatar
             avatarId={userData.foto_perfil}
@@ -109,27 +132,45 @@ const UserProfile = () => {
         ></i>
       </div>
       
-      {/* Menu de ações (expandido ao clicar) */}
+      {/* Menu expandido - mesma lógica para mobile e desktop, CSS controla visualização */}
       {isMenuOpen && (
-        <div className="user-profile-menu-expanded">
-          <div className="user-profile-menu-divider"></div>
+        <>
+          {/* Header do dropdown (apenas no desktop/header) */}
+          <div className="user-profile-dropdown-header">
+            <div className="user-profile-dropdown-avatar">
+              <Avatar
+                avatarId={userData.foto_perfil}
+                nomeUsuario={getDisplayName()}
+                size="menu"
+              />
+            </div>
+            <div className="user-profile-dropdown-info">
+              <div className="user-profile-dropdown-name">{getDisplayName()}</div>
+              <div className="user-profile-dropdown-email">{userData.email_usuario || ''}</div>
+            </div>
+          </div>
           
-          <button
-            className="user-profile-menu-item"
-            onClick={handleConfiguracoes}
-          >
-            <i className="fas fa-cog"></i>
-            <span>Configurações</span>
-          </button>
-          
-          <button
-            className="user-profile-menu-item logout-button"
-            onClick={handleLogout}
-          >
-            <i className="fas fa-sign-out-alt"></i>
-            <span>Sair</span>
-          </button>
-        </div>
+          {/* Menu com botões */}
+          <div className="user-profile-menu-expanded">
+            <div className="user-profile-menu-divider"></div>
+            
+            <button
+              className="user-profile-menu-item"
+              onClick={handleConfiguracoes}
+            >
+              <i className="fas fa-cog"></i>
+              <span>Configurações</span>
+            </button>
+            
+            <button
+              className="user-profile-menu-item logout-button"
+              onClick={handleLogout}
+            >
+              <i className="fas fa-sign-out-alt"></i>
+              <span>Sair</span>
+            </button>
+          </div>
+        </>
       )}
 
       {/* Modal para expandir avatar */}
