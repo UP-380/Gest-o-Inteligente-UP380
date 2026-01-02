@@ -3973,7 +3973,7 @@ const PainelUsuario = () => {
               <div className="painel-usuario-header-content">
                 <div className="painel-usuario-header-left">
                   <div className="painel-usuario-header-icon">
-                    <i className="fas fa-th-large" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                    <i className="fas fa-clipboard-list" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
                   </div>
                   <div>
                     <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>

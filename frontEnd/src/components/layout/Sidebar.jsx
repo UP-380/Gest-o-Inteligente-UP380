@@ -196,7 +196,7 @@ const Sidebar = () => {
     const allItems = [
       {
         path: '/painel-colaborador',
-        icon: 'fa-th-large',
+        icon: 'fa-clipboard-list',
         label: 'Minhas Tarefas',
         title: 'Minhas Tarefas'
       },

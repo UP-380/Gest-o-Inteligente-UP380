@@ -23,6 +23,16 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/base-conhecimento/conteudos-clientes': ['/base-conhecimento/cliente'],
 };
 
+// Mapeamento de ícones para cada categoria
+const ICONES_CATEGORIAS = {
+  'Painéis': 'fa-clipboard-list',
+  'Relatórios': 'fa-file-alt',
+  'Cadastros': 'fa-database',
+  'Atribuições': 'fa-user-check',
+  'Base de Conhecimento': 'fa-book',
+  'Configurações': 'fa-cog'
+};
+
 // Lista de todas as páginas principais disponíveis no sistema
 const TODAS_PAGINAS = [
   // Painéis
@@ -438,6 +448,7 @@ const ConfigPermissoes = () => {
                                 disabled={salvando || nivelSelecionado === 'administrador'}
                                 className="categoria-checkbox"
                               />
+                              <i className={`fas ${ICONES_CATEGORIAS[categoria] || 'fa-circle'}`} style={{ marginRight: '8px', fontSize: '16px', color: '#0e3b6f' }}></i>
                               <h4>{categoria}</h4>
                             </div>
                             <button
