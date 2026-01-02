@@ -42,7 +42,7 @@ async function getBaseConhecimentoCliente(req, res) {
     }
 
     // Buscar todos os dados relacionados em paralelo para melhor performance
-    const [sistemasResult, contasResult, adquirentesResult] = await Promise.all([
+    const [sistemasResult, contasResult, adquirentesResult, vinculadosResult] = await Promise.all([
       // Buscar sistemas do cliente
       supabase
         .schema('up_gestaointeligente')
@@ -110,6 +110,20 @@ async function getBaseConhecimentoCliente(req, res) {
             nome
           )
         `)
+        .eq('cliente_id', cliente_id),
+      
+      // Buscar vinculados do cliente
+      supabase
+        .schema('up_gestaointeligente')
+        .from('vinculados')
+        .select(`
+          id,
+          tarefa_id,
+          tarefa_tipo_id,
+          produto_id,
+          subtarefa_id,
+          cliente_id
+        `)
         .eq('cliente_id', cliente_id)
     ]);
 
@@ -143,6 +157,7 @@ async function getBaseConhecimentoCliente(req, res) {
     const sistemas = sistemasResult.error ? [] : (sistemasResult.data || []);
     const contasBancarias = contasResult.error ? [] : (contasResult.data || []);
     const adquirentes = adquirentesResult.error ? [] : (adquirentesResult.data || []);
+    const vinculados = vinculadosResult.error ? [] : (vinculadosResult.data || []);
 
     // Log de erros se houver
     if (sistemasResult.error) {
@@ -154,13 +169,73 @@ async function getBaseConhecimentoCliente(req, res) {
     if (adquirentesResult.error) {
       console.error('❌ Erro ao buscar adquirentes do cliente:', adquirentesResult.error);
     }
+    if (vinculadosResult.error) {
+      console.error('❌ Erro ao buscar vinculados do cliente:', vinculadosResult.error);
+    }
+
+    // Buscar informações detalhadas dos vinculados
+    let vinculacoesDetalhadas = [];
+    if (vinculados && vinculados.length > 0) {
+      // Extrair IDs únicos
+      const idsTarefas = [...new Set(vinculados.filter(v => v.tarefa_id).map(v => parseInt(v.tarefa_id, 10)))];
+      const idsProdutos = [...new Set(vinculados.filter(v => v.produto_id).map(v => parseInt(v.produto_id, 10)))];
+      const idsTipoTarefas = [...new Set(vinculados.filter(v => v.tarefa_tipo_id).map(v => parseInt(v.tarefa_tipo_id, 10)))];
+      const idsSubtarefas = [...new Set(vinculados.filter(v => v.subtarefa_id).map(v => parseInt(v.subtarefa_id, 10)))];
+
+      // Buscar dados relacionados
+      const [tarefasResult, produtosResult, tiposTarefaResult, subtarefasResult] = await Promise.all([
+        idsTarefas.length > 0 ? supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .select('id, nome, descricao')
+          .in('id', idsTarefas) : { data: [], error: null },
+        idsProdutos.length > 0 ? supabase
+          .schema('up_gestaointeligente')
+          .from('cp_produto')
+          .select('id, nome')
+          .in('id', idsProdutos) : { data: [], error: null },
+        idsTipoTarefas.length > 0 ? supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa_tipo')
+          .select('id, nome')
+          .in('id', idsTipoTarefas) : { data: [], error: null },
+        idsSubtarefas.length > 0 ? supabase
+          .schema('up_gestaointeligente')
+          .from('cp_subtarefa')
+          .select('id, nome, descricao')
+          .in('id', idsSubtarefas) : { data: [], error: null }
+      ]);
+
+      // Criar maps para acesso rápido
+      const tarefasMap = new Map((tarefasResult.data || []).map(t => [t.id, { nome: t.nome, descricao: t.descricao || null }]));
+      const produtosMap = new Map((produtosResult.data || []).map(p => [p.id, p.nome]));
+      const tiposTarefaMap = new Map((tiposTarefaResult.data || []).map(tt => [tt.id, tt.nome]));
+      const subtarefasMap = new Map((subtarefasResult.data || []).map(s => [s.id, { nome: s.nome, descricao: s.descricao || null }]));
+
+      // Montar array de vinculações detalhadas
+      vinculacoesDetalhadas = vinculados.map(v => {
+        const tarefa = v.tarefa_id ? tarefasMap.get(parseInt(v.tarefa_id, 10)) : null;
+        const produto = v.produto_id ? produtosMap.get(parseInt(v.produto_id, 10)) : null;
+        const tipoTarefa = v.tarefa_tipo_id ? tiposTarefaMap.get(parseInt(v.tarefa_tipo_id, 10)) : null;
+        const subtarefa = v.subtarefa_id ? subtarefasMap.get(parseInt(v.subtarefa_id, 10)) : null;
+
+        return {
+          id: v.id,
+          produto: produto ? { id: v.produto_id, nome: produto } : null,
+          tipoTarefa: tipoTarefa ? { id: v.tarefa_tipo_id, nome: tipoTarefa } : null,
+          tarefa: tarefa ? { id: v.tarefa_id, nome: tarefa.nome, descricao: tarefa.descricao } : null,
+          subtarefa: subtarefa ? { id: v.subtarefa_id, nome: subtarefa.nome, descricao: subtarefa.descricao } : null
+        };
+      });
+    }
 
     // Retornar dados consolidados
     const dadosConsolidados = {
       cliente: clienteFormatado || null,
       sistemas: sistemas,
       contasBancarias: contasBancarias,
-      adquirentes: adquirentes
+      adquirentes: adquirentes,
+      vinculacoes: vinculacoesDetalhadas
     };
 
     return res.json({

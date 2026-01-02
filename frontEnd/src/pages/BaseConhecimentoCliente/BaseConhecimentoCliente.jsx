@@ -6,6 +6,7 @@ import LoadingState from '../../components/common/LoadingState';
 import ContasBancariasContent from '../../components/clients/DetailContent/ContasBancariasContent';
 import SistemasContent from '../../components/clients/DetailContent/SistemasContent';
 import AdquirentesContent from '../../components/clients/DetailContent/AdquirentesContent';
+import VinculacoesContent from '../../components/clients/DetailContent/VinculacoesContent';
 import ClienteContasBancariasList from '../../components/clientes-conta-bancaria/ClienteContasBancariasList';
 import ClienteSistemasList from '../../components/clientes-sistema/ClienteSistemasList';
 import ClienteAdquirentesList from '../../components/clientes-adquirente/ClienteAdquirentesList';
@@ -169,7 +170,7 @@ const BaseConhecimentoCliente = () => {
     );
   }
 
-  const { cliente, sistemas = [], contasBancarias = [], adquirentes = [] } = dadosCliente;
+  const { cliente, sistemas = [], contasBancarias = [], adquirentes = [], vinculacoes = [] } = dadosCliente;
 
   return (
     <Layout>
@@ -322,6 +323,20 @@ const BaseConhecimentoCliente = () => {
                 </div>
                 <div className="section-content">
                   <AdquirentesContent adquirentes={adquirentes} />
+                </div>
+              </div>
+
+              {/* Fluxo da Operação */}
+              <div className="knowledge-section">
+                <div className="section-header">
+                  <div className="section-icon" style={{ backgroundColor: '#6366f115', color: '#6366f1' }}>
+                    <i className="fas fa-project-diagram"></i>
+                  </div>
+                  <h2 className="section-title">Fluxo da Operação</h2>
+                  <span className="section-badge">{vinculacoes.length}</span>
+                </div>
+                <div className="section-content">
+                  <VinculacoesContent vinculacoes={vinculacoes} />
                 </div>
               </div>
             </div>
