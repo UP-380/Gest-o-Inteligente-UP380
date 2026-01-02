@@ -7,6 +7,7 @@ import ClienteForm from '../../components/clients/ClienteForm';
 import ClienteContasBancariasList from '../../components/clientes-conta-bancaria/ClienteContasBancariasList';
 import ClienteSistemasList from '../../components/clientes-sistema/ClienteSistemasList';
 import ClienteAdquirentesList from '../../components/clientes-adquirente/ClienteAdquirentesList';
+import VinculacoesContent from '../../components/clients/DetailContent/VinculacoesContent';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import ImageCropModal from '../../components/user/ImageCropModal';
 import ClienteAvatarCard from '../../components/clients/ClienteAvatarCard';
@@ -61,6 +62,10 @@ const CadastroCliente = () => {
   const [showModalContas, setShowModalContas] = useState(false);
   const [showModalSistemas, setShowModalSistemas] = useState(false);
   const [showModalAdquirentes, setShowModalAdquirentes] = useState(false);
+  
+  // Estado para vinculações
+  const [vinculacoes, setVinculacoes] = useState([]);
+  const [loadingVinculacoes, setLoadingVinculacoes] = useState(false);
 
   // Refs para dados externos
   const allClientesKaminoRef = useRef([]);
@@ -92,6 +97,37 @@ const CadastroCliente = () => {
     }
   }, []);
 
+
+  // Carregar vinculações do cliente
+  const loadVinculacoes = useCallback(async (id) => {
+    if (!id) {
+      setVinculacoes([]);
+      return;
+    }
+
+    setLoadingVinculacoes(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${id}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setVinculacoes(result.data.vinculacoes || []);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar vinculações:', error);
+      setVinculacoes([]);
+    } finally {
+      setLoadingVinculacoes(false);
+    }
+  }, []);
 
   // Carregar dados do cliente
   const loadCliente = useCallback(async () => {
@@ -195,6 +231,15 @@ const CadastroCliente = () => {
   useEffect(() => {
     loadCliente();
   }, [loadCliente]);
+
+  // Carregar vinculações quando o cliente tiver ID
+  useEffect(() => {
+    if (formData.id) {
+      loadVinculacoes(formData.id);
+    } else {
+      setVinculacoes([]);
+    }
+  }, [formData.id, loadVinculacoes]);
 
   // Função para upload de foto (chamada pelo card)
   const handleFotoUpload = (file) => {
@@ -618,6 +663,28 @@ const CadastroCliente = () => {
                     />
                   </div>
                 </div>
+
+                {/* Seção de Fluxo da Operação */}
+                {formData.id && (
+                  <div className="editar-cliente-form-section">
+                    <div className="section-header">
+                      <div className="section-icon" style={{ backgroundColor: '#6366f115', color: '#6366f1' }}>
+                        <i className="fas fa-project-diagram"></i>
+                      </div>
+                      <h2 className="section-title">Fluxo da Operação</h2>
+                      <span className="section-badge">{vinculacoes.length}</span>
+                    </div>
+                    <div className="section-content">
+                      {loadingVinculacoes ? (
+                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                          <i className="fas fa-spinner fa-spin" style={{ fontSize: '20px', color: '#6b7280' }}></i>
+                        </div>
+                      ) : (
+                        <VinculacoesContent vinculacoes={vinculacoes} />
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Botões de ação */}
                 <div className="editar-cliente-actions">
