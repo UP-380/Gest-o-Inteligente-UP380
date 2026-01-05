@@ -289,6 +289,60 @@ async function criarTempoEstimado(req, res) {
 
     console.log(`✅ ${dadosInseridos.length} registro(s) de tempo estimado criado(s) com sucesso`);
 
+    // Salvar histórico da atribuição
+    try {
+      const usuarioId = req.session?.usuario?.id || null;
+      if (usuarioId) {
+        // Buscar membro_id a partir do usuario_id
+        let membroIdCriador = null;
+        try {
+          const { data: membro, error: membroError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id')
+            .eq('usuario_id', String(usuarioId).trim())
+            .maybeSingle();
+
+          if (!membroError && membro) {
+            membroIdCriador = String(membro.id).trim();
+          }
+        } catch (error) {
+          console.error('⚠️ Erro ao buscar membro_id do usuário:', error);
+        }
+
+        // Se encontrou o membro_id, salvar histórico
+        if (membroIdCriador) {
+          const historicoData = {
+            agrupador_id: agrupador_id,
+            cliente_id: String(cliente_id).trim(),
+            responsavel_id: String(responsavel_id).trim(),
+            usuario_criador_id: membroIdCriador,
+            data_inicio: data_inicio,
+            data_fim: data_fim,
+            produto_ids: produto_ids.map(id => String(id).trim()),
+            tarefas: tarefasComTempo
+          };
+
+          const { error: historicoError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('historico_atribuicoes')
+            .insert([historicoData]);
+
+          if (historicoError) {
+            console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
+            // Não falhar a requisição se o histórico não for salvo
+          } else {
+            console.log('✅ Histórico de atribuição salvo com sucesso');
+          }
+        } else {
+          console.warn('⚠️ Não foi possível encontrar membro_id para o usuário, histórico não será salvo');
+        }
+      }
+    } catch (historicoError) {
+      console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
+      // Não falhar a requisição se o histórico não for salvo
+    }
+
     return res.status(201).json({
       success: true,
       data: dadosInseridos,

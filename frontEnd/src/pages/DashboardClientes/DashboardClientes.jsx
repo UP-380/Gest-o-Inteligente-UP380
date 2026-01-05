@@ -102,8 +102,16 @@ const RelatoriosClientes = () => {
   // Carregar clientes - sempre carrega todas as opções
   const carregarClientes = useCallback(async () => {
     try {
-      // Desabilitar cache para garantir dados atualizados com status
-      const result = await clientesAPI.getAll(null, false);
+      // Buscar todos os clientes usando getPaginated com limit alto para garantir que todos sejam retornados
+      // Usar limit de 10000 para cobrir todos os casos possíveis
+      const result = await clientesAPI.getPaginated({ 
+        page: 1, 
+        limit: 10000,
+        status: null,
+        search: null,
+        incompletos: false
+      });
+      
       if (result.success && result.data && Array.isArray(result.data)) {
         // Garantir que todos os clientes tenham status
         const clientesComStatus = result.data.map(cliente => ({

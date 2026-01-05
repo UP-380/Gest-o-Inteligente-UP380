@@ -967,6 +967,7 @@ const AtribuicaoCliente = () => {
                       onInicioChange={(e) => setDataInicio(e.target.value || null)}
                       onFimChange={(e) => setDataFim(e.target.value || null)}
                       disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0}
+                      showWeekendToggle={true}
                     />
                     {verificandoDuplicata && (
                       <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>
@@ -1039,9 +1040,9 @@ const AtribuicaoCliente = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '3px',
-                                padding: '4px 8px',
+                                padding: '6px 12px',
                                 background: '#ffffff',
-                                border: '1px solid #cbd5e1',
+                                border: '2px solid #cbd5e1',
                                 borderRadius: '4px',
                                 fontSize: '11px',
                                 transition: 'all 0.2s ease'
@@ -1174,9 +1175,9 @@ const AtribuicaoCliente = () => {
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '3px',
-                                    padding: '2px 6px',
+                                    padding: '4px 10px',
                                     background: 'rgba(255, 255, 255, 0.2)',
-                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    border: '2px solid rgba(255, 255, 255, 0.3)',
                                     borderRadius: '4px',
                                     fontSize: '11px',
                                     margin: 0,

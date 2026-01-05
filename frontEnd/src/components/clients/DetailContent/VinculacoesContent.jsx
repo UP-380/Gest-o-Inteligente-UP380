@@ -1,6 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useToast } from '../../../hooks/useToast';
+import RichTextEditor from '../../common/RichTextEditor';
 
-const VinculacoesContent = ({ vinculacoes }) => {
+const API_BASE_URL = '/api';
+
+const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => {
+  const showToast = useToast();
+  const [expandedObservacao, setExpandedObservacao] = useState(null); // { subtarefaId: X }
+  const [observacoesEditando, setObservacoesEditando] = useState({}); // { subtarefaId: { observacao: '', saving: false } }
   // Agrupar vinculações por produto (ou sem produto)
   const vinculacoesAgrupadas = useMemo(() => {
     if (!vinculacoes || vinculacoes.length === 0) return [];
@@ -52,7 +59,8 @@ const VinculacoesContent = ({ vinculacoes }) => {
           tipoTarefaGrupo.tarefas.get(tarefaId).subtarefas.push({
             id: vinculo.subtarefa.id,
             nome: vinculo.subtarefa.nome,
-            descricao: vinculo.subtarefa.descricao
+            descricao: vinculo.subtarefa.descricao,
+            observacaoParticular: vinculo.subtarefa.observacaoParticular || null
           });
         }
       }
@@ -67,6 +75,151 @@ const VinculacoesContent = ({ vinculacoes }) => {
       }))
     }));
   }, [vinculacoes]);
+
+  // Função para salvar observação
+  const handleSalvarObservacao = async (e, subtarefaId, subtarefaNome) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (!clienteId || !subtarefaId) {
+      showToast('error', 'ID do cliente e subtarefa são obrigatórios');
+      return;
+    }
+
+    const observacao = observacoesEditando[subtarefaId]?.observacao || '';
+
+    setObservacoesEditando(prev => ({
+      ...prev,
+      [subtarefaId]: { ...prev[subtarefaId], saving: true }
+    }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/cliente-subtarefa-observacao`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          subtarefa_id: subtarefaId,
+          observacao: observacao.trim() || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        showToast('success', observacao.trim() ? 'Observação salva com sucesso!' : 'Observação removida com sucesso!');
+        setExpandedObservacao(null);
+        setObservacoesEditando(prev => {
+          const newState = { ...prev };
+          delete newState[subtarefaId];
+          return newState;
+        });
+        if (onObservacaoUpdated) {
+          onObservacaoUpdated();
+        }
+      } else {
+        throw new Error(result.error || 'Erro ao salvar observação');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar observação:', error);
+      showToast('error', error.message || 'Erro ao salvar observação. Tente novamente.');
+    } finally {
+      setObservacoesEditando(prev => ({
+        ...prev,
+        [subtarefaId]: { ...prev[subtarefaId], saving: false }
+      }));
+    }
+  };
+
+  // Função para deletar observação
+  const handleDeletarObservacao = async (e, subtarefaId) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (!clienteId || !subtarefaId) {
+      return;
+    }
+
+    if (!window.confirm('Deseja realmente remover esta observação particular?')) {
+      return;
+    }
+
+    setObservacoesEditando(prev => ({
+      ...prev,
+      [subtarefaId]: { ...prev[subtarefaId], saving: true }
+    }));
+
+    try {
+      const params = new URLSearchParams({
+        cliente_id: clienteId,
+        subtarefa_id: subtarefaId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/cliente-subtarefa-observacao?${params}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        showToast('success', 'Observação removida com sucesso!');
+        setExpandedObservacao(null);
+        setObservacoesEditando(prev => {
+          const newState = { ...prev };
+          delete newState[subtarefaId];
+          return newState;
+        });
+        if (onObservacaoUpdated) {
+          onObservacaoUpdated();
+        }
+      } else {
+        throw new Error(result.error || 'Erro ao remover observação');
+      }
+    } catch (error) {
+      console.error('Erro ao remover observação:', error);
+      showToast('error', error.message || 'Erro ao remover observação. Tente novamente.');
+    } finally {
+      setObservacoesEditando(prev => ({
+        ...prev,
+        [subtarefaId]: { ...prev[subtarefaId], saving: false }
+      }));
+    }
+  };
+
+  // Função para expandir/colapsar formulário de observação
+  const toggleExpandedObservacao = (e, subtarefaId, observacaoAtual) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (expandedObservacao === subtarefaId) {
+      setExpandedObservacao(null);
+      setObservacoesEditando(prev => {
+        const newState = { ...prev };
+        delete newState[subtarefaId];
+        return newState;
+      });
+    } else {
+      setExpandedObservacao(subtarefaId);
+      setObservacoesEditando(prev => ({
+        ...prev,
+        [subtarefaId]: { observacao: observacaoAtual || '', saving: false }
+      }));
+    }
+  };
 
   if (!vinculacoes || vinculacoes.length === 0) {
     return (
@@ -256,6 +409,214 @@ const VinculacoesContent = ({ vinculacoes }) => {
                                             }}
                                             dangerouslySetInnerHTML={{ __html: subtarefa.descricao }}
                                           />
+                                        )}
+                                        {/* Observação Particular do Cliente */}
+                                        {clienteId && (
+                                          <div style={{ marginLeft: '14px', marginTop: '12px' }}>
+                                            {subtarefa.observacaoParticular && !expandedObservacao && (
+                                              <div 
+                                                style={{
+                                                  padding: '10px',
+                                                  background: '#fff7ed',
+                                                  borderRadius: '6px',
+                                                  border: '1px solid #fed7aa',
+                                                  position: 'relative'
+                                                }}
+                                              >
+                                                <div style={{
+                                                  fontSize: '11px',
+                                                  color: '#f59e0b',
+                                                  fontWeight: 600,
+                                                  marginBottom: '6px',
+                                                  textTransform: 'uppercase',
+                                                  letterSpacing: '0.5px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'space-between'
+                                                }}>
+                                                  <span>
+                                                    <i className="fas fa-star" style={{ marginRight: '4px', fontSize: '10px' }}></i>
+                                                    Observação Particular do Cliente
+                                                  </span>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
+                                                    style={{
+                                                      background: 'transparent',
+                                                      border: 'none',
+                                                      color: '#f59e0b',
+                                                      cursor: 'pointer',
+                                                      padding: '2px 6px',
+                                                      fontSize: '11px',
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      gap: '4px'
+                                                    }}
+                                                    title="Editar observação particular"
+                                                  >
+                                                    <i className="fas fa-edit" style={{ fontSize: '10px' }}></i>
+                                                    Editar
+                                                  </button>
+                                                </div>
+                                                <div 
+                                                  style={{
+                                                    fontSize: '13px',
+                                                    color: '#4b5563',
+                                                    lineHeight: '1.6',
+                                                    wordBreak: 'break-word'
+                                                  }}
+                                                  dangerouslySetInnerHTML={{ __html: subtarefa.observacaoParticular }}
+                                                />
+                                              </div>
+                                            )}
+
+                                            {/* Formulário inline expandido */}
+                                            {expandedObservacao === subtarefa.id && (
+                                              <div style={{
+                                                padding: '12px',
+                                                background: '#f9fafb',
+                                                borderRadius: '8px',
+                                                border: '1px solid #d1d5db',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '12px'
+                                              }}>
+                                                <div style={{
+                                                  fontSize: '12px',
+                                                  color: '#f59e0b',
+                                                  fontWeight: 600,
+                                                  textTransform: 'uppercase',
+                                                  letterSpacing: '0.5px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px'
+                                                }}>
+                                                  <i className="fas fa-star" style={{ fontSize: '10px' }}></i>
+                                                  Observação Particular do Cliente
+                                                </div>
+                                                <RichTextEditor
+                                                  value={observacoesEditando[subtarefa.id]?.observacao || ''}
+                                                  onChange={(value) => setObservacoesEditando(prev => ({
+                                                    ...prev,
+                                                    [subtarefa.id]: { ...prev[subtarefa.id], observacao: value }
+                                                  }))}
+                                                  placeholder="Digite a observação particular desta subtarefa para este cliente..."
+                                                  disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                  minHeight={200}
+                                                  showFloatingToolbar={true}
+                                                />
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                                  {subtarefa.observacaoParticular && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => handleDeletarObservacao(e, subtarefa.id)}
+                                                      disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                      style={{
+                                                        background: 'transparent',
+                                                        border: '1px solid #ef4444',
+                                                        color: '#ef4444',
+                                                        cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                        padding: '8px 16px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                      }}
+                                                    >
+                                                      <i className="fas fa-trash" style={{ fontSize: '11px' }}></i>
+                                                      Remover
+                                                    </button>
+                                                  )}
+                                                  <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
+                                                      disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                      style={{
+                                                        background: '#fff',
+                                                        border: '1px solid #d1d5db',
+                                                        color: '#374151',
+                                                        cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                        padding: '8px 16px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '12px',
+                                                        opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                      }}
+                                                    >
+                                                      Cancelar
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => handleSalvarObservacao(e, subtarefa.id, subtarefa.nome)}
+                                                      disabled={observacoesEditando[subtarefa.id]?.saving}
+                                                      style={{
+                                                        background: '#f59e0b',
+                                                        border: 'none',
+                                                        color: '#fff',
+                                                        cursor: observacoesEditando[subtarefa.id]?.saving ? 'not-allowed' : 'pointer',
+                                                        padding: '8px 16px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        opacity: observacoesEditando[subtarefa.id]?.saving ? 0.5 : 1
+                                                      }}
+                                                    >
+                                                      {observacoesEditando[subtarefa.id]?.saving ? (
+                                                        <>
+                                                          <i className="fas fa-spinner fa-spin" style={{ fontSize: '11px' }}></i>
+                                                          Salvando...
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <i className="fas fa-save" style={{ fontSize: '11px' }}></i>
+                                                          Salvar
+                                                        </>
+                                                      )}
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Botão para adicionar observação particular (quando não está expandido e não tem observação) */}
+                                            {!subtarefa.observacaoParticular && expandedObservacao !== subtarefa.id && (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, null)}
+                                                style={{
+                                                  background: 'transparent',
+                                                  border: '1px dashed #fed7aa',
+                                                  color: '#f59e0b',
+                                                  cursor: 'pointer',
+                                                  padding: '8px 12px',
+                                                  borderRadius: '6px',
+                                                  fontSize: '12px',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '6px',
+                                                  width: '100%',
+                                                  justifyContent: 'center',
+                                                  transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                  e.target.style.background = '#fff7ed';
+                                                  e.target.style.borderColor = '#f59e0b';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                  e.target.style.background = 'transparent';
+                                                  e.target.style.borderColor = '#fed7aa';
+                                                }}
+                                                title="Adicionar observação particular"
+                                              >
+                                                <i className="fas fa-plus-circle" style={{ fontSize: '11px' }}></i>
+                                                Adicionar Observação Particular
+                                              </button>
+                                            )}
+                                          </div>
                                         )}
                                       </li>
                                     ))}

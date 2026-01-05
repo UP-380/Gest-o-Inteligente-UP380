@@ -1,0 +1,459 @@
+.historico-atribuicoes-page {
+  padding: 24px;
+}
+
+.historico-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.historico-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.historico-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.historico-table-container {
+  margin-top: 24px;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.historico-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.historico-table thead {
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.historico-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.historico-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 13px;
+  color: #374151;
+}
+
+.historico-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.historico-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.historico-date-time {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.historico-date {
+  font-weight: 500;
+  color: #111827;
+}
+
+.historico-time {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.historico-cliente,
+.historico-responsavel,
+.historico-usuario-criador {
+  font-weight: 500;
+  color: #111827;
+}
+
+.historico-produtos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.historico-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: fit-content;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.historico-badge:hover {
+  transform: translateY(-1px);
+}
+
+.historico-badge-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 1px;
+  color: #0e3b6f;
+}
+
+.historico-badge-label i {
+  color: #0e3b6f;
+  font-size: 9px;
+}
+
+.historico-badge-valor {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #0e3b6f;
+}
+
+.historico-periodo {
+  color: #374151;
+  font-size: 12px;
+}
+
+.historico-tarefas {
+  max-width: 300px;
+}
+
+.tarefas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tarefa-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.tarefa-item:hover {
+  border-color: #e5e7eb;
+  box-shadow: none;
+}
+
+.tarefa-nome {
+  flex: 1;
+  font-size: 12px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.tarefa-tempo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  min-width: fit-content;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.tarefa-tempo-card:hover {
+  transform: translateY(-1px);
+}
+
+.tarefa-tempo-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 1px;
+  color: #0e3b6f;
+}
+
+.tarefa-tempo-label i {
+  color: #0e3b6f;
+  font-size: 9px;
+}
+
+.tarefa-tempo-valor {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: #0e3b6f;
+}
+
+.historico-empty {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.loading-state i,
+.empty-state i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #9ca3af;
+}
+
+.loading-state p,
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-icon-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-icon-small:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  color: #0e3b6f;
+}
+
+.historico-table .actions-column {
+  white-space: nowrap;
+  width: 1%;
+  text-align: center;
+}
+
+/* Estilos específicos para o filtro de cliente na página de histórico */
+/* Usando seletor específico para não interferir em outras telas */
+.historico-atribuicoes-page .cliente-filter-container {
+  width: 100%;
+  max-width: 300px;
+  min-width: 250px;
+}
+
+.historico-atribuicoes-page .cliente-select-display {
+  min-height: 44px;
+  height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.historico-atribuicoes-page .cliente-select-display:hover:not(.disabled) {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.historico-atribuicoes-page .cliente-select-display.active {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.historico-atribuicoes-page .cliente-select-text {
+  font-size: 13px;
+}
+
+.historico-atribuicoes-page .cliente-select-input {
+  font-size: 13px;
+}
+
+/* Estilos específicos para o filtro de período na página de histórico */
+.historico-atribuicoes-page .periodo-filter-container {
+  width: 100%;
+  max-width: 300px;
+  min-width: 250px;
+}
+
+.historico-atribuicoes-page .periodo-select-display {
+  min-height: 44px;
+  height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.historico-atribuicoes-page .periodo-select-display:hover:not(.disabled) {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.historico-atribuicoes-page .periodo-select-display.active {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.historico-atribuicoes-page .periodo-select-field {
+  width: 100%;
+}
+
+/* Container com scroll horizontal para tabela de histórico */
+.historico-table-container.with-horizontal-scroll {
+  overflow: visible;
+}
+
+/* Barra de scroll no topo */
+.historico-table-container .table-scroll-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  border-radius: 12px 12px 0 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  overflow-x: scroll !important;
+  overflow-y: hidden;
+  /* Forçar scrollbar sempre visível */
+  scrollbar-gutter: stable;
+  /* Garantir que sempre mostre a scrollbar */
+  -ms-overflow-style: scrollbar;
+}
+
+/* Garantir que a scrollbar esteja sempre visível */
+.historico-table-container .table-scroll-top::-webkit-scrollbar {
+  height: 12px;
+  display: block !important;
+  -webkit-appearance: none;
+  background: #f1f5f9;
+}
+
+.historico-table-container .table-scroll-top::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.historico-table-container .table-scroll-top::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+  border: 2px solid #f1f5f9;
+}
+
+.historico-table-container .table-scroll-top::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Para Firefox */
+.historico-table-container .table-scroll-top {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* Container da tabela com scroll */
+.historico-table-container .table-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+

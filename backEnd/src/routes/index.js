@@ -23,6 +23,7 @@ const tipoAtividadeController = require('../controllers/tipo-atividade.controlle
 const vinculadosController = require('../controllers/vinculados.controller');
 const tempoEstimadoController = require('../controllers/tempo-estimado.controller');
 const registroTempoController = require('../controllers/registro-tempo.controller');
+const historicoAtribuicoesController = require('../controllers/historico-atribuicoes.controller');
 const bancoController = require('../controllers/banco.controller');
 const adquirenteController = require('../controllers/adquirente.controller');
 const sistemaController = require('../controllers/sistema.controller');
@@ -30,6 +31,7 @@ const clienteContaBancariaController = require('../controllers/cliente-conta-ban
 const clienteSistemaController = require('../controllers/cliente-sistema.controller');
 const clienteAdquirenteController = require('../controllers/cliente-adquirente.controller');
 const baseConhecimentoController = require('../controllers/base-conhecimento.controller');
+const clienteSubtarefaObservacaoController = require('../controllers/cliente-subtarefa-observacao.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const apiClientes = require('../services/api-clientes');
@@ -185,6 +187,20 @@ router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEsti
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
 
+// Rotas de Histórico de Atribuições
+console.log('✅ Registrando rotas de histórico de atribuições...');
+router.get('/api/historico-atribuicoes', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicoes);
+router.get('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicaoPorId);
+router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.atualizarHistoricoAtribuicao);
+router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
+console.log('✅ Rotas de histórico de atribuições registradas:', {
+  get: '/api/historico-atribuicoes',
+  getById: '/api/historico-atribuicoes/:id',
+  put: '/api/historico-atribuicoes/:id',
+  delete: '/api/historico-atribuicoes/:id',
+  hasController: !!historicoAtribuicoesController.atualizarHistoricoAtribuicao
+});
+
 // Rotas de Registro de Tempo
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.post('/api/registro-tempo/iniciar', requireAuth, registroTempoController.iniciarRegistroTempo);
@@ -266,7 +282,14 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
 
-// Rotas de Usuários (CRUD completo)
+// Rotas de Observações Particulares de Subtarefas por Cliente
+router.get('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.getObservacao);
+router.get('/api/cliente-subtarefa-observacao/cliente/:cliente_id', requireAuth, clienteSubtarefaObservacaoController.getObservacoesPorCliente);
+router.post('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
+router.put('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
+router.delete('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.deletarObservacao);
+
+// Rotas de Usuários (CRUD completo / Gestão de Permissões)
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
 router.get('/api/usuarios', requireAuth, usuariosController.getUsuarios);
 router.post('/api/usuarios', requireAuth, usuariosController.criarUsuario);

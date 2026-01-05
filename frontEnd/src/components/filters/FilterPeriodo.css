@@ -225,6 +225,19 @@
   background: #bfdbfe;
 }
 
+.periodo-calendar-day.weekend-disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  background: #f3f4f6 !important;
+  color: #9ca3af !important;
+  border-color: #e5e7eb !important;
+}
+
+.periodo-calendar-day.weekend-disabled:hover {
+  background: #f3f4f6 !important;
+  border-color: #e5e7eb !important;
+}
+
 .periodo-select-display.error {
   border-color: #dc3545;
 }
