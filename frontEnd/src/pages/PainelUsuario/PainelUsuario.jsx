@@ -296,6 +296,19 @@ const PainelUsuario = () => {
   const registrosAtivosRef = useRef(new Map()); // Ref para acesso em funções não-hook
   const [temposRealizados, setTemposRealizados] = useState(new Map()); // Map<chave, tempo_realizado_ms>
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
+  
+  // Cache de subtarefas vinculadas por tarefa_id
+  const [subtarefasCache, setSubtarefasCache] = useState(new Map()); // Map<tarefa_id, subtarefas[]>
+  const subtarefasCacheRef = useRef(new Map()); // Ref para acesso síncrono
+  // Estado para controlar subtarefas concluídas: Map<chave, Set<subtarefa_id>>
+  const [subtarefasConcluidas, setSubtarefasConcluidas] = useState(new Map());
+  const subtarefasConcluidasRef = useRef(new Map()); // Ref para acesso síncrono
+  // Estado para controlar expansão de subtarefas: Set<chave>
+  const [subtarefasExpandidas, setSubtarefasExpandidas] = useState(new Set());
+  const subtarefasExpandidasRef = useRef(new Set()); // Ref para acesso síncrono
+  // Estado para controlar descrições de subtarefas expandidas: Set<subtarefa_id>
+  const [descricoesSubtarefasExpandidas, setDescricoesSubtarefasExpandidas] = useState(new Set());
+  const descricoesSubtarefasExpandidasRef = useRef(new Set()); // Ref para acesso síncrono
 
   const toggleTarefa = useCallback((agrupadorId, tarefaId) => {
     setTarefasExpandidas((prev) => {
@@ -497,11 +510,126 @@ const PainelUsuario = () => {
     return `${clienteIdStr}_${tarefaIdStr}`;
   }, []);
 
+  // Sincronizar refs do cache de subtarefas
+  useEffect(() => {
+    subtarefasCacheRef.current = subtarefasCache;
+    subtarefasConcluidasRef.current = subtarefasConcluidas;
+    subtarefasExpandidasRef.current = subtarefasExpandidas;
+    descricoesSubtarefasExpandidasRef.current = descricoesSubtarefasExpandidas;
+  }, [subtarefasCache, subtarefasConcluidas, subtarefasExpandidas, descricoesSubtarefasExpandidas]);
+
   // Helper: Criar chave de tempo (cliente_id + tarefa_id + tempo_estimado_id)
   const criarChaveTempo = useCallback((reg) => {
     const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
     if (!tempoEstimadoId) return null;
     return `${String(reg.cliente_id).trim()}_${String(reg.tarefa_id).trim()}_${String(tempoEstimadoId).trim()}`;
+  }, []);
+
+  // Buscar subtarefas vinculadas a uma tarefa
+  const buscarSubtarefas = useCallback(async (tarefaId) => {
+    if (!tarefaId) return [];
+    
+    const tarefaIdStr = String(tarefaId);
+    
+    // Verificar se já está no cache
+    if (subtarefasCacheRef.current.has(tarefaIdStr)) {
+      return subtarefasCacheRef.current.get(tarefaIdStr);
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const subtarefas = result.data || [];
+          // Atualizar cache
+          const novoCache = new Map(subtarefasCacheRef.current);
+          novoCache.set(tarefaIdStr, subtarefas);
+          setSubtarefasCache(novoCache);
+          return subtarefas;
+        }
+      }
+      return [];
+    } catch (error) {
+      console.error('Erro ao buscar subtarefas:', error);
+      return [];
+    }
+  }, []);
+
+  // Criar chave única para subtarefas (tarefa_id + cliente_id para diferenciar contextos)
+  const criarChaveSubtarefas = useCallback((reg) => {
+    return `${String(reg.cliente_id || '').trim()}_${String(reg.tarefa_id).trim()}`;
+  }, []);
+
+  // Contar subtarefas pendentes
+  const contarSubtarefasPendentes = useCallback((subtarefas, chave) => {
+    if (!subtarefas || subtarefas.length === 0) return 0;
+    const concluidas = subtarefasConcluidasRef.current.get(chave) || new Set();
+    return subtarefas.length - concluidas.size;
+  }, []);
+
+  // Renderizar lista de subtarefas como checklist com bolinhas
+  const renderizarSubtarefas = useCallback((subtarefas, tarefaId, chave) => {
+    if (!subtarefas || subtarefas.length === 0) {
+      return '';
+    }
+    
+    const concluidas = subtarefasConcluidasRef.current.get(chave) || new Set();
+    
+    const subtarefasHtml = subtarefas.map((subtarefa) => {
+      const isConcluida = concluidas.has(String(subtarefa.id));
+      const temDescricao = subtarefa.descricao && subtarefa.descricao.trim() !== '';
+      const descricaoExpandida = descricoesSubtarefasExpandidasRef.current.has(String(subtarefa.id));
+      // Remover tags HTML da descrição mas manter quebras de linha
+      const descricaoTexto = temDescricao ? subtarefa.descricao
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\n\n+/g, '\n')
+        .trim() : '';
+      return `
+        <div class="painel-usuario-subtarefa-item" data-subtarefa-id="${subtarefa.id}" data-chave="${chave}">
+          <div 
+            class="painel-usuario-subtarefa-bolinha ${isConcluida ? 'concluida' : ''}"
+            data-tarefa-id="${tarefaId}"
+            data-subtarefa-id="${subtarefa.id}"
+            data-chave="${chave}"
+          ></div>
+          <div class="painel-usuario-subtarefa-content">
+            <div class="painel-usuario-subtarefa-nome-row">
+              <span class="painel-usuario-subtarefa-nome ${isConcluida ? 'concluida' : ''}">${subtarefa.nome || 'Sem nome'}</span>
+              ${temDescricao ? `
+                <button 
+                  type="button"
+                  class="painel-usuario-subtarefa-descricao-btn"
+                  data-subtarefa-id="${subtarefa.id}"
+                  title="${descricaoExpandida ? 'Ocultar descrição' : 'Ver descrição'}"
+                >
+                  <i class="fas fa-chevron-${descricaoExpandida ? 'down' : 'right'}"></i>
+                </button>
+              ` : ''}
+            </div>
+            ${temDescricao && descricaoExpandida ? `
+              <div class="painel-usuario-subtarefa-descricao ${isConcluida ? 'concluida' : ''}">${descricaoTexto}</div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="painel-usuario-subtarefas-list">
+        ${subtarefasHtml}
+      </div>
+    `;
   }, []);
 
   // Helper: Atualizar renderização de todas as tarefas
@@ -2731,6 +2859,40 @@ const PainelUsuario = () => {
             content.classList.add('painel-usuario-grupo-cliente-content-scroll');
           }
 
+          // Buscar todas as subtarefas em paralelo antes de renderizar
+          const tarefaIdsUnicos = [...new Set(items.map(reg => reg.tarefa_id).filter(id => id))];
+          const promessasSubtarefas = tarefaIdsUnicos.map(tarefaId => 
+            buscarSubtarefas(tarefaId).catch(err => {
+              console.error(`Erro ao buscar subtarefas para tarefa ${tarefaId}:`, err);
+              return [];
+            })
+          );
+          
+          // Iniciar busca em paralelo (não aguardar para renderizar)
+          Promise.all(promessasSubtarefas).then(() => {
+            // Após todas as buscas, atualizar contadores de todos os items
+            items.forEach((reg) => {
+              const chaveSubtarefas = criarChaveSubtarefas(reg);
+              const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+              if (subtarefas && subtarefas.length > 0) {
+                const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
+                // Buscar o item pelo wrapper de subtarefas que tem o data-tarefa-id
+                const itemElement = content.querySelector(`.painel-usuario-subtarefas-wrapper[data-tarefa-id="${reg.tarefa_id}"]`)?.closest('.painel-usuario-tarefa-item-lista');
+                if (itemElement) {
+                  const countElement = itemElement.querySelector(`.painel-usuario-subtarefas-count`);
+                  if (countElement) {
+                    countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                    if (pendentes === 0) {
+                      countElement.style.color = '#10b981';
+                    } else {
+                      countElement.style.color = '#f59e0b';
+                    }
+                  }
+                }
+              }
+            });
+          });
+          
           // Renderizar todas as tarefas, mas o CSS vai limitar a altura
           items.forEach((reg, index) => {
             const item = document.createElement('div');
@@ -2765,6 +2927,7 @@ const PainelUsuario = () => {
                       ${getNomeTarefa(reg.tarefa_id, reg)}
                       ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
                     </div>
+                    ${renderizarBarraProgressoTarefa(reg, 'lista')}
                   </div>
                   <div style="display: flex; gap: 6px; align-items: center;">
               <button
@@ -2787,33 +2950,339 @@ const PainelUsuario = () => {
                     </span>
                   </span>
                   <span class="painel-usuario-badge-realizado">
-                    <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
-                    <span class="painel-usuario-realizado-label">Realizado:</span>
-                    <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                      <span class="painel-usuario-realizado-label">Realizado:</span>
+                      <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
+                      ${(() => {
+                        const chaveTimetrack = criarChaveTempo(reg);
+                        const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                        return `
+                          <i 
+                            class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
+                            data-chave-timetrack="${chaveTimetrack}"
+                            style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
+                            title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                          ></i>
+                        `;
+                      })()}
+                    </div>
                     ${(() => {
-                      const chaveTimetrack = criarChaveTempo(reg);
-                      const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                      const chaveSubtarefas = criarChaveSubtarefas(reg);
+                      const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+                      const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
+                      const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+                      // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
                       return `
-                        <i 
-                          class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
-                          data-chave-timetrack="${chaveTimetrack}"
-                          style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
-                          title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
-                        ></i>
-                      `;
-                    })()}
-                  </span>
-                  ${renderizarBarraProgressoTarefa(reg, 'lista')}
-                </div>
-                <div class="painel-usuario-timetracks-container">
-                  ${(() => {
-                    const chaveTimetrack = criarChaveTempo(reg);
-                    const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
-                    return isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
-                  })()}
-                </div>
+                        <div class="painel-usuario-subtarefas-info">
+                          <span class="painel-usuario-subtarefas-count" style="color: ${pendentes === 0 && subtarefas ? '#10b981' : '#f59e0b'};" data-tarefa-id="${reg.tarefa_id}">${subtarefas ? `${pendentes} pendente${pendentes !== 1 ? 's' : ''}` : '...'}</span>
+                          <i 
+                            class="fas fa-chevron-${isSubtarefasExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow"
+                            data-chave-subtarefas="${chaveSubtarefas}"
+                            data-tarefa-id="${reg.tarefa_id}"
+                            style="cursor: pointer; color: #64748b; font-size: 10px; transition: transform 0.2s ease; display: inline-block;"
+                            title="${isSubtarefasExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas'}"
+                          ></i>
+                        </div>
+                  `;
+                })()}
+              </span>
+            </div>
+            <div class="painel-usuario-timetracks-container">
+              ${(() => {
+                const chaveTimetrack = criarChaveTempo(reg);
+                const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                return isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
+              })()}
+            </div>
+            <div class="painel-usuario-subtarefas-wrapper" data-chave-subtarefas="${criarChaveSubtarefas(reg)}" data-tarefa-id="${reg.tarefa_id}" style="display: none;">
+            </div>
               </div>
             `;
+            
+            // Verificar se já temos subtarefas no cache e atualizar contador imediatamente
+            const chaveSubtarefas = criarChaveSubtarefas(reg);
+            const subtarefasNoCache = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+            if (subtarefasNoCache && subtarefasNoCache.length > 0) {
+              const pendentes = contarSubtarefasPendentes(subtarefasNoCache, chaveSubtarefas);
+              const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+              if (countElement) {
+                countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                if (pendentes === 0) {
+                  countElement.style.color = '#10b981';
+                } else {
+                  countElement.style.color = '#f59e0b';
+                }
+              }
+            }
+            
+            // Configurar wrapper de subtarefas
+            const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveSubtarefas}"]`);
+            if (subtarefasWrapper) {
+              // Função helper para alternar estado de uma subtarefa
+              const alternarSubtarefa = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
+                // Sempre pegar o estado mais atualizado do ref
+                const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
+                const concluidas = new Set(estadoAtual); // Criar uma cópia
+                const subtarefaIdStr = String(subtarefaId);
+                
+                // Alternar apenas esta subtarefa específica
+                if (concluidas.has(subtarefaIdStr)) {
+                  concluidas.delete(subtarefaIdStr);
+                } else {
+                  concluidas.add(subtarefaIdStr);
+                }
+                
+                // Atualizar o estado e o ref simultaneamente
+                const novoMap = new Map(subtarefasConcluidasRef.current);
+                novoMap.set(chave, concluidas);
+                subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                setSubtarefasConcluidas(novoMap);
+                
+                // Atualizar renderização
+                const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+                if (wrapper) {
+                  wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                  // Reaplicar listeners
+                  adicionarListenersBolinhas(wrapper, tarefaIdVal, chave, subtarefasVal);
+                }
+                
+                // Atualizar contador
+                const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+                if (countElement) {
+                  const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                  countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                  if (pendentes === 0) {
+                    countElement.style.color = '#10b981';
+                  } else {
+                    countElement.style.color = '#f59e0b';
+                  }
+                }
+              };
+              
+                // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição
+                const adicionarListenersBolinhas = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
+                  // Listeners nas bolinhas
+                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
+                    bolinha.addEventListener('click', function(e) {
+                      e.stopPropagation();
+                      const subtarefaId = this.getAttribute('data-subtarefa-id');
+                      alternarSubtarefa(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                    });
+                  });
+                  
+                  // Listeners nos nomes
+                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
+                    nome.style.cursor = 'pointer';
+                    nome.addEventListener('click', function(e) {
+                      e.stopPropagation();
+                      const itemEl = this.closest('.painel-usuario-subtarefa-item');
+                      if (itemEl) {
+                        const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
+                        alternarSubtarefa(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                      }
+                    });
+                  });
+                  
+                  // Listeners nos botões de descrição
+                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                      e.stopPropagation();
+                      const subtarefaId = this.getAttribute('data-subtarefa-id');
+                      const subtarefaIdStr = String(subtarefaId);
+                      const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
+                      const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
+                      
+                      if (estavaExpandida) {
+                        novoExpandidas.delete(subtarefaIdStr);
+                      } else {
+                        novoExpandidas.add(subtarefaIdStr);
+                      }
+                      
+                      descricoesSubtarefasExpandidasRef.current = novoExpandidas;
+                      setDescricoesSubtarefasExpandidas(novoExpandidas);
+                      
+                      // Re-renderizar as subtarefas para atualizar a descrição
+                      const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
+                      if (wrapper) {
+                        wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
+                        adicionarListenersBolinhas(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
+                      }
+                    });
+                  });
+                };
+              
+              // Verificar se já temos subtarefas e renderizar se expandido
+              const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+              if (subtarefas && subtarefas.length > 0) {
+                const isExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+                if (isExpanded) {
+                  subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, reg.tarefa_id, chaveSubtarefas);
+                  subtarefasWrapper.style.display = 'block';
+                  adicionarListenersBolinhas(subtarefasWrapper, reg.tarefa_id, chaveSubtarefas, subtarefas);
+                } else {
+                  subtarefasWrapper.style.display = 'none';
+                }
+              }
+            }
+            
+            // Atualizar contador quando as subtarefas forem carregadas (se ainda não estiverem no cache)
+            (async () => {
+              const subtarefas = await buscarSubtarefas(reg.tarefa_id);
+              
+              // Atualizar contador quando subtarefas forem carregadas
+              if (subtarefas && subtarefas.length > 0) {
+                const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
+                const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+                if (countElement) {
+                  countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                  if (pendentes === 0) {
+                    countElement.style.color = '#10b981';
+                  } else {
+                    countElement.style.color = '#f59e0b';
+                  }
+                }
+              }
+            })();
+            
+            // Adicionar event listener à setinha de subtarefas
+            const subtarefasArrow = item.querySelector('.painel-usuario-subtarefas-arrow');
+            if (subtarefasArrow) {
+              const arrowClone = subtarefasArrow.cloneNode(true);
+              subtarefasArrow.parentNode.replaceChild(arrowClone, subtarefasArrow);
+              
+              arrowClone.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const chave = arrowClone.getAttribute('data-chave-subtarefas');
+                const tarefaId = arrowClone.getAttribute('data-tarefa-id');
+                if (!chave) return;
+                
+                const estavaExpandido = subtarefasExpandidasRef.current.has(chave);
+                const novoExpandidos = new Set(subtarefasExpandidasRef.current);
+                
+                if (estavaExpandido) {
+                  novoExpandidos.delete(chave);
+                } else {
+                  novoExpandidos.add(chave);
+                }
+                
+                subtarefasExpandidasRef.current = novoExpandidos;
+                setSubtarefasExpandidas(novoExpandidos);
+                
+                const isExpanded = novoExpandidos.has(chave);
+                const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+                
+                if (isExpanded) {
+                  let subtarefas = subtarefasCacheRef.current.get(String(tarefaId));
+                  if (!subtarefas) {
+                    subtarefas = await buscarSubtarefas(tarefaId);
+                  }
+                  if (subtarefas && subtarefas.length > 0) {
+                    subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
+                    subtarefasWrapper.style.display = 'block';
+                    
+                    // Função helper para alternar estado de uma subtarefa (lista - expandir)
+                    const alternarSubtarefaArrow = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
+                      // Sempre pegar o estado mais atualizado do ref
+                      const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
+                      const concluidas = new Set(estadoAtual); // Criar uma cópia
+                      const subtarefaIdStr = String(subtarefaId);
+                      
+                      // Alternar apenas esta subtarefa específica
+                      if (concluidas.has(subtarefaIdStr)) {
+                        concluidas.delete(subtarefaIdStr);
+                      } else {
+                        concluidas.add(subtarefaIdStr);
+                      }
+                      
+                      // Atualizar o estado e o ref simultaneamente
+                      const novoMap = new Map(subtarefasConcluidasRef.current);
+                      novoMap.set(chave, concluidas);
+                      subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                      setSubtarefasConcluidas(novoMap);
+                      
+                      const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+                      if (wrapper) {
+                        wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                        adicionarListenersBolinhasArrow(wrapper, tarefaIdVal, chave, subtarefasVal);
+                      }
+                      
+                      // Atualizar contador
+                      const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+                      if (countElement) {
+                        const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                        countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                        if (pendentes === 0) {
+                          countElement.style.color = '#10b981';
+                        } else {
+                          countElement.style.color = '#f59e0b';
+                        }
+                      }
+                    };
+                    
+                    // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (lista - expandir)
+                    const adicionarListenersBolinhasArrow = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
+                      // Listeners nas bolinhas
+                      wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
+                        bolinha.addEventListener('click', function(e) {
+                          e.stopPropagation();
+                          const subtarefaId = this.getAttribute('data-subtarefa-id');
+                          alternarSubtarefaArrow(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                        });
+                      });
+                      
+                      // Listeners nos nomes
+                      wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
+                        nome.style.cursor = 'pointer';
+                        nome.addEventListener('click', function(e) {
+                          e.stopPropagation();
+                          const itemEl = this.closest('.painel-usuario-subtarefa-item');
+                          if (itemEl) {
+                            const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
+                            alternarSubtarefaArrow(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                          }
+                        });
+                      });
+                      
+                      // Listeners nos botões de descrição
+                      wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
+                        btn.addEventListener('click', function(e) {
+                          e.stopPropagation();
+                          const subtarefaId = this.getAttribute('data-subtarefa-id');
+                          const subtarefaIdStr = String(subtarefaId);
+                          const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
+                          const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
+                          
+                          if (estavaExpandida) {
+                            novoExpandidas.delete(subtarefaIdStr);
+                          } else {
+                            novoExpandidas.add(subtarefaIdStr);
+                          }
+                          
+                          descricoesSubtarefasExpandidasRef.current = novoExpandidas;
+                          setDescricoesSubtarefasExpandidas(novoExpandidas);
+                          
+                          // Re-renderizar as subtarefas para atualizar a descrição
+                          const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
+                          if (wrapper) {
+                            wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
+                            adicionarListenersBolinhasArrow(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
+                          }
+                        });
+                      });
+                    };
+                    
+                    adicionarListenersBolinhasArrow(subtarefasWrapper, tarefaId, chave, subtarefas);
+                  }
+                } else {
+                  subtarefasWrapper.style.display = 'none';
+                }
+                
+                // Atualizar ícone da setinha
+                arrowClone.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow`;
+                arrowClone.setAttribute('title', isExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas');
+              });
+            }
             
             // Adicionar event listener ao botão play/stop
             const btn = item.querySelector(`button[data-action]`);
@@ -2885,12 +3354,19 @@ const PainelUsuario = () => {
                 let timetracksContainer = itemContent ? itemContent.querySelector('.painel-usuario-timetracks-container') : null;
                 
                 if (!timetracksContainer && itemContent) {
-                  // Se não existe, criar e adicionar após os tags
+                  // Se não existe, criar e adicionar após os tags, mas antes das subtarefas
                   timetracksContainer = document.createElement('div');
                   timetracksContainer.className = 'painel-usuario-timetracks-container';
                   const tagsContainer = itemContent.querySelector('.painel-usuario-tarefa-tags');
+                  const subtarefasWrapper = itemContent.querySelector('.painel-usuario-subtarefas-wrapper');
+                  
                   if (tagsContainer && tagsContainer.parentNode) {
-                    tagsContainer.parentNode.insertBefore(timetracksContainer, tagsContainer.nextSibling);
+                    // Se existe subtarefas wrapper, inserir antes dele, senão inserir após tags
+                    if (subtarefasWrapper && subtarefasWrapper.parentNode) {
+                      subtarefasWrapper.parentNode.insertBefore(timetracksContainer, subtarefasWrapper);
+                    } else {
+                      tagsContainer.parentNode.insertBefore(timetracksContainer, tagsContainer.nextSibling);
+                    }
                   } else {
                     itemContent.appendChild(timetracksContainer);
                   }
@@ -3016,9 +3492,9 @@ const PainelUsuario = () => {
         const coluna = document.createElement('div');
         coluna.className = 'painel-usuario-coluna';
         coluna.style.minWidth = '240px';
-        coluna.style.maxWidth = 'none'; // Remover maxWidth para permitir expansão
+        coluna.style.maxWidth = '300px'; // Limitar largura máxima para não expandir com descrições
         coluna.style.flex = '0 0 auto'; // Mudar para auto para permitir expansão baseada no conteúdo
-        coluna.style.width = 'auto'; // Permitir largura automática
+        coluna.style.width = 'auto'; // Permitir largura automática até o máximo
         coluna.style.display = 'flex';
         coluna.style.flexDirection = 'column';
 
@@ -3124,21 +3600,307 @@ const PainelUsuario = () => {
                 </span>
               </span>
               <span class="painel-usuario-badge-realizado">
-                <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
-                <span class="painel-usuario-realizado-label">Realizado:</span>
-                <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
-                <i 
-                  class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
-                  data-chave-timetrack="${chaveTimetrack}"
-                  style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
-                  title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
-                ></i>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                  <span class="painel-usuario-realizado-label">Realizado:</span>
+                  <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
+                  <i 
+                    class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
+                    data-chave-timetrack="${chaveTimetrack}"
+                    style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
+                    title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
+                  ></i>
+                </div>
+                ${(() => {
+                  const chaveSubtarefas = criarChaveSubtarefas(reg);
+                  const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+                  const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
+                  const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+                  // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
+                  return `
+                    <div class="painel-usuario-subtarefas-info">
+                      <span class="painel-usuario-subtarefas-count" style="color: ${pendentes === 0 && subtarefas ? '#10b981' : '#f59e0b'};" data-tarefa-id="${reg.tarefa_id}">${subtarefas ? `${pendentes} pendente${pendentes !== 1 ? 's' : ''}` : '...'}</span>
+                      <i 
+                        class="fas fa-chevron-${isSubtarefasExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow"
+                        data-chave-subtarefas="${chaveSubtarefas}"
+                        data-tarefa-id="${reg.tarefa_id}"
+                        style="cursor: pointer; color: #64748b; font-size: 10px; transition: transform 0.2s ease; display: inline-block;"
+                        title="${isSubtarefasExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas'}"
+                      ></i>
+                    </div>
+                  `;
+                })()}
               </span>
             </div>
             <div class="painel-usuario-timetracks-container">
               ${isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : ''}
             </div>
+            <div class="painel-usuario-subtarefas-wrapper" data-chave-subtarefas="${criarChaveSubtarefas(reg)}" data-tarefa-id="${reg.tarefa_id}" style="display: none;">
+            </div>
           `;
+          
+          // Buscar e renderizar subtarefas após criar o item
+          const chaveSubtarefas = criarChaveSubtarefas(reg);
+          (async () => {
+            const subtarefas = await buscarSubtarefas(reg.tarefa_id);
+            
+            // Atualizar contador quando subtarefas forem carregadas
+            if (subtarefas && subtarefas.length > 0) {
+              const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
+              const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+              if (countElement) {
+                countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                if (pendentes === 0) {
+                  countElement.style.color = '#10b981';
+                } else {
+                  countElement.style.color = '#f59e0b';
+                }
+              }
+            }
+            
+            const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveSubtarefas}"]`);
+            if (subtarefasWrapper && subtarefas && subtarefas.length > 0) {
+              const isExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+              if (isExpanded) {
+                subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, reg.tarefa_id, chaveSubtarefas);
+                subtarefasWrapper.style.display = 'block';
+              } else {
+                subtarefasWrapper.style.display = 'none';
+              }
+              
+              // Função helper para alternar estado de uma subtarefa (quadro)
+              const alternarSubtarefaQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
+                // Sempre pegar o estado mais atualizado do ref
+                const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
+                const concluidas = new Set(estadoAtual); // Criar uma cópia
+                const subtarefaIdStr = String(subtarefaId);
+                
+                // Alternar apenas esta subtarefa específica
+                if (concluidas.has(subtarefaIdStr)) {
+                  concluidas.delete(subtarefaIdStr);
+                } else {
+                  concluidas.add(subtarefaIdStr);
+                }
+                
+                // Atualizar o estado e o ref simultaneamente
+                const novoMap = new Map(subtarefasConcluidasRef.current);
+                novoMap.set(chave, concluidas);
+                subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                setSubtarefasConcluidas(novoMap);
+                
+                const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+                if (wrapper) {
+                  wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                  adicionarListenersBolinhasQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
+                }
+                
+                // Atualizar contador
+                const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+                if (countElement) {
+                  const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                  countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                  if (pendentes === 0) {
+                    countElement.style.color = '#10b981';
+                  } else {
+                    countElement.style.color = '#f59e0b';
+                  }
+                }
+              };
+              
+              // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (visualização quadro)
+              const adicionarListenersBolinhasQuadro = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
+                // Listeners nas bolinhas
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
+                  bolinha.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const subtarefaId = this.getAttribute('data-subtarefa-id');
+                    alternarSubtarefaQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                  });
+                });
+                
+                // Listeners nos nomes
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
+                  nome.style.cursor = 'pointer';
+                  nome.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const itemEl = this.closest('.painel-usuario-subtarefa-item');
+                    if (itemEl) {
+                      const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
+                      alternarSubtarefaQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                    }
+                  });
+                });
+                
+                // Listeners nos botões de descrição
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
+                  btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const subtarefaId = this.getAttribute('data-subtarefa-id');
+                    const subtarefaIdStr = String(subtarefaId);
+                    const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
+                    const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
+                    
+                    if (estavaExpandida) {
+                      novoExpandidas.delete(subtarefaIdStr);
+                    } else {
+                      novoExpandidas.add(subtarefaIdStr);
+                    }
+                    
+                    descricoesSubtarefasExpandidasRef.current = novoExpandidas;
+                    setDescricoesSubtarefasExpandidas(novoExpandidas);
+                    
+                    // Re-renderizar as subtarefas para atualizar a descrição
+                    const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
+                    if (wrapper) {
+                      wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
+                      adicionarListenersBolinhasQuadro(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
+                    }
+                  });
+                });
+              };
+              
+              adicionarListenersBolinhasQuadro(subtarefasWrapper, reg.tarefa_id, chaveSubtarefas, subtarefas);
+            }
+          })();
+          
+          // Adicionar event listener à setinha de subtarefas
+          const subtarefasArrow = item.querySelector('.painel-usuario-subtarefas-arrow');
+          if (subtarefasArrow) {
+            const arrowClone = subtarefasArrow.cloneNode(true);
+            subtarefasArrow.parentNode.replaceChild(arrowClone, subtarefasArrow);
+            
+            arrowClone.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const chave = arrowClone.getAttribute('data-chave-subtarefas');
+              const tarefaId = arrowClone.getAttribute('data-tarefa-id');
+              if (!chave) return;
+              
+              const estavaExpandido = subtarefasExpandidasRef.current.has(chave);
+              const novoExpandidos = new Set(subtarefasExpandidasRef.current);
+              
+              if (estavaExpandido) {
+                novoExpandidos.delete(chave);
+              } else {
+                novoExpandidos.add(chave);
+              }
+              
+              subtarefasExpandidasRef.current = novoExpandidos;
+              setSubtarefasExpandidas(novoExpandidos);
+              
+              const isExpanded = novoExpandidos.has(chave);
+              const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+              
+              if (isExpanded) {
+                let subtarefas = subtarefasCacheRef.current.get(String(tarefaId));
+                if (!subtarefas) {
+                  subtarefas = await buscarSubtarefas(tarefaId);
+                }
+                if (subtarefas && subtarefas.length > 0) {
+                  subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
+                  subtarefasWrapper.style.display = 'block';
+                  
+                  // Função helper para alternar estado de uma subtarefa (expandir quadro)
+                  const alternarSubtarefaExpandQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
+                    // Sempre pegar o estado mais atualizado do ref
+                    const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
+                    const concluidas = new Set(estadoAtual); // Criar uma cópia
+                    const subtarefaIdStr = String(subtarefaId);
+                    
+                    // Alternar apenas esta subtarefa específica
+                    if (concluidas.has(subtarefaIdStr)) {
+                      concluidas.delete(subtarefaIdStr);
+                    } else {
+                      concluidas.add(subtarefaIdStr);
+                    }
+                    
+                    // Atualizar o estado e o ref simultaneamente
+                    const novoMap = new Map(subtarefasConcluidasRef.current);
+                    novoMap.set(chave, concluidas);
+                    subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
+                    setSubtarefasConcluidas(novoMap);
+                    
+                    const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
+                    if (wrapper) {
+                      wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
+                      adicionarListenersBolinhasExpandQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
+                    }
+                    
+                    // Atualizar contador
+                    const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+                    if (countElement) {
+                      const pendentes = contarSubtarefasPendentes(subtarefasVal, chave);
+                      countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                      if (pendentes === 0) {
+                        countElement.style.color = '#10b981';
+                      } else {
+                        countElement.style.color = '#f59e0b';
+                      }
+                    }
+                  };
+                  
+                  // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (expandir quadro)
+                  const adicionarListenersBolinhasExpandQuadro = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
+                    // Listeners nas bolinhas
+                    wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
+                      bolinha.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const subtarefaId = this.getAttribute('data-subtarefa-id');
+                        alternarSubtarefaExpandQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                      });
+                    });
+                    
+                    // Listeners nos nomes
+                    wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
+                      nome.style.cursor = 'pointer';
+                      nome.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const itemEl = this.closest('.painel-usuario-subtarefa-item');
+                        if (itemEl) {
+                          const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
+                          alternarSubtarefaExpandQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                        }
+                      });
+                    });
+                    
+                    // Listeners nos botões de descrição
+                    wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
+                      btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const subtarefaId = this.getAttribute('data-subtarefa-id');
+                        const subtarefaIdStr = String(subtarefaId);
+                        const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
+                        const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
+                        
+                        if (estavaExpandida) {
+                          novoExpandidas.delete(subtarefaIdStr);
+                        } else {
+                          novoExpandidas.add(subtarefaIdStr);
+                        }
+                        
+                        descricoesSubtarefasExpandidasRef.current = novoExpandidas;
+                        setDescricoesSubtarefasExpandidas(novoExpandidas);
+                        
+                        // Re-renderizar as subtarefas para atualizar a descrição
+                        const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
+                        if (wrapper) {
+                          wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
+                          adicionarListenersBolinhasExpandQuadro(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
+                        }
+                      });
+                    });
+                  };
+                  
+                  adicionarListenersBolinhasExpandQuadro(subtarefasWrapper, tarefaId, chave, subtarefas);
+                }
+              } else {
+                subtarefasWrapper.style.display = 'none';
+              }
+              
+              // Atualizar ícone da setinha
+              arrowClone.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow`;
+              arrowClone.setAttribute('title', isExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas');
+            });
+          }
           
           // Adicionar event listener ao botão play/stop
           const btn = item.querySelector(`button[data-action]`);

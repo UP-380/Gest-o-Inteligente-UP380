@@ -2289,7 +2289,7 @@ async function getSubtarefasPorTarefa(req, res) {
       const { data: todasSubtarefas, error: todasSubtarefasError } = await supabase
         .schema('up_gestaointeligente')
         .from('cp_subtarefa')
-        .select('id, nome')
+        .select('id, nome, descricao')
         .order('nome', { ascending: true });
 
       if (todasSubtarefasError) {
@@ -2303,7 +2303,8 @@ async function getSubtarefasPorTarefa(req, res) {
 
       subtarefasComNomes = (todasSubtarefas || []).map(subtarefa => ({
         id: parseInt(subtarefa.id, 10),
-        nome: subtarefa.nome || null
+        nome: subtarefa.nome || null,
+        descricao: subtarefa.descricao || null
       }));
 
       console.log(`📋 Todas as subtarefas encontradas: ${subtarefasComNomes.length}`);
@@ -2353,7 +2354,7 @@ async function getSubtarefasPorTarefa(req, res) {
           const { data: subtarefa, error: subtarefaError } = await supabase
             .schema('up_gestaointeligente')
             .from('cp_subtarefa')
-            .select('id, nome')
+            .select('id, nome, descricao')
             .eq('id', subtarefaId)
             .maybeSingle();
 
@@ -2362,7 +2363,8 @@ async function getSubtarefasPorTarefa(req, res) {
           } else if (subtarefa) {
             subtarefasComNomes.push({
               id: parseInt(subtarefa.id, 10),
-              nome: subtarefa.nome || null
+              nome: subtarefa.nome || null,
+              descricao: subtarefa.descricao || null
             });
           }
         }

@@ -121,6 +121,8 @@
   z-index: 1;
   margin-top: 2px;
   margin-bottom: 6px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .painel-usuario-coluna:hover {
@@ -135,6 +137,12 @@
 .painel-usuario-coluna-body {
   max-height: 360px;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .painel-usuario-coluna-body::-webkit-scrollbar {
   width: 6px;
@@ -159,6 +167,9 @@
   border-radius: 12px;
   padding: 12px;
   background: #ffffff;
+  min-width: 0; /* Permitir que o card encolha */
+  max-width: 100%; /* Não expandir além do container */
+  box-sizing: border-box;
 }
 
 .painel-usuario-tarefa-top {
@@ -273,6 +284,214 @@
   color: #4b5563;
 }
 
+/* Estilos para subtarefas */
+.painel-usuario-subtarefas-wrapper {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.painel-usuario-subtarefas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.painel-usuario-subtarefa-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.painel-usuario-subtarefa-bolinha {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #9ca3af;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  position: relative;
+  margin-top: 2px; /* Alinhar com o texto quando houver descrição */
+}
+
+.painel-usuario-subtarefa-bolinha:hover {
+  border-color: #10b981;
+  transform: scale(1.1);
+}
+
+.painel-usuario-subtarefa-bolinha.concluida {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.painel-usuario-subtarefa-bolinha.concluida::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.painel-usuario-subtarefa-nome {
+  user-select: none;
+  flex: 1;
+  font-size: 13px;
+  color: #4b5563;
+  transition: color 0.2s ease, text-decoration 0.2s ease;
+  cursor: pointer;
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.painel-usuario-subtarefa-nome:hover {
+  color: #0e3b6f;
+}
+
+.painel-usuario-subtarefa-nome.concluida {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.painel-usuario-subtarefa-nome.concluida:hover {
+  color: #6b7280;
+}
+
+.painel-usuario-subtarefa-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.painel-usuario-subtarefa-nome-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.painel-usuario-subtarefa-descricao-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.painel-usuario-subtarefa-descricao-btn:hover {
+  color: #0e3b6f;
+}
+
+.painel-usuario-subtarefa-descricao-btn i {
+  font-size: 10px;
+}
+
+.painel-usuario-subtarefa-descricao {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.4;
+  margin-top: 4px;
+  padding: 8px;
+  padding-left: 8px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  background: #f9fafb;
+  border-left: 2px solid #e5e7eb;
+  border-radius: 4px;
+  animation: fadeIn 0.2s ease;
+  max-width: 100%;
+  box-sizing: border-box;
+  max-height: 100px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Scrollbar customizada para descrição */
+.painel-usuario-subtarefa-descricao::-webkit-scrollbar {
+  width: 4px;
+}
+
+.painel-usuario-subtarefa-descricao::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.painel-usuario-subtarefa-descricao::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.painel-usuario-subtarefa-descricao::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.painel-usuario-subtarefa-descricao.concluida {
+  color: #9ca3af;
+  opacity: 0.7;
+}
+
+.painel-usuario-subtarefas-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.painel-usuario-subtarefas-count {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.painel-usuario-subtarefas-arrow {
+  cursor: pointer;
+  color: #64748b;
+  font-size: 10px;
+  margin-left: 4px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
 /* Estilo para os badges ficarem na mesma linha no modo lista */
 .painel-usuario-tarefa-item-lispainel-usuarioaborador-tarepainel-usuario-colaborador-tarefa-tags-lista,
 .painel-usuario-tarefa-tpainel-usuarioaborador-tarefa-tags-lista {
@@ -321,8 +540,9 @@
 
 .painel-usuario-badge-realizado {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
   padding: 0;
   color: #1f2937;
   font-size: 12px;
@@ -488,9 +708,9 @@
 }
 
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista {
-  width: auto;
+  width: 100%;
   min-width: 180px;
-  margin-left: 8px;
+  margin-top: 6px;
 }
 
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-lista .painel-usuario-barra-progresso-base {

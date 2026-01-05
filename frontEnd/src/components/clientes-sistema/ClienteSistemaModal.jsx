@@ -21,6 +21,10 @@ const ClienteSistemaModal = ({
   const [showSenhaVpn, setShowSenhaVpn] = useState(false);
   const [showSenhaSistema, setShowSenhaSistema] = useState(false);
   const [showSenhaServidor, setShowSenhaServidor] = useState(false);
+  const [showNovoSistema, setShowNovoSistema] = useState(false);
+  const [sistemaFormData, setSistemaFormData] = useState({ nome: '' });
+  const [sistemaFormErrors, setSistemaFormErrors] = useState({});
+  const [sistemaSubmitting, setSistemaSubmitting] = useState(false);
 
   // Carregar sistemas se não foram fornecidos
   useEffect(() => {
@@ -91,6 +95,73 @@ const ClienteSistemaModal = ({
     }
   };
 
+  // Função para salvar novo sistema
+  const handleSalvarSistema = async (e) => {
+    e.preventDefault();
+    
+    // Validações
+    const errors = {};
+    if (!sistemaFormData.nome || !sistemaFormData.nome.trim()) {
+      errors.nome = 'Nome do sistema é obrigatório';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setSistemaFormErrors(errors);
+      return;
+    }
+
+    setSistemaSubmitting(true);
+    setSistemaFormErrors({});
+
+    try {
+      const response = await fetch('/api/sistemas', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          nome: sistemaFormData.nome.trim()
+        }),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Adicionar o novo sistema à lista
+        const novoSistema = result.data;
+        setSistemasList([...sistemasList, novoSistema]);
+        
+        // Selecionar automaticamente o sistema criado
+        setFormData({ ...formData, sistema_id: novoSistema.id });
+        if (formErrors.sistema_id) {
+          setFormErrors({ ...formErrors, sistema_id: '' });
+        }
+        
+        // Fechar os campos de novo sistema
+        setShowNovoSistema(false);
+        setSistemaFormData({ nome: '' });
+      } else {
+        setSistemaFormErrors({ 
+          nome: result.error || 'Erro ao salvar sistema. Tente novamente.' 
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao salvar sistema:', error);
+      setSistemaFormErrors({ 
+        nome: 'Erro ao salvar sistema. Tente novamente.' 
+      });
+    } finally {
+      setSistemaSubmitting(false);
+    }
+  };
+
   const canSave = formData.sistema_id && !submitting;
 
   return (
@@ -140,46 +211,94 @@ const ClienteSistemaModal = ({
               <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                 Sistema <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  ref={sistemaSelectRef}
-                  className={`form-input ${formErrors.sistema_id ? 'error' : ''}`}
-                  value={formData.sistema_id || ''}
-                  onChange={handleSistemaChange}
-                  disabled={submitting}
-                  style={{
-                    width: '100%',
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <select
+                    ref={sistemaSelectRef}
+                    className={`form-input ${formErrors.sistema_id ? 'error' : ''}`}
+                    value={formData.sistema_id || ''}
+                    onChange={handleSistemaChange}
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
                       padding: '9px 36px 9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.sistema_id ? '2px solid #ef4444' : (formData.sistema_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff',
+                      appearance: 'none',
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px',
+                      cursor: submitting ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="">Selecione o sistema</option>
+                    {sistemasList.map((sistema) => (
+                      <option key={sistema.id} value={sistema.id}>
+                        {sistema.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.sistema_id && !formErrors.sistema_id && (
+                    <i className="fas fa-check-circle" style={{
+                      position: 'absolute',
+                      right: '32px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#10b981',
+                      fontSize: '16px',
+                      pointerEvents: 'none'
+                    }}></i>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showNovoSistema) {
+                      setShowNovoSistema(false);
+                      setSistemaFormData({ nome: '' });
+                      setSistemaFormErrors({});
+                    } else {
+                      setShowNovoSistema(true);
+                      setSistemaFormData({ nome: '' });
+                      setSistemaFormErrors({});
+                    }
+                  }}
+                  disabled={submitting}
+                  title={showNovoSistema ? "Cancelar adicionar sistema" : "Adicionar novo sistema"}
+                  style={{
+                    padding: '9px 12px',
                     fontSize: '14px',
-                    border: formErrors.sistema_id ? '2px solid #ef4444' : (formData.sistema_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                    border: '1px solid #d1d5db',
                     borderRadius: '6px',
-                    transition: 'border-color 0.2s',
-                    backgroundColor: submitting ? '#f3f4f6' : '#fff',
-                    appearance: 'none',
-                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 12px center',
-                    backgroundSize: '12px',
-                    cursor: submitting ? 'not-allowed' : 'pointer'
+                    backgroundColor: showNovoSistema ? '#ef4444' : '#fff',
+                    color: showNovoSistema ? '#fff' : '#0e3b6f',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    flexShrink: 0,
+                    opacity: submitting ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting && !showNovoSistema) {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      e.currentTarget.style.borderColor = '#0e3b6f';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting && !showNovoSistema) {
+                      e.currentTarget.style.backgroundColor = '#fff';
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
                   }}
                 >
-                  <option value="">Selecione o sistema</option>
-                  {sistemasList.map((sistema) => (
-                    <option key={sistema.id} value={sistema.id}>
-                      {sistema.nome}
-                    </option>
-                  ))}
-                </select>
-                {formData.sistema_id && !formErrors.sistema_id && (
-                  <i className="fas fa-check-circle" style={{
-                    position: 'absolute',
-                    right: '32px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#10b981',
-                    fontSize: '16px'
-                  }}></i>
-                )}
+                  <i className={`fas ${showNovoSistema ? 'fa-times' : 'fa-plus'}`} style={{ fontSize: '12px' }}></i>
+                </button>
               </div>
               {formErrors.sistema_id && (
                 <span className="error-message" style={{ 
@@ -206,6 +325,111 @@ const ClienteSistemaModal = ({
                   <i className="fas fa-check-circle"></i>
                   Sistema selecionado
                 </span>
+              )}
+              
+              {/* Campos para adicionar novo sistema */}
+              {showNovoSistema && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '16px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ marginBottom: '12px', fontWeight: '500', fontSize: '13px', color: '#374151' }}>
+                    <i className="fas fa-plus-circle" style={{ marginRight: '6px', color: '#0e3b6f' }}></i>
+                    Novo Sistema
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '12px' }}>
+                      Nome do Sistema <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={`form-input ${sistemaFormErrors.nome ? 'error' : ''}`}
+                      value={sistemaFormData.nome}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSistemaFormData({ ...sistemaFormData, nome: value });
+                        if (sistemaFormErrors.nome) {
+                          setSistemaFormErrors({ ...sistemaFormErrors, nome: '' });
+                        }
+                      }}
+                      placeholder="Ex: Protheus, Omie, TOTVS..."
+                      disabled={sistemaSubmitting}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        border: sistemaFormErrors.nome ? '2px solid #ef4444' : '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        transition: 'border-color 0.2s'
+                      }}
+                      maxLength={100}
+                    />
+                    {sistemaFormErrors.nome && (
+                      <span className="error-message" style={{ 
+                        color: '#ef4444', 
+                        fontSize: '11px', 
+                        marginTop: '4px', 
+                        display: 'block' 
+                      }}>
+                        {sistemaFormErrors.nome}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNovoSistema(false);
+                        setSistemaFormData({ nome: '' });
+                        setSistemaFormErrors({});
+                      }}
+                      disabled={sistemaSubmitting}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        backgroundColor: '#fff',
+                        color: '#374151',
+                        cursor: sistemaSubmitting ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSalvarSistema}
+                      disabled={sistemaSubmitting || !sistemaFormData.nome?.trim()}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        backgroundColor: sistemaSubmitting || !sistemaFormData.nome?.trim() ? '#9ca3af' : '#0e3b6f',
+                        color: '#fff',
+                        cursor: sistemaSubmitting || !sistemaFormData.nome?.trim() ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: sistemaSubmitting || !sistemaFormData.nome?.trim() ? 0.6 : 1
+                      }}
+                    >
+                      {sistemaSubmitting ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-save" style={{ marginRight: '4px' }}></i>
+                          Salvar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
