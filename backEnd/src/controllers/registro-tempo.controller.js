@@ -5,6 +5,66 @@
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 
+// Função auxiliar para buscar tipo_tarefa_id da tabela vinculados
+async function buscarTipoTarefaIdPorTarefa(tarefaId) {
+  try {
+    if (!tarefaId) return null;
+    
+    const tarefaIdStr = String(tarefaId).trim();
+    const tarefaIdNum = parseInt(tarefaIdStr, 10);
+    
+    if (isNaN(tarefaIdNum)) {
+      console.warn('⚠️ tarefa_id não é um número válido:', tarefaIdStr);
+      return null;
+    }
+    
+    console.log('🔍 Buscando tipo_tarefa_id para tarefa_id:', tarefaIdNum, '(tipo:', typeof tarefaIdNum + ')');
+    
+    // Buscar na tabela vinculados onde há vínculo entre tarefa e tipo_tarefa
+    // (sem produto, cliente ou subtarefa)
+    const { data: vinculados, error: vinculadoError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .select('tarefa_tipo_id, tarefa_id, produto_id, cliente_id, subtarefa_id')
+      .eq('tarefa_id', tarefaIdNum)
+      .not('tarefa_tipo_id', 'is', null)
+      .is('produto_id', null)
+      .is('cliente_id', null)
+      .is('subtarefa_id', null)
+      .limit(10);
+    
+    if (vinculadoError) {
+      console.error('❌ Erro ao buscar tipo_tarefa_id do vinculado:', vinculadoError);
+      console.error('❌ Detalhes do erro:', JSON.stringify(vinculadoError, null, 2));
+      return null;
+    }
+    
+    console.log(`📋 Vinculados encontrados: ${vinculados?.length || 0}`);
+    if (vinculados && vinculados.length > 0) {
+      console.log('📋 Dados dos vinculados:', JSON.stringify(vinculados, null, 2));
+      // Pegar o primeiro vinculado encontrado
+      const vinculado = vinculados[0];
+      if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
+        const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number' 
+          ? vinculado.tarefa_tipo_id 
+          : parseInt(vinculado.tarefa_tipo_id, 10);
+        if (!isNaN(tipoTarefaId)) {
+          console.log('✅ Tipo_tarefa_id encontrado:', tipoTarefaId);
+          return tipoTarefaId;
+        } else {
+          console.warn('⚠️ tipo_tarefa_id não é um número válido:', vinculado.tarefa_tipo_id);
+        }
+      }
+    }
+    
+    console.warn('⚠️ Tipo_tarefa_id não encontrado para tarefa_id:', tarefaIdNum);
+    return null;
+  } catch (error) {
+    console.error('❌ Erro inesperado ao buscar tipo_tarefa_id:', error);
+    return null;
+  }
+}
+
 // POST - Iniciar registro de tempo (criar com data_inicio)
 async function iniciarRegistroTempo(req, res) {
   try {
@@ -122,6 +182,14 @@ async function iniciarRegistroTempo(req, res) {
       console.error('❌ Erro ao buscar produto_id:', error);
     }
 
+    // Buscar tipo_tarefa_id da tabela vinculados
+    let tipoTarefaId = null;
+    try {
+      tipoTarefaId = await buscarTipoTarefaIdPorTarefa(tarefa_id);
+    } catch (error) {
+      console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
+    }
+
     // Criar registro com data_inicio (timestamp atual)
     const dataInicio = new Date().toISOString();
 
@@ -137,7 +205,8 @@ async function iniciarRegistroTempo(req, res) {
       data_inicio: dataInicio,
       data_fim: null,
       tempo_realizado: null,
-      produto_id: produtoId || null // Sempre incluir produto_id, mesmo se null
+      produto_id: produtoId || null, // Sempre incluir produto_id, mesmo se null
+      tipo_tarefa_id: tipoTarefaId || null // Sempre incluir tipo_tarefa_id, mesmo se null
     };
 
     console.log('📝 Criando registro de tempo:', JSON.stringify(dadosInsert, null, 2));
@@ -731,6 +800,21 @@ async function atualizarRegistroTempo(req, res) {
       }
     } catch (error) {
       console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id:', error);
+    }
+
+    // Buscar tipo_tarefa_id da tabela vinculados
+    try {
+      const tipoTarefaIdEncontrado = await buscarTipoTarefaIdPorTarefa(tarefaIdParaBuscar);
+      if (tipoTarefaIdEncontrado !== null) {
+        dadosUpdate.tipo_tarefa_id = tipoTarefaIdEncontrado;
+        console.log('✅ [atualizarRegistroTempo] Tipo_tarefa_id encontrado:', tipoTarefaIdEncontrado);
+      } else if (tarefaIdParaBuscar) {
+        // Se tentou buscar mas não encontrou, definir como null explicitamente
+        dadosUpdate.tipo_tarefa_id = null;
+        console.warn('⚠️ [atualizarRegistroTempo] Tipo_tarefa_id não encontrado');
+      }
+    } catch (error) {
+      console.error('❌ [atualizarRegistroTempo] Erro ao buscar tipo_tarefa_id:', error);
     }
 
     // Atualizar data_inicio se fornecida
