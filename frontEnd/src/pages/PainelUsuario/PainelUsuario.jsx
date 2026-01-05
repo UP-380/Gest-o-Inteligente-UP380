@@ -276,15 +276,13 @@ const PainelUsuario = () => {
     produtos: {},
     tarefas: {},
     clientes: {},
-    colaboradores: {},
-    tiposTarefaPorTarefa: {} // Mapa tarefa_id -> tipo_tarefa_nome
+    colaboradores: {}
   });
   const nomesCacheRef = useRef({
     produtos: {},
     tarefas: {},
     clientes: {},
-    colaboradores: {},
-    tiposTarefaPorTarefa: {} // Mapa tarefa_id -> tipo_tarefa_nome
+    colaboradores: {}
   });
   const [clientesListaCache, setClientesListaCache] = useState(null);
   const [colaboradoresCache, setColaboradoresCache] = useState([]);
@@ -371,17 +369,6 @@ const PainelUsuario = () => {
     }
     // Fallback
     return `Tarefa #${idStr}`;
-  };
-  const getNomeTipoTarefa = (tarefaId) => {
-    const idStr = String(tarefaId);
-    const cacheAtual = nomesCacheRef.current;
-    if (cacheAtual.tiposTarefaPorTarefa && cacheAtual.tiposTarefaPorTarefa[idStr]) {
-      return cacheAtual.tiposTarefaPorTarefa[idStr];
-    }
-    if (nomesCache.tiposTarefaPorTarefa && nomesCache.tiposTarefaPorTarefa[idStr]) {
-      return nomesCache.tiposTarefaPorTarefa[idStr];
-    }
-    return null; // Retorna null se não encontrar (não exibe nada)
   };
   
   // Função para buscar nome do cliente usando o endpoint de base-conhecimento
@@ -2939,10 +2926,6 @@ const PainelUsuario = () => {
                     <div class="painel-usuario-tarefa-nome">
                       ${getNomeTarefa(reg.tarefa_id, reg)}
                       ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
-                      ${(() => {
-                        const tipoTarefaNome = getNomeTipoTarefa(reg.tarefa_id);
-                        return tipoTarefaNome ? `<span class="painel-usuario-tarefa-tipo"> - ${tipoTarefaNome}</span>` : '';
-                      })()}
                     </div>
                     ${renderizarBarraProgressoTarefa(reg, 'lista')}
                   </div>
@@ -4014,12 +3997,6 @@ const PainelUsuario = () => {
     const clientesIds = new Set();
     const colaboradoresIds = new Set();
 
-    const novos = { ...nomesCache };
-    // Garantir que tiposTarefaPorTarefa está inicializado
-    if (!novos.tiposTarefaPorTarefa) {
-      novos.tiposTarefaPorTarefa = {};
-    }
-
     registros.forEach((reg) => {
       if (reg.produto_id) {
         produtosIds.add(String(reg.produto_id));
@@ -4041,6 +4018,8 @@ const PainelUsuario = () => {
       }
       if (reg.responsavel_id) colaboradoresIds.add(String(reg.responsavel_id));
     });
+
+    const novos = { ...nomesCache };
     
     // Buscar tarefas/atividades em lote usando a rota de múltiplos IDs
     if (tarefasIds.size > 0) {
@@ -4215,46 +4194,6 @@ const PainelUsuario = () => {
             novos.colaboradores[id] = `colaborador #${id}`;
           });
         }
-      }
-    }
-
-    // Buscar tipos de tarefa vinculados às tarefas
-    if (tarefasIds.size > 0) {
-      try {
-        const tarefasIdsArray = Array.from(tarefasIds);
-        const tarefasFaltandoTipo = tarefasIdsArray.filter(id => !novos.tiposTarefaPorTarefa[id]);
-        
-        if (tarefasFaltandoTipo.length > 0) {
-          // Buscar vinculados que têm tarefa e tipo_tarefa mas não produto nem cliente
-          const idsParam = tarefasFaltandoTipo.join(',');
-          const response = await fetch(`${API_BASE_URL}/vinculados?limit=1000`, {
-            credentials: 'include',
-            headers: { Accept: 'application/json' }
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-              // Filtrar apenas vinculados que têm tarefa e tipo_tarefa mas não produto nem cliente
-              const vinculadosTarefaTipo = result.data.filter(v => {
-                return v.cp_tarefa && v.cp_tarefa_tipo && !v.cp_produto && !v.cp_cliente && !v.cp_subtarefa;
-              });
-              
-              vinculadosTarefaTipo.forEach(v => {
-                const tarefaId = String(v.cp_tarefa || v.tarefa_id);
-                const tipoTarefaNome = v.tipo_tarefa_nome || v.tipo_atividade_nome;
-                if (tarefaId && tipoTarefaNome && tarefasFaltandoTipo.includes(tarefaId)) {
-                  // Pegar apenas o primeiro tipo de tarefa encontrado (caso haja múltiplos)
-                  if (!novos.tiposTarefaPorTarefa[tarefaId]) {
-                    novos.tiposTarefaPorTarefa[tarefaId] = tipoTarefaNome;
-                  }
-                }
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao buscar tipos de tarefa vinculados:', err);
       }
     }
 
