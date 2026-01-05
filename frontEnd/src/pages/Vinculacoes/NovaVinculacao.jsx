@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useToast } from '../../hooks/useToast';
@@ -25,12 +25,28 @@ const NovaVinculacao = () => {
   const [submitting, setSubmitting] = useState(false);
   const [expandedSelects, setExpandedSelects] = useState({});
   
-  // Dados carregados das APIs
+  // Dados carregados das APIs (lazy loading)
   const [produtos, setProdutos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [tarefas, setTarefas] = useState([]);
   const [tiposTarefa, setTiposTarefa] = useState([]);
   const [tarefasVinculadas, setTarefasVinculadas] = useState({});
+  
+  // Rastrear quais tipos de dados já foram carregados (usar ref para evitar loops)
+  const dadosCarregadosRef = useRef({
+    produto: false,
+    cliente: false,
+    atividade: false,
+    'tipo-tarefa': false
+  });
+  
+  // Rastrear loading por tipo
+  const [loadingPorTipo, setLoadingPorTipo] = useState({
+    produto: false,
+    cliente: false,
+    atividade: false,
+    'tipo-tarefa': false
+  });
 
   const opcoesPrimarias = [
     { value: 'produto', label: 'Produto' },
@@ -39,67 +55,104 @@ const NovaVinculacao = () => {
     { value: 'tipo-tarefa', label: 'Tipo Tarefa' }
   ];
 
-  // Carregar dados das APIs
-  useEffect(() => {
-    if (!primaryConfirmed) {
-      loadAllData();
+  // REMOVIDO: Não carregar dados automaticamente ao abrir a tela
+  // Os dados serão carregados apenas quando necessário (lazy loading)
+
+  // Função para carregar dados de um tipo específico
+  const carregarDadosPorTipo = async (tipo) => {
+    // Se já foi carregado, não carregar novamente
+    if (dadosCarregadosRef.current[tipo]) {
+      return;
     }
-  }, [primaryConfirmed]);
 
-  const loadAllData = async () => {
-    setLoading(true);
+    // Marcar como carregando
+    setLoadingPorTipo(prev => ({ ...prev, [tipo]: true }));
+
     try {
-      // Carregar produtos
-      const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (produtosRes.ok) {
-        const produtosData = await produtosRes.json();
-        if (produtosData.success) {
-          setProdutos(produtosData.data || []);
+      switch (tipo) {
+        case 'produto': {
+          const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (produtosRes.ok) {
+            const produtosData = await produtosRes.json();
+            if (produtosData.success) {
+              setProdutos(produtosData.data || []);
+              dadosCarregadosRef.current.produto = true;
+            }
+          }
+          break;
         }
-      }
-
-      // Carregar clientes
-      const clientesResult = await clientesAPI.getAll(null, false);
-      if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
-        const clientesComDados = clientesResult.data.map(cliente => ({
-          id: cliente.id,
-          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`
-        }));
-        setClientes(clientesComDados);
-      }
-
-      // Carregar tarefas
-      const tarefasRes = await fetch(`${API_BASE_URL}/tarefa?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (tarefasRes.ok) {
-        const tarefasData = await tarefasRes.json();
-        if (tarefasData.success) {
-          setTarefas(tarefasData.data || []);
+        
+        case 'cliente': {
+          const clientesResult = await clientesAPI.getAll(null, false);
+          if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
+            const clientesComDados = clientesResult.data.map(cliente => ({
+              id: cliente.id,
+              nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`
+            }));
+            setClientes(clientesComDados);
+            dadosCarregadosRef.current.cliente = true;
+          }
+          break;
         }
-      }
-
-      // Carregar tipos de tarefa
-      const tiposTarefaRes = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (tiposTarefaRes.ok) {
-        const tiposTarefaData = await tiposTarefaRes.json();
-        if (tiposTarefaData.success) {
-          setTiposTarefa(tiposTarefaData.data || []);
+        
+        case 'atividade': {
+          const tarefasRes = await fetch(`${API_BASE_URL}/tarefa?limit=1000`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (tarefasRes.ok) {
+            const tarefasData = await tarefasRes.json();
+            if (tarefasData.success) {
+              setTarefas(tarefasData.data || []);
+              dadosCarregadosRef.current.atividade = true;
+            }
+          }
+          break;
+        }
+        
+        case 'tipo-tarefa': {
+          const tiposTarefaRes = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (tiposTarefaRes.ok) {
+            const tiposTarefaData = await tiposTarefaRes.json();
+            if (tiposTarefaData.success) {
+              setTiposTarefa(tiposTarefaData.data || []);
+              dadosCarregadosRef.current['tipo-tarefa'] = true;
+            }
+          }
+          break;
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      console.error(`Erro ao carregar dados de ${tipo}:`, error);
+      showToast('error', `Erro ao carregar ${opcoesPrimarias.find(op => op.value === tipo)?.label || tipo}`);
     } finally {
-      setLoading(false);
+      setLoadingPorTipo(prev => ({ ...prev, [tipo]: false }));
     }
   };
+
+  // Carregar dados quando confirmar tipos primários (apenas dos tipos selecionados)
+  useEffect(() => {
+    if (primaryConfirmed && secondarySelects.length > 0) {
+      // Carregar dados apenas dos tipos que foram selecionados
+      const tiposParaCarregar = [...new Set(secondarySelects.map(s => s.primaryType))];
+      tiposParaCarregar.forEach(tipo => {
+        // Verificar se já foi carregado usando ref
+        if (!dadosCarregadosRef.current[tipo] && !loadingPorTipo[tipo]) {
+          // Carregar assincronamente
+          carregarDadosPorTipo(tipo).catch(err => {
+            console.error(`Erro ao carregar ${tipo}:`, err);
+          });
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryConfirmed, secondarySelects.length]);
 
   // Adicionar novo select primário
   const addPrimarySelect = () => {
@@ -250,6 +303,13 @@ const NovaVinculacao = () => {
     }));
   };
 
+  // Função para garantir que os dados estejam carregados antes de usar
+  const garantirDadosCarregados = async (primaryType) => {
+    if (!dadosCarregadosRef.current[primaryType] && !loadingPorTipo[primaryType]) {
+      await carregarDadosPorTipo(primaryType);
+    }
+  };
+
   // Obter todas as opções do select secundário baseado no tipo primário (sem filtro)
   const getAllSecondaryOptions = (primaryType) => {
     switch (primaryType) {
@@ -264,6 +324,11 @@ const NovaVinculacao = () => {
       default:
         return [];
     }
+  };
+
+  // Handler para quando um select é aberto (lazy loading on demand)
+  const handleSelectOpen = async (primaryType) => {
+    await garantirDadosCarregados(primaryType);
   };
 
   // Obter opções do select secundário baseado no tipo primário (com filtro)
@@ -383,51 +448,83 @@ const NovaVinculacao = () => {
 
   // Salvar vinculação
   const handleSave = async () => {
+    // Validar se há selects secundários
+    if (secondarySelects.length === 0) {
+      showToast('warning', 'Por favor, confirme os tipos de elementos primeiro.');
+      return;
+    }
+
+    // Validar se cada select tem pelo menos um item selecionado
     const selectsSemSelecao = secondarySelects.filter(select => {
       const selectedItems = select.selectedItems || [];
       return selectedItems.length === 0;
     });
 
     if (selectsSemSelecao.length > 0) {
-      showToast('warning', 'Por favor, selecione pelo menos um item em cada elemento específico antes de salvar.');
-      setSubmitting(false);
+      const tiposSemItens = selectsSemSelecao.map(s => {
+        const opcao = opcoesPrimarias.find(op => op.value === s.primaryType);
+        return opcao ? opcao.label : s.primaryType;
+      }).join(', ');
+      showToast('warning', `Por favor, selecione pelo menos um item para: ${tiposSemItens}`);
       return;
+    }
+
+    // Criar combinações e validar quantidade
+    const combinacoesVinculados = criarDadosVinculados();
+    
+    if (combinacoesVinculados.length === 0) {
+      showToast('error', 'Nenhuma combinação válida foi criada. Verifique os dados selecionados.');
+      return;
+    }
+
+    // Limitar número máximo de combinações para evitar sobrecarga
+    const MAX_COMBINACOES = 1000;
+    if (combinacoesVinculados.length > MAX_COMBINACOES) {
+      showToast('error', `Muitas combinações serão criadas (${combinacoesVinculados.length}). Limite: ${MAX_COMBINACOES}. Selecione menos itens ou crie vinculações separadas.`);
+      return;
+    }
+
+    // Confirmar se muitas combinações serão criadas
+    if (combinacoesVinculados.length > 50) {
+      const confirmar = window.confirm(
+        `Serão criadas ${combinacoesVinculados.length} combinações. Deseja continuar?`
+      );
+      if (!confirmar) {
+        return;
+      }
     }
 
     setSubmitting(true);
 
     try {
-      // Salvar na tabela vinculados (IDs selecionados - múltiplas combinações)
-      // Esta é a tabela principal que armazena os relacionamentos reais
-      const combinacoesVinculados = criarDadosVinculados();
-      
-      if (combinacoesVinculados.length > 0) {
-        const responseVinculados = await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            vinculados: combinacoesVinculados
-          }),
-        });
+      // Combinacoes já foram criadas e validadas acima
+      const responseVinculados = await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          vinculados: combinacoesVinculados
+        }),
+      });
 
-        if (responseVinculados.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
+      if (responseVinculados.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
 
-        const contentTypeVinculados = responseVinculados.headers.get('content-type') || '';
-        if (!contentTypeVinculados.includes('application/json')) {
-          const text = await responseVinculados.text();
-          console.error('Erro ao salvar vinculados:', text);
-        } else {
-          const resultVinculados = await responseVinculados.json();
-          if (!responseVinculados.ok) {
-            console.error('Erro ao salvar vinculados:', resultVinculados);
-          }
-        }
+      const contentTypeVinculados = responseVinculados.headers.get('content-type') || '';
+      if (!contentTypeVinculados.includes('application/json')) {
+        const text = await responseVinculados.text();
+        console.error('Erro ao salvar vinculados:', text);
+        throw new Error('Resposta inválida do servidor');
+      }
+
+      const resultVinculados = await responseVinculados.json();
+      if (!responseVinculados.ok) {
+        console.error('Erro ao salvar vinculados:', resultVinculados);
+        throw new Error(resultVinculados.error || 'Erro ao salvar vinculados');
       }
 
       // 3. Aplicar herança para combinações produto-cliente criadas
@@ -495,15 +592,31 @@ const NovaVinculacao = () => {
       }
 
       // Verificar sucesso baseado na criação dos vinculados
-      if (combinacoesVinculados.length > 0) {
-        showToast('success', 'Vinculação criada com sucesso!');
-        navigate('/cadastro/vinculacoes');
-      } else {
-        showToast('error', 'Nenhuma vinculação foi criada. Verifique os dados selecionados.');
+      // Se chegou até aqui, a criação foi bem-sucedida
+      let mensagemSucesso = 'Vinculação criada com sucesso!';
+      if (combinacoesVinculados.length > 1) {
+        mensagemSucesso = `${combinacoesVinculados.length} vinculações criadas com sucesso!`;
       }
+      
+      showToast('success', mensagemSucesso);
+      navigate('/cadastro/vinculacoes');
     } catch (error) {
       console.error('Erro ao salvar vinculação:', error);
-      showToast('error', error.message || 'Erro ao salvar vinculação. Verifique sua conexão e tente novamente.');
+      
+      // Tratar erros específicos
+      let mensagemErro = 'Erro ao salvar vinculação.';
+      
+      if (error.message) {
+        if (error.message.includes('duplicate') || error.message.includes('duplicata')) {
+          mensagemErro = 'Algumas vinculações já existem. Duplicatas não são permitidas.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          mensagemErro = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else {
+          mensagemErro = error.message;
+        }
+      }
+      
+      showToast('error', mensagemErro);
     } finally {
       setSubmitting(false);
     }
@@ -575,6 +688,8 @@ const NovaVinculacao = () => {
                 expandedSelects={expandedSelects}
                 onToggleExpand={handleToggleExpand}
                 loading={loading}
+                loadingPorTipo={loadingPorTipo}
+                onSelectOpen={handleSelectOpen}
                 tarefasVinculadas={tarefasVinculadas}
                 produtos={produtos}
               />

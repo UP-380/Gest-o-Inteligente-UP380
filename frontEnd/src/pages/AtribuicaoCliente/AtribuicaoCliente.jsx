@@ -74,7 +74,14 @@ const AtribuicaoCliente = () => {
   const loadClientes = async () => {
     setLoading(true);
     try {
-      const clientesResult = await clientesAPI.getAll(null, false);
+      // Buscar todos os clientes com limite alto para garantir que todos sejam retornados
+      const clientesResult = await clientesAPI.getPaginated({ 
+        page: 1, 
+        limit: 10000, 
+        search: null, 
+        status: null, 
+        incompletos: false 
+      });
       if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
         const clientesComDados = clientesResult.data.map(cliente => ({
           id: cliente.id,

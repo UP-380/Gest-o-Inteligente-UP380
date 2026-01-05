@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './TarefasDetalhadasList.css';
+
+const API_BASE_URL = '/api';
 
 /**
  * Componente para listar clientes detalhados com tempo estimado, realizado, custos e tarefas
@@ -16,6 +18,7 @@ import './TarefasDetalhadasList.css';
  * @param {Function} props.formatarTempoHMS - Função para formatar tempo em HMS
  * @param {Function} props.onToggleCliente - Função chamada ao clicar no botão de expandir/colapsar cliente
  * @param {Function} props.buscarRegistrosIndividuais - Função para buscar registros individuais de uma tarefa
+ * @param {Function} props.getNomeCliente - Função para obter o nome do cliente pelo ID
  */
 const ClientesDetalhadosList = ({
   clientes,
@@ -29,8 +32,123 @@ const ClientesDetalhadosList = ({
   formatarTempoHMS,
   onToggleCliente,
   buscarRegistrosIndividuais,
-  getNomeColaboradorPorUsuarioId = null
+  getNomeColaboradorPorUsuarioId = null,
+  getNomeCliente = null
 }) => {
+  const [nomesClientesCache, setNomesClientesCache] = useState({});
+  const nomesClientesCacheRef = useRef({});
+  
+  // Sincronizar ref com estado do cache
+  useEffect(() => {
+    nomesClientesCacheRef.current = nomesClientesCache;
+  }, [nomesClientesCache]);
+
+  // Buscar nome do cliente usando o mesmo endpoint do HistoTempoRastreado
+  const buscarNomeCliente = useCallback(async (clienteId) => {
+    if (!clienteId) return null;
+    
+    const idStr = String(clienteId).trim();
+    
+    // Verificar se já está no cache
+    const cacheAtual = nomesClientesCacheRef.current;
+    if (cacheAtual[idStr]) {
+      return cacheAtual[idStr];
+    }
+    
+    // Se getNomeCliente estiver disponível, tentar usar primeiro
+    if (getNomeCliente) {
+      const nome = getNomeCliente(idStr);
+      if (nome && nome !== `Cliente #${idStr}` && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nome)) {
+        return nome;
+      }
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.success && result.data && result.data.cliente) {
+        const cliente = result.data.cliente;
+        // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social (mesma lógica do HistoTempoRastreado)
+        const nome = cliente.nome || 
+                     cliente.nome_amigavel || 
+                     cliente.amigavel ||
+                     cliente.nome_fantasia || 
+                     cliente.fantasia ||
+                     cliente.razao_social || 
+                     cliente.razao ||
+                     null;
+        
+        if (nome) {
+          // Atualizar cache
+          const novos = { ...nomesClientesCacheRef.current };
+          novos[idStr] = nome;
+          nomesClientesCacheRef.current = novos;
+          setNomesClientesCache(novos);
+          
+          return nome;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Erro ao buscar nome do cliente:', error);
+      return null;
+    }
+  }, [getNomeCliente]);
+
+  // Função síncrona para obter nome do cliente (retorna do cache ou busca assincronamente)
+  const obterNomeCliente = useCallback((cliente) => {
+    // Determinar o ID do cliente (pode estar em cliente.id ou cliente.nome se for UUID)
+    let clienteId = cliente.id;
+    if (!clienteId && cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome))) {
+      clienteId = cliente.nome;
+    }
+    
+    if (!clienteId) {
+      // Se não tiver ID e nome não for UUID, usar nome diretamente
+      if (cliente.nome && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome))) {
+        return cliente.nome;
+      }
+      return '';
+    }
+    
+    const idStr = String(clienteId).trim();
+    
+    // Verificar cache primeiro
+    const nomeCache = nomesClientesCache[idStr];
+    if (nomeCache) {
+      return nomeCache;
+    }
+    
+    // Se getNomeCliente estiver disponível, tentar usar
+    if (getNomeCliente) {
+      const nome = getNomeCliente(idStr);
+      if (nome && nome !== `Cliente #${idStr}` && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nome)) {
+        return nome;
+      }
+    }
+    
+    // Se não estiver no cache, disparar busca assíncrona
+    buscarNomeCliente(idStr).catch(() => {});
+    
+    // Retornar string vazia enquanto carrega
+    return '';
+  }, [nomesClientesCache, getNomeCliente, buscarNomeCliente]);
+
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
   
@@ -75,7 +193,9 @@ const ClientesDetalhadosList = ({
   return (
     <div className="tarefas-detalhadas-list">
       {clientes.map((cliente, clienteIndex) => {
-        const isClienteExpanded = clientesExpandidos.has(cliente.id);
+        // Garantir que temos o ID do cliente (pode estar em cliente.id ou cliente.nome se for UUID)
+        const clienteId = cliente.id || (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cliente.nome) ? cliente.nome : null);
+        const isClienteExpanded = clientesExpandidos.has(clienteId || cliente.id);
         const tempoRealizadoFormatado = formatarTempoEstimado 
           ? formatarTempoEstimado(cliente.tempoRealizado || 0, true) 
           : '0s';
@@ -103,7 +223,10 @@ const ClientesDetalhadosList = ({
               <div className="tarefa-detalhada-info">
                 <div className="tarefa-detalhada-nome">
                   <i className="fas fa-building" style={{ marginRight: '8px' }}></i>
-                  {cliente.nome}
+                  {(() => {
+                    const nome = obterNomeCliente(cliente);
+                    return nome || <span style={{ opacity: 0.5 }}>Carregando...</span>;
+                  })()}
                 </div>
                 <div className="tarefa-detalhada-metrics">
                   {/* Card Estimado */}

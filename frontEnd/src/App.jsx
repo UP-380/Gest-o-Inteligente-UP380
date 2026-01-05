@@ -16,10 +16,8 @@ import CadastroSubtarefaIndividual from './pages/CadastroSubtarefaIndividual/Cad
 import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
 import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
+import CadastroVinculacao from './pages/CadastroVinculacao/CadastroVinculacao';
 import NovaVinculacao from './pages/Vinculacoes/NovaVinculacao';
-import EditarVinculacao from './pages/Vinculacoes/EditarVinculacao';
-import EditarVinculacaoGrupo from './pages/Vinculacoes/EditarVinculacaoGrupo';
-import EditarVinculacaoProduto from './pages/Vinculacoes/EditarVinculacaoProduto';
 import CadastroBanco from './pages/CadastroBancos/CadastroBanco';
 import CadastroBancoIndividual from './pages/CadastroBancoIndividual/CadastroBancoIndividual';
 import CadastroAdquirente from './pages/CadastroAdquirente/CadastroAdquirente';
@@ -239,34 +237,18 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/vinculacao"
+          element={
+            <ProtectedRoute>
+              <CadastroVinculacao />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/vinculacoes/nova"
           element={
             <ProtectedRoute>
               <NovaVinculacao />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/vinculacoes/editar/:id"
-          element={
-            <ProtectedRoute>
-              <EditarVinculacao />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/vinculacoes/editar-grupo"
-          element={
-            <ProtectedRoute>
-              <EditarVinculacaoGrupo />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/vinculacoes/editar-produto"
-          element={
-            <ProtectedRoute>
-              <EditarVinculacaoProduto />
             </ProtectedRoute>
           }
         />

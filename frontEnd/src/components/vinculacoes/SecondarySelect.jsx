@@ -17,7 +17,9 @@ const SecondarySelect = ({
   getItemLabel,
   isExpanded = false,
   onToggleExpand,
-  disabled = false
+  disabled = false,
+  isLoading = false,
+  onSelectOpen = null
 }) => {
   const canRemove = !isEditing || selectedItems.length > 1;
 
@@ -39,18 +41,24 @@ const SecondarySelect = ({
       )}
 
       <div className="select-wrapper">
+        {isLoading && (
+          <div className="select-loading-indicator">
+            <i className="fas fa-spinner fa-spin"></i> Carregando opções...
+          </div>
+        )}
         <CustomSelect
           value={isEditing && selectedItems.length > 0 ? selectedItems[0] : select.value}
           options={options}
           onChange={(e) => onChange(select.id, e.target.value)}
-          placeholder={isEditing ? "Trocar item selecionado" : "Selecione um item"}
-          disabled={disabled || options.length === 0}
+          placeholder={isEditing ? "Trocar item selecionado" : isLoading ? "Carregando..." : "Selecione um item"}
+          disabled={disabled || isLoading || options.length === 0}
           keepOpen={!isEditing}
           selectedItems={selectedItems.map(item => String(item))}
           onSelectAll={isEditing ? undefined : onSelectAll}
           hideCheckboxes={isEditing}
           maxVisibleOptions={5}
           enableSearch={true}
+          onOpen={onSelectOpen}
         />
       </div>
     </div>

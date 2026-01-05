@@ -27,3 +27,6 @@ COMMENT ON TABLE up_gestaointeligente.permissoes_config IS 'Configurações de p
 COMMENT ON COLUMN up_gestaointeligente.permissoes_config.nivel IS 'Nível de permissão: gestor ou colaborador';
 COMMENT ON COLUMN up_gestaointeligente.permissoes_config.paginas IS 'JSON array com rotas permitidas. NULL = todas as páginas';
 
+
+
+

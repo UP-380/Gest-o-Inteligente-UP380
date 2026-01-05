@@ -19,6 +19,10 @@ const ClienteContaBancariaModal = ({
   const bancoSelectRef = useRef(null);
   const [bancosList, setBancosList] = useState(bancos);
   const [showSenha, setShowSenha] = useState(false);
+  const [showNovoBanco, setShowNovoBanco] = useState(false);
+  const [bancoFormData, setBancoFormData] = useState({ nome: '', codigo: '' });
+  const [bancoFormErrors, setBancoFormErrors] = useState({});
+  const [bancoSubmitting, setBancoSubmitting] = useState(false);
 
   // Carregar bancos se não foram fornecidos
   useEffect(() => {
@@ -77,6 +81,74 @@ const ClienteContaBancariaModal = ({
     }
   };
 
+  // Função para salvar novo banco
+  const handleSalvarBanco = async (e) => {
+    e.preventDefault();
+    
+    // Validações
+    const errors = {};
+    if (!bancoFormData.nome || !bancoFormData.nome.trim()) {
+      errors.nome = 'Nome do banco é obrigatório';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setBancoFormErrors(errors);
+      return;
+    }
+
+    setBancoSubmitting(true);
+    setBancoFormErrors({});
+
+    try {
+      const response = await fetch('/api/bancos', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          nome: bancoFormData.nome.trim(),
+          codigo: bancoFormData.codigo ? bancoFormData.codigo.trim() : null
+        }),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Adicionar o novo banco à lista
+        const novoBanco = result.data;
+        setBancosList([...bancosList, novoBanco]);
+        
+        // Selecionar automaticamente o banco criado
+        setFormData({ ...formData, banco_id: novoBanco.id });
+        if (formErrors.banco_id) {
+          setFormErrors({ ...formErrors, banco_id: '' });
+        }
+        
+        // Fechar os campos de novo banco
+        setShowNovoBanco(false);
+        setBancoFormData({ nome: '', codigo: '' });
+      } else {
+        setBancoFormErrors({ 
+          nome: result.error || 'Erro ao salvar banco. Tente novamente.' 
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao salvar banco:', error);
+      setBancoFormErrors({ 
+        nome: 'Erro ao salvar banco. Tente novamente.' 
+      });
+    } finally {
+      setBancoSubmitting(false);
+    }
+  };
+
   const canSave = formData.banco_id && !submitting;
 
   return (
@@ -126,46 +198,94 @@ const ClienteContaBancariaModal = ({
               <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                 Banco <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  ref={bancoSelectRef}
-                  className={`form-input ${formErrors.banco_id ? 'error' : ''}`}
-                  value={formData.banco_id || ''}
-                  onChange={handleBancoChange}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <select
+                    ref={bancoSelectRef}
+                    className={`form-input ${formErrors.banco_id ? 'error' : ''}`}
+                    value={formData.banco_id || ''}
+                    onChange={handleBancoChange}
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 36px 9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.banco_id ? '2px solid #ef4444' : (formData.banco_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff',
+                      appearance: 'none',
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px',
+                      cursor: submitting ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="">Selecione o banco</option>
+                    {bancosList.map((banco) => (
+                      <option key={banco.id} value={banco.id}>
+                        {banco.codigo ? `${banco.codigo} - ` : ''}{banco.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.banco_id && !formErrors.banco_id && (
+                    <i className="fas fa-check-circle" style={{
+                      position: 'absolute',
+                      right: '32px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#10b981',
+                      fontSize: '16px',
+                      pointerEvents: 'none'
+                    }}></i>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showNovoBanco) {
+                      setShowNovoBanco(false);
+                      setBancoFormData({ nome: '', codigo: '' });
+                      setBancoFormErrors({});
+                    } else {
+                      setShowNovoBanco(true);
+                      setBancoFormData({ nome: '', codigo: '' });
+                      setBancoFormErrors({});
+                    }
+                  }}
                   disabled={submitting}
+                  title={showNovoBanco ? "Cancelar adicionar banco" : "Adicionar novo banco"}
                   style={{
-                    width: '100%',
-                    padding: '9px 36px 9px 12px',
+                    padding: '9px 12px',
                     fontSize: '14px',
-                    border: formErrors.banco_id ? '2px solid #ef4444' : (formData.banco_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                    border: '1px solid #d1d5db',
                     borderRadius: '6px',
-                    transition: 'border-color 0.2s',
-                    backgroundColor: submitting ? '#f3f4f6' : '#fff',
-                    appearance: 'none',
-                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 12px center',
-                    backgroundSize: '12px',
-                    cursor: submitting ? 'not-allowed' : 'pointer'
+                    backgroundColor: showNovoBanco ? '#ef4444' : '#fff',
+                    color: showNovoBanco ? '#fff' : '#0e3b6f',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    flexShrink: 0,
+                    opacity: submitting ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting && !showNovoBanco) {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      e.currentTarget.style.borderColor = '#0e3b6f';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting && !showNovoBanco) {
+                      e.currentTarget.style.backgroundColor = '#fff';
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
                   }}
                 >
-                  <option value="">Selecione o banco</option>
-                  {bancosList.map((banco) => (
-                    <option key={banco.id} value={banco.id}>
-                      {banco.codigo ? `${banco.codigo} - ` : ''}{banco.nome}
-                    </option>
-                  ))}
-                </select>
-                {formData.banco_id && !formErrors.banco_id && (
-                  <i className="fas fa-check-circle" style={{
-                    position: 'absolute',
-                    right: '32px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#10b981',
-                    fontSize: '16px'
-                  }}></i>
-                )}
+                  <i className={`fas ${showNovoBanco ? 'fa-times' : 'fa-plus'}`} style={{ fontSize: '12px' }}></i>
+                </button>
               </div>
               {formErrors.banco_id && (
                 <span className="error-message" style={{ 
@@ -192,6 +312,159 @@ const ClienteContaBancariaModal = ({
                   <i className="fas fa-check-circle"></i>
                   Banco selecionado
                 </span>
+              )}
+              
+              {/* Campos para adicionar novo banco */}
+              {showNovoBanco && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '16px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ marginBottom: '12px', fontWeight: '500', fontSize: '13px', color: '#374151' }}>
+                    <i className="fas fa-plus-circle" style={{ marginRight: '6px', color: '#0e3b6f' }}></i>
+                    Novo Banco
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '12px' }}>
+                        Nome do Banco <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`form-input ${bancoFormErrors.nome ? 'error' : ''}`}
+                        value={bancoFormData.nome}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setBancoFormData({ ...bancoFormData, nome: value });
+                          if (bancoFormErrors.nome) {
+                            setBancoFormErrors({ ...bancoFormErrors, nome: '' });
+                          }
+                        }}
+                        placeholder="Ex: Banco do Brasil, Bradesco, Itaú..."
+                        disabled={bancoSubmitting}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          fontSize: '13px',
+                          border: bancoFormErrors.nome ? '2px solid #ef4444' : '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          transition: 'border-color 0.2s'
+                        }}
+                        maxLength={100}
+                      />
+                      {bancoFormErrors.nome && (
+                        <span className="error-message" style={{ 
+                          color: '#ef4444', 
+                          fontSize: '11px', 
+                          marginTop: '4px', 
+                          display: 'block' 
+                        }}>
+                          {bancoFormErrors.nome}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ flex: '0 0 150px' }}>
+                      <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '12px' }}>
+                        Código
+                        <span style={{ 
+                          fontSize: '10px', 
+                          color: '#6b7280', 
+                          marginLeft: '4px',
+                          fontWeight: 'normal'
+                        }}>
+                          (Opcional)
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`form-input ${bancoFormErrors.codigo ? 'error' : ''}`}
+                        value={bancoFormData.codigo || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, ''); // Apenas números
+                          setBancoFormData({ ...bancoFormData, codigo: value });
+                          if (bancoFormErrors.codigo) {
+                            setBancoFormErrors({ ...bancoFormErrors, codigo: '' });
+                          }
+                        }}
+                        placeholder="Ex: 001, 237, 341..."
+                        disabled={bancoSubmitting}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          fontSize: '13px',
+                          border: bancoFormErrors.codigo ? '2px solid #ef4444' : '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          transition: 'border-color 0.2s'
+                        }}
+                        maxLength={10}
+                      />
+                      {bancoFormErrors.codigo && (
+                        <span className="error-message" style={{ 
+                          color: '#ef4444', 
+                          fontSize: '11px', 
+                          marginTop: '4px', 
+                          display: 'block' 
+                        }}>
+                          {bancoFormErrors.codigo}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNovoBanco(false);
+                        setBancoFormData({ nome: '', codigo: '' });
+                        setBancoFormErrors({});
+                      }}
+                      disabled={bancoSubmitting}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        backgroundColor: '#fff',
+                        color: '#374151',
+                        cursor: bancoSubmitting ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSalvarBanco}
+                      disabled={bancoSubmitting || !bancoFormData.nome?.trim()}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        backgroundColor: bancoSubmitting || !bancoFormData.nome?.trim() ? '#9ca3af' : '#0e3b6f',
+                        color: '#fff',
+                        cursor: bancoSubmitting || !bancoFormData.nome?.trim() ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: bancoSubmitting || !bancoFormData.nome?.trim() ? 0.6 : 1
+                      }}
+                    >
+                      {bancoSubmitting ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-save" style={{ marginRight: '4px' }}></i>
+                          Salvar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 

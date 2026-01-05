@@ -19,6 +19,10 @@ const ClienteAdquirenteModal = ({
   const adquirenteSelectRef = useRef(null);
   const [adquirentesList, setAdquirentesList] = useState(adquirentes);
   const [showSenha, setShowSenha] = useState(false);
+  const [showNovoAdquirente, setShowNovoAdquirente] = useState(false);
+  const [adquirenteFormData, setAdquirenteFormData] = useState({ nome: '' });
+  const [adquirenteFormErrors, setAdquirenteFormErrors] = useState({});
+  const [adquirenteSubmitting, setAdquirenteSubmitting] = useState(false);
 
   // Carregar adquirentes se não foram fornecidos
   useEffect(() => {
@@ -89,6 +93,73 @@ const ClienteAdquirenteModal = ({
     }
   };
 
+  // Função para salvar novo adquirente
+  const handleSalvarAdquirente = async (e) => {
+    e.preventDefault();
+    
+    // Validações
+    const errors = {};
+    if (!adquirenteFormData.nome || !adquirenteFormData.nome.trim()) {
+      errors.nome = 'Nome do adquirente é obrigatório';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setAdquirenteFormErrors(errors);
+      return;
+    }
+
+    setAdquirenteSubmitting(true);
+    setAdquirenteFormErrors({});
+
+    try {
+      const response = await fetch('/api/adquirentes', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          nome: adquirenteFormData.nome.trim()
+        }),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Adicionar o novo adquirente à lista
+        const novoAdquirente = result.data;
+        setAdquirentesList([...adquirentesList, novoAdquirente]);
+        
+        // Selecionar automaticamente o adquirente criado
+        setFormData({ ...formData, adquirente_id: novoAdquirente.id });
+        if (formErrors.adquirente_id) {
+          setFormErrors({ ...formErrors, adquirente_id: '' });
+        }
+        
+        // Fechar os campos de novo adquirente
+        setShowNovoAdquirente(false);
+        setAdquirenteFormData({ nome: '' });
+      } else {
+        setAdquirenteFormErrors({ 
+          nome: result.error || 'Erro ao salvar adquirente. Tente novamente.' 
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao salvar adquirente:', error);
+      setAdquirenteFormErrors({ 
+        nome: 'Erro ao salvar adquirente. Tente novamente.' 
+      });
+    } finally {
+      setAdquirenteSubmitting(false);
+    }
+  };
+
   const canSave = formData.adquirente_id && !submitting;
 
   return (
@@ -138,46 +209,94 @@ const ClienteAdquirenteModal = ({
               <label className="form-label" style={{ marginBottom: '8px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                 Adquirente <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
               </label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  ref={adquirenteSelectRef}
-                  className={`form-input ${formErrors.adquirente_id ? 'error' : ''}`}
-                  value={formData.adquirente_id || ''}
-                  onChange={handleAdquirenteChange}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <select
+                    ref={adquirenteSelectRef}
+                    className={`form-input ${formErrors.adquirente_id ? 'error' : ''}`}
+                    value={formData.adquirente_id || ''}
+                    onChange={handleAdquirenteChange}
+                    disabled={submitting}
+                    style={{
+                      width: '100%',
+                      padding: '9px 36px 9px 12px',
+                      fontSize: '14px',
+                      border: formErrors.adquirente_id ? '2px solid #ef4444' : (formData.adquirente_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                      borderRadius: '6px',
+                      transition: 'border-color 0.2s',
+                      backgroundColor: submitting ? '#f3f4f6' : '#fff',
+                      appearance: 'none',
+                      backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px',
+                      cursor: submitting ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="">Selecione o adquirente</option>
+                    {adquirentesList.map((adquirente) => (
+                      <option key={adquirente.id} value={adquirente.id}>
+                        {adquirente.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.adquirente_id && !formErrors.adquirente_id && (
+                    <i className="fas fa-check-circle" style={{
+                      position: 'absolute',
+                      right: '32px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#10b981',
+                      fontSize: '16px',
+                      pointerEvents: 'none'
+                    }}></i>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showNovoAdquirente) {
+                      setShowNovoAdquirente(false);
+                      setAdquirenteFormData({ nome: '' });
+                      setAdquirenteFormErrors({});
+                    } else {
+                      setShowNovoAdquirente(true);
+                      setAdquirenteFormData({ nome: '' });
+                      setAdquirenteFormErrors({});
+                    }
+                  }}
                   disabled={submitting}
+                  title={showNovoAdquirente ? "Cancelar adicionar adquirente" : "Adicionar novo adquirente"}
                   style={{
-                    width: '100%',
-                    padding: '9px 36px 9px 12px',
+                    padding: '9px 12px',
                     fontSize: '14px',
-                    border: formErrors.adquirente_id ? '2px solid #ef4444' : (formData.adquirente_id ? '1px solid #10b981' : '1px solid #d1d5db'),
+                    border: '1px solid #d1d5db',
                     borderRadius: '6px',
-                    transition: 'border-color 0.2s',
-                    backgroundColor: submitting ? '#f3f4f6' : '#fff',
-                    appearance: 'none',
-                    backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%236b7280\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E")',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'right 12px center',
-                    backgroundSize: '12px',
-                    cursor: submitting ? 'not-allowed' : 'pointer'
+                    backgroundColor: showNovoAdquirente ? '#ef4444' : '#fff',
+                    color: showNovoAdquirente ? '#fff' : '#0e3b6f',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    flexShrink: 0,
+                    opacity: submitting ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!submitting && !showNovoAdquirente) {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6';
+                      e.currentTarget.style.borderColor = '#0e3b6f';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!submitting && !showNovoAdquirente) {
+                      e.currentTarget.style.backgroundColor = '#fff';
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }
                   }}
                 >
-                  <option value="">Selecione o adquirente</option>
-                  {adquirentesList.map((adquirente) => (
-                    <option key={adquirente.id} value={adquirente.id}>
-                      {adquirente.nome}
-                    </option>
-                  ))}
-                </select>
-                {formData.adquirente_id && !formErrors.adquirente_id && (
-                  <i className="fas fa-check-circle" style={{
-                    position: 'absolute',
-                    right: '32px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#10b981',
-                    fontSize: '16px'
-                  }}></i>
-                )}
+                  <i className={`fas ${showNovoAdquirente ? 'fa-times' : 'fa-plus'}`} style={{ fontSize: '12px' }}></i>
+                </button>
               </div>
               {formErrors.adquirente_id && (
                 <span className="error-message" style={{ 
@@ -204,6 +323,111 @@ const ClienteAdquirenteModal = ({
                   <i className="fas fa-check-circle"></i>
                   Adquirente selecionado
                 </span>
+              )}
+              
+              {/* Campos para adicionar novo adquirente */}
+              {showNovoAdquirente && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '16px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ marginBottom: '12px', fontWeight: '500', fontSize: '13px', color: '#374151' }}>
+                    <i className="fas fa-plus-circle" style={{ marginRight: '6px', color: '#0e3b6f' }}></i>
+                    Novo Adquirente
+                  </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '12px' }}>
+                      Nome do Adquirente <span className="required" style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={`form-input ${adquirenteFormErrors.nome ? 'error' : ''}`}
+                      value={adquirenteFormData.nome}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAdquirenteFormData({ ...adquirenteFormData, nome: value });
+                        if (adquirenteFormErrors.nome) {
+                          setAdquirenteFormErrors({ ...adquirenteFormErrors, nome: '' });
+                        }
+                      }}
+                      placeholder="Ex: Cielo, Rede, Stone..."
+                      disabled={adquirenteSubmitting}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        border: adquirenteFormErrors.nome ? '2px solid #ef4444' : '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        transition: 'border-color 0.2s'
+                      }}
+                      maxLength={100}
+                    />
+                    {adquirenteFormErrors.nome && (
+                      <span className="error-message" style={{ 
+                        color: '#ef4444', 
+                        fontSize: '11px', 
+                        marginTop: '4px', 
+                        display: 'block' 
+                      }}>
+                        {adquirenteFormErrors.nome}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNovoAdquirente(false);
+                        setAdquirenteFormData({ nome: '' });
+                        setAdquirenteFormErrors({});
+                      }}
+                      disabled={adquirenteSubmitting}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        backgroundColor: '#fff',
+                        color: '#374151',
+                        cursor: adquirenteSubmitting ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSalvarAdquirente}
+                      disabled={adquirenteSubmitting || !adquirenteFormData.nome?.trim()}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '12px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        backgroundColor: adquirenteSubmitting || !adquirenteFormData.nome?.trim() ? '#9ca3af' : '#0e3b6f',
+                        color: '#fff',
+                        cursor: adquirenteSubmitting || !adquirenteFormData.nome?.trim() ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        opacity: adquirenteSubmitting || !adquirenteFormData.nome?.trim() ? 0.6 : 1
+                      }}
+                    >
+                      {adquirenteSubmitting ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-save" style={{ marginRight: '4px' }}></i>
+                          Salvar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 

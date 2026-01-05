@@ -127,6 +127,39 @@
   position: relative;
 }
 
+.select-group-secondary .select-wrapper {
+  flex-direction: column;
+}
+
+.select-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f0f7ff;
+  color: #0e3b6f;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  border: 1px solid #b3d9ff;
+  width: 100%;
+}
+
+.select-loading-indicator i {
+  font-size: 14px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .form-select {
   flex: 1;
   padding: 12px 16px;
