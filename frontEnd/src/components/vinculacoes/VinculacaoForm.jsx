@@ -103,25 +103,36 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
     }
   }, [tarefaSelecionada, tipoTarefaDaTarefaSelecionada]);
 
-  // Carregar tarefas quando produto é selecionado (apenas se tarefasComTipos já estiver carregado)
+  // Carregar tarefas quando produto é selecionado (garantir que tarefas e tipos estejam carregados)
   useEffect(() => {
-    if (produtoSelecionado && tarefasComTipos.length > 0) {
-      loadTarefasPorProduto(produtoSelecionado);
-    } else if (!produtoSelecionado) {
+    if (produtoSelecionado) {
+      // Garantir que tarefas e tipos de tarefa estejam carregados antes de buscar tarefas do produto
+      if (!tarefasCarregadas) {
+        loadTarefas();
+      }
+      if (!tiposTarefaCarregados) {
+        loadTiposTarefa();
+      }
+      
+      // Se já estão carregados, buscar tarefas do produto
+      if (tarefasCarregadas && tiposTarefaCarregados) {
+        loadTarefasPorProduto(produtoSelecionado);
+      }
+    } else {
       setTarefasDoProdutoComTipos([]);
       setTarefasDoProdutoSelecionadas([]);
       setTarefasDoProdutoVinculadasOriginalmente([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [produtoSelecionado, tarefasComTipos.length]); // Usar .length para evitar loops infinitos
+  }, [produtoSelecionado, tarefasCarregadas, tiposTarefaCarregados]);
 
-  // Recarregar tarefas do produto quando tarefasComTipos mudar (se produto já está selecionado)
+  // Recarregar tarefas do produto quando tarefas ou tipos forem carregados (se produto já está selecionado)
   useEffect(() => {
-    if (produtoSelecionado && tarefasComTipos.length > 0) {
+    if (produtoSelecionado && tarefasCarregadas && tiposTarefaCarregados) {
       loadTarefasPorProduto(produtoSelecionado);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tarefasComTipos.length]); // Usar .length para evitar loops infinitos
+  }, [tarefasCarregadas, tiposTarefaCarregados]);
 
   // Carregar produtos quando cliente é selecionado
   useEffect(() => {
@@ -437,10 +448,48 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
   const loadTarefasPorProduto = async (produtoId) => {
     try {
-      // Usar a mesma lista de tarefas com tipos da Seção 2 (tarefasComTipos)
-      // Isso garante que as tarefas disponíveis sejam as mesmas em ambas as seções
+      // 1. Buscar todas as tarefas que têm vínculos tipo-tarefa (tarefas disponíveis para vincular)
+      // Isso busca na tabela vinculados apenas tarefas que têm vinculações tipo-tarefa
+      const responseTarefasDisponiveis = await fetch(`${API_BASE_URL}/vinculados?filtro_tipo_atividade=true&filtro_atividade=true&limit=1000`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
       
-      // 1. Buscar tarefas JÁ vinculadas a este produto (para mostrar e permitir editar)
+      let tarefasComTiposDisponiveis = [];
+      const tarefasComTiposMap = new Map();
+      
+      if (responseTarefasDisponiveis.ok) {
+        const resultTarefasDisponiveis = await responseTarefasDisponiveis.json();
+        if (resultTarefasDisponiveis.success && resultTarefasDisponiveis.data) {
+          // Filtrar apenas vinculados que têm tarefa e tipo de tarefa, mas não têm produto nem cliente
+          const vinculadosTarefaTipo = resultTarefasDisponiveis.data.filter(v => {
+            return v.cp_tarefa && v.cp_tarefa_tipo && !v.cp_produto && !v.cp_cliente && !v.cp_subtarefa;
+          });
+          
+          // Extrair tarefas únicas com seus tipos
+          vinculadosTarefaTipo.forEach(v => {
+            const tarefaId = parseInt(v.cp_tarefa, 10);
+            const tipoTarefaId = parseInt(v.cp_tarefa_tipo, 10);
+            const key = `${tarefaId}-${tipoTarefaId}`;
+            
+            if (!tarefasComTiposMap.has(key) && !isNaN(tarefaId) && !isNaN(tipoTarefaId)) {
+              const tarefaNome = v.tarefa_nome || tarefas.find(t => t.id === tarefaId)?.nome || `Tarefa ${tarefaId}`;
+              const tipoTarefaNome = v.tipo_tarefa_nome || tiposTarefa.find(t => t.id === tipoTarefaId)?.nome || `Tipo ${tipoTarefaId}`;
+              
+              tarefasComTiposMap.set(key, {
+                tarefaId,
+                tarefaNome,
+                tipoTarefaId,
+                tipoTarefaNome
+              });
+            }
+          });
+          
+          tarefasComTiposDisponiveis = Array.from(tarefasComTiposMap.values());
+        }
+      }
+      
+      // 2. Buscar tarefas JÁ vinculadas a este produto (para mostrar e permitir editar)
       const responseVinculadas = await fetch(`${API_BASE_URL}/vinculados?filtro_produto=true&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
@@ -463,11 +512,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             const tipoTarefaId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
             
             if (tarefaId) {
-              // Se não tem tipo, buscar na lista de tarefas vinculadas a tipos
               let tipoIdFinal = tipoTarefaId;
+              
+              // Se não tem tipo, tentar buscar na lista de tarefas disponíveis
               if (!tipoIdFinal) {
-                // Buscar tipo da tarefa nas vinculações tipo-tarefa
-                const tarefaComTipo = tarefasComTipos.find(tt => tt.tarefaId === tarefaId);
+                const tarefaComTipo = tarefasComTiposDisponiveis.find(tt => tt.tarefaId === tarefaId);
                 if (tarefaComTipo) {
                   tipoIdFinal = tarefaComTipo.tipoTarefaId;
                 }
@@ -477,6 +526,21 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                 const key = `${tarefaId}-${tipoIdFinal}`;
                 if (!tarefasVinculadasChaves.includes(key)) {
                   tarefasVinculadasChaves.push(key);
+                  
+                  // Adicionar à lista de disponíveis se não estiver lá
+                  const keyExiste = tarefasComTiposDisponiveis.find(tt => 
+                    tt.tarefaId === tarefaId && tt.tipoTarefaId === tipoIdFinal
+                  );
+                  if (!keyExiste) {
+                    const tarefaNome = v.tarefa_nome || tarefas.find(t => t.id === tarefaId)?.nome || `Tarefa ${tarefaId}`;
+                    const tipoTarefaNome = v.tipo_tarefa_nome || tiposTarefa.find(t => t.id === tipoIdFinal)?.nome || `Tipo ${tipoIdFinal}`;
+                    tarefasComTiposDisponiveis.push({
+                      tarefaId,
+                      tarefaNome,
+                      tipoTarefaId: tipoIdFinal,
+                      tipoTarefaNome
+                    });
+                  }
                 }
               } else {
                 // Se não encontrou tipo, usar null
@@ -490,18 +554,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         }
       }
 
-      // 2. Usar todas as tarefas com tipos da Seção 2 (mesma lista)
-      // Converter tarefasComTipos para o formato esperado
-      const todasTarefasComTipos = tarefasComTipos.map(tt => ({
-        tarefaId: tt.tarefaId,
-        tarefaNome: tt.tarefaNome,
-        tipoTarefaId: tt.tipoTarefaId,
-        tipoTarefaNome: tt.tipoTarefaNome
-      }));
+      // 3. Mostrar todas as tarefas disponíveis (tarefas que têm vínculos tipo-tarefa)
+      setTarefasDoProdutoComTipos(tarefasComTiposDisponiveis);
       
-      setTarefasDoProdutoComTipos(todasTarefasComTipos);
-      
-      // 3. Pré-selecionar tarefas já vinculadas (para permitir edição/remoção)
+      // 4. Pré-selecionar tarefas já vinculadas ao produto (para permitir edição/remoção)
       if (tarefasVinculadasChaves.length > 0) {
         setTarefasDoProdutoSelecionadas(tarefasVinculadasChaves);
         // Guardar o estado original para comparar depois (para detectar mudanças)

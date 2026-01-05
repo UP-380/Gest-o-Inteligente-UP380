@@ -336,7 +336,11 @@ const BaseConhecimentoCliente = () => {
                   <span className="section-badge">{vinculacoes.length}</span>
                 </div>
                 <div className="section-content">
-                  <VinculacoesContent vinculacoes={vinculacoes} />
+                  <VinculacoesContent 
+                    vinculacoes={vinculacoes} 
+                    clienteId={clienteId}
+                    onObservacaoUpdated={loadDadosCliente}
+                  />
                 </div>
               </div>
             </div>
