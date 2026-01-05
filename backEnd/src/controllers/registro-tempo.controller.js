@@ -67,6 +67,61 @@ async function iniciarRegistroTempo(req, res) {
       });
     }
 
+    // Buscar produto_id - tentar primeiro do tempo_estimado, depois da tarefa
+    let produtoId = null;
+    try {
+      console.log('🔍 Buscando produto_id para tempo_estimado_id:', tempo_estimado_id, 'e tarefa_id:', tarefa_id);
+      
+      // Primeiro tentar buscar do tempo_estimado
+      const { data: tempoEstimado, error: tempoEstimadoError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tempo_estimado')
+        .select('produto_id, id, tarefa_id, cliente_id')
+        .eq('id', String(tempo_estimado_id).trim())
+        .maybeSingle();
+
+      if (tempoEstimadoError) {
+        console.error('❌ Erro ao buscar produto_id do tempo_estimado:', tempoEstimadoError);
+      } else if (tempoEstimado) {
+        console.log('📋 Dados do tempo_estimado encontrado:', JSON.stringify(tempoEstimado, null, 2));
+        if (tempoEstimado.produto_id) {
+          produtoId = String(tempoEstimado.produto_id).trim();
+          console.log('✅ Produto_id encontrado no tempo_estimado:', produtoId);
+        } else {
+          console.warn('⚠️ Tempo_estimado não possui produto_id. Tentando buscar da tarefa...');
+        }
+      } else {
+        console.warn('⚠️ Tempo_estimado não encontrado para id:', tempo_estimado_id);
+      }
+
+      // Se não encontrou no tempo_estimado, tentar buscar da tarefa
+      if (!produtoId && tarefa_id) {
+        console.log('🔍 Tentando buscar produto_id da tarefa:', tarefa_id);
+        const { data: tarefa, error: tarefaError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tarefa')
+          .select('produto_id, id')
+          .eq('id', String(tarefa_id).trim())
+          .maybeSingle();
+
+        if (tarefaError) {
+          console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
+        } else if (tarefa) {
+          console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
+          if (tarefa.produto_id) {
+            produtoId = String(tarefa.produto_id).trim();
+            console.log('✅ Produto_id encontrado na tarefa:', produtoId);
+          } else {
+            console.warn('⚠️ Tarefa não possui produto_id');
+          }
+        } else {
+          console.warn('⚠️ Tarefa não encontrada para id:', tarefa_id);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar produto_id:', error);
+    }
+
     // Criar registro com data_inicio (timestamp atual)
     const dataInicio = new Date().toISOString();
 
@@ -81,7 +136,8 @@ async function iniciarRegistroTempo(req, res) {
       usuario_id: parseInt(usuario_id, 10),
       data_inicio: dataInicio,
       data_fim: null,
-      tempo_realizado: null
+      tempo_realizado: null,
+      produto_id: produtoId || null // Sempre incluir produto_id, mesmo se null
     };
 
     console.log('📝 Criando registro de tempo:', JSON.stringify(dadosInsert, null, 2));
@@ -545,7 +601,7 @@ async function getHistoricoRegistros(req, res) {
 async function atualizarRegistroTempo(req, res) {
   try {
     const { id } = req.params;
-    const { tempo_realizado, data_inicio, data_fim, justificativa } = req.body;
+    const { tempo_realizado, data_inicio, data_fim, justificativa, tarefa_id } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -555,7 +611,7 @@ async function atualizarRegistroTempo(req, res) {
     }
 
     // Validar que pelo menos um campo foi fornecido
-    if (tempo_realizado === undefined && !data_inicio && !data_fim) {
+    if (tempo_realizado === undefined && !data_inicio && !data_fim && !tarefa_id) {
       return res.status(400).json({
         success: false,
         error: 'Pelo menos um campo deve ser fornecido para atualização'
@@ -604,6 +660,78 @@ async function atualizarRegistroTempo(req, res) {
 
     // Preparar dados para atualização
     const dadosUpdate = {};
+
+    // Atualizar tarefa_id se fornecido
+    if (tarefa_id) {
+      dadosUpdate.tarefa_id = String(tarefa_id).trim();
+    }
+
+    // Buscar produto_id - tentar primeiro do tempo_estimado, depois da tarefa
+    try {
+      const tempoEstimadoId = registroExistente.tempo_estimado_id;
+      const tarefaIdParaBuscar = tarefa_id || registroExistente.tarefa_id;
+      let produtoIdEncontrado = null;
+
+      if (tempoEstimadoId) {
+        console.log('🔍 [atualizarRegistroTempo] Buscando produto_id para tempo_estimado_id:', tempoEstimadoId);
+        const { data: tempoEstimado, error: tempoEstimadoError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado')
+          .select('produto_id, id, tarefa_id, cliente_id')
+          .eq('id', String(tempoEstimadoId).trim())
+          .maybeSingle();
+
+        if (tempoEstimadoError) {
+          console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id do tempo_estimado:', tempoEstimadoError);
+        } else if (tempoEstimado) {
+          console.log('📋 [atualizarRegistroTempo] Dados do tempo_estimado encontrado:', JSON.stringify(tempoEstimado, null, 2));
+          if (tempoEstimado.produto_id) {
+            produtoIdEncontrado = String(tempoEstimado.produto_id).trim();
+            console.log('✅ [atualizarRegistroTempo] Produto_id encontrado no tempo_estimado:', produtoIdEncontrado);
+          } else {
+            console.warn('⚠️ [atualizarRegistroTempo] Tempo_estimado não possui produto_id. Tentando buscar da tarefa...');
+          }
+        } else {
+          console.warn('⚠️ [atualizarRegistroTempo] Tempo_estimado não encontrado para id:', tempoEstimadoId);
+        }
+      }
+
+      // Se não encontrou no tempo_estimado, tentar buscar da tarefa
+      if (!produtoIdEncontrado && tarefaIdParaBuscar) {
+        console.log('🔍 [atualizarRegistroTempo] Tentando buscar produto_id da tarefa:', tarefaIdParaBuscar);
+        const { data: tarefa, error: tarefaError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tarefa')
+          .select('produto_id, id')
+          .eq('id', String(tarefaIdParaBuscar).trim())
+          .maybeSingle();
+
+        if (tarefaError) {
+          console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id da tarefa:', tarefaError);
+        } else if (tarefa) {
+          console.log('📋 [atualizarRegistroTempo] Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
+          if (tarefa.produto_id) {
+            produtoIdEncontrado = String(tarefa.produto_id).trim();
+            console.log('✅ [atualizarRegistroTempo] Produto_id encontrado na tarefa:', produtoIdEncontrado);
+          } else {
+            console.warn('⚠️ [atualizarRegistroTempo] Tarefa não possui produto_id');
+          }
+        } else {
+          console.warn('⚠️ [atualizarRegistroTempo] Tarefa não encontrada para id:', tarefaIdParaBuscar);
+        }
+      }
+
+      // Atualizar produto_id se encontrado
+      if (produtoIdEncontrado) {
+        dadosUpdate.produto_id = produtoIdEncontrado;
+      } else if (tempoEstimadoId || tarefaIdParaBuscar) {
+        // Se tentou buscar mas não encontrou, definir como null explicitamente
+        dadosUpdate.produto_id = null;
+        console.warn('⚠️ [atualizarRegistroTempo] Produto_id não encontrado em nenhuma fonte');
+      }
+    } catch (error) {
+      console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id:', error);
+    }
 
     // Atualizar data_inicio se fornecida
     if (data_inicio) {

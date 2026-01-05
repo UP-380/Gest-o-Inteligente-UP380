@@ -5,14 +5,13 @@
  * 
  * Tipos de avatar:
  * - 'color-{cor}': Avatar com iniciais e cor de fundo (6 opções)
- * - 'image-{nome}': Avatar com imagem personalizada (12 opções)
+ * - 'image-{nome}': Avatar com imagem personalizada (8 opções)
  * 
  * IDs disponíveis:
  * Cores: color-blue, color-green, color-purple, color-orange, color-pink, color-red
  * Imagens: image-feminina-moderna, image-masculino-tech, image-bolinha-rosa, 
  *          image-galinha-drone, image-gaviao-agressivo, image-lagartixa-cyborg,
- *          image-lobo, image-menina, image-tijolo, image-unicornio,
- *          image-cachorro-helicoptero, image-capivara-oculos
+ *          image-lobo, image-menina
  */
 
 // Cores disponíveis para avatares com iniciais (6 opções)
@@ -55,20 +54,16 @@ export const AVATAR_COLORS = [
   }
 ];
 
-// Imagens de avatar disponíveis (12 opções)
+// Imagens de avatar disponíveis (8 opções)
 export const AVATAR_IMAGES = [
-  { id: 'image-feminina-moderna', name: 'Feminina', file: 'avatar-feminina-moderna.png' },
-  { id: 'image-masculino-tech', name: 'Masculino', file: 'avatar-masculino-tech.png' },
-  { id: 'image-bolinha-rosa', name: 'Bolinha', file: 'avatar-bolinha-rosa.png' },
-  { id: 'image-galinha-drone', name: 'Galinha', file: 'avatar-galinha-drone.png' },
-  { id: 'image-gaviao-agressivo', name: 'Gavião', file: 'avatar-gaviao-agressivo.png' },
-  { id: 'image-lagartixa-cyborg', name: 'Lagartixa', file: 'avatar-lagartixa-cyborg.png' },
-  { id: 'image-lobo', name: 'Lobo', file: 'avatar-lobo.png' },
-  { id: 'image-menina', name: 'Menina', file: 'avatar-menina.png' },
-  { id: 'image-tijolo', name: 'Tijolo', file: 'avatar-tijolo.png' },
-  { id: 'image-unicornio', name: 'Unicórnio', file: 'avatar-unicornio.png' },
-  { id: 'image-cachorro-helicoptero', name: 'Cachorro', file: 'avatar-cachorro-helicoptero.png' },
-  { id: 'image-capivara-oculos', name: 'Capivara', file: 'avatar-capivara-oculos.png' }
+  { id: 'image-feminina-moderna', name: 'Astronauta', file: 'estilo_astronauta.webp' },
+  { id: 'image-masculino-tech', name: 'Bruxa', file: 'estilo_bruxa.webp' },
+  { id: 'image-bolinha-rosa', name: 'Jiraiya', file: 'estilo_Jiraiya.webp' },
+  { id: 'image-galinha-drone', name: 'Luxo', file: 'estilo_luxo.webp' },
+  { id: 'image-gaviao-agressivo', name: 'Mandrake', file: 'estilo_mandrake.webp' },
+  { id: 'image-lagartixa-cyborg', name: 'Mímico', file: 'estilo_mimico.webp' },
+  { id: 'image-lobo', name: 'Naruto Mandrake', file: 'estilo_naruto_mandrake.webp' },
+  { id: 'image-menina', name: 'Pastel', file: 'estilo_pastel.webp' }
 ];
 
 // Avatar padrão (primeira cor - color-blue)

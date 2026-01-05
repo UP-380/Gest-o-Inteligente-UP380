@@ -4586,11 +4586,42 @@ const PainelUsuario = () => {
         
         // Atualizar tempo realizado no DOM diretamente para todas as tarefas
         // Isso garante que o tempo seja atualizado imediatamente, igual ao botão na tarefa
-        tarefasRegistrosRef.current.forEach((reg) => {
+        tarefasRegistrosRef.current.forEach(async (reg) => {
           const chaveTempo = criarChaveTempo(reg);
           if (chaveTempo) {
             const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
             atualizarTempoRealizadoEBarraProgresso(reg, tempoRealizadoMs);
+            
+            // Recarregar timetracks individuais se o container estiver expandido
+            const chaveTimetrack = criarChaveTempo(reg);
+            if (chaveTimetrack && timetracksExpandidosRef.current.has(chaveTimetrack)) {
+              // Limpar cache para forçar recarregamento
+              const novoMap = new Map(timetracksDataRef.current);
+              novoMap.delete(chaveTimetrack);
+              timetracksDataRef.current = novoMap;
+              setTimetracksData(novoMap);
+              
+              // Recarregar timetracks
+              await buscarRegistrosTimetrack(reg);
+              
+              // Atualizar o container de timetracks no DOM
+              const tarefaIdStr = String(reg.tarefa_id).trim();
+              const clienteIdStr = String(reg.cliente_id).trim();
+              
+              // Buscar pelo contexto do card pai (mais confiável)
+              const tarefaCards = document.querySelectorAll('.painel-usuario-tarefa-card');
+              tarefaCards.forEach(card => {
+                const tarefaIdAttr = card.getAttribute('data-tarefa-id');
+                const clienteIdAttr = card.getAttribute('data-cliente-id');
+                if (tarefaIdAttr === tarefaIdStr && clienteIdAttr === clienteIdStr) {
+                  const container = card.querySelector('.painel-usuario-timetracks-container');
+                  if (container) {
+                    const timetracksHtml = renderizarTimetracksIndividuais(reg);
+                    container.innerHTML = timetracksHtml;
+                  }
+                }
+              });
+            }
           }
         });
         
@@ -4612,7 +4643,7 @@ const PainelUsuario = () => {
       window.removeEventListener('registro-tempo-iniciado', handleRegistroIniciado);
       window.removeEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
     };
-  }, [verificarRegistrosAtivos, buscarTemposRealizados, sincronizarTodosBotoes, criarChaveTempo, atualizarTempoRealizadoEBarraProgresso, clientesExpandidosLista, dataTarefasSelecionada]);
+  }, [verificarRegistrosAtivos, buscarTemposRealizados, sincronizarTodosBotoes, criarChaveTempo, atualizarTempoRealizadoEBarraProgresso, clientesExpandidosLista, dataTarefasSelecionada, buscarRegistrosTimetrack, renderizarTimetracksIndividuais]);
 
   // Re-renderizar tarefas quando clientes expandidos mudarem (modo lista)
   useEffect(() => {

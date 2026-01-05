@@ -35,6 +35,7 @@ const ConfiguracoesPerfil = () => {
   const [customAvatarPath, setCustomAvatarPath] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [imageToCrop, setImageToCrop] = useState(null);
+  const [previewAvatar, setPreviewAvatar] = useState(null);
 
   useEffect(() => {
     // Carregar dados do usuário
@@ -188,6 +189,14 @@ const ConfiguracoesPerfil = () => {
         return newErrors;
       });
     }
+  };
+
+  const handleAvatarDoubleClick = (option) => {
+    setPreviewAvatar(option);
+  };
+
+  const closePreviewModal = () => {
+    setPreviewAvatar(null);
   };
 
   const validateForm = () => {
@@ -412,6 +421,12 @@ const ConfiguracoesPerfil = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Dica sobre duplo clique */}
+                  <div className="avatar-preview-hint">
+                    <i className="fas fa-info-circle"></i>
+                    <span>Dica: Dê duplo clique em qualquer avatar para visualizá-lo em tamanho maior</span>
+                  </div>
                   
                   {getAllAvatarOptions().map((group, groupIndex) => (
                     <div key={groupIndex} className="avatar-group">
@@ -426,6 +441,7 @@ const ConfiguracoesPerfil = () => {
                               key={option.id}
                               className={`avatar-option ${isSelected ? 'selected' : ''}`}
                               onClick={() => !loading && handleInputChange('foto_perfil', option.id)}
+                              onDoubleClick={() => handleAvatarDoubleClick(option)}
                             >
                                   {isColor ? (
                                 <div
@@ -583,6 +599,45 @@ const ConfiguracoesPerfil = () => {
           }}
           onCropComplete={handleCropComplete}
         />
+      )}
+
+      {/* Modal de Preview do Avatar */}
+      {previewAvatar && (
+        <div className="avatar-preview-modal-overlay" onClick={closePreviewModal}>
+          <div className="avatar-preview-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="avatar-preview-modal-header">
+              <h3>{previewAvatar.name}</h3>
+              <button
+                className="avatar-preview-modal-close"
+                onClick={closePreviewModal}
+                aria-label="Fechar"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="avatar-preview-modal-body">
+              {previewAvatar.type === 'color' ? (
+                <div
+                  className="avatar-preview-large avatar-preview-large-color"
+                  style={{ background: previewAvatar.gradient }}
+                >
+                  {getInitialsFromName(formData.nome_usuario)}
+                </div>
+              ) : (
+                <div className="avatar-preview-large avatar-preview-large-image">
+                  <img
+                    src={previewAvatar.path}
+                    alt={previewAvatar.name}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = '<div class="avatar-fallback-large">?</div>';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );
