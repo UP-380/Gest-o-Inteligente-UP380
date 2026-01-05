@@ -25,6 +25,7 @@ import CadastroAdquirenteIndividual from './pages/CadastroAdquirenteIndividual/C
 import CadastroSistemas from './pages/CadastroSistemas/CadastroSistemas';
 import CadastroSistemaIndividual from './pages/CadastroSistemaIndividual/CadastroSistemaIndividual';
 import DelegarTarefas from './pages/DelegarTarefas/DelegarTarefas';
+import HistoricoAtribuicoes from './pages/HistoricoAtribuicoes/HistoricoAtribuicoes';
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
 import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
@@ -305,6 +306,14 @@ function App() {
           element={
             <ProtectedRoute>
               <DelegarTarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/atribuir-responsaveis/historico"
+          element={
+            <ProtectedRoute>
+              <HistoricoAtribuicoes />
             </ProtectedRoute>
           }
         />

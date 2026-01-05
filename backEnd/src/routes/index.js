@@ -23,6 +23,7 @@ const tipoAtividadeController = require('../controllers/tipo-atividade.controlle
 const vinculadosController = require('../controllers/vinculados.controller');
 const tempoEstimadoController = require('../controllers/tempo-estimado.controller');
 const registroTempoController = require('../controllers/registro-tempo.controller');
+const historicoAtribuicoesController = require('../controllers/historico-atribuicoes.controller');
 const bancoController = require('../controllers/banco.controller');
 const adquirenteController = require('../controllers/adquirente.controller');
 const sistemaController = require('../controllers/sistema.controller');
@@ -184,6 +185,20 @@ router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEsti
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
+
+// Rotas de Histórico de Atribuições
+console.log('✅ Registrando rotas de histórico de atribuições...');
+router.get('/api/historico-atribuicoes', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicoes);
+router.get('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicaoPorId);
+router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.atualizarHistoricoAtribuicao);
+router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
+console.log('✅ Rotas de histórico de atribuições registradas:', {
+  get: '/api/historico-atribuicoes',
+  getById: '/api/historico-atribuicoes/:id',
+  put: '/api/historico-atribuicoes/:id',
+  delete: '/api/historico-atribuicoes/:id',
+  hasController: !!historicoAtribuicoesController.atualizarHistoricoAtribuicao
+});
 
 // Rotas de Registro de Tempo
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas

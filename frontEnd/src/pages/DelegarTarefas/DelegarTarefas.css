@@ -1727,3 +1727,23 @@
   min-width: 250px;
 }
 
+/* Botão discreto estilo custo-colaborador-btn */
+.custo-colaborador-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f1f5f9;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.custo-colaborador-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+

@@ -2285,6 +2285,15 @@ const DelegarTarefas = () => {
 
             <div className="listing-controls">
               <div className="listing-controls-right">
+                <button
+                  className="custo-colaborador-btn"
+                  onClick={() => navigate('/atribuir-responsaveis/historico')}
+                  title="Ver histórico de atribuições"
+                  style={{ marginRight: '12px' }}
+                >
+                  <i className="fas fa-history" style={{ fontSize: '14px' }}></i>
+                  Histórico
+                </button>
                 <ButtonPrimary
                   onClick={handleNewAtribuicao}
                   icon="fas fa-plus"

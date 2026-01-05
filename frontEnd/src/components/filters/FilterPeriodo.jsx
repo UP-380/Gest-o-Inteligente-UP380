@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default' }) => {
+const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', showWeekendToggle = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localInicio, setLocalInicio] = useState(dataInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectingStart, setSelectingStart] = useState(true);
+  const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
   const containerRef = useRef(null);
 
   // Formatar data para exibição
@@ -52,8 +53,19 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     }
   };
 
+  // Verificar se é final de semana (sábado = 6, domingo = 0)
+  const isWeekend = (date) => {
+    const dayOfWeek = date.getDay();
+    return dayOfWeek === 0 || dayOfWeek === 6;
+  };
+
   const handleDateClick = (date) => {
     if (disabled) return;
+
+    // Se o toggle está visível e finais de semana não estão habilitados e a data é final de semana, não permitir seleção
+    if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
+      return;
+    }
 
     const dateStr = formatDateForInput(date);
     const dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -149,6 +161,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(year, month, day);
       let dayClasses = 'periodo-calendar-day';
+      const isWeekendDay = isWeekend(currentDate);
+      const isDisabled = showWeekendToggle && !habilitarFinaisSemana && isWeekendDay;
+      
+      // Adicionar classe para finais de semana desabilitados
+      if (isDisabled) {
+        dayClasses += ' weekend-disabled';
+      }
       
       // Verificar se é data de início ou fim
       if (localInicio) {
@@ -180,7 +199,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         <div
           key={day}
           className={dayClasses}
-          onClick={() => handleDateClick(currentDate)}
+          onClick={() => !isDisabled && handleDateClick(currentDate)}
+          style={isDisabled ? { cursor: 'not-allowed', opacity: 0.4 } : {}}
         >
           {day}
         </div>
@@ -235,6 +255,49 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                       />
                     </div>
                   </div>
+
+                  {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
+                  {showWeekendToggle && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                        Habilitar finais de semana:
+                      </label>
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <input
+                          type="checkbox"
+                          id="toggleFinaisSemana"
+                          checked={habilitarFinaisSemana}
+                          onChange={(e) => setHabilitarFinaisSemana(e.target.checked)}
+                          style={{
+                            width: '44px',
+                            height: '24px',
+                            appearance: 'none',
+                            backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                            borderRadius: '12px',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            outline: 'none',
+                            border: 'none'
+                          }}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '2px',
+                            left: habilitarFinaisSemana ? '22px' : '2px',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            backgroundColor: '#fff',
+                            transition: 'left 0.2s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                            pointerEvents: 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="periodo-calendar-container">
                     <div className="periodo-calendar-header">
