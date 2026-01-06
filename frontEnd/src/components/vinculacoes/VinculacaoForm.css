@@ -57,8 +57,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 300px;
-  overflow-y: auto;
   padding: 12px;
   background: white;
   border: 1px solid #e5e7eb;
@@ -118,22 +116,9 @@
   flex: 1;
 }
 
-/* Botão de atualização */
+/* Botão de atualização - REMOVIDO (dados carregam automaticamente) */
 .vinculacao-refresh-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  padding: 0;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: white;
-  color: #6b7280;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 14px;
+  display: none !important;
 }
 
 .vinculacao-refresh-btn:hover:not(:disabled) {
@@ -286,6 +271,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+  width: 100%;
 }
 
 @media (max-width: 768px) {
@@ -298,6 +284,12 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+}
+
+/* Grupo de formulário que ocupa toda a largura */
+.vinculacao-form-group[style*="gridColumn"] {
+  grid-column: 1 / -1;
 }
 
 .vinculacao-form-label {
