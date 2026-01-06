@@ -138,9 +138,9 @@ const HistoricoAtribuicoes = () => {
     carregarDados();
   }, []);
 
-  // Carregar produtos e tarefas quando abrir modal de edição
+  // Carregar produtos quando abrir modal de edição (não carregar tarefas - elas já vêm do banco)
   useEffect(() => {
-    const carregarProdutosETarefas = async () => {
+    const carregarProdutos = async () => {
       if (!modalEdicaoAberto || !dadosEdicao.cliente_id || !itemEditando) return;
 
       try {
@@ -155,90 +155,16 @@ const HistoricoAtribuicoes = () => {
             setTodosProdutos(result.data || []);
           }
         }
-
-        // Carregar tarefas do cliente
-        if (dadosEdicao.produto_ids && dadosEdicao.produto_ids.length > 0) {
-          const produtoIdsNum = dadosEdicao.produto_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-          if (produtoIdsNum.length > 0) {
-            const tarefasResponse = await fetch(
-              `${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${dadosEdicao.cliente_id}&produtoIds=${produtoIdsNum.join(',')}`,
-              {
-                credentials: 'include',
-                headers: { 'Accept': 'application/json' }
-              }
-            );
-            if (tarefasResponse.ok) {
-              const result = await tarefasResponse.json();
-              if (result.success && result.data) {
-                const todasTarefas = [];
-                const tarefasIds = new Set();
-                
-                result.data.forEach(item => {
-                  (item.tarefas || []).forEach(tarefa => {
-                    if (!tarefasIds.has(tarefa.id)) {
-                      tarefasIds.add(tarefa.id);
-                      todasTarefas.push(tarefa);
-                    }
-                  });
-                });
-                
-                setTodasTarefas(todasTarefas);
-                
-                // Garantir que todas as tarefas disponíveis tenham objetos de tarefa
-                // Priorizar tempos originais do itemEditando, depois tempos atuais, depois 0
-                setDadosEdicao(prev => {
-                  // Mapa com tempos originais do itemEditando (fonte de verdade)
-                  const temposOriginaisMap = new Map();
-                  if (itemEditando && itemEditando.tarefas) {
-                    itemEditando.tarefas.forEach(t => {
-                      temposOriginaisMap.set(String(t.tarefa_id), t.tempo_estimado_dia);
-                    });
-                  }
-                  
-                  // Mapa com tempos atuais (caso o usuário já tenha editado)
-                  const temposAtuaisMap = new Map();
-                  (prev.tarefas || []).forEach(t => {
-                    temposAtuaisMap.set(String(t.tarefa_id), t.tempo_estimado_dia);
-                  });
-                  
-                  // Criar array de tarefas com todos os IDs disponíveis
-                  // Prioridade: tempos originais > tempos atuais > 0
-                  const novasTarefas = todasTarefas.map(tarefa => {
-                    const tarefaIdStr = String(tarefa.id);
-                    // Se tem tempo original, usar ele
-                    if (temposOriginaisMap.has(tarefaIdStr)) {
-                      return {
-                        tarefa_id: tarefaIdStr,
-                        tempo_estimado_dia: temposOriginaisMap.get(tarefaIdStr)
-                      };
-                    }
-                    // Se tem tempo atual, usar ele
-                    if (temposAtuaisMap.has(tarefaIdStr)) {
-                      return {
-                        tarefa_id: tarefaIdStr,
-                        tempo_estimado_dia: temposAtuaisMap.get(tarefaIdStr)
-                      };
-                    }
-                    // Senão, tempo 0
-                    return {
-                      tarefa_id: tarefaIdStr,
-                      tempo_estimado_dia: 0
-                    };
-                  });
-                  
-                  return { ...prev, tarefas: novasTarefas };
-                });
-              }
-            }
-          }
-        }
+        
+        // NÃO carregar todas as tarefas - apenas usar as que estão em dadosEdicao.tarefas (do banco)
+        // As tarefas já foram carregadas na função abrirModalEdicao
       } catch (error) {
-        console.error('Erro ao carregar produtos e tarefas:', error);
+        console.error('Erro ao carregar produtos:', error);
       }
     };
 
-    carregarProdutosETarefas();
-  }, [modalEdicaoAberto, dadosEdicao.cliente_id, dadosEdicao.produto_ids, itemEditando]);
+    carregarProdutos();
+  }, [modalEdicaoAberto, dadosEdicao.cliente_id, itemEditando]);
 
   // Buscar horas contratadas quando o responsável mudar
   useEffect(() => {
@@ -896,21 +822,142 @@ const HistoricoAtribuicoes = () => {
   };
 
   // Abrir modal de edição
-  const abrirModalEdicao = (item) => {
-    setItemEditando(item);
-    setDadosEdicao({
-      cliente_id: item.cliente_id,
-      responsavel_id: item.responsavel_id,
-      data_inicio: item.data_inicio,
-      data_fim: item.data_fim,
-      produto_ids: item.produto_ids || [],
-      tarefas: item.tarefas || []
-    });
-    // Resetar estados do modo "Selecionar vários"
-    setModoSelecionarVarios(false);
-    setTempoGlobalParaAplicar(0);
-    setTarefasSelecionadasParaTempo(new Set());
-    setModalEdicaoAberto(true);
+  const abrirModalEdicao = async (item) => {
+    // Buscar dados diretamente do banco de dados para garantir que está atualizado
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/${item.id}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch (e) {
+          if (errorText && errorText.length < 200) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Erro ao buscar dados do histórico');
+      }
+
+      const dadosDoBanco = result.data;
+      
+      // Formatar data_inicio e data_fim para o formato esperado (apenas YYYY-MM-DD)
+      let dataInicioFormatada = dadosDoBanco.data_inicio;
+      let dataFimFormatada = dadosDoBanco.data_fim;
+      
+      // Se vier com hora, extrair apenas a data
+      if (dataInicioFormatada && typeof dataInicioFormatada === 'string' && dataInicioFormatada.includes('T')) {
+        dataInicioFormatada = dataInicioFormatada.split('T')[0];
+      }
+      if (dataFimFormatada && typeof dataFimFormatada === 'string' && dataFimFormatada.includes('T')) {
+        dataFimFormatada = dataFimFormatada.split('T')[0];
+      }
+
+      setItemEditando(dadosDoBanco);
+      setDadosEdicao({
+        cliente_id: dadosDoBanco.cliente_id,
+        responsavel_id: dadosDoBanco.responsavel_id,
+        data_inicio: dataInicioFormatada,
+        data_fim: dataFimFormatada,
+        produto_ids: dadosDoBanco.produto_ids || [],
+        tarefas: dadosDoBanco.tarefas || []
+      });
+      
+      // Buscar apenas os nomes das tarefas que estão no banco
+      const tarefasDoBanco = dadosDoBanco.tarefas || [];
+      if (tarefasDoBanco.length > 0) {
+        const tarefaIds = tarefasDoBanco.map(t => String(t.tarefa_id).trim()).filter(Boolean);
+        if (tarefaIds.length > 0) {
+          try {
+            // Buscar nomes das tarefas usando o endpoint correto
+            const tarefasResponse = await fetch(
+              `${API_BASE_URL}/tarefas-por-ids?ids=${tarefaIds.join(',')}`,
+              {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              }
+            );
+            
+            if (tarefasResponse.ok) {
+              const tarefasResult = await tarefasResponse.json();
+              if (tarefasResult.success && tarefasResult.data) {
+                // tarefasResult.data é um mapa { id: nome }
+                // Criar array com apenas as tarefas que estão no banco
+                const tarefasComNomes = tarefasDoBanco.map(tarefaDoBanco => {
+                  const tarefaIdStr = String(tarefaDoBanco.tarefa_id);
+                  const nomeTarefa = tarefasResult.data[tarefaIdStr] || `Tarefa #${tarefaIdStr}`;
+                  return {
+                    id: tarefaDoBanco.tarefa_id,
+                    nome: nomeTarefa,
+                    tempo_estimado_dia: tarefaDoBanco.tempo_estimado_dia || 0
+                  };
+                });
+                setTodasTarefas(tarefasComNomes);
+              } else {
+                // Se não conseguir buscar nomes, criar objetos básicos
+                const tarefasBasicas = tarefasDoBanco.map(t => ({
+                  id: t.tarefa_id,
+                  nome: `Tarefa #${t.tarefa_id}`,
+                  tempo_estimado_dia: t.tempo_estimado_dia || 0
+                }));
+                setTodasTarefas(tarefasBasicas);
+              }
+            } else {
+              // Se não conseguir buscar, criar objetos básicos
+              const tarefasBasicas = tarefasDoBanco.map(t => ({
+                id: t.tarefa_id,
+                nome: `Tarefa #${t.tarefa_id}`,
+                tempo_estimado_dia: t.tempo_estimado_dia || 0
+              }));
+              setTodasTarefas(tarefasBasicas);
+            }
+          } catch (error) {
+            console.error('Erro ao buscar nomes das tarefas:', error);
+            // Criar objetos básicos em caso de erro
+            const tarefasBasicas = tarefasDoBanco.map(t => ({
+              id: t.tarefa_id,
+              nome: `Tarefa #${t.tarefa_id}`,
+              tempo_estimado_dia: t.tempo_estimado_dia || 0
+            }));
+            setTodasTarefas(tarefasBasicas);
+          }
+        } else {
+          setTodasTarefas([]);
+        }
+      } else {
+        setTodasTarefas([]);
+      }
+      
+      // Resetar estados do modo "Selecionar vários"
+      setModoSelecionarVarios(false);
+      setTempoGlobalParaAplicar(0);
+      setTarefasSelecionadasParaTempo(new Set());
+      setModalEdicaoAberto(true);
+    } catch (error) {
+      console.error('Erro ao buscar dados do histórico:', error);
+      showToast('error', error.message || 'Erro ao carregar dados para edição. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Fechar modal de edição
@@ -1792,11 +1839,14 @@ const HistoricoAtribuicoes = () => {
                           )}
                         </div>
 
-                        {/* Lista de tarefas */}
+                        {/* Lista de tarefas - mostrar apenas as que estão no banco */}
                         <div className="selected-items-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' }}>
-                        {todasTarefas.length > 0 ? (
-                          todasTarefas.map(tarefa => {
-                            const tarefaId = String(tarefa.id);
+                        {dadosEdicao.tarefas && dadosEdicao.tarefas.length > 0 ? (
+                          dadosEdicao.tarefas.map(tarefaDoBanco => {
+                            const tarefaId = String(tarefaDoBanco.tarefa_id);
+                            // Buscar o nome da tarefa em todasTarefas ou usar o ID
+                            const tarefaComNome = todasTarefas.find(t => String(t.id) === tarefaId);
+                            const nomeTarefa = tarefaComNome?.nome || nomesTarefas[tarefaId] || `Tarefa #${tarefaId}`;
                             const tarefaComTempo = dadosEdicao.tarefas.find(t => String(t.tarefa_id) === tarefaId);
                             const isSelecionadaParaTempo = tarefasSelecionadasParaTempo.has(tarefaId);
                             const tempoTarefa = (modoSelecionarVarios && isSelecionadaParaTempo) 
@@ -1854,7 +1904,7 @@ const HistoricoAtribuicoes = () => {
                                     />
                                   )}
                                   <span style={{ flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {tarefa.nome || nomesTarefas[tarefaId] || `Tarefa #${tarefaId}`}
+                                    {nomeTarefa}
                                   </span>
                                 </div>
                                 {(!modoSelecionarVarios || !isSelecionadaParaTempo) && (
@@ -1974,9 +2024,7 @@ const HistoricoAtribuicoes = () => {
                           })
                         ) : (
                           <span style={{ color: '#9ca3af', fontSize: '12px', fontStyle: 'italic', padding: '12px', textAlign: 'center' }}>
-                            {dadosEdicao.cliente_id && dadosEdicao.produto_ids && dadosEdicao.produto_ids.length > 0 
-                              ? 'Nenhuma tarefa encontrada para os produtos selecionados'
-                              : 'Selecione produtos para ver as tarefas disponíveis'}
+                            Nenhuma tarefa atribuída no histórico
                           </span>
                         )}
                       </div>

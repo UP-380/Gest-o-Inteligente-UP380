@@ -49,14 +49,29 @@ const TempoEstimadoInput = ({ value, onChange, disabled = false, placeholder = "
   };
 
   return (
-    <div className="tempo-estimado-input-container">
-      <div className="tempo-estimado-input-wrapper">
-        <div className="tempo-estimado-inputs-separados">
+    <div 
+      className="tempo-estimado-input-container"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div 
+        className="tempo-estimado-input-wrapper"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div 
+          className="tempo-estimado-inputs-separados"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <input
             type="number"
             className="tempo-estimado-input-horas"
             value={horas}
             onChange={handleHorasChange}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onFocus={(e) => e.stopPropagation()}
             placeholder="0"
             min="0"
             disabled={disabled}
@@ -67,6 +82,9 @@ const TempoEstimadoInput = ({ value, onChange, disabled = false, placeholder = "
             className="tempo-estimado-input-minutos"
             value={minutos}
             onChange={handleMinutosChange}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onFocus={(e) => e.stopPropagation()}
             placeholder="0"
             min="0"
             max="59"

@@ -155,7 +155,7 @@ async function criarTempoEstimado(req, res) {
     console.log('📥 Recebendo requisição para criar tempo estimado');
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
     
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     // Validações
     if (!cliente_id) {
@@ -166,45 +166,103 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
-    if (!produto_ids || !Array.isArray(produto_ids) || produto_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'produto_ids deve ser um array não vazio'
-      });
-    }
+    // NOVO FORMATO: produtos_com_tarefas = { produtoId: [{ tarefa_id, tempo_estimado_dia }] }
+    // Este formato garante que apenas as combinações corretas de produto x tarefa sejam criadas
+    let produtosComTarefasMap = {};
+    let produtoIdsArray = [];
+    let todasTarefasComTempo = [];
+    
+    console.log('🔍 Verificando formato dos dados recebidos...');
+    console.log('  - produtos_com_tarefas existe?', !!produtos_com_tarefas);
+    console.log('  - produtos_com_tarefas tipo:', typeof produtos_com_tarefas);
+    console.log('  - produtos_com_tarefas keys:', produtos_com_tarefas ? Object.keys(produtos_com_tarefas) : 'N/A');
+    console.log('  - produto_ids existe?', !!produto_ids);
+    console.log('  - produto_ids tipo:', typeof produto_ids);
+    
+    if (produtos_com_tarefas && typeof produtos_com_tarefas === 'object' && Object.keys(produtos_com_tarefas).length > 0) {
+      // Formato novo: produtos agrupados com suas tarefas específicas
+      console.log('📦 Usando formato novo: produtos_com_tarefas');
+      produtosComTarefasMap = produtos_com_tarefas;
+      produtoIdsArray = Object.keys(produtos_com_tarefas).map(id => String(id).trim());
+      console.log('  - Produtos encontrados:', produtoIdsArray);
+      
+      // Validar estrutura
+      for (const [produtoId, tarefasDoProduto] of Object.entries(produtosComTarefasMap)) {
+        if (!Array.isArray(tarefasDoProduto) || tarefasDoProduto.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: `Produto ${produtoId} deve ter pelo menos uma tarefa`
+          });
+        }
+        
+        // Validar cada tarefa do produto
+        for (const t of tarefasDoProduto) {
+          if (!t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0) {
+            return res.status(400).json({
+              success: false,
+              error: `Tarefa do produto ${produtoId} deve ter tarefa_id e tempo_estimado_dia válido (maior que zero)`
+            });
+          }
+        }
+        
+        todasTarefasComTempo.push(...tarefasDoProduto);
+      }
+    } else if (produto_ids && Array.isArray(produto_ids) && produto_ids.length > 0) {
+      // FORMATO ANTIGO (compatibilidade): produto_ids + tarefas
+      console.log('📦 Usando formato antigo: produto_ids + tarefas');
+      produtoIdsArray = produto_ids.map(id => String(id).trim());
+      
+      // Suportar tanto o formato antigo (tarefa_ids + tempo_estimado_dia) quanto o novo (tarefas array)
+      let tarefasComTempo = [];
+      if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
+        // Novo formato: array de objetos { tarefa_id, tempo_estimado_dia }
+        tarefasComTempo = tarefas;
+      } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
+        // Formato antigo: array de IDs + tempo único
+        tarefasComTempo = tarefa_ids.map(tarefaId => ({
+          tarefa_id: String(tarefaId).trim(),
+          tempo_estimado_dia: parseInt(tempo_estimado_dia, 10)
+        }));
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'É necessário fornecer "produtos_com_tarefas" (novo formato) ou "produto_ids" + "tarefas"/"tarefa_ids" (formato antigo)'
+        });
+      }
 
-    // Suportar tanto o formato antigo (tarefa_ids + tempo_estimado_dia) quanto o novo (tarefas array)
-    let tarefasComTempo = [];
-    if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
-      // Novo formato: array de objetos { tarefa_id, tempo_estimado_dia }
-      tarefasComTempo = tarefas;
-    } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
-      // Formato antigo: array de IDs + tempo único
-      tarefasComTempo = tarefa_ids.map(tarefaId => ({
-        tarefa_id: String(tarefaId).trim(),
-        tempo_estimado_dia: parseInt(tempo_estimado_dia, 10)
-      }));
+      // Validar que todas as tarefas têm tempo estimado
+      const tarefasSemTempo = tarefasComTempo.filter(t => !t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0);
+      if (tarefasSemTempo.length > 0) {
+        console.error('❌ Validação falhou: tarefas sem tempo válido:', tarefasSemTempo);
+        return res.status(400).json({
+          success: false,
+          error: 'Todas as tarefas devem ter um tempo estimado válido (maior que zero)',
+          detalhes: tarefasSemTempo
+        });
+      }
+      
+      todasTarefasComTempo = tarefasComTempo;
+      
+      // Converter para o formato novo (compatibilidade): criar produtos_com_tarefas a partir do formato antigo
+      // ATENÇÃO: No formato antigo, todas as tarefas são aplicadas a todos os produtos
+      produtosComTarefasMap = {};
+      produtoIdsArray.forEach(produtoId => {
+        produtosComTarefasMap[produtoId] = tarefasComTempo;
+      });
     } else {
       return res.status(400).json({
         success: false,
-        error: 'É necessário fornecer "tarefas" (array de objetos com tarefa_id e tempo_estimado_dia) ou "tarefa_ids" + "tempo_estimado_dia"'
-      });
-    }
-
-    // Validar que todas as tarefas têm tempo estimado
-    const tarefasSemTempo = tarefasComTempo.filter(t => !t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0);
-    if (tarefasSemTempo.length > 0) {
-      console.error('❌ Validação falhou: tarefas sem tempo válido:', tarefasSemTempo);
-      return res.status(400).json({
-        success: false,
-        error: 'Todas as tarefas devem ter um tempo estimado válido (maior que zero)',
-        detalhes: tarefasSemTempo
+        error: 'É necessário fornecer "produtos_com_tarefas" (novo formato) ou "produto_ids" (formato antigo)'
       });
     }
     
-    console.log('✅ Validações passaram. Tarefas com tempo:', tarefasComTempo.length);
+    console.log('✅ Validações passaram. Produtos:', produtoIdsArray.length, 'Tarefas totais:', todasTarefasComTempo.length);
+    console.log('📋 Estrutura produtos_com_tarefas:', Object.keys(produtosComTarefasMap).map(produtoId => ({
+      produto: produtoId,
+      tarefas: produtosComTarefasMap[produtoId].length
+    })));
 
-    const tarefaIdsArray = tarefasComTempo.map(t => String(t.tarefa_id).trim());
+    const tarefaIdsArray = todasTarefasComTempo.map(t => String(t.tarefa_id).trim());
 
     if (!data_inicio) {
       return res.status(400).json({
@@ -336,7 +394,7 @@ async function criarTempoEstimado(req, res) {
     // Verificar duplicatas: não pode ter o mesmo conjunto de tarefas para o mesmo cliente + responsável + produto + período
     const verificarDuplicatas = async () => {
       // Para cada produto, verificar se já existe um agrupamento com exatamente as mesmas tarefas
-      for (const produtoId of produto_ids) {
+      for (const produtoId of produtoIdsArray) {
         // Buscar todos os registros existentes para este cliente + produto + responsável
         const { data: registrosExistentes, error: errorBusca } = await supabase
           .schema('up_gestaointeligente')
@@ -366,8 +424,9 @@ async function criarTempoEstimado(req, res) {
             gruposExistentes.get(agrupadorId).datas.push(reg.data);
           });
           
-          // Criar conjunto de tarefas solicitadas (normalizado)
-          const tarefasSolicitadas = new Set(tarefaIdsArray.map(id => String(id).trim()));
+          // Criar conjunto de tarefas solicitadas para este produto específico (normalizado)
+          const tarefasDoProduto = produtosComTarefasMap[produtoId] || [];
+          const tarefasSolicitadas = new Set(tarefasDoProduto.map(t => String(t.tarefa_id).trim()));
           
           // Verificar cada grupo existente
           for (const [agrupadorId, grupo] of gruposExistentes) {
@@ -431,29 +490,144 @@ async function criarTempoEstimado(req, res) {
     // Gerar um ID único para agrupar todos os registros desta delegação
     const agrupador_id = uuidv4();
 
+    // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados considerando herança
+    // Herança: Produto → Tipo → Tarefa
+    const buscarTipoTarefaIdPorTarefaEProduto = async (tarefaId, produtoId) => {
+      try {
+        if (!tarefaId) return null;
+        
+        const tarefaIdStr = String(tarefaId).trim();
+        const tarefaIdNum = parseInt(tarefaIdStr, 10);
+        
+        if (isNaN(tarefaIdNum)) {
+          console.warn('⚠️ tarefa_id não é um número válido:', tarefaIdStr);
+          return null;
+        }
+        
+        // Se temos produto_id, buscar primeiro considerando a herança do produto
+        if (produtoId) {
+          const produtoIdStr = String(produtoId).trim();
+          const produtoIdNum = parseInt(produtoIdStr, 10);
+          
+          if (!isNaN(produtoIdNum)) {
+            // 1. Buscar vínculo específico: produto + tarefa + tipo_tarefa (herança do produto)
+            const { data: vinculadoProduto, error: errorProduto } = await supabase
+              .schema('up_gestaointeligente')
+              .from('vinculados')
+              .select('tarefa_tipo_id')
+              .eq('tarefa_id', tarefaIdNum)
+              .eq('produto_id', produtoIdNum)
+              .not('tarefa_tipo_id', 'is', null)
+              .is('cliente_id', null)
+              .is('subtarefa_id', null)
+              .limit(1);
+            
+            if (!errorProduto && vinculadoProduto && vinculadoProduto.length > 0) {
+              const tipoTarefaId = vinculadoProduto[0].tarefa_tipo_id;
+              if (tipoTarefaId !== null && tipoTarefaId !== undefined) {
+                const tipoId = typeof tipoTarefaId === 'number' 
+                  ? tipoTarefaId 
+                  : parseInt(tipoTarefaId, 10);
+                if (!isNaN(tipoId)) {
+                  console.log(`✅ Tipo_tarefa_id encontrado via herança do produto ${produtoId} para tarefa ${tarefaId}: ${tipoId}`);
+                  return String(tipoId);
+                }
+              }
+            }
+          }
+        }
+        
+        // 2. Se não encontrou com produto, buscar vínculo padrão: tarefa + tipo_tarefa (sem produto, sem cliente)
+        const { data: vinculados, error: vinculadoError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .select('tarefa_tipo_id')
+          .eq('tarefa_id', tarefaIdNum)
+          .not('tarefa_tipo_id', 'is', null)
+          .is('produto_id', null)
+          .is('cliente_id', null)
+          .is('subtarefa_id', null)
+          .limit(1);
+        
+        if (vinculadoError) {
+          console.error('❌ Erro ao buscar tipo_tarefa_id do vinculado:', vinculadoError);
+          return null;
+        }
+        
+        if (vinculados && vinculados.length > 0) {
+          const vinculado = vinculados[0];
+          if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
+            const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number' 
+              ? vinculado.tarefa_tipo_id 
+              : parseInt(vinculado.tarefa_tipo_id, 10);
+            if (!isNaN(tipoTarefaId)) {
+              console.log(`✅ Tipo_tarefa_id encontrado via vínculo padrão para tarefa ${tarefaId}: ${tipoTarefaId}`);
+              return String(tipoTarefaId); // Retornar como string (text)
+            }
+          }
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('❌ Erro inesperado ao buscar tipo_tarefa_id:', error);
+        return null;
+      }
+    };
+
+    // Buscar tipo_tarefa_id para cada combinação produto x tarefa (considerando herança)
+    console.log('🔍 Buscando tipo_tarefa_id para as tarefas considerando herança (produto → tipo → tarefa)...');
+    const tipoTarefaPorProdutoTarefa = new Map(); // Chave: "produtoId_tarefaId" -> tipo_tarefa_id
+    
+    // Iterar sobre cada produto e suas tarefas para buscar o tipo_tarefa_id correto
+    for (const [produtoId, tarefasDoProduto] of Object.entries(produtosComTarefasMap)) {
+      for (const tarefaObj of tarefasDoProduto) {
+        const tarefaId = String(tarefaObj.tarefa_id).trim();
+        const chave = `${produtoId}_${tarefaId}`;
+        
+        // Buscar tipo_tarefa_id considerando a herança do produto
+        const tipoTarefaId = await buscarTipoTarefaIdPorTarefaEProduto(tarefaId, produtoId);
+        if (tipoTarefaId) {
+          tipoTarefaPorProdutoTarefa.set(chave, tipoTarefaId);
+          console.log(`✅ Produto ${produtoId} → Tarefa ${tarefaId}: tipo_tarefa_id = ${tipoTarefaId}`);
+        } else {
+          console.warn(`⚠️ Produto ${produtoId} → Tarefa ${tarefaId}: tipo_tarefa_id não encontrado`);
+        }
+      }
+    }
+
     // Criar todas as combinações: produto x tarefa x data (um registro para cada dia)
+    // IMPORTANTE: Usar produtosComTarefasMap para garantir que apenas as combinações corretas sejam criadas
     const registrosParaInserir = [];
     
-    // Criar mapa de tempo por tarefa para acesso rápido
+    // Criar mapa de tempo por tarefa para acesso rápido (usando todas as tarefas)
     const tempoPorTarefa = new Map();
-    tarefasComTempo.forEach(t => {
+    todasTarefasComTempo.forEach(t => {
       tempoPorTarefa.set(String(t.tarefa_id).trim(), parseInt(t.tempo_estimado_dia, 10));
     });
     
-    produto_ids.forEach(produtoId => {
-      tarefaIdsArray.forEach(tarefaId => {
-        const tempoEstimado = tempoPorTarefa.get(String(tarefaId).trim());
+    // Iterar sobre cada produto e APENAS suas tarefas específicas
+    Object.entries(produtosComTarefasMap).forEach(([produtoId, tarefasDoProduto]) => {
+      tarefasDoProduto.forEach(tarefaObj => {
+        const tarefaId = String(tarefaObj.tarefa_id).trim();
+        const tempoEstimado = parseInt(tarefaObj.tempo_estimado_dia, 10);
+        
         if (!tempoEstimado || tempoEstimado <= 0) {
-          console.warn(`⚠️ Tarefa ${tarefaId} não tem tempo estimado válido, pulando...`);
+          console.warn(`⚠️ Tarefa ${tarefaId} do produto ${produtoId} não tem tempo estimado válido, pulando...`);
           return;
         }
+        
+        // Buscar tipo_tarefa_id usando a chave produto_tarefa (considerando herança)
+        const chave = `${produtoId}_${tarefaId}`;
+        const tipoTarefaId = tipoTarefaPorProdutoTarefa.get(chave) || null;
+        
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
             produto_id: String(produtoId).trim(),
-            tarefa_id: String(tarefaId).trim(),
+            tarefa_id: tarefaId,
             data: dataDoDia,
             tempo_estimado_dia: tempoEstimado, // em milissegundos
+            tipo_tarefa_id: tipoTarefaId, // ID do tipo da tarefa (text) - obtido via herança produto → tipo → tarefa
             responsavel_id: String(responsavel_id).trim(),
             agrupador_id: agrupador_id
           });
@@ -462,12 +636,15 @@ async function criarTempoEstimado(req, res) {
     });
 
     console.log(`📝 Criando ${registrosParaInserir.length} registro(s) de tempo estimado`);
-    console.log(`   - ${produto_ids.length} produto(s) × ${tarefaIdsArray.length} tarefa(s) × ${datasDoPeriodo.length} dia(s) = ${registrosParaInserir.length} registro(s)`);
-    console.log(`   - Tempos estimados por tarefa:`);
-    tarefasComTempo.forEach(t => {
-      const horas = Math.floor(t.tempo_estimado_dia / (1000 * 60 * 60));
-      const minutos = Math.round((t.tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60));
-      console.log(`     * Tarefa ${t.tarefa_id}: ${horas}h ${minutos}min`);
+    console.log(`   - ${produtoIdsArray.length} produto(s) × ${datasDoPeriodo.length} dia(s)`);
+    console.log(`   - Distribuição de tarefas por produto:`);
+    Object.entries(produtosComTarefasMap).forEach(([produtoId, tarefasDoProduto]) => {
+      console.log(`     * Produto ${produtoId}: ${tarefasDoProduto.length} tarefa(s)`);
+      tarefasDoProduto.forEach(t => {
+        const horas = Math.floor(t.tempo_estimado_dia / (1000 * 60 * 60));
+        const minutos = Math.round((t.tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60));
+        console.log(`       - Tarefa ${t.tarefa_id}: ${horas}h ${minutos}min`);
+      });
     });
     
     // Log do primeiro registro para debug
@@ -531,8 +708,8 @@ async function criarTempoEstimado(req, res) {
             usuario_criador_id: membroIdCriador,
             data_inicio: data_inicio,
             data_fim: data_fim,
-            produto_ids: produto_ids.map(id => String(id).trim()),
-            tarefas: tarefasComTempo
+            produto_ids: produtoIdsArray.map(id => String(id).trim()),
+            tarefas: todasTarefasComTempo
           };
 
           const { error: historicoError } = await supabase
@@ -1235,6 +1412,48 @@ async function atualizarTempoEstimado(req, res) {
 
     if (tarefa_id !== undefined) {
       dadosUpdate.tarefa_id = tarefa_id ? String(tarefa_id).trim() : null;
+      
+      // Se a tarefa_id foi alterada, buscar o tipo_tarefa_id correspondente
+      if (dadosUpdate.tarefa_id) {
+        // Função auxiliar para buscar tipo_tarefa_id
+        const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
+          try {
+            const tarefaIdNum = parseInt(tarefaId, 10);
+            if (isNaN(tarefaIdNum)) return null;
+            
+            const { data: vinculados, error } = await supabase
+              .schema('up_gestaointeligente')
+              .from('vinculados')
+              .select('tarefa_tipo_id')
+              .eq('tarefa_id', tarefaIdNum)
+              .not('tarefa_tipo_id', 'is', null)
+              .is('produto_id', null)
+              .is('cliente_id', null)
+              .is('subtarefa_id', null)
+              .limit(1);
+            
+            if (error || !vinculados || vinculados.length === 0) return null;
+            
+            const tipoTarefaId = vinculados[0].tarefa_tipo_id;
+            return tipoTarefaId ? String(tipoTarefaId) : null;
+          } catch (error) {
+            console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
+            return null;
+          }
+        };
+        
+        const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(dadosUpdate.tarefa_id);
+        if (tipoTarefaId) {
+          dadosUpdate.tipo_tarefa_id = tipoTarefaId;
+          console.log(`✅ Tipo_tarefa_id atualizado para tarefa ${dadosUpdate.tarefa_id}: ${tipoTarefaId}`);
+        } else {
+          dadosUpdate.tipo_tarefa_id = null;
+          console.warn(`⚠️ Tipo_tarefa_id não encontrado para tarefa ${dadosUpdate.tarefa_id}`);
+        }
+      } else {
+        // Se tarefa_id foi removido, remover também tipo_tarefa_id
+        dadosUpdate.tipo_tarefa_id = null;
+      }
     }
 
     if (data !== undefined) {
@@ -1559,11 +1778,58 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
+    // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados
+    const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
+      try {
+        if (!tarefaId) return null;
+        
+        const tarefaIdStr = String(tarefaId).trim();
+        const tarefaIdNum = parseInt(tarefaIdStr, 10);
+        
+        if (isNaN(tarefaIdNum)) {
+          return null;
+        }
+        
+        const { data: vinculados, error } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .select('tarefa_tipo_id')
+          .eq('tarefa_id', tarefaIdNum)
+          .not('tarefa_tipo_id', 'is', null)
+          .is('produto_id', null)
+          .is('cliente_id', null)
+          .is('subtarefa_id', null)
+          .limit(1);
+        
+        if (error || !vinculados || vinculados.length === 0) return null;
+        
+        const tipoTarefaId = vinculados[0].tarefa_tipo_id;
+        return tipoTarefaId ? String(tipoTarefaId) : null;
+      } catch (error) {
+        console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
+        return null;
+      }
+    };
+
+    // Buscar tipo_tarefa_id para todas as tarefas
+    console.log('🔍 [UPDATE] Buscando tipo_tarefa_id para as tarefas...');
+    const tipoTarefaPorTarefa = new Map();
+    for (const tarefaId of tarefa_ids) {
+      const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(tarefaId);
+      if (tipoTarefaId) {
+        tipoTarefaPorTarefa.set(String(tarefaId).trim(), tipoTarefaId);
+        console.log(`✅ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id = ${tipoTarefaId}`);
+      } else {
+        console.warn(`⚠️ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id não encontrado`);
+      }
+    }
+
     // Criar novos registros com os dados atualizados
     const registrosParaInserir = [];
     
     produto_ids.forEach(produtoId => {
       tarefa_ids.forEach(tarefaId => {
+        const tipoTarefaId = tipoTarefaPorTarefa.get(String(tarefaId).trim()) || null;
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
@@ -1571,6 +1837,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
             tarefa_id: String(tarefaId).trim(),
             data: dataDoDia,
             tempo_estimado_dia: parseInt(tempo_estimado_dia, 10), // em milissegundos
+            tipo_tarefa_id: tipoTarefaId, // ID do tipo da tarefa (text)
             responsavel_id: String(responsavel_id).trim(),
             agrupador_id: agrupador_id
           });
