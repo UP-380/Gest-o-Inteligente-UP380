@@ -12,11 +12,11 @@
     }
 
     .agenda-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, #0D2A8B 0%, #1e3a8a 100%);
         border-radius: 16px;
         padding: 2rem;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.15);
+        box-shadow: 0 10px 40px rgba(13, 42, 139, 0.15);
         color: white;
         position: relative;
         overflow: hidden;
@@ -89,13 +89,13 @@
 
     .btn-modern-primary {
         background: white;
-        color: #667eea;
+        color: #0D2A8B;
         border: none;
     }
 
     .btn-modern-primary:hover {
         background: #f8f9ff;
-        color: #667eea;
+        color: #0D2A8B;
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
     }
@@ -128,12 +128,8 @@
     .fc-toolbar-title {
         font-size: 1.75rem;
         font-weight: 700;
-        color: #1a202c;
+        color: #0D2A8B;
         letter-spacing: -0.5px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
     }
 
     .fc-button-group {
@@ -165,26 +161,26 @@
     }
 
     .fc-button-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #0D2A8B;
         border: none;
         color: white;
     }
 
     .fc-button-primary:hover {
-        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+        background: #1e3a8a;
         color: white;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 12px rgba(13, 42, 139, 0.3);
     }
 
     .fc-button-active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #0D2A8B;
         border: none;
         color: white;
     }
 
     .fc-today-button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #0D2A8B;
         border: none;
         color: white;
         border-radius: 10px;
@@ -192,9 +188,9 @@
     }
 
     .fc-today-button:hover {
-        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+        background: #1e3a8a;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 12px rgba(13, 42, 139, 0.3);
     }
 
     /* Cabeçalho dos dias da semana */
@@ -220,11 +216,11 @@
     }
 
     .fc-daygrid-day:hover {
-        background: #f8f9ff;
+        background: rgba(13, 42, 139, 0.05);
     }
 
     .fc-day-today {
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        background: rgba(13, 42, 139, 0.1);
     }
 
     .fc-daygrid-day-number {
@@ -235,7 +231,7 @@
     }
 
     .fc-day-today .fc-daygrid-day-number {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #0D2A8B;
         color: white;
         border-radius: 50%;
         width: 2rem;
@@ -289,12 +285,12 @@
     }
 
     .fc-scroller::-webkit-scrollbar-thumb {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #0D2A8B;
         border-radius: 10px;
     }
 
     .fc-scroller::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+        background: #1e3a8a;
     }
 
     /* ===== RESPONSIVIDADE ===== */
@@ -397,7 +393,7 @@
     /* ===== MELHORIAS DE ACESSIBILIDADE ===== */
     .fc-button:focus-visible,
     .fc-event:focus-visible {
-        outline: 2px solid #667eea;
+        outline: 2px solid #0D2A8B;
         outline-offset: 2px;
     }
 </style>
@@ -484,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function() {
         dayHeaderFormat: { weekday: 'short' },
         firstDay: 0, // Domingo
         // Cores dos eventos baseadas no tipo
-        eventColor: '#667eea',
+        eventColor: '#0D2A8B',
         eventTextColor: '#ffffff',
         // Melhorias de interação
         editable: false,
