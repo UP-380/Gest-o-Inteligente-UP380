@@ -550,10 +550,125 @@ async function deletarHistoricoAtribuicao(req, res) {
   }
 }
 
+// GET - Buscar detalhes diários de uma atribuição (por agrupador_id)
+async function getDetalhesDiariosAtribuicao(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'ID é obrigatório'
+      });
+    }
+
+    // Buscar histórico para obter o agrupador_id
+    const { data: historico, error: historicoError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .select('agrupador_id, data_inicio, data_fim')
+      .eq('id', id)
+      .single();
+
+    if (historicoError || !historico) {
+      return res.status(404).json({
+        success: false,
+        error: 'Histórico de atribuição não encontrado'
+      });
+    }
+
+    if (!historico.agrupador_id) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    // Buscar todos os registros de tempo_estimado para este agrupador
+    const { data: registrosTempo, error: tempoError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado')
+      .select('*')
+      .eq('agrupador_id', historico.agrupador_id)
+      .order('data', { ascending: true });
+
+    if (tempoError) {
+      console.error('❌ Erro ao buscar registros de tempo:', tempoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar detalhes diários',
+        details: tempoError.message
+      });
+    }
+
+    // Buscar nomes de tarefas
+    const tarefaIds = new Set();
+    registrosTempo.forEach(reg => {
+      if (reg.tarefa_id) tarefaIds.add(String(reg.tarefa_id));
+    });
+
+    const nomesTarefas = {};
+    if (tarefaIds.size > 0) {
+      const { data: tarefas, error: tarefasError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_tarefa')
+        .select('id, nome')
+        .in('id', Array.from(tarefaIds));
+
+      if (!tarefasError && tarefas) {
+        tarefas.forEach(t => {
+          nomesTarefas[String(t.id)] = t.nome;
+        });
+      }
+    }
+
+    // Agrupar por data
+    const detalhesPorData = {};
+    registrosTempo.forEach(reg => {
+      const dataStr = reg.data ? reg.data.split('T')[0] : null;
+      if (!dataStr) return;
+
+      if (!detalhesPorData[dataStr]) {
+        detalhesPorData[dataStr] = [];
+      }
+
+      detalhesPorData[dataStr].push({
+        id: reg.id, // ID do registro de tempo_estimado para editar/deletar
+        tarefa_id: reg.tarefa_id,
+        tarefa_nome: nomesTarefas[String(reg.tarefa_id)] || `Tarefa #${reg.tarefa_id}`,
+        produto_id: reg.produto_id,
+        tempo_estimado_dia: reg.tempo_estimado_dia,
+        responsavel_id: reg.responsavel_id
+      });
+    });
+
+    // Converter para array ordenado por data
+    const detalhesArray = Object.keys(detalhesPorData)
+      .sort()
+      .map(data => ({
+        data,
+        tarefas: detalhesPorData[data]
+      }));
+
+    return res.json({
+      success: true,
+      data: detalhesArray
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao buscar detalhes diários:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getHistoricoAtribuicoes,
   getHistoricoAtribuicaoPorId,
   atualizarHistoricoAtribuicao,
-  deletarHistoricoAtribuicao
+  deletarHistoricoAtribuicao,
+  getDetalhesDiariosAtribuicao
 };
 

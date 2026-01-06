@@ -6,13 +6,156 @@ const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { buscarTodosComPaginacao } = require('../services/database-utils');
 
+// Função auxiliar para recalcular período do histórico baseado nas tarefas restantes
+async function recalcularPeriodoHistorico(agrupador_id) {
+  try {
+    if (!agrupador_id) return;
+
+    // Buscar histórico associado ao agrupador
+    const { data: historico, error: historicoError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .select('id')
+      .eq('agrupador_id', agrupador_id)
+      .maybeSingle();
+
+    if (historicoError || !historico) {
+      console.warn('⚠️ Histórico não encontrado para agrupador:', agrupador_id);
+      return;
+    }
+
+    // Buscar todas as tarefas restantes do agrupamento
+    const { data: registrosRestantes, error: registrosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado')
+      .select('data')
+      .eq('agrupador_id', agrupador_id)
+      .order('data', { ascending: true });
+
+    if (registrosError) {
+      console.error('❌ Erro ao buscar registros restantes:', registrosError);
+      return;
+    }
+
+    // Se não há registros restantes, não atualizar (ou poderia deletar o histórico)
+    if (!registrosRestantes || registrosRestantes.length === 0) {
+      console.warn('⚠️ Nenhum registro restante para o agrupador:', agrupador_id);
+      return;
+    }
+
+    // Calcular data mínima e máxima
+    const datas = registrosRestantes
+      .map(reg => reg.data ? reg.data.split('T')[0] : null)
+      .filter(Boolean)
+      .sort();
+
+    if (datas.length === 0) return;
+
+    const dataInicio = datas[0];
+    const dataFim = datas[datas.length - 1];
+
+    // Atualizar histórico com novo período
+    const { error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .update({
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', historico.id);
+
+    if (updateError) {
+      console.error('❌ Erro ao atualizar período do histórico:', updateError);
+    } else {
+      console.log(`✅ Período do histórico atualizado: ${dataInicio} - ${dataFim}`);
+    }
+  } catch (error) {
+    console.error('❌ Erro inesperado ao recalcular período:', error);
+  }
+}
+const https = require('https');
+
+// Cache de feriados por ano
+const feriadosCache = {};
+
+// Função para buscar feriados da API Brasil API
+async function buscarFeriados(ano) {
+  // Verificar cache primeiro
+  if (feriadosCache[ano]) {
+    return feriadosCache[ano];
+  }
+
+  try {
+    return new Promise((resolve, reject) => {
+      const url = `https://brasilapi.com.br/api/feriados/v1/${ano}`;
+      
+      https.get(url, (res) => {
+        let data = '';
+        
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            const feriados = JSON.parse(data);
+            const feriadosMap = {};
+            feriados.forEach(feriado => {
+              feriadosMap[feriado.date] = feriado.name;
+            });
+            // Armazenar no cache
+            feriadosCache[ano] = feriadosMap;
+            resolve(feriadosMap);
+          } catch (error) {
+            console.error('Erro ao processar resposta de feriados:', error);
+            resolve({});
+          }
+        });
+      }).on('error', (error) => {
+        console.error('Erro ao buscar feriados:', error);
+        resolve({}); // Retornar objeto vazio em caso de erro
+      });
+    });
+  } catch (error) {
+    console.error('Erro ao buscar feriados:', error);
+    return {};
+  }
+}
+
+// Função para verificar se uma data é feriado
+async function isHoliday(dateStr, feriadosMap = null) {
+  try {
+    const date = new Date(dateStr);
+    const ano = date.getFullYear();
+    const mes = date.getMonth();
+    const dia = date.getDate();
+    const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+    const anoFormatado = String(ano);
+    const mesFormatado = String(mes + 1).padStart(2, '0');
+    const diaFormatado = String(dia).padStart(2, '0');
+    const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+    
+    // Se não foi passado o mapa de feriados, buscar
+    let feriados = feriadosMap;
+    if (!feriados) {
+      feriados = await buscarFeriados(ano);
+    }
+    
+    return feriados[dateKey] !== undefined;
+  } catch (error) {
+    console.error('Erro ao verificar se é feriado:', error);
+    return false;
+  }
+}
+
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
   try {
     console.log('📥 Recebendo requisição para criar tempo estimado');
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
     
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     // Validações
     if (!cliente_id) {
@@ -85,7 +228,7 @@ async function criarTempoEstimado(req, res) {
     }
 
     // Função para gerar todas as datas entre início e fim
-    const gerarDatasDoPeriodo = (inicioStr, fimStr) => {
+    const gerarDatasDoPeriodo = async (inicioStr, fimStr, incluirFinaisSemana = true, incluirFeriados = true) => {
       const inicio = new Date(inicioStr + 'T00:00:00');
       const fim = new Date(fimStr + 'T00:00:00');
       const datas = [];
@@ -95,24 +238,93 @@ async function criarTempoEstimado(req, res) {
         return [];
       }
       
+      // Buscar feriados para todos os anos no período
+      const anosNoPeriodo = new Set();
+      const dataAtualTemp = new Date(inicio);
+      while (dataAtualTemp <= fim) {
+        anosNoPeriodo.add(dataAtualTemp.getFullYear());
+        dataAtualTemp.setFullYear(dataAtualTemp.getFullYear() + 1);
+      }
+      
+      // Buscar feriados para todos os anos
+      const feriadosPorAno = {};
+      for (const ano of anosNoPeriodo) {
+        feriadosPorAno[ano] = await buscarFeriados(ano);
+      }
+      
       const dataAtual = new Date(inicio);
+      let feriadosPulados = 0;
+      let finaisSemanaPulados = 0;
       
       while (dataAtual <= fim) {
+        // Verificar se é final de semana (sábado = 6, domingo = 0)
+        // Usar getFullYear, getMonth, getDate para garantir que estamos usando a data local correta
         const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const dataFormatada = `${ano}-${mes}-${dia}T00:00:00`;
+        const mes = dataAtual.getMonth();
+        const dia = dataAtual.getDate();
+        // Criar uma nova data com UTC para garantir consistência no cálculo do dia da semana
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+        
+        // Verificar se é feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
+        const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : null;
+        
+        // Se não deve incluir finais de semana e é final de semana, pular
+        if (!incluirFinaisSemana && isWeekend) {
+          finaisSemanaPulados++;
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        // Se não deve incluir feriados e é feriado, pular
+        if (!incluirFeriados && isHolidayDay) {
+          feriadosPulados++;
+          console.log(`📅 [TEMPO-ESTIMADO] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
         datas.push(dataFormatada);
         
         // Avançar para o próximo dia
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
       
+      if (feriadosPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO] Total de ${feriadosPulados} feriado(s) pulado(s)`);
+      }
+      if (finaisSemanaPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
+      }
+      
       return datas;
     };
 
-    // Gerar todas as datas do período
-    const datasDoPeriodo = gerarDatasDoPeriodo(data_inicio, data_fim);
+    // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
+    // Se incluir_finais_semana não foi enviado, assume true (compatibilidade)
+    // Se foi enviado explicitamente como false, usa false
+    // IMPORTANTE: Se o parâmetro não existir no body, assume true. Se existir (mesmo que false), usa o valor.
+    const incluirFinaisSemana = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+    const incluirFeriados = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO] Parâmetro incluir_finais_semana recebido:', incluir_finais_semana, 'tipo:', typeof incluir_finais_semana);
+    console.log('📅 [TEMPO-ESTIMADO] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
+    console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFeriados:', incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO] Período:', data_inicio, 'até', data_fim);
+    const datasDoPeriodo = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO] Total de datas geradas:', datasDoPeriodo.length);
+    if (datasDoPeriodo.length > 0 && datasDoPeriodo.length <= 5) {
+      console.log('📅 [TEMPO-ESTIMADO] Datas geradas:', datasDoPeriodo);
+    } else if (datasDoPeriodo.length > 5) {
+      console.log('📅 [TEMPO-ESTIMADO] Primeiras 5 datas:', datasDoPeriodo.slice(0, 5));
+    }
     
     if (datasDoPeriodo.length === 0) {
       return res.status(400).json({
@@ -579,11 +791,15 @@ async function getTempoEstimado(req, res) {
           grupos.set(agrupadorId, {
             agrupador_id: agrupadorId,
             dataMinima: null,
-            dataMaxima: null
+            dataMaxima: null,
+            registros: [] // Adicionar array de registros para poder verificar dias úteis
           });
         }
         
         const grupo = grupos.get(agrupadorId);
+        
+        // Adicionar registro ao grupo
+        grupo.registros.push(registro);
         
         // Calcular data mínima e máxima do grupo
         // Extrair apenas a parte da data (sem hora) para evitar problemas de timezone
@@ -630,7 +846,10 @@ async function getTempoEstimado(req, res) {
       const filtroInicioDate = new Date(filtroInicio.getFullYear(), filtroInicio.getMonth(), filtroInicio.getDate());
       const filtroFimDate = new Date(filtroFim.getFullYear(), filtroFim.getMonth(), filtroFim.getDate());
       
-      grupos.forEach((grupo, agrupadorId) => {
+      console.log(`🔍 [FILTRO-PERIODO] Período filtrado: ${periodoInicioFiltro} até ${periodoFimFiltro}`);
+      console.log(`🔍 [FILTRO-PERIODO] Datas normalizadas: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]}`);
+      
+      for (const [agrupadorId, grupo] of grupos.entries()) {
         if (grupo.dataMinima && grupo.dataMaxima) {
           // Normalizar datas do grupo (apenas data, sem hora)
           const grupoInicio = new Date(grupo.dataMinima.getFullYear(), grupo.dataMinima.getMonth(), grupo.dataMinima.getDate());
@@ -643,7 +862,7 @@ async function getTempoEstimado(req, res) {
             agrupadoresValidos.push(agrupadorId);
           }
         }
-      });
+      }
       
       // Se não há agrupadores válidos, retornar vazio
       if (agrupadoresValidos.length === 0) {
@@ -727,15 +946,83 @@ async function getTempoEstimado(req, res) {
         });
         console.log(`✅ Total de ${todosRegistrosFiltrados.length} registros encontrados dos agrupamentos válidos`);
         
-        // Contar quantos agrupamentos únicos temos nos registros
-        const agrupadoresUnicos = new Set(todosRegistrosFiltrados.map(r => r.agrupador_id));
-        console.log(`📦 Total de ${agrupadoresUnicos.size} agrupamentos únicos nos registros retornados`);
+        // IMPORTANTE: Filtrar os registros individuais pelo período filtrado
+        // Mesmo que o agrupamento se sobreponha ao período, só devemos retornar os registros que estão dentro do período
+        let registrosNoPeriodo = todosRegistrosFiltrados.filter(reg => {
+          if (!reg.data) return false;
+          
+          try {
+            // Extrair apenas a data (sem hora) do registro
+            // A data pode vir como string ISO (2026-02-13T00:00:00+00 ou 2026-02-16 00:00:00+01) ou como Date object
+            let dataRegistroStr;
+            if (typeof reg.data === 'string') {
+              // Se for string, extrair apenas a parte da data (YYYY-MM-DD)
+              // Pode vir como "2026-02-13T00:00:00+00" ou "2026-02-16 00:00:00+01"
+              if (reg.data.includes('T')) {
+                dataRegistroStr = reg.data.split('T')[0];
+              } else if (reg.data.includes(' ')) {
+                dataRegistroStr = reg.data.split(' ')[0];
+              } else {
+                // Já está no formato YYYY-MM-DD
+                dataRegistroStr = reg.data;
+              }
+            } else if (reg.data instanceof Date) {
+              // Se for Date object, converter para string YYYY-MM-DD usando UTC para evitar problemas de timezone
+              const ano = reg.data.getUTCFullYear();
+              const mes = String(reg.data.getUTCMonth() + 1).padStart(2, '0');
+              const dia = String(reg.data.getUTCDate()).padStart(2, '0');
+              dataRegistroStr = `${ano}-${mes}-${dia}`;
+            } else {
+              return false;
+            }
+            
+            // Parsear a data do registro
+            const [anoReg, mesReg, diaReg] = dataRegistroStr.split('-');
+            if (!anoReg || !mesReg || !diaReg) {
+              console.warn(`⚠️ Data do registro inválida: ${reg.data} (extraído: ${dataRegistroStr})`);
+              return false;
+            }
+            
+            // Criar data normalizada (apenas data, sem hora, sem timezone)
+            const dataRegistro = new Date(parseInt(anoReg), parseInt(mesReg) - 1, parseInt(diaReg));
+            const dataRegistroNormalizada = new Date(dataRegistro.getFullYear(), dataRegistro.getMonth(), dataRegistro.getDate());
+            
+            // Se a data do registro está dentro do período filtrado (inclusive)
+            const dentroDoPeriodo = dataRegistroNormalizada >= filtroInicioDate && dataRegistroNormalizada <= filtroFimDate;
+            
+            if (!dentroDoPeriodo) {
+              console.log(`🚫 Registro fora do período: ${dataRegistroStr} (período: ${periodoInicioFiltro} até ${periodoFimFiltro})`);
+            }
+            
+            return dentroDoPeriodo;
+          } catch (e) {
+            console.error('❌ Erro ao processar data do registro:', e, 'Registro:', reg);
+            return false;
+          }
+        });
+        
+        console.log(`📅 Filtrados ${registrosNoPeriodo.length} registros que estão dentro do período ${periodoInicioFiltro} até ${periodoFimFiltro} (de ${todosRegistrosFiltrados.length} registros dos agrupamentos válidos)`);
+        
+        // Log detalhado dos registros filtrados (apenas se houver poucos)
+        if (registrosNoPeriodo.length > 0 && registrosNoPeriodo.length <= 10) {
+          const datasFiltradas = registrosNoPeriodo.map(r => {
+            const dataStr = typeof r.data === 'string' ? r.data.split('T')[0] : r.data;
+            return dataStr;
+          });
+          console.log(`📅 Datas dos registros filtrados: ${datasFiltradas.join(', ')}`);
+        }
+        
+        // Contar quantos agrupamentos únicos temos nos registros filtrados
+        const agrupadoresUnicos = new Set(registrosNoPeriodo.map(r => r.agrupador_id));
+        console.log(`📦 Total de ${agrupadoresUnicos.size} agrupamentos únicos nos registros filtrados pelo período`);
         
         // IMPORTANTE: Não aplicar paginação manual aqui, pois o frontend agrupa por agrupador_id
         // Se aplicarmos paginação aqui, podemos perder agrupamentos completos
         // O frontend vai fazer a paginação após agrupar
-        totalFiltrado = todosRegistrosFiltrados.length;
-        dadosFiltrados = todosRegistrosFiltrados;
+        
+        // Retornar todos os registros do período sem exclusões
+        totalFiltrado = registrosNoPeriodo.length;
+        dadosFiltrados = registrosNoPeriodo;
         
         // Não aplicar paginação manual - deixar o frontend fazer a paginação após agrupar
         // dadosFiltrados = todosRegistrosFiltrados.slice(offset, offset + limitNum);
@@ -926,7 +1213,7 @@ async function getTempoEstimadoPorId(req, res) {
 async function atualizarTempoEstimado(req, res) {
   try {
     const { id } = req.params;
-    const { cliente_id, produto_id, tarefa_id, data, responsavel_id } = req.body;
+    const { cliente_id, produto_id, tarefa_id, data, responsavel_id, tempo_estimado_dia } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -956,6 +1243,10 @@ async function atualizarTempoEstimado(req, res) {
 
     if (responsavel_id !== undefined) {
       dadosUpdate.responsavel_id = responsavel_id ? String(responsavel_id).trim() : null;
+    }
+
+    if (tempo_estimado_dia !== undefined) {
+      dadosUpdate.tempo_estimado_dia = tempo_estimado_dia ? parseInt(tempo_estimado_dia, 10) : null;
     }
 
     if (Object.keys(dadosUpdate).length === 0) {
@@ -991,6 +1282,11 @@ async function atualizarTempoEstimado(req, res) {
 
     console.log('✅ Tempo estimado atualizado com sucesso:', tempoEstimadoAtualizado);
 
+    // Se a data foi alterada, recalcular período do histórico
+    if (dadosUpdate.data && tempoEstimadoAtualizado.agrupador_id) {
+      await recalcularPeriodoHistorico(tempoEstimadoAtualizado.agrupador_id);
+    }
+
     return res.json({
       success: true,
       data: tempoEstimadoAtualizado,
@@ -1018,6 +1314,24 @@ async function deletarTempoEstimado(req, res) {
       });
     }
 
+    // Buscar o registro antes de deletar para obter o agrupador_id
+    const { data: tempoEstimadoAntes, error: buscaError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado')
+      .select('agrupador_id')
+      .eq('id', id)
+      .single();
+
+    if (buscaError || !tempoEstimadoAntes) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tempo estimado não encontrado'
+      });
+    }
+
+    const agrupador_id = tempoEstimadoAntes.agrupador_id;
+
+    // Deletar o registro
     const { data: tempoEstimadoDeletado, error } = await supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado')
@@ -1044,6 +1358,11 @@ async function deletarTempoEstimado(req, res) {
 
     console.log('✅ Tempo estimado deletado com sucesso');
 
+    // Recalcular período do histórico
+    if (agrupador_id) {
+      await recalcularPeriodoHistorico(agrupador_id);
+    }
+
     return res.json({
       success: true,
       message: 'Tempo estimado deletado com sucesso!'
@@ -1062,7 +1381,7 @@ async function deletarTempoEstimado(req, res) {
 async function atualizarTempoEstimadoPorAgrupador(req, res) {
   try {
     const { agrupador_id } = req.params;
-    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     if (!agrupador_id) {
       return res.status(400).json({
@@ -1121,8 +1440,8 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
-    // Função para gerar todas as datas entre início e fim
-    const gerarDatasDoPeriodo = (inicioStr, fimStr) => {
+    // Função para gerar todas as datas entre início e fim (reutilizar a função async)
+    const gerarDatasDoPeriodoUpdate = async (inicioStr, fimStr, incluirFinaisSemana = true, incluirFeriados = true) => {
       const inicio = new Date(inicioStr + 'T00:00:00');
       const fim = new Date(fimStr + 'T00:00:00');
       const datas = [];
@@ -1131,22 +1450,91 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         return [];
       }
       
+      // Buscar feriados para todos os anos no período
+      const anosNoPeriodo = new Set();
+      const dataAtualTemp = new Date(inicio);
+      while (dataAtualTemp <= fim) {
+        anosNoPeriodo.add(dataAtualTemp.getFullYear());
+        dataAtualTemp.setFullYear(dataAtualTemp.getFullYear() + 1);
+      }
+      
+      // Buscar feriados para todos os anos
+      const feriadosPorAno = {};
+      for (const ano of anosNoPeriodo) {
+        feriadosPorAno[ano] = await buscarFeriados(ano);
+      }
+      
       const dataAtual = new Date(inicio);
+      let feriadosPulados = 0;
+      let finaisSemanaPulados = 0;
       
       while (dataAtual <= fim) {
+        // Verificar se é final de semana (sábado = 6, domingo = 0)
+        // Usar getFullYear, getMonth, getDate para garantir que estamos usando a data local correta
         const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const dataFormatada = `${ano}-${mes}-${dia}T00:00:00`;
+        const mes = dataAtual.getMonth();
+        const dia = dataAtual.getDate();
+        // Criar uma nova data com UTC para garantir consistência no cálculo do dia da semana
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+        
+        // Verificar se é feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
+        const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : null;
+        
+        // Se não deve incluir finais de semana e é final de semana, pular
+        if (!incluirFinaisSemana && isWeekend) {
+          finaisSemanaPulados++;
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        // Se não deve incluir feriados e é feriado, pular
+        if (!incluirFeriados && isHolidayDay) {
+          feriadosPulados++;
+          console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
         datas.push(dataFormatada);
         dataAtual.setDate(dataAtual.getDate() + 1);
+      }
+      
+      if (feriadosPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${feriadosPulados} feriado(s) pulado(s)`);
+      }
+      if (finaisSemanaPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
       }
       
       return datas;
     };
 
-    // Gerar todas as datas do período
-    const datasDoPeriodo = gerarDatasDoPeriodo(data_inicio, data_fim);
+    // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
+    // Se incluir_finais_semana não foi enviado, assume true (compatibilidade)
+    // Se foi enviado explicitamente como false, usa false
+    // IMPORTANTE: Se o parâmetro não existir no body, assume true. Se existir (mesmo que false), usa o valor.
+    const incluirFinaisSemana = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+    const incluirFeriados = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_finais_semana recebido:', incluir_finais_semana, 'tipo:', typeof incluir_finais_semana);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFeriados:', incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Período:', data_inicio, 'até', data_fim);
+    const datasDoPeriodo = await gerarDatasDoPeriodoUpdate(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Total de datas geradas:', datasDoPeriodo.length);
+    if (datasDoPeriodo.length > 0 && datasDoPeriodo.length <= 5) {
+      console.log('📅 [TEMPO-ESTIMADO-UPDATE] Datas geradas:', datasDoPeriodo);
+    } else if (datasDoPeriodo.length > 5) {
+      console.log('📅 [TEMPO-ESTIMADO-UPDATE] Primeiras 5 datas:', datasDoPeriodo.slice(0, 5));
+    }
     
     if (datasDoPeriodo.length === 0) {
       return res.status(400).json({

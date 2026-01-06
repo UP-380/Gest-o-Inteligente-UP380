@@ -51,6 +51,8 @@ const AtribuicaoCliente = () => {
   const [erroTempoEstimado, setErroTempoEstimado] = useState(null);
   const [erroDuplicata, setErroDuplicata] = useState(null);
   const [verificandoDuplicata, setVerificandoDuplicata] = useState(false);
+  const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
+  const [habilitarFeriados, setHabilitarFeriados] = useState(false);
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -722,8 +724,15 @@ const AtribuicaoCliente = () => {
         tarefas: tarefasComTempo,
         data_inicio: dataInicio,
         data_fim: dataFim,
-        responsavel_id: String(responsavelSelecionado)
+        responsavel_id: String(responsavelSelecionado),
+        incluir_finais_semana: habilitarFinaisSemana,
+        incluir_feriados: habilitarFeriados
       };
+      
+      console.log('💾 [ATRIBUICAO] Salvando com habilitarFinaisSemana:', habilitarFinaisSemana, 'tipo:', typeof habilitarFinaisSemana);
+      console.log('💾 [ATRIBUICAO] Salvando com habilitarFeriados:', habilitarFeriados, 'tipo:', typeof habilitarFeriados);
+      console.log('💾 [ATRIBUICAO] Período:', dataInicio, 'até', dataFim);
+      console.log('💾 [ATRIBUICAO] Dados completos para salvar:', JSON.stringify(dadosParaSalvar, null, 2));
 
       const url = editingAgrupamento 
         ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
@@ -968,6 +977,9 @@ const AtribuicaoCliente = () => {
                       onFimChange={(e) => setDataFim(e.target.value || null)}
                       disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0}
                       showWeekendToggle={true}
+                      onWeekendToggleChange={setHabilitarFinaisSemana}
+                      showHolidayToggle={true}
+                      onHolidayToggleChange={setHabilitarFeriados}
                     />
                     {verificandoDuplicata && (
                       <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>

@@ -89,6 +89,7 @@
   max-width: 320px;
   max-height: 85vh;
   overflow-y: auto;
+  overflow-x: visible;
 }
 
 .periodo-dropdown-content {
@@ -236,6 +237,48 @@
 .periodo-calendar-day.weekend-disabled:hover {
   background: #f3f4f6 !important;
   border-color: #e5e7eb !important;
+}
+
+/* Estilos para feriados */
+.periodo-calendar-day.holiday {
+  position: relative;
+}
+
+.periodo-calendar-day.holiday:not(.holiday-disabled) {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.periodo-calendar-day.holiday:not(.holiday-disabled):hover {
+  background: #fde68a;
+  border-color: #f59e0b;
+}
+
+.periodo-calendar-day.holiday.holiday-disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+  background: #fee2e2 !important;
+  color: #9ca3af !important;
+  border-color: #fecaca !important;
+}
+
+.periodo-calendar-day.holiday.holiday-disabled:hover {
+  background: #fee2e2 !important;
+  border-color: #fecaca !important;
+}
+
+.periodo-calendar-day.holiday.selected,
+.periodo-calendar-day.holiday.start-date,
+.periodo-calendar-day.holiday.end-date {
+  background: #0e3b6f !important;
+  border-color: #0e3b6f !important;
+  color: white !important;
+}
+
+.periodo-calendar-day.holiday.in-range {
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+  color: #92400e !important;
 }
 
 .periodo-select-display.error {

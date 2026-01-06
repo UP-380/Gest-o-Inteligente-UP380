@@ -1024,7 +1024,10 @@ const DelegarTarefas = () => {
     setAgrupamentosTarefasExpandidas(new Set());
     try {
       const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
-      const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : { inicio: periodoInicio, fim: periodoFim };
+      const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : { 
+        inicio: periodoInicio, 
+        fim: periodoFim
+      };
       
       // Usar valores selecionados passados como parâmetro, ou os estados atuais
       const valoresAUsar = valoresSelecionados || {
@@ -2064,7 +2067,13 @@ const DelegarTarefas = () => {
       produto: filtroAdicionalProduto
     };
     
-    loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados, filtrosAdicionais);
+    // Passar configuração de período
+    const configuracaoPeriodo = {
+      inicio: periodoInicio,
+      fim: periodoFim
+    };
+    
+    loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
   };
 
   // Obter nome do filtro para o tooltip
@@ -2143,8 +2152,14 @@ const DelegarTarefas = () => {
         produto: filtroAdicionalProduto
       };
       
+      // Preparar configuração de período
+      const configuracaoPeriodo = {
+        inicio: periodoInicio,
+        fim: periodoFim
+      };
+      
       // Recarregar registros com os novos valores selecionados e filtros adicionais
-      loadRegistrosTempoEstimado(filtros, { inicio: periodoInicio, fim: periodoFim }, valoresSelecionados, filtrosAdicionais);
+      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
       
       // Atualizar filtrosUltimosAplicados para refletir os novos valores selecionados
       // (sem ativar o botão "Aplicar Filtros")
@@ -2576,6 +2591,53 @@ const DelegarTarefas = () => {
                         const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
                         const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
                         
+                        // Obter filtros adicionais aplicados
+                        const filtrosAdicionaisAplicados = filtrosUltimosAplicados.filtrosAdicionais || {};
+                        const filtroAdicionalClienteAplicado = filtrosAdicionaisAplicados.cliente || filtroAdicionalCliente;
+                        const filtroAdicionalTarefaAplicado = filtrosAdicionaisAplicados.tarefa || filtroAdicionalTarefa;
+                        const filtroAdicionalProdutoAplicado = filtrosAdicionaisAplicados.produto || filtroAdicionalProduto;
+                        
+                        // Função auxiliar para verificar se uma data está no período aplicado
+                        const dataEstaNoPeriodoAplicado = (dataRegistro) => {
+                          if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
+                          
+                          try {
+                            let dataReg;
+                            if (dataRegistro instanceof Date) {
+                              dataReg = new Date(dataRegistro);
+                            } else if (typeof dataRegistro === 'string') {
+                              const dataStr = dataRegistro.split('T')[0];
+                              const [ano, mes, dia] = dataStr.split('-');
+                              dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+                            } else {
+                              dataReg = new Date(dataRegistro);
+                            }
+                            
+                            let inicio, fim;
+                            if (typeof periodoAplicadoInicio === 'string' && periodoAplicadoInicio.includes('-')) {
+                              const [anoInicio, mesInicio, diaInicio] = periodoAplicadoInicio.split('-');
+                              inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+                            } else {
+                              inicio = new Date(periodoAplicadoInicio);
+                            }
+                            
+                            if (typeof periodoAplicadoFim === 'string' && periodoAplicadoFim.includes('-')) {
+                              const [anoFim, mesFim, diaFim] = periodoAplicadoFim.split('-');
+                              fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+                            } else {
+                              fim = new Date(periodoAplicadoFim);
+                            }
+                            
+                            dataReg.setHours(0, 0, 0, 0);
+                            inicio.setHours(0, 0, 0, 0);
+                            fim.setHours(23, 59, 59, 999);
+                            
+                            return dataReg >= inicio && dataReg <= fim;
+                          } catch (e) {
+                            return true;
+                          }
+                        };
+                        
                         // Função para calcular estatísticas (tarefas, produtos, clientes, responsáveis) por entidade
                         const calcularEstatisticasPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
                           // Filtrar agrupamentos pela entidade
@@ -2584,7 +2646,12 @@ const DelegarTarefas = () => {
                             if (tipoEntidade === 'responsavel') {
                               return String(primeiroRegistro.responsavel_id) === String(entidadeId);
                             } else if (tipoEntidade === 'cliente') {
-                              return String(primeiroRegistro.cliente_id) === String(entidadeId);
+                              // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
+                              const clienteIds = String(primeiroRegistro.cliente_id || '')
+                                .split(',')
+                                .map(id => id.trim())
+                                .filter(id => id.length > 0);
+                              return clienteIds.includes(String(entidadeId));
                             } else if (tipoEntidade === 'produto') {
                               return String(primeiroRegistro.produto_id) === String(entidadeId);
                             } else if (tipoEntidade === 'atividade') {
@@ -2593,18 +2660,85 @@ const DelegarTarefas = () => {
                             return false;
                           });
 
-                          // Coletar IDs únicos de cada tipo
+                          // Coletar IDs únicos de cada tipo, considerando:
+                          // 1. Período filtrado (se houver)
+                          // 2. Filtros adicionais (se houver)
                           const tarefasUnicas = new Set();
                           const produtosUnicos = new Set();
                           const clientesUnicos = new Set();
                           const responsaveisUnicos = new Set();
 
                           agrupamentosFiltrados.forEach(agr => {
-                            agr.registros.forEach(reg => {
-                              if (reg.tarefa_id) tarefasUnicas.add(String(reg.tarefa_id));
-                              if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
-                              if (reg.cliente_id) clientesUnicos.add(String(reg.cliente_id));
-                              if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+                            // Filtrar registros pelo período aplicado (se houver)
+                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                              : agr.registros;
+
+                            registrosFiltrados.forEach(reg => {
+                              // Aplicar filtros adicionais se existirem
+                              let deveIncluir = true;
+
+                              // Filtro adicional de cliente
+                              if (filtroAdicionalClienteAplicado && reg.cliente_id) {
+                                const clienteIds = String(reg.cliente_id || '')
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+                                const filtroClienteIds = Array.isArray(filtroAdicionalClienteAplicado)
+                                  ? filtroAdicionalClienteAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalClienteAplicado).trim()];
+                                deveIncluir = deveIncluir && clienteIds.some(id => filtroClienteIds.includes(id));
+                              }
+
+                              // Filtro adicional de tarefa
+                              if (filtroAdicionalTarefaAplicado && reg.tarefa_id) {
+                                const filtroTarefaIds = Array.isArray(filtroAdicionalTarefaAplicado)
+                                  ? filtroAdicionalTarefaAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalTarefaAplicado).trim()];
+                                deveIncluir = deveIncluir && filtroTarefaIds.includes(String(reg.tarefa_id).trim());
+                              }
+
+                              // Filtro adicional de produto
+                              if (filtroAdicionalProdutoAplicado && reg.produto_id) {
+                                const filtroProdutoIds = Array.isArray(filtroAdicionalProdutoAplicado)
+                                  ? filtroAdicionalProdutoAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalProdutoAplicado).trim()];
+                                deveIncluir = deveIncluir && filtroProdutoIds.includes(String(reg.produto_id).trim());
+                              }
+
+                              // Se passou em todos os filtros, adicionar aos contadores
+                              if (deveIncluir) {
+                                // Verificar se o registro realmente pertence à entidade
+                                let pertenceAEntidade = true;
+
+                                if (tipoEntidade === 'cliente') {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  pertenceAEntidade = clienteIds.includes(String(entidadeId));
+                                } else if (tipoEntidade === 'responsavel') {
+                                  pertenceAEntidade = String(reg.responsavel_id) === String(entidadeId);
+                                } else if (tipoEntidade === 'produto') {
+                                  pertenceAEntidade = String(reg.produto_id) === String(entidadeId);
+                                } else if (tipoEntidade === 'atividade') {
+                                  pertenceAEntidade = String(reg.tarefa_id) === String(entidadeId);
+                                }
+
+                                if (pertenceAEntidade) {
+                                  if (reg.tarefa_id) tarefasUnicas.add(String(reg.tarefa_id));
+                                  if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
+                                  if (reg.cliente_id) {
+                                    // cliente_id pode ser múltiplo, adicionar cada um
+                                    const clienteIds = String(reg.cliente_id || '')
+                                      .split(',')
+                                      .map(id => id.trim())
+                                      .filter(id => id.length > 0);
+                                    clienteIds.forEach(id => clientesUnicos.add(id));
+                                  }
+                                  if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+                                }
+                              }
                             });
                           });
 
