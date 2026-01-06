@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if publicacao %}Editar{% else %}Nova{% endif %} Publicação - Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas {% if publicacao %}fa-edit{% else %}fa-plus{% endif %} me-2"></i>
+            {% if publicacao %}Editar Publicação{% else %}Nova Publicação{% endif %}
+        </h2>
+        <a href="{% url 'portal:publicacoes_lista' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Voltar
+        </a>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="row">
+            <!-- Coluna Principal -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i> Conteúdo da Publicação</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.titulo.label_tag }}
+                            {{ form.titulo }}
+                            {% if form.titulo.errors %}
+                                {% for error in form.titulo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.subtitulo.label_tag }}
+                            {{ form.subtitulo }}
+                            {% if form.subtitulo.help_text %}
+                                <small class="form-text text-muted">{{ form.subtitulo.help_text }}</small>
+                            {% endif %}
+                            {% if form.subtitulo.errors %}
+                                {% for error in form.subtitulo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.resumo.label_tag }}
+                            {{ form.resumo }}
+                            {% if form.resumo.help_text %}
+                                <small class="form-text text-muted">{{ form.resumo.help_text }}</small>
+                            {% endif %}
+                            {% if form.resumo.errors %}
+                                {% for error in form.resumo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.conteudo.label_tag }}
+                            {{ form.conteudo }}
+                            {% if form.conteudo.help_text %}
+                                <small class="form-text text-muted">{{ form.conteudo.help_text }}</small>
+                            {% endif %}
+                            {% if form.conteudo.errors %}
+                                {% for error in form.conteudo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna Lateral -->
+            <div class="col-lg-4">
+                <!-- Configurações -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0"><i class="fas fa-cog me-2"></i> Configurações</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.tipo.label_tag }}
+                            {{ form.tipo }}
+                            {% if form.tipo.errors %}
+                                {% for error in form.tipo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.categoria.label_tag }}
+                            {{ form.categoria }}
+                            {% if form.categoria.errors %}
+                                {% for error in form.categoria.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.tags.label_tag }}
+                            {{ form.tags }}
+                            {% if form.tags.help_text %}
+                                <small class="form-text text-muted">{{ form.tags.help_text }}</small>
+                            {% endif %}
+                            {% if form.tags.errors %}
+                                {% for error in form.tags.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.status.label_tag }}
+                            {{ form.status }}
+                            {% if form.status.errors %}
+                                {% for error in form.status.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.destaque }}
+                            <label class="form-check-label" for="{{ form.destaque.id_for_label }}">
+                                {{ form.destaque.label }}
+                            </label>
+                            {% if form.destaque.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.destaque.help_text }}</small>
+                            {% endif %}
+                            {% if form.destaque.errors %}
+                                {% for error in form.destaque.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mídia -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-image me-2"></i> Mídia</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            {{ form.imagem_destaque.label_tag }}
+                            {{ form.imagem_destaque }}
+                            {% if form.imagem_destaque.help_text %}
+                                <small class="form-text text-muted">{{ form.imagem_destaque.help_text }}</small>
+                            {% endif %}
+                            {% if publicacao.imagem_destaque %}
+                                <div class="mt-2">
+                                    <img src="{{ publicacao.imagem_destaque.url }}" alt="Preview" class="img-fluid rounded">
+                                </div>
+                            {% endif %}
+                            {% if form.imagem_destaque.errors %}
+                                {% for error in form.imagem_destaque.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.arquivo_anexo.label_tag }}
+                            {{ form.arquivo_anexo }}
+                            {% if publicacao.arquivo_anexo %}
+                                <div class="mt-2">
+                                    <a href="{{ publicacao.arquivo_anexo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-download me-2"></i>Arquivo Atual
+                                    </a>
+                                </div>
+                            {% endif %}
+                            {% if form.arquivo_anexo.errors %}
+                                {% for error in form.arquivo_anexo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.link_externo.label_tag }}
+                            {{ form.link_externo }}
+                            {% if form.link_externo.errors %}
+                                {% for error in form.link_externo.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botões -->
+                <div class="d-grid gap-2">
+                    <button type="submit" name="action" value="save" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save me-2"></i>
+                        Salvar
+                    </button>
+                    {% if publicacao and publicacao.status != 'PUBLICADO' %}
+                    <button type="submit" name="action" value="publish" class="btn btn-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Salvar e Publicar
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'portal:publicacoes_lista' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-2"></i>
+                        Cancelar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

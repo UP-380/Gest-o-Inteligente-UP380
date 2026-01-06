@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Modelos de Documento - +Compliance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-file-code me-2"></i>
+            Modelos de Documento
+        </h2>
+        <p class="text-muted mb-0">Templates reutilizáveis para criar documentos rapidamente</p>
+    </div>
+    <a href="{% url 'accounts:modelo_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Novo Modelo
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" name="search" class="form-control" placeholder="Buscar modelo..." value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-4">
+                <select name="tipo" class="form-select">
+                    <option value="">Todos os tipos</option>
+                    <option value="OFICIO">Ofício</option>
+                    <option value="MEMORANDO">Memorando</option>
+                    <option value="REQUERIMENTO">Requerimento</option>
+                    <option value="INDICACAO">Indicação</option>
+                    <option value="MOCAO">Moção</option>
+                    <option value="PROJETO_LEI">Projeto de Lei</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i>
+                    Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Modelos -->
+<div class="card">
+    <div class="card-body">
+        {% if modelos %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="25%">Nome</th>
+                        <th width="15%">Tipo</th>
+                        <th width="20%">Assunto Padrão</th>
+                        <th width="30%">Conteúdo</th>
+                        <th width="10%">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for modelo in modelos %}
+                    <tr>
+                        <td>
+                            <strong>{{ modelo.nome }}</strong>
+                            {% if not modelo.ativo %}
+                            <br><span class="badge bg-secondary">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ modelo.get_tipo_display }}</span>
+                        </td>
+                        <td>
+                            {% if modelo.assunto %}
+                            <span class="badge" style="background-color: {{ modelo.assunto.cor }}">
+                                {{ modelo.assunto.nome }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ modelo.conteudo|truncatewords:10 }}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'accounts:modelo_update' modelo.pk %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'accounts:modelo_delete' modelo.pk %}" class="btn btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-inbox fa-3x mb-3"></i>
+            <p>Nenhum modelo cadastrado</p>
+            <a href="{% url 'accounts:modelo_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>
+                Criar Primeiro Modelo
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+

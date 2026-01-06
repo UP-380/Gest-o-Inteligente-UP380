@@ -1,0 +1,239 @@
+{% extends 'portal/base_publico.html' %}
+{% load static %}
+
+{% block title %}Agendar Visita - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">
+                    <i class="fas fa-calendar-check me-2"></i>
+                    Solicitar Agendamento de Visita
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Informações -->
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Como funciona:</strong>
+                    <ol class="mb-0 mt-2">
+                        <li>Preencha o formulário abaixo</li>
+                        <li>Aguarde confirmação por e-mail{% if gabinete.sla_resposta_visitas %} em até {{ gabinete.sla_resposta_visitas }} horas{% endif %}</li>
+                        <li>Compareça no horário confirmado com documento de identificação</li>
+                    </ol>
+                </div>
+
+                <!-- Formulário -->
+                <form method="POST" id="form-agendamento">
+                    {% csrf_token %}
+
+                    <h5 class="mb-3"><i class="fas fa-user me-2 text-primary"></i> Seus Dados</h5>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.nome.label_tag }}
+                            {{ form.nome }}
+                            {% if form.nome.errors %}
+                                {% for error in form.nome.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.cpf.label_tag }}
+                            {{ form.cpf }}
+                            {% if form.cpf.errors %}
+                                {% for error in form.cpf.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.email.label_tag }}
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                {% for error in form.email.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.telefone.label_tag }}
+                            {{ form.telefone }}
+                            {% if form.telefone.errors %}
+                                {% for error in form.telefone.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-warning"></i> Detalhes da Visita</h5>
+
+                    <div class="mb-3">
+                        {{ form.motivo.label_tag }}
+                        {{ form.motivo }}
+                        {% if form.motivo.errors %}
+                            {% for error in form.motivo.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.descricao.label_tag }}
+                        {{ form.descricao }}
+                        {% if form.descricao.help_text %}
+                            <small class="form-text text-muted">{{ form.descricao.help_text }}</small>
+                        {% endif %}
+                        {% if form.descricao.errors %}
+                            {% for error in form.descricao.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.data_desejada.label_tag }}
+                            {{ form.data_desejada }}
+                            {% if form.data_desejada.errors %}
+                                {% for error in form.data_desejada.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.horario_preferencia.label_tag }}
+                            {{ form.horario_preferencia }}
+                            {% if form.horario_preferencia.errors %}
+                                {% for error in form.horario_preferencia.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- LGPD -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.consentimento_lgpd }}
+                            <label class="form-check-label" for="{{ form.consentimento_lgpd.id_for_label }}">
+                                {{ form.consentimento_lgpd.label }}
+                            </label>
+                            {% if form.consentimento_lgpd.errors %}
+                                {% for error in form.consentimento_lgpd.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">
+                            Seus dados serão usados exclusivamente para agendamento e atendimento.
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#modalLGPD">Saiba mais</a>
+                        </small>
+                    </div>
+
+                    <!-- Botões -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'portal:index' slug=gabinete.slug %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-paper-plane me-2"></i>
+                            Enviar Solicitação
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Horários de Atendimento -->
+        {% if gabinete and gabinete.horario_funcionamento %}
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Horários de Atendimento
+                </h5>
+            </div>
+            <div class="card-body">
+                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ gabinete.horario_funcionamento }}</pre>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal LGPD -->
+<div class="modal fade" id="modalLGPD" tabindex="-1" aria-labelledby="modalLGPDLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLGPDLabel">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    Política de Privacidade (LGPD)
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018), informamos que:</p>
+                <ul>
+                    <li>Seus dados pessoais serão utilizados exclusivamente para agendamento e atendimento no gabinete.</li>
+                    <li>Não compartilharemos suas informações com terceiros sem sua autorização.</li>
+                    <li>Você pode solicitar acesso, correção ou exclusão de seus dados a qualquer momento.</li>
+                    <li>Seus dados serão armazenados com segurança e excluídos após o período legal obrigatório.</li>
+                </ul>
+                <p class="mb-0">Para mais informações, entre em contato conosco.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Máscara para CPF
+document.getElementById('id_cpf').addEventListener('input', function (e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length <= 11) {
+        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        e.target.value = value;
+    }
+});
+
+// Máscara para Telefone (limitar a 11 dígitos)
+document.getElementById('id_telefone').addEventListener('input', function (e) {
+    let value = e.target.value.replace(/\D/g, '');
+    // Limitar a 11 dígitos
+    if (value.length > 11) {
+        value = value.substr(0, 11);
+    }
+    // Aplicar máscara
+    if (value.length <= 11) {
+        value = value.replace(/(\d{2})(\d)/, '($1) $2');
+        value = value.replace(/(\d{5})(\d)/, '$1-$2');
+        e.target.value = value;
+    }
+});
+
+// Validar data mínima (não pode agendar no passado)
+document.getElementById('id_data_desejada').min = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}
+

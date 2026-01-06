@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if object %}
+        Editar Solicitação Padrão
+    {% else %}
+        Nova Solicitação Padrão
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Cabeçalho -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        {% if object %}
+                            Editar Solicitação Padrão
+                        {% else %}
+                            Nova Solicitação Padrão
+                        {% endif %}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        {% if object %}
+                            Atualize as informações da solicitação padrão
+                        {% else %}
+                            Crie uma nova solicitação padrão para uso em documentos
+                        {% endif %}
+                    </p>
+                </div>
+                <a href="{% url 'accounts:solicitacao_padrao_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Voltar para Lista
+                </a>
+            </div>
+
+            <!-- Formulário -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <form method="post">
+                                {% csrf_token %}
+                                {{ form.gabinete }}
+                                
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        <label for="{{ form.nome.id_for_label }}" class="form-label">
+                                            Nome da Solicitação *
+                                        </label>
+                                        {{ form.nome }}
+                                        {% if form.nome.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {% for error in form.nome.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Nome identificador da solicitação (ex: "Solicitação de Vistoria", "Solicitação de Documentos")
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        <label for="{{ form.descricao.id_for_label }}" class="form-label">
+                                            Descrição
+                                        </label>
+                                        {{ form.descricao }}
+                                        {% if form.descricao.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {% for error in form.descricao.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Descrição opcional para contextualizar o uso da solicitação
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        <label for="{{ form.texto.id_for_label }}" class="form-label">
+                                            Texto da Solicitação *
+                                        </label>
+                                        {{ form.texto }}
+                                        {% if form.texto.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {% for error in form.texto.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Conteúdo da solicitação que será usado nos documentos oficiais
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-12 mb-3">
+                                        <div class="form-check">
+                                            {{ form.ativo }}
+                                            <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
+                                                Solicitação ativa
+                                            </label>
+                                        </div>
+                                        {% if form.ativo.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {% for error in form.ativo.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Solicitações inativas não aparecerão nos formulários de documentos
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Botões -->
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>
+                                        {% if object %}
+                                            Atualizar Solicitação
+                                        {% else %}
+                                            Criar Solicitação
+                                        {% endif %}
+                                    </button>
+                                    <a href="{% url 'accounts:solicitacao_padrao_list' %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-2"></i>
+                                        Cancelar
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar com Informações -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Informações
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <h6>Como usar:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Crie solicitações específicas para cada tipo de demanda
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Use nomes descritivos para facilitar a identificação
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Inclua todos os detalhes necessários no texto
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success me-2"></i>
+                                    Mantenha apenas solicitações ativas para facilitar o uso
+                                </li>
+                            </ul>
+
+                            <hr>
+
+                            <h6>Exemplos de solicitações:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-1">
+                                    <small class="text-muted">• Solicitação de Vistoria Técnica</small>
+                                </li>
+                                <li class="mb-1">
+                                    <small class="text-muted">• Solicitação de Documentação</small>
+                                </li>
+                                <li class="mb-1">
+                                    <small class="text-muted">• Solicitação de Informações</small>
+                                </li>
+                                <li class="mb-1">
+                                    <small class="text-muted">• Solicitação de Autorização</small>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// Auto-resize textarea
+document.addEventListener('DOMContentLoaded', function() {
+    const textoField = document.getElementById('id_texto');
+    if (textoField) {
+        textoField.style.resize = 'vertical';
+        textoField.style.minHeight = '200px';
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}
+

@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+
+{% block title %}Kanban de Tarefas - +Compliance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-th me-2"></i>
+            Kanban de Tarefas
+        </h2>
+        <p class="text-muted mb-0">Visualização em quadro Kanban</p>
+    </div>
+    <div>
+        <a href="{% url 'workflow:lista_tarefas' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-list me-2"></i>
+            Ver Lista
+        </a>
+        <a href="{% url 'workflow:criar_tarefa' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>
+            Nova Tarefa
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Coluna PENDENTE -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Pendente
+                    <span class="badge bg-light text-dark ms-2">{{ tarefas_pendentes.count }}</span>
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% for tarefa in tarefas_pendentes %}
+                <div class="card mb-3 border-start border-secondary border-4">
+                    <div class="card-body p-3">
+                        <h6 class="card-title mb-2">
+                            <a href="{% url 'workflow:detalhe_tarefa' tarefa.id %}" class="text-decoration-none">
+                                {{ tarefa.titulo }}
+                            </a>
+                        </h6>
+                        {% if tarefa.categoria %}
+                        <span class="badge" style="background-color: {{ tarefa.categoria.cor }}">
+                            {{ tarefa.categoria.nome }}
+                        </span>
+                        {% endif %}
+                        <span class="badge" style="background-color: {{ tarefa.cor_prioridade }}">
+                            Prioridade {{ tarefa.prioridade }}
+                        </span>
+                        
+                        {% if tarefa.prazo %}
+                        <div class="mt-2 small text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            {{ tarefa.prazo|date:"d/m/Y H:i" }}
+                            {% if tarefa.atrasada %}
+                            <span class="badge bg-danger ms-1">Atrasada!</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if tarefa.responsavel %}
+                        <div class="mt-1 small">
+                            <i class="fas fa-user me-1"></i>
+                            {{ tarefa.responsavel.get_full_name }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-3">
+                            <a href="{% url 'workflow:iniciar_tarefa' tarefa.id %}" 
+                               class="btn btn-sm btn-primary w-100" onclick="return confirm('Iniciar esta tarefa?')">
+                                <i class="fas fa-play me-1"></i>
+                                Iniciar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Nenhuma tarefa pendente</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Coluna EM ANDAMENTO -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-spinner me-2"></i>
+                    Em Andamento
+                    <span class="badge bg-light text-dark ms-2">{{ tarefas_andamento.count }}</span>
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% for tarefa in tarefas_andamento %}
+                <div class="card mb-3 border-start border-primary border-4">
+                    <div class="card-body p-3">
+                        <h6 class="card-title mb-2">
+                            <a href="{% url 'workflow:detalhe_tarefa' tarefa.id %}" class="text-decoration-none">
+                                {{ tarefa.titulo }}
+                            </a>
+                        </h6>
+                        {% if tarefa.categoria %}
+                        <span class="badge" style="background-color: {{ tarefa.categoria.cor }}">
+                            {{ tarefa.categoria.nome }}
+                        </span>
+                        {% endif %}
+                        <span class="badge" style="background-color: {{ tarefa.cor_prioridade }}">
+                            Prioridade {{ tarefa.prioridade }}
+                        </span>
+                        
+                        {% if tarefa.prazo %}
+                        <div class="mt-2 small text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            {{ tarefa.prazo|date:"d/m/Y H:i" }}
+                            {% if tarefa.atrasada %}
+                            <span class="badge bg-danger ms-1">Atrasada!</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if tarefa.responsavel %}
+                        <div class="mt-1 small">
+                            <i class="fas fa-user me-1"></i>
+                            {{ tarefa.responsavel.get_full_name }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if tarefa.data_inicio %}
+                        <div class="mt-1 small text-info">
+                            <i class="fas fa-play-circle me-1"></i>
+                            Iniciada em {{ tarefa.data_inicio|date:"d/m H:i" }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="mt-3">
+                            <a href="{% url 'workflow:concluir_tarefa' tarefa.id %}" 
+                               class="btn btn-sm btn-success w-100">
+                                <i class="fas fa-check me-1"></i>
+                                Concluir
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Nenhuma tarefa em andamento</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Coluna CONCLUÍDA -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Concluída
+                    <span class="badge bg-light text-dark ms-2">{{ tarefas_concluidas.count }}</span>
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% for tarefa in tarefas_concluidas %}
+                <div class="card mb-3 border-start border-success border-4">
+                    <div class="card-body p-3">
+                        <h6 class="card-title mb-2">
+                            <a href="{% url 'workflow:detalhe_tarefa' tarefa.id %}" class="text-decoration-none">
+                                {{ tarefa.titulo }}
+                            </a>
+                        </h6>
+                        {% if tarefa.categoria %}
+                        <span class="badge" style="background-color: {{ tarefa.categoria.cor }}">
+                            {{ tarefa.categoria.nome }}
+                        </span>
+                        {% endif %}
+                        
+                        <div class="mt-2 small text-success">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Concluída em {{ tarefa.data_conclusao|date:"d/m H:i" }}
+                        </div>
+                        
+                        {% if tarefa.concluido_por %}
+                        <div class="mt-1 small">
+                            <i class="fas fa-user me-1"></i>
+                            {{ tarefa.concluido_por.get_full_name }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if tarefa.tempo_execucao %}
+                        <div class="mt-1 small text-info">
+                            <i class="fas fa-clock me-1"></i>
+                            Tempo: {{ tarefa.tempo_execucao }}h
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Nenhuma tarefa concluída</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.card-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.card-body::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.card-body::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+</style>
+{% endblock %}
+

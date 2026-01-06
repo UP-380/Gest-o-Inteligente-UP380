@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Destinatário{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h5 mb-0">{% if form.instance.pk %}Editar Destinatário{% else %}Novo Destinatário{% endif %}</h2>
+  <a href="{% url 'documentos:destinatario_list' %}" class="btn btn-outline-secondary">Voltar</a>
+</div>
+<div class="card"><div class="card-body">
+  <form method="post" class="row g-3">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="col-md-6">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'documentos:destinatario_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/mascaras.js' %}"></script>
+{% endblock %}

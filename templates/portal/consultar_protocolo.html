@@ -1,0 +1,178 @@
+{% extends 'portal/base_publico.html' %}
+
+{% block title %}Consultar Protocolo{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-search me-2"></i>
+                    Consultar Protocolo
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Digite o número do protocolo que você recebeu ao fazer a solicitação:</p>
+                
+                <form method="get" class="mb-4">
+                    <div class="input-group input-group-lg">
+                        <input type="text" name="protocolo" class="form-control" 
+                               placeholder="Ex: PUB-2025-00001 ou VIS-2025-00001" required
+                               value="{{ request.GET.protocolo }}">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search me-2"></i>
+                            Consultar
+                        </button>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Digite o protocolo que você recebeu (começa com PUB para solicitações ou VIS para visitas)
+                    </small>
+                </form>
+
+                {% if tipo_protocolo == 'solicitacao' and solicitacao %}
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle me-2"></i>Protocolo Encontrado!</h5>
+                </div>
+
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ solicitacao.assunto }}</h5>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Protocolo:</strong> {{ solicitacao.protocolo_publico }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Data:</strong> {{ solicitacao.criado_em|date:"d/m/Y H:i" }}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Solicitante:</strong> {{ solicitacao.nome_solicitante }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Status:</strong> 
+                                <span class="badge bg-{% if solicitacao.status == 'RESPONDIDA' %}success{% elif solicitacao.status == 'PENDENTE' %}warning{% else %}info{% endif %}">
+                                    {{ solicitacao.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <strong>Tipo:</strong> {{ solicitacao.tipo_solicitacao }}
+                        </div>
+
+                        <div class="mb-3">
+                            <strong>Descrição:</strong>
+                            <p class="mt-2">{{ solicitacao.descricao }}</p>
+                        </div>
+
+                        {% if solicitacao.resposta %}
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-reply me-2"></i>Resposta:</h6>
+                            <p class="mb-0">{{ solicitacao.resposta }}</p>
+                            {% if solicitacao.respondido_em %}
+                            <small class="text-muted">
+                                Respondido em: {{ solicitacao.respondido_em|date:"d/m/Y H:i" }}
+                            </small>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock me-2"></i>
+                            Aguardando resposta. Você receberá um e-mail quando sua solicitação for atendida.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% elif tipo_protocolo == 'visita' and visita %}
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle me-2"></i>Protocolo Encontrado!</h5>
+                </div>
+
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar-check me-2"></i>
+                            Agendamento de Visita
+                        </h5>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Protocolo:</strong> {{ visita.protocolo }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Data da Solicitação:</strong> {{ visita.criado_em|date:"d/m/Y H:i" }}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Nome:</strong> {{ visita.nome }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Status:</strong> 
+                                <span class="badge bg-{% if visita.status == 'CONFIRMADO' %}success{% elif visita.status == 'REALIZADO' %}info{% elif visita.status == 'CANCELADO' %}danger{% else %}warning{% endif %}">
+                                    {{ visita.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <strong>Motivo:</strong> {{ visita.motivo }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Data Desejada:</strong> {{ visita.data_desejada|date:"d/m/Y" }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <strong>Descrição:</strong>
+                            <p class="mt-2">{{ visita.descricao }}</p>
+                        </div>
+
+                        {% if visita.status == 'CONFIRMADO' and visita.data_confirmada %}
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-calendar-check me-2"></i>Visita Confirmada!</h6>
+                            <p><strong>Data e Hora:</strong> {{ visita.data_confirmada|date:"d/m/Y \à\s H:i" }}</p>
+                            {% if visita.resposta_cidadao %}
+                            <p class="mb-0">{{ visita.resposta_cidadao }}</p>
+                            {% endif %}
+                        </div>
+                        {% elif visita.status == 'REALIZADO' %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-check me-2"></i>
+                            Esta visita já foi realizada.
+                        </div>
+                        {% elif visita.status == 'CANCELADO' %}
+                        <div class="alert alert-danger">
+                            <i class="fas fa-times-circle me-2"></i>
+                            Este agendamento foi cancelado.
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-clock me-2"></i>
+                            Aguardando confirmação. Você receberá um e-mail com a data e hora confirmadas.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="mt-4 text-center">
+                    <p class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Não encontrou seu protocolo? Entre em contato conosco.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

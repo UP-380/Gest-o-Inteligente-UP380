@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Atendimentos - +Compliance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Atividades - Atendimentos</h2>
+    <a href="{% url 'atendimento:atendimento_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Novo Atendimento
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                {{ search_form.q }}
+            </div>
+            <div class="col-md-2">
+                {{ search_form.status }}
+            </div>
+            <div class="col-md-2">
+                {{ search_form.prioridade }}
+            </div>
+            <div class="col-md-3">
+                {{ search_form.responsavel }}
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-search me-2"></i>
+                    Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Atendimentos -->
+<div class="card">
+    <div class="card-body">
+        {% if atendimentos %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Protocolo</th>
+                            <th>Pessoa</th>
+                            <th>Assunto</th>
+                            <th>Status</th>
+                            <th>Prioridade</th>
+                            <th>Responsável</th>
+                            <th>Prazo</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for atendimento in atendimentos %}
+                        <tr>
+                            <td>
+                                <strong>{{ atendimento.protocolo }}</strong>
+                                <br><small class="text-muted">{{ atendimento.criado_em|date:"d/m/Y H:i" }}</small>
+                            </td>
+                            <td>{{ atendimento.pessoa.nome }}</td>
+                            <td>{{ atendimento.assunto|truncatechars:50 }}</td>
+                            <td>
+                                {% if atendimento.status == 'ABERTO' %}
+                                    <span class="badge bg-warning">{{ atendimento.get_status_display }}</span>
+                                {% elif atendimento.status == 'ANDAMENTO' %}
+                                    <span class="badge bg-info">{{ atendimento.get_status_display }}</span>
+                                {% elif atendimento.status == 'RESOLVIDO' %}
+                                    <span class="badge bg-success">{{ atendimento.get_status_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ atendimento.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if atendimento.prioridade >= 4 %}
+                                    <span class="badge bg-danger">{{ atendimento.get_prioridade_display }}</span>
+                                {% elif atendimento.prioridade == 3 %}
+                                    <span class="badge bg-warning">{{ atendimento.get_prioridade_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ atendimento.get_prioridade_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if atendimento.responsavel %}
+                                    {{ atendimento.responsavel.get_full_name }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if atendimento.prazo %}
+                                    {% if atendimento.atrasado %}
+                                        <span class="text-danger">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            {{ atendimento.prazo|date:"d/m/Y" }}
+                                        </span>
+                                    {% else %}
+                                        {{ atendimento.prazo|date:"d/m/Y" }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'atendimento:atendimento_detail' atendimento.pk %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'atendimento:atendimento_update' atendimento.pk %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'atendimento:atendimento_status' atendimento.pk %}" class="btn btn-outline-success">
+                                        <i class="fas fa-check"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginação -->
+            {% if is_paginated %}
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">Primeira</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Nenhum atendimento encontrado</h5>
+                <p class="text-muted">Comece criando um novo atendimento.</p>
+                <a href="{% url 'atendimento:atendimento_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>
+                    Novo Atendimento
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+
+

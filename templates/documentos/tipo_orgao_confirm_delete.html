@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Excluir Tipo de Órgão{% endblock %}
+{% block content %}
+<h2 class="h5 mb-3">Excluir Tipo de Órgão</h2>
+<p>Tem certeza que deseja excluir <strong>{{ object.nome }}</strong>?</p>
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <a href="{% url 'documentos:tipo_orgao_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+  <button type="submit" class="btn btn-danger">Confirmar</button>
+ </form>
+{% endblock %}
+
+
+

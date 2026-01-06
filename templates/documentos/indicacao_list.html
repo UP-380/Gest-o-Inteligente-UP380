@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Indicações{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h5 mb-0">Indicações</h2>
+  <a href="{% url 'documentos:indicacao_create' %}" class="btn btn-primary">Nova Indicação</a>
+</div>
+<div class="card"><div class="table-responsive">
+  <table class="table align-middle">
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Assunto</th>
+        <th>Tipo</th>
+        <th>Status</th>
+        <th>Data</th>
+        <th class="text-end">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in indicacoes %}
+      <tr>
+        <td>{{ i.numero }}</td>
+        <td>{{ i.assunto }}</td>
+        <td>{{ i.get_tipo_indicacao_display }}</td>
+        <td><span class="badge bg-secondary">{{ i.get_status_display }}</span></td>
+        <td>{{ i.data|date:'d/m/Y' }}</td>
+        <td class="text-end">
+          <a href="{% url 'documentos:indicacao_detail' i.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+          <a href="{% url 'documentos:indicacao_update' i.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-muted">Nenhuma indicação encontrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}
+

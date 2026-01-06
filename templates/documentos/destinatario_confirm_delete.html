@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Excluir Destinatário{% endblock %}
+{% block content %}
+<h2 class="h5 mb-3">Excluir Destinatário</h2>
+<p>Tem certeza que deseja excluir <strong>{{ object.nome }}</strong>?</p>
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <a href="{% url 'documentos:destinatario_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+  <button type="submit" class="btn btn-danger">Confirmar</button>
+ </form>
+{% endblock %}
+
+
+

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Ofício {{ oficio.numero }}</title>
+</head>
+<body>
+    <div class="cabecalho">
+        <h1>{{ gabinete.parlamentar_nome|default:"PARLAMENTAR" }}</h1>
+        <div class="gabinete">{{ gabinete.cargo|default:"VEREADOR" }} - {{ gabinete.municipio|default:"MUNICÍPIO" }}/{{ gabinete.estado|default:"UF" }}</div>
+        <div class="numero">OFÍCIO Nº {{ oficio.numero }}</div>
+    </div>
+    
+    <div class="destinatario">
+        <h3>Exmo(a). Sr(a).</h3>
+        <div class="dados">
+            <strong>{{ oficio.destinatario.nome }}</strong><br>
+            {{ oficio.destinatario.cargo }}<br>
+            {{ oficio.destinatario.orgao }}<br>
+            {% if oficio.destinatario.endereco %}
+                {{ oficio.destinatario.endereco }}<br>
+            {% endif %}
+            {{ oficio.destinatario.municipio }}/{{ oficio.destinatario.uf }}
+        </div>
+    </div>
+    
+    <div class="corpo">
+        {{ oficio.corpo }}
+    </div>
+    
+    {% if oficio.observacoes %}
+    <div class="observacoes">
+        <strong>Observações:</strong><br>
+        {{ oficio.observacoes }}
+    </div>
+    {% endif %}
+    
+    <div class="assinatura">
+        <div class="linha"></div>
+        <div class="nome">{{ gabinete.parlamentar_nome|default:"PARLAMENTAR" }}</div>
+        <div class="cargo">{{ gabinete.cargo|default:"VEREADOR" }}</div>
+    </div>
+    
+    <div class="rodape">
+        <p><strong>Data:</strong> {{ data_atual|date:"d/m/Y" }}</p>
+        {% if oficio.pessoa_interessada %}
+            <p><strong>Pessoa Interessada:</strong> {{ oficio.pessoa_interessada.nome }}</p>
+        {% endif %}
+        {% if oficio.responsavel %}
+            <p><strong>Responsável:</strong> {{ oficio.responsavel.get_full_name }}</p>
+        {% endif %}
+        <p><strong>Status:</strong> {{ oficio.get_status_display }}</p>
+    </div>
+</body>
+</html>
+
+
+

@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Deletar Solicitação Padrão{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Confirmar Exclusão
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-warning me-2"></i>
+                        <strong>Atenção!</strong> Esta ação não pode ser desfeita.
+                    </div>
+
+                    <p>Tem certeza que deseja deletar a seguinte solicitação padrão?</p>
+
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                {{ object.nome }}
+                            </h6>
+                            {% if object.descricao %}
+                                <p class="card-text text-muted">{{ object.descricao }}</p>
+                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    Criado em: {{ object.criado_em|date:"d/m/Y H:i" }}
+                                </small>
+                                {% if object.ativo %}
+                                    <span class="badge bg-success">Ativo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <p class="text-muted">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Consequências da exclusão:</strong>
+                        </p>
+                        <ul class="text-muted">
+                            <li>A solicitação será removida permanentemente</li>
+                            <li>Não será mais possível usar esta solicitação em novos documentos</li>
+                            <li>Documentos já criados que usaram esta solicitação não serão afetados</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2 justify-content-end">
+                            <a href="{% url 'accounts:solicitacao_padrao_detail' object.pk %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash me-2"></i>
+                                Sim, Deletar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Informações Adicionais -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Alternativas à Exclusão
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">Em vez de deletar, você pode:</p>
+                    <ul class="mb-0">
+                        <li>
+                            <a href="{% url 'accounts:solicitacao_padrao_update' object.pk %}" class="text-decoration-none">
+                                <i class="fas fa-edit me-1"></i>
+                                Editar a solicitação
+                            </a>
+                        </li>
+                        <li>
+                            Desativar a solicitação (marcando como inativa)
+                        </li>
+                        <li>
+                            Renomear a solicitação para reutilizá-la
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

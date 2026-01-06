@@ -1,0 +1,6 @@
+reportlab==4.0.4
+weasyprint==60.2
+Pillow==10.0.1
+
+
+

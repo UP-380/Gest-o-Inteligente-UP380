@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Detalhes da Solicitação Padrão{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Cabeçalho -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="mb-0">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        Detalhes da Solicitação Padrão
+                    </h2>
+                    <p class="text-muted mb-0">{{ solicitacao.nome }}</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'accounts:solicitacao_padrao_update' solicitacao.pk %}" class="btn btn-warning">
+                        <i class="fas fa-edit me-2"></i>
+                        Editar
+                    </a>
+                    <a href="{% url 'accounts:solicitacao_padrao_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Voltar para Lista
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Informações Principais -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Informações Gerais
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Nome:</label>
+                                    <p class="mb-0">{{ solicitacao.nome }}</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Status:</label>
+                                    <p class="mb-0">
+                                        {% if solicitacao.ativo %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>
+                                                Ativo
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-times me-1"></i>
+                                                Inativo
+                                            </span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if solicitacao.descricao %}
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Descrição:</label>
+                                    <p class="mb-0">{{ solicitacao.descricao }}</p>
+                                </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Texto da Solicitação:</label>
+                                <div class="border rounded p-3 bg-light">
+                                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ solicitacao.texto }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Informações de Auditoria -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-history me-2"></i>
+                                Informações de Auditoria
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Criado em:</label>
+                                    <p class="mb-0">
+                                        <i class="fas fa-calendar me-2"></i>
+                                        {{ solicitacao.criado_em|date:"d/m/Y H:i" }}
+                                    </p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Atualizado em:</label>
+                                    <p class="mb-0">
+                                        <i class="fas fa-calendar me-2"></i>
+                                        {{ solicitacao.atualizado_em|date:"d/m/Y H:i" }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if solicitacao.criado_por %}
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Criado por:</label>
+                                    <p class="mb-0">
+                                        <i class="fas fa-user me-2"></i>
+                                        {{ solicitacao.criado_por.first_name }} {{ solicitacao.criado_por.last_name }}
+                                        <small class="text-muted">({{ solicitacao.criado_por.email }})</small>
+                                    </p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar com Ações -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-cogs me-2"></i>
+                                Ações
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'accounts:solicitacao_padrao_update' solicitacao.pk %}" class="btn btn-warning">
+                                    <i class="fas fa-edit me-2"></i>
+                                    Editar Solicitação
+                                </a>
+                                <a href="{% url 'accounts:solicitacao_padrao_delete' solicitacao.pk %}" class="btn btn-danger">
+                                    <i class="fas fa-trash me-2"></i>
+                                    Deletar Solicitação
+                                </a>
+                                <a href="{% url 'accounts:solicitacao_padrao_list' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-list me-2"></i>
+                                    Ver Todas as Solicitações
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Informações Adicionais -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Informações Adicionais
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="small text-muted mb-2">
+                                <strong>Gabinete:</strong><br>
+                                {{ solicitacao.gabinete.nome }}
+                            </p>
+                            
+                            {% if solicitacao.ativo %}
+                                <div class="alert alert-success alert-sm mb-0">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <small>Esta solicitação está ativa e pode ser usada nos formulários de documentos.</small>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning alert-sm mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <small>Esta solicitação está inativa e não aparecerá nos formulários de documentos.</small>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

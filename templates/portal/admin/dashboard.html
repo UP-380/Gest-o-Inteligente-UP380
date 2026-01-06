@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Portal do Cidadão - Administração{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-globe me-2"></i>
+            Administração do Portal do Cidadão
+        </h2>
+        <a href="{% url 'portal:index' slug=user.gabinete.slug %}" target="_blank" class="btn btn-outline-primary">
+            <i class="fas fa-external-link-alt me-2"></i>
+            Ver Portal Público
+        </a>
+    </div>
+
+    <!-- Cards de Estatísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Publicações em Rascunho</h6>
+                            <h2 class="card-title mb-0">{{ stats.publicacoes_rascunho }}</h2>
+                        </div>
+                        <i class="fas fa-edit fa-3x opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-dark bg-opacity-25">
+                    <a href="{% url 'portal:publicacoes_lista' %}" class="text-white text-decoration-none small">
+                        Ver publicações <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-info text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Aguardando Aprovação</h6>
+                            <h2 class="card-title mb-0">{{ stats.publicacoes_aguardando }}</h2>
+                        </div>
+                        <i class="fas fa-hourglass-half fa-3x opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-dark bg-opacity-25">
+                    <a href="{% url 'portal:publicacoes_lista' %}" class="text-white text-decoration-none small">
+                        Revisar publicações <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-danger text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Solicitações Pendentes</h6>
+                            <h2 class="card-title mb-0">{{ stats.solicitacoes_pendentes }}</h2>
+                        </div>
+                        <i class="fas fa-exclamation-circle fa-3x opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-dark bg-opacity-25">
+                    <a href="{% url 'portal:solicitacoes_admin' %}" class="text-white text-decoration-none small">
+                        Ver solicitações <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card bg-success text-white shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-2">Visitas Pendentes</h6>
+                            <h2 class="card-title mb-0">{{ stats.visitas_pendentes }}</h2>
+                        </div>
+                        <i class="fas fa-calendar-check fa-3x opacity-50"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-dark bg-opacity-25">
+                    <a href="{% url 'portal:visitas_admin' %}" class="text-white text-decoration-none small">
+                        Ver agendamentos <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações Rápidas -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks me-2"></i>
+                        Ações Rápidas
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'portal:publicacao_nova' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-plus-circle me-2 text-primary"></i>
+                            Criar Nova Publicação
+                        </a>
+                        <a href="{% url 'portal:publicacoes_lista' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-newspaper me-2 text-info"></i>
+                            Gerenciar Publicações
+                        </a>
+                        <a href="{% url 'portal:solicitacoes_admin' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-inbox me-2 text-warning"></i>
+                            Gerenciar Solicitações Públicas
+                        </a>
+                        <a href="{% url 'portal:visitas_admin' %}" class="list-group-item list-group-item-action">
+                            <i class="fas fa-calendar-alt me-2 text-success"></i>
+                            Gerenciar Agendamentos de Visitas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Dicas e Recursos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6>Portal do Cidadão</h6>
+                    <p class="small text-muted">
+                        Gerencie as publicações, solicitações e agendamentos vindos do portal público.
+                    </p>
+                    <hr>
+                    <h6>Boas Práticas</h6>
+                    <ul class="small text-muted ps-3">
+                        <li>Responda solicitações em até 48 horas</li>
+                        <li>Publique notícias regularmente</li>
+                        <li>Mantenha informações sempre atualizadas</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

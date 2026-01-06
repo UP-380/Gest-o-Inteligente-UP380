@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Tarefas - +Compliance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="fas fa-list me-2"></i>
+            Lista de Tarefas
+        </h2>
+        <p class="text-muted mb-0">Gerencie todas as tarefas do gabinete</p>
+    </div>
+    <div>
+        <a href="{% url 'workflow:kanban_tarefas' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-th me-2"></i>
+            Ver Kanban
+        </a>
+        <a href="{% url 'workflow:criar_tarefa' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>
+            Nova Tarefa
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control" placeholder="Buscar tarefa..." value="{{ filters.search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">Todos os status</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="prioridade" class="form-select">
+                    <option value="">Todas prioridades</option>
+                    {% for value, label in prioridade_choices %}
+                    <option value="{{ value }}" {% if filters.prioridade == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="responsavel" class="form-select">
+                    <option value="">Todos responsáveis</option>
+                    {% for usuario in usuarios_gabinete %}
+                    <option value="{{ usuario.id }}" {% if filters.responsavel == usuario.id|stringformat:"s" %}selected{% endif %}>
+                        {{ usuario.get_full_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-2"></i>
+                    Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Tarefas -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th width="5%">#</th>
+                        <th width="30%">Título</th>
+                        <th width="15%">Status</th>
+                        <th width="10%">Prioridade</th>
+                        <th width="15%">Responsável</th>
+                        <th width="15%">Prazo</th>
+                        <th width="10%">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tarefa in page_obj %}
+                    <tr>
+                        <td>{{ tarefa.id }}</td>
+                        <td>
+                            <a href="{% url 'workflow:detalhe_tarefa' tarefa.id %}" class="text-decoration-none">
+                                {{ tarefa.titulo }}
+                            </a>
+                            {% if tarefa.categoria %}
+                            <br>
+                            <small class="badge" style="background-color: {{ tarefa.categoria.cor }}">
+                                {{ tarefa.categoria.nome }}
+                            </small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge" style="background-color: {{ tarefa.cor_status }}">
+                                {{ tarefa.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge" style="background-color: {{ tarefa.cor_prioridade }}">
+                                {{ tarefa.get_prioridade_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if tarefa.responsavel %}
+                            <small>{{ tarefa.responsavel.get_full_name }}</small>
+                            {% else %}
+                            <small class="text-muted">Sem responsável</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if tarefa.prazo %}
+                            <small>{{ tarefa.prazo|date:"d/m/Y H:i" }}</small>
+                            {% if tarefa.atrasada %}
+                            <br><span class="badge bg-danger">Atrasada!</span>
+                            {% endif %}
+                            {% else %}
+                            <small class="text-muted">Sem prazo</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'workflow:detalhe_tarefa' tarefa.id %}" 
+                                   class="btn btn-outline-primary" title="Ver detalhes">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'workflow:editar_tarefa' tarefa.id %}" 
+                                   class="btn btn-outline-secondary" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="fas fa-inbox fa-3x mb-3"></i>
+                            <p>Nenhuma tarefa encontrada</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginação -->
+        {% if page_obj.has_other_pages %}
+        <nav>
+            <ul class="pagination justify-content-center mt-4">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% for key, value in filters.items %}&{{ key }}={{ value }}{% endfor %}">Primeira</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key, value in filters.items %}&{{ key }}={{ value }}{% endfor %}">Anterior</a>
+                </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">
+                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key, value in filters.items %}&{{ key }}={{ value }}{% endfor %}">Próxima</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key, value in filters.items %}&{{ key }}={{ value }}{% endfor %}">Última</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,802 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gabinete do {{ user.gabinete.parlamentar_nome|default:"Parlamentar" }} - +Compliance{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .sidebar {
+            background-color: #0D2A8B;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 70px;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .sidebar:hover {
+            width: 240px;
+        }
+        
+        .sidebar-header {
+            padding: 12px 10px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background-color: white;
+            border-radius: 6px;
+            margin: 0 auto 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0D2A8B;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .sidebar-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .sidebar-brand {
+            color: white;
+            font-size: 0.9rem;
+            font-weight: bold;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sidebar:hover .sidebar-brand {
+            opacity: 1;
+        }
+        
+        .sidebar-nav {
+            padding: 10px 0;
+        }
+        
+        .nav-item {
+            margin-bottom: 2px;
+        }
+        
+        .nav-link {
+            color: white;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            position: relative;
+            font-size: 0.9rem;
+        }
+        
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .nav-text {
+            margin-left: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sidebar:hover .nav-text {
+            opacity: 1;
+        }
+        
+        .nav-arrow {
+            margin-left: auto;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            font-size: 0.7rem;
+        }
+        
+        .sidebar:hover .nav-arrow {
+            opacity: 1;
+        }
+        
+        .main-content {
+            margin-left: 70px;
+            min-height: 100vh;
+            background-color: white;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .topbar {
+            background-color: white;
+            border-bottom: 1px solid #dee2e6;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-area {
+            padding: 2rem;
+        }
+        
+        .btn-primary {
+            background-color: #0D2A8B;
+            border-color: #0D2A8B;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1e3a8a;
+            border-color: #1e3a8a;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 600;
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+        }
+        
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #0D2A8B;
+            box-shadow: 0 0 0 0.2rem rgba(13, 42, 139, 0.25);
+        }
+        
+        .alert {
+            border-radius: 8px;
+        }
+        
+        .pagination .page-link {
+            color: #0D2A8B;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: #0D2A8B;
+            border-color: #0D2A8B;
+        }
+        
+        /* Menu Groups and Submenus */
+        .menu-group {
+            margin-bottom: 2px;
+        }
+        
+        .group-header {
+            color: white;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            position: relative;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            background: none;
+            width: 100%;
+        }
+        
+        .group-header:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .group-header.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        
+        .group-header .toggle-icon {
+            margin-left: auto;
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-size: 0.7rem;
+            transform: rotate(-90deg);
+        }
+        
+        .sidebar:hover .group-header .toggle-icon {
+            opacity: 1;
+        }
+        
+        .group-header.expanded .toggle-icon {
+            transform: rotate(0deg);
+        }
+        
+        .submenu {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        .submenu.expanded {
+            max-height: 500px;
+        }
+        
+        .submenu-item {
+            margin: 0;
+        }
+        
+        .submenu-link {
+            color: #cbd5e0;
+            padding: 8px 15px 8px 45px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            position: relative;
+        }
+        
+        .submenu-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .submenu-link.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        
+        .submenu-link i {
+            width: 16px;
+            text-align: center;
+            font-size: 0.9rem;
+            margin-right: 8px;
+        }
+        
+        .submenu-text {
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sidebar:hover .submenu-text {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 240px;
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .sidebar:hover {
+                width: 240px;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .content-area {
+                padding: 1rem;
+            }
+            
+            .sidebar-brand,
+            .nav-text,
+            .nav-arrow,
+            .submenu-text,
+            .group-header .toggle-icon {
+                opacity: 1;
+            }
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                {% if user.gabinete.logo %}
+                    <img src="{{ user.gabinete.logo.url }}" alt="Logo do Gabinete" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">
+                {% else %}
+                    <div style="width: 100%; height: 100%; align-items: center; justify-content: center; color: #0D2A8B; font-size: 1.2rem; font-weight: bold; display: flex; background-color: white; border-radius: 6px;">
+                        {% if user.gabinete.parlamentar_nome %}
+                            {{ user.gabinete.parlamentar_nome|slice:":1"|upper }}
+                        {% else %}
+                            G
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="sidebar-brand">+COMPLIANCE</div>
+        </div>
+        
+        <div class="sidebar-nav">
+            <ul class="nav flex-column">
+                <!-- Dashboard -->
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+                       href="{% url 'accounts:dashboard' %}">
+                        <i class="fas fa-tachometer-alt nav-icon"></i>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+                
+                <!-- PARÂMETROS (Grupo Pai) -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('parametros')" data-group="parametros">
+                        <i class="fas fa-cogs nav-icon"></i>
+                        <span class="nav-text">Parâmetros</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="parametros-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'assunto' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'accounts:assunto_list' %}">
+                                <i class="fas fa-tags"></i>
+                                <span class="submenu-text">Assuntos/Categoria</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'destinatario' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'documentos:destinatario_list' %}">
+                                <i class="fas fa-address-book"></i>
+                                <span class="submenu-text">Destinatários Padrão</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'justificativa_padrao' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounts:justificativa_padrao_list' %}">
+                                <i class="fas fa-file-text"></i>
+                                <span class="submenu-text">Justificativas Padrão</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'solicitacao_padrao' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'accounts:solicitacao_padrao_list' %}">
+                                <i class="fas fa-clipboard-list"></i>
+                                <span class="submenu-text">Solicitações Padrão</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- ATIVIDADES (Grupo Pai) -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('atividades')" data-group="atividades">
+                        <i class="fas fa-calendar-check nav-icon"></i>
+                        <span class="nav-text">Atividades</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="atividades-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'agenda' in request.resolver_match.namespace %}active{% endif %}" 
+                               href="{% url 'agenda:lista' %}">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span class="submenu-text">Agenda</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'crm' in request.resolver_match.namespace %}active{% endif %}" 
+                               href="{% url 'crm:pessoa_list' %}">
+                                <i class="fas fa-users"></i>
+                                <span class="submenu-text">CRM (Pessoas)</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'atendimento' in request.resolver_match.namespace %}active{% endif %}" 
+                               href="{% url 'atendimento:atendimento_list' %}">
+                                <i class="fas fa-handshake"></i>
+                                <span class="submenu-text">Atendimentos</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'oficio' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'documentos:oficio_list' %}">
+                                <i class="fas fa-file-signature"></i>
+                                <span class="submenu-text">Ofícios</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- ORGANIZADOR (Grupo Pai) - Renomeado de Tarefas -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('organizador')" data-group="organizador">
+                        <i class="fas fa-compass nav-icon"></i>
+                        <span class="nav-text">Organizador</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="organizador-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'kanban' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'workflow:kanban_tarefas' %}">
+                                <i class="fas fa-th"></i>
+                                <span class="submenu-text">Kanban Board</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'lista' in request.resolver_match.url_name and 'tarefa' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'workflow:lista_tarefas' %}">
+                                <i class="fas fa-list"></i>
+                                <span class="submenu-text">Lista de Tarefas</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'criar' in request.resolver_match.url_name and 'tarefa' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'workflow:criar_tarefa' %}">
+                                <i class="fas fa-plus"></i>
+                                <span class="submenu-text">Nova Tarefa</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- DOCUMENTOS (Grupo Pai) -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('documentos')" data-group="documentos">
+                        <i class="fas fa-file-alt nav-icon"></i>
+                        <span class="nav-text">Documentos</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="documentos-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'memorando' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'documentos:memorando_list' %}">
+                                <i class="fas fa-sticky-note"></i>
+                                <span class="submenu-text">Memorandos</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'requerimento' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'documentos:requerimento_list' %}">
+                                <i class="fas fa-file-invoice"></i>
+                                <span class="submenu-text">Requerimentos</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'indicacao' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'documentos:indicacao_list' %}">
+                                <i class="fas fa-lightbulb"></i>
+                                <span class="submenu-text">Indicações</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- CONFIGURAÇÕES (Grupo Pai) -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('configuracoes')" data-group="configuracoes">
+                        <i class="fas fa-cogs nav-icon"></i>
+                        <span class="nav-text">Configurações</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="configuracoes-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link {% if 'modelo' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'accounts:modelo_list' %}">
+                                <i class="fas fa-file-code"></i>
+                                <span class="submenu-text">Modelos de Documento</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="/admin/accounts/gabinete/">
+                                <i class="fas fa-building"></i>
+                                <span class="submenu-text">Gabinete</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="/admin/accounts/user/">
+                                <i class="fas fa-users-cog"></i>
+                                <span class="submenu-text">Usuários e Permissões</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- PORTAL PÚBLICO (Grupo Pai) -->
+                <li class="menu-group">
+                    <button class="group-header" onclick="toggleMenuGroup('portal')" data-group="portal">
+                        <i class="fas fa-globe nav-icon"></i>
+                        <span class="nav-text">Portal Público</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="portal-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="{% url 'portal:index' slug=user.gabinete.slug %}" target="_blank">
+                                <i class="fas fa-external-link-alt"></i>
+                                <span class="submenu-text">Acessar Portal</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="{% url 'portal:portal_admin_dashboard' %}">
+                                <i class="fas fa-cog"></i>
+                                <span class="submenu-text">Configurar Portal</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+                
+                <!-- SAIR (Grupo Pai) -->
+                <li class="menu-group mt-3">
+                    <button class="group-header" onclick="toggleMenuGroup('sistema')" data-group="sistema">
+                        <i class="fas fa-sign-out-alt nav-icon"></i>
+                        <span class="nav-text">Sistema</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <ul class="submenu" id="sistema-submenu">
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="{% url 'accounts:logout' %}">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span class="submenu-text">Sair</span>
+                            </a>
+                        </li>
+                        <li class="submenu-item">
+                            <a class="submenu-link" href="#" onclick="showComingSoon(); return false;">
+                                <i class="fas fa-user-cog"></i>
+                                <span class="submenu-text">Meu Perfil</span>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-0">Gabinete do {{ user.gabinete.parlamentar_nome|default:"Parlamentar" }}</h4>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span class="me-3">
+                        <i class="fas fa-user-circle me-2"></i>
+                        {{ user.get_full_name|default:user.username }}
+                    </span>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i>Perfil</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Configurações</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="{% url 'accounts:logout' %}"><i class="fas fa-sign-out-alt me-2"></i>Sair</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Content Area -->
+        <div class="content-area">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script>
+        function showComingSoon() {
+            alert('Funcionalidade em breve!');
+        }
+        
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('show');
+        }
+        
+        // Menu Group Toggle Function
+        function toggleMenuGroup(groupName) {
+            const submenu = document.getElementById(groupName + '-submenu');
+            const header = document.querySelector(`[data-group="${groupName}"]`);
+            
+            if (submenu && header) {
+                const isExpanded = submenu.classList.contains('expanded');
+                
+                if (isExpanded) {
+                    // Se está expandido, fechar
+                    submenu.classList.remove('expanded');
+                    header.classList.remove('expanded');
+                    localStorage.removeItem('menu-group-' + groupName);
+                } else {
+                    // Se está fechado, fechar todos os outros primeiro e depois abrir este
+                    closeAllMenuGroups();
+                    
+                    submenu.classList.add('expanded');
+                    header.classList.add('expanded');
+                    localStorage.setItem('menu-group-' + groupName, 'true');
+                }
+            }
+        }
+        
+        // Função para fechar todos os grupos de menu
+        function closeAllMenuGroups() {
+            const allGroups = ['parametros', 'atividades', 'organizador', 'documentos', 'configuracoes', 'portal', 'sistema'];
+            allGroups.forEach(groupName => {
+                const submenu = document.getElementById(groupName + '-submenu');
+                const header = document.querySelector(`[data-group="${groupName}"]`);
+                
+                if (submenu && header) {
+                    submenu.classList.remove('expanded');
+                    header.classList.remove('expanded');
+                    localStorage.removeItem('menu-group-' + groupName);
+                }
+            });
+        }
+        
+        // Load saved menu states on page load
+        function loadMenuStates() {
+            const groups = ['parametros', 'atividades', 'organizador', 'documentos', 'configuracoes', 'portal', 'sistema'];
+            
+            groups.forEach(groupName => {
+                const savedState = localStorage.getItem('menu-group-' + groupName);
+                if (savedState === 'true') {
+                    const submenu = document.getElementById(groupName + '-submenu');
+                    const header = document.querySelector(`[data-group="${groupName}"]`);
+                    
+                    if (submenu && header) {
+                        submenu.classList.add('expanded');
+                        header.classList.add('expanded');
+                    }
+                }
+            });
+        }
+        
+        // Auto-expand group if current page belongs to it
+        function autoExpandCurrentGroup() {
+            const currentPath = window.location.pathname;
+            let shouldExpand = null;
+            
+            // Check which group should be expanded based on current path
+            if (currentPath.includes('/accounts/assuntos/') ||
+                currentPath.includes('/documentos/destinatarios/') ||
+                currentPath.includes('/accounts/justificativas-padrao/') ||
+                currentPath.includes('/accounts/solicitacoes-padrao/')) {
+                shouldExpand = 'parametros';
+            } else if (currentPath.includes('/agenda/') || 
+                      currentPath.includes('/crm/') || 
+                      currentPath.includes('/atendimento/') || 
+                      currentPath.includes('/documentos/oficios/')) {
+                shouldExpand = 'atividades';
+            } else if (currentPath.includes('/workflow/')) {
+                shouldExpand = 'organizador';
+            } else if (currentPath.includes('/documentos/requerimentos/') || 
+                      currentPath.includes('/documentos/indicacoes/') || 
+                      currentPath.includes('/documentos/memorandos/')) {
+                shouldExpand = 'documentos';
+            } else if (currentPath.includes('/accounts/modelos/') || 
+                      currentPath.includes('/admin/accounts/gabinete/') || 
+                      currentPath.includes('/admin/accounts/user/')) {
+                shouldExpand = 'configuracoes';
+            } else if (currentPath.includes('/portal/')) {
+                shouldExpand = 'portal';
+            } else if (currentPath.includes('/accounts/logout/') || 
+                      currentPath.includes('/accounts/profile/')) {
+                shouldExpand = 'sistema';
+            }
+            
+            // Expand the group if needed
+            if (shouldExpand) {
+                const submenu = document.getElementById(shouldExpand + '-submenu');
+                const header = document.querySelector(`[data-group="${shouldExpand}"]`);
+                
+                if (submenu && header) {
+                    submenu.classList.add('expanded');
+                    header.classList.add('expanded');
+                    // Save this state
+                    localStorage.setItem('menu-group-' + shouldExpand, true);
+                }
+            }
+            
+            // Recolher menu após 3 segundos (tempo para usuário ver a navegação)
+            setTimeout(function() {
+                closeAllMenuGroups();
+            }, 3000);
+        }
+        
+        // Initialize menu on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMenuStates();
+            autoExpandCurrentGroup();
+            
+            // Adicionar evento de clique em links do submenu para recolher menu
+            const submenuLinks = document.querySelectorAll('.submenu-link');
+            submenuLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    // Recolher menu após 1 segundo (tempo para navegação)
+                    setTimeout(function() {
+                        closeAllMenuGroups();
+                    }, 1000);
+                });
+            });
+        });
+        
+        // Add mobile menu button if needed
+        if (window.innerWidth <= 768) {
+            const topbar = document.querySelector('.topbar');
+            const menuButton = document.createElement('button');
+            menuButton.className = 'btn btn-outline-secondary btn-sm me-3';
+            menuButton.innerHTML = '<i class="fas fa-bars"></i>';
+            menuButton.onclick = toggleSidebar;
+            topbar.querySelector('.d-flex').insertBefore(menuButton, topbar.querySelector('.d-flex').firstChild);
+        }
+    </script>
+    
+    <!-- Máscaras Globais para CPF, Telefone e CEP -->
+    <script src="{% static 'js/mascaras.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

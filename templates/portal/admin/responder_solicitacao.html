@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Responder Solicitação #{{ solicitacao.protocolo_publico }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-reply me-2"></i>
+            Responder Solicitação
+        </h2>
+        <a href="{% url 'portal:solicitacoes_admin' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Coluna Principal -->
+        <div class="col-lg-8">
+            <!-- Informações da Solicitação -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-alt me-2"></i>
+                        Protocolo: {{ solicitacao.protocolo_publico }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Solicitante:</strong> {{ solicitacao.nome_solicitante }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>CPF:</strong> {{ solicitacao.cpf|default:"Não informado" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>E-mail:</strong> {{ solicitacao.email }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Telefone:</strong> {{ solicitacao.telefone }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Município:</strong> {{ solicitacao.municipio|default:"Não informado" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Bairro:</strong> {{ solicitacao.bairro|default:"Não informado" }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <strong>Tipo de Solicitação:</strong>
+                        <span class="badge bg-info">{{ solicitacao.tipo_solicitacao }}</span>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Assunto:</strong><br>
+                        {{ solicitacao.assunto }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Descrição:</strong><br>
+                        <div class="border rounded p-3 bg-light">
+                            {{ solicitacao.descricao|linebreaks }}
+                        </div>
+                    </div>
+                    {% if solicitacao.anexo %}
+                    <div class="mb-3">
+                        <strong>Anexo:</strong><br>
+                        <a href="{{ solicitacao.anexo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-download me-2"></i>
+                            Baixar Anexo
+                        </a>
+                    </div>
+                    {% endif %}
+                    <div class="mb-3 text-muted small">
+                        <i class="fas fa-clock me-1"></i>
+                        Enviado em: {{ solicitacao.criado_em|date:"d/m/Y às H:i" }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário de Resposta -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-reply me-2"></i> Sua Resposta</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ form.resposta.label_tag }}
+                            {{ form.resposta }}
+                            {% if form.resposta.errors %}
+                                {% for error in form.resposta.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.criar_atendimento }}
+                            <label class="form-check-label" for="{{ form.criar_atendimento.id_for_label }}">
+                                {{ form.criar_atendimento.label }}
+                            </label>
+                            {% if form.criar_atendimento.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.criar_atendimento.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'portal:solicitacoes_admin' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Enviar Resposta
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna Lateral -->
+        <div class="col-lg-4">
+            <!-- Status Atual -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Status</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Status Atual:</strong></p>
+                    <p>
+                        {% if solicitacao.status == 'PENDENTE' %}
+                        <span class="badge bg-danger fs-6">Pendente</span>
+                        {% elif solicitacao.status == 'EM_ANALISE' %}
+                        <span class="badge bg-warning text-dark fs-6">Em Análise</span>
+                        {% elif solicitacao.status == 'RESPONDIDA' %}
+                        <span class="badge bg-success fs-6">Respondida</span>
+                        {% elif solicitacao.status == 'ATENDIMENTO_CRIADO' %}
+                        <span class="badge bg-info fs-6">Atendimento Criado</span>
+                        {% endif %}
+                    </p>
+                    {% if solicitacao.atendimento_gerado %}
+                    <hr>
+                    <p><strong>Atendimento Gerado:</strong></p>
+                    <a href="{% url 'atendimento:atendimento_detail' solicitacao.atendimento_gerado.pk %}" 
+                       class="btn btn-outline-info btn-sm w-100">
+                        <i class="fas fa-external-link-alt me-2"></i>
+                        Ver Atendimento {{ solicitacao.atendimento_gerado.protocolo }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Resposta Anterior (se houver) -->
+            {% if solicitacao.resposta %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0"><i class="fas fa-history me-2"></i> Resposta Anterior</h6>
+                </div>
+                <div class="card-body">
+                    <div class="bg-light border rounded p-3 mb-3">
+                        {{ solicitacao.resposta|linebreaks }}
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>
+                        Respondida em: {{ solicitacao.respondido_em|date:"d/m/Y H:i" }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+

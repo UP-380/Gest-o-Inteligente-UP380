@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Deletar Assunto - +Compliance{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-trash me-2"></i>
+                    Deletar Assunto
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Atenção!</strong> Esta ação é irreversível.
+                </div>
+                
+                <p>Tem certeza que deseja deletar o assunto:</p>
+                <h5 class="mb-3">{{ object.nome }}</h5>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'accounts:assunto_list' %}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>
+                            Confirmar Exclusão
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+

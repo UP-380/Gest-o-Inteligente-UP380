@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+
+{% block title %}Tarefa #{{ tarefa.id }} - +Compliance{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="mb-1">
+        <i class="fas fa-tasks me-2"></i>
+        Tarefa #{{ tarefa.id }}
+    </h2>
+    <nav>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'accounts:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'workflow:lista_tarefas' %}">Tarefas</a></li>
+            <li class="breadcrumb-item active">{{ tarefa.titulo }}</li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Informações Principais -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Informações da Tarefa</h5>
+            </div>
+            <div class="card-body">
+                <h4 class="mb-3">{{ tarefa.titulo }}</h4>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Status:</strong>
+                        <span class="badge ms-2" style="background-color: {{ tarefa.cor_status }}">
+                            {{ tarefa.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Prioridade:</strong>
+                        <span class="badge ms-2" style="background-color: {{ tarefa.cor_prioridade }}">
+                            {{ tarefa.get_prioridade_display }}
+                        </span>
+                    </div>
+                </div>
+                
+                {% if tarefa.categoria %}
+                <div class="mb-3">
+                    <strong>Categoria:</strong>
+                    <span class="badge ms-2" style="background-color: {{ tarefa.categoria.cor }}">
+                        <i class="{{ tarefa.categoria.icone }} me-1"></i>
+                        {{ tarefa.categoria.nome }}
+                    </span>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <strong>Descrição:</strong>
+                    <p class="mt-2">{{ tarefa.descricao|linebreaks|default:"Sem descrição" }}</p>
+                </div>
+                
+                {% if tarefa.tags %}
+                <div class="mb-3">
+                    <strong>Tags:</strong><br>
+                    {% for tag in tarefa.get_tags_list %}
+                    <span class="badge bg-secondary me-1">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if tarefa.observacoes %}
+                <div class="mb-3">
+                    <strong>Observações:</strong>
+                    <p class="mt-2">{{ tarefa.observacoes|linebreaks }}</p>
+                </div>
+                {% endif %}
+                
+                {% if tarefa.resultado %}
+                <div class="mb-3 alert alert-success">
+                    <strong><i class="fas fa-check-circle me-2"></i>Resultado:</strong>
+                    <p class="mt-2 mb-0">{{ tarefa.resultado|linebreaks }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Ações Rápidas -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">Ações</h6>
+            </div>
+            <div class="card-body">
+                {% if tarefa.status == 'PENDENTE' %}
+                <a href="{% url 'workflow:iniciar_tarefa' tarefa.id %}" 
+                   class="btn btn-primary w-100 mb-2" 
+                   onclick="return confirm('Iniciar esta tarefa?')">
+                    <i class="fas fa-play me-2"></i>
+                    Iniciar Tarefa
+                </a>
+                {% endif %}
+                
+                {% if tarefa.status == 'EM_ANDAMENTO' %}
+                <a href="{% url 'workflow:concluir_tarefa' tarefa.id %}" 
+                   class="btn btn-success w-100 mb-2">
+                    <i class="fas fa-check me-2"></i>
+                    Concluir Tarefa
+                </a>
+                {% endif %}
+                
+                <a href="{% url 'workflow:editar_tarefa' tarefa.id %}" 
+                   class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="fas fa-edit me-2"></i>
+                    Editar
+                </a>
+                
+                {% if tarefa.status not in 'CONCLUIDA,CANCELADA' %}
+                <a href="{% url 'workflow:cancelar_tarefa' tarefa.id %}" 
+                   class="btn btn-outline-danger w-100">
+                    <i class="fas fa-times me-2"></i>
+                    Cancelar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Detalhes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">Detalhes</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">Responsável:</small><br>
+                    {% if tarefa.responsavel %}
+                    <strong>{{ tarefa.responsavel.get_full_name }}</strong>
+                    {% else %}
+                    <span class="text-muted">Não atribuído</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">Prazo:</small><br>
+                    {% if tarefa.prazo %}
+                    <strong>{{ tarefa.prazo|date:"d/m/Y H:i" }}</strong>
+                    {% if tarefa.atrasada %}
+                    <br><span class="badge bg-danger mt-1">Atrasada!</span>
+                    {% elif tarefa.dias_restantes %}
+                    <br><small class="text-info">{{ tarefa.dias_restantes }} dias restantes</small>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-muted">Sem prazo definido</span>
+                    {% endif %}
+                </div>
+                
+                {% if tarefa.tempo_estimado_horas %}
+                <div class="mb-3">
+                    <small class="text-muted">Tempo Estimado:</small><br>
+                    <strong>{{ tarefa.tempo_estimado_horas }}h</strong>
+                </div>
+                {% endif %}
+                
+                <hr>
+                
+                <div class="mb-2">
+                    <small class="text-muted">Criado por:</small><br>
+                    <small>{{ tarefa.criado_por.get_full_name|default:"Sistema" }}</small>
+                </div>
+                
+                <div class="mb-2">
+                    <small class="text-muted">Criado em:</small><br>
+                    <small>{{ tarefa.criado_em|date:"d/m/Y H:i" }}</small>
+                </div>
+                
+                {% if tarefa.data_inicio %}
+                <div class="mb-2">
+                    <small class="text-muted">Iniciado em:</small><br>
+                    <small>{{ tarefa.data_inicio|date:"d/m/Y H:i" }}</small>
+                </div>
+                {% endif %}
+                
+                {% if tarefa.data_conclusao %}
+                <div class="mb-2">
+                    <small class="text-muted">Concluído em:</small><br>
+                    <small>{{ tarefa.data_conclusao|date:"d/m/Y H:i" }}</small>
+                </div>
+                
+                {% if tarefa.concluido_por %}
+                <div class="mb-2">
+                    <small class="text-muted">Concluído por:</small><br>
+                    <small>{{ tarefa.concluido_por.get_full_name }}</small>
+                </div>
+                {% endif %}
+                
+                {% if tarefa.tempo_execucao %}
+                <div class="mb-2">
+                    <small class="text-muted">Tempo de Execução:</small><br>
+                    <small class="text-success"><strong>{{ tarefa.tempo_execucao }}h</strong></small>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Vinculações -->
+        {% if tarefa.atendimento or tarefa.evento or tarefa.processo_workflow %}
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Vinculações</h6>
+            </div>
+            <div class="card-body">
+                {% if tarefa.atendimento %}
+                <div class="mb-3">
+                    <i class="fas fa-link text-primary me-2"></i>
+                    <strong>Atendimento:</strong><br>
+                    <a href="{% url 'atendimento:atendimento_detail' tarefa.atendimento.id %}" class="text-decoration-none">
+                        {{ tarefa.atendimento.protocolo }} - {{ tarefa.atendimento.assunto }}
+                    </a>
+                </div>
+                {% endif %}
+                
+                {% if tarefa.evento %}
+                <div class="mb-3">
+                    <i class="fas fa-calendar text-warning me-2"></i>
+                    <strong>Evento:</strong><br>
+                    <span>{{ tarefa.evento.titulo }} ({{ tarefa.evento.inicio|date:"d/m/Y" }})</span>
+                </div>
+                {% endif %}
+                
+                {% if tarefa.processo_workflow %}
+                <div class="mb-3">
+                    <i class="fas fa-project-diagram text-info me-2"></i>
+                    <strong>Processo:</strong><br>
+                    <a href="{% url 'workflow:detalhar_processo' tarefa.processo_workflow.id %}" class="text-decoration-none">
+                        {{ tarefa.processo_workflow.titulo }}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

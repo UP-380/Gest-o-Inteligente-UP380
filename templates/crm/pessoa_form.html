@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if object %}Editar Pessoa{% else %}Nova Pessoa{% endif %} - +Compliance
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        {% if object %}
+            <i class="fas fa-edit me-2"></i>
+            Editar Pessoa
+        {% else %}
+            <i class="fas fa-user-plus me-2"></i>
+            Nova Pessoa
+        {% endif %}
+    </h2>
+    <a href="{% url 'crm:pessoa_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>
+        Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Campo gabinete oculto -->
+                    {{ form.gabinete }}
+                    
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="{{ form.nome.id_for_label }}" class="form-label">Nome Completo *</label>
+                            {{ form.nome }}
+                            {% if form.nome.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.nome.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.tipo.id_for_label }}" class="form-label">Tipo *</label>
+                            {{ form.tipo }}
+                            {% if form.tipo.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.tipo.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.cpf.id_for_label }}" class="form-label">CPF</label>
+                            {{ form.cpf }}
+                            {% if form.cpf.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.cpf.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.telefone.id_for_label }}" class="form-label">Telefone</label>
+                            {{ form.telefone }}
+                            {% if form.telefone.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.telefone.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">E-mail</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.email.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.bairro.id_for_label }}" class="form-label">Bairro</label>
+                            {{ form.bairro }}
+                            {% if form.bairro.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.bairro.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.zona_eleitoral.id_for_label }}" class="form-label">Zona Eleitoral</label>
+                            {{ form.zona_eleitoral }}
+                            {% if form.zona_eleitoral.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.zona_eleitoral.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.origem.id_for_label }}" class="form-label">Origem</label>
+                            {{ form.origem }}
+                            {% if form.origem.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.origem.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.tags.id_for_label }}" class="form-label">Tags</label>
+                        {{ form.tags }}
+                        <div class="form-text">Separe as tags por vírgula</div>
+                        {% if form.tags.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.tags.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.observacoes.id_for_label }}" class="form-label">Observações</label>
+                        {{ form.observacoes }}
+                        {% if form.observacoes.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.observacoes.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.consentiu_contato }}
+                            <label class="form-check-label" for="{{ form.consentiu_contato.id_for_label }}">
+                                Consentiu para contato (LGPD)
+                            </label>
+                        </div>
+                        {% if form.consentiu_contato.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.consentiu_contato.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'crm:pessoa_list' %}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>
+                            {% if object %}Atualizar{% else %}Salvar{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informações
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    <strong>LGPD:</strong> O consentimento para contato é obrigatório para cumprir a Lei Geral de Proteção de Dados.
+                </p>
+                <p class="small text-muted">
+                    <strong>Tipos de Pessoa:</strong>
+                </p>
+                <ul class="small text-muted">
+                    <li><strong>Eleitor:</strong> Cidadão comum</li>
+                    <li><strong>Liderança:</strong> Líder comunitário</li>
+                    <li><strong>Parceiro:</strong> Parceiro político</li>
+                    <li><strong>Órgão:</strong> Órgão público</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/mascaras.js' %}"></script>
+{% endblock %}
+
+
+
+

@@ -1,0 +1,129 @@
+/* Custom CSS for +Compliance */
+
+/* Sidebar customizations */
+.sidebar {
+    background: linear-gradient(135deg, #0D2A8B 0%, #1e3a8a 100%);
+}
+
+.sidebar .nav-link {
+    transition: all 0.3s ease;
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateX(5px);
+}
+
+/* Card hover effects */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Button customizations */
+.btn-primary {
+    background: linear-gradient(135deg, #0D2A8B 0%, #1e3a8a 100%);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #1e3a8a 0%, #0D2A8B 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(13, 42, 139, 0.3);
+}
+
+/* Table customizations */
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 42, 139, 0.05);
+}
+
+/* Badge customizations */
+.badge {
+    font-weight: 500;
+}
+
+/* Form customizations */
+.form-control:focus,
+.form-select:focus {
+    border-color: #0D2A8B;
+    box-shadow: 0 0 0 0.2rem rgba(13, 42, 139, 0.25);
+}
+
+/* Alert customizations */
+.alert {
+    border: none;
+    border-radius: 8px;
+}
+
+/* Pagination customizations */
+.pagination .page-link {
+    color: #0D2A8B;
+    border-color: #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0D2A8B;
+    border-color: #0D2A8B;
+}
+
+/* Loading spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Custom utilities */
+.text-primary {
+    color: #0D2A8B !important;
+}
+
+.bg-primary {
+    background-color: #0D2A8B !important;
+}
+
+.border-primary {
+    border-color: #0D2A8B !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+    
+    .sidebar.show {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0;
+    }
+}
+
+/* Print styles */
+@media print {
+    .sidebar,
+    .topbar,
+    .btn,
+    .pagination {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+        box-shadow: none !important;
+    }
+}
+
+
+

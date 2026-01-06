@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {{ pessoa.nome }} - Detalhes - +Compliance
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-user me-2"></i>
+        {{ pessoa.nome }}
+    </h2>
+    <div>
+        <a href="{% url 'crm:pessoa_list' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>
+            Voltar
+        </a>
+        <a href="{% url 'crm:pessoa_update' pessoa.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit me-2"></i>
+            Editar
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Informações Principais -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>
+                    Informações Pessoais
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Nome Completo:</strong>
+                        <p class="mb-0">{{ pessoa.nome }}</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <strong>Tipo:</strong>
+                        <p class="mb-0">
+                            <span class="badge bg-info">{{ pessoa.get_tipo_display }}</span>
+                        </p>
+                    </div>
+                </div>
+                
+                {% if pessoa.cpf %}
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>CPF:</strong>
+                        <p class="mb-0">{{ pessoa.cpf }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Informações de Contato -->
+        {% if pessoa.tem_contato %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-phone me-2"></i>
+                    Informações de Contato
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% if pessoa.email %}
+                    <div class="col-md-6 mb-3">
+                        <strong>E-mail:</strong>
+                        <p class="mb-0">
+                            <a href="mailto:{{ pessoa.email }}" class="text-decoration-none">
+                                <i class="fas fa-envelope me-1"></i>
+                                {{ pessoa.email }}
+                            </a>
+                        </p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if pessoa.telefone %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Telefone:</strong>
+                        <p class="mb-0">
+                            <a href="tel:{{ pessoa.telefone }}" class="text-decoration-none">
+                                <i class="fas fa-phone me-1"></i>
+                                {{ pessoa.telefone }}
+                            </a>
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Informações de Localização -->
+        {% if pessoa.bairro or pessoa.zona_eleitoral %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    Localização
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% if pessoa.bairro %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Bairro:</strong>
+                        <p class="mb-0">{{ pessoa.bairro }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if pessoa.zona_eleitoral %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Zona Eleitoral:</strong>
+                        <p class="mb-0">{{ pessoa.zona_eleitoral }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Informações Adicionais -->
+        {% if pessoa.origem or pessoa.tags or pessoa.observacoes %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informações Adicionais
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if pessoa.origem %}
+                <div class="mb-3">
+                    <strong>Origem:</strong>
+                    <p class="mb-0">{{ pessoa.origem }}</p>
+                </div>
+                {% endif %}
+                
+                {% if pessoa.tags %}
+                <div class="mb-3">
+                    <strong>Tags:</strong>
+                    <div class="mt-1">
+                        {% for tag in pessoa.get_tags_list %}
+                            <span class="badge bg-secondary me-1">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if pessoa.observacoes %}
+                <div class="mb-3">
+                    <strong>Observações:</strong>
+                    <p class="mb-0">{{ pessoa.observacoes|linebreaks }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Status e LGPD -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    Status e LGPD
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Consentimento para Contato:</strong>
+                    <p class="mb-0">
+                        {% if pessoa.consentiu_contato %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>
+                                Consentiu
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-times me-1"></i>
+                                Não Consentiu
+                            </span>
+                        {% endif %}
+                    </p>
+                </div>
+                
+                {% if pessoa.consentido_em %}
+                <div class="mb-3">
+                    <strong>Consentido em:</strong>
+                    <p class="mb-0">{{ pessoa.consentido_em|date:"d/m/Y H:i" }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Metadados -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Metadados
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Criado em:</strong>
+                    <p class="mb-0">{{ pessoa.criado_em|date:"d/m/Y H:i" }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Atualizado em:</strong>
+                    <p class="mb-0">{{ pessoa.atualizado_em|date:"d/m/Y H:i" }}</p>
+                </div>
+                
+                {% if pessoa.criado_por %}
+                <div class="mb-3">
+                    <strong>Criado por:</strong>
+                    <p class="mb-0">{{ pessoa.criado_por.get_full_name }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Ações Rápidas -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Ações Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if pessoa.email %}
+                    <a href="mailto:{{ pessoa.email }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-envelope me-1"></i>
+                        Enviar E-mail
+                    </a>
+                    {% endif %}
+                    
+                    {% if pessoa.telefone %}
+                    <a href="tel:{{ pessoa.telefone }}" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-phone me-1"></i>
+                        Ligar
+                    </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'crm:pessoa_update' pessoa.pk %}" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-edit me-1"></i>
+                        Editar Pessoa
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+

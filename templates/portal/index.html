@@ -1,0 +1,179 @@
+{% extends 'portal/base_publico.html' %}
+
+{% block title %}Início{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="jumbotron bg-primary text-white rounded p-5 mb-4">
+    <div class="row align-items-center">
+        {% if gabinete %}
+        <div class="col-md-2 text-center">
+            {% if gabinete.logo %}
+            <img src="{{ gabinete.logo.url }}" alt="{{ gabinete.nome }}" class="img-fluid rounded-circle shadow" style="max-width: 120px;">
+            {% else %}
+            <i class="fas fa-landmark fa-5x"></i>
+            {% endif %}
+        </div>
+        <div class="col-md-10">
+            <h1 class="display-4 mb-2">
+                {{ gabinete.parlamentar_nome }}
+            </h1>
+            <h3 class="mb-3">
+                {{ gabinete.get_cargo_display }}
+                {% if gabinete.partido_sigla %}
+                <span class="badge bg-light text-dark">{{ gabinete.partido_sigla }}</span>
+                {% endif %}
+            </h3>
+            <p class="lead">{{ gabinete.nome }}</p>
+            <hr class="my-4 bg-white opacity-50">
+            <p>
+                <i class="fas fa-check-circle me-2"></i>
+                Transparência, participação e atendimento ao cidadão em um só lugar.
+            </p>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <h1 class="display-4">
+                <i class="fas fa-landmark me-3"></i>
+                Bem-vindo ao Portal do Cidadão
+            </h1>
+            <p class="lead">Transparência, participação e atendimento ao cidadão em um só lugar.</p>
+            <hr class="my-4 bg-white">
+            <p>Aqui você pode solicitar atendimentos, consultar protocolos, agendar visitas e acompanhar as atividades do gabinete.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row mb-5">
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-3 text-primary mb-3">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <h5 class="card-title">Solicitar Atendimento</h5>
+                <p class="card-text">Envie sua solicitação e receba um protocolo para acompanhamento.</p>
+                <a href="{% url 'portal:solicitar' slug=gabinete.slug %}" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-2"></i>
+                    Enviar Solicitação
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-3 text-success mb-3">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h5 class="card-title">Consultar Protocolo</h5>
+                <p class="card-text">Acompanhe o andamento da sua solicitação pelo número do protocolo.</p>
+                <a href="{% url 'portal:consultar' slug=gabinete.slug %}" class="btn btn-success">
+                    <i class="fas fa-search me-2"></i>
+                    Consultar Status
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body text-center">
+                <div class="display-3 text-warning mb-3">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <h5 class="card-title">Agendar Visita</h5>
+                <p class="card-text">Solicite um horário para ser atendido presencialmente no gabinete.</p>
+                <a href="{% url 'portal:agendar_visita' slug=gabinete.slug %}" class="btn btn-warning">
+                    <i class="fas fa-calendar-plus me-2"></i>
+                    Agendar Visita
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Publicações em Destaque -->
+{% if publicacoes_destaque %}
+<div class="mb-5">
+    <h2 class="mb-4">
+        <i class="fas fa-star me-2 text-warning"></i>
+        Publicações em Destaque
+    </h2>
+    <div class="row">
+        {% for publicacao in publicacoes_destaque %}
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 shadow-sm">
+                {% if publicacao.imagem_destaque %}
+                <img src="{{ publicacao.imagem_destaque.url }}" class="card-img-top" alt="{{ publicacao.titulo }}">
+                {% endif %}
+                <div class="card-body">
+                    <span class="badge bg-{{ publicacao.tipo|lower }} mb-2">{{ publicacao.get_tipo_display }}</span>
+                    <h5 class="card-title">{{ publicacao.titulo }}</h5>
+                    <p class="card-text text-muted small">
+                        {{ publicacao.resumo|default:publicacao.conteudo|truncatewords:20 }}
+                    </p>
+                    <a href="{% url 'portal:noticia_detalhe' slug=gabinete.slug pk=publicacao.pk %}" class="btn btn-outline-primary btn-sm">
+                        Ler mais <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                <div class="card-footer text-muted small">
+                    <i class="fas fa-calendar me-1"></i>
+                    {{ publicacao.data_publicacao|date:"d/m/Y" }}
+                    <span class="float-end">
+                        <i class="fas fa-eye me-1"></i>
+                        {{ publicacao.visualizacoes }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="text-center mt-3">
+        <a href="{% url 'portal:noticias' slug=gabinete.slug %}" class="btn btn-outline-primary">
+            Ver todas as notícias <i class="fas fa-arrow-right ms-1"></i>
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Informações -->
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle me-2 text-info"></i>
+                    Como Funciona?
+                </h5>
+                <ol class="mb-0">
+                    <li>Envie sua solicitação através do formulário</li>
+                    <li>Receba um número de protocolo por e-mail</li>
+                    <li>Acompanhe o status da sua solicitação</li>
+                    <li>Receba a resposta diretamente no sistema</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-shield-alt me-2 text-success"></i>
+                    Seus Dados Protegidos
+                </h5>
+                <p class="mb-0">
+                    Todos os dados fornecidos são tratados de acordo com a LGPD (Lei Geral de Proteção de Dados).
+                    Suas informações são utilizadas exclusivamente para atendimento de sua solicitação.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

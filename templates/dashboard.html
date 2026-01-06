@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard Executivo - +Compliance{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho Executivo -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Dashboard Executivo</h2>
+        <p class="text-muted mb-0">Visão estratégica do mandato parlamentar</p>
+    </div>
+    <div class="text-end">
+        <div class="text-muted">
+            <i class="fas fa-calendar-alt me-2"></i>
+            {{ "now"|date:"l, d/m/Y" }}
+        </div>
+        <div class="text-muted small">
+            <i class="fas fa-clock me-1"></i>
+            {{ "now"|date:"H:i" }}
+        </div>
+    </div>
+</div>
+
+<!-- Alertas Prioritários -->
+{% if alertas %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-light border-start border-4 border-warning">
+            <h6 class="alert-heading mb-3">
+                <i class="fas fa-bell me-2"></i>
+                Atenção Necessária
+            </h6>
+            <div class="row">
+                {% for alerta in alertas %}
+                <div class="col-md-4 mb-2">
+                    <div class="d-flex align-items-center">
+                        <div class="text-{{ alerta.tipo }} me-2">
+                            <i class="{{ alerta.icone }}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-bold small">{{ alerta.titulo }}</div>
+                            <a href="{{ alerta.url }}" class="btn btn-outline-{{ alerta.tipo }} btn-xs">
+                                {{ alerta.acao }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Métricas Principais -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h3 class="text-primary mb-1">{{ atendimentos_abertos }}</h3>
+                        <p class="text-muted mb-0 small">Atendimentos Ativos</p>
+                        {% if atendimentos_atrasados > 0 %}
+                        <span class="badge bg-danger">{{ atendimentos_atrasados }} em atraso</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-primary">
+                        <i class="fas fa-clipboard-list fa-2x"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a href="{% url 'atendimento:atendimento_list' %}" class="btn btn-outline-primary btn-sm w-100">
+                        Gerenciar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 border-start border-4 border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h3 class="text-success mb-1">{{ oficios_mes }}</h3>
+                        <p class="text-muted mb-0 small">Ofícios no Mês</p>
+                        {% if oficios_pendentes > 0 %}
+                        <span class="badge bg-warning">{{ oficios_pendentes }} pendentes</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-success">
+                        <i class="fas fa-file-signature fa-2x"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a href="{% url 'documentos:oficio_list' %}" class="btn btn-outline-success btn-sm w-100">
+                        Gerenciar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 border-start border-4 border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h3 class="text-warning mb-1">{{ proximos_eventos }}</h3>
+                        <p class="text-muted mb-0 small">Próximos Eventos</p>
+                        {% if eventos_hoje > 0 %}
+                        <span class="badge bg-danger">{{ eventos_hoje }} hoje</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-warning">
+                        <i class="fas fa-calendar-check fa-2x"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a href="{% url 'agenda:lista' %}" class="btn btn-outline-warning btn-sm w-100">
+                        Ver Agenda
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card h-100 border-start border-4 border-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h3 class="text-info mb-1">{{ total_cidadaos }}</h3>
+                        <p class="text-muted mb-0 small">Total de Cidadãos</p>
+                        <span class="badge bg-info">+{{ pessoas_mes }} este mês</span>
+                    </div>
+                    <div class="text-info">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a href="{% url 'crm:pessoa_list' %}" class="btn btn-outline-info btn-sm w-100">
+                        Ver CRM
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Métricas Parlamentares Avançadas -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Performance Parlamentar - {{ "now"|date:"F Y" }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="border-end">
+                            <h4 class="text-primary mb-1">{{ atendimentos_mes }}</h4>
+                            <small class="text-muted">Demandas Recebidas</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="border-end">
+                            <h4 class="text-success mb-1">{{ atendimentos_resolvidos_mes }}</h4>
+                            <small class="text-muted">Demandas Resolvidas</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="border-end">
+                            <h4 class="text-warning mb-1">{{ taxa_resolucao }}%</h4>
+                            <small class="text-muted">Taxa de Resolução</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <h4 class="text-info mb-1">{{ tempo_medio_resposta }}</h4>
+                        <small class="text-muted">Tempo Médio</small>
+                    </div>
+                </div>
+                
+                <!-- Barra de progresso da meta mensal -->
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Meta Mensal de Atendimentos</small>
+                        <small class="text-muted">{{ atendimentos_mes }}/100</small>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-gradient" role="progressbar" 
+                             style="width: {% widthratio atendimentos_mes 100 100 %}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-building me-2"></i>
+                    Atividade Parlamentar
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <h3 class="text-primary">{{ sessoes_semana }}</h3>
+                    <p class="text-muted mb-0">Sessões esta Semana</p>
+                </div>
+                
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between px-0">
+                        <span class="small">Plenárias</span>
+                        <span class="badge bg-primary">2</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between px-0">
+                        <span class="small">Comissões</span>
+                        <span class="badge bg-success">{{ sessoes_semana|add:"-2"|default:"0" }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between px-0">
+                        <span class="small">Audiências</span>
+                        <span class="badge bg-warning">1</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas e Demandas por Tipo -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Ações Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 mb-2">
+                        <a href="{% url 'atendimento:atendimento_create' %}" class="btn btn-primary w-100">
+                            <i class="fas fa-plus me-2"></i>
+                            Atendimento
+                        </a>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <a href="{% url 'documentos:oficio_create' %}" class="btn btn-success w-100">
+                            <i class="fas fa-file-alt me-2"></i>
+                            Ofício
+                        </a>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <a href="{% url 'crm:pessoa_create' %}" class="btn btn-info w-100">
+                            <i class="fas fa-user-plus me-2"></i>
+                            Cidadão
+                        </a>
+                    </div>
+                    <div class="col-6 mb-2">
+                        <a href="{% url 'agenda:novo' %}" class="btn btn-warning w-100">
+                            <i class="fas fa-calendar-plus me-2"></i>
+                            Evento
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Demandas por Tipo
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if demandas_por_tipo %}
+                    {% for demanda in demandas_por_tipo %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small">{{ demanda.tipo|default:"Outros" }}</span>
+                        <div class="d-flex align-items-center">
+                            <div class="progress me-2" style="width: 60px; height: 6px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {% widthratio demanda.total atendimentos_mes 100 %}%"></div>
+                            </div>
+                            <span class="badge bg-secondary">{{ demanda.total }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center">Nenhuma demanda este mês</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Atividades Recentes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-history me-2"></i>
+                    Atividades Recentes
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if atividades_recentes %}
+                <div class="list-group list-group-flush">
+                    {% for atividade in atividades_recentes %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <div class="text-{{ atividade.cor }} me-3">
+                                <i class="{{ atividade.icone }}"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold">{{ atividade.titulo }}</div>
+                                <small class="text-muted">{{ atividade.descricao }}</small>
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {{ atividade.data|timesince }} atrás
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>Nenhuma atividade recente</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rodapé com Informações do Sistema -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body py-2">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <i class="fas fa-server me-1"></i>
+                            Sistema: +Compliance v2.0
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            Segurança: Ativa
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <i class="fas fa-cloud me-1"></i>
+                            Backup: Automático
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <i class="fas fa-phone me-1"></i>
+                            Suporte: 24/7
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

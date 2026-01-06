@@ -1,0 +1,371 @@
+[
+  {
+    "model": "accounts.gabinete",
+    "pk": 1,
+    "fields": {
+      "nome": "Gabinete do Vereador XPTO",
+      "vereador_nome": "João da Silva",
+      "email": "gabinete@vereadorxpto.com.br",
+      "telefone": "(11) 99999-9999",
+      "endereco": "Rua das Flores, 123 - Centro - São Paulo/SP",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$600000$dummy$dummy",
+      "last_login": null,
+      "is_superuser": true,
+      "username": "admin",
+      "first_name": "Administrador",
+      "last_name": "Sistema",
+      "email": "admin@vereadorxpto.com.br",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2024-01-01T10:00:00Z",
+      "papel": "ADMIN",
+      "gabinete": 1,
+      "telefone": "(11) 99999-9998",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": 2,
+    "fields": {
+      "password": "pbkdf2_sha256$600000$dummy$dummy",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "chefe",
+      "first_name": "Maria",
+      "last_name": "Santos",
+      "email": "chefe@vereadorxpto.com.br",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2024-01-01T10:00:00Z",
+      "papel": "CHEFE",
+      "gabinete": 1,
+      "telefone": "(11) 99999-9997",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "accounts.user",
+    "pk": 3,
+    "fields": {
+      "password": "pbkdf2_sha256$600000$dummy$dummy",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "atendente",
+      "first_name": "Pedro",
+      "last_name": "Oliveira",
+      "email": "atendente@vereadorxpto.com.br",
+      "is_staff": false,
+      "is_active": true,
+      "date_joined": "2024-01-01T10:00:00Z",
+      "papel": "ATENDIMENTO",
+      "gabinete": 1,
+      "telefone": "(11) 99999-9996",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "crm.pessoa",
+    "pk": 1,
+    "fields": {
+      "gabinete": 1,
+      "nome": "Ana Maria Costa",
+      "tipo": "ELEITOR",
+      "cpf": "12345678901",
+      "email": "ana.costa@email.com",
+      "telefone": "(11) 99999-9995",
+      "bairro": "Centro",
+      "zona_eleitoral": "123",
+      "consentiu_contato": true,
+      "consentido_em": "2024-01-01T10:00:00Z",
+      "origem": "Indicação",
+      "tags": "moradia, saúde",
+      "observacoes": "Interessada em questões de moradia popular",
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z",
+      "criado_por": 3
+    }
+  },
+  {
+    "model": "crm.pessoa",
+    "pk": 2,
+    "fields": {
+      "gabinete": 1,
+      "nome": "Carlos Eduardo Silva",
+      "tipo": "LIDERANCA",
+      "cpf": "12345678902",
+      "email": "carlos.silva@email.com",
+      "telefone": "(11) 99999-9994",
+      "bairro": "Vila Nova",
+      "zona_eleitoral": "124",
+      "consentiu_contato": true,
+      "consentido_em": "2024-01-02T10:00:00Z",
+      "origem": "Reunião comunitária",
+      "tags": "liderança, comunidade",
+      "observacoes": "Líder comunitário ativo na região",
+      "criado_em": "2024-01-02T10:00:00Z",
+      "atualizado_em": "2024-01-02T10:00:00Z",
+      "criado_por": 2
+    }
+  },
+  {
+    "model": "crm.pessoa",
+    "pk": 3,
+    "fields": {
+      "gabinete": 1,
+      "nome": "Prefeitura Municipal",
+      "tipo": "ORGAO",
+      "cpf": "",
+      "email": "gabinete@prefeitura.sp.gov.br",
+      "telefone": "(11) 3333-3333",
+      "bairro": "Centro",
+      "zona_eleitoral": "",
+      "consentiu_contato": true,
+      "consentido_em": "2024-01-01T10:00:00Z",
+      "origem": "Órgão público",
+      "tags": "prefeitura, governo",
+      "observacoes": "Órgão público parceiro",
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z",
+      "criado_por": 1
+    }
+  },
+  {
+    "model": "crm.pessoa",
+    "pk": 4,
+    "fields": {
+      "gabinete": 1,
+      "nome": "Roberto Almeida",
+      "tipo": "PARCEIRO",
+      "cpf": "12345678903",
+      "email": "roberto.almeida@email.com",
+      "telefone": "(11) 99999-9993",
+      "bairro": "Jardim das Flores",
+      "zona_eleitoral": "125",
+      "consentiu_contato": true,
+      "consentido_em": "2024-01-03T10:00:00Z",
+      "origem": "Parceria política",
+      "tags": "parceiro, empresário",
+      "observacoes": "Empresário local, parceiro do gabinete",
+      "criado_em": "2024-01-03T10:00:00Z",
+      "atualizado_em": "2024-01-03T10:00:00Z",
+      "criado_por": 2
+    }
+  },
+  {
+    "model": "crm.pessoa",
+    "pk": 5,
+    "fields": {
+      "gabinete": 1,
+      "nome": "Fernanda Lima",
+      "tipo": "ELEITOR",
+      "cpf": "12345678904",
+      "email": "fernanda.lima@email.com",
+      "telefone": "(11) 99999-9992",
+      "bairro": "Bela Vista",
+      "zona_eleitoral": "126",
+      "consentiu_contato": false,
+      "consentido_em": null,
+      "origem": "Atendimento presencial",
+      "tags": "educação, criança",
+      "observacoes": "Mãe preocupada com educação infantil",
+      "criado_em": "2024-01-04T10:00:00Z",
+      "atualizado_em": "2024-01-04T10:00:00Z",
+      "criado_por": 3
+    }
+  },
+  {
+    "model": "atendimento.sequencia",
+    "pk": 1,
+    "fields": {
+      "gabinete": 1,
+      "ano": 2024,
+      "tipo": "PROTOCOLO",
+      "numero": 3,
+      "atualizado_em": "2024-01-05T10:00:00Z"
+    }
+  },
+  {
+    "model": "atendimento.atendimento",
+    "pk": 1,
+    "fields": {
+      "gabinete": 1,
+      "protocolo": "2024-00001",
+      "pessoa": 1,
+      "assunto": "Solicitação de vaga em creche",
+      "descricao": "Cidadã solicita vaga em creche municipal para seu filho de 2 anos. Já fez cadastro na prefeitura mas não foi chamada.",
+      "status": "ABERTO",
+      "prioridade": 3,
+      "origem": "Atendimento presencial",
+      "responsavel": 3,
+      "prazo": "2024-02-15",
+      "satisfacao": null,
+      "observacoes": "Verificar lista de espera da prefeitura",
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z",
+      "criado_por": 3,
+      "resolvido_em": null
+    }
+  },
+  {
+    "model": "atendimento.atendimento",
+    "pk": 2,
+    "fields": {
+      "gabinete": 1,
+      "protocolo": "2024-00002",
+      "pessoa": 2,
+      "assunto": "Problema de iluminação pública",
+      "descricao": "Líder comunitário relata falta de iluminação em várias ruas do bairro Vila Nova, causando insegurança.",
+      "status": "ANDAMENTO",
+      "prioridade": 4,
+      "origem": "Reunião comunitária",
+      "responsavel": 2,
+      "prazo": "2024-01-30",
+      "satisfacao": null,
+      "observacoes": "Contatar empresa de energia elétrica",
+      "criado_em": "2024-01-02T10:00:00Z",
+      "atualizado_em": "2024-01-02T10:00:00Z",
+      "criado_por": 2,
+      "resolvido_em": null
+    }
+  },
+  {
+    "model": "atendimento.atendimento",
+    "pk": 3,
+    "fields": {
+      "gabinete": 1,
+      "protocolo": "2024-00003",
+      "pessoa": 5,
+      "assunto": "Melhoria na escola municipal",
+      "descricao": "Mãe solicita melhorias na escola municipal do bairro, incluindo reforma do playground e biblioteca.",
+      "status": "ABERTO",
+      "prioridade": 2,
+      "origem": "Atendimento telefônico",
+      "responsavel": 3,
+      "prazo": "2024-03-01",
+      "satisfacao": null,
+      "observacoes": "Agendar visita à escola",
+      "criado_em": "2024-01-04T10:00:00Z",
+      "atualizado_em": "2024-01-04T10:00:00Z",
+      "criado_por": 3,
+      "resolvido_em": null
+    }
+  },
+  {
+    "model": "documentos.destinatario",
+    "pk": 1,
+    "fields": {
+      "nome": "Secretário de Educação",
+      "orgao": "Secretaria Municipal de Educação",
+      "email": "secretario@educacao.sp.gov.br",
+      "endereco": "Rua da Educação, 456 - Centro - São Paulo/SP",
+      "telefone": "(11) 3333-4444",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "documentos.destinatario",
+    "pk": 2,
+    "fields": {
+      "nome": "Prefeito Municipal",
+      "orgao": "Prefeitura Municipal",
+      "email": "prefeito@prefeitura.sp.gov.br",
+      "endereco": "Palácio Municipal - Centro - São Paulo/SP",
+      "telefone": "(11) 3333-5555",
+      "ativo": true,
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z"
+    }
+  },
+  {
+    "model": "atendimento.sequencia",
+    "pk": 2,
+    "fields": {
+      "gabinete": 1,
+      "ano": 2024,
+      "tipo": "OFICIO",
+      "numero": 1,
+      "atualizado_em": "2024-01-05T10:00:00Z"
+    }
+  },
+  {
+    "model": "documentos.oficio",
+    "pk": 1,
+    "fields": {
+      "gabinete": 1,
+      "numero": "2024-00001",
+      "data": "2024-01-05",
+      "assunto": "Solicitação de informações sobre vagas em creches",
+      "corpo": "Excelentíssimo Senhor Secretário,\n\nVenho por meio deste ofício solicitar informações sobre a disponibilidade de vagas em creches municipais na região do Centro, especificamente para crianças de 2 anos de idade.\n\nA solicitação é decorrente de atendimento realizado em nosso gabinete, onde uma cidadã manifestou interesse em obter vaga para seu filho.\n\nAgradecemos a atenção e aguardamos retorno.\n\nAtenciosamente,\n\nJoão da Silva\nVereador",
+      "destinatario": 1,
+      "status": "RASCUNHO",
+      "arquivo": "",
+      "observacoes": "Aguardando revisão antes do envio",
+      "criado_em": "2024-01-05T10:00:00Z",
+      "atualizado_em": "2024-01-05T10:00:00Z",
+      "criado_por": 2,
+      "assinado_em": null,
+      "enviado_em": null
+    }
+  },
+  {
+    "model": "agenda.evento",
+    "pk": 1,
+    "fields": {
+      "gabinete": 1,
+      "titulo": "Reunião com Prefeitura",
+      "descricao": "Reunião para discutir melhorias na infraestrutura do bairro",
+      "inicio": "2024-01-15T14:00:00Z",
+      "fim": "2024-01-15T16:00:00Z",
+      "local": "Palácio Municipal",
+      "participantes": [2],
+      "observacoes": "Levar relatório de demandas do bairro",
+      "criado_em": "2024-01-01T10:00:00Z",
+      "atualizado_em": "2024-01-01T10:00:00Z",
+      "criado_por": 2
+    }
+  },
+  {
+    "model": "agenda.evento",
+    "pk": 2,
+    "fields": {
+      "gabinete": 1,
+      "titulo": "Reunião Comunitária",
+      "descricao": "Reunião mensal com líderes comunitários",
+      "inicio": "2024-01-20T19:00:00Z",
+      "fim": "2024-01-20T21:00:00Z",
+      "local": "Centro Comunitário Vila Nova",
+      "participantes": [2, 4],
+      "observacoes": "Preparar pauta com demandas da comunidade",
+      "criado_em": "2024-01-02T10:00:00Z",
+      "atualizado_em": "2024-01-02T10:00:00Z",
+      "criado_por": 2
+    }
+  }
+]
+
+
+
+
+
+
+
+
+

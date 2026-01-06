@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Ofícios{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="h5 mb-0">Ofícios</h2>
+  <a href="{% url 'documentos:oficio_create' %}" class="btn btn-primary">Novo Ofício</a>
+ </div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2">
+      {% if search_form %}
+        {% for field in search_form %}
+          <div class="col-md-3">{{ field }}</div>
+        {% endfor %}
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-outline-primary w-100" type="submit">Filtrar</button>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>Número</th>
+          <th>Assunto</th>
+          <th>Destinatário</th>
+          <th>Status</th>
+          <th>Data</th>
+          <th class="text-end">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for of in oficios %}
+        <tr>
+          <td>{{ of.numero }}</td>
+          <td>{{ of.assunto }}</td>
+          <td>{{ of.destinatario.nome }}</td>
+          <td><span class="badge bg-secondary">{{ of.get_status_display }}</span></td>
+          <td>{{ of.data|date:'d/m/Y' }}</td>
+          <td class="text-end">
+            <a href="{% url 'documentos:oficio_detail' of.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+            <a href="{% url 'documentos:oficio_update' of.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted">Nenhum ofício encontrado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+
+

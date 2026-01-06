@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}Pessoas - +Compliance{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Organizador - Pessoas</h2>
+    <a href="{% url 'crm:pessoa_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>
+        Nova Pessoa
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                {{ search_form.q }}
+            </div>
+            <div class="col-md-3">
+                {{ search_form.tipo }}
+            </div>
+            <div class="col-md-3">
+                {{ search_form.consentiu_contato }}
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-search me-2"></i>
+                    Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Pessoas -->
+<div class="card">
+    <div class="card-body">
+        {% if pessoas %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Contato</th>
+                            <th>Bairro</th>
+                            <th>Consentimento</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pessoa in pessoas %}
+                        <tr>
+                            <td>
+                                <strong>{{ pessoa.nome }}</strong>
+                                {% if pessoa.cpf %}
+                                    <br><small class="text-muted">{{ pessoa.cpf }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ pessoa.get_tipo_display }}</span>
+                            </td>
+                            <td>
+                                {% if pessoa.email %}
+                                    <i class="fas fa-envelope me-1"></i>{{ pessoa.email }}<br>
+                                {% endif %}
+                                {% if pessoa.telefone %}
+                                    <i class="fas fa-phone me-1"></i>{{ pessoa.telefone }}
+                                {% endif %}
+                            </td>
+                            <td>{{ pessoa.bairro|default:"-" }}</td>
+                            <td>
+                                {% if pessoa.consentiu_contato %}
+                                    <span class="badge bg-success">Sim</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Não</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'crm:pessoa_detail' pessoa.pk %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'crm:pessoa_update' pessoa.pk %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginação -->
+            {% if is_paginated %}
+                <nav aria-label="Paginação">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">Primeira</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Nenhuma pessoa encontrada</h5>
+                <p class="text-muted">Comece cadastrando uma nova pessoa.</p>
+                <a href="{% url 'crm:pessoa_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>
+                    Nova Pessoa
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+
+

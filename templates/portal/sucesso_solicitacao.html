@@ -1,0 +1,123 @@
+{% extends 'portal/base_publico.html' %}
+
+{% block title %}Solicitação Enviada com Sucesso{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-lg">
+            <div class="card-header bg-success text-white text-center py-4">
+                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                <h3 class="mb-0">Solicitação Enviada com Sucesso!</h3>
+            </div>
+            <div class="card-body p-5">
+                <div class="alert alert-success text-center" role="alert">
+                    <h4 class="alert-heading">Seu Protocolo:</h4>
+                    <h1 class="display-4 fw-bold my-4">
+                        <i class="fas fa-barcode me-2"></i>
+                        {{ protocolo }}
+                    </h1>
+                    <hr>
+                    <p class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Guarde este número para consultar o andamento da sua solicitação
+                    </p>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-envelope text-primary me-2"></i>
+                                    E-mail Enviado
+                                </h5>
+                                <p class="card-text">
+                                    Enviamos uma confirmação com o número do protocolo para <strong>{{ email }}</strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-light h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-clock text-warning me-2"></i>
+                                    Próximos Passos
+                                </h5>
+                                <p class="card-text">
+                                    Nossa equipe analisará sua solicitação e entrará em contato em breve
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-4">
+                    <h5 class="alert-heading">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Como acompanhar?
+                    </h5>
+                    <ol class="mb-0">
+                        <li>Acesse a página de <strong>Consultar Protocolo</strong></li>
+                        <li>Digite seu número de protocolo</li>
+                        <li>Visualize o status e resposta da sua solicitação</li>
+                    </ol>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                    <a href="{% url 'portal:consultar' slug=gabinete.slug %}?protocolo={{ protocolo }}" class="btn btn-success btn-lg">
+                        <i class="fas fa-search me-2"></i>
+                        Consultar Minha Solicitação
+                    </a>
+                    <a href="{% url 'portal:index' slug=gabinete.slug %}" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-home me-2"></i>
+                        Voltar ao Início
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dicas -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-clipboard-list me-2"></i>
+                    Outras Funcionalidades
+                </h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="fas fa-chevron-right text-primary me-2"></i>
+                                <a href="{% url 'portal:solicitar' slug=gabinete.slug %}">Enviar nova solicitação</a>
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-chevron-right text-primary me-2"></i>
+                                <a href="{% url 'portal:agendar_visita' slug=gabinete.slug %}">Agendar visita presencial</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="fas fa-chevron-right text-primary me-2"></i>
+                                <a href="{% url 'portal:noticias' slug=gabinete.slug %}">Ver notícias e atividades</a>
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-chevron-right text-primary me-2"></i>
+                                <a href="{% url 'portal:index' slug=gabinete.slug %}">Voltar à página inicial</a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+

@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}Editar Atendimento{% else %}Novo Atendimento{% endif %} - +Compliance
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        {% if object %}
+            <i class="fas fa-edit me-2"></i>
+            Editar Atendimento
+        {% else %}
+            <i class="fas fa-plus me-2"></i>
+            Novo Atendimento
+        {% endif %}
+    </h2>
+    <a href="{% url 'atendimento:atendimento_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>
+        Voltar
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.pessoa.id_for_label }}" class="form-label">Pessoa *</label>
+                            {{ form.pessoa }}
+                            {% if form.pessoa.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.pessoa.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.prioridade.id_for_label }}" class="form-label">Prioridade *</label>
+                            {{ form.prioridade }}
+                            {% if form.prioridade.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.prioridade.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.assunto.id_for_label }}" class="form-label">Assunto *</label>
+                        {{ form.assunto }}
+                        {% if form.assunto.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.assunto.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.descricao.id_for_label }}" class="form-label">Descrição *</label>
+                        {{ form.descricao }}
+                        {% if form.descricao.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.descricao.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.origem.id_for_label }}" class="form-label">Origem</label>
+                            {{ form.origem }}
+                            {% if form.origem.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.origem.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.responsavel.id_for_label }}" class="form-label">Responsável</label>
+                            {{ form.responsavel }}
+                            {% if form.responsavel.errors %}
+                                <div class="text-danger small mt-1">
+                                    {% for error in form.responsavel.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.prazo.id_for_label }}" class="form-label">Prazo</label>
+                        {{ form.prazo }}
+                        {% if form.prazo.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.prazo.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.observacoes.id_for_label }}" class="form-label">Observações</label>
+                        {{ form.observacoes }}
+                        {% if form.observacoes.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in form.observacoes.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{% url 'atendimento:atendimento_list' %}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>
+                            {% if object %}Atualizar{% else %}Salvar{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informações
+                </h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    <strong>Protocolo:</strong> Será gerado automaticamente após salvar.
+                </p>
+                <p class="small text-muted">
+                    <strong>Prioridades:</strong>
+                </p>
+                <ul class="small text-muted">
+                    <li><strong>Baixa:</strong> Sem urgência</li>
+                    <li><strong>Normal:</strong> Prazo normal</li>
+                    <li><strong>Alta:</strong> Requer atenção</li>
+                    <li><strong>Urgente:</strong> Muito importante</li>
+                    <li><strong>Crítica:</strong> Máxima prioridade</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+
+
+
+
+
+

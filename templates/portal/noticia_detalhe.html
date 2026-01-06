@@ -1,0 +1,155 @@
+{% extends 'portal/base_publico.html' %}
+{% load static %}
+
+{% block title %}{{ noticia.titulo }} - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'portal:index' slug=gabinete.slug %}">Início</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'portal:noticias' slug=gabinete.slug %}">Notícias</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ noticia.titulo|truncatewords:5 }}</li>
+            </ol>
+        </nav>
+
+        <!-- Publicação -->
+        <article class="card shadow-sm mb-4">
+            <!-- Imagem Destaque -->
+            {% if noticia.imagem_destaque %}
+            <img src="{{ noticia.imagem_destaque.url }}" class="card-img-top" alt="{{ noticia.titulo }}">
+            {% endif %}
+
+            <div class="card-body">
+                <!-- Tipo e Data -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="badge bg-{{ noticia.tipo|lower }} text-uppercase">
+                        <i class="fas fa-tag me-1"></i>
+                        {{ noticia.get_tipo_display }}
+                    </span>
+                    <small class="text-muted">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        {{ noticia.data_publicacao|date:"d/m/Y - H:i" }}
+                    </small>
+                </div>
+
+                <!-- Título -->
+                <h1 class="h2 mb-3">{{ noticia.titulo }}</h1>
+
+                <!-- Subtítulo -->
+                {% if noticia.subtitulo %}
+                <p class="lead text-muted mb-4">{{ noticia.subtitulo }}</p>
+                {% endif %}
+
+                <!-- Categoria e Tags -->
+                <div class="mb-3">
+                    {% if noticia.categoria %}
+                    <span class="badge bg-light text-dark me-2">
+                        <i class="fas fa-folder me-1"></i>
+                        {{ noticia.categoria.nome }}
+                    </span>
+                    {% endif %}
+
+                    {% if noticia.tags_list %}
+                        {% for tag in noticia.tags_list %}
+                        <span class="badge bg-secondary me-1">
+                            <i class="fas fa-hashtag"></i>{{ tag }}
+                        </span>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+
+                <hr class="my-4">
+
+                <!-- Conteúdo -->
+                <div class="noticia-conteudo">
+                    {{ noticia.conteudo|linebreaks }}
+                </div>
+
+                <!-- Link Externo -->
+                {% if noticia.link_externo %}
+                <div class="alert alert-info mt-4">
+                    <i class="fas fa-external-link-alt me-2"></i>
+                    <a href="{{ noticia.link_externo }}" target="_blank" rel="noopener">
+                        Saiba mais (link externo)
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- Arquivo Anexo -->
+                {% if noticia.arquivo_anexo %}
+                <div class="mt-4">
+                    <a href="{{ noticia.arquivo_anexo.url }}" class="btn btn-outline-primary" download>
+                        <i class="fas fa-download me-2"></i>
+                        Baixar Arquivo Anexo
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="card-footer text-muted small">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <i class="fas fa-eye me-1"></i>
+                        {{ noticia.visualizacoes }} visualizações
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        {% if noticia.atualizado_em %}
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Atualizado em {{ noticia.atualizado_em|date:"d/m/Y H:i" }}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </article>
+
+        <!-- Ações -->
+        <div class="text-center mb-4">
+            <a href="{% url 'portal:noticias' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>
+                Voltar para Notícias
+            </a>
+            <a href="{% url 'portal:solicitar' %}" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-2"></i>
+                Enviar Solicitação
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.noticia-conteudo {
+    font-size: 1.1rem;
+    line-height: 1.8;
+    text-align: justify;
+}
+
+.noticia-conteudo p {
+    margin-bottom: 1.2rem;
+}
+
+.badge.bg-noticia {
+    background-color: #0d6efd !important;
+}
+
+.badge.bg-relatorio {
+    background-color: #198754 !important;
+}
+
+.badge.bg-comunicado {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+.badge.bg-prestacao_contas {
+    background-color: #6f42c1 !important;
+}
+
+.badge.bg-evento {
+    background-color: #fd7e14 !important;
+}
+</style>
+{% endblock %}
+

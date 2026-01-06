@@ -1,0 +1,75 @@
+{% extends 'portal/base_publico.html' %}
+
+{% block title %}Notícias e Publicações{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">
+    <i class="fas fa-newspaper me-2 text-primary"></i>
+    Notícias e Publicações
+</h2>
+
+{% if noticias %}
+<div class="row">
+    {% for noticia in noticias %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100 shadow-sm">
+            {% if noticia.imagem_destaque %}
+            <img src="{{ noticia.imagem_destaque.url }}" class="card-img-top" alt="{{ noticia.titulo }}" style="height: 200px; object-fit: cover;">
+            {% else %}
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                <i class="fas fa-newspaper fa-4x text-muted"></i>
+            </div>
+            {% endif %}
+            
+            <div class="card-body">
+                <div class="mb-2">
+                    <span class="badge bg-{% if noticia.tipo == 'NOTICIA' %}primary{% elif noticia.tipo == 'RELATORIO' %}success{% else %}info{% endif %}">
+                        {{ noticia.get_tipo_display }}
+                    </span>
+                    {% if noticia.destaque %}
+                    <span class="badge bg-warning">
+                        <i class="fas fa-star"></i> Destaque
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <h5 class="card-title">{{ noticia.titulo }}</h5>
+                
+                {% if noticia.subtitulo %}
+                <h6 class="card-subtitle mb-2 text-muted">{{ noticia.subtitulo }}</h6>
+                {% endif %}
+                
+                <p class="card-text">
+                    {{ noticia.resumo|default:noticia.conteudo|truncatewords:25 }}
+                </p>
+            </div>
+            
+            <div class="card-footer bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar me-1"></i>
+                        {{ noticia.data_publicacao|date:"d/m/Y" }}
+                    </small>
+                    <small class="text-muted">
+                        <i class="fas fa-eye me-1"></i>
+                        {{ noticia.visualizacoes }}
+                    </small>
+                </div>
+                <a href="{% url 'portal:noticia_detalhe' slug=gabinete.slug pk=noticia.pk %}" class="btn btn-outline-primary btn-sm mt-2 w-100">
+                    Ler mais <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info text-center">
+    <i class="fas fa-info-circle fa-3x mb-3"></i>
+    <h5>Nenhuma publicação disponível no momento</h5>
+    <p class="mb-0">Em breve teremos novidades por aqui!</p>
+</div>
+{% endif %}
+{% endblock %}
+
+

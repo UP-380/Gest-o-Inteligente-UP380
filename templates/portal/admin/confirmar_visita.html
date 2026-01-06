@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Confirmar Visita #{{ visita.protocolo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-calendar-check me-2"></i>
+            Confirmar Agendamento
+        </h2>
+        <a href="{% url 'portal:visitas_admin' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Coluna Principal -->
+        <div class="col-lg-8">
+            <!-- Informações da Visita -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user me-2"></i>
+                        Protocolo: {{ visita.protocolo }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Nome:</strong> {{ visita.nome }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>CPF:</strong> {{ visita.cpf|default:"Não informado" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>E-mail:</strong> {{ visita.email }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Telefone:</strong> {{ visita.telefone }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <strong>Motivo da Visita:</strong><br>
+                        {{ visita.motivo }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Descrição:</strong><br>
+                        <div class="border rounded p-3 bg-light">
+                            {{ visita.descricao|linebreaks }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Data Desejada:</strong><br>
+                            <span class="badge bg-info">{{ visita.data_desejada|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Horário Preferido:</strong><br>
+                            <span class="badge bg-secondary">{{ visita.horario_preferencia }}</span>
+                        </div>
+                    </div>
+                    <div class="text-muted small">
+                        <i class="fas fa-clock me-1"></i>
+                        Solicitado em: {{ visita.criado_em|date:"d/m/Y às H:i" }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário de Confirmação -->
+            {% if visita.status == 'PENDENTE' %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i> Confirmar Agendamento</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ form.data_confirmada.label_tag }}
+                            {{ form.data_confirmada }}
+                            {% if form.data_confirmada.errors %}
+                                {% for error in form.data_confirmada.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            {{ form.resposta_cidadao.label_tag }}
+                            {{ form.resposta_cidadao }}
+                            {% if form.resposta_cidadao.errors %}
+                                {% for error in form.resposta_cidadao.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check mb-3">
+                            {{ form.criar_evento }}
+                            <label class="form-check-label" for="{{ form.criar_evento.id_for_label }}">
+                                {{ form.criar_evento.label }}
+                            </label>
+                            {% if form.criar_evento.help_text %}
+                                <small class="form-text text-muted d-block">{{ form.criar_evento.help_text }}</small>
+                            {% endif %}
+                        </div>
+
+                        <hr class="my-4">
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-danger" onclick="cancelarVisita()">
+                                <i class="fas fa-times me-2"></i>
+                                Recusar/Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check me-2"></i>
+                                Confirmar Visita
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Visita Já Processada</h5>
+                </div>
+                <div class="card-body">
+                    <p>Esta visita já foi processada e está com status: 
+                        <strong>{{ visita.get_status_display }}</strong>
+                    </p>
+                    {% if visita.data_confirmada %}
+                    <p><strong>Data/Hora Confirmada:</strong> {{ visita.data_confirmada|date:"d/m/Y H:i" }}</p>
+                    {% endif %}
+                    {% if visita.resposta_cidadao %}
+                    <p><strong>Mensagem Enviada ao Cidadão:</strong></p>
+                    <div class="border rounded p-3 bg-light">
+                        {{ visita.resposta_cidadao|linebreaks }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Coluna Lateral -->
+        <div class="col-lg-4">
+            <!-- Status -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i> Status</h6>
+                </div>
+                <div class="card-body">
+                    <p><strong>Status Atual:</strong></p>
+                    <p>
+                        {% if visita.status == 'PENDENTE' %}
+                        <span class="badge bg-warning text-dark fs-6">Pendente</span>
+                        {% elif visita.status == 'CONFIRMADO' %}
+                        <span class="badge bg-success fs-6">Confirmado</span>
+                        {% elif visita.status == 'REALIZADO' %}
+                        <span class="badge bg-info fs-6">Realizado</span>
+                        {% else %}
+                        <span class="badge bg-danger fs-6">Cancelado</span>
+                        {% endif %}
+                    </p>
+                    {% if visita.evento_criado %}
+                    <hr>
+                    <p><strong>Evento Criado:</strong></p>
+                    <a href="{% url 'agenda:editar' visita.evento_criado.pk %}" 
+                       class="btn btn-outline-info btn-sm w-100">
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Ver Evento na Agenda
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Observações Internas -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-sticky-note me-2"></i> Observações Internas</h6>
+                </div>
+                <div class="card-body">
+                    {% if visita.observacoes_internas %}
+                    <p>{{ visita.observacoes_internas|linebreaks }}</p>
+                    {% else %}
+                    <p class="text-muted">Nenhuma observação registrada.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function cancelarVisita() {
+    const motivo = prompt('Informe o motivo do cancelamento:');
+    if (motivo) {
+        if (confirm('Tem certeza que deseja cancelar esta visita?')) {
+            // Submeter form de cancelamento
+            alert('Funcionalidade de cancelamento será implementada em breve.');
+        }
+    }
+}
+</script>
+{% endblock %}
+

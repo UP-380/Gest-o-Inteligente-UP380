@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Agendamentos de Visitas - Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-calendar-check me-2"></i>
+            Agendamentos de Visitas
+        </h2>
+        <a href="{% url 'portal:portal_admin_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Voltar ao Dashboard
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Status</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="PENDENTE">Pendente Confirmação</option>
+                        <option value="CONFIRMADO">Confirmado</option>
+                        <option value="REALIZADO">Realizado</option>
+                        <option value="CANCELADO">Cancelado</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="busca" class="form-label">Buscar</label>
+                    <input type="text" name="busca" id="busca" class="form-control" 
+                           placeholder="Nome, protocolo ou motivo">
+                </div>
+                <div class="col-md-3">
+                    <label for="data" class="form-label">Data</label>
+                    <input type="date" name="data" id="data" class="form-control">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-search me-2"></i>
+                        Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de Visitas -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 100px;">Protocolo</th>
+                            <th>Visitante</th>
+                            <th>Motivo</th>
+                            <th style="width: 150px;">Data Desejada</th>
+                            <th style="width: 130px;">Status</th>
+                            <th style="width: 150px;" class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for visita in visitas %}
+                        <tr class="{% if visita.status == 'PENDENTE' %}table-warning{% endif %}">
+                            <td>
+                                <strong>{{ visita.protocolo }}</strong>
+                            </td>
+                            <td>
+                                {{ visita.nome }}
+                                <br>
+                                <small class="text-muted">
+                                    <i class="fas fa-phone me-1"></i>{{ visita.telefone }}
+                                </small>
+                            </td>
+                            <td>
+                                <strong>{{ visita.motivo|truncatewords:5 }}</strong>
+                                <br>
+                                <small class="text-muted">{{ visita.descricao|truncatewords:8 }}</small>
+                            </td>
+                            <td>
+                                {{ visita.data_desejada|date:"d/m/Y" }}
+                                <br>
+                                <small class="text-muted">{{ visita.horario_preferencia }}</small>
+                            </td>
+                            <td>
+                                {% if visita.status == 'PENDENTE' %}
+                                <span class="badge bg-warning text-dark">Pendente</span>
+                                {% elif visita.status == 'CONFIRMADO' %}
+                                <span class="badge bg-success">Confirmado</span>
+                                {% elif visita.status == 'REALIZADO' %}
+                                <span class="badge bg-info">Realizado</span>
+                                {% else %}
+                                <span class="badge bg-danger">Cancelado</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'portal:confirmar_visita' visita.pk %}" 
+                                       class="btn btn-outline-primary" title="Ver/Confirmar">
+                                        <i class="fas fa-check"></i>
+                                    </a>
+                                    {% if visita.evento_criado %}
+                                    <a href="{% url 'agenda:editar' visita.evento_criado.pk %}" 
+                                       class="btn btn-outline-info" title="Ver Evento">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="fas fa-calendar-times fa-3x mb-3 d-block"></i>
+                                Nenhum agendamento de visita encontrado
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

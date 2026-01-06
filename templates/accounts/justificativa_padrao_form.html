@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}
+        Editar Justificativa Padrão - {{ block.super }}
+    {% else %}
+        Nova Justificativa Padrão - {{ block.super }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        {% if object %}
+            <i class="fas fa-edit me-2"></i>Editar Justificativa Padrão
+        {% else %}
+            <i class="fas fa-plus me-2"></i>Nova Justificativa Padrão
+        {% endif %}
+    </h2>
+    <a href="{% url 'accounts:justificativa_padrao_list' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Voltar à Lista
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-text me-2"></i>
+                    {% if object %}
+                        Editar "{{ object.nome }}"
+                    {% else %}
+                        Dados da Justificativa
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Campo Gabinete (Hidden) -->
+                    {{ form.gabinete }}
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.nome.id_for_label }}" class="form-label">
+                                {{ form.nome.label }}
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.nome }}
+                            {% if form.nome.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.nome.errors.0 }}
+                                </div>
+                            {% endif %}
+                            {% if form.nome.help_text %}
+                                <div class="form-text">{{ form.nome.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.descricao.id_for_label }}" class="form-label">
+                                {{ form.descricao.label }}
+                            </label>
+                            {{ form.descricao }}
+                            {% if form.descricao.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.descricao.errors.0 }}
+                                </div>
+                            {% endif %}
+                            {% if form.descricao.help_text %}
+                                <div class="form-text">{{ form.descricao.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.texto.id_for_label }}" class="form-label">
+                                {{ form.texto.label }}
+                                <span class="text-danger">*</span>
+                            </label>
+                            {{ form.texto }}
+                            {% if form.texto.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.texto.errors.0 }}
+                                </div>
+                            {% endif %}
+                            {% if form.texto.help_text %}
+                                <div class="form-text">{{ form.texto.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <div class="form-check">
+                                {{ form.ativo }}
+                                <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
+                                    {{ form.ativo.label }}
+                                </label>
+                            </div>
+                            {% if form.ativo.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ form.ativo.errors.0 }}
+                                </div>
+                            {% endif %}
+                            {% if form.ativo.help_text %}
+                                <div class="form-text">{{ form.ativo.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'accounts:justificativa_padrao_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-times me-2"></i>Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if object %}
+                                <i class="fas fa-save me-2"></i>Salvar Alterações
+                            {% else %}
+                                <i class="fas fa-plus me-2"></i>Criar Justificativa
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Informações
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-muted">Como usar:</h6>
+                    <ul class="small text-muted">
+                        <li>O <strong>nome</strong> deve ser único e descritivo</li>
+                        <li>A <strong>descrição</strong> é opcional e ajuda na identificação</li>
+                        <li>O <strong>texto</strong> será usado automaticamente nos ofícios</li>
+                        <li>Justificativas inativas não aparecerão nas seleções</li>
+                    </ul>
+                </div>
+                
+                {% if object %}
+                <div class="mb-3">
+                    <h6 class="text-muted">Dados do Registro:</h6>
+                    <ul class="small text-muted">
+                        <li><strong>Criado em:</strong> {{ object.criado_em|date:"d/m/Y H:i" }}</li>
+                        {% if object.criado_por %}
+                            <li><strong>Criado por:</strong> {{ object.criado_por.get_full_name|default:object.criado_por.username }}</li>
+                        {% endif %}
+                        <li><strong>Atualizado em:</strong> {{ object.atualizado_em|date:"d/m/Y H:i" }}</li>
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <div class="alert alert-info small">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>Dica:</strong> Use justificativas padrão para agilizar a criação de ofícios com textos comuns.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-resize textarea
+    document.addEventListener('DOMContentLoaded', function() {
+        const textareas = document.querySelectorAll('textarea');
+        textareas.forEach(function(textarea) {
+            textarea.style.resize = 'vertical';
+            textarea.style.minHeight = '100px';
+        });
+    });
+</script>
+{% endblock %}
+

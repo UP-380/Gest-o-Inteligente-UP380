@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Atualizar Status do Memorando{% endblock %}
+{% block content %}
+<h2 class="h5 mb-3">Atualizar Status do Memorando {{ object.numero }}</h2>
+<div class="card"><div class="card-body">
+  <form method="post" class="row g-3">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="col-md-6">
+        <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+      </div>
+    {% endfor %}
+    <div class="col-12 d-flex justify-content-end gap-2">
+      <a href="{% url 'documentos:memorando_detail' object.pk %}" class="btn btn-outline-secondary">Voltar</a>
+      <button type="submit" class="btn btn-primary">Atualizar</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
