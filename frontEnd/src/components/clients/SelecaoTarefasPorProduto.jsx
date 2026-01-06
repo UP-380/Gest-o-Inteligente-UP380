@@ -15,6 +15,7 @@ const API_BASE_URL = '/api';
  * @param {boolean} disabledTempo - Se true, desabilita os campos de tempo
  * @param {number} horasContratadasDia - Total de horas contratadas por dia do responsável
  * @param {array} tarefasSelecionadas - Array de IDs das tarefas selecionadas
+ * @param {boolean} showSubtarefas - Se true, mostra botão e funcionalidade de subtarefas (padrão: true)
  */
 const SelecaoTarefasPorProduto = ({ 
   clienteId, 
@@ -26,7 +27,8 @@ const SelecaoTarefasPorProduto = ({
   onTempoChange = null, // Nova prop: callback quando tempo muda
   disabledTempo = false, // Nova prop: desabilitar campos de tempo
   horasContratadasDia = null, // Nova prop: horas contratadas por dia
-  tarefasSelecionadas = [] // Nova prop: tarefas selecionadas
+  tarefasSelecionadas = [], // Nova prop: tarefas selecionadas
+  showSubtarefas = true // Nova prop: mostrar subtarefas (padrão: true para manter compatibilidade)
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -975,8 +977,108 @@ const SelecaoTarefasPorProduto = ({
                             Padrão
                           </span>
                         )}
+                        {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
+                        {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
+                          <button
+                            type="button"
+                            title="Ver subtarefas"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
+                              if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
+                                carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
+                              }
+                              setTarefasExpandidas(prev => ({
+                                ...prev,
+                                [tarefa.id]: !prev[tarefa.id]
+                              }));
+                            }}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: '0.2s',
+                              background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0',
+                              color: tarefa.selecionada ? 'white' : '#475569',
+                              border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #cbd5e1',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              flexShrink: 0
+                            }}
+                            onMouseEnter={(e) => {
+                              if (tarefa.selecionada) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                              } else {
+                                e.currentTarget.style.background = '#cbd5e1';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (tarefa.selecionada) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                              } else {
+                                e.currentTarget.style.background = '#e2e8f0';
+                              }
+                            }}
+                          >
+                            {carregandoSubtarefas[tarefa.id] ? (
+                              <i className="fas fa-spinner fa-spin"></i>
+                            ) : (
+                              <>
+                                <i className="fas fa-list-ul"></i>
+                                Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </label>
+                    {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
+                    {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
+                      <div style={{
+                        marginLeft: '24px',
+                        marginTop: '8px',
+                        padding: '8px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        border: '1px solid #dee2e6'
+                      }}>
+                        {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                          <div key={subtarefa.id} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '4px 8px',
+                            marginBottom: '4px',
+                            backgroundColor: subtarefa.selecionada ? '#e3f2fd' : 'transparent',
+                            borderRadius: '3px',
+                            fontSize: '11px'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={subtarefa.selecionada || false}
+                              onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                              style={{
+                                margin: 0,
+                                cursor: 'pointer',
+                                width: '12px',
+                                height: '12px',
+                                flexShrink: 0
+                              }}
+                            />
+                            <span style={{
+                              flex: 1,
+                              color: subtarefa.selecionada ? '#1976d2' : '#495057',
+                              fontWeight: subtarefa.selecionada ? '500' : '400'
+                            }}>
+                              {subtarefa.nome}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   ))}
                   
@@ -1137,8 +1239,108 @@ const SelecaoTarefasPorProduto = ({
                               Exceção
                             </span>
                           )}
+                          {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
+                          {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
+                            <button
+                              type="button"
+                              title="Ver subtarefas"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
+                                if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
+                                  carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
+                                }
+                                setTarefasExpandidas(prev => ({
+                                  ...prev,
+                                  [tarefa.id]: !prev[tarefa.id]
+                                }));
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: '0.2s',
+                                background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffe4cc',
+                                color: tarefa.selecionada ? 'white' : '#fd7e14',
+                                border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #ffd8a8',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                flexShrink: 0
+                              }}
+                              onMouseEnter={(e) => {
+                                if (tarefa.selecionada) {
+                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                                } else {
+                                  e.currentTarget.style.background = '#ffd8a8';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (tarefa.selecionada) {
+                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                                } else {
+                                  e.currentTarget.style.background = '#ffe4cc';
+                                }
+                              }}
+                            >
+                              {carregandoSubtarefas[tarefa.id] ? (
+                                <i className="fas fa-spinner fa-spin"></i>
+                              ) : (
+                                <>
+                                  <i className="fas fa-list-ul"></i>
+                                  Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </label>
+                      {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
+                      {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
+                        <div style={{
+                          marginLeft: '24px',
+                          marginTop: '8px',
+                          padding: '8px',
+                          backgroundColor: '#fff4e6',
+                          borderRadius: '4px',
+                          border: '1px solid #ffd8a8'
+                        }}>
+                          {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                            <div key={subtarefa.id} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '4px 8px',
+                              marginBottom: '4px',
+                              backgroundColor: subtarefa.selecionada ? '#ffedd5' : 'transparent',
+                              borderRadius: '3px',
+                              fontSize: '11px'
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={subtarefa.selecionada || false}
+                                onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                style={{
+                                  margin: 0,
+                                  cursor: 'pointer',
+                                  width: '12px',
+                                  height: '12px',
+                                  flexShrink: 0
+                                }}
+                              />
+                              <span style={{
+                                flex: 1,
+                                color: subtarefa.selecionada ? '#fd7e14' : '#92400e',
+                                fontWeight: subtarefa.selecionada ? '500' : '400'
+                              }}>
+                                {subtarefa.nome}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                     </>

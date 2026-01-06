@@ -1247,6 +1247,7 @@ const AtribuicaoCliente = () => {
                           })}
                           refreshKey={refreshTarefas}
                           showTempoEstimado={true}
+                          showSubtarefas={false}
                           tempoEstimadoDia={tempoEstimadoDia}
                           onTempoChange={(produtoId, tarefaId, tempoEmMs) => {
                             handleTempoTarefaChange(produtoId, tarefaId, tempoEmMs);
