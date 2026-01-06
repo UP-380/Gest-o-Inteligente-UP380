@@ -3,6 +3,7 @@ import CustomSelect from '../vinculacoes/CustomSelect';
 import SelectedItemsList from '../vinculacoes/SelectedItemsList';
 import ModalFooter from '../vinculacoes/ModalFooter';
 import TarefasVinculadasCliente from '../vinculacoes/TarefasVinculadasCliente';
+import SelecaoTarefasPorProduto from './SelecaoTarefasPorProduto';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI } from '../../services/api';
 import '../vinculacoes/VinculacaoModal.css';
@@ -21,6 +22,7 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
   const [expandedSelects, setExpandedSelects] = useState({});
   const [initialized, setInitialized] = useState(false);
   const [tempProdutoItems, setTempProdutoItems] = useState([]);
+  const [tarefasSelecionadasPorProduto, setTarefasSelecionadasPorProduto] = useState({}); // { produtoId: { tarefaId: { selecionada: boolean, subtarefas: [subtarefaId] } } }
 
   // Dados carregados das APIs
   const [produtos, setProdutos] = useState([]);
@@ -329,16 +331,64 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
 
           // Para cada item selecionado neste tipo
           selectedItems.forEach(itemId => {
-            const combinacao = {
-              cp_cliente: clienteIdStr,
-              cp_produto: null
-            };
-
             if (select.primaryType === 'produto') {
-              combinacao.cp_produto = itemId;
-            }
+              const produtoId = itemId;
+              
+              // Buscar tarefas selecionadas para este produto
+              const tarefasDoProduto = tarefasSelecionadasPorProduto[produtoId] || {};
+              const tarefasSelecionadas = Object.entries(tarefasDoProduto)
+                .filter(([_, dados]) => {
+                  // Verificar se é objeto com selecionada ou boolean antigo
+                  if (typeof dados === 'object' && dados !== null) {
+                    return dados.selecionada === true;
+                  }
+                  return dados === true;
+                })
+                .map(([tarefaId, dados]) => ({
+                  tarefaId: parseInt(tarefaId, 10),
+                  subtarefas: typeof dados === 'object' && dados !== null ? (dados.subtarefas || []) : []
+                }));
 
-            combinacoes.push(combinacao);
+              if (tarefasSelecionadas.length > 0) {
+                // Criar vínculo para cada tarefa e suas subtarefas selecionadas
+                tarefasSelecionadas.forEach(({ tarefaId, subtarefas }) => {
+                  if (subtarefas && subtarefas.length > 0) {
+                    // Criar vínculo para cada subtarefa selecionada
+                    subtarefas.forEach(subtarefaId => {
+                      combinacoes.push({
+                        cp_cliente: clienteIdStr,
+                        cp_produto: produtoId,
+                        cp_tarefa: tarefaId,
+                        cp_subtarefa: subtarefaId
+                      });
+                    });
+                  } else {
+                    // Tarefa sem subtarefas selecionadas, criar apenas com tarefa
+                    combinacoes.push({
+                      cp_cliente: clienteIdStr,
+                      cp_produto: produtoId,
+                      cp_tarefa: tarefaId
+                    });
+                  }
+                });
+              }
+              
+              // SEMPRE criar vínculo produto (mesmo sem tarefas, para manter herança)
+              // Mas só se não criou nenhum vínculo com tarefa (para evitar duplicata)
+              if (tarefasSelecionadas.length === 0) {
+                combinacoes.push({
+                  cp_cliente: clienteIdStr,
+                  cp_produto: produtoId
+                });
+              }
+            } else {
+              // Outros tipos (não produto)
+              const combinacao = {
+                cp_cliente: clienteIdStr,
+                cp_produto: null
+              };
+              combinacoes.push(combinacao);
+            }
           });
         });
       });
@@ -364,18 +414,23 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
         }
 
         const contentTypeVinculados = responseVinculados.headers.get('content-type') || '';
+        let resultVinculacao = { success: false };
+        
         if (!contentTypeVinculados.includes('application/json')) {
           const text = await responseVinculados.text();
+          resultVinculacao = { success: false, error: 'Resposta inválida do servidor' };
         } else {
           const resultVinculados = await responseVinculados.json();
+          resultVinculacao = resultVinculados;
           
           if (!responseVinculados.ok) {
+            resultVinculacao = { success: false, error: resultVinculados.error || 'Erro ao salvar vinculação' };
           } else {
+            resultVinculacao = { success: true, data: resultVinculados.data };
           }
         }
-      }
 
-      if (resultVinculacao.success) {
+        if (resultVinculacao.success) {
         // Não resetar os selects após salvar - permite adicionar mais vinculações
         // Apenas limpar o estado de expansão
         setExpandedSelects({});
@@ -390,7 +445,7 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
     } finally {
       setSubmitting(false);
     }
-  }, [clienteId, secondarySelects, showToast]);
+  }, [clienteId, secondarySelects, tarefasSelecionadasPorProduto, showToast]);
 
   // Expor função de salvar para o componente pai
   React.useEffect(() => {
@@ -466,27 +521,32 @@ const ClienteVinculacao = ({ clienteId, onSaveVinculacao }) => {
                 />
               </div>
               
-              {/* Exibir tarefas vinculadas se for select de produto */}
+              {/* Exibir seleção de tarefas se for select de produto */}
               {select.primaryType === 'produto' && (select.selectedItems || []).length > 0 && (
                 <div style={{ marginTop: '15px' }}>
-                  <div style={{ 
-                    fontWeight: '600', 
-                    color: '#0e3b6f', 
-                    marginBottom: '12px',
-                    fontSize: '14px',
-                    borderBottom: '1px solid #dee2e6',
-                    paddingBottom: '8px'
-                  }}>
-                    <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
-                    Tarefas Vinculadas aos Produtos
-                  </div>
-                  <TarefasVinculadasCliente 
+                  <SelecaoTarefasPorProduto
+                    key={`selecao-tarefas-${clienteId}-${(select.selectedItems || []).join('-')}`}
                     clienteId={clienteId}
                     produtos={(select.selectedItems || []).map(produtoIdStr => {
                       const produtoId = parseInt(produtoIdStr, 10);
                       const produto = produtos.find(p => p.id === produtoId);
                       return produto || { id: produtoId, nome: `Produto #${produtoId}` };
                     })}
+                    onTarefasChange={(tarefasPorProduto) => {
+                      // Converter formato: { produtoId: [{ id, nome, selecionada, subtarefasSelecionadas }] }
+                      // Para: { produtoId: { tarefaId: { selecionada: boolean, subtarefas: [subtarefaId] } } }
+                      const novoFormato = {};
+                      Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
+                        novoFormato[parseInt(produtoId, 10)] = {};
+                        tarefas.forEach(tarefa => {
+                          novoFormato[parseInt(produtoId, 10)][tarefa.id] = {
+                            selecionada: tarefa.selecionada || false,
+                            subtarefas: tarefa.subtarefasSelecionadas || []
+                          };
+                        });
+                      });
+                      setTarefasSelecionadasPorProduto(novoFormato);
+                    }}
                   />
                 </div>
               )}

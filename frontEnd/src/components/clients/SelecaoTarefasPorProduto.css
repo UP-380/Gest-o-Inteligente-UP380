@@ -1,0 +1,12 @@
+.selecao-tarefas-produto {
+  margin-top: 20px;
+}
+
+.selecao-tarefas-produto label {
+  user-select: none;
+}
+
+.selecao-tarefas-produto label:hover {
+  background-color: #f8f9fa !important;
+}
+

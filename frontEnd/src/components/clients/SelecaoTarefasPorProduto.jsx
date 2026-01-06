@@ -1,0 +1,1260 @@
+import React, { useState, useEffect, useRef } from 'react';
+import CustomSelect from '../vinculacoes/CustomSelect';
+import './SelecaoTarefasPorProduto.css';
+
+const API_BASE_URL = '/api';
+
+/**
+ * Componente para selecionar tarefas por produto ao vincular produto ao cliente
+ * Permite adicionar/remover tarefas específicas para cada produto
+ */
+const SelecaoTarefasPorProduto = ({ 
+  clienteId, 
+  produtos, 
+  onTarefasChange,
+  refreshKey = 0 // Key para forçar recarregamento
+}) => {
+  const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
+  const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
+  const [loading, setLoading] = useState(false);
+  const [expandedProdutos, setExpandedProdutos] = useState({});
+  const [mostrarAdicionarTarefa, setMostrarAdicionarTarefa] = useState({}); // { produtoId: boolean }
+  const [tarefasDisponiveis, setTarefasDisponiveis] = useState([]); // Todas as tarefas disponíveis
+  const [tarefasComTipos, setTarefasComTipos] = useState([]); // Tarefas agrupadas por tipo para o CustomSelect
+  const [tiposTarefa, setTiposTarefa] = useState([]); // Tipos de tarefa
+  const [carregandoTarefas, setCarregandoTarefas] = useState(false);
+  const [subtarefasPorTarefa, setSubtarefasPorTarefa] = useState({}); // { tarefaId: [{ id, nome, selecionada }] } - subtarefas de cada tarefa
+  const [carregandoSubtarefas, setCarregandoSubtarefas] = useState({}); // { tarefaId: boolean } - estado de carregamento de subtarefas
+  const [tarefasExpandidas, setTarefasExpandidas] = useState({}); // { tarefaId: boolean } - quais tarefas estão expandidas para mostrar subtarefas
+  const [tarefaSelecionadaParaAdicionar, setTarefaSelecionadaParaAdicionar] = useState({}); // { produtoId: string } - Valor do CustomSelect para adicionar tarefa por produto
+
+  // Carregar tarefas dos produtos quando produtos mudarem ou refreshKey mudar
+  useEffect(() => {
+    if (produtos && produtos.length > 0) {
+      loadTarefasPorProdutos();
+    } else {
+      setTarefasPorProduto({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(produtos), refreshKey]);
+
+  // Atualizar referência sempre que o estado mudar
+  useEffect(() => {
+    tarefasPorProdutoRef.current = tarefasPorProduto;
+  }, [tarefasPorProduto]);
+
+
+  const loadTarefasPorProdutos = async () => {
+    if (!produtos || produtos.length === 0) return;
+
+    setLoading(true);
+    try {
+      const produtoIds = produtos.map(p => {
+        const produtoId = typeof p === 'object' ? p.id : p;
+        return parseInt(produtoId, 10);
+      }).filter(id => !isNaN(id) && id > 0);
+
+      if (produtoIds.length === 0) {
+        setTarefasPorProduto({});
+        setLoading(false);
+        return;
+      }
+
+      // Buscar tarefas dos produtos para este cliente específico
+      // Usar a API que considera o cliente (herança híbrida)
+      const url = clienteId 
+        ? `${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIds.join(',')}`
+        : `${API_BASE_URL}/tarefas-por-produtos?produtoIds=${produtoIds.join(',')}`;
+      
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('📦 Resposta da API tarefas-por-cliente-produtos:', result);
+        
+        if (result.success && result.data) {
+          // Inicializar tarefas por produto
+          const novasTarefasPorProduto = {};
+          
+          result.data.forEach(item => {
+            const produtoId = item.produtoId;
+            // A API retorna tarefas com estrutura: { id, nome, tipoTarefa, subtarefas, subtarefasVinculadasCliente, ehExcecao, estaVinculadaAoCliente }
+            // IMPORTANTE: Marcar como selecionada qualquer tarefa que está vinculada ao cliente
+            // Uma tarefa está vinculada se: estaVinculadaAoCliente === true OU tem subtarefas vinculadas ao cliente
+            novasTarefasPorProduto[produtoId] = (item.tarefas || []).map(tarefa => {
+              const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
+              const ehExcecao = tarefa.ehExcecao === true;
+              const temSubtarefasVinculadas = tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0;
+              // Marcar como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
+              const selecionada = estaVinculadaAoCliente || temSubtarefasVinculadas;
+              
+              console.log(`  📋 Tarefa ${tarefa.id} (${tarefa.nome}): estaVinculadaAoCliente=${estaVinculadaAoCliente}, ehExcecao=${ehExcecao}, temSubtarefasVinculadas=${temSubtarefasVinculadas}, selecionada=${selecionada}, subtarefasVinculadasCliente=${tarefa.subtarefasVinculadasCliente?.length || 0}`);
+              
+              return {
+                id: tarefa.id,
+                nome: tarefa.nome,
+                tipoTarefa: tarefa.tipoTarefa || null,
+                subtarefas: tarefa.subtarefas || [],
+                subtarefasVinculadasCliente: tarefa.subtarefasVinculadasCliente || [], // IDs das subtarefas já vinculadas ao cliente
+                subtarefasSelecionadas: tarefa.subtarefasVinculadasCliente || [], // Inicializar subtarefas selecionadas com as vinculadas
+                selecionada: selecionada,
+                ehExcecao: ehExcecao // Marcar se é exceção (já gravada para o cliente)
+              };
+            });
+          });
+
+          // Garantir que todos os produtos selecionados apareçam, mesmo sem tarefas
+          produtoIds.forEach(produtoId => {
+            if (!novasTarefasPorProduto[produtoId]) {
+              novasTarefasPorProduto[produtoId] = [];
+            }
+          });
+
+          console.log('✅ Tarefas processadas por produto:', novasTarefasPorProduto);
+          // Log detalhado para debug
+          Object.entries(novasTarefasPorProduto).forEach(([produtoId, tarefas]) => {
+            tarefas.forEach(tarefa => {
+              if (tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0) {
+                console.log(`📌 Tarefa ${tarefa.id} (${tarefa.nome}) tem ${tarefa.subtarefasVinculadasCliente.length} subtarefa(s) vinculada(s):`, tarefa.subtarefasVinculadasCliente);
+              }
+            });
+          });
+          tarefasPorProdutoRef.current = novasTarefasPorProduto; // Atualizar referência
+          setTarefasPorProduto(novasTarefasPorProduto);
+          
+          // Notificar componente pai sobre as tarefas iniciais
+          if (onTarefasChange) {
+            onTarefasChange(novasTarefasPorProduto);
+          }
+        } else {
+          console.warn('⚠️ Resposta sem dados ou sem sucesso:', result);
+          // Se não há dados, inicializar com arrays vazios para cada produto
+          const novasTarefasPorProduto = {};
+          produtoIds.forEach(produtoId => {
+            novasTarefasPorProduto[produtoId] = [];
+          });
+          setTarefasPorProduto(novasTarefasPorProduto);
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Erro na resposta da API:', response.status, errorData);
+        // Em caso de erro, inicializar com arrays vazios
+        const novasTarefasPorProduto = {};
+        produtoIds.forEach(produtoId => {
+          novasTarefasPorProduto[produtoId] = [];
+        });
+        setTarefasPorProduto(novasTarefasPorProduto);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tarefas dos produtos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle seleção de tarefa
+  const toggleTarefa = (produtoId, tarefaId) => {
+    setTarefasPorProduto(prev => {
+      const novasTarefas = { ...prev };
+      
+      if (!novasTarefas[produtoId]) {
+        novasTarefas[produtoId] = [];
+      }
+
+      const tarefaIndex = novasTarefas[produtoId].findIndex(t => t.id === tarefaId);
+      
+      if (tarefaIndex >= 0) {
+        // Tarefa existe, toggle seleção
+        novasTarefas[produtoId][tarefaIndex] = {
+          ...novasTarefas[produtoId][tarefaIndex],
+          selecionada: !novasTarefas[produtoId][tarefaIndex].selecionada
+        };
+      }
+
+      // Notificar componente pai
+      if (onTarefasChange) {
+        onTarefasChange(novasTarefas);
+      }
+
+      return novasTarefas;
+    });
+  };
+
+  // Selecionar todas as tarefas de um produto
+  const selecionarTodasTarefas = (produtoId) => {
+    setTarefasPorProduto(prev => {
+      const novasTarefas = { ...prev };
+      
+      if (novasTarefas[produtoId]) {
+        novasTarefas[produtoId] = novasTarefas[produtoId].map(t => ({
+          ...t,
+          selecionada: true
+        }));
+      }
+
+      if (onTarefasChange) {
+        onTarefasChange(novasTarefas);
+      }
+
+      return novasTarefas;
+    });
+  };
+
+  // Desselecionar todas as tarefas de um produto
+  const desselecionarTodasTarefas = (produtoId) => {
+    setTarefasPorProduto(prev => {
+      const novasTarefas = { ...prev };
+      
+      if (novasTarefas[produtoId]) {
+        novasTarefas[produtoId] = novasTarefas[produtoId].map(t => ({
+          ...t,
+          selecionada: false
+        }));
+      }
+
+      if (onTarefasChange) {
+        onTarefasChange(novasTarefas);
+      }
+
+      return novasTarefas;
+    });
+  };
+
+  // Obter nome do produto
+  const getProdutoNome = (produtoId) => {
+    const produto = produtos.find(p => {
+      const pId = typeof p === 'object' ? p.id : p;
+      return parseInt(pId, 10) === parseInt(produtoId, 10);
+    });
+    
+    if (typeof produto === 'object' && produto.nome) {
+      return produto.nome;
+    }
+    return `Produto #${produtoId}`;
+  };
+
+  // Carregar todas as tarefas disponíveis com tipos
+  const loadTarefasDisponiveis = async () => {
+    if (tarefasComTipos.length > 0) return;
+    
+    setCarregandoTarefas(true);
+    try {
+      // Carregar tipos de tarefa
+      const responseTipos = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      let tipos = [];
+      if (responseTipos.ok) {
+        const resultTipos = await responseTipos.json();
+        if (resultTipos.success && resultTipos.data) {
+          tipos = resultTipos.data;
+          setTiposTarefa(tipos);
+        }
+      }
+
+      // Carregar tarefas
+      const responseTarefas = await fetch(`${API_BASE_URL}/tarefa?limit=1000`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      let tarefas = [];
+      if (responseTarefas.ok) {
+        const resultTarefas = await responseTarefas.json();
+        if (resultTarefas.success && resultTarefas.data) {
+          tarefas = resultTarefas.data;
+          setTarefasDisponiveis(tarefas);
+        }
+      }
+
+      // Buscar vinculados para obter tarefas com tipos
+      const responseVinculados = await fetch(`${API_BASE_URL}/vinculados?filtro_tipo_atividade=true&limit=1000`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const tarefasComTiposMap = new Map();
+      
+      if (responseVinculados.ok) {
+        const resultVinculados = await responseVinculados.json();
+        if (resultVinculados.success && resultVinculados.data) {
+          // Filtrar apenas vinculados que têm tarefa e tipo de tarefa, mas não têm produto nem cliente
+          const vinculadosTarefaTipo = resultVinculados.data.filter(v => {
+            return v.cp_tarefa && v.cp_tarefa_tipo && !v.cp_produto && !v.cp_cliente && !v.cp_subtarefa;
+          });
+          
+          // Extrair tarefas únicas com seus tipos
+          vinculadosTarefaTipo.forEach(v => {
+            const tarefaId = parseInt(v.cp_tarefa, 10);
+            const tipoTarefaId = parseInt(v.cp_tarefa_tipo, 10);
+            const key = `${tarefaId}-${tipoTarefaId}`;
+            
+            if (!tarefasComTiposMap.has(key) && !isNaN(tarefaId) && !isNaN(tipoTarefaId)) {
+              const tarefaNome = v.tarefa_nome || tarefas.find(t => t.id === tarefaId)?.nome || `Tarefa ${tarefaId}`;
+              const tipoTarefaNome = v.tipo_tarefa_nome || tipos.find(t => t.id === tipoTarefaId)?.nome || `Tipo ${tipoTarefaId}`;
+              
+              tarefasComTiposMap.set(key, {
+                tarefaId,
+                tarefaNome,
+                tipoTarefaId,
+                tipoTarefaNome
+              });
+            }
+          });
+        }
+      }
+
+      // IMPORTANTE: Incluir APENAS tarefas que têm vínculo com tipo de tarefa (como na Seção 2)
+      // Não incluir tarefas sem tipo vinculado
+      if (tarefas.length > 0) {
+        tarefas.forEach(tarefa => {
+          const tipoTarefaId = tarefa.tipoatividade_id || tarefa.tipo_tarefa_id || null;
+          if (tipoTarefaId) {
+            const tipoTarefa = tipos.find(t => t.id === tipoTarefaId);
+            if (tipoTarefa) {
+              const key = `${tarefa.id}-${tipoTarefaId}`;
+              if (!tarefasComTiposMap.has(key)) {
+                tarefasComTiposMap.set(key, {
+                  tarefaId: tarefa.id,
+                  tarefaNome: tarefa.nome || tarefa.tarefa_nome || `Tarefa ${tarefa.id}`,
+                  tipoTarefaId,
+                  tipoTarefaNome: tipoTarefa.nome
+                });
+              }
+            }
+          }
+          // IMPORTANTE: NÃO incluir tarefas sem tipo vinculado (removido o else que criava "Sem Tipo")
+        });
+      }
+
+      const tarefasComTiposArray = Array.from(tarefasComTiposMap.values());
+      console.log(`✅ [SelecaoTarefasPorProduto] Tarefas disponíveis carregadas: ${tarefasComTiposArray.length}`);
+      setTarefasComTipos(tarefasComTiposArray);
+    } catch (error) {
+      console.error('Erro ao carregar tarefas disponíveis:', error);
+    } finally {
+      setCarregandoTarefas(false);
+    }
+  };
+
+  // Adicionar nova tarefa como exceção (APENAS para este cliente, NÃO vincular ao produto)
+  const adicionarTarefaExcecao = async (produtoId, tarefaId) => {
+    if (!tarefaId || !clienteId) {
+      console.warn('⚠️ Não é possível adicionar exceção sem clienteId');
+      return;
+    }
+    
+    // Buscar tarefa com tipo nas tarefasComTipos
+    let tarefaComTipo = tarefasComTipos.find(tt => tt.tarefaId === tarefaId);
+    
+    // Se não encontrou nas tarefas com tipos, buscar nas tarefas disponíveis
+    if (!tarefaComTipo) {
+      const tarefa = tarefasDisponiveis.find(t => t.id === tarefaId);
+      if (!tarefa) return;
+      
+      // Tentar encontrar o tipo da tarefa
+      const tipoTarefaId = tarefa.tipoatividade_id || tarefa.tipo_tarefa_id || null;
+      if (tipoTarefaId) {
+        const tipoTarefa = tiposTarefa.find(t => t.id === tipoTarefaId);
+        if (tipoTarefa) {
+          tarefaComTipo = {
+            tarefaId: tarefa.id,
+            tarefaNome: tarefa.nome || tarefa.tarefa_nome || `Tarefa ${tarefa.id}`,
+            tipoTarefaId,
+            tipoTarefaNome: tipoTarefa.nome
+          };
+        }
+      }
+    }
+    
+    // Verificar se a tarefa já existe na lista
+    const tarefasDoProduto = tarefasPorProduto[produtoId] || [];
+    const existe = tarefasDoProduto.some(t => t.id === tarefaId);
+    if (existe) {
+      return;
+    }
+
+    try {
+      // IMPORTANTE: NÃO criar vínculo Produto → Tarefa
+      // A exceção deve ser APENAS Cliente → Produto → Tarefa
+      // Isso garante que a tarefa seja vinculada ao produto SOMENTE para este cliente específico
+      
+      // Criar vínculo Cliente → Produto → Tarefa (exceção apenas para este cliente)
+      const vinculadoClienteProdutoTarefa = {
+        cp_cliente: String(clienteId).trim(),
+        cp_produto: produtoId,
+        cp_tarefa: tarefaId
+      };
+      
+      // Adicionar tipo de tarefa se disponível
+      if (tarefaComTipo && tarefaComTipo.tipoTarefaId) {
+        vinculadoClienteProdutoTarefa.cp_tarefa_tipo = tarefaComTipo.tipoTarefaId;
+      }
+      
+      console.log('🔗 Criando exceção (Cliente → Produto → Tarefa):', vinculadoClienteProdutoTarefa);
+      
+      const responseClienteProdutoTarefa = await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          vinculados: [vinculadoClienteProdutoTarefa]
+        }),
+      });
+
+      if (!responseClienteProdutoTarefa.ok) {
+        const errorText = await responseClienteProdutoTarefa.text();
+        console.error('❌ Erro ao criar vínculo Cliente → Produto → Tarefa:', errorText);
+        throw new Error('Erro ao criar exceção');
+      }
+      
+      // 3. Adicionar na lista local
+      setTarefasPorProduto(prev => {
+        const novasTarefas = { ...prev };
+        
+        if (!novasTarefas[produtoId]) {
+          novasTarefas[produtoId] = [];
+        }
+
+        // Adicionar como exceção (vinculada APENAS ao cliente para este produto, NÃO ao produto em geral)
+        novasTarefas[produtoId].push({
+          id: tarefaId,
+          nome: tarefaComTipo ? tarefaComTipo.tarefaNome : (tarefasDisponiveis.find(t => t.id === tarefaId)?.nome || tarefasDisponiveis.find(t => t.id === tarefaId)?.tarefa_nome || `Tarefa #${tarefaId}`),
+          tipoTarefa: tarefaComTipo ? {
+            id: tarefaComTipo.tipoTarefaId,
+            nome: tarefaComTipo.tipoTarefaNome
+          } : null,
+          subtarefas: [],
+          subtarefasSelecionadas: [], // Inicializar subtarefas selecionadas
+          selecionada: true,
+          ehExcecao: true // É exceção: vinculada SOMENTE para este cliente+produto, não é padrão do produto
+        });
+
+        // Fechar o select
+        setMostrarAdicionarTarefa(prev => ({ ...prev, [produtoId]: false }));
+
+        // Notificar componente pai
+        if (onTarefasChange) {
+          onTarefasChange(novasTarefas);
+        }
+
+        return novasTarefas;
+      });
+    } catch (error) {
+      console.error('Erro ao adicionar tarefa e criar vínculos:', error);
+    }
+  };
+
+  // Obter tarefas disponíveis para adicionar (não estão no produto) formatadas para CustomSelect
+  const getTarefasDisponiveisParaAdicionar = (produtoId) => {
+    const tarefasDoProduto = tarefasPorProduto[produtoId] || [];
+    const tarefasIdsDoProduto = new Set(tarefasDoProduto.map(t => t.id));
+    
+    // Filtrar tarefas que não estão no produto e formatar para CustomSelect
+    return tarefasComTipos
+      .filter(tt => !tarefasIdsDoProduto.has(tt.tarefaId))
+      .map(tt => ({
+        value: tt.tarefaId.toString(),
+        label: `${tt.tarefaNome} (${tt.tipoTarefaNome})`,
+        grupo: tt.tipoTarefaNome, // Para agrupamento visual
+        tarefaId: tt.tarefaId,
+        tipoTarefaId: tt.tipoTarefaId
+      }))
+      .sort((a, b) => {
+        // Ordenar por tipo primeiro, depois por nome da tarefa
+        if (a.grupo !== b.grupo) {
+          return a.grupo.localeCompare(b.grupo);
+        }
+        return a.label.localeCompare(b.label);
+      });
+  };
+
+  // Carregar subtarefas de uma tarefa específica
+  const carregarSubtarefasTarefa = async (tarefaId, produtoId) => {
+    if (subtarefasPorTarefa[tarefaId] || carregandoSubtarefas[tarefaId]) return;
+    
+    setCarregandoSubtarefas(prev => ({ ...prev, [tarefaId]: true }));
+    
+    try {
+      // Buscar informações da tarefa usando a referência (sempre atualizada)
+      const tarefaInfo = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
+      const subtarefasVinculadasCliente = tarefaInfo?.subtarefasVinculadasCliente || [];
+      
+      console.log(`📋 Carregando subtarefas para tarefa ${tarefaId} do produto ${produtoId}:`, {
+        subtarefasVinculadasCliente,
+        tarefaInfo: tarefaInfo ? {
+          id: tarefaInfo.id,
+          nome: tarefaInfo.nome,
+          temSubtarefasVinculadas: !!tarefaInfo.subtarefasVinculadasCliente,
+          subtarefasVinculadasCliente: tarefaInfo.subtarefasVinculadasCliente
+        } : null,
+        todasTarefas: tarefasPorProdutoRef.current[produtoId]?.map(t => ({ 
+          id: t.id, 
+          nome: t.nome,
+          temSubtarefas: !!t.subtarefasVinculadasCliente
+        }))
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          // Converter subtarefasVinculadasCliente para números para comparação correta
+          const subtarefasVinculadasIds = subtarefasVinculadasCliente.map(id => {
+            const numId = typeof id === 'number' ? id : parseInt(String(id), 10);
+            return isNaN(numId) ? null : numId;
+          }).filter(id => id !== null);
+          
+          console.log(`✅ Subtarefas recebidas da API (${result.data.length}):`, result.data.map(st => ({ id: st.id, nome: st.nome })));
+          console.log(`✅ IDs de subtarefas vinculadas ao cliente (${subtarefasVinculadasIds.length}):`, subtarefasVinculadasIds);
+          
+          // Inicializar subtarefas: marcar como selecionadas as que já estão vinculadas ao cliente
+          const subtarefas = result.data.map(st => {
+            const subtarefaId = typeof st.id === 'number' ? st.id : parseInt(String(st.id), 10);
+            const estaSelecionada = subtarefasVinculadasIds.includes(subtarefaId);
+            
+            if (estaSelecionada) {
+              console.log(`  ✅ Subtarefa ${subtarefaId} (${st.nome}): SELECIONADA`);
+            }
+            
+            return {
+              id: subtarefaId,
+              nome: st.nome,
+              selecionada: estaSelecionada
+            };
+          });
+          
+          console.log(`📝 Definindo ${subtarefas.filter(st => st.selecionada).length} subtarefa(s) como selecionada(s)`);
+          
+          setSubtarefasPorTarefa(prev => ({
+            ...prev,
+            [tarefaId]: subtarefas
+          }));
+          
+          // Notificar componente pai sobre as subtarefas já selecionadas
+          if (onTarefasChange && subtarefasVinculadasIds.length > 0) {
+            setTarefasPorProduto(prevTarefas => {
+              const tarefasAtualizadas = { ...prevTarefas };
+              if (tarefasAtualizadas[produtoId]) {
+                tarefasAtualizadas[produtoId] = tarefasAtualizadas[produtoId].map(t => {
+                  if (t.id === tarefaId) {
+                    return {
+                      ...t,
+                      subtarefasSelecionadas: subtarefasVinculadasIds
+                    };
+                  }
+                  return t;
+                });
+                onTarefasChange(tarefasAtualizadas);
+              }
+              return tarefasAtualizadas;
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Erro ao carregar subtarefas da tarefa ${tarefaId}:`, error);
+    } finally {
+      setCarregandoSubtarefas(prev => ({ ...prev, [tarefaId]: false }));
+    }
+  };
+
+  // Toggle subtarefa (selecionar/desselecionar)
+  const toggleSubtarefa = (tarefaId, subtarefaId) => {
+    setSubtarefasPorTarefa(prev => {
+      const novasSubtarefas = { ...prev };
+      if (!novasSubtarefas[tarefaId]) return novasSubtarefas;
+      
+      novasSubtarefas[tarefaId] = novasSubtarefas[tarefaId].map(st => 
+        st.id === subtarefaId ? { ...st, selecionada: !st.selecionada } : st
+      );
+      
+      // Notificar componente pai sobre mudanças
+      if (onTarefasChange) {
+        const tarefasAtualizadas = { ...tarefasPorProduto };
+        Object.keys(tarefasAtualizadas).forEach(produtoId => {
+          tarefasAtualizadas[produtoId] = tarefasAtualizadas[produtoId].map(t => {
+            if (t.id === tarefaId) {
+              const subtarefasSelecionadas = novasSubtarefas[tarefaId]?.filter(st => st.selecionada).map(st => st.id) || [];
+              return {
+                ...t,
+                subtarefasSelecionadas: subtarefasSelecionadas
+              };
+            }
+            return t;
+          });
+        });
+        onTarefasChange(tarefasAtualizadas);
+      }
+      
+      return novasSubtarefas;
+    });
+  };
+
+  if (!produtos || produtos.length === 0) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
+        <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+        Carregando tarefas dos produtos...
+      </div>
+    );
+  }
+
+  return (
+    <div className="selecao-tarefas-produto">
+      <div style={{ 
+        fontWeight: '600', 
+        color: '#0e3b6f', 
+        marginBottom: '16px',
+        fontSize: '14px',
+        borderBottom: '1px solid #dee2e6',
+        paddingBottom: '8px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
+          Selecionar Tarefas por Produto
+          <span style={{ 
+            fontSize: '12px', 
+            fontWeight: '400', 
+            color: '#64748b', 
+            marginLeft: '8px' 
+          }}>
+            (Marque as tarefas que este cliente deve ter para cada produto)
+          </span>
+        </div>
+      </div>
+
+      {produtos.map(produto => {
+        const produtoId = typeof produto === 'object' ? produto.id : produto;
+        const produtoIdNum = parseInt(produtoId, 10);
+        const tarefas = tarefasPorProduto[produtoIdNum] || [];
+        const tarefasSelecionadas = tarefas.filter(t => t.selecionada).length;
+        const todasSelecionadas = tarefas.length > 0 && tarefasSelecionadas === tarefas.length;
+        const isExpanded = expandedProdutos[produtoIdNum] || false;
+
+        if (tarefas.length === 0) {
+          return (
+            <div key={produtoIdNum} style={{ 
+              marginBottom: '16px',
+              padding: '12px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '4px',
+              border: '1px solid #dee2e6'
+            }}>
+              <div style={{ fontWeight: '600', color: '#495057', marginBottom: '4px' }}>
+                {getProdutoNome(produtoIdNum)}
+              </div>
+              <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                Nenhuma tarefa vinculada a este produto
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={produtoIdNum} style={{ 
+            marginBottom: '16px',
+            border: '1px solid #dee2e6',
+            borderRadius: '4px',
+            overflow: 'hidden'
+          }}>
+            {/* Header do Produto */}
+            <div 
+              style={{ 
+                padding: '12px',
+                backgroundColor: '#f8f9fa',
+                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: isExpanded ? '1px solid #dee2e6' : 'none'
+              }}
+              onClick={() => setExpandedProdutos(prev => ({
+                ...prev,
+                [produtoIdNum]: !prev[produtoIdNum]
+              }))}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '600', color: '#495057', marginBottom: '4px' }}>
+                  {getProdutoNome(produtoIdNum)}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                  {tarefasSelecionadas} de {tarefas.length} tarefa(s) selecionada(s)
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await loadTarefasDisponiveis();
+                    setMostrarAdicionarTarefa(prev => ({ ...prev, [produtoIdNum]: !prev[produtoIdNum] }));
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Adicionar nova tarefa como exceção"
+                >
+                  <i className="fas fa-plus" style={{ fontSize: '12px' }}></i>
+                  Adicionar Tarefa
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (todasSelecionadas) {
+                      desselecionarTodasTarefas(produtoIdNum);
+                    } else {
+                      selecionarTodasTarefas(produtoIdNum);
+                    }
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title={todasSelecionadas ? 'Desselecionar todas as tarefas' : 'Selecionar todas as tarefas'}
+                >
+                  <i className={`fas fa-${todasSelecionadas ? 'square' : 'check-square'}`} style={{ fontSize: '12px' }}></i>
+                  {todasSelecionadas ? 'Desmarcar todas' : 'Marcar todas'}
+                </button>
+                <i 
+                  className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`}
+                  style={{ color: '#6c757d', fontSize: '12px' }}
+                ></i>
+              </div>
+            </div>
+
+            {/* Select para adicionar tarefa */}
+            {mostrarAdicionarTarefa[produtoIdNum] && (
+              <div style={{ 
+                padding: '12px', 
+                backgroundColor: '#f8f9fa',
+                borderBottom: '1px solid #dee2e6'
+              }}>
+                <div style={{ marginBottom: '8px', fontSize: '12px', color: '#495057', fontWeight: '500' }}>
+                  Adicionar nova tarefa como exceção (apenas para este cliente):
+                </div>
+                <div className="select-wrapper">
+                  <CustomSelect
+                    value={tarefaSelecionadaParaAdicionar[produtoIdNum] || ''}
+                    options={getTarefasDisponiveisParaAdicionar(produtoIdNum)}
+                    onChange={async (e) => {
+                      const tarefaIdStr = e.target.value;
+                      if (tarefaIdStr) {
+                        const tarefaId = parseInt(tarefaIdStr, 10);
+                        await adicionarTarefaExcecao(produtoIdNum, tarefaId);
+                        // Resetar o select após adicionar
+                        setTarefaSelecionadaParaAdicionar(prev => ({
+                          ...prev,
+                          [produtoIdNum]: ''
+                        }));
+                      }
+                    }}
+                    placeholder="Selecione uma tarefa (agrupadas por tipo)"
+                    disabled={carregandoTarefas}
+                    enableSearch={true}
+                    onOpen={async () => {
+                      if (tarefasComTipos.length === 0) {
+                        await loadTarefasDisponiveis();
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Lista de Tarefas */}
+            {isExpanded && (
+              <div style={{ padding: '12px', backgroundColor: '#fff' }}>
+                {/* Separar tarefas normais e exceções, colocando exceções no final */}
+                {(() => {
+                  // Separar tarefas normais e exceções
+                  const tarefasNormais = tarefas.filter(t => t.ehExcecao !== true);
+                  const tarefasExcecao = tarefas.filter(t => t.ehExcecao === true);
+                  
+                  return (
+                    <>
+                      {/* Tarefas Normais */}
+                      {tarefasNormais.map(tarefa => (
+                  <div key={tarefa.id}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px',
+                        marginBottom: '4px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        backgroundColor: tarefa.selecionada ? '#e7f5ff' : 'transparent',
+                        border: `1px solid ${tarefa.selecionada ? '#0ea5e9' : '#dee2e6'}`,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!tarefa.selecionada) {
+                          e.currentTarget.style.backgroundColor = '#f8f9fa';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!tarefa.selecionada) {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tarefa.selecionada || false}
+                        onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
+                        style={{
+                          marginRight: '10px',
+                          cursor: 'pointer',
+                          width: '16px',
+                          height: '16px'
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '500', color: '#212529' }}>
+                          {tarefa.nome}
+                        </div>
+                        {tarefa.tipoTarefa && (
+                          <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
+                            Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
+                          </div>
+                        )}
+                        {tarefa.subtarefas && tarefa.subtarefas.length > 0 && (
+                          <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
+                            {tarefa.subtarefas.length} subtarefa(s)
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {tarefa.ehExcecao === true ? (
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            backgroundColor: '#fef3c7',
+                            color: '#92400e',
+                            borderRadius: '3px'
+                          }}>
+                            Exceção
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            backgroundColor: '#dbeafe',
+                            color: '#1e40af',
+                            borderRadius: '3px'
+                          }}>
+                            Padrão
+                          </span>
+                        )}
+                        {/* Botão para expandir subtarefas - mostrar apenas se tiver subtarefas vinculadas */}
+                        {tarefa.selecionada && (() => {
+                          // Verificar se tem subtarefas vinculadas
+                          const temSubtarefasVinculadas = tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0;
+                          const temSubtarefasCarregadas = subtarefasPorTarefa[tarefa.id] && subtarefasPorTarefa[tarefa.id].length > 0;
+                          const temSubtarefas = tarefa.subtarefas && tarefa.subtarefas.length > 0;
+                          
+                          // Mostrar botão apenas se tiver subtarefas vinculadas ou se já foram carregadas
+                          if (!temSubtarefasVinculadas && !temSubtarefasCarregadas && !temSubtarefas) {
+                            return null;
+                          }
+                          
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTarefasExpandidas(prev => ({
+                                  ...prev,
+                                  [tarefa.id]: !prev[tarefa.id]
+                                }));
+                                // Carregar subtarefas se ainda não foram carregadas
+                                if (!subtarefasPorTarefa[tarefa.id] && !carregandoSubtarefas[tarefa.id]) {
+                                  carregarSubtarefasTarefa(tarefa.id, produtoId);
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s ease',
+                                background: tarefasExpandidas[tarefa.id] ? '#0e3b6f' : '#f1f5f9',
+                                color: tarefasExpandidas[tarefa.id] ? '#ffffff' : '#475569',
+                                border: `1px solid ${tarefasExpandidas[tarefa.id] ? '#0e3b6f' : '#cbd5e1'}`,
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                boxShadow: tarefasExpandidas[tarefa.id] ? '0 2px 4px rgba(14, 59, 111, 0.2)' : 'none'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!tarefasExpandidas[tarefa.id]) {
+                                  e.currentTarget.style.background = '#e2e8f0';
+                                  e.currentTarget.style.borderColor = '#94a3b8';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!tarefasExpandidas[tarefa.id]) {
+                                  e.currentTarget.style.background = '#f1f5f9';
+                                  e.currentTarget.style.borderColor = '#cbd5e1';
+                                }
+                              }}
+                              title={tarefasExpandidas[tarefa.id] ? 'Ocultar subtarefas' : 'Ver subtarefas'}
+                            >
+                              <i className={`fas fa-chevron-${tarefasExpandidas[tarefa.id] ? 'up' : 'down'}`} style={{ fontSize: '10px' }}></i>
+                              <i className="fas fa-tasks" style={{ fontSize: '11px' }}></i>
+                              <span>Subtarefas</span>
+                              {temSubtarefasVinculadas && (
+                                <span style={{
+                                  marginLeft: '4px',
+                                  padding: '2px 6px',
+                                  background: '#10b981',
+                                  color: 'white',
+                                  borderRadius: '10px',
+                                  fontSize: '10px',
+                                  fontWeight: '600'
+                                }}>
+                                  {tarefa.subtarefasVinculadasCliente.length}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </div>
+                    </label>
+                    {/* Lista de Subtarefas (quando expandida) */}
+                    {tarefa.selecionada && tarefasExpandidas[tarefa.id] && (
+                      <div style={{ 
+                        marginLeft: '26px', 
+                        marginTop: '4px', 
+                        marginBottom: '8px',
+                        padding: '8px',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        border: '1px solid #dee2e6'
+                      }}>
+                        {carregandoSubtarefas[tarefa.id] ? (
+                          <div style={{ fontSize: '11px', color: '#6c757d', padding: '4px' }}>
+                            <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>
+                            Carregando subtarefas...
+                          </div>
+                        ) : (
+                          <>
+                            {subtarefasPorTarefa[tarefa.id] && subtarefasPorTarefa[tarefa.id].length > 0 ? (
+                              <>
+                                <div style={{ fontSize: '11px', fontWeight: '500', color: '#495057', marginBottom: '6px' }}>
+                                  Selecione as subtarefas:
+                                </div>
+                                {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                                  <label
+                                    key={subtarefa.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      padding: '6px',
+                                      marginBottom: '4px',
+                                      borderRadius: '3px',
+                                      cursor: 'pointer',
+                                      backgroundColor: subtarefa.selecionada ? '#e7f5ff' : 'transparent',
+                                      border: `1px solid ${subtarefa.selecionada ? '#0ea5e9' : '#dee2e6'}`
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={subtarefa.selecionada || false}
+                                      onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                      style={{
+                                        marginRight: '8px',
+                                        cursor: 'pointer',
+                                        width: '14px',
+                                        height: '14px'
+                                      }}
+                                    />
+                                    <span style={{ fontSize: '12px', color: '#212529' }}>
+                                      {subtarefa.nome}
+                                    </span>
+                                  </label>
+                                ))}
+                              </>
+                            ) : (
+                              <div style={{ fontSize: '11px', color: '#6c757d', padding: '4px' }}>
+                                Nenhuma subtarefa vinculada a esta tarefa
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  ))}
+                  
+                  {/* Separador entre tarefas normais e exceções */}
+                  {tarefasNormais.length > 0 && tarefasExcecao.length > 0 && (
+                    <div style={{
+                      margin: '12px 0',
+                      padding: '8px 0',
+                      borderTop: '2px solid #e2e8f0',
+                      borderBottom: '2px solid #e2e8f0'
+                    }}>
+                      <div style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: '#64748b',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Tarefas Exceção
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Tarefas Exceção */}
+                  {tarefasExcecao.map(tarefa => (
+                    <div key={tarefa.id}>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px',
+                          marginBottom: '4px',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          backgroundColor: tarefa.selecionada ? '#fef3c7' : '#fffbf0',
+                          border: `1px solid ${tarefa.selecionada ? '#f59e0b' : '#fde68a'}`,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!tarefa.selecionada) {
+                            e.currentTarget.style.backgroundColor = '#fffbeb';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!tarefa.selecionada) {
+                            e.currentTarget.style.backgroundColor = '#fffbf0';
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tarefa.selecionada || false}
+                          onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
+                          style={{
+                            marginRight: '10px',
+                            cursor: 'pointer',
+                            width: '16px',
+                            height: '16px'
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '500', color: '#212529' }}>
+                            {tarefa.nome}
+                          </div>
+                          {tarefa.tipoTarefa && (
+                            <div style={{ fontSize: '11px', color: '#6c757d', marginTop: '2px' }}>
+                              Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
+                            </div>
+                          )}
+                        </div>
+                        {tarefa.ehExcecao === true && (
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            backgroundColor: '#fef3c7',
+                            color: '#92400e',
+                            borderRadius: '3px',
+                            fontWeight: '600',
+                            marginLeft: '8px'
+                          }}>
+                            Exceção
+                          </span>
+                        )}
+                        {/* Botão para expandir subtarefas - mostrar apenas se tiver subtarefas vinculadas */}
+                        {tarefa.selecionada && (() => {
+                          // Verificar se tem subtarefas vinculadas
+                          const temSubtarefasVinculadas = tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0;
+                          const temSubtarefasCarregadas = subtarefasPorTarefa[tarefa.id] && subtarefasPorTarefa[tarefa.id].length > 0;
+                          const temSubtarefas = tarefa.subtarefas && tarefa.subtarefas.length > 0;
+                          
+                          // Mostrar botão apenas se tiver subtarefas vinculadas ou se já foram carregadas
+                          if (!temSubtarefasVinculadas && !temSubtarefasCarregadas && !temSubtarefas) {
+                            return null;
+                          }
+                          
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTarefasExpandidas(prev => ({
+                                  ...prev,
+                                  [tarefa.id]: !prev[tarefa.id]
+                                }));
+                                // Carregar subtarefas se ainda não foram carregadas
+                                if (!subtarefasPorTarefa[tarefa.id] && !carregandoSubtarefas[tarefa.id]) {
+                                  carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s ease',
+                                background: tarefasExpandidas[tarefa.id] ? '#f59e0b' : '#fef3c7',
+                                color: tarefasExpandidas[tarefa.id] ? '#ffffff' : '#92400e',
+                                border: `1px solid ${tarefasExpandidas[tarefa.id] ? '#f59e0b' : '#fde68a'}`,
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                boxShadow: tarefasExpandidas[tarefa.id] ? '0 2px 4px rgba(245, 158, 11, 0.2)' : 'none',
+                                marginLeft: '8px'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!tarefasExpandidas[tarefa.id]) {
+                                  e.currentTarget.style.background = '#fde68a';
+                                  e.currentTarget.style.borderColor = '#fbbf24';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!tarefasExpandidas[tarefa.id]) {
+                                  e.currentTarget.style.background = '#fef3c7';
+                                  e.currentTarget.style.borderColor = '#fde68a';
+                                }
+                              }}
+                              title={tarefasExpandidas[tarefa.id] ? 'Ocultar subtarefas' : 'Ver subtarefas'}
+                            >
+                              <i className={`fas fa-chevron-${tarefasExpandidas[tarefa.id] ? 'up' : 'down'}`} style={{ fontSize: '10px' }}></i>
+                              <i className="fas fa-tasks" style={{ fontSize: '11px' }}></i>
+                              <span>Subtarefas</span>
+                              {temSubtarefasVinculadas && (
+                                <span style={{
+                                  marginLeft: '4px',
+                                  padding: '2px 6px',
+                                  background: '#10b981',
+                                  color: 'white',
+                                  borderRadius: '10px',
+                                  fontSize: '10px',
+                                  fontWeight: '600'
+                                }}>
+                                  {tarefa.subtarefasVinculadasCliente.length}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </label>
+                      
+                      {/* Lista de Subtarefas (quando expandida) - para tarefas exceção */}
+                      {tarefa.selecionada && tarefasExpandidas[tarefa.id] && (
+                        <div style={{ 
+                          marginLeft: '26px', 
+                          marginTop: '4px', 
+                          marginBottom: '8px',
+                          padding: '8px',
+                          backgroundColor: '#fffbeb',
+                          borderRadius: '4px',
+                          border: '1px solid #fde68a'
+                        }}>
+                          {carregandoSubtarefas[tarefa.id] ? (
+                            <div style={{ fontSize: '11px', color: '#92400e', padding: '4px' }}>
+                              <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>
+                              Carregando subtarefas...
+                            </div>
+                          ) : (
+                            <>
+                              {subtarefasPorTarefa[tarefa.id] && subtarefasPorTarefa[tarefa.id].length > 0 ? (
+                                <>
+                                  <div style={{ fontSize: '11px', fontWeight: '500', color: '#92400e', marginBottom: '6px' }}>
+                                    Selecione as subtarefas:
+                                  </div>
+                                  {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                                    <label
+                                      key={subtarefa.id}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '6px',
+                                        marginBottom: '4px',
+                                        borderRadius: '3px',
+                                        cursor: 'pointer',
+                                        backgroundColor: subtarefa.selecionada ? '#fef3c7' : 'transparent',
+                                        border: `1px solid ${subtarefa.selecionada ? '#f59e0b' : '#fde68a'}`
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={subtarefa.selecionada || false}
+                                        onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                        style={{
+                                          marginRight: '8px',
+                                          cursor: 'pointer',
+                                          width: '14px',
+                                          height: '14px'
+                                        }}
+                                      />
+                                      <span style={{ fontSize: '12px', color: '#212529' }}>
+                                        {subtarefa.nome}
+                                      </span>
+                                    </label>
+                                  ))}
+                                </>
+                              ) : (
+                                <div style={{ fontSize: '11px', color: '#92400e', padding: '4px' }}>
+                                  Nenhuma subtarefa vinculada a esta tarefa
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                      
+                    </div>
+                  ))}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+export default SelecaoTarefasPorProduto;
+
