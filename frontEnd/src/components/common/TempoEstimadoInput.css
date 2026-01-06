@@ -1,5 +1,13 @@
 .tempo-estimado-input-container {
   margin-bottom: 24px;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
+}
+
+/* Quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-input-container {
+  margin-bottom: 0;
 }
 
 .tempo-estimado-label {
@@ -14,6 +22,26 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
+}
+
+/* Quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-input-wrapper {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  padding: 4px 10px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  margin: 0 !important;
+  transition: all 0.2s ease !important;
 }
 
 .tempo-estimado-input-text {
@@ -43,6 +71,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
+}
+
+/* Quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-inputs-separados {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .tempo-estimado-input-horas,
@@ -55,6 +96,38 @@
   transition: all 0.2s;
   width: 80px;
   text-align: center;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 100;
+  cursor: text;
+}
+
+/* Quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-input-horas,
+.selected-item-tag .tempo-estimado-input-minutos {
+  width: 28px !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  font-size: 11px !important;
+  text-align: center !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  flex-shrink: 0 !important;
+  height: auto !important;
+}
+
+.selected-item-tag .tempo-estimado-input-horas:focus,
+.selected-item-tag .tempo-estimado-input-minutos:focus {
+  outline: none !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+}
+
+.selected-item-tag .tempo-estimado-input-horas::placeholder,
+.selected-item-tag .tempo-estimado-input-minutos::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+  opacity: 1 !important;
 }
 
 .tempo-estimado-input-horas:focus,
@@ -75,6 +148,15 @@
   font-size: 14px;
   color: #64748b;
   font-weight: 500;
+}
+
+/* Quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-separador {
+  font-size: 10px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-weight: 500 !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
 }
 
 .tempo-estimado-toggle-btn {

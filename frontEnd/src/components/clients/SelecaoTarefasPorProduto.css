@@ -10,3 +10,13 @@
   background-color: #f8f9fa !important;
 }
 
+/* Checkbox azul padrão para tarefas normais */
+.selecao-tarefas-produto .selected-item-tag input[type="checkbox"] {
+  accent-color: #0e3b6f; /* Azul padrão */
+}
+
+/* Checkbox laranja claro para tarefas de exceção com checkmark branco */
+.selecao-tarefas-produto .selected-item-tag.tarefa-excecao input[type="checkbox"] {
+  accent-color: #fd7e14 !important; /* Laranja mais claro - o navegador automaticamente usa checkmark branco */
+}
+

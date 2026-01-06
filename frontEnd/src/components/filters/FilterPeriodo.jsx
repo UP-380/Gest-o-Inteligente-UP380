@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', showWeekendToggle = false }) => {
+const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localInicio, setLocalInicio] = useState(dataInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectingStart, setSelectingStart] = useState(true);
   const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
+  const [habilitarFeriados, setHabilitarFeriados] = useState(false);
+  const [feriados, setFeriados] = useState({}); // { "2026-01-01": "Confraternização mundial", ... }
+  const [hoveredHoliday, setHoveredHoliday] = useState(null); // { date: "2026-01-01", name: "...", x: 100, y: 200 }
   const containerRef = useRef(null);
 
   // Formatar data para exibição
@@ -27,6 +31,42 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     setLocalInicio(dataInicio || '');
     setLocalFim(dataFim || '');
   }, [dataInicio, dataFim]);
+
+  // Notificar o componente pai sobre o valor inicial do toggle e quando mudar
+  useEffect(() => {
+    if (showWeekendToggle && onWeekendToggleChange) {
+      onWeekendToggleChange(habilitarFinaisSemana);
+    }
+  }, [showWeekendToggle, habilitarFinaisSemana, onWeekendToggleChange]);
+
+  // Notificar o componente pai sobre o valor inicial do toggle de feriados e quando mudar
+  useEffect(() => {
+    if (showHolidayToggle && onHolidayToggleChange) {
+      onHolidayToggleChange(habilitarFeriados);
+    }
+  }, [showHolidayToggle, habilitarFeriados, onHolidayToggleChange]);
+
+  // Buscar feriados quando o mês mudar - sempre buscar para visualização
+  useEffect(() => {
+    const buscarFeriados = async () => {
+      const year = currentMonth.getFullYear();
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
+        if (response.ok) {
+          const feriadosData = await response.json();
+          const feriadosMap = {};
+          feriadosData.forEach(feriado => {
+            feriadosMap[feriado.date] = feriado.name;
+          });
+          setFeriados(feriadosMap);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar feriados:', error);
+      }
+    };
+
+    buscarFeriados();
+  }, [currentMonth]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -59,11 +99,28 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     return dayOfWeek === 0 || dayOfWeek === 6;
   };
 
+  // Verificar se é feriado
+  const isHoliday = (date) => {
+    const dateStr = formatDateForInput(date);
+    return feriados[dateStr] !== undefined;
+  };
+
+  // Obter nome do feriado
+  const getHolidayName = (date) => {
+    const dateStr = formatDateForInput(date);
+    return feriados[dateStr];
+  };
+
   const handleDateClick = (date) => {
     if (disabled) return;
 
     // Se o toggle está visível e finais de semana não estão habilitados e a data é final de semana, não permitir seleção
     if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
+      return;
+    }
+
+    // Se o toggle está visível e feriados não estão habilitados e a data é feriado, não permitir seleção
+    if (showHolidayToggle && !habilitarFeriados && isHoliday(date)) {
       return;
     }
 
@@ -162,11 +219,23 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       const currentDate = new Date(year, month, day);
       let dayClasses = 'periodo-calendar-day';
       const isWeekendDay = isWeekend(currentDate);
-      const isDisabled = showWeekendToggle && !habilitarFinaisSemana && isWeekendDay;
+      const isHolidayDay = isHoliday(currentDate);
+      const holidayName = isHolidayDay ? getHolidayName(currentDate) : null;
+      const isDisabledWeekend = showWeekendToggle && !habilitarFinaisSemana && isWeekendDay;
+      const isDisabledHoliday = showHolidayToggle && !habilitarFeriados && isHolidayDay;
+      const isDisabled = isDisabledWeekend || isDisabledHoliday;
       
       // Adicionar classe para finais de semana desabilitados
-      if (isDisabled) {
+      if (isDisabledWeekend) {
         dayClasses += ' weekend-disabled';
+      }
+      
+      // Adicionar classe para feriados
+      if (isHolidayDay) {
+        dayClasses += ' holiday';
+        if (isDisabledHoliday) {
+          dayClasses += ' holiday-disabled';
+        }
       }
       
       // Verificar se é data de início ou fim
@@ -200,9 +269,48 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           key={day}
           className={dayClasses}
           onClick={() => !isDisabled && handleDateClick(currentDate)}
-          style={isDisabled ? { cursor: 'not-allowed', opacity: 0.4 } : {}}
+          onMouseEnter={(e) => {
+            if (isHolidayDay && holidayName) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setHoveredHoliday({ 
+                date: formatDateForInput(currentDate), 
+                name: holidayName,
+                x: e.clientX,
+                y: e.clientY
+              });
+            }
+          }}
+          onMouseMove={(e) => {
+            if (isHolidayDay && holidayName && hoveredHoliday) {
+              setHoveredHoliday({ 
+                date: formatDateForInput(currentDate), 
+                name: holidayName,
+                x: e.clientX,
+                y: e.clientY
+              });
+            }
+          }}
+          onMouseLeave={() => {
+            setHoveredHoliday(null);
+          }}
+          style={{
+            ...(isDisabled ? { cursor: 'not-allowed', opacity: 0.4 } : {}),
+            position: 'relative'
+          }}
         >
           {day}
+          {isHolidayDay && (
+            <span className="holiday-indicator" style={{
+              position: 'absolute',
+              top: '2px',
+              right: '2px',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: isDisabledHoliday ? '#ef4444' : '#f59e0b',
+              display: 'block'
+            }}></span>
+          )}
         </div>
       );
     }
@@ -214,6 +322,30 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
   return (
     <>
+      {/* Tooltip de feriado - renderizado via Portal para garantir que fique acima de tudo */}
+      {hoveredHoliday && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: `${hoveredHoliday.x + 10}px`,
+            top: `${hoveredHoliday.y - 35}px`,
+            padding: '6px 10px',
+            backgroundColor: '#1f2937',
+            color: '#fff',
+            borderRadius: '4px',
+            fontSize: '11px',
+            whiteSpace: 'nowrap',
+            zIndex: 99999,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            pointerEvents: 'none',
+            maxWidth: '250px',
+            fontWeight: '500'
+          }}
+        >
+          {hoveredHoliday.name}
+        </div>,
+        document.body
+      )}
       <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''}`} ref={containerRef}>
         <div className="periodo-select-field">
           <div 
@@ -267,7 +399,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                           type="checkbox"
                           id="toggleFinaisSemana"
                           checked={habilitarFinaisSemana}
-                          onChange={(e) => setHabilitarFinaisSemana(e.target.checked)}
+                          onChange={(e) => {
+                            const novoValor = e.target.checked;
+                            setHabilitarFinaisSemana(novoValor);
+                            if (onWeekendToggleChange) {
+                              onWeekendToggleChange(novoValor);
+                            }
+                          }}
                           style={{
                             width: '44px',
                             height: '24px',
@@ -298,6 +436,56 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                       </div>
                     </div>
                   )}
+
+                  {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
+                  {showHolidayToggle && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                        Habilitar feriados:
+                      </label>
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <input
+                          type="checkbox"
+                          id="toggleFeriados"
+                          checked={habilitarFeriados}
+                          onChange={(e) => {
+                            const novoValor = e.target.checked;
+                            setHabilitarFeriados(novoValor);
+                            if (onHolidayToggleChange) {
+                              onHolidayToggleChange(novoValor);
+                            }
+                          }}
+                          style={{
+                            width: '44px',
+                            height: '24px',
+                            appearance: 'none',
+                            backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                            borderRadius: '12px',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            outline: 'none',
+                            border: 'none'
+                          }}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '2px',
+                            left: habilitarFeriados ? '22px' : '2px',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            backgroundColor: '#fff',
+                            transition: 'left 0.2s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                            pointerEvents: 'none'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
 
                   <div className="periodo-calendar-container">
                     <div className="periodo-calendar-header">

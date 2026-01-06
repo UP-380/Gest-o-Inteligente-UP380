@@ -6,13 +6,156 @@ const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const { buscarTodosComPaginacao } = require('../services/database-utils');
 
+// Função auxiliar para recalcular período do histórico baseado nas tarefas restantes
+async function recalcularPeriodoHistorico(agrupador_id) {
+  try {
+    if (!agrupador_id) return;
+
+    // Buscar histórico associado ao agrupador
+    const { data: historico, error: historicoError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .select('id')
+      .eq('agrupador_id', agrupador_id)
+      .maybeSingle();
+
+    if (historicoError || !historico) {
+      console.warn('⚠️ Histórico não encontrado para agrupador:', agrupador_id);
+      return;
+    }
+
+    // Buscar todas as tarefas restantes do agrupamento
+    const { data: registrosRestantes, error: registrosError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado')
+      .select('data')
+      .eq('agrupador_id', agrupador_id)
+      .order('data', { ascending: true });
+
+    if (registrosError) {
+      console.error('❌ Erro ao buscar registros restantes:', registrosError);
+      return;
+    }
+
+    // Se não há registros restantes, não atualizar (ou poderia deletar o histórico)
+    if (!registrosRestantes || registrosRestantes.length === 0) {
+      console.warn('⚠️ Nenhum registro restante para o agrupador:', agrupador_id);
+      return;
+    }
+
+    // Calcular data mínima e máxima
+    const datas = registrosRestantes
+      .map(reg => reg.data ? reg.data.split('T')[0] : null)
+      .filter(Boolean)
+      .sort();
+
+    if (datas.length === 0) return;
+
+    const dataInicio = datas[0];
+    const dataFim = datas[datas.length - 1];
+
+    // Atualizar histórico com novo período
+    const { error: updateError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .update({
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', historico.id);
+
+    if (updateError) {
+      console.error('❌ Erro ao atualizar período do histórico:', updateError);
+    } else {
+      console.log(`✅ Período do histórico atualizado: ${dataInicio} - ${dataFim}`);
+    }
+  } catch (error) {
+    console.error('❌ Erro inesperado ao recalcular período:', error);
+  }
+}
+const https = require('https');
+
+// Cache de feriados por ano
+const feriadosCache = {};
+
+// Função para buscar feriados da API Brasil API
+async function buscarFeriados(ano) {
+  // Verificar cache primeiro
+  if (feriadosCache[ano]) {
+    return feriadosCache[ano];
+  }
+
+  try {
+    return new Promise((resolve, reject) => {
+      const url = `https://brasilapi.com.br/api/feriados/v1/${ano}`;
+      
+      https.get(url, (res) => {
+        let data = '';
+        
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            const feriados = JSON.parse(data);
+            const feriadosMap = {};
+            feriados.forEach(feriado => {
+              feriadosMap[feriado.date] = feriado.name;
+            });
+            // Armazenar no cache
+            feriadosCache[ano] = feriadosMap;
+            resolve(feriadosMap);
+          } catch (error) {
+            console.error('Erro ao processar resposta de feriados:', error);
+            resolve({});
+          }
+        });
+      }).on('error', (error) => {
+        console.error('Erro ao buscar feriados:', error);
+        resolve({}); // Retornar objeto vazio em caso de erro
+      });
+    });
+  } catch (error) {
+    console.error('Erro ao buscar feriados:', error);
+    return {};
+  }
+}
+
+// Função para verificar se uma data é feriado
+async function isHoliday(dateStr, feriadosMap = null) {
+  try {
+    const date = new Date(dateStr);
+    const ano = date.getFullYear();
+    const mes = date.getMonth();
+    const dia = date.getDate();
+    const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+    const anoFormatado = String(ano);
+    const mesFormatado = String(mes + 1).padStart(2, '0');
+    const diaFormatado = String(dia).padStart(2, '0');
+    const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+    
+    // Se não foi passado o mapa de feriados, buscar
+    let feriados = feriadosMap;
+    if (!feriados) {
+      feriados = await buscarFeriados(ano);
+    }
+    
+    return feriados[dateKey] !== undefined;
+  } catch (error) {
+    console.error('Erro ao verificar se é feriado:', error);
+    return false;
+  }
+}
+
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
   try {
     console.log('📥 Recebendo requisição para criar tempo estimado');
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
     
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     // Validações
     if (!cliente_id) {
@@ -23,45 +166,103 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
-    if (!produto_ids || !Array.isArray(produto_ids) || produto_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'produto_ids deve ser um array não vazio'
-      });
-    }
+    // NOVO FORMATO: produtos_com_tarefas = { produtoId: [{ tarefa_id, tempo_estimado_dia }] }
+    // Este formato garante que apenas as combinações corretas de produto x tarefa sejam criadas
+    let produtosComTarefasMap = {};
+    let produtoIdsArray = [];
+    let todasTarefasComTempo = [];
+    
+    console.log('🔍 Verificando formato dos dados recebidos...');
+    console.log('  - produtos_com_tarefas existe?', !!produtos_com_tarefas);
+    console.log('  - produtos_com_tarefas tipo:', typeof produtos_com_tarefas);
+    console.log('  - produtos_com_tarefas keys:', produtos_com_tarefas ? Object.keys(produtos_com_tarefas) : 'N/A');
+    console.log('  - produto_ids existe?', !!produto_ids);
+    console.log('  - produto_ids tipo:', typeof produto_ids);
+    
+    if (produtos_com_tarefas && typeof produtos_com_tarefas === 'object' && Object.keys(produtos_com_tarefas).length > 0) {
+      // Formato novo: produtos agrupados com suas tarefas específicas
+      console.log('📦 Usando formato novo: produtos_com_tarefas');
+      produtosComTarefasMap = produtos_com_tarefas;
+      produtoIdsArray = Object.keys(produtos_com_tarefas).map(id => String(id).trim());
+      console.log('  - Produtos encontrados:', produtoIdsArray);
+      
+      // Validar estrutura
+      for (const [produtoId, tarefasDoProduto] of Object.entries(produtosComTarefasMap)) {
+        if (!Array.isArray(tarefasDoProduto) || tarefasDoProduto.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: `Produto ${produtoId} deve ter pelo menos uma tarefa`
+          });
+        }
+        
+        // Validar cada tarefa do produto
+        for (const t of tarefasDoProduto) {
+          if (!t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0) {
+            return res.status(400).json({
+              success: false,
+              error: `Tarefa do produto ${produtoId} deve ter tarefa_id e tempo_estimado_dia válido (maior que zero)`
+            });
+          }
+        }
+        
+        todasTarefasComTempo.push(...tarefasDoProduto);
+      }
+    } else if (produto_ids && Array.isArray(produto_ids) && produto_ids.length > 0) {
+      // FORMATO ANTIGO (compatibilidade): produto_ids + tarefas
+      console.log('📦 Usando formato antigo: produto_ids + tarefas');
+      produtoIdsArray = produto_ids.map(id => String(id).trim());
+      
+      // Suportar tanto o formato antigo (tarefa_ids + tempo_estimado_dia) quanto o novo (tarefas array)
+      let tarefasComTempo = [];
+      if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
+        // Novo formato: array de objetos { tarefa_id, tempo_estimado_dia }
+        tarefasComTempo = tarefas;
+      } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
+        // Formato antigo: array de IDs + tempo único
+        tarefasComTempo = tarefa_ids.map(tarefaId => ({
+          tarefa_id: String(tarefaId).trim(),
+          tempo_estimado_dia: parseInt(tempo_estimado_dia, 10)
+        }));
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'É necessário fornecer "produtos_com_tarefas" (novo formato) ou "produto_ids" + "tarefas"/"tarefa_ids" (formato antigo)'
+        });
+      }
 
-    // Suportar tanto o formato antigo (tarefa_ids + tempo_estimado_dia) quanto o novo (tarefas array)
-    let tarefasComTempo = [];
-    if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
-      // Novo formato: array de objetos { tarefa_id, tempo_estimado_dia }
-      tarefasComTempo = tarefas;
-    } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
-      // Formato antigo: array de IDs + tempo único
-      tarefasComTempo = tarefa_ids.map(tarefaId => ({
-        tarefa_id: String(tarefaId).trim(),
-        tempo_estimado_dia: parseInt(tempo_estimado_dia, 10)
-      }));
+      // Validar que todas as tarefas têm tempo estimado
+      const tarefasSemTempo = tarefasComTempo.filter(t => !t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0);
+      if (tarefasSemTempo.length > 0) {
+        console.error('❌ Validação falhou: tarefas sem tempo válido:', tarefasSemTempo);
+        return res.status(400).json({
+          success: false,
+          error: 'Todas as tarefas devem ter um tempo estimado válido (maior que zero)',
+          detalhes: tarefasSemTempo
+        });
+      }
+      
+      todasTarefasComTempo = tarefasComTempo;
+      
+      // Converter para o formato novo (compatibilidade): criar produtos_com_tarefas a partir do formato antigo
+      // ATENÇÃO: No formato antigo, todas as tarefas são aplicadas a todos os produtos
+      produtosComTarefasMap = {};
+      produtoIdsArray.forEach(produtoId => {
+        produtosComTarefasMap[produtoId] = tarefasComTempo;
+      });
     } else {
       return res.status(400).json({
         success: false,
-        error: 'É necessário fornecer "tarefas" (array de objetos com tarefa_id e tempo_estimado_dia) ou "tarefa_ids" + "tempo_estimado_dia"'
-      });
-    }
-
-    // Validar que todas as tarefas têm tempo estimado
-    const tarefasSemTempo = tarefasComTempo.filter(t => !t.tarefa_id || !t.tempo_estimado_dia || t.tempo_estimado_dia <= 0);
-    if (tarefasSemTempo.length > 0) {
-      console.error('❌ Validação falhou: tarefas sem tempo válido:', tarefasSemTempo);
-      return res.status(400).json({
-        success: false,
-        error: 'Todas as tarefas devem ter um tempo estimado válido (maior que zero)',
-        detalhes: tarefasSemTempo
+        error: 'É necessário fornecer "produtos_com_tarefas" (novo formato) ou "produto_ids" (formato antigo)'
       });
     }
     
-    console.log('✅ Validações passaram. Tarefas com tempo:', tarefasComTempo.length);
+    console.log('✅ Validações passaram. Produtos:', produtoIdsArray.length, 'Tarefas totais:', todasTarefasComTempo.length);
+    console.log('📋 Estrutura produtos_com_tarefas:', Object.keys(produtosComTarefasMap).map(produtoId => ({
+      produto: produtoId,
+      tarefas: produtosComTarefasMap[produtoId].length
+    })));
 
-    const tarefaIdsArray = tarefasComTempo.map(t => String(t.tarefa_id).trim());
+    const tarefaIdsArray = todasTarefasComTempo.map(t => String(t.tarefa_id).trim());
 
     if (!data_inicio) {
       return res.status(400).json({
@@ -85,7 +286,7 @@ async function criarTempoEstimado(req, res) {
     }
 
     // Função para gerar todas as datas entre início e fim
-    const gerarDatasDoPeriodo = (inicioStr, fimStr) => {
+    const gerarDatasDoPeriodo = async (inicioStr, fimStr, incluirFinaisSemana = true, incluirFeriados = true) => {
       const inicio = new Date(inicioStr + 'T00:00:00');
       const fim = new Date(fimStr + 'T00:00:00');
       const datas = [];
@@ -95,24 +296,93 @@ async function criarTempoEstimado(req, res) {
         return [];
       }
       
+      // Buscar feriados para todos os anos no período
+      const anosNoPeriodo = new Set();
+      const dataAtualTemp = new Date(inicio);
+      while (dataAtualTemp <= fim) {
+        anosNoPeriodo.add(dataAtualTemp.getFullYear());
+        dataAtualTemp.setFullYear(dataAtualTemp.getFullYear() + 1);
+      }
+      
+      // Buscar feriados para todos os anos
+      const feriadosPorAno = {};
+      for (const ano of anosNoPeriodo) {
+        feriadosPorAno[ano] = await buscarFeriados(ano);
+      }
+      
       const dataAtual = new Date(inicio);
+      let feriadosPulados = 0;
+      let finaisSemanaPulados = 0;
       
       while (dataAtual <= fim) {
+        // Verificar se é final de semana (sábado = 6, domingo = 0)
+        // Usar getFullYear, getMonth, getDate para garantir que estamos usando a data local correta
         const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const dataFormatada = `${ano}-${mes}-${dia}T00:00:00`;
+        const mes = dataAtual.getMonth();
+        const dia = dataAtual.getDate();
+        // Criar uma nova data com UTC para garantir consistência no cálculo do dia da semana
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+        
+        // Verificar se é feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
+        const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : null;
+        
+        // Se não deve incluir finais de semana e é final de semana, pular
+        if (!incluirFinaisSemana && isWeekend) {
+          finaisSemanaPulados++;
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        // Se não deve incluir feriados e é feriado, pular
+        if (!incluirFeriados && isHolidayDay) {
+          feriadosPulados++;
+          console.log(`📅 [TEMPO-ESTIMADO] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
         datas.push(dataFormatada);
         
         // Avançar para o próximo dia
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
       
+      if (feriadosPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO] Total de ${feriadosPulados} feriado(s) pulado(s)`);
+      }
+      if (finaisSemanaPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
+      }
+      
       return datas;
     };
 
-    // Gerar todas as datas do período
-    const datasDoPeriodo = gerarDatasDoPeriodo(data_inicio, data_fim);
+    // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
+    // Se incluir_finais_semana não foi enviado, assume true (compatibilidade)
+    // Se foi enviado explicitamente como false, usa false
+    // IMPORTANTE: Se o parâmetro não existir no body, assume true. Se existir (mesmo que false), usa o valor.
+    const incluirFinaisSemana = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+    const incluirFeriados = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO] Parâmetro incluir_finais_semana recebido:', incluir_finais_semana, 'tipo:', typeof incluir_finais_semana);
+    console.log('📅 [TEMPO-ESTIMADO] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
+    console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFeriados:', incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO] Período:', data_inicio, 'até', data_fim);
+    const datasDoPeriodo = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO] Total de datas geradas:', datasDoPeriodo.length);
+    if (datasDoPeriodo.length > 0 && datasDoPeriodo.length <= 5) {
+      console.log('📅 [TEMPO-ESTIMADO] Datas geradas:', datasDoPeriodo);
+    } else if (datasDoPeriodo.length > 5) {
+      console.log('📅 [TEMPO-ESTIMADO] Primeiras 5 datas:', datasDoPeriodo.slice(0, 5));
+    }
     
     if (datasDoPeriodo.length === 0) {
       return res.status(400).json({
@@ -124,7 +394,7 @@ async function criarTempoEstimado(req, res) {
     // Verificar duplicatas: não pode ter o mesmo conjunto de tarefas para o mesmo cliente + responsável + produto + período
     const verificarDuplicatas = async () => {
       // Para cada produto, verificar se já existe um agrupamento com exatamente as mesmas tarefas
-      for (const produtoId of produto_ids) {
+      for (const produtoId of produtoIdsArray) {
         // Buscar todos os registros existentes para este cliente + produto + responsável
         const { data: registrosExistentes, error: errorBusca } = await supabase
           .schema('up_gestaointeligente')
@@ -154,8 +424,9 @@ async function criarTempoEstimado(req, res) {
             gruposExistentes.get(agrupadorId).datas.push(reg.data);
           });
           
-          // Criar conjunto de tarefas solicitadas (normalizado)
-          const tarefasSolicitadas = new Set(tarefaIdsArray.map(id => String(id).trim()));
+          // Criar conjunto de tarefas solicitadas para este produto específico (normalizado)
+          const tarefasDoProduto = produtosComTarefasMap[produtoId] || [];
+          const tarefasSolicitadas = new Set(tarefasDoProduto.map(t => String(t.tarefa_id).trim()));
           
           // Verificar cada grupo existente
           for (const [agrupadorId, grupo] of gruposExistentes) {
@@ -219,29 +490,144 @@ async function criarTempoEstimado(req, res) {
     // Gerar um ID único para agrupar todos os registros desta delegação
     const agrupador_id = uuidv4();
 
+    // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados considerando herança
+    // Herança: Produto → Tipo → Tarefa
+    const buscarTipoTarefaIdPorTarefaEProduto = async (tarefaId, produtoId) => {
+      try {
+        if (!tarefaId) return null;
+        
+        const tarefaIdStr = String(tarefaId).trim();
+        const tarefaIdNum = parseInt(tarefaIdStr, 10);
+        
+        if (isNaN(tarefaIdNum)) {
+          console.warn('⚠️ tarefa_id não é um número válido:', tarefaIdStr);
+          return null;
+        }
+        
+        // Se temos produto_id, buscar primeiro considerando a herança do produto
+        if (produtoId) {
+          const produtoIdStr = String(produtoId).trim();
+          const produtoIdNum = parseInt(produtoIdStr, 10);
+          
+          if (!isNaN(produtoIdNum)) {
+            // 1. Buscar vínculo específico: produto + tarefa + tipo_tarefa (herança do produto)
+            const { data: vinculadoProduto, error: errorProduto } = await supabase
+              .schema('up_gestaointeligente')
+              .from('vinculados')
+              .select('tarefa_tipo_id')
+              .eq('tarefa_id', tarefaIdNum)
+              .eq('produto_id', produtoIdNum)
+              .not('tarefa_tipo_id', 'is', null)
+              .is('cliente_id', null)
+              .is('subtarefa_id', null)
+              .limit(1);
+            
+            if (!errorProduto && vinculadoProduto && vinculadoProduto.length > 0) {
+              const tipoTarefaId = vinculadoProduto[0].tarefa_tipo_id;
+              if (tipoTarefaId !== null && tipoTarefaId !== undefined) {
+                const tipoId = typeof tipoTarefaId === 'number' 
+                  ? tipoTarefaId 
+                  : parseInt(tipoTarefaId, 10);
+                if (!isNaN(tipoId)) {
+                  console.log(`✅ Tipo_tarefa_id encontrado via herança do produto ${produtoId} para tarefa ${tarefaId}: ${tipoId}`);
+                  return String(tipoId);
+                }
+              }
+            }
+          }
+        }
+        
+        // 2. Se não encontrou com produto, buscar vínculo padrão: tarefa + tipo_tarefa (sem produto, sem cliente)
+        const { data: vinculados, error: vinculadoError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .select('tarefa_tipo_id')
+          .eq('tarefa_id', tarefaIdNum)
+          .not('tarefa_tipo_id', 'is', null)
+          .is('produto_id', null)
+          .is('cliente_id', null)
+          .is('subtarefa_id', null)
+          .limit(1);
+        
+        if (vinculadoError) {
+          console.error('❌ Erro ao buscar tipo_tarefa_id do vinculado:', vinculadoError);
+          return null;
+        }
+        
+        if (vinculados && vinculados.length > 0) {
+          const vinculado = vinculados[0];
+          if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
+            const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number' 
+              ? vinculado.tarefa_tipo_id 
+              : parseInt(vinculado.tarefa_tipo_id, 10);
+            if (!isNaN(tipoTarefaId)) {
+              console.log(`✅ Tipo_tarefa_id encontrado via vínculo padrão para tarefa ${tarefaId}: ${tipoTarefaId}`);
+              return String(tipoTarefaId); // Retornar como string (text)
+            }
+          }
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('❌ Erro inesperado ao buscar tipo_tarefa_id:', error);
+        return null;
+      }
+    };
+
+    // Buscar tipo_tarefa_id para cada combinação produto x tarefa (considerando herança)
+    console.log('🔍 Buscando tipo_tarefa_id para as tarefas considerando herança (produto → tipo → tarefa)...');
+    const tipoTarefaPorProdutoTarefa = new Map(); // Chave: "produtoId_tarefaId" -> tipo_tarefa_id
+    
+    // Iterar sobre cada produto e suas tarefas para buscar o tipo_tarefa_id correto
+    for (const [produtoId, tarefasDoProduto] of Object.entries(produtosComTarefasMap)) {
+      for (const tarefaObj of tarefasDoProduto) {
+        const tarefaId = String(tarefaObj.tarefa_id).trim();
+        const chave = `${produtoId}_${tarefaId}`;
+        
+        // Buscar tipo_tarefa_id considerando a herança do produto
+        const tipoTarefaId = await buscarTipoTarefaIdPorTarefaEProduto(tarefaId, produtoId);
+        if (tipoTarefaId) {
+          tipoTarefaPorProdutoTarefa.set(chave, tipoTarefaId);
+          console.log(`✅ Produto ${produtoId} → Tarefa ${tarefaId}: tipo_tarefa_id = ${tipoTarefaId}`);
+        } else {
+          console.warn(`⚠️ Produto ${produtoId} → Tarefa ${tarefaId}: tipo_tarefa_id não encontrado`);
+        }
+      }
+    }
+
     // Criar todas as combinações: produto x tarefa x data (um registro para cada dia)
+    // IMPORTANTE: Usar produtosComTarefasMap para garantir que apenas as combinações corretas sejam criadas
     const registrosParaInserir = [];
     
-    // Criar mapa de tempo por tarefa para acesso rápido
+    // Criar mapa de tempo por tarefa para acesso rápido (usando todas as tarefas)
     const tempoPorTarefa = new Map();
-    tarefasComTempo.forEach(t => {
+    todasTarefasComTempo.forEach(t => {
       tempoPorTarefa.set(String(t.tarefa_id).trim(), parseInt(t.tempo_estimado_dia, 10));
     });
     
-    produto_ids.forEach(produtoId => {
-      tarefaIdsArray.forEach(tarefaId => {
-        const tempoEstimado = tempoPorTarefa.get(String(tarefaId).trim());
+    // Iterar sobre cada produto e APENAS suas tarefas específicas
+    Object.entries(produtosComTarefasMap).forEach(([produtoId, tarefasDoProduto]) => {
+      tarefasDoProduto.forEach(tarefaObj => {
+        const tarefaId = String(tarefaObj.tarefa_id).trim();
+        const tempoEstimado = parseInt(tarefaObj.tempo_estimado_dia, 10);
+        
         if (!tempoEstimado || tempoEstimado <= 0) {
-          console.warn(`⚠️ Tarefa ${tarefaId} não tem tempo estimado válido, pulando...`);
+          console.warn(`⚠️ Tarefa ${tarefaId} do produto ${produtoId} não tem tempo estimado válido, pulando...`);
           return;
         }
+        
+        // Buscar tipo_tarefa_id usando a chave produto_tarefa (considerando herança)
+        const chave = `${produtoId}_${tarefaId}`;
+        const tipoTarefaId = tipoTarefaPorProdutoTarefa.get(chave) || null;
+        
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
             produto_id: String(produtoId).trim(),
-            tarefa_id: String(tarefaId).trim(),
+            tarefa_id: tarefaId,
             data: dataDoDia,
             tempo_estimado_dia: tempoEstimado, // em milissegundos
+            tipo_tarefa_id: tipoTarefaId, // ID do tipo da tarefa (text) - obtido via herança produto → tipo → tarefa
             responsavel_id: String(responsavel_id).trim(),
             agrupador_id: agrupador_id
           });
@@ -250,12 +636,15 @@ async function criarTempoEstimado(req, res) {
     });
 
     console.log(`📝 Criando ${registrosParaInserir.length} registro(s) de tempo estimado`);
-    console.log(`   - ${produto_ids.length} produto(s) × ${tarefaIdsArray.length} tarefa(s) × ${datasDoPeriodo.length} dia(s) = ${registrosParaInserir.length} registro(s)`);
-    console.log(`   - Tempos estimados por tarefa:`);
-    tarefasComTempo.forEach(t => {
-      const horas = Math.floor(t.tempo_estimado_dia / (1000 * 60 * 60));
-      const minutos = Math.round((t.tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60));
-      console.log(`     * Tarefa ${t.tarefa_id}: ${horas}h ${minutos}min`);
+    console.log(`   - ${produtoIdsArray.length} produto(s) × ${datasDoPeriodo.length} dia(s)`);
+    console.log(`   - Distribuição de tarefas por produto:`);
+    Object.entries(produtosComTarefasMap).forEach(([produtoId, tarefasDoProduto]) => {
+      console.log(`     * Produto ${produtoId}: ${tarefasDoProduto.length} tarefa(s)`);
+      tarefasDoProduto.forEach(t => {
+        const horas = Math.floor(t.tempo_estimado_dia / (1000 * 60 * 60));
+        const minutos = Math.round((t.tempo_estimado_dia % (1000 * 60 * 60)) / (1000 * 60));
+        console.log(`       - Tarefa ${t.tarefa_id}: ${horas}h ${minutos}min`);
+      });
     });
     
     // Log do primeiro registro para debug
@@ -319,8 +708,8 @@ async function criarTempoEstimado(req, res) {
             usuario_criador_id: membroIdCriador,
             data_inicio: data_inicio,
             data_fim: data_fim,
-            produto_ids: produto_ids.map(id => String(id).trim()),
-            tarefas: tarefasComTempo
+            produto_ids: produtoIdsArray.map(id => String(id).trim()),
+            tarefas: todasTarefasComTempo
           };
 
           const { error: historicoError } = await supabase
@@ -579,11 +968,15 @@ async function getTempoEstimado(req, res) {
           grupos.set(agrupadorId, {
             agrupador_id: agrupadorId,
             dataMinima: null,
-            dataMaxima: null
+            dataMaxima: null,
+            registros: [] // Adicionar array de registros para poder verificar dias úteis
           });
         }
         
         const grupo = grupos.get(agrupadorId);
+        
+        // Adicionar registro ao grupo
+        grupo.registros.push(registro);
         
         // Calcular data mínima e máxima do grupo
         // Extrair apenas a parte da data (sem hora) para evitar problemas de timezone
@@ -630,7 +1023,10 @@ async function getTempoEstimado(req, res) {
       const filtroInicioDate = new Date(filtroInicio.getFullYear(), filtroInicio.getMonth(), filtroInicio.getDate());
       const filtroFimDate = new Date(filtroFim.getFullYear(), filtroFim.getMonth(), filtroFim.getDate());
       
-      grupos.forEach((grupo, agrupadorId) => {
+      console.log(`🔍 [FILTRO-PERIODO] Período filtrado: ${periodoInicioFiltro} até ${periodoFimFiltro}`);
+      console.log(`🔍 [FILTRO-PERIODO] Datas normalizadas: ${filtroInicioDate.toISOString().split('T')[0]} até ${filtroFimDate.toISOString().split('T')[0]}`);
+      
+      for (const [agrupadorId, grupo] of grupos.entries()) {
         if (grupo.dataMinima && grupo.dataMaxima) {
           // Normalizar datas do grupo (apenas data, sem hora)
           const grupoInicio = new Date(grupo.dataMinima.getFullYear(), grupo.dataMinima.getMonth(), grupo.dataMinima.getDate());
@@ -643,7 +1039,7 @@ async function getTempoEstimado(req, res) {
             agrupadoresValidos.push(agrupadorId);
           }
         }
-      });
+      }
       
       // Se não há agrupadores válidos, retornar vazio
       if (agrupadoresValidos.length === 0) {
@@ -727,15 +1123,83 @@ async function getTempoEstimado(req, res) {
         });
         console.log(`✅ Total de ${todosRegistrosFiltrados.length} registros encontrados dos agrupamentos válidos`);
         
-        // Contar quantos agrupamentos únicos temos nos registros
-        const agrupadoresUnicos = new Set(todosRegistrosFiltrados.map(r => r.agrupador_id));
-        console.log(`📦 Total de ${agrupadoresUnicos.size} agrupamentos únicos nos registros retornados`);
+        // IMPORTANTE: Filtrar os registros individuais pelo período filtrado
+        // Mesmo que o agrupamento se sobreponha ao período, só devemos retornar os registros que estão dentro do período
+        let registrosNoPeriodo = todosRegistrosFiltrados.filter(reg => {
+          if (!reg.data) return false;
+          
+          try {
+            // Extrair apenas a data (sem hora) do registro
+            // A data pode vir como string ISO (2026-02-13T00:00:00+00 ou 2026-02-16 00:00:00+01) ou como Date object
+            let dataRegistroStr;
+            if (typeof reg.data === 'string') {
+              // Se for string, extrair apenas a parte da data (YYYY-MM-DD)
+              // Pode vir como "2026-02-13T00:00:00+00" ou "2026-02-16 00:00:00+01"
+              if (reg.data.includes('T')) {
+                dataRegistroStr = reg.data.split('T')[0];
+              } else if (reg.data.includes(' ')) {
+                dataRegistroStr = reg.data.split(' ')[0];
+              } else {
+                // Já está no formato YYYY-MM-DD
+                dataRegistroStr = reg.data;
+              }
+            } else if (reg.data instanceof Date) {
+              // Se for Date object, converter para string YYYY-MM-DD usando UTC para evitar problemas de timezone
+              const ano = reg.data.getUTCFullYear();
+              const mes = String(reg.data.getUTCMonth() + 1).padStart(2, '0');
+              const dia = String(reg.data.getUTCDate()).padStart(2, '0');
+              dataRegistroStr = `${ano}-${mes}-${dia}`;
+            } else {
+              return false;
+            }
+            
+            // Parsear a data do registro
+            const [anoReg, mesReg, diaReg] = dataRegistroStr.split('-');
+            if (!anoReg || !mesReg || !diaReg) {
+              console.warn(`⚠️ Data do registro inválida: ${reg.data} (extraído: ${dataRegistroStr})`);
+              return false;
+            }
+            
+            // Criar data normalizada (apenas data, sem hora, sem timezone)
+            const dataRegistro = new Date(parseInt(anoReg), parseInt(mesReg) - 1, parseInt(diaReg));
+            const dataRegistroNormalizada = new Date(dataRegistro.getFullYear(), dataRegistro.getMonth(), dataRegistro.getDate());
+            
+            // Se a data do registro está dentro do período filtrado (inclusive)
+            const dentroDoPeriodo = dataRegistroNormalizada >= filtroInicioDate && dataRegistroNormalizada <= filtroFimDate;
+            
+            if (!dentroDoPeriodo) {
+              console.log(`🚫 Registro fora do período: ${dataRegistroStr} (período: ${periodoInicioFiltro} até ${periodoFimFiltro})`);
+            }
+            
+            return dentroDoPeriodo;
+          } catch (e) {
+            console.error('❌ Erro ao processar data do registro:', e, 'Registro:', reg);
+            return false;
+          }
+        });
+        
+        console.log(`📅 Filtrados ${registrosNoPeriodo.length} registros que estão dentro do período ${periodoInicioFiltro} até ${periodoFimFiltro} (de ${todosRegistrosFiltrados.length} registros dos agrupamentos válidos)`);
+        
+        // Log detalhado dos registros filtrados (apenas se houver poucos)
+        if (registrosNoPeriodo.length > 0 && registrosNoPeriodo.length <= 10) {
+          const datasFiltradas = registrosNoPeriodo.map(r => {
+            const dataStr = typeof r.data === 'string' ? r.data.split('T')[0] : r.data;
+            return dataStr;
+          });
+          console.log(`📅 Datas dos registros filtrados: ${datasFiltradas.join(', ')}`);
+        }
+        
+        // Contar quantos agrupamentos únicos temos nos registros filtrados
+        const agrupadoresUnicos = new Set(registrosNoPeriodo.map(r => r.agrupador_id));
+        console.log(`📦 Total de ${agrupadoresUnicos.size} agrupamentos únicos nos registros filtrados pelo período`);
         
         // IMPORTANTE: Não aplicar paginação manual aqui, pois o frontend agrupa por agrupador_id
         // Se aplicarmos paginação aqui, podemos perder agrupamentos completos
         // O frontend vai fazer a paginação após agrupar
-        totalFiltrado = todosRegistrosFiltrados.length;
-        dadosFiltrados = todosRegistrosFiltrados;
+        
+        // Retornar todos os registros do período sem exclusões
+        totalFiltrado = registrosNoPeriodo.length;
+        dadosFiltrados = registrosNoPeriodo;
         
         // Não aplicar paginação manual - deixar o frontend fazer a paginação após agrupar
         // dadosFiltrados = todosRegistrosFiltrados.slice(offset, offset + limitNum);
@@ -926,7 +1390,7 @@ async function getTempoEstimadoPorId(req, res) {
 async function atualizarTempoEstimado(req, res) {
   try {
     const { id } = req.params;
-    const { cliente_id, produto_id, tarefa_id, data, responsavel_id } = req.body;
+    const { cliente_id, produto_id, tarefa_id, data, responsavel_id, tempo_estimado_dia } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -948,6 +1412,48 @@ async function atualizarTempoEstimado(req, res) {
 
     if (tarefa_id !== undefined) {
       dadosUpdate.tarefa_id = tarefa_id ? String(tarefa_id).trim() : null;
+      
+      // Se a tarefa_id foi alterada, buscar o tipo_tarefa_id correspondente
+      if (dadosUpdate.tarefa_id) {
+        // Função auxiliar para buscar tipo_tarefa_id
+        const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
+          try {
+            const tarefaIdNum = parseInt(tarefaId, 10);
+            if (isNaN(tarefaIdNum)) return null;
+            
+            const { data: vinculados, error } = await supabase
+              .schema('up_gestaointeligente')
+              .from('vinculados')
+              .select('tarefa_tipo_id')
+              .eq('tarefa_id', tarefaIdNum)
+              .not('tarefa_tipo_id', 'is', null)
+              .is('produto_id', null)
+              .is('cliente_id', null)
+              .is('subtarefa_id', null)
+              .limit(1);
+            
+            if (error || !vinculados || vinculados.length === 0) return null;
+            
+            const tipoTarefaId = vinculados[0].tarefa_tipo_id;
+            return tipoTarefaId ? String(tipoTarefaId) : null;
+          } catch (error) {
+            console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
+            return null;
+          }
+        };
+        
+        const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(dadosUpdate.tarefa_id);
+        if (tipoTarefaId) {
+          dadosUpdate.tipo_tarefa_id = tipoTarefaId;
+          console.log(`✅ Tipo_tarefa_id atualizado para tarefa ${dadosUpdate.tarefa_id}: ${tipoTarefaId}`);
+        } else {
+          dadosUpdate.tipo_tarefa_id = null;
+          console.warn(`⚠️ Tipo_tarefa_id não encontrado para tarefa ${dadosUpdate.tarefa_id}`);
+        }
+      } else {
+        // Se tarefa_id foi removido, remover também tipo_tarefa_id
+        dadosUpdate.tipo_tarefa_id = null;
+      }
     }
 
     if (data !== undefined) {
@@ -956,6 +1462,10 @@ async function atualizarTempoEstimado(req, res) {
 
     if (responsavel_id !== undefined) {
       dadosUpdate.responsavel_id = responsavel_id ? String(responsavel_id).trim() : null;
+    }
+
+    if (tempo_estimado_dia !== undefined) {
+      dadosUpdate.tempo_estimado_dia = tempo_estimado_dia ? parseInt(tempo_estimado_dia, 10) : null;
     }
 
     if (Object.keys(dadosUpdate).length === 0) {
@@ -991,6 +1501,11 @@ async function atualizarTempoEstimado(req, res) {
 
     console.log('✅ Tempo estimado atualizado com sucesso:', tempoEstimadoAtualizado);
 
+    // Se a data foi alterada, recalcular período do histórico
+    if (dadosUpdate.data && tempoEstimadoAtualizado.agrupador_id) {
+      await recalcularPeriodoHistorico(tempoEstimadoAtualizado.agrupador_id);
+    }
+
     return res.json({
       success: true,
       data: tempoEstimadoAtualizado,
@@ -1018,6 +1533,24 @@ async function deletarTempoEstimado(req, res) {
       });
     }
 
+    // Buscar o registro antes de deletar para obter o agrupador_id
+    const { data: tempoEstimadoAntes, error: buscaError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado')
+      .select('agrupador_id')
+      .eq('id', id)
+      .single();
+
+    if (buscaError || !tempoEstimadoAntes) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tempo estimado não encontrado'
+      });
+    }
+
+    const agrupador_id = tempoEstimadoAntes.agrupador_id;
+
+    // Deletar o registro
     const { data: tempoEstimadoDeletado, error } = await supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado')
@@ -1044,6 +1577,11 @@ async function deletarTempoEstimado(req, res) {
 
     console.log('✅ Tempo estimado deletado com sucesso');
 
+    // Recalcular período do histórico
+    if (agrupador_id) {
+      await recalcularPeriodoHistorico(agrupador_id);
+    }
+
     return res.json({
       success: true,
       message: 'Tempo estimado deletado com sucesso!'
@@ -1062,7 +1600,7 @@ async function deletarTempoEstimado(req, res) {
 async function atualizarTempoEstimadoPorAgrupador(req, res) {
   try {
     const { agrupador_id } = req.params;
-    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     if (!agrupador_id) {
       return res.status(400).json({
@@ -1121,8 +1659,8 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
-    // Função para gerar todas as datas entre início e fim
-    const gerarDatasDoPeriodo = (inicioStr, fimStr) => {
+    // Função para gerar todas as datas entre início e fim (reutilizar a função async)
+    const gerarDatasDoPeriodoUpdate = async (inicioStr, fimStr, incluirFinaisSemana = true, incluirFeriados = true) => {
       const inicio = new Date(inicioStr + 'T00:00:00');
       const fim = new Date(fimStr + 'T00:00:00');
       const datas = [];
@@ -1131,22 +1669,91 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         return [];
       }
       
+      // Buscar feriados para todos os anos no período
+      const anosNoPeriodo = new Set();
+      const dataAtualTemp = new Date(inicio);
+      while (dataAtualTemp <= fim) {
+        anosNoPeriodo.add(dataAtualTemp.getFullYear());
+        dataAtualTemp.setFullYear(dataAtualTemp.getFullYear() + 1);
+      }
+      
+      // Buscar feriados para todos os anos
+      const feriadosPorAno = {};
+      for (const ano of anosNoPeriodo) {
+        feriadosPorAno[ano] = await buscarFeriados(ano);
+      }
+      
       const dataAtual = new Date(inicio);
+      let feriadosPulados = 0;
+      let finaisSemanaPulados = 0;
       
       while (dataAtual <= fim) {
+        // Verificar se é final de semana (sábado = 6, domingo = 0)
+        // Usar getFullYear, getMonth, getDate para garantir que estamos usando a data local correta
         const ano = dataAtual.getFullYear();
-        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-        const dia = String(dataAtual.getDate()).padStart(2, '0');
-        const dataFormatada = `${ano}-${mes}-${dia}T00:00:00`;
+        const mes = dataAtual.getMonth();
+        const dia = dataAtual.getDate();
+        // Criar uma nova data com UTC para garantir consistência no cálculo do dia da semana
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+        
+        // Verificar se é feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
+        const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : null;
+        
+        // Se não deve incluir finais de semana e é final de semana, pular
+        if (!incluirFinaisSemana && isWeekend) {
+          finaisSemanaPulados++;
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        // Se não deve incluir feriados e é feriado, pular
+        if (!incluirFeriados && isHolidayDay) {
+          feriadosPulados++;
+          console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          continue;
+        }
+        
+        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
         datas.push(dataFormatada);
         dataAtual.setDate(dataAtual.getDate() + 1);
+      }
+      
+      if (feriadosPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${feriadosPulados} feriado(s) pulado(s)`);
+      }
+      if (finaisSemanaPulados > 0) {
+        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
       }
       
       return datas;
     };
 
-    // Gerar todas as datas do período
-    const datasDoPeriodo = gerarDatasDoPeriodo(data_inicio, data_fim);
+    // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
+    // Se incluir_finais_semana não foi enviado, assume true (compatibilidade)
+    // Se foi enviado explicitamente como false, usa false
+    // IMPORTANTE: Se o parâmetro não existir no body, assume true. Se existir (mesmo que false), usa o valor.
+    const incluirFinaisSemana = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+    const incluirFeriados = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_finais_semana recebido:', incluir_finais_semana, 'tipo:', typeof incluir_finais_semana);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFeriados:', incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Período:', data_inicio, 'até', data_fim);
+    const datasDoPeriodo = await gerarDatasDoPeriodoUpdate(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
+    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Total de datas geradas:', datasDoPeriodo.length);
+    if (datasDoPeriodo.length > 0 && datasDoPeriodo.length <= 5) {
+      console.log('📅 [TEMPO-ESTIMADO-UPDATE] Datas geradas:', datasDoPeriodo);
+    } else if (datasDoPeriodo.length > 5) {
+      console.log('📅 [TEMPO-ESTIMADO-UPDATE] Primeiras 5 datas:', datasDoPeriodo.slice(0, 5));
+    }
     
     if (datasDoPeriodo.length === 0) {
       return res.status(400).json({
@@ -1171,11 +1778,58 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
+    // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados
+    const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
+      try {
+        if (!tarefaId) return null;
+        
+        const tarefaIdStr = String(tarefaId).trim();
+        const tarefaIdNum = parseInt(tarefaIdStr, 10);
+        
+        if (isNaN(tarefaIdNum)) {
+          return null;
+        }
+        
+        const { data: vinculados, error } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .select('tarefa_tipo_id')
+          .eq('tarefa_id', tarefaIdNum)
+          .not('tarefa_tipo_id', 'is', null)
+          .is('produto_id', null)
+          .is('cliente_id', null)
+          .is('subtarefa_id', null)
+          .limit(1);
+        
+        if (error || !vinculados || vinculados.length === 0) return null;
+        
+        const tipoTarefaId = vinculados[0].tarefa_tipo_id;
+        return tipoTarefaId ? String(tipoTarefaId) : null;
+      } catch (error) {
+        console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
+        return null;
+      }
+    };
+
+    // Buscar tipo_tarefa_id para todas as tarefas
+    console.log('🔍 [UPDATE] Buscando tipo_tarefa_id para as tarefas...');
+    const tipoTarefaPorTarefa = new Map();
+    for (const tarefaId of tarefa_ids) {
+      const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(tarefaId);
+      if (tipoTarefaId) {
+        tipoTarefaPorTarefa.set(String(tarefaId).trim(), tipoTarefaId);
+        console.log(`✅ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id = ${tipoTarefaId}`);
+      } else {
+        console.warn(`⚠️ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id não encontrado`);
+      }
+    }
+
     // Criar novos registros com os dados atualizados
     const registrosParaInserir = [];
     
     produto_ids.forEach(produtoId => {
       tarefa_ids.forEach(tarefaId => {
+        const tipoTarefaId = tipoTarefaPorTarefa.get(String(tarefaId).trim()) || null;
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
@@ -1183,6 +1837,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
             tarefa_id: String(tarefaId).trim(),
             data: dataDoDia,
             tempo_estimado_dia: parseInt(tempo_estimado_dia, 10), // em milissegundos
+            tipo_tarefa_id: tipoTarefaId, // ID do tipo da tarefa (text)
             responsavel_id: String(responsavel_id).trim(),
             agrupador_id: agrupador_id
           });

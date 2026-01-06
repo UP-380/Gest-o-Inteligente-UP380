@@ -74,6 +74,20 @@ const HistoricoAtribuicoes = () => {
   // Estado para clientes no formato CustomSelect
   const [clientes, setClientes] = useState([]);
 
+  // Estado para controlar linhas expandidas e seus detalhes
+  const [linhasExpandidas, setLinhasExpandidas] = useState(new Set());
+  const [detalhesDiarios, setDetalhesDiarios] = useState({});
+  const [carregandoDetalhes, setCarregandoDetalhes] = useState(new Set());
+
+  // Estado para edição/exclusão de tarefa diária
+  const [modalEdicaoTarefaDiaria, setModalEdicaoTarefaDiaria] = useState(false);
+  const [tarefaDiariaEditando, setTarefaDiariaEditando] = useState(null);
+  const [tempoEditando, setTempoEditando] = useState({ horas: 0, minutos: 0 });
+  const [salvandoTarefaDiaria, setSalvandoTarefaDiaria] = useState(false);
+  const [showDeleteTarefaDiariaModal, setShowDeleteTarefaDiariaModal] = useState(false);
+  const [tarefaDiariaParaDeletar, setTarefaDiariaParaDeletar] = useState(null);
+  const [deletandoTarefaDiaria, setDeletandoTarefaDiaria] = useState(false);
+
   // Carregar dados para filtros
   useEffect(() => {
     const carregarDados = async () => {
@@ -124,9 +138,9 @@ const HistoricoAtribuicoes = () => {
     carregarDados();
   }, []);
 
-  // Carregar produtos e tarefas quando abrir modal de edição
+  // Carregar produtos quando abrir modal de edição (não carregar tarefas - elas já vêm do banco)
   useEffect(() => {
-    const carregarProdutosETarefas = async () => {
+    const carregarProdutos = async () => {
       if (!modalEdicaoAberto || !dadosEdicao.cliente_id || !itemEditando) return;
 
       try {
@@ -141,90 +155,16 @@ const HistoricoAtribuicoes = () => {
             setTodosProdutos(result.data || []);
           }
         }
-
-        // Carregar tarefas do cliente
-        if (dadosEdicao.produto_ids && dadosEdicao.produto_ids.length > 0) {
-          const produtoIdsNum = dadosEdicao.produto_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-          if (produtoIdsNum.length > 0) {
-            const tarefasResponse = await fetch(
-              `${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${dadosEdicao.cliente_id}&produtoIds=${produtoIdsNum.join(',')}`,
-              {
-                credentials: 'include',
-                headers: { 'Accept': 'application/json' }
-              }
-            );
-            if (tarefasResponse.ok) {
-              const result = await tarefasResponse.json();
-              if (result.success && result.data) {
-                const todasTarefas = [];
-                const tarefasIds = new Set();
-                
-                result.data.forEach(item => {
-                  (item.tarefas || []).forEach(tarefa => {
-                    if (!tarefasIds.has(tarefa.id)) {
-                      tarefasIds.add(tarefa.id);
-                      todasTarefas.push(tarefa);
-                    }
-                  });
-                });
-                
-                setTodasTarefas(todasTarefas);
-                
-                // Garantir que todas as tarefas disponíveis tenham objetos de tarefa
-                // Priorizar tempos originais do itemEditando, depois tempos atuais, depois 0
-                setDadosEdicao(prev => {
-                  // Mapa com tempos originais do itemEditando (fonte de verdade)
-                  const temposOriginaisMap = new Map();
-                  if (itemEditando && itemEditando.tarefas) {
-                    itemEditando.tarefas.forEach(t => {
-                      temposOriginaisMap.set(String(t.tarefa_id), t.tempo_estimado_dia);
-                    });
-                  }
-                  
-                  // Mapa com tempos atuais (caso o usuário já tenha editado)
-                  const temposAtuaisMap = new Map();
-                  (prev.tarefas || []).forEach(t => {
-                    temposAtuaisMap.set(String(t.tarefa_id), t.tempo_estimado_dia);
-                  });
-                  
-                  // Criar array de tarefas com todos os IDs disponíveis
-                  // Prioridade: tempos originais > tempos atuais > 0
-                  const novasTarefas = todasTarefas.map(tarefa => {
-                    const tarefaIdStr = String(tarefa.id);
-                    // Se tem tempo original, usar ele
-                    if (temposOriginaisMap.has(tarefaIdStr)) {
-                      return {
-                        tarefa_id: tarefaIdStr,
-                        tempo_estimado_dia: temposOriginaisMap.get(tarefaIdStr)
-                      };
-                    }
-                    // Se tem tempo atual, usar ele
-                    if (temposAtuaisMap.has(tarefaIdStr)) {
-                      return {
-                        tarefa_id: tarefaIdStr,
-                        tempo_estimado_dia: temposAtuaisMap.get(tarefaIdStr)
-                      };
-                    }
-                    // Senão, tempo 0
-                    return {
-                      tarefa_id: tarefaIdStr,
-                      tempo_estimado_dia: 0
-                    };
-                  });
-                  
-                  return { ...prev, tarefas: novasTarefas };
-                });
-              }
-            }
-          }
-        }
+        
+        // NÃO carregar todas as tarefas - apenas usar as que estão em dadosEdicao.tarefas (do banco)
+        // As tarefas já foram carregadas na função abrirModalEdicao
       } catch (error) {
-        console.error('Erro ao carregar produtos e tarefas:', error);
+        console.error('Erro ao carregar produtos:', error);
       }
     };
 
-    carregarProdutosETarefas();
-  }, [modalEdicaoAberto, dadosEdicao.cliente_id, dadosEdicao.produto_ids, itemEditando]);
+    carregarProdutos();
+  }, [modalEdicaoAberto, dadosEdicao.cliente_id, itemEditando]);
 
   // Buscar horas contratadas quando o responsável mudar
   useEffect(() => {
@@ -471,6 +411,219 @@ const HistoricoAtribuicoes = () => {
     return `${dia}/${mes}/${ano}`;
   };
 
+  // Abrir modal de edição de tarefa diária
+  const abrirModalEdicaoTarefaDiaria = (tarefa, diaData, historicoId) => {
+    const horas = Math.floor((tarefa.tempo_estimado_dia || 0) / (1000 * 60 * 60));
+    const minutos = Math.floor(((tarefa.tempo_estimado_dia || 0) % (1000 * 60 * 60)) / (1000 * 60));
+    setTarefaDiariaEditando({ ...tarefa, diaData, historicoId });
+    setTempoEditando({ horas, minutos });
+    setModalEdicaoTarefaDiaria(true);
+  };
+
+  // Fechar modal de edição de tarefa diária
+  const fecharModalEdicaoTarefaDiaria = () => {
+    setModalEdicaoTarefaDiaria(false);
+    setTarefaDiariaEditando(null);
+    setTempoEditando({ horas: 0, minutos: 0 });
+  };
+
+  // Salvar edição de tarefa diária
+  const salvarEdicaoTarefaDiaria = async () => {
+    if (!tarefaDiariaEditando || !tarefaDiariaEditando.id) return;
+
+    setSalvandoTarefaDiaria(true);
+    try {
+      const novoTempo = (tempoEditando.horas * 60 * 60 + tempoEditando.minutos * 60) * 1000;
+      
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/${tarefaDiariaEditando.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          tempo_estimado_dia: novoTempo
+        })
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch (e) {
+          if (errorText && errorText.length < 200) {
+            errorMessage = errorText;
+          }
+        }
+        showToast('error', errorMessage);
+        return;
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('success', 'Tarefa diária atualizada com sucesso!');
+        fecharModalEdicaoTarefaDiaria();
+        
+        // Recarregar histórico principal para atualizar período
+        await carregarHistorico();
+        
+        // Recarregar detalhes diários
+        if (tarefaDiariaEditando.historicoId) {
+          const responseDetalhes = await fetch(`${API_BASE_URL}/historico-atribuicoes/${tarefaDiariaEditando.historicoId}/detalhes-diarios`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (responseDetalhes.ok) {
+            const resultDetalhes = await responseDetalhes.json();
+            if (resultDetalhes.success) {
+              setDetalhesDiarios(prev => ({
+                ...prev,
+                [tarefaDiariaEditando.historicoId]: resultDetalhes.data || []
+              }));
+            }
+          }
+        }
+      } else {
+        showToast('error', result.error || 'Erro ao atualizar tarefa diária');
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar tarefa diária:', error);
+      showToast('error', `Erro ao atualizar tarefa diária: ${error.message}`);
+    } finally {
+      setSalvandoTarefaDiaria(false);
+    }
+  };
+
+  // Abrir modal de confirmação de exclusão de tarefa diária
+  const abrirModalDeletarTarefaDiaria = (tarefa, diaData, historicoId) => {
+    setTarefaDiariaParaDeletar({ ...tarefa, diaData, historicoId });
+    setShowDeleteTarefaDiariaModal(true);
+  };
+
+  // Deletar tarefa diária
+  const deletarTarefaDiaria = async () => {
+    if (!tarefaDiariaParaDeletar || !tarefaDiariaParaDeletar.id) return;
+
+    setDeletandoTarefaDiaria(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/${tarefaDiariaParaDeletar.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch (e) {
+          if (errorText && errorText.length < 200) {
+            errorMessage = errorText;
+          }
+        }
+        showToast('error', errorMessage);
+        return;
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        showToast('success', 'Tarefa diária deletada com sucesso!');
+        const historicoIdParaRecarregar = tarefaDiariaParaDeletar.historicoId;
+        setShowDeleteTarefaDiariaModal(false);
+        setTarefaDiariaParaDeletar(null);
+        
+        // Recarregar histórico principal para atualizar período
+        await carregarHistorico();
+        
+        // Recarregar detalhes diários
+        if (historicoIdParaRecarregar) {
+          const responseDetalhes = await fetch(`${API_BASE_URL}/historico-atribuicoes/${historicoIdParaRecarregar}/detalhes-diarios`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (responseDetalhes.ok) {
+            const resultDetalhes = await responseDetalhes.json();
+            if (resultDetalhes.success) {
+              setDetalhesDiarios(prev => ({
+                ...prev,
+                [historicoIdParaRecarregar]: resultDetalhes.data || []
+              }));
+            }
+          }
+        }
+      } else {
+        showToast('error', result.error || 'Erro ao deletar tarefa diária');
+      }
+    } catch (error) {
+      console.error('Erro ao deletar tarefa diária:', error);
+      showToast('error', `Erro ao deletar tarefa diária: ${error.message}`);
+    } finally {
+      setDeletandoTarefaDiaria(false);
+    }
+  };
+
+  // Toggle de expansão de linha
+  const toggleExpandirLinha = async (itemId) => {
+    const novoSet = new Set(linhasExpandidas);
+    
+    if (novoSet.has(itemId)) {
+      // Colapsar
+      novoSet.delete(itemId);
+      setLinhasExpandidas(novoSet);
+    } else {
+      // Expandir - buscar detalhes se ainda não foram carregados
+      novoSet.add(itemId);
+      setLinhasExpandidas(novoSet);
+      
+      if (!detalhesDiarios[itemId] && !carregandoDetalhes.has(itemId)) {
+        setCarregandoDetalhes(prev => new Set(prev).add(itemId));
+        
+        try {
+          const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/${itemId}/detalhes-diarios`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              setDetalhesDiarios(prev => ({
+                ...prev,
+                [itemId]: result.data || []
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao carregar detalhes diários:', error);
+          showToast('error', 'Erro ao carregar detalhes diários');
+        } finally {
+          setCarregandoDetalhes(prev => {
+            const novo = new Set(prev);
+            novo.delete(itemId);
+            return novo;
+          });
+        }
+      }
+    }
+  };
+
   // Opções de clientes para CustomSelect (memoizado)
   const clienteOptions = useMemo(() => {
     if (!clientes || clientes.length === 0) {
@@ -669,21 +822,142 @@ const HistoricoAtribuicoes = () => {
   };
 
   // Abrir modal de edição
-  const abrirModalEdicao = (item) => {
-    setItemEditando(item);
-    setDadosEdicao({
-      cliente_id: item.cliente_id,
-      responsavel_id: item.responsavel_id,
-      data_inicio: item.data_inicio,
-      data_fim: item.data_fim,
-      produto_ids: item.produto_ids || [],
-      tarefas: item.tarefas || []
-    });
-    // Resetar estados do modo "Selecionar vários"
-    setModoSelecionarVarios(false);
-    setTempoGlobalParaAplicar(0);
-    setTarefasSelecionadasParaTempo(new Set());
-    setModalEdicaoAberto(true);
+  const abrirModalEdicao = async (item) => {
+    // Buscar dados diretamente do banco de dados para garantir que está atualizado
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/${item.id}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch (e) {
+          if (errorText && errorText.length < 200) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Erro ao buscar dados do histórico');
+      }
+
+      const dadosDoBanco = result.data;
+      
+      // Formatar data_inicio e data_fim para o formato esperado (apenas YYYY-MM-DD)
+      let dataInicioFormatada = dadosDoBanco.data_inicio;
+      let dataFimFormatada = dadosDoBanco.data_fim;
+      
+      // Se vier com hora, extrair apenas a data
+      if (dataInicioFormatada && typeof dataInicioFormatada === 'string' && dataInicioFormatada.includes('T')) {
+        dataInicioFormatada = dataInicioFormatada.split('T')[0];
+      }
+      if (dataFimFormatada && typeof dataFimFormatada === 'string' && dataFimFormatada.includes('T')) {
+        dataFimFormatada = dataFimFormatada.split('T')[0];
+      }
+
+      setItemEditando(dadosDoBanco);
+      setDadosEdicao({
+        cliente_id: dadosDoBanco.cliente_id,
+        responsavel_id: dadosDoBanco.responsavel_id,
+        data_inicio: dataInicioFormatada,
+        data_fim: dataFimFormatada,
+        produto_ids: dadosDoBanco.produto_ids || [],
+        tarefas: dadosDoBanco.tarefas || []
+      });
+      
+      // Buscar apenas os nomes das tarefas que estão no banco
+      const tarefasDoBanco = dadosDoBanco.tarefas || [];
+      if (tarefasDoBanco.length > 0) {
+        const tarefaIds = tarefasDoBanco.map(t => String(t.tarefa_id).trim()).filter(Boolean);
+        if (tarefaIds.length > 0) {
+          try {
+            // Buscar nomes das tarefas usando o endpoint correto
+            const tarefasResponse = await fetch(
+              `${API_BASE_URL}/tarefas-por-ids?ids=${tarefaIds.join(',')}`,
+              {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              }
+            );
+            
+            if (tarefasResponse.ok) {
+              const tarefasResult = await tarefasResponse.json();
+              if (tarefasResult.success && tarefasResult.data) {
+                // tarefasResult.data é um mapa { id: nome }
+                // Criar array com apenas as tarefas que estão no banco
+                const tarefasComNomes = tarefasDoBanco.map(tarefaDoBanco => {
+                  const tarefaIdStr = String(tarefaDoBanco.tarefa_id);
+                  const nomeTarefa = tarefasResult.data[tarefaIdStr] || `Tarefa #${tarefaIdStr}`;
+                  return {
+                    id: tarefaDoBanco.tarefa_id,
+                    nome: nomeTarefa,
+                    tempo_estimado_dia: tarefaDoBanco.tempo_estimado_dia || 0
+                  };
+                });
+                setTodasTarefas(tarefasComNomes);
+              } else {
+                // Se não conseguir buscar nomes, criar objetos básicos
+                const tarefasBasicas = tarefasDoBanco.map(t => ({
+                  id: t.tarefa_id,
+                  nome: `Tarefa #${t.tarefa_id}`,
+                  tempo_estimado_dia: t.tempo_estimado_dia || 0
+                }));
+                setTodasTarefas(tarefasBasicas);
+              }
+            } else {
+              // Se não conseguir buscar, criar objetos básicos
+              const tarefasBasicas = tarefasDoBanco.map(t => ({
+                id: t.tarefa_id,
+                nome: `Tarefa #${t.tarefa_id}`,
+                tempo_estimado_dia: t.tempo_estimado_dia || 0
+              }));
+              setTodasTarefas(tarefasBasicas);
+            }
+          } catch (error) {
+            console.error('Erro ao buscar nomes das tarefas:', error);
+            // Criar objetos básicos em caso de erro
+            const tarefasBasicas = tarefasDoBanco.map(t => ({
+              id: t.tarefa_id,
+              nome: `Tarefa #${t.tarefa_id}`,
+              tempo_estimado_dia: t.tempo_estimado_dia || 0
+            }));
+            setTodasTarefas(tarefasBasicas);
+          }
+        } else {
+          setTodasTarefas([]);
+        }
+      } else {
+        setTodasTarefas([]);
+      }
+      
+      // Resetar estados do modo "Selecionar vários"
+      setModoSelecionarVarios(false);
+      setTempoGlobalParaAplicar(0);
+      setTarefasSelecionadasParaTempo(new Set());
+      setModalEdicaoAberto(true);
+    } catch (error) {
+      console.error('Erro ao buscar dados do histórico:', error);
+      showToast('error', error.message || 'Erro ao carregar dados para edição. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Fechar modal de edição
@@ -1032,6 +1306,7 @@ const HistoricoAtribuicoes = () => {
                       <table className="historico-table">
                       <thead>
                         <tr>
+                          <th style={{ width: '40px' }}></th>
                           <th>Data/Hora</th>
                           <th>Cliente</th>
                           <th>Responsável</th>
@@ -1043,8 +1318,40 @@ const HistoricoAtribuicoes = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {historico.map((item) => (
-                          <tr key={item.id}>
+                        {historico.map((item) => {
+                          const estaExpandida = linhasExpandidas.has(item.id);
+                          const detalhes = detalhesDiarios[item.id] || [];
+                          const carregando = carregandoDetalhes.has(item.id);
+                          
+                          return (
+                            <React.Fragment key={item.id}>
+                            <tr>
+                              <td style={{ width: '40px', textAlign: 'center', padding: '8px' }}>
+                                <button
+                                  onClick={() => toggleExpandirLinha(item.id)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#0e3b6f',
+                                    fontSize: '14px',
+                                    transition: 'transform 0.2s'
+                                  }}
+                                  title={estaExpandida ? 'Colapsar detalhes' : 'Expandir detalhes'}
+                                >
+                                  <i 
+                                    className={`fas fa-chevron-${estaExpandida ? 'down' : 'right'}`}
+                                    style={{
+                                      transform: estaExpandida ? 'rotate(0deg)' : 'rotate(0deg)',
+                                      transition: 'transform 0.2s'
+                                    }}
+                                  ></i>
+                                </button>
+                              </td>
                             <td>
                               <div className="historico-date-time">
                                 <div className="historico-date">{formatarData(item.created_at?.split('T')[0])}</div>
@@ -1131,7 +1438,116 @@ const HistoricoAtribuicoes = () => {
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          {/* Linha expandida com detalhes diários */}
+                          {estaExpandida && (
+                            <tr>
+                              <td colSpan="9" style={{ padding: 0, backgroundColor: '#f9fafb' }}>
+                                <div style={{ padding: '20px', borderTop: '2px solid #e5e7eb' }}>
+                                  {carregando ? (
+                                    <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                                      <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                                      Carregando detalhes...
+                                    </div>
+                                  ) : detalhes.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
+                                      <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
+                                      Nenhum detalhe diário encontrado
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <h4 style={{ 
+                                        fontSize: '14px', 
+                                        fontWeight: '600', 
+                                        color: '#111827', 
+                                        marginBottom: '16px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}>
+                                        <i className="fas fa-calendar-day" style={{ color: '#0e3b6f' }}></i>
+                                        Detalhes Diários
+                                      </h4>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {detalhes.map((dia, idx) => (
+                                          <div 
+                                            key={idx}
+                                            style={{
+                                              background: 'white',
+                                              border: '1px solid #e5e7eb',
+                                              borderRadius: '6px',
+                                              padding: '12px 16px'
+                                            }}
+                                          >
+                                            <div style={{ 
+                                              fontSize: '13px', 
+                                              fontWeight: '600', 
+                                              color: '#111827',
+                                              marginBottom: '10px',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '8px'
+                                            }}>
+                                              <i className="fas fa-calendar" style={{ color: '#0e3b6f', fontSize: '12px' }}></i>
+                                              {formatarData(dia.data)}
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '20px' }}>
+                                              {dia.tarefas && dia.tarefas.length > 0 ? (
+                                                dia.tarefas.map((tarefa, tarefaIdx) => (
+                                                  <div 
+                                                    key={tarefaIdx}
+                                                    style={{
+                                                      display: 'flex',
+                                                      alignItems: 'center',
+                                                      justifyContent: 'space-between',
+                                                      padding: '6px 10px',
+                                                      background: '#f9fafb',
+                                                      borderRadius: '4px',
+                                                      border: '1px solid #e5e7eb',
+                                                      gap: '8px'
+                                                    }}
+                                                  >
+                                                    <span style={{ fontSize: '12px', color: '#374151', flex: 1 }}>
+                                                      {tarefa.tarefa_nome}
+                                                    </span>
+                                                    <div className="tarefa-tempo-card" style={{ marginLeft: '12px', flexShrink: 0 }}>
+                                                      <div className="tarefa-tempo-label">
+                                                        <i className="fas fa-clock"></i>
+                                                        <span>ESTIMADO</span>
+                                                      </div>
+                                                      <div className="tarefa-tempo-valor">
+                                                        {formatarTempo(tarefa.tempo_estimado_dia)}
+                                                      </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                                      <EditButton
+                                                        onClick={() => abrirModalEdicaoTarefaDiaria(tarefa, dia.data, item.id)}
+                                                        title="Editar tarefa diária"
+                                                      />
+                                                      <DeleteButton
+                                                        onClick={() => abrirModalDeletarTarefaDiaria(tarefa, dia.data, item.id)}
+                                                        title="Deletar tarefa diária"
+                                                      />
+                                                    </div>
+                                                  </div>
+                                                ))
+                                              ) : (
+                                                <span style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
+                                                  Nenhuma tarefa atribuída neste dia
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
+                        );
+                        })}
                       </tbody>
                     </table>
                     </div>
@@ -1423,11 +1839,14 @@ const HistoricoAtribuicoes = () => {
                           )}
                         </div>
 
-                        {/* Lista de tarefas */}
+                        {/* Lista de tarefas - mostrar apenas as que estão no banco */}
                         <div className="selected-items-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' }}>
-                        {todasTarefas.length > 0 ? (
-                          todasTarefas.map(tarefa => {
-                            const tarefaId = String(tarefa.id);
+                        {dadosEdicao.tarefas && dadosEdicao.tarefas.length > 0 ? (
+                          dadosEdicao.tarefas.map(tarefaDoBanco => {
+                            const tarefaId = String(tarefaDoBanco.tarefa_id);
+                            // Buscar o nome da tarefa em todasTarefas ou usar o ID
+                            const tarefaComNome = todasTarefas.find(t => String(t.id) === tarefaId);
+                            const nomeTarefa = tarefaComNome?.nome || nomesTarefas[tarefaId] || `Tarefa #${tarefaId}`;
                             const tarefaComTempo = dadosEdicao.tarefas.find(t => String(t.tarefa_id) === tarefaId);
                             const isSelecionadaParaTempo = tarefasSelecionadasParaTempo.has(tarefaId);
                             const tempoTarefa = (modoSelecionarVarios && isSelecionadaParaTempo) 
@@ -1485,7 +1904,7 @@ const HistoricoAtribuicoes = () => {
                                     />
                                   )}
                                   <span style={{ flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {tarefa.nome || nomesTarefas[tarefaId] || `Tarefa #${tarefaId}`}
+                                    {nomeTarefa}
                                   </span>
                                 </div>
                                 {(!modoSelecionarVarios || !isSelecionadaParaTempo) && (
@@ -1605,9 +2024,7 @@ const HistoricoAtribuicoes = () => {
                           })
                         ) : (
                           <span style={{ color: '#9ca3af', fontSize: '12px', fontStyle: 'italic', padding: '12px', textAlign: 'center' }}>
-                            {dadosEdicao.cliente_id && dadosEdicao.produto_ids && dadosEdicao.produto_ids.length > 0 
-                              ? 'Nenhuma tarefa encontrada para os produtos selecionados'
-                              : 'Selecione produtos para ver as tarefas disponíveis'}
+                            Nenhuma tarefa atribuída no histórico
                           </span>
                         )}
                       </div>
@@ -1701,6 +2118,220 @@ const HistoricoAtribuicoes = () => {
             cancelText="Cancelar"
             confirmButtonClass="btn-danger"
             loading={deleteLoading}
+          />
+
+          {/* Modal de edição de tarefa diária */}
+          {modalEdicaoTarefaDiaria && tarefaDiariaEditando && (
+            <div className="modal-overlay" onClick={fecharModalEdicaoTarefaDiaria}>
+              <div className="modal-content" style={{ 
+                maxWidth: '500px', 
+                width: '95%'
+              }} onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '18px 24px', 
+                  borderBottom: '1px solid #eee',
+                  flexShrink: 0
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <i className="fas fa-edit" style={{ marginRight: '8px', color: 'var(--primary-color, #3498db)' }}></i>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
+                      Editar Tarefa Diária
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-icon"
+                    onClick={fecharModalEdicaoTarefaDiaria}
+                    disabled={salvandoTarefaDiaria}
+                    title="Fechar (ESC)"
+                    style={{ fontSize: '18px' }}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+
+                <div className="modal-body" style={{ 
+                  padding: '20px 24px'
+                }}>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                      Tarefa
+                    </label>
+                    <div style={{ 
+                      padding: '10px 12px', 
+                      background: '#f9fafb', 
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: '#111827'
+                    }}>
+                      {tarefaDiariaEditando.tarefa_nome}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                      Data
+                    </label>
+                    <div style={{ 
+                      padding: '10px 12px', 
+                      background: '#f9fafb', 
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: '#111827'
+                    }}>
+                      {formatarData(tarefaDiariaEditando.diaData)}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                      Tempo Estimado
+                    </label>
+                    <div 
+                      className="tempo-input-wrapper"
+                      style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '8px 14px',
+                        background: '#ffffff',
+                        border: '2px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <input
+                        type="number"
+                        value={tempoEditando.horas || ''}
+                        onChange={(e) => {
+                          const horas = parseInt(e.target.value, 10) || 0;
+                          setTempoEditando(prev => ({ ...prev, horas }));
+                        }}
+                        disabled={salvandoTarefaDiaria}
+                        placeholder="0"
+                        min="0"
+                        style={{
+                          width: '50px',
+                          padding: '0',
+                          border: 'none',
+                          background: 'transparent',
+                          fontSize: '13px',
+                          textAlign: 'center',
+                          color: '#334155',
+                          fontWeight: '500'
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>h</span>
+                      <input
+                        type="number"
+                        value={tempoEditando.minutos || ''}
+                        onChange={(e) => {
+                          const minutos = parseInt(e.target.value, 10) || 0;
+                          setTempoEditando(prev => ({ ...prev, minutos: Math.min(59, Math.max(0, minutos)) }));
+                        }}
+                        disabled={salvandoTarefaDiaria}
+                        placeholder="0"
+                        min="0"
+                        max="59"
+                        style={{
+                          width: '50px',
+                          padding: '0',
+                          border: 'none',
+                          background: 'transparent',
+                          fontSize: '13px',
+                          textAlign: 'center',
+                          color: '#334155',
+                          fontWeight: '500'
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '500' }}>min</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer" style={{ 
+                  padding: '14px 24px', 
+                  borderTop: '1px solid #eee',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '12px',
+                  flexShrink: 0
+                }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={fecharModalEdicaoTarefaDiaria}
+                    disabled={salvandoTarefaDiaria}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <i className="fas fa-times" style={{ marginRight: '6px' }}></i>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={salvarEdicaoTarefaDiaria}
+                    disabled={salvandoTarefaDiaria}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: '14px',
+                      opacity: salvandoTarefaDiaria ? 0.6 : 1,
+                      cursor: salvandoTarefaDiaria ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {salvandoTarefaDiaria ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i>
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save" style={{ marginRight: '6px' }}></i>
+                        Salvar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de confirmação para exclusão de tarefa diária */}
+          <ConfirmModal
+            isOpen={showDeleteTarefaDiariaModal}
+            onClose={() => {
+              setShowDeleteTarefaDiariaModal(false);
+              setTarefaDiariaParaDeletar(null);
+            }}
+            onConfirm={deletarTarefaDiaria}
+            title="Confirmar Exclusão"
+            message={
+              tarefaDiariaParaDeletar ? (
+                <>
+                  <p>Tem certeza que deseja excluir esta tarefa diária?</p>
+                  <p style={{ marginTop: '12px', fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
+                    <strong>Tarefa:</strong> {tarefaDiariaParaDeletar.tarefa_nome}<br />
+                    <strong>Data:</strong> {formatarData(tarefaDiariaParaDeletar.diaData)}<br />
+                    <strong>Tempo Estimado:</strong> {formatarTempo(tarefaDiariaParaDeletar.tempo_estimado_dia)}
+                  </p>
+                  <p style={{ marginTop: '16px', color: '#dc2626', fontWeight: 500, fontSize: '13px' }}>
+                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
+                    Esta ação não pode ser desfeita.
+                  </p>
+                </>
+              ) : null
+            }
+            confirmText="Excluir"
+            cancelText="Cancelar"
+            confirmButtonClass="btn-danger"
+            loading={deletandoTarefaDiaria}
           />
         </main>
       </div>

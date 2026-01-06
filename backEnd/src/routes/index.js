@@ -190,6 +190,7 @@ router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoCon
 // Rotas de Histórico de Atribuições
 console.log('✅ Registrando rotas de histórico de atribuições...');
 router.get('/api/historico-atribuicoes', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicoes);
+router.get('/api/historico-atribuicoes/:id/detalhes-diarios', requireAuth, historicoAtribuicoesController.getDetalhesDiariosAtribuicao);
 router.get('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicaoPorId);
 router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.atualizarHistoricoAtribuicao);
 router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
