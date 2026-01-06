@@ -1,25 +1,431 @@
 {% extends 'base.html' %}
 {% block title %}Agenda - +Compliance{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Agenda & Compromissos</h2>
-    <div class="btn-group">
-        <a class="btn btn-primary" href="{% url 'agenda:novo' %}">
-            <i class="fas fa-plus me-2"></i>
-            + Novo compromisso
-        </a>
-        <a class="btn btn-outline-primary" href="{% url 'agenda:lista' %}">
-            <i class="fas fa-list me-2"></i>
-            Ver em lista
-        </a>
-    </div>
-</div>
-
-<div id="calendar" class="bg-white rounded shadow"></div>
-
+{% block extra_css %}
 <!-- FullCalendar CSS -->
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<style>
+    /* ===== LAYOUT MODERNO E MINIMALISTA ===== */
+    .agenda-container {
+        padding: 0;
+        max-width: 100%;
+    }
+
+    .agenda-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.15);
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .agenda-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 15s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .agenda-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.5px;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .agenda-title i {
+        font-size: 1.8rem;
+        opacity: 0.9;
+    }
+
+    .agenda-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        color: white;
+    }
+
+    .btn-modern-primary {
+        background: white;
+        color: #667eea;
+        border: none;
+    }
+
+    .btn-modern-primary:hover {
+        background: #f8f9ff;
+        color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ===== CALENDÁRIO MODERNO ===== */
+    #calendar {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    #calendar:hover {
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    /* FullCalendar Custom Styles */
+    .fc {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .fc-toolbar {
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .fc-toolbar-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1a202c;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .fc-button-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .fc-button {
+        background: #f7fafc;
+        border: 1px solid #e2e8f0;
+        color: #4a5568;
+        padding: 0.5rem 1rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        text-transform: none;
+    }
+
+    .fc-button:hover {
+        background: #edf2f7;
+        border-color: #cbd5e0;
+        color: #2d3748;
+        transform: translateY(-1px);
+    }
+
+    .fc-button:focus {
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .fc-button-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+    }
+
+    .fc-button-primary:hover {
+        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .fc-button-active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+    }
+
+    .fc-today-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .fc-today-button:hover {
+        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    /* Cabeçalho dos dias da semana */
+    .fc-col-header-cell {
+        background: #f8f9fa;
+        border: none;
+        padding: 1rem 0.5rem;
+        font-weight: 700;
+        color: #4a5568;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .fc-col-header-cell-cushion {
+        padding: 0.5rem;
+    }
+
+    /* Células dos dias */
+    .fc-daygrid-day {
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease;
+    }
+
+    .fc-daygrid-day:hover {
+        background: #f8f9ff;
+    }
+
+    .fc-day-today {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    }
+
+    .fc-daygrid-day-number {
+        padding: 0.75rem;
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.95rem;
+    }
+
+    .fc-day-today .fc-daygrid-day-number {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        width: 2rem;
+        height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0.25rem;
+    }
+
+    /* Eventos */
+    .fc-event {
+        border: none;
+        border-radius: 8px;
+        padding: 0.35rem 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .fc-event:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .fc-event-title {
+        font-weight: 600;
+        padding: 0;
+    }
+
+    .fc-daygrid-event {
+        margin: 2px 4px;
+    }
+
+    /* Dias de outros meses */
+    .fc-day-other .fc-daygrid-day-number {
+        color: #cbd5e0;
+    }
+
+    /* Scrollbar personalizado */
+    .fc-scroller::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .fc-scroller::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .fc-scroller::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+
+    .fc-scroller::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #5568d3 0%, #6a3d8f 100%);
+    }
+
+    /* ===== RESPONSIVIDADE ===== */
+    @media (max-width: 768px) {
+        .agenda-header {
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+
+        .agenda-title {
+            font-size: 1.5rem;
+        }
+
+        .agenda-actions {
+            flex-direction: column;
+        }
+
+        .btn-modern {
+            width: 100%;
+            justify-content: center;
+        }
+
+        #calendar {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .fc-toolbar {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .fc-toolbar-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .fc-button-group {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .fc-button {
+            flex: 1;
+            min-width: calc(50% - 0.25rem);
+            font-size: 0.75rem;
+            padding: 0.4rem 0.75rem;
+        }
+
+        .fc-col-header-cell {
+            padding: 0.5rem 0.25rem;
+            font-size: 0.75rem;
+        }
+
+        .fc-daygrid-day-number {
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .agenda-header {
+            padding: 1rem;
+        }
+
+        .agenda-title {
+            font-size: 1.25rem;
+        }
+
+        .fc-toolbar-title {
+            font-size: 1rem;
+        }
+
+        .fc-button {
+            font-size: 0.7rem;
+            padding: 0.35rem 0.5rem;
+        }
+    }
+
+    /* ===== ANIMAÇÕES ===== */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    #calendar {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    .agenda-header {
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    /* ===== MELHORIAS DE ACESSIBILIDADE ===== */
+    .fc-button:focus-visible,
+    .fc-event:focus-visible {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="agenda-container">
+    <!-- Header Moderno -->
+    <div class="agenda-header">
+        <h1 class="agenda-title">
+            <i class="fas fa-calendar-alt"></i>
+            Agenda & Compromissos
+        </h1>
+        <div class="agenda-actions">
+            <a href="{% url 'agenda:novo' %}" class="btn-modern btn-modern-primary">
+                <i class="fas fa-plus"></i>
+                Novo Compromisso
+            </a>
+            <a href="{% url 'agenda:lista' %}" class="btn-modern">
+                <i class="fas fa-list"></i>
+                Ver em Lista
+            </a>
+        </div>
+    </div>
+
+    <!-- Calendário -->
+    <div id="calendar"></div>
+</div>
 
 <!-- FullCalendar JS -->
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -28,6 +434,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
+    
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
         locale: 'pt-br',
@@ -47,79 +454,54 @@ document.addEventListener('DOMContentLoaded', function() {
         events: {
             url: '{% url "agenda:api_eventos" %}',
             failure: function() {
-                alert('Não foi possível carregar eventos');
+                // Notificação mais elegante
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-warning alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                notification.style.zIndex = '9999';
+                notification.innerHTML = `
+                    <strong>Atenção!</strong> Não foi possível carregar os eventos.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 5000);
             }
         },
         eventClick: function(info) {
-            // Redirecionar para edição do evento
-            window.location.href = info.event.url;
+            info.jsEvent.preventDefault();
+            if (info.event.url) {
+                window.location.href = info.event.url;
+            }
         },
         dateClick: function(info) {
-            // Criar novo evento na data clicada
             const data = info.dateStr;
             const url = '{% url "agenda:novo" %}?data=' + data;
             window.location.href = url;
         },
         eventDisplay: 'block',
         dayMaxEvents: 3,
-        moreLinkClick: 'popover'
+        moreLinkClick: 'popover',
+        // Melhorias visuais
+        dayHeaderFormat: { weekday: 'short' },
+        firstDay: 0, // Domingo
+        // Cores dos eventos baseadas no tipo
+        eventColor: '#667eea',
+        eventTextColor: '#ffffff',
+        // Melhorias de interação
+        editable: false,
+        selectable: true,
+        selectMirror: true,
+        // Responsividade
+        aspectRatio: 1.8,
     });
+    
     calendar.render();
+    
+    // Adicionar efeito de loading suave
+    calendarEl.style.opacity = '0';
+    setTimeout(() => {
+        calendarEl.style.transition = 'opacity 0.5s ease';
+        calendarEl.style.opacity = '1';
+    }, 100);
 });
 </script>
-
-<style>
-.fc-event {
-    border-radius: 4px;
-    border: none;
-    font-size: 0.85em;
-    padding: 2px 4px;
-}
-
-.fc-event-title {
-    font-weight: 500;
-}
-
-.fc-daygrid-event {
-    margin: 1px 2px;
-}
-
-.fc-toolbar-title {
-    color: #0D2A8B;
-    font-weight: 600;
-}
-
-.fc-button-primary {
-    background-color: #0D2A8B;
-    border-color: #0D2A8B;
-}
-
-.fc-button-primary:hover {
-    background-color: #1e3a8a;
-    border-color: #1e3a8a;
-}
-
-.fc-button-primary:focus {
-    box-shadow: 0 0 0 0.2rem rgba(13, 42, 139, 0.25);
-}
-
-.fc-today-button {
-    background-color: #0D2A8B;
-    border-color: #0D2A8B;
-}
-
-.fc-today-button:hover {
-    background-color: #1e3a8a;
-    border-color: #1e3a8a;
-}
-</style>
 {% endblock %}
-
-
-
-
-
-
-
-
-

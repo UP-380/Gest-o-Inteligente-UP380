@@ -3275,3 +3275,68 @@ Watching for file changes with StatReloader
 "GET / HTTP/1.1" 302 0
 "GET /accounts/dashboard/ HTTP/1.1" 200 41868
 "GET /accounts/dashboard/ HTTP/1.1" 200 41868
+Watching for file changes with StatReloader
+"GET / HTTP/1.1" 302 0
+"GET /accounts/dashboard/ HTTP/1.1" 200 41868
+Not Found: /favicon.ico
+"GET /favicon.ico HTTP/1.1" 404 3348
+"GET /atendimento/ HTTP/1.1" 200 32570
+"GET /accounts/dashboard/ HTTP/1.1" 200 41868
+"GET /documentos/oficios/ HTTP/1.1" 200 33031
+"GET /agenda/eventos/ HTTP/1.1" 200 34332
+"GET /crm/ HTTP/1.1" 200 34028
+"GET /atendimento/novo/ HTTP/1.1" 200 35619
+"GET /accounts/dashboard/ HTTP/1.1" 200 41868
+"GET /accounts/assuntos/ HTTP/1.1" 200 32586
+"GET /accounts/assuntos/novo/ HTTP/1.1" 200 33918
+"POST /accounts/assuntos/novo/ HTTP/1.1" 302 0
+"GET /accounts/assuntos/ HTTP/1.1" 200 34325
+"GET /documentos/destinatarios/ HTTP/1.1" 200 31721
+"GET /documentos/destinatarios/novo/ HTTP/1.1" 200 34838
+"POST /documentos/destinatarios/novo/ HTTP/1.1" 302 0
+"GET /documentos/destinatarios/ HTTP/1.1" 200 32453
+"GET /accounts/justificativas-padrao/ HTTP/1.1" 200 34668
+"GET /accounts/justificativas-padrao/novo/ HTTP/1.1" 200 36327
+"GET /accounts/justificativas-padrao/ HTTP/1.1" 200 34668
+"GET /accounts/justificativas-padrao/4/deletar/ HTTP/1.1" 200 32499
+"POST /accounts/justificativas-padrao/4/deletar/ HTTP/1.1" 302 0
+"GET /accounts/justificativas-padrao/ HTTP/1.1" 200 32555
+"GET /accounts/justificativas-padrao/novo/ HTTP/1.1" 200 36327
+"POST /accounts/justificativas-padrao/novo/ HTTP/1.1" 302 0
+"GET /accounts/justificativas-padrao/ HTTP/1.1" 200 34942
+"GET /accounts/solicitacoes-padrao/ HTTP/1.1" 200 36838
+"GET /accounts/solicitacoes-padrao/4/editar/ HTTP/1.1" 200 39742
+"GET /accounts/solicitacoes-padrao/ HTTP/1.1" 200 36838
+"GET /accounts/solicitacoes-padrao/4/ HTTP/1.1" 200 37690
+"GET /accounts/solicitacoes-padrao/ HTTP/1.1" 200 36838
+"GET /accounts/solicitacoes-padrao/?search=&status= HTTP/1.1" 200 36838
+"GET /accounts/solicitacoes-padrao/?search=&status= HTTP/1.1" 200 36838
+"GET /accounts/solicitacoes-padrao/novo/ HTTP/1.1" 200 39675
+"POST /accounts/solicitacoes-padrao/novo/ HTTP/1.1" 302 0
+"GET /accounts/solicitacoes-padrao/ HTTP/1.1" 200 40507
+"GET /agenda/eventos/ HTTP/1.1" 200 34332
+"GET /agenda/ HTTP/1.1" 200 32923
+"GET /agenda/api/eventos/?start=2025-12-28T00%3A00%3A00-03%3A00&end=2026-02-08T00%3A00%3A00-03%3A00 HTTP/1.1" 200 2
+"GET /agenda/eventos/novo/ HTTP/1.1" 200 41927
+C:\Users\Luiz Marcelo\Desktop\PROJETO GESTÃO DE GABINETE\agenda\forms.py changed, reloading.
+Watching for file changes with StatReloader
+C:\Users\Luiz Marcelo\Desktop\PROJETO GESTÃO DE GABINETE\agenda\forms.py changed, reloading.
+Watching for file changes with StatReloader
+"GET /agenda/eventos/novo/ HTTP/1.1" 200 43137
+C:\Users\Luiz Marcelo\Desktop\PROJETO GESTÃO DE GABINETE\agenda\forms.py changed, reloading.
+Watching for file changes with StatReloader
+C:\Users\Luiz Marcelo\Desktop\PROJETO GESTÃO DE GABINETE\agenda\forms.py changed, reloading.
+Watching for file changes with StatReloader
+"GET /agenda/eventos/novo/ HTTP/1.1" 200 43813
+"POST /agenda/eventos/novo/ HTTP/1.1" 302 0
+"GET /agenda/eventos/ HTTP/1.1" 200 36582
+"GET /agenda/eventos/novo/ HTTP/1.1" 200 43813
+"GET /agenda/ HTTP/1.1" 200 33452
+"GET /agenda/api/eventos/?start=2025-12-28T00%3A00%3A00-03%3A00&end=2026-02-08T00%3A00%3A00-03%3A00 HTTP/1.1" 200 142
+"GET /agenda/eventos/7/editar/ HTTP/1.1" 200 43955
+"GET /agenda/ HTTP/1.1" 200 33452
+"GET /agenda/api/eventos/?start=2025-12-28T00%3A00%3A00-03%3A00&end=2026-02-08T00%3A00%3A00-03%3A00 HTTP/1.1" 200 142
+"GET /workflow/tarefas/ HTTP/1.1" 200 38194
+"GET /agenda/eventos/ HTTP/1.1" 200 42855
+"GET /agenda/ HTTP/1.1" 200 43333
+"GET /agenda/api/eventos/?start=2025-12-28T00%3A00%3A00-03%3A00&end=2026-02-08T00%3A00%3A00-03%3A00 HTTP/1.1" 200 142

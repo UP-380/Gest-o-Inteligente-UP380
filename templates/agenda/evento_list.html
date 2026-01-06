@@ -2,118 +2,409 @@
 
 {% block title %}Eventos (Lista) - +Compliance{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* ===== HEADER MODERNO ===== */
+    .eventos-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.15);
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .eventos-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 15s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .eventos-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: -0.5px;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .eventos-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+    }
+
+    .btn-modern {
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        color: white;
+    }
+
+    .btn-modern-primary {
+        background: white;
+        color: #667eea;
+        border: none;
+    }
+
+    .btn-modern-primary:hover {
+        background: #f8f9ff;
+        color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ===== TABELA MODERNA ===== */
+    .eventos-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .table-modern {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .table-modern thead th {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        color: #2d3748;
+        font-weight: 700;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 1.25rem 1rem;
+        border: none;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .table-modern thead th:first-child {
+        border-radius: 12px 0 0 0;
+    }
+
+    .table-modern thead th:last-child {
+        border-radius: 0 12px 0 0;
+    }
+
+    .table-modern tbody tr {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f1f3f5;
+    }
+
+    .table-modern tbody tr:hover {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        transform: translateX(4px);
+        box-shadow: -4px 0 0 0 #667eea;
+    }
+
+    .table-modern tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #4a5568;
+    }
+
+    .table-modern tbody td strong {
+        color: #2d3748;
+        font-weight: 600;
+    }
+
+    .badge-modern {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: 0.3px;
+    }
+
+    .badge-secondary-modern {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .badge-info-modern {
+        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        color: white;
+    }
+
+    .btn-action {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-action:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        color: white;
+    }
+
+    /* Estado vazio */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-state h5 {
+        color: #4a5568;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: #718096;
+        margin-bottom: 2rem;
+    }
+
+    /* Paginação moderna */
+    .pagination-modern {
+        margin-top: 2rem;
+    }
+
+    .pagination-modern .page-link {
+        color: #667eea;
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem 1rem;
+        margin: 0 0.25rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        font-weight: 600;
+    }
+
+    .pagination-modern .page-link:hover {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: transparent;
+        transform: translateY(-2px);
+    }
+
+    .pagination-modern .page-item.active .page-link {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: transparent;
+        color: white;
+    }
+
+    /* Responsividade */
+    @media (max-width: 768px) {
+        .eventos-header {
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+
+        .eventos-title {
+            font-size: 1.5rem;
+        }
+
+        .eventos-actions {
+            flex-direction: column;
+        }
+
+        .btn-modern {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .eventos-card {
+            padding: 1rem;
+            border-radius: 12px;
+        }
+
+        .table-modern {
+            font-size: 0.875rem;
+        }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.75rem 0.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Eventos (Lista)</h2>
-    <div class="btn-group">
-        <a class="btn btn-primary" href="{% url 'agenda:novo' %}">
-            <i class="fas fa-plus me-2"></i>
-            + Novo compromisso
+<!-- Header Moderno -->
+<div class="eventos-header">
+    <h1 class="eventos-title">
+        <i class="fas fa-list"></i>
+        Eventos (Lista)
+    </h1>
+    <div class="eventos-actions">
+        <a href="{% url 'agenda:novo' %}" class="btn-modern btn-modern-primary">
+            <i class="fas fa-plus"></i>
+            Novo Compromisso
         </a>
-        <a class="btn btn-outline-primary" href="{% url 'agenda:calendario' %}">
-            <i class="fas fa-calendar me-2"></i>
-            Ver calendário
+        <a href="{% url 'agenda:calendario' %}" class="btn-modern">
+            <i class="fas fa-calendar"></i>
+            Ver Calendário
         </a>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body">
-        {% if object_list %}
-            <div class="table-responsive">
-                <table class="table table-hover bg-white">
-                    <thead>
-                        <tr>
-                            <th>Título</th>
-                            <th>Tipo</th>
-                            <th>Início</th>
-                            <th>Fim</th>
-                            <th>Local</th>
-                            <th>Participantes</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for evento in object_list %}
-                        <tr>
-                            <td>
-                                <strong>{{ evento.titulo }}</strong>
-                                {% if evento.descricao %}
-                                    <br><small class="text-muted">{{ evento.descricao|truncatechars:50 }}</small>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">{{ evento.get_tipo_display }}</span>
-                            </td>
-                            <td>
-                                <strong>{{ evento.inicio|date:"d/m/Y" }}</strong>
-                                <br><small class="text-muted">{{ evento.inicio|date:"H:i" }}</small>
-                            </td>
-                            <td>
-                                <strong>{{ evento.fim|date:"d/m/Y" }}</strong>
-                                <br><small class="text-muted">{{ evento.fim|date:"H:i" }}</small>
-                            </td>
-                            <td>{{ evento.local|default:"-" }}</td>
-                            <td>
-                                {% if evento.participantes.count > 0 %}
-                                    <span class="badge bg-info">{{ evento.participantes.count }} pessoa(s)</span>
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'agenda:editar' evento.pk %}">
-                                    <i class="fas fa-edit me-1"></i>
-                                    Editar
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Paginação -->
-            {% if is_paginated %}
-                <nav aria-label="Paginação">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page=1">Primeira</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
-                            </li>
-                        {% endif %}
-                        
-                        <li class="page-item active">
-                            <span class="page-link">
-                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-                            </span>
+<!-- Card com Tabela -->
+<div class="eventos-card">
+    {% if object_list %}
+        <div class="table-responsive">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Tipo</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                        <th>Local</th>
+                        <th>Participantes</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for evento in object_list %}
+                    <tr>
+                        <td>
+                            <strong>{{ evento.titulo }}</strong>
+                            {% if evento.descricao %}
+                                <br><small class="text-muted" style="color: #718096;">{{ evento.descricao|truncatechars:50 }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge-modern badge-secondary-modern">{{ evento.get_tipo_display }}</span>
+                        </td>
+                        <td>
+                            <strong>{{ evento.inicio|date:"d/m/Y" }}</strong>
+                            <br><small style="color: #718096;">{{ evento.inicio|date:"H:i" }}</small>
+                        </td>
+                        <td>
+                            <strong>{{ evento.fim|date:"d/m/Y" }}</strong>
+                            <br><small style="color: #718096;">{{ evento.fim|date:"H:i" }}</small>
+                        </td>
+                        <td>{{ evento.local|default:"-" }}</td>
+                        <td>
+                            {% if evento.participantes_equipe.count > 0 or evento.participantes_pessoas.count > 0 %}
+                                <span class="badge-modern badge-info-modern">
+                                    {{ evento.participantes_equipe.count|add:evento.participantes_pessoas.count }} pessoa(s)
+                                </span>
+                            {% else %}
+                                <span style="color: #cbd5e0;">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'agenda:editar' evento.pk %}" class="btn-action">
+                                <i class="fas fa-edit"></i>
+                                Editar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginação -->
+        {% if is_paginated %}
+            <nav aria-label="Paginação" class="pagination-modern">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">Primeira</a>
                         </li>
-                        
-                        {% if page_obj.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
-                            </li>
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-            {% endif %}
-        {% else %}
-            <div class="text-center py-5">
-                <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">Sem eventos</h5>
-                <p class="text-muted">Comece criando um novo compromisso.</p>
-                <a href="{% url 'agenda:novo' %}" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>
-                    + Novo compromisso
-                </a>
-            </div>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                        </li>
+                    {% endif %}
+                    
+                    <li class="page-item active">
+                        <span class="page-link">
+                            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                        </span>
+                    </li>
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
         {% endif %}
-    </div>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar"></i>
+            <h5>Sem eventos</h5>
+            <p>Comece criando um novo compromisso.</p>
+            <a href="{% url 'agenda:novo' %}" class="btn-modern-primary btn-modern">
+                <i class="fas fa-plus"></i>
+                Novo Compromisso
+            </a>
+        </div>
+    {% endif %}
 </div>
 {% endblock %}

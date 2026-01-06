@@ -59,12 +59,10 @@ class EventoForm(forms.ModelForm):
                 'placeholder': 'https://...'
             }),
             'participantes_pessoas': forms.SelectMultiple(attrs={
-                'class': 'form-select',
-                'size': '5'
+                'class': 'form-select select2-multiple',
             }),
             'participantes_equipe': forms.SelectMultiple(attrs={
-                'class': 'form-select',
-                'size': '5'
+                'class': 'form-select select2-multiple',
             }),
             'numero_participantes_esperado': forms.NumberInput(attrs={
                 'class': 'form-control',

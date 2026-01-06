@@ -131,7 +131,7 @@
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.participantes_pessoas.id_for_label }}" class="form-label">Participantes (Pessoas)</label>
                             {{ form.participantes_pessoas }}
-                            <div class="form-text">Segure Ctrl para selecionar múltiplos participantes</div>
+                            <div class="form-text">Digite para pesquisar e selecione múltiplos participantes</div>
                             {% if form.participantes_pessoas.errors %}
                                 <div class="text-danger small mt-1">
                                     {% for error in form.participantes_pessoas.errors %}
@@ -144,7 +144,7 @@
                         <div class="col-md-6 mb-3">
                             <label for="{{ form.participantes_equipe.id_for_label }}" class="form-label">Participantes (Equipe)</label>
                             {{ form.participantes_equipe }}
-                            <div class="form-text">Segure Ctrl para selecionar múltiplos membros da equipe</div>
+                            <div class="form-text">Digite para pesquisar e selecione múltiplos membros da equipe</div>
                             {% if form.participantes_equipe.errors %}
                                 <div class="text-danger small mt-1">
                                     {% for error in form.participantes_equipe.errors %}
@@ -305,6 +305,44 @@ document.addEventListener('DOMContentLoaded', function() {
             
             fimField.value = fimStr;
         }
+    }
+    
+    // Inicializar Select2 para participantes_pessoas
+    const participantesPessoasField = document.getElementById('{{ form.participantes_pessoas.id_for_label }}');
+    if (participantesPessoasField) {
+        $(participantesPessoasField).select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Digite para pesquisar pessoas...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "Nenhum resultado encontrado";
+                },
+                searching: function() {
+                    return "Pesquisando...";
+                }
+            }
+        });
+    }
+    
+    // Inicializar Select2 para participantes_equipe
+    const participantesEquipeField = document.getElementById('{{ form.participantes_equipe.id_for_label }}');
+    if (participantesEquipeField) {
+        $(participantesEquipeField).select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Digite para pesquisar membros da equipe...',
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "Nenhum resultado encontrado";
+                },
+                searching: function() {
+                    return "Pesquisando...";
+                }
+            }
+        });
     }
 });
 </script>
