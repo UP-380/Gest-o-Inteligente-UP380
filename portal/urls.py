@@ -4,16 +4,7 @@ from . import views
 app_name = 'portal'
 
 urlpatterns = [
-    # ==================== URLs PÚBLICAS (COM SLUG DO GABINETE) ====================
-    path('<slug:slug>/', views.portal_index, name='index'),
-    path('<slug:slug>/noticias/', views.noticias_lista, name='noticias'),
-    path('<slug:slug>/noticias/<int:pk>/', views.noticia_detalhe, name='noticia_detalhe'),
-    path('<slug:slug>/solicitar/', views.solicitar_atendimento, name='solicitar'),
-    path('<slug:slug>/consultar/', views.consultar_protocolo, name='consultar'),
-    path('<slug:slug>/agendar-visita/', views.agendar_visita, name='agendar_visita'),
-    path('<slug:slug>/sucesso/<str:protocolo>/', views.sucesso_solicitacao, name='sucesso_solicitacao'),
-    
-    # ==================== URLs ADMINISTRATIVAS ====================
+    # ==================== URLs ADMINISTRATIVAS (DEVEM VIR ANTES DAS PÚBLICAS) ====================
     path('admin-portal/', views.portal_admin_dashboard, name='portal_admin_dashboard'),
     
     # Publicações
@@ -30,4 +21,13 @@ urlpatterns = [
     # Agendamentos de Visitas
     path('admin-portal/visitas/', views.visitas_admin, name='visitas_admin'),
     path('admin-portal/visitas/<int:pk>/confirmar/', views.confirmar_visita, name='confirmar_visita'),
+    
+    # ==================== URLs PÚBLICAS (COM SLUG DO GABINETE) ====================
+    path('<slug:slug>/', views.portal_index, name='index'),
+    path('<slug:slug>/noticias/', views.noticias_lista, name='noticias'),
+    path('<slug:slug>/noticias/<int:pk>/', views.noticia_detalhe, name='noticia_detalhe'),
+    path('<slug:slug>/solicitar/', views.solicitar_atendimento, name='solicitar'),
+    path('<slug:slug>/consultar/', views.consultar_protocolo, name='consultar'),
+    path('<slug:slug>/agendar-visita/', views.agendar_visita, name='agendar_visita'),
+    path('<slug:slug>/sucesso/<str:protocolo>/', views.sucesso_solicitacao, name='sucesso_solicitacao'),
 ]
