@@ -19,6 +19,7 @@ import AtribuicoesTabela from '../../components/atribuicoes/AtribuicoesTabela';
 import DetailSideCard from '../../components/dashboard/DetailSideCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../services/api';
+import { calcularDiasUteis, calcularDiasComOpcoes } from '../../utils/dateUtils';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
 import './DelegarTarefas.css';
 
@@ -55,6 +56,8 @@ const DelegarTarefas = () => {
   // Filtro de período
   const [periodoInicio, setPeriodoInicio] = useState(null);
   const [periodoFim, setPeriodoFim] = useState(null);
+  const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
+  const [habilitarFeriados, setHabilitarFeriados] = useState(false);
   
   // Valores selecionados para filtros pai
   const [filtroClienteSelecionado, setFiltroClienteSelecionado] = useState(null);
@@ -112,6 +115,10 @@ const DelegarTarefas = () => {
   
   // Cache de horas contratadas por responsável
   const [horasContratadasPorResponsavel, setHorasContratadasPorResponsavel] = useState({});
+  // Cache de tipo de contrato por responsável
+  const [tipoContratoPorResponsavel, setTipoContratoPorResponsavel] = useState({});
+  // Cache de nomes dos tipos de contrato (id -> nome)
+  const [tiposContratoMap, setTiposContratoMap] = useState({});
   
   // Cache de tempos realizados por tarefa estimada
   const [temposRealizados, setTemposRealizados] = useState({});
@@ -281,6 +288,7 @@ const DelegarTarefas = () => {
     loadClientes();
     loadColaboradores();
     loadMembros();
+    carregarTiposContrato();
   }, []);
 
   // Resetar expansão dos dashboards quando filtros forem aplicados
@@ -831,13 +839,43 @@ const DelegarTarefas = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          return result.data.horascontratadasdia || null;
+          return {
+            horascontratadasdia: result.data.horascontratadasdia || null,
+            tipo_contrato: result.data.tipo_contrato || null
+          };
         }
       }
       return null;
     } catch (error) {
       console.error('Erro ao buscar horas contratadas por responsável:', error);
       return null;
+    }
+  };
+
+  // Carregar tipos de contrato do backend
+  const carregarTiposContrato = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tipos-contrato`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          // Criar mapa id -> nome
+          const mapa = {};
+          result.data.forEach(tipo => {
+            mapa[String(tipo.id)] = tipo.nome;
+          });
+          setTiposContratoMap(mapa);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tipos de contrato:', error);
     }
   };
 
@@ -859,15 +897,23 @@ const DelegarTarefas = () => {
     });
 
     const novasHoras = { ...horasContratadasPorResponsavel };
+    const novosTiposContrato = { ...tipoContratoPorResponsavel };
     
     for (const responsavelId of responsaveisIds) {
       if (!novasHoras[responsavelId]) {
-        const horasContratadas = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
-        novasHoras[responsavelId] = horasContratadas;
+        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+        if (resultado) {
+          novasHoras[responsavelId] = resultado.horascontratadasdia || null;
+          novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
+        } else {
+          novasHoras[responsavelId] = null;
+          novosTiposContrato[responsavelId] = null;
+        }
       }
     }
     
     setHorasContratadasPorResponsavel(novasHoras);
+    setTipoContratoPorResponsavel(novosTiposContrato);
   };
 
   // Obter chave única para um registro de tempo estimado
@@ -1637,17 +1683,17 @@ const DelegarTarefas = () => {
 
   // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
   const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
-    if (!periodoInicio || !periodoFim) return null;
+    // Usar valores aplicados do período (ou null se não foram aplicados)
+    const periodoAplicadoInicio = filtrosUltimosAplicados?.periodoInicio;
+    const periodoAplicadoFim = filtrosUltimosAplicados?.periodoFim;
+    if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
     
-    const inicio = new Date(periodoInicio);
-    const fim = new Date(periodoFim);
-    const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
+    // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
+    const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
+    const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
     
-    const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
-    // Permitir exibir mesmo sem vigência (horas contratadas = 0)
-    const horasContratadasDiaValor = horasContratadasDia || 0;
-    
-    const tempoDisponivelTotal = horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
+    // Calcular dias considerando as opções de incluir finais de semana e feriados
+    const diasNoPeriodo = calcularDiasComOpcoes(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado);
     
     // Tempo estimado baseado no total do agrupamento dentro do período
     // Usar a mesma lógica da listagem: somar o tempo_estimado_dia de cada registro
@@ -1655,8 +1701,8 @@ const DelegarTarefas = () => {
       .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
       .reduce((acc, agr) => {
         if (!agr.registros) return acc;
-        const registrosNoPeriodo = periodoInicio && periodoFim
-          ? agr.registros.filter((reg) => dataEstaNoPeriodo(reg.data))
+        const registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
+          ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
           : agr.registros;
         return acc + registrosNoPeriodo.reduce(
           (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
@@ -1664,12 +1710,69 @@ const DelegarTarefas = () => {
         );
       }, 0);
     
+    // Verificar se é PJ (tipo_contrato === 2)
+    const tipoContrato = tipoContratoPorResponsavel[String(responsavelId)];
+    // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
+    const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
+      tipoContrato === 2 || 
+      tipoContrato === '2' || 
+      Number(tipoContrato) === 2 ||
+      String(tipoContrato).trim() === '2'
+    );
+    
+    // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
+    const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
+    const horasContratadasDiaValor = horasContratadasDia || 0;
+    const tempoDisponivelTotal = isPJ 
+      ? tempoEstimado 
+      : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
+    
+    // Função auxiliar para verificar se uma data está no período aplicado
+    const dataEstaNoPeriodoAplicado = (dataRegistro) => {
+      if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
+      try {
+        let dataReg;
+        if (dataRegistro instanceof Date) {
+          dataReg = new Date(dataRegistro);
+        } else if (typeof dataRegistro === 'string') {
+          const dataStr = dataRegistro.split('T')[0];
+          const [ano, mes, dia] = dataStr.split('-');
+          dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+        } else {
+          dataReg = new Date(dataRegistro);
+        }
+        
+        let inicio, fim;
+        if (typeof periodoAplicadoInicio === 'string' && periodoAplicadoInicio.includes('-')) {
+          const [anoInicio, mesInicio, diaInicio] = periodoAplicadoInicio.split('-');
+          inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+        } else {
+          inicio = new Date(periodoAplicadoInicio);
+        }
+        
+        if (typeof periodoAplicadoFim === 'string' && periodoAplicadoFim.includes('-')) {
+          const [anoFim, mesFim, diaFim] = periodoAplicadoFim.split('-');
+          fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+        } else {
+          fim = new Date(periodoAplicadoFim);
+        }
+        
+        dataReg.setHours(0, 0, 0, 0);
+        inicio.setHours(0, 0, 0, 0);
+        fim.setHours(23, 59, 59, 999);
+        
+        return dataReg >= inicio && dataReg <= fim;
+      } catch (e) {
+        return true;
+      }
+    };
+    
     // Tempo realizado baseado nos registros de tempo realizados
     const tempoRealizado = agrupamentos
       .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
       .reduce((acc, agr) => {
         if (!agr.registros) return acc;
-        const registrosNoPeriodo = agr.registros.filter((reg) => dataEstaNoPeriodo(reg.data));
+        const registrosNoPeriodo = agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data));
         return acc + registrosNoPeriodo.reduce((sum, reg) => {
           const tempoRealizadoReg = getTempoRealizado(reg);
           return sum + (tempoRealizadoReg || 0);
@@ -2034,6 +2137,8 @@ const DelegarTarefas = () => {
       ...filtros, 
       periodoInicio, 
       periodoFim,
+      habilitarFinaisSemana,
+      habilitarFeriados,
       filtroClienteSelecionado,
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
@@ -2389,6 +2494,10 @@ const DelegarTarefas = () => {
                     onInicioChange={(e) => setPeriodoInicio(e.target.value || null)}
                     onFimChange={(e) => setPeriodoFim(e.target.value || null)}
                     disabled={loading}
+                    showWeekendToggle={true}
+                    onWeekendToggleChange={setHabilitarFinaisSemana}
+                    showHolidayToggle={true}
+                    onHolidayToggleChange={setHabilitarFeriados}
                   />
                 </div>
                 
@@ -3407,9 +3516,27 @@ const DelegarTarefas = () => {
                           if (tipoEntidade === 'responsavel') {
                             const inicio = new Date(periodoAplicadoInicio);
                             const fim = new Date(periodoAplicadoFim);
-                            const diasNoPeriodo = Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
+                            // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
+                            const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
+                            const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
+                            // Calcular dias considerando as opções de incluir finais de semana e feriados
+                            const diasNoPeriodo = calcularDiasComOpcoes(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado);
+                            
+                            // Verificar se é PJ (tipo_contrato === 2)
+                            const tipoContrato = tipoContratoPorResponsavel[String(entidadeId)];
+                            // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
+                            const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
+                              tipoContrato === 2 || 
+                              tipoContrato === '2' || 
+                              Number(tipoContrato) === 2 ||
+                              String(tipoContrato).trim() === '2'
+                            );
+                            
+                            // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
                             const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)] || 0;
-                            const tempoDisponivelTotal = horasContratadasDia * diasNoPeriodo * 3600000;
+                            const tempoDisponivelTotal = isPJ 
+                              ? tempoEstimado 
+                              : horasContratadasDia * diasNoPeriodo * 3600000;
                             const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
                             
                             return {
@@ -3724,6 +3851,15 @@ const DelegarTarefas = () => {
                                     />
                                   )}
                                     <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
+                                    {filtroPrincipal === 'responsavel' && (() => {
+                                      const tipoContratoId = tipoContratoPorResponsavel[String(entidade.id)];
+                                      const nomeTipoContrato = tipoContratoId ? tiposContratoMap[String(tipoContratoId)] : null;
+                                      return nomeTipoContrato ? (
+                                        <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px' }}>
+                                          {nomeTipoContrato}
+                                        </span>
+                                      ) : null;
+                                    })()}
                                 </div>
                               </div>
                               <div className="tempo-disponivel-card-content">
@@ -4167,6 +4303,15 @@ const DelegarTarefas = () => {
                                     />
                                   )}
                                   <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
+                                  {filtroPrincipal === 'responsavel' && (() => {
+                                    const tipoContratoId = tipoContratoPorResponsavel[String(entidade.id)];
+                                    const nomeTipoContrato = tipoContratoId ? tiposContratoMap[String(tipoContratoId)] : null;
+                                    return nomeTipoContrato ? (
+                                      <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px' }}>
+                                        {nomeTipoContrato}
+                                      </span>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </div>
                               <div className="tempo-disponivel-card-content">

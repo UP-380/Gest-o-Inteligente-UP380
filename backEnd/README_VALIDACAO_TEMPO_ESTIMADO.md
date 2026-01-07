@@ -114,3 +114,4 @@ Criado script completo de validação que:
 - Registros com `tempo_estimado_dia` inválido: Verifique se o valor está em milissegundos
 - Registros duplicados: Verifique se há lógica de deduplicação no backend
 
+

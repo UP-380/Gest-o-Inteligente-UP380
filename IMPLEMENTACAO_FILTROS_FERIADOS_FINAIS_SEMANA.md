@@ -107,3 +107,4 @@ Este documento descreve as correções implementadas para integrar corretamente 
 - Cache de feriados no frontend para melhor performance
 - Permitir configuração global de padrão (incluir/excluir por padrão)
 
+

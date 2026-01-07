@@ -187,7 +187,7 @@ async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dat
     let query = supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
-      .select('horascontratadasdia, dt_vigencia')
+      .select('horascontratadasdia, dt_vigencia, tipo_contrato')
       .eq('membro_id', membroId);
 
     // Filtrar vigências que sejam <= data_fim (a mais recente antes ou no período)
