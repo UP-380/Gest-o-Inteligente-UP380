@@ -50,35 +50,71 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   }, [JSON.stringify(datasIndividuais)]);
 
   // Limpar datas individuais fora do período quando o período mudar
+  // Usar useRef para rastrear o período anterior e evitar loops infinitos
+  const periodoAnteriorRef = useRef({ inicio: localInicio, fim: localFim });
+  const processandoPeriodoRef = useRef(false);
+  
   useEffect(() => {
-    if (localInicio && localFim) {
-      const inicioDate = new Date(localInicio + 'T00:00:00');
-      const fimDate = new Date(localFim + 'T00:00:00');
-      const novasDatas = new Set();
-      
-      datasIndividuaisLocal.forEach(dataStr => {
-        const data = new Date(dataStr + 'T00:00:00');
-        if (data >= inicioDate && data <= fimDate) {
-          novasDatas.add(dataStr);
-        }
-      });
-      
-      if (novasDatas.size !== datasIndividuaisLocal.size) {
-        setDatasIndividuaisLocal(novasDatas);
-        if (onDatasIndividuaisChange) {
-          onDatasIndividuaisChange(Array.from(novasDatas));
-        }
-      }
-    } else {
-      // Se não há período, limpar todas as datas individuais
-      if (datasIndividuaisLocal.size > 0) {
-        setDatasIndividuaisLocal(new Set());
-        if (onDatasIndividuaisChange) {
-          onDatasIndividuaisChange([]);
-        }
-      }
+    // Evitar processamento simultâneo
+    if (processandoPeriodoRef.current) return;
+    
+    // Só processar se o período realmente mudou
+    if (periodoAnteriorRef.current.inicio === localInicio && periodoAnteriorRef.current.fim === localFim) {
+      return; // Período não mudou, não fazer nada
     }
-  }, [localInicio, localFim]);
+    
+    processandoPeriodoRef.current = true;
+    
+    // Atualizar referência do período anterior
+    periodoAnteriorRef.current = { inicio: localInicio, fim: localFim };
+    
+    // Usar função callback para acessar o estado mais recente sem adicionar nas dependências
+    setDatasIndividuaisLocal(prevDatas => {
+      if (localInicio && localFim) {
+        const inicioDate = new Date(localInicio + 'T00:00:00');
+        const fimDate = new Date(localFim + 'T00:00:00');
+        const novasDatas = new Set();
+        
+        prevDatas.forEach(dataStr => {
+          const data = new Date(dataStr + 'T00:00:00');
+          if (data >= inicioDate && data <= fimDate) {
+            novasDatas.add(dataStr);
+          }
+        });
+        
+        // Comparar usando tamanho e valores para evitar updates desnecessários
+        const precisaAtualizar = novasDatas.size !== prevDatas.size || 
+                                 ![...prevDatas].every(v => novasDatas.has(v));
+        
+        if (precisaAtualizar && onDatasIndividuaisChange) {
+          // Usar setTimeout para evitar chamar durante o render
+          setTimeout(() => {
+            onDatasIndividuaisChange(Array.from(novasDatas));
+            processandoPeriodoRef.current = false;
+          }, 0);
+        } else {
+          processandoPeriodoRef.current = false;
+        }
+        
+        return precisaAtualizar ? novasDatas : prevDatas;
+      } else {
+        // Se não há período, limpar todas as datas individuais
+        if (prevDatas.size > 0) {
+          if (onDatasIndividuaisChange) {
+            setTimeout(() => {
+              onDatasIndividuaisChange([]);
+              processandoPeriodoRef.current = false;
+            }, 0);
+          } else {
+            processandoPeriodoRef.current = false;
+          }
+          return new Set();
+        }
+        processandoPeriodoRef.current = false;
+        return prevDatas;
+      }
+    });
+  }, [localInicio, localFim, onDatasIndividuaisChange]);
 
   // Notificar o componente pai sobre o valor inicial do toggle e quando mudar
   useEffect(() => {
