@@ -57,6 +57,100 @@ const AtribuicaoCliente = () => {
   const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
   const [habilitarFeriados, setHabilitarFeriados] = useState(false);
 
+  // Normalizar horas contratadas para número (pode vir como objeto do backend)
+  const horasDisponiveisDia = (() => {
+    if (horasContratadasDia == null) return null;
+    if (typeof horasContratadasDia === 'object') {
+      const v = horasContratadasDia.horascontratadasdia;
+      const num = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(num) ? num : null;
+    }
+    const num = typeof horasContratadasDia === 'number' ? horasContratadasDia : Number(horasContratadasDia);
+    return Number.isFinite(num) ? num : null;
+  })();
+
+  // Períodos por tarefa (por produto+tarefa) e modo de período em lote
+  const [periodosPorTarefa, setPeriodosPorTarefa] = useState({}); // { "produtoId_tarefaId": { inicio, fim, datasIndividuais, habilitarFinaisSemana, habilitarFeriados } }
+  const [modoPeriodoParaMuitos, setModoPeriodoParaMuitos] = useState(false);
+  const [periodoGlobal, setPeriodoGlobal] = useState({
+    inicio: null,
+    fim: null,
+    datasIndividuais: [],
+    habilitarFinaisSemana: false,
+    habilitarFeriados: false
+  });
+
+  const getPeriodoKey = (produtoId, tarefaId) => `${String(produtoId)}_${String(tarefaId)}`;
+
+  const handlePeriodoTarefaChange = (produtoId, tarefaId, updates) => {
+    const key = getPeriodoKey(produtoId, tarefaId);
+    setPeriodosPorTarefa(prev => ({
+      ...prev,
+      [key]: {
+        inicio: prev[key]?.inicio || null,
+        fim: prev[key]?.fim || null,
+        datasIndividuais: prev[key]?.datasIndividuais || [],
+        habilitarFinaisSemana: prev[key]?.habilitarFinaisSemana || false,
+        habilitarFeriados: prev[key]?.habilitarFeriados || false,
+        source: prev[key]?.source || 'manual',
+        ...updates
+      }
+    }));
+  };
+
+  // Quando o modo "Período para muitos" estiver ativo, aplicar automaticamente o período global
+  // em todas as tarefas selecionadas (exceto as que foram ajustadas manualmente).
+  useEffect(() => {
+    if (!modoPeriodoParaMuitos) return;
+    if (!periodoGlobal.inicio || !periodoGlobal.fim) return;
+    if (!tarefasSelecionadasPorProduto || Object.keys(tarefasSelecionadasPorProduto).length === 0) return;
+
+    const globalDatas = Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : [];
+    const globalKey = `${periodoGlobal.inicio}|${periodoGlobal.fim}|${periodoGlobal.habilitarFinaisSemana ? 1 : 0}|${periodoGlobal.habilitarFeriados ? 1 : 0}|${globalDatas.slice().sort().join(',')}`;
+
+    setPeriodosPorTarefa(prev => {
+      const next = { ...prev };
+      let changed = false;
+
+      Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+        Object.entries(tarefasDoProduto || {}).forEach(([tarefaId, dadosTarefa]) => {
+          if (dadosTarefa?.selecionada !== true) return;
+          const key = getPeriodoKey(produtoId, tarefaId);
+          const atual = next[key];
+
+          // Se o usuário ajustou manualmente, não sobrescrever
+          if (atual?.source === 'manual') return;
+
+          const atualKey = atual
+            ? `${atual.inicio || ''}|${atual.fim || ''}|${atual.habilitarFinaisSemana ? 1 : 0}|${atual.habilitarFeriados ? 1 : 0}|${(Array.isArray(atual.datasIndividuais) ? atual.datasIndividuais : []).slice().sort().join(',')}`
+            : '';
+
+          if (atualKey === globalKey && atual?.source === 'global') return;
+
+          next[key] = {
+            inicio: periodoGlobal.inicio,
+            fim: periodoGlobal.fim,
+            datasIndividuais: [...globalDatas],
+            habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
+            habilitarFeriados: !!periodoGlobal.habilitarFeriados,
+            source: 'global'
+          };
+          changed = true;
+        });
+      });
+
+      return changed ? next : prev;
+    });
+  }, [
+    modoPeriodoParaMuitos,
+    periodoGlobal.inicio,
+    periodoGlobal.fim,
+    periodoGlobal.habilitarFinaisSemana,
+    periodoGlobal.habilitarFeriados,
+    JSON.stringify(periodoGlobal.datasIndividuais || []),
+    tarefasSelecionadasPorProduto
+  ]);
+
   // Carregar dados iniciais
   useEffect(() => {
     cacheAPI.remove('api_cache_colaboradores_all');
@@ -311,8 +405,15 @@ const AtribuicaoCliente = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data !== null && result.data !== undefined) {
-          const horas = result.data.horascontratadasdia || result.data;
-          setHorasContratadasDia(horas);
+          const data = result.data;
+          let horas = null;
+          if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'horascontratadasdia')) {
+            horas = data.horascontratadasdia;
+          } else {
+            horas = data; // pode ser número direto
+          }
+          const num = typeof horas === 'number' ? horas : Number(horas);
+          setHorasContratadasDia(Number.isFinite(num) ? num : null);
         } else {
           setHorasContratadasDia(null);
         }
@@ -335,7 +436,7 @@ const AtribuicaoCliente = () => {
   }, [responsavelSelecionado]);
 
   useEffect(() => {
-    if (horasContratadasDia && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0) {
+    if (horasDisponiveisDia != null && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0) {
       // Calcular total considerando produto x tarefa
       let totalTempoMs = 0;
       Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
@@ -348,9 +449,9 @@ const AtribuicaoCliente = () => {
       
       const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
       
-      if (totalHorasPorDia > horasContratadasDia) {
+      if (totalHorasPorDia > horasDisponiveisDia) {
         setErroTempoEstimado(
-          `O tempo estimado total por dia (${totalHorasPorDia.toFixed(2)}h) ultrapassa as horas contratadas do responsável (${horasContratadasDia}h). ` +
+          `O tempo estimado total por dia (${totalHorasPorDia.toFixed(2)}h) ultrapassa as horas contratadas do responsável (${horasDisponiveisDia}h). ` +
           `Ajuste os tempos individuais das tarefas.`
         );
       } else {
@@ -359,7 +460,7 @@ const AtribuicaoCliente = () => {
     } else {
       setErroTempoEstimado(null);
     }
-  }, [tempoEstimadoDia, horasContratadasDia, tarefasSelecionadasPorProduto]);
+  }, [tempoEstimadoDia, horasDisponiveisDia, tarefasSelecionadasPorProduto]);
 
   // Carregar produtos vinculados ao cliente selecionado (usando tabela de vinculados)
   useEffect(() => {
@@ -809,10 +910,7 @@ const AtribuicaoCliente = () => {
       return;
     }
 
-    if (!dataInicio || !dataFim) {
-      showToast('warning', 'Selecione o período (data início e vencimento)');
-      return;
-    }
+    // Validação de período removida - cada tarefa tem seu próprio período agora
 
     // Verificar tarefas sem tempo considerando produto x tarefa
     const tarefasSemTempo = [];
@@ -933,60 +1031,113 @@ const AtribuicaoCliente = () => {
         }
       });
 
-      const dadosParaSalvar = {
-        cliente_id: clienteSelecionado,
-        produtos_com_tarefas: produtosComTarefas, // Novo formato: { produtoId: [{ tarefa_id, tempo_estimado_dia }] }
-        data_inicio: dataInicio,
-        data_fim: dataFim,
-        responsavel_id: String(responsavelSelecionado),
-        incluir_finais_semana: habilitarFinaisSemana,
-        incluir_feriados: habilitarFeriados
+      // Agrupamento por período (por tarefa) ou período global
+      const obterPeriodoPara = (produtoId, tarefaId) => {
+        const key = getPeriodoKey(produtoId, tarefaId);
+        const p = periodosPorTarefa[key];
+        if (p && p.inicio && p.fim) {
+          return {
+            inicio: p.inicio,
+            fim: p.fim,
+            incluir_finais_semana: !!p.habilitarFinaisSemana,
+            incluir_feriados: !!p.habilitarFeriados,
+            datas_individuais: Array.isArray(p.datasIndividuais) ? p.datasIndividuais : []
+          };
+        }
+        // Fallback para período global da tela
+        return {
+          inicio: dataInicio,
+          fim: dataFim,
+          incluir_finais_semana: !!habilitarFinaisSemana,
+          incluir_feriados: !!habilitarFeriados,
+          datas_individuais: []
+        };
       };
-      
-      console.log('💾 [ATRIBUICAO] Salvando com habilitarFinaisSemana:', habilitarFinaisSemana, 'tipo:', typeof habilitarFinaisSemana);
-      console.log('💾 [ATRIBUICAO] Salvando com habilitarFeriados:', habilitarFeriados, 'tipo:', typeof habilitarFeriados);
-      console.log('💾 [ATRIBUICAO] Período:', dataInicio, 'até', dataFim);
-      console.log('💾 [ATRIBUICAO] Dados completos para salvar:', JSON.stringify(dadosParaSalvar, null, 2));
 
-      const url = editingAgrupamento 
-        ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
-        : `${API_BASE_URL}/tempo-estimado`;
-      
-      const method = editingAgrupamento ? 'PUT' : 'POST';
+      const stringifyPeriodo = (per) => {
+        const di = (per.datas_individuais || []).slice().sort().join(',');
+        return `${per.inicio}|${per.fim}|${per.incluir_finais_semana ? 1 : 0}|${per.incluir_feriados ? 1 : 0}|${di}`;
+        };
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(dadosParaSalvar),
+      const gruposPorPeriodo = {}; // keyPeriodo -> { periodo, produtos_com_tarefas }
+      produtosSelecionados.forEach(produtoId => {
+        const produtoIdStr = String(produtoId).trim();
+        const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
+        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
+          if (dadosTarefa.selecionada === true) {
+            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
+            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
+              tempo = tempoGlobalParaAplicar;
+            }
+            const tempoInt = Math.round(Number(tempo));
+            const periodo = obterPeriodoPara(produtoIdStr, tarefaId);
+            const keyPeriodo = stringifyPeriodo(periodo);
+            if (!gruposPorPeriodo[keyPeriodo]) {
+              gruposPorPeriodo[keyPeriodo] = {
+                periodo,
+                produtos_com_tarefas: {}
+              };
+            }
+            if (!gruposPorPeriodo[keyPeriodo].produtos_com_tarefas[produtoIdStr]) {
+              gruposPorPeriodo[keyPeriodo].produtos_com_tarefas[produtoIdStr] = [];
+            }
+            gruposPorPeriodo[keyPeriodo].produtos_com_tarefas[produtoIdStr].push({
+              tarefa_id: String(tarefaId).trim(),
+              tempo_estimado_dia: tempoInt
+            });
+          }
+        });
       });
 
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
+      const grupos = Object.values(gruposPorPeriodo);
+      console.log('💾 [ATRIBUICAO] Total de grupos de período:', grupos.length);
+
+      const urlBase = editingAgrupamento 
+        ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
+        : `${API_BASE_URL}/tempo-estimado`;
+      const method = editingAgrupamento ? 'PUT' : 'POST';
+
+      let totalLinhas = 0;
+      for (const grupo of grupos) {
+        const payload = {
+          cliente_id: clienteSelecionado,
+          produtos_com_tarefas: grupo.produtos_com_tarefas,
+          data_inicio: grupo.periodo.inicio,
+          data_fim: grupo.periodo.fim,
+          responsavel_id: String(responsavelSelecionado),
+          incluir_finais_semana: grupo.periodo.incluir_finais_semana,
+          incluir_feriados: grupo.periodo.incluir_feriados,
+          datas_individuais: grupo.periodo.datas_individuais
+        };
+
+        console.log('💾 [ATRIBUICAO] Salvando grupo:', JSON.stringify(payload, null, 2));
+
+        const response = await fetch(urlBase, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+
+        if (response.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
+          showToast('error', errorMsg);
+          return;
+        }
+        totalLinhas += (result.count || result.data?.length || 0);
       }
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-        showToast('error', errorMsg);
-        return;
-      }
-
-      if (result.success) {
-        const count = result.count || result.data?.length || 0;
-        const mensagem = editingAgrupamento 
-          ? `Atribuição atualizada com sucesso! ${count} dia(s) atualizado(s).`
-          : `Responsável definido com sucesso! ${count} dia(s) atribuído(s).`;
-        showToast('success', mensagem);
-        navigate('/atribuir-responsaveis');
-      } else {
-        const errorMsg = result.error || result.details || 'Erro ao salvar tempo estimado';
-        showToast('error', errorMsg);
-      }
+      showToast('success', `Atribuição salva com sucesso! ${totalLinhas} dia(s) atribuídos/atualizados em ${grupos.length} grupo(s) de período.`);
+      navigate('/atribuir-responsaveis');
     } catch (error) {
       console.error('Erro ao salvar atribuição:', error);
       showToast('error', error.message || 'Erro ao salvar atribuição. Verifique sua conexão e tente novamente.');
@@ -1178,42 +1329,6 @@ const AtribuicaoCliente = () => {
                     )}
                   </div>
 
-                  {/* 4. Período */}
-                  <div className="form-group">
-                    <label className="form-label-small">
-                      <i className="fas fa-calendar-alt" style={{ marginRight: '6px' }}></i>
-                      4. Período
-                    </label>
-                    <FilterPeriodo
-                      dataInicio={dataInicio}
-                      dataFim={dataFim}
-                      onInicioChange={(e) => setDataInicio(e.target.value || null)}
-                      onFimChange={(e) => setDataFim(e.target.value || null)}
-                      disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0}
-                      showWeekendToggle={true}
-                      onWeekendToggleChange={setHabilitarFinaisSemana}
-                      showHolidayToggle={true}
-                      onHolidayToggleChange={setHabilitarFeriados}
-                    />
-                    {verificandoDuplicata && (
-                      <p className="help-message" style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280' }}>
-                        <i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }}></i>
-                        Verificando duplicatas...
-                      </p>
-                    )}
-                    {erroDuplicata && (
-                      <p className="empty-message" style={{ marginTop: '8px', fontSize: '11px', color: '#dc2626', backgroundColor: '#fef2f2', padding: '8px', borderRadius: '4px', border: '1px solid #fecaca' }}>
-                        <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
-                        {erroDuplicata}
-                      </p>
-                    )}
-                    {dataInicio && dataFim && !erroDuplicata && !verificandoDuplicata && (
-                      <p className="help-message" style={{ marginTop: '8px', fontSize: '11px' }}>
-                        <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>
-                        Será criado um registro para cada dia entre {dataInicio} e {dataFim}
-                      </p>
-                    )}
-                  </div>
                   </div>
                 </div>
 
@@ -1223,12 +1338,85 @@ const AtribuicaoCliente = () => {
                     <h3 className="atribuicao-form-section-title">
                       <i className="fas fa-tasks"></i>
                       Tarefas e Tempo Estimado
-                      {horasContratadasDia && (
+                      {horasDisponiveisDia != null && (
                         <span style={{ marginLeft: '12px', fontSize: '12px', color: '#64748b', fontWeight: 'normal' }}>
-                          (Total disponível: {horasContratadasDia}h/dia)
+                          (Total disponível: {horasDisponiveisDia}h/dia)
                         </span>
                       )}
                     </h3>
+                    {/* Modo: Selecionar período para muitos */}
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <ToggleSwitch
+                        checked={modoPeriodoParaMuitos}
+                        onChange={(checked) => setModoPeriodoParaMuitos(checked)}
+                        leftLabel="Período individual"
+                        rightLabel="Período para muitos"
+                      />
+                      {modoPeriodoParaMuitos && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <div style={{ minWidth: '260px' }}>
+                            <FilterPeriodo
+                              dataInicio={periodoGlobal.inicio}
+                              dataFim={periodoGlobal.fim}
+                              onInicioChange={(e) => setPeriodoGlobal(prev => ({ ...prev, inicio: e.target.value || null }))}
+                              onFimChange={(e) => setPeriodoGlobal(prev => ({ ...prev, fim: e.target.value || null }))}
+                              size="small"
+                              uiVariant="atribuicao-mini"
+                              showWeekendToggle={true}
+                              onWeekendToggleChange={(v) => setPeriodoGlobal(prev => ({ ...prev, habilitarFinaisSemana: !!v }))}
+                              showHolidayToggle={true}
+                              onHolidayToggleChange={(v) => setPeriodoGlobal(prev => ({ ...prev, habilitarFeriados: !!v }))}
+                              datasIndividuais={periodoGlobal.datasIndividuais || []}
+                              onDatasIndividuaisChange={(arr) => setPeriodoGlobal(prev => ({ ...prev, datasIndividuais: Array.isArray(arr) ? arr : [] }))}
+                              disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0}
+                            />
+                          </div>
+                          {periodoGlobal.inicio && periodoGlobal.fim && tarefasSelecionadas.length > 0 && (
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() => {
+                                // Aplicar período global a todas as tarefas selecionadas
+                                setPeriodosPorTarefa(prev => {
+                                  const novo = { ...prev };
+                                  Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
+                                    Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
+                                      if (dadosTarefa.selecionada === true) {
+                                        const key = `${produtoId}_${tarefaId}`;
+                                        novo[key] = {
+                                          inicio: periodoGlobal.inicio,
+                                          fim: periodoGlobal.fim,
+                                          datasIndividuais: periodoGlobal.datasIndividuais || [],
+                                          habilitarFinaisSemana: periodoGlobal.habilitarFinaisSemana || false,
+                                          habilitarFeriados: periodoGlobal.habilitarFeriados || false,
+                                          source: 'global'
+                                        };
+                                      }
+                                    });
+                                  });
+                                  return novo;
+                                });
+                                showToast('success', `Período aplicado a ${tarefasSelecionadas.length} tarefa(s)`);
+                              }}
+                              disabled={loading || submitting}
+                              style={{
+                                padding: '8px 16px',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Aplicar o período selecionado a todas as tarefas marcadas"
+                            >
+                              <i className="fas fa-calendar-check" style={{ fontSize: '12px' }}></i>
+                              Aplicar a {tarefasSelecionadas.length} tarefa(s)
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <div>
                       {/* Usar o componente SelecaoTarefasPorProduto */}
                       <div style={{ 
@@ -1252,9 +1440,14 @@ const AtribuicaoCliente = () => {
                           onTempoChange={(produtoId, tarefaId, tempoEmMs) => {
                             handleTempoTarefaChange(produtoId, tarefaId, tempoEmMs);
                           }}
-                          disabledTempo={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
-                          horasContratadasDia={horasContratadasDia}
+                          disabledTempo={loading || submitting || !responsavelSelecionado}
+                          horasContratadasDia={horasDisponiveisDia}
                           tarefasSelecionadas={tarefasSelecionadas}
+                          // Período por tarefa e modo em lote
+                          periodosPorTarefa={periodosPorTarefa}
+                          onPeriodoChange={(produtoId, tarefaId, updates) => handlePeriodoTarefaChange(produtoId, tarefaId, { ...updates, source: 'manual' })}
+                          modoPeriodoParaMuitos={modoPeriodoParaMuitos}
+                          filterPeriodoUiVariant="atribuicao-mini"
                           onTarefasChange={(tarefasPorProduto) => {
                             // Converter formato: { produtoId: [{ id, nome, selecionada, subtarefasSelecionadas, tipoTarefa }] }
                             // Para: { produtoId: { tarefaId: { selecionada: boolean, subtarefas: [subtarefaId], tipoTarefa: {id, nome} } } }
@@ -1376,7 +1569,7 @@ const AtribuicaoCliente = () => {
                                       height: '14px',
                                       accentColor: '#ffffff'
                                     }}
-                                    disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                                    disabled={loading || submitting || !responsavelSelecionado}
                                   />
                                 )}
                                 <span style={{ flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tarefa.nome}</span>
@@ -1407,7 +1600,7 @@ const AtribuicaoCliente = () => {
                                       const minutos = Math.floor((tempoTarefa % (1000 * 60 * 60)) / (1000 * 60)) || 0;
                                       handleTempoTarefaChange(tarefaId, Math.round((horas * 60 * 60 + minutos * 60) * 1000));
                                     }}
-                                    disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                                    disabled={loading || submitting || !responsavelSelecionado}
                                     placeholder="0"
                                     min="0"
                                     style={{
@@ -1431,7 +1624,7 @@ const AtribuicaoCliente = () => {
                                       const horas = Math.floor(tempoTarefa / (1000 * 60 * 60)) || 0;
                                       handleTempoTarefaChange(tarefaId, Math.round((horas * 60 * 60 + minutos * 60) * 1000));
                                     }}
-                                    disabled={loading || submitting || !responsavelSelecionado || !dataInicio || !dataFim}
+                                    disabled={loading || submitting || !responsavelSelecionado}
                                     placeholder="0"
                                     min="0"
                                     max="59"
@@ -1492,7 +1685,7 @@ const AtribuicaoCliente = () => {
                           {erroTempoEstimado}
                         </p>
                       )}
-                      {horasContratadasDia && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0 && !erroTempoEstimado && (() => {
+                      {horasDisponiveisDia != null && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0 && !erroTempoEstimado && (() => {
                         let totalTempoMs = 0;
                         Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
                           Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
@@ -1505,11 +1698,11 @@ const AtribuicaoCliente = () => {
                         if (totalHorasPorDia > 0) {
                           return (
                             <p className="help-message" style={{ marginTop: '12px', fontSize: '11px' }}>
-                              <i className="fas fa-check-circle" style={{ marginRight: '6px', color: totalHorasPorDia > horasContratadasDia ? '#f59e0b' : '#10b981' }}></i>
-                              Tempo total por dia: {totalHorasPorDia.toFixed(2)}h de {horasContratadasDia}h disponíveis
-                              {totalHorasPorDia > horasContratadasDia && (
+                              <i className="fas fa-check-circle" style={{ marginRight: '6px', color: totalHorasPorDia > horasDisponiveisDia ? '#f59e0b' : '#10b981' }}></i>
+                              Tempo total por dia: {totalHorasPorDia.toFixed(2)}h de {horasDisponiveisDia}h disponíveis
+                              {totalHorasPorDia > horasDisponiveisDia && (
                                 <span style={{ color: '#dc2626', marginLeft: '8px' }}>
-                                  (Ultrapassando em {(totalHorasPorDia - horasContratadasDia).toFixed(2)}h)
+                                  (Ultrapassando em {(totalHorasPorDia - horasDisponiveisDia).toFixed(2)}h)
                                 </span>
                               )}
                             </p>
@@ -1542,7 +1735,7 @@ const AtribuicaoCliente = () => {
                   type="button"
                   className="btn-primary"
                   onClick={handleSave}
-                  disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || !dataInicio || !dataFim || verificandoDuplicata || (() => {
+                  disabled={loading || submitting || !responsavelSelecionado || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || verificandoDuplicata || (() => {
                     // Verificar se há tarefas sem tempo considerando produto x tarefa
                     if (!tarefasSelecionadasPorProduto || Object.keys(tarefasSelecionadasPorProduto).length === 0) {
                       return true;

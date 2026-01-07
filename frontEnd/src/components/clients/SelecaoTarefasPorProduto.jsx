@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
+import FilterPeriodo from '../filters/FilterPeriodo';
 import './SelecaoTarefasPorProduto.css';
 
 const API_BASE_URL = '/api';
@@ -28,7 +29,12 @@ const SelecaoTarefasPorProduto = ({
   disabledTempo = false, // Nova prop: desabilitar campos de tempo
   horasContratadasDia = null, // Nova prop: horas contratadas por dia
   tarefasSelecionadas = [], // Nova prop: tarefas selecionadas
-  showSubtarefas = true // Nova prop: mostrar subtarefas (padrão: true para manter compatibilidade)
+  showSubtarefas = true, // Nova prop: mostrar subtarefas (padrão: true para manter compatibilidade)
+  // Período por tarefa e modo em lote
+  periodosPorTarefa = {},
+  onPeriodoChange = null,
+  modoPeriodoParaMuitos = false,
+  filterPeriodoUiVariant
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -43,6 +49,18 @@ const SelecaoTarefasPorProduto = ({
   const [carregandoSubtarefas, setCarregandoSubtarefas] = useState({}); // { tarefaId: boolean } - estado de carregamento de subtarefas
   const [tarefasExpandidas, setTarefasExpandidas] = useState({}); // { tarefaId: boolean } - quais tarefas estão expandidas para mostrar subtarefas
   const [tarefaSelecionadaParaAdicionar, setTarefaSelecionadaParaAdicionar] = useState({}); // { produtoId: string } - Valor do CustomSelect para adicionar tarefa por produto
+  
+  // Normalizar horas contratadas por dia para evitar renderizar objeto no JSX
+  const horasDisponiveisDia = (() => {
+    if (horasContratadasDia == null) return null;
+    if (typeof horasContratadasDia === 'object') {
+      const v = horasContratadasDia.horascontratadasdia;
+      const num = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(num) ? num : null;
+    }
+    const num = typeof horasContratadasDia === 'number' ? horasContratadasDia : Number(horasContratadasDia);
+    return Number.isFinite(num) ? num : null;
+  })();
 
   // Carregar tarefas dos produtos quando produtos mudarem ou refreshKey mudar
   useEffect(() => {
@@ -655,14 +673,14 @@ const SelecaoTarefasPorProduto = ({
           }}>
             (Marque as tarefas que este cliente deve ter para cada produto)
           </span>
-          {showTempoEstimado && horasContratadasDia && (
+          {showTempoEstimado && horasDisponiveisDia != null && (
             <span style={{ 
               marginLeft: '12px', 
               fontSize: '11px', 
               color: '#6b7280', 
               fontWeight: 'normal' 
             }}>
-              (Total disponível: {horasContratadasDia}h/dia)
+              (Total disponível: {horasDisponiveisDia}h/dia)
             </span>
           )}
         </div>
@@ -834,7 +852,7 @@ const SelecaoTarefasPorProduto = ({
                       {/* Tarefas Normais */}
                       {tarefasNormais.map(tarefa => (
                   <div key={tarefa.id} style={{ marginBottom: '8px' }}>
-                    <label
+                    <div
                       className="selected-item-tag"
                       style={{
                         display: 'flex',
@@ -852,7 +870,7 @@ const SelecaoTarefasPorProduto = ({
                           ? 'none' 
                           : '1px solid #dee2e6',
                         borderRadius: '4px',
-                        cursor: 'pointer',
+                        cursor: 'default',
                         transition: 'all 0.2s ease',
                         position: 'relative',
                         width: '100%',
@@ -885,15 +903,19 @@ const SelecaoTarefasPorProduto = ({
                           type="checkbox"
                           checked={tarefa.selecionada || false}
                           onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
+                          onClick={(e) => e.stopPropagation()}
                           style={{
                             margin: 0,
                             marginRight: '4px',
                             cursor: 'pointer',
                             width: '14px',
                             height: '14px',
-                            flexShrink: 0
+                            flexShrink: 0,
+                            pointerEvents: 'auto'
                           }}
                         />
+                        {/* No modo "Período para muitos", o período global é aplicado automaticamente em todas as tarefas selecionadas.
+                            Períodos específicos continuam podendo ser ajustados manualmente em cada tarefa. */}
                         <div style={{ 
                           flex: 1, 
                           minWidth: 0,
@@ -937,9 +959,8 @@ const SelecaoTarefasPorProduto = ({
                               position: 'relative',
                               zIndex: 10
                             }}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onMouseUp={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                           >
                             <TempoEstimadoInput
                               value={tempoEstimadoDia[`${produtoId}_${tarefa.id}`] || tempoEstimadoDia[tarefa.id] || 0}
@@ -949,6 +970,37 @@ const SelecaoTarefasPorProduto = ({
                                 }
                               }}
                               disabled={disabledTempo}
+                            />
+                          </div>
+                        )}
+                        {/* Mini período por tarefa */}
+                        {tarefa.selecionada && (
+                          <div 
+                            style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              marginRight: '8px',
+                              pointerEvents: 'auto'
+                            }}
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          >
+                            <FilterPeriodo
+                              dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
+                              dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                              onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
+                              onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
+                              size="small"
+                              uiVariant={filterPeriodoUiVariant}
+                              showWeekendToggle={true}
+                              onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
+                              showHolidayToggle={true}
+                              onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
+                              datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                              onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
                             />
                           </div>
                         )}
@@ -1034,7 +1086,7 @@ const SelecaoTarefasPorProduto = ({
                           </button>
                         )}
                       </div>
-                    </label>
+                    </div>
                     {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
                     {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
                       <div style={{
@@ -1105,7 +1157,7 @@ const SelecaoTarefasPorProduto = ({
                   {/* Tarefas Exceção */}
                   {tarefasExcecao.map(tarefa => (
                     <div key={tarefa.id} style={{ marginBottom: '8px' }}>
-                      <label
+                      <div
                         className="selected-item-tag tarefa-excecao"
                         style={{
                           display: 'flex',
@@ -1123,7 +1175,7 @@ const SelecaoTarefasPorProduto = ({
                             ? 'none' 
                             : '1px solid #ffd8a8',
                           borderRadius: '4px',
-                          cursor: 'pointer',
+                          cursor: 'default',
                           transition: 'all 0.2s ease',
                           position: 'relative',
                           width: '100%',
@@ -1211,9 +1263,8 @@ const SelecaoTarefasPorProduto = ({
                                 position: 'relative',
                                 zIndex: 10
                               }}
-                              onClick={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onMouseUp={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
                             >
                               <TempoEstimadoInput
                                 value={tempoEstimadoDia[`${produtoId}_${tarefa.id}`] || tempoEstimadoDia[tarefa.id] || 0}
@@ -1223,6 +1274,37 @@ const SelecaoTarefasPorProduto = ({
                                   }
                                 }}
                                 disabled={disabledTempo}
+                              />
+                            </div>
+                          )}
+                          {/* Mini período por tarefa (exceção) */}
+                          {tarefa.selecionada && (
+                            <div 
+                              style={{ 
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                marginRight: '8px',
+                                pointerEvents: 'auto'
+                              }}
+                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                              onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            >
+                              <FilterPeriodo
+                                dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
+                                dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                                onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
+                                onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
+                                size="small"
+                                uiVariant={filterPeriodoUiVariant}
+                                showWeekendToggle={true}
+                                onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
+                                showHolidayToggle={true}
+                                onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
+                                datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                                onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
                               />
                             </div>
                           )}
@@ -1296,7 +1378,7 @@ const SelecaoTarefasPorProduto = ({
                             </button>
                           )}
                         </div>
-                      </label>
+                      </div>
                       {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
                       {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
                         <div style={{
@@ -1353,7 +1435,7 @@ const SelecaoTarefasPorProduto = ({
       })}
       
       {/* Mensagem de validação de tempo total - mostrar apenas se showTempoEstimado=true */}
-      {showTempoEstimado && horasContratadasDia && Object.keys(tarefasPorProduto).length > 0 && (() => {
+      {showTempoEstimado && horasDisponiveisDia != null && Object.keys(tarefasPorProduto).length > 0 && (() => {
         let totalTempoMs = 0;
         Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
           tarefas.forEach(tarefa => {
@@ -1367,7 +1449,7 @@ const SelecaoTarefasPorProduto = ({
         const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
         
         if (totalHorasPorDia > 0) {
-          const estaExcedendo = totalHorasPorDia > horasContratadasDia;
+          const estaExcedendo = totalHorasPorDia > horasDisponiveisDia;
           
           return (
             <div style={{ 
@@ -1387,10 +1469,10 @@ const SelecaoTarefasPorProduto = ({
               }}>
                 <i className={`fas fa-${estaExcedendo ? 'exclamation-triangle' : 'check-circle'}`}></i>
                 <span>
-                  Tempo total por dia: <strong>{totalHorasPorDia.toFixed(2)}h</strong> de <strong>{horasContratadasDia}h</strong> disponíveis
+                  Tempo total por dia: <strong>{totalHorasPorDia.toFixed(2)}h</strong> de <strong>{horasDisponiveisDia}h</strong> disponíveis
                   {estaExcedendo && (
                     <span style={{ marginLeft: '8px', color: '#dc2626', fontWeight: '600' }}>
-                      (Ultrapassando em {(totalHorasPorDia - horasContratadasDia).toFixed(2)}h)
+                      (Ultrapassando em {(totalHorasPorDia - horasDisponiveisDia).toFixed(2)}h)
                     </span>
                   )}
                 </span>

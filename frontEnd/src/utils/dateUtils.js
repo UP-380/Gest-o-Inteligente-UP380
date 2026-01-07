@@ -220,6 +220,147 @@ export const calcularDiasComOpcoes = (dataInicio, dataFim, incluirFinaisSemana =
   }
 };
 
+// Função auxiliar para formatar data no formato YYYY-MM-DD
+const formatDateForInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Obter conjunto de datas válidas no período (considerando opções e datas individuais)
+export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSemana = false, incluirFeriados = false, datasIndividuais = []) => {
+  if (!dataInicio || !dataFim) return new Set();
+  
+  try {
+    // Garantir que as datas sejam interpretadas no timezone local, não UTC
+    // Se a data vier como string "YYYY-MM-DD", criar Date manualmente para evitar problemas de timezone
+    let inicio, fim;
+    
+    if (typeof dataInicio === 'string' && dataInicio.match(/^\d{4}-\d{2}-\d{2}/)) {
+      // Formato YYYY-MM-DD: criar Date no timezone local
+      const [ano, mes, dia] = dataInicio.split('T')[0].split('-');
+      inicio = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia), 0, 0, 0, 0);
+    } else {
+      inicio = new Date(dataInicio);
+      inicio.setHours(0, 0, 0, 0);
+    }
+    
+    if (typeof dataFim === 'string' && dataFim.match(/^\d{4}-\d{2}-\d{2}/)) {
+      // Formato YYYY-MM-DD: criar Date no timezone local
+      const [ano, mes, dia] = dataFim.split('T')[0].split('-');
+      fim = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia), 0, 0, 0, 0);
+    } else {
+      fim = new Date(dataFim);
+      fim.setHours(0, 0, 0, 0);
+    }
+    
+    if (inicio > fim) return new Set();
+    
+    // Criar Set de datas individuais desselecionadas para busca rápida
+    const datasIndividuaisSet = new Set(datasIndividuais || []);
+    
+    const datasValidas = new Set();
+    const dataAtual = new Date(inicio);
+    
+    // Iterar por cada dia no período
+    while (dataAtual <= fim) {
+      const dataStr = formatDateForInput(dataAtual);
+      const isWeekend = isFinalDeSemana(dataAtual);
+      const isHoliday = isFeriado(dataAtual);
+      
+      // Verificar se deve incluir o dia
+      let incluirDia = true;
+      
+      // Se não deve incluir finais de semana e é final de semana, não incluir
+      if (!incluirFinaisSemana && isWeekend) {
+        incluirDia = false;
+      }
+      
+      // Se não deve incluir feriados e é feriado, não incluir
+      if (!incluirFeriados && isHoliday) {
+        incluirDia = false;
+      }
+      
+      // Se a data está em datasIndividuais, excluir (foi desselecionada)
+      if (datasIndividuaisSet.has(dataStr)) {
+        incluirDia = false;
+      }
+      
+      if (incluirDia) {
+        datasValidas.add(dataStr);
+      }
+      
+      // Avançar para o próximo dia
+      dataAtual.setDate(dataAtual.getDate() + 1);
+    }
+    
+    return datasValidas;
+  } catch (error) {
+    console.error('Erro ao obter datas válidas no período:', error);
+    return new Set();
+  }
+};
+
+// Calcular dias considerando opções e datas individuais (selecionadas/desselecionadas)
+export const calcularDiasComOpcoesEDatasIndividuais = (dataInicio, dataFim, incluirFinaisSemana = false, incluirFeriados = false, datasIndividuais = []) => {
+  if (!dataInicio || !dataFim) return 0;
+  
+  try {
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    
+    // Normalizar para início do dia
+    inicio.setHours(0, 0, 0, 0);
+    fim.setHours(0, 0, 0, 0);
+    
+    if (inicio > fim) return 0;
+    
+    // Criar Set de datas individuais para busca rápida
+    const datasIndividuaisSet = new Set(datasIndividuais || []);
+    
+    let dias = 0;
+    const dataAtual = new Date(inicio);
+    
+    // Iterar por cada dia no período
+    while (dataAtual <= fim) {
+      const dataStr = formatDateForInput(dataAtual);
+      const isWeekend = isFinalDeSemana(dataAtual);
+      const isHoliday = isFeriado(dataAtual);
+      
+      // Se deve incluir o dia
+      let incluirDia = true;
+      
+      // Se não deve incluir finais de semana e é final de semana, não incluir
+      if (!incluirFinaisSemana && isWeekend) {
+        incluirDia = false;
+      }
+      
+      // Se não deve incluir feriados e é feriado, não incluir
+      if (!incluirFeriados && isHoliday) {
+        incluirDia = false;
+      }
+      
+      // Se a data está em datasIndividuais, excluir do cálculo (foi desselecionada)
+      if (datasIndividuaisSet.has(dataStr)) {
+        incluirDia = false;
+      }
+      
+      if (incluirDia) {
+        dias++;
+      }
+      
+      // Avançar para o próximo dia
+      dataAtual.setDate(dataAtual.getDate() + 1);
+    }
+    
+    return dias;
+  } catch (error) {
+    console.error('Erro ao calcular dias com opções e datas individuais:', error);
+    return 0;
+  }
+};
+
 
 
 
