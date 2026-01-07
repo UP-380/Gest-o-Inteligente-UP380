@@ -148,3 +148,4 @@ Se ainda houver problemas:
 3. `backEnd/README_VALIDACAO_TEMPO_ESTIMADO.md` - Documentação (novo)
 4. `CORRECOES_GESTAO_CAPACIDADE.md` - Este arquivo (novo)
 
+

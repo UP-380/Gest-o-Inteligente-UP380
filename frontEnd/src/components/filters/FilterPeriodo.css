@@ -301,3 +301,105 @@
 .periodo-filter-container.size-small .periodo-select-text {
   font-size: 13px;
 }
+
+/* Variante específica da tela de Nova Atribuição (mini calendário por tarefa).
+   Só ativa quando `variant-atribuicao-mini` estiver presente no container. */
+.periodo-filter-container.variant-atribuicao-mini .periodo-dropdown {
+  max-width: 260px;
+  min-width: 240px;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-container {
+  max-width: 210px;
+  padding: 4px;
+  margin-top: 6px;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-header {
+  margin-bottom: 4px;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-month-year {
+  font-size: 11px;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-weekdays > div {
+  font-size: 8px;
+  padding: 1px 0;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .periodo-calendar-day {
+  font-size: 10px;
+  min-height: 18px;
+  max-height: 18px;
+  border-radius: 2px;
+}
+
+.periodo-filter-container.variant-atribuicao-mini .holiday-indicator {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+/* Aparência do display igual ao TempoEstimadoInput dentro do selected-item-tag (apenas na tela de atribuição) */
+.selected-item-tag .periodo-filter-container.variant-atribuicao-mini .periodo-select-display {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  line-height: 16px !important;
+  font-size: 11px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+.selected-item-tag .periodo-filter-container.variant-atribuicao-mini .periodo-select-display .periodo-select-text {
+  color: #ffffff !important;
+}
+
+.selected-item-tag .periodo-filter-container.variant-atribuicao-mini .periodo-select-display i,
+.selected-item-tag .periodo-filter-container.variant-atribuicao-mini .periodo-select-display .periodo-select-arrow {
+  color: #ffffff !important;
+}
+
+/* Estilo para datas individuais selecionadas/desselecionadas */
+.periodo-calendar-day.individual-selected {
+  border: 2px dashed #f59e0b !important;
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  font-weight: 600 !important;
+  position: relative;
+}
+
+.periodo-calendar-day.individual-selected::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  background: #f59e0b;
+  border-radius: 50%;
+}
+
+.periodo-calendar-day.individual-selected:hover {
+  background: #fde68a !important;
+  border-color: #f59e0b !important;
+}
+
+.periodo-calendar-day.individual-selected.selected,
+.periodo-calendar-day.individual-selected.start-date,
+.periodo-calendar-day.individual-selected.end-date {
+  background: #0e3b6f !important;
+  border: 2px dashed #f59e0b !important;
+  color: white !important;
+}
+
+.periodo-calendar-day.individual-selected.in-range {
+  background: #fef3c7 !important;
+  border: 2px dashed #f59e0b !important;
+  color: #92400e !important;
+}

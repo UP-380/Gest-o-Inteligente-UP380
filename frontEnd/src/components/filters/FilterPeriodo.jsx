@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange }) => {
+const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', uiVariant, showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange, datasIndividuais = [], onDatasIndividuaisChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localInicio, setLocalInicio] = useState(dataInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
@@ -12,7 +12,12 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const [habilitarFeriados, setHabilitarFeriados] = useState(false);
   const [feriados, setFeriados] = useState({}); // { "2026-01-01": "Confraternização mundial", ... }
   const [hoveredHoliday, setHoveredHoliday] = useState(null); // { date: "2026-01-01", name: "...", x: 100, y: 200 }
+  const [datasIndividuaisLocal, setDatasIndividuaisLocal] = useState(new Set(datasIndividuais || []));
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const isAtribuicaoMini = uiVariant === 'atribuicao-mini';
 
   // Formatar data para exibição
   const formatarData = (dataStr) => {
@@ -31,6 +36,85 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     setLocalInicio(dataInicio || '');
     setLocalFim(dataFim || '');
   }, [dataInicio, dataFim]);
+
+  // Sincronizar datas individuais com prop do pai
+  useEffect(() => {
+    if (!Array.isArray(datasIndividuais)) return;
+    const newSet = new Set(datasIndividuais);
+    setDatasIndividuaisLocal(prev => {
+      if (prev.size === newSet.size && [...prev].every(v => newSet.has(v))) {
+        return prev;
+      }
+      return newSet;
+    });
+  }, [JSON.stringify(datasIndividuais)]);
+
+  // Limpar datas individuais fora do período quando o período mudar
+  // Usar useRef para rastrear o período anterior e evitar loops infinitos
+  const periodoAnteriorRef = useRef({ inicio: localInicio, fim: localFim });
+  const processandoPeriodoRef = useRef(false);
+  
+  useEffect(() => {
+    // Evitar processamento simultâneo
+    if (processandoPeriodoRef.current) return;
+    
+    // Só processar se o período realmente mudou
+    if (periodoAnteriorRef.current.inicio === localInicio && periodoAnteriorRef.current.fim === localFim) {
+      return; // Período não mudou, não fazer nada
+    }
+    
+    processandoPeriodoRef.current = true;
+    
+    // Atualizar referência do período anterior
+    periodoAnteriorRef.current = { inicio: localInicio, fim: localFim };
+    
+    // Usar função callback para acessar o estado mais recente sem adicionar nas dependências
+    setDatasIndividuaisLocal(prevDatas => {
+      if (localInicio && localFim) {
+        const inicioDate = new Date(localInicio + 'T00:00:00');
+        const fimDate = new Date(localFim + 'T00:00:00');
+        const novasDatas = new Set();
+        
+        prevDatas.forEach(dataStr => {
+          const data = new Date(dataStr + 'T00:00:00');
+          if (data >= inicioDate && data <= fimDate) {
+            novasDatas.add(dataStr);
+          }
+        });
+        
+        // Comparar usando tamanho e valores para evitar updates desnecessários
+        const precisaAtualizar = novasDatas.size !== prevDatas.size || 
+                                 ![...prevDatas].every(v => novasDatas.has(v));
+        
+        if (precisaAtualizar && onDatasIndividuaisChange) {
+          // Usar setTimeout para evitar chamar durante o render
+          setTimeout(() => {
+            onDatasIndividuaisChange(Array.from(novasDatas));
+            processandoPeriodoRef.current = false;
+          }, 0);
+        } else {
+          processandoPeriodoRef.current = false;
+        }
+        
+        return precisaAtualizar ? novasDatas : prevDatas;
+      } else {
+        // Se não há período, limpar todas as datas individuais
+        if (prevDatas.size > 0) {
+          if (onDatasIndividuaisChange) {
+            setTimeout(() => {
+              onDatasIndividuaisChange([]);
+              processandoPeriodoRef.current = false;
+            }, 0);
+          } else {
+            processandoPeriodoRef.current = false;
+          }
+          return new Set();
+        }
+        processandoPeriodoRef.current = false;
+        return prevDatas;
+      }
+    });
+  }, [localInicio, localFim, onDatasIndividuaisChange]);
 
   // Notificar o componente pai sobre o valor inicial do toggle e quando mudar
   useEffect(() => {
@@ -70,7 +154,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      const clickedInsideContainer = containerRef.current && containerRef.current.contains(event.target);
+      const clickedInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
+      if (!clickedInsideContainer && !clickedInsideDropdown) {
         // Só fechar se ambas as datas estiverem selecionadas
         if (localInicio && localFim) {
           setIsOpen(false);
@@ -86,6 +172,26 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen, localInicio, localFim]);
+
+  // Calcular posição do dropdown (portal) baseado no trigger
+  useEffect(() => {
+    if (!isOpen || !triggerRef.current) return;
+    const calc = () => {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width
+      });
+    };
+    calc();
+    window.addEventListener('scroll', calc, true);
+    window.addEventListener('resize', calc);
+    return () => {
+      window.removeEventListener('scroll', calc, true);
+      window.removeEventListener('resize', calc);
+    };
+  }, [isOpen]);
 
   const handleOpen = () => {
     if (!disabled) {
@@ -111,8 +217,41 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     return feriados[dateStr];
   };
 
-  const handleDateClick = (date) => {
+  const handleDateClick = (date, event) => {
     if (disabled) return;
+
+    // Verificar se Ctrl (ou Cmd no Mac) está pressionado
+    const isCtrlPressed = event && (event.ctrlKey || event.metaKey);
+    
+    // Se Ctrl está pressionado e há um período selecionado, gerenciar datas individuais
+    if (isCtrlPressed && localInicio && localFim) {
+      const dateStr = formatDateForInput(date);
+      const dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const inicioDate = new Date(localInicio + 'T00:00:00');
+      const fimDate = new Date(localFim + 'T00:00:00');
+      const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
+      const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
+      
+      // Verificar se a data está dentro do período
+      if (dateObj >= inicioDateObj && dateObj <= fimDateObj) {
+        const novasDatas = new Set(datasIndividuaisLocal);
+        
+        // Se a data já está selecionada, remover; caso contrário, adicionar
+        if (novasDatas.has(dateStr)) {
+          novasDatas.delete(dateStr);
+        } else {
+          novasDatas.add(dateStr);
+        }
+        
+        setDatasIndividuaisLocal(novasDatas);
+        
+        // Notificar o componente pai
+        if (onDatasIndividuaisChange) {
+          onDatasIndividuaisChange(Array.from(novasDatas));
+        }
+      }
+      return; // Não continuar com a lógica normal de seleção de período
+    }
 
     // Se o toggle está visível e finais de semana não estão habilitados e a data é final de semana, não permitir seleção
     if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
@@ -132,6 +271,14 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       setLocalInicio(dateStr);
       setLocalFim('');
       setSelectingStart(true);
+      
+      // Limpar datas individuais ao resetar período
+      if (datasIndividuaisLocal.size > 0) {
+        setDatasIndividuaisLocal(new Set());
+        if (onDatasIndividuaisChange) {
+          onDatasIndividuaisChange([]);
+        }
+      }
       
       if (onInicioChange) {
         onInicioChange({ target: { value: dateStr } });
@@ -264,11 +411,18 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         }
       }
 
+      // Verificar se é uma data individual selecionada/desselecionada
+      const dateStr = formatDateForInput(currentDate);
+      const isIndividualSelected = datasIndividuaisLocal.has(dateStr);
+      if (isIndividualSelected) {
+        dayClasses += ' individual-selected';
+      }
+
       days.push(
         <div
           key={day}
           className={dayClasses}
-          onClick={() => !isDisabled && handleDateClick(currentDate)}
+          onClick={(e) => !isDisabled && handleDateClick(currentDate, e)}
           onMouseEnter={(e) => {
             if (isHolidayDay && holidayName) {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -335,7 +489,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
             borderRadius: '4px',
             fontSize: '11px',
             whiteSpace: 'nowrap',
-            zIndex: 99999,
+            zIndex: 100002,
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             pointerEvents: 'none',
             maxWidth: '250px',
@@ -346,11 +500,26 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         </div>,
         document.body
       )}
-      <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''}`} ref={containerRef}>
-        <div className="periodo-select-field">
+      <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${isAtribuicaoMini ? 'variant-atribuicao-mini' : ''}`} ref={containerRef}>
+        <div 
+          className="periodo-select-field"
+          style={{
+            position: 'relative',
+            display: 'inline-block'
+          }}
+        >
           <div 
             className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
             onClick={handleOpen}
+            style={
+              size === 'small'
+                ? (isAtribuicaoMini
+                  ? { padding: '4px 10px', fontSize: '11px', minHeight: '26px', lineHeight: '16px' }
+                  : { padding: '6px 10px', fontSize: '12px', minHeight: '28px', lineHeight: '16px' }
+                )
+                : undefined
+            }
+            ref={triggerRef}
           >
             <i className="fas fa-calendar-alt" style={{ marginRight: '8px', color: '#6c757d' }}></i>
             <span className={`periodo-select-text ${(localInicio && localFim) ? 'has-selection' : ''}`}>
@@ -358,40 +527,55 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
             </span>
             <i className={`fas ${isOpen ? 'fa-chevron-down' : 'fa-chevron-up'} periodo-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
           </div>
-          {isOpen && !disabled && (
-            <div className="periodo-dropdown" onClick={(e) => e.stopPropagation()}>
+          {isOpen && !disabled && typeof document !== 'undefined' && createPortal(
+            <div
+              className="periodo-dropdown"
+              ref={dropdownRef}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
+                zIndex: 100000,
+                width: isAtribuicaoMini ? 260 : (size === 'small' ? 320 : Math.max(340, dropdownPos.width)),
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+              }}
+            >
               <div className="periodo-dropdown-content">
-                <div style={{ padding: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: '14px' }}></i>
-                    <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>Filtro de período</span>
+                <div style={{ padding: isAtribuicaoMini ? '8px' : '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '10px') }}>
+                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: size === 'small' ? '12px' : '14px' }}></i>
+                    <span style={{ fontWeight: 600, color: '#111827', fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px') }}>Filtro de período</span>
                   </div>
                   
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', maxWidth: '240px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
-                      <input 
-                        type="text" 
-                        readOnly 
-                        value={formatarData(localInicio)} 
-                        style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                      />
+                  {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
+                  {!isAtribuicaoMini && (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={formatarData(localInicio)} 
+                          style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={formatarData(localFim)} 
+                          style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                        />
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
-                      <input 
-                        type="text" 
-                        readOnly 
-                        value={formatarData(localFim)} 
-                        style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
                   {showWeekendToggle && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                      <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
                         Habilitar finais de semana:
                       </label>
                       <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -407,11 +591,11 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                             }
                           }}
                           style={{
-                            width: '44px',
-                            height: '24px',
+                            width: isAtribuicaoMini ? '34px' : '44px',
+                            height: isAtribuicaoMini ? '18px' : '24px',
                             appearance: 'none',
                             backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                            borderRadius: '12px',
+                            borderRadius: isAtribuicaoMini ? '10px' : '12px',
                             position: 'relative',
                             cursor: 'pointer',
                             transition: 'background-color 0.2s',
@@ -422,10 +606,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                         <span
                           style={{
                             position: 'absolute',
-                            top: '2px',
-                            left: habilitarFinaisSemana ? '22px' : '2px',
-                            width: '20px',
-                            height: '20px',
+                            top: isAtribuicaoMini ? '2px' : '2px',
+                            left: habilitarFinaisSemana ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                            width: isAtribuicaoMini ? '14px' : '20px',
+                            height: isAtribuicaoMini ? '14px' : '20px',
                             borderRadius: '50%',
                             backgroundColor: '#fff',
                             transition: 'left 0.2s',
@@ -439,8 +623,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
                   {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
                   {showHolidayToggle && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                      <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
                         Habilitar feriados:
                       </label>
                       <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -456,11 +640,11 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                             }
                           }}
                           style={{
-                            width: '44px',
-                            height: '24px',
+                            width: isAtribuicaoMini ? '34px' : '44px',
+                            height: isAtribuicaoMini ? '18px' : '24px',
                             appearance: 'none',
                             backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                            borderRadius: '12px',
+                            borderRadius: isAtribuicaoMini ? '10px' : '12px',
                             position: 'relative',
                             cursor: 'pointer',
                             transition: 'background-color 0.2s',
@@ -471,10 +655,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                         <span
                           style={{
                             position: 'absolute',
-                            top: '2px',
-                            left: habilitarFeriados ? '22px' : '2px',
-                            width: '20px',
-                            height: '20px',
+                            top: isAtribuicaoMini ? '2px' : '2px',
+                            left: habilitarFeriados ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                            width: isAtribuicaoMini ? '14px' : '20px',
+                            height: isAtribuicaoMini ? '14px' : '20px',
                             borderRadius: '50%',
                             backgroundColor: '#fff',
                             transition: 'left 0.2s',
@@ -512,7 +696,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                   </div>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

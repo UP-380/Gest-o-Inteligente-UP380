@@ -30,3 +30,4 @@ COMMENT ON COLUMN up_gestaointeligente.permissoes_config.paginas IS 'JSON array 
 
 
 
+

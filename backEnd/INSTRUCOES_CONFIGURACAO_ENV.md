@@ -110,3 +110,4 @@ Get-ChildItem -Force | Where-Object { $_.Name -eq ".env" }
 
 Se precisar compartilhar configurações, use um arquivo `.env.example` sem os valores reais.
 
+
