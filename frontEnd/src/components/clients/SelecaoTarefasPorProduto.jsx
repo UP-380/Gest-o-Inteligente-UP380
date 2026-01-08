@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
 import ResponsavelCard from '../atribuicoes/ResponsavelCard';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
@@ -39,7 +39,13 @@ const SelecaoTarefasPorProduto = ({
   // Responsáveis por tarefa
   responsaveisPorTarefa = {},
   onResponsavelChange = null,
-  colaboradores = []
+  colaboradores = [],
+  // Ordem de preenchimento e tempo disponível
+  ordemPreenchimento = null, // { podePreencherResponsavel: (produtoId, tarefaId) => boolean, podePreencherTempo: (produtoId, tarefaId) => boolean }
+  horasContratadasPorResponsavel = {}, // { responsavelId: horas }
+  calcularTempoDisponivel = null, // função para calcular tempo disponível
+  formatarTempoEstimado = null, // função para formatar tempo
+  tarefasSelecionadasPorProduto = null // objeto com todas as tarefas selecionadas para cálculo de tempo disponível
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -854,6 +860,26 @@ const SelecaoTarefasPorProduto = ({
                   
                   return (
                     <>
+                      {/* Subtítulo para tarefas padrão */}
+                      {tarefasNormais.length > 0 && (
+                        <div style={{
+                          margin: '12px 0',
+                          padding: '8px 0',
+                          borderTop: '2px solid #e2e8f0',
+                          borderBottom: '2px solid #e2e8f0'
+                        }}>
+                          <div style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: '#64748b',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>
+                            Tarefas Padrão
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Tarefas Normais */}
                       {tarefasNormais.map(tarefa => (
                   <div key={tarefa.id} style={{ marginBottom: '8px' }}>
@@ -950,41 +976,129 @@ const SelecaoTarefasPorProduto = ({
                           )}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                        {/* Mini período por tarefa */}
+                        {tarefa.selecionada && (
+                          <div 
+                            style={{ 
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: '4px',
+                              marginRight: '8px',
+                              pointerEvents: 'auto',
+                              minWidth: '260px',
+                              flexShrink: 0
+                            }}
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                          >
+                            <div style={{ width: '100%' }}>
+                              <FilterPeriodo
+                                dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
+                                dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                                onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
+                                onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
+                                size="small"
+                                uiVariant={filterPeriodoUiVariant}
+                                showWeekendToggle={true}
+                                onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
+                                showHolidayToggle={true}
+                                onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
+                                datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                                onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                              />
+                            </div>
+                          </div>
+                        )}
                         {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada */}
                         {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
                           <div 
                             style={{ 
                               display: 'flex', 
+                              flexDirection: 'row',
                               alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px',
+                              gap: '6px',
                               marginRight: '8px',
                               pointerEvents: 'auto',
                               position: 'relative',
                               zIndex: 10,
-                              minWidth: '200px',
-                              maxWidth: '250px'
+                              flexShrink: 0
                             }}
                             onClick={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
                           >
-                            <ResponsavelCard
-                              value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
-                              options={colaboradores.map(c => ({ 
-                                value: String(c.id), 
-                                label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
-                              }))}
-                              onChange={(e) => {
-                                const responsavelId = e.target.value || null;
-                                if (onResponsavelChange) {
-                                  onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
-                                }
-                              }}
-                              placeholder="Selecione responsável"
-                              disabled={disabledTempo}
-                              colaboradores={colaboradores}
-                            />
+                            <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                              <ResponsavelCard
+                                value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                options={colaboradores.map(c => ({ 
+                                  value: String(c.id), 
+                                  label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
+                                }))}
+                                onChange={(e) => {
+                                  const responsavelId = e.target.value || null;
+                                  if (onResponsavelChange) {
+                                    onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                  }
+                                }}
+                                placeholder="Selecione responsável"
+                                disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
+                                colaboradores={colaboradores}
+                              />
+                            </div>
+                            {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                Preencha o período primeiro
+                              </div>
+                            )}
+                            {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                              const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
+                              const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
+                              if (!periodo || !periodo.inicio || !periodo.fim || !responsavelId) return null;
+                              
+                              // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
+                              const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
+                              
+                              // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
+                              // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
+                              // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
+                              const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
+                              
+                              // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
+                              if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
+                                const isExcedido = tempoDisponivel < 0;
+                                const isZero = tempoDisponivel === 0;
+                                
+                                return (
+                                  <div 
+                                    style={{ 
+                                      padding: '4px 8px', 
+                                      backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff', 
+                                      border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`, 
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
+                                      color: isExcedido ? '#991b1b' : '#0c4a6e',
+                                      fontWeight: '500',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      whiteSpace: 'nowrap',
+                                      boxSizing: 'border-box',
+                                      cursor: 'help',
+                                      position: 'relative'
+                                    }}
+                                    title={isExcedido ? "Tempo excedido" : "Disponível"}
+                                  >
+                                    <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         )}
                         {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
@@ -992,60 +1106,42 @@ const SelecaoTarefasPorProduto = ({
                           <div 
                             style={{ 
                               display: 'flex', 
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
                               gap: '4px',
                               marginRight: '8px',
                               pointerEvents: 'auto',
                               position: 'relative',
-                              zIndex: 10
+                              zIndex: 10,
+                              minWidth: '140px'
                             }}
                           onClick={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
                           >
-                            <TempoEstimadoInput
-                              value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                              onChange={(tempoEmMs) => {
-                                if (onTempoChange) {
-                                  onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                }
-                              }}
-                              disabled={disabledTempo}
-                            />
+                            <div style={{ width: '100%' }}>
+                              <TempoEstimadoInput
+                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
+                                onChange={(tempoEmMs) => {
+                                  if (onTempoChange) {
+                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
+                                  }
+                                }}
+                                disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                              />
+                            </div>
+                            {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                Preencha o responsável primeiro
+                              </div>
+                            )}
+                            {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                Preencha o período primeiro
+                              </div>
+                            )}
                           </div>
                         )}
-                        {/* Mini período por tarefa */}
-                        {tarefa.selecionada && (
-                          <div 
-                            style={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px',
-                              marginRight: '8px',
-                              pointerEvents: 'auto'
-                            }}
-                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          >
-                            <FilterPeriodo
-                              dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
-                              dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
-                              onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
-                              onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
-                              size="small"
-                              uiVariant={filterPeriodoUiVariant}
-                              showWeekendToggle={true}
-                              onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
-                              showHolidayToggle={true}
-                              onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
-                              datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
-                              onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
-                            />
-                          </div>
-                        )}
-                        {tarefa.ehExcecao === true ? (
+                        {tarefa.ehExcecao === true && (
                           <span style={{
                             fontSize: '10px',
                             padding: '2px 6px',
@@ -1056,18 +1152,6 @@ const SelecaoTarefasPorProduto = ({
                             flexShrink: 0
                           }}>
                             Exceção
-                          </span>
-                        ) : (
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '2px 6px',
-                            backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#dbeafe',
-                            color: tarefa.selecionada ? 'white' : '#1e40af',
-                            borderRadius: '3px',
-                            fontWeight: '500',
-                            flexShrink: 0
-                          }}>
-                            Padrão
                           </span>
                         )}
                         {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
@@ -1290,70 +1374,7 @@ const SelecaoTarefasPorProduto = ({
                             )}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                          {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
-                          {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
-                            <div 
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                marginRight: '8px',
-                                pointerEvents: 'auto',
-                                position: 'relative',
-                                zIndex: 10,
-                                minWidth: '200px',
-                                maxWidth: '250px'
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                            >
-                              <ResponsavelCard
-                                value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
-                                options={colaboradores.map(c => ({ 
-                                  value: String(c.id), 
-                                  label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
-                                }))}
-                                onChange={(e) => {
-                                  const responsavelId = e.target.value || null;
-                                  if (onResponsavelChange) {
-                                    onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
-                                  }
-                                }}
-                                placeholder="Selecione responsável"
-                                disabled={disabledTempo}
-                                colaboradores={colaboradores}
-                              />
-                            </div>
-                          )}
-                          {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
-                          {showTempoEstimado && tarefa.selecionada && (
-                            <div 
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                marginRight: '8px',
-                                pointerEvents: 'auto',
-                                position: 'relative',
-                                zIndex: 10
-                              }}
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                            >
-                              <TempoEstimadoInput
-                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                onChange={(tempoEmMs) => {
-                                  if (onTempoChange) {
-                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                  }
-                                }}
-                                disabled={disabledTempo}
-                              />
-                            </div>
-                          )}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
                           {/* Mini período por tarefa (exceção) */}
                           {tarefa.selecionada && (
                             <div 
@@ -1382,6 +1403,122 @@ const SelecaoTarefasPorProduto = ({
                                 onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
                                 datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
                                 onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                              />
+                            </div>
+                          )}
+                          {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
+                          {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
+                            <div 
+                              style={{ 
+                                display: 'flex', 
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginRight: '8px',
+                                pointerEvents: 'auto',
+                                position: 'relative',
+                                zIndex: 10,
+                                flexShrink: 0
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                                <ResponsavelCard
+                                  value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                  options={colaboradores.map(c => ({ 
+                                    value: String(c.id), 
+                                    label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
+                                  }))}
+                                  onChange={(e) => {
+                                    const responsavelId = e.target.value || null;
+                                    if (onResponsavelChange) {
+                                      onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                    }
+                                  }}
+                                  placeholder="Selecione responsável"
+                                  disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
+                                  colaboradores={colaboradores}
+                                />
+                              </div>
+                              {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                  Preencha o período primeiro
+                                </div>
+                              )}
+                              {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                                const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
+                                const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
+                                if (!periodo || !periodo.inicio || !periodo.fim || !responsavelId) return null;
+                                
+                                // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
+                                const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
+                                
+                                // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
+                                // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
+                                // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
+                                const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
+                                
+                                // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
+                                if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
+                                  const isExcedido = tempoDisponivel < 0;
+                                  const isZero = tempoDisponivel === 0;
+                                  
+                                  return (
+                                    <div 
+                                      style={{ 
+                                        padding: '4px 8px', 
+                                        backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff', 
+                                        border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`, 
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        color: isExcedido ? '#991b1b' : '#0c4a6e',
+                                        fontWeight: '500',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        whiteSpace: 'nowrap',
+                                        boxSizing: 'border-box',
+                                        cursor: 'help',
+                                        position: 'relative'
+                                      }}
+                                      title={isExcedido ? "Tempo excedido" : "Disponível"}
+                                    >
+                                      <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
+                          {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
+                          {showTempoEstimado && tarefa.selecionada && (
+                            <div 
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                marginRight: '8px',
+                                pointerEvents: 'auto',
+                                position: 'relative',
+                                zIndex: 10
+                              }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <TempoEstimadoInput
+                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
+                                onChange={(tempoEmMs) => {
+                                  if (onTempoChange) {
+                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
+                                  }
+                                }}
+                                disabled={disabledTempo}
                               />
                             </div>
                           )}

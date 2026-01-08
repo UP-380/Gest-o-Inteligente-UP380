@@ -248,6 +248,45 @@
   width: 100%;
 }
 
+/* Badge de tempo disponível */
+.tempo-disponivel-badge {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background-color: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #0c4a6e;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.tempo-disponivel-badge i {
+  font-size: 11px;
+}
+
+.tempo-disponivel-badge-mini {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #0c4a6e;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.tempo-disponivel-badge-mini i {
+  font-size: 10px;
+}
+
 /* ResponsavelCard no modo global - mesma altura do FilterPeriodo */
 .responsavel-card-global-wrapper .responsavel-card-container {
   width: 100%;

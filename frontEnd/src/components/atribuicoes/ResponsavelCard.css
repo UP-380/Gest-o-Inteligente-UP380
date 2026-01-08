@@ -21,9 +21,10 @@
 
 /* Quando usado dentro de selected-item-tag - mesmo estilo dos outros campos */
 .selected-item-tag .responsavel-card-container {
-  min-width: auto;
-  width: auto;
-  flex-shrink: 0;
+  min-width: 117px !important;
+  width: 117px !important;
+  max-width: 117px !important;
+  flex-shrink: 0 !important;
 }
 
 .selected-item-tag .responsavel-card {
@@ -44,6 +45,9 @@
   margin: 0 !important;
   box-shadow: none !important;
   transition: all 0.2s ease !important;
+  width: 117px !important;
+  max-width: 117px !important;
+  box-sizing: border-box !important;
 }
 
 .selected-item-tag .responsavel-card:hover:not(.disabled) {
@@ -60,6 +64,12 @@
 
 .selected-item-tag .responsavel-card-content {
   gap: 4px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .selected-item-tag .responsavel-card-avatar {
@@ -79,6 +89,13 @@
   color: #ffffff !important;
   font-weight: 500 !important;
   line-height: 16px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: block !important;
 }
 
 .selected-item-tag .responsavel-card-text.has-selection {
@@ -91,6 +108,8 @@
   color: rgba(255, 255, 255, 0.8) !important;
   margin-left: 4px !important;
   flex-shrink: 0 !important;
+  width: 12px !important;
+  min-width: 12px !important;
 }
 
 .selected-item-tag .responsavel-card i.fa-user-tie {
