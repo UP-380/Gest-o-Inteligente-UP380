@@ -124,6 +124,9 @@ const DelegarTarefas = () => {
   // Cache de tempos realizados por tarefa estimada
   const [temposRealizados, setTemposRealizados] = useState({});
   
+  // Cache de tempo estimado total por responsável no período (independente dos filtros aplicados)
+  const [tempoEstimadoTotalPorResponsavel, setTempoEstimadoTotalPorResponsavel] = useState({}); // { responsavelId: tempoEmMs }
+  
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
@@ -724,6 +727,49 @@ const DelegarTarefas = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.produto, filtros.atividade, filtros.cliente, filtros.responsavel, ordemFiltros]);
+
+  // Calcular tempo estimado total por responsável quando os filtros mudarem
+  useEffect(() => {
+    const calcularTemposEstimadosTotais = async () => {
+      if (!filtrosUltimosAplicados || !filtrosUltimosAplicados.periodoInicio || !filtrosUltimosAplicados.periodoFim) {
+        setTempoEstimadoTotalPorResponsavel({});
+        return;
+      }
+
+      // Coletar todos os responsáveis únicos dos registros agrupados
+      const responsaveisUnicos = new Set();
+      registrosAgrupados.forEach(agr => {
+        if (agr.primeiroRegistro && agr.primeiroRegistro.responsavel_id) {
+          responsaveisUnicos.add(String(agr.primeiroRegistro.responsavel_id));
+        }
+      });
+
+      if (responsaveisUnicos.size === 0) {
+        setTempoEstimadoTotalPorResponsavel({});
+        return;
+      }
+
+      // Calcular tempo estimado total para cada responsável
+      const temposCache = {};
+      const promises = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+        const tempo = await buscarTempoEstimadoTotalPorResponsavel(
+          responsavelId,
+          filtrosUltimosAplicados.periodoInicio,
+          filtrosUltimosAplicados.periodoFim,
+          filtrosUltimosAplicados.habilitarFinaisSemana ?? false,
+          filtrosUltimosAplicados.habilitarFeriados ?? false,
+          filtrosUltimosAplicados.datasIndividuais ?? []
+        );
+        temposCache[responsavelId] = tempo;
+      });
+
+      await Promise.all(promises);
+      setTempoEstimadoTotalPorResponsavel(temposCache);
+    };
+
+    calcularTemposEstimadosTotais();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrosUltimosAplicados, registrosAgrupados]);
 
   const loadClientes = async () => {
     setLoading(true);
@@ -1737,6 +1783,85 @@ const DelegarTarefas = () => {
     );
   };
 
+  // Buscar tempo estimado total do responsável no período (independente dos filtros aplicados)
+  const buscarTempoEstimadoTotalPorResponsavel = async (
+    responsavelId, 
+    periodoInicio, 
+    periodoFim, 
+    habilitarFinaisSemana, 
+    habilitarFeriados, 
+    datasIndividuais
+  ) => {
+    if (!responsavelId || !periodoInicio || !periodoFim) {
+      return 0;
+    }
+
+    try {
+      // Construir query para buscar todos os registros de tempo estimado do responsável no período
+      const params = new URLSearchParams({
+        responsavel_id: String(responsavelId),
+        data_inicio: periodoInicio,
+        data_fim: periodoFim
+      });
+
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        console.error('Erro ao buscar tempo estimado:', response.status);
+        return 0;
+      }
+
+      const result = await response.json();
+      if (!result.success || !result.data || !Array.isArray(result.data)) {
+        return 0;
+      }
+
+      // Obter datas válidas no período (considerando opções de finais de semana, feriados e datas individuais)
+      const datasValidas = obterDatasValidasNoPeriodo(
+        periodoInicio,
+        periodoFim,
+        habilitarFinaisSemana,
+        habilitarFeriados,
+        datasIndividuais || []
+      );
+
+      // Somar todos os tempo_estimado_dia dos registros cujas datas estão nas datas válidas
+      let tempoTotal = 0;
+      result.data.forEach(registro => {
+        if (!registro.tempo_estimado_dia) return;
+        
+        // Verificar se a data do registro está nas datas válidas
+        let dataStr;
+        if (typeof registro.data === 'string') {
+          dataStr = registro.data.split('T')[0];
+        } else if (registro.data instanceof Date) {
+          const year = registro.data.getFullYear();
+          const month = String(registro.data.getMonth() + 1).padStart(2, '0');
+          const day = String(registro.data.getDate()).padStart(2, '0');
+          dataStr = `${year}-${month}-${day}`;
+        } else {
+          return; // Data inválida, pular
+        }
+
+        // Se não há datas válidas definidas (datasValidas vazio), considerar todas as datas
+        // Caso contrário, verificar se a data está no conjunto de datas válidas
+        if (datasValidas.size === 0 || datasValidas.has(dataStr)) {
+          // tempo_estimado_dia pode vir em milissegundos ou como número
+          const tempo = Number(registro.tempo_estimado_dia) || 0;
+          tempoTotal += tempo;
+        }
+      });
+
+      return tempoTotal;
+    } catch (error) {
+      console.error('Erro ao buscar tempo estimado total por responsável:', error);
+      return 0;
+    }
+  };
+
   // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
   const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
     // Usar valores aplicados do período (ou null se não foram aplicados)
@@ -1827,9 +1952,13 @@ const DelegarTarefas = () => {
     // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
     const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
     const horasContratadasDiaValor = horasContratadasDia || 0;
+    
+    // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
+    const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
+    
     const tempoDisponivelTotal = isPJ 
       ? tempoEstimado 
-      : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
+      : Math.max(0, (horasContratadasDiaValor * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo); // converter horas para milissegundos e subtrair o tempo já estimado
     
     // Tempo realizado baseado nos registros de tempo realizados
     const tempoRealizado = agrupamentos
@@ -1857,6 +1986,9 @@ const DelegarTarefas = () => {
   const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true }) => {
     // Permitir exibir mesmo quando disponivel for 0 (sem vigência)
     const disponivelValor = disponivel || 0;
+    
+    // Calcular tempo excedido (quando estimado > contratado)
+    const tempoExcedido = mostrarContratadasDisponivel && estimado > disponivelValor ? estimado - disponivelValor : 0;
     
     // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
     const totalParaBarra = mostrarContratadasDisponivel ? disponivelValor : (estimado || 1);
@@ -1887,8 +2019,13 @@ const DelegarTarefas = () => {
                 <span className="barra-progresso-tempo-label">Estimado</span>
               </div>
               <div className="barra-progresso-tempo-badge-wrapper">
-              <span className="barra-progresso-tempo-badge estimado">
+              <span className={`barra-progresso-tempo-badge estimado ${tempoExcedido > 0 ? 'excedido' : ''}`}>
                 <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(estimado, true)}</span>
+                {tempoExcedido > 0 && (
+                  <span className="barra-progresso-tempo-excedido" title={`Excedeu ${formatarTempoEstimado(tempoExcedido, true)} do tempo contratado`}>
+                    (+{formatarTempoEstimado(tempoExcedido, true)})
+                  </span>
+                )}
               </span>
               <span className={`barra-progresso-tempo-custo estimado ${custoEstimado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
                 {custoEstimado !== null ? formatarValorMonetario(custoEstimado) : '\u00A0'}
@@ -3626,9 +3763,13 @@ const DelegarTarefas = () => {
                             
                             // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
                             const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)] || 0;
+                            
+                            // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
+                            const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                            
                             const tempoDisponivelTotal = isPJ 
                               ? tempoEstimado 
-                              : horasContratadasDia * diasNoPeriodo * 3600000;
+                              : Math.max(0, (horasContratadasDia * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo);
                             const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
                             
                             return {

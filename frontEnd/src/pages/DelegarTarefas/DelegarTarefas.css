@@ -1406,6 +1406,24 @@
   white-space: nowrap;
 }
 
+.barra-progresso-tempo-excedido {
+  display: block;
+  font-size: 0.75em;
+  font-weight: 700;
+  color: #dc2626; /* Vermelho mais intenso para o excedido */
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido .barra-progresso-tempo-excedido {
+  color: #dc2626;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido .barra-progresso-tempo-badge-tempo {
+  color: #991b1b;
+}
+
 .barra-progresso-tempo-range {
   position: relative;
   background-color: #e5e7eb; /* Cinza da barra base do painel */
@@ -1541,6 +1559,16 @@
   background: #eef2ff; /* Mesma cor do painel */
   color: #0e3b6f; /* Azul padrão do sistema */
   border: 1px solid #c7d2fe;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido {
+  background: #fef2f2; /* Vermelho claro para indicar excedido */
+  color: #991b1b; /* Vermelho escuro */
+  border: 1px solid #fecaca;
 }
 
 .barra-progresso-tempo-badge.realizado {

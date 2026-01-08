@@ -27,9 +27,11 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   };
 
   const textoDisplay = (localInicio && localFim)
-    ? `${formatarData(localInicio)} - ${formatarData(localFim)}`
+    ? `${formatarData(localInicio)} - ${formatarData(localFim)}${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
     : localInicio
-    ? `${formatarData(localInicio)} - ...`
+    ? `${formatarData(localInicio)} - ...${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
+    : datasIndividuaisLocal.size > 0
+    ? `${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''} selecionado${datasIndividuaisLocal.size > 1 ? 's' : ''}`
     : 'Selecionar período';
 
   useEffect(() => {
@@ -242,42 +244,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     // Verificar se Ctrl (ou Cmd no Mac) está pressionado
     const isCtrlPressed = event && (event.ctrlKey || event.metaKey);
     
-    // Se Ctrl está pressionado e há um período selecionado, gerenciar datas individuais
-    if (isCtrlPressed && localInicio && localFim) {
-      const dateStr = formatDateForInput(date);
-      const dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const inicioDate = new Date(localInicio + 'T00:00:00');
-      const fimDate = new Date(localFim + 'T00:00:00');
-      const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
-      const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
-      
-      // Verificar se a data está dentro do período
-      if (dateObj >= inicioDateObj && dateObj <= fimDateObj) {
-        const novasDatas = new Set(datasIndividuaisLocal);
-        
-        // Se a data já está selecionada, remover; caso contrário, adicionar
-        if (novasDatas.has(dateStr)) {
-          novasDatas.delete(dateStr);
-        } else {
-          novasDatas.add(dateStr);
-        }
-        
-        setDatasIndividuaisLocal(novasDatas);
-        
-        // Notificar o componente pai
-        if (onDatasIndividuaisChange) {
-          onDatasIndividuaisChange(Array.from(novasDatas));
-        }
-      }
-      return; // Não continuar com a lógica normal de seleção de período
-    }
-
-    // Se o toggle está visível e finais de semana não estão habilitados e a data é final de semana, não permitir seleção
+    // Verificações de finais de semana e feriados
     if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
       return;
     }
-
-    // Se o toggle está visível e feriados não estão habilitados e a data é feriado, não permitir seleção
     if (showHolidayToggle && !habilitarFeriados && isHoliday(date)) {
       return;
     }
@@ -285,18 +255,159 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     const dateStr = formatDateForInput(date);
     const dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     
-    if (!localInicio || (localInicio && localFim)) {
-      // Primeiro clique ou reset: definir início
+    // Determinar estado atual
+    const temPeriodoCompleto = localInicio && localFim;
+    const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuaisLocal.size > 0;
+    const naoTemNada = !temPeriodoCompleto && !temApenasDatasIndividuais;
+    
+    // CASO 1: Ctrl pressionado - sempre tratar como dia específico
+    if (isCtrlPressed) {
+      // Se há um período definido, verificar se a data está dentro dele
+      if (temPeriodoCompleto) {
+        const inicioDate = new Date(localInicio + 'T00:00:00');
+        const fimDate = new Date(localFim + 'T00:00:00');
+        const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
+        const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
+        
+        // Se a data está fora do período, não permitir seleção
+        if (dateObj < inicioDateObj || dateObj > fimDateObj) {
+          return; // Data fora do período, não permitir seleção
+        }
+      }
+      
+      // Toggle da data na lista de individuais
+      const novasDatas = new Set(datasIndividuaisLocal);
+      
+      if (novasDatas.has(dateStr)) {
+        novasDatas.delete(dateStr);
+      } else {
+        novasDatas.add(dateStr);
+      }
+      
+      setDatasIndividuaisLocal(novasDatas);
+      
+      // Notificar o componente pai
+      if (onDatasIndividuaisChange) {
+        onDatasIndividuaisChange(Array.from(novasDatas));
+      }
+      
+      return; // Não continuar com a lógica normal de seleção de período
+    }
+
+    // CASO 2: Sem Ctrl - aplicar nova lógica inteligente
+    
+    // Se não tem nada ainda, primeiro clique adiciona como dia específico
+    if (naoTemNada) {
+      const novasDatas = new Set([dateStr]);
+      setDatasIndividuaisLocal(novasDatas);
+      
+      if (onDatasIndividuaisChange) {
+        onDatasIndividuaisChange(Array.from(novasDatas));
+      }
+      
+      return;
+    }
+    
+    // Se há apenas datas individuais (sem período completo)
+    if (temApenasDatasIndividuais) {
+      const datasArray = Array.from(datasIndividuaisLocal).sort();
+      const primeiraData = datasArray[0];
+      const ultimaData = datasArray[datasArray.length - 1];
+      const primeiraDataObj = new Date(primeiraData + 'T00:00:00');
+      const dataEstaNasIndividuais = datasIndividuaisLocal.has(dateStr);
+      
+      // Se clicou em uma data nova (não está nas individuais), converter para período completo
+      if (!dataEstaNasIndividuais) {
+        let newInicio = primeiraData;
+        let newFim = dateStr;
+        
+        // Se a nova data for anterior à primeira, ajustar
+        if (dateObj < primeiraDataObj) {
+          newInicio = dateStr;
+          newFim = ultimaData;
+        }
+        
+        setLocalInicio(newInicio);
+        setLocalFim(newFim);
+        // Limpar datas individuais (agora é período completo)
+        setDatasIndividuaisLocal(new Set());
+        
+        if (onDatasIndividuaisChange) {
+          onDatasIndividuaisChange([]);
+        }
+        if (onInicioChange) {
+          onInicioChange({ target: { value: newInicio } });
+        }
+        if (onFimChange) {
+          onFimChange({ target: { value: newFim } });
+        }
+        setSelectingStart(false);
+        return;
+      }
+      
+      // Se clicou em uma data que já está nas individuais
+      // Se é a primeira data, converte para inicio e aguarda fim
+      if (dateStr === primeiraData) {
+        setLocalInicio(dateStr);
+        setLocalFim('');
+        // Remover da lista de individuais (será período completo)
+        const novasDatas = new Set(datasIndividuaisLocal);
+        novasDatas.delete(dateStr);
+        setDatasIndividuaisLocal(novasDatas);
+        
+        if (onDatasIndividuaisChange) {
+          onDatasIndividuaisChange(Array.from(novasDatas));
+        }
+        if (onInicioChange) {
+          onInicioChange({ target: { value: dateStr } });
+        }
+        if (onFimChange) {
+          onFimChange({ target: { value: '' } });
+        }
+        setSelectingStart(false); // Próximo clique será o fim
+        return;
+      }
+      
+      // Se clicou em outra data que está nas individuais, converter para período completo
+      // Usar a primeira como inicio e a clicada (ou última) como fim
+      let newInicio = primeiraData;
+      let newFim = dateStr;
+      
+      if (dateObj < primeiraDataObj) {
+        newInicio = dateStr;
+        newFim = ultimaData;
+      }
+      
+      setLocalInicio(newInicio);
+      setLocalFim(newFim);
+      // Limpar datas individuais (agora é período completo)
+      setDatasIndividuaisLocal(new Set());
+      
+      if (onDatasIndividuaisChange) {
+        onDatasIndividuaisChange([]);
+      }
+      if (onInicioChange) {
+        onInicioChange({ target: { value: newInicio } });
+      }
+      if (onFimChange) {
+        onFimChange({ target: { value: newFim } });
+      }
+      setSelectingStart(false);
+      return;
+    }
+    
+    // CASO 3: Já tem período completo - comportamento atual (resetar período)
+    if (temPeriodoCompleto) {
+      // Clique sem Ctrl em um período completo: resetar e começar novo período
+      // Primeiro clique: definir novo início
       setLocalInicio(dateStr);
       setLocalFim('');
       setSelectingStart(true);
       
-      // Limpar datas individuais ao resetar período
-      if (datasIndividuaisLocal.size > 0) {
-        setDatasIndividuaisLocal(new Set());
-        if (onDatasIndividuaisChange) {
-          onDatasIndividuaisChange([]);
-        }
+      // Limpar datas individuais quando redefine período
+      setDatasIndividuaisLocal(new Set());
+      if (onDatasIndividuaisChange) {
+        onDatasIndividuaisChange([]);
       }
       
       if (onInicioChange) {
@@ -306,6 +417,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         onFimChange({ target: { value: '' } });
       }
     } else if (localInicio && !localFim) {
+      // Caso especial: tem início mas não tem fim (estado intermediário)
       // Segundo clique: definir fim
       const inicioDate = new Date(localInicio + 'T00:00:00');
       const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
@@ -689,6 +801,20 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                     </div>
                   )}
 
+                  {/* Texto de ajuda para seleção de dias específicos */}
+                  <div style={{ 
+                    fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'), 
+                    color: '#6b7280', 
+                    textAlign: 'center', 
+                    marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                    marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                    padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '4px',
+                    fontStyle: 'italic'
+                  }}>
+                    💡 Clique nos dias para selecionar. Use <strong>Ctrl</strong> para manter apenas dias específicos.
+                  </div>
 
                   <div className="periodo-calendar-container">
                     <div className="periodo-calendar-header">

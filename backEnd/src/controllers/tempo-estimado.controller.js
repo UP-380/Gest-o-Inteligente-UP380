@@ -149,13 +149,106 @@ async function isHoliday(dateStr, feriadosMap = null) {
   }
 }
 
+// Função para processar datas individuais (filtrar por finais de semana e feriados)
+async function processarDatasIndividuais(datasIndividuais = [], incluirFinaisSemana = true, incluirFeriados = true) {
+  if (!Array.isArray(datasIndividuais) || datasIndividuais.length === 0) {
+    return [];
+  }
+  
+  try {
+    // Buscar feriados para todos os anos presentes nas datas individuais
+    const anosNoConjunto = new Set();
+    datasIndividuais.forEach(dataStr => {
+      try {
+        const date = new Date(dataStr + 'T00:00:00');
+        if (!isNaN(date.getTime())) {
+          anosNoConjunto.add(date.getFullYear());
+        }
+      } catch (error) {
+        console.warn('Erro ao processar data individual:', dataStr, error);
+      }
+    });
+    
+    // Buscar feriados para todos os anos
+    const feriadosPorAno = {};
+    for (const ano of anosNoConjunto) {
+      feriadosPorAno[ano] = await buscarFeriados(ano);
+    }
+    
+    const datasValidas = [];
+    let feriadosPulados = 0;
+    let finaisSemanaPulados = 0;
+    
+    // Processar cada data individual
+    for (const dataStr of datasIndividuais) {
+      if (!dataStr || typeof dataStr !== 'string') continue;
+      
+      try {
+        const date = new Date(dataStr + 'T00:00:00');
+        if (isNaN(date.getTime())) {
+          console.warn('Data inválida ignorada:', dataStr);
+          continue;
+        }
+        
+        const ano = date.getFullYear();
+        const mes = date.getMonth();
+        const dia = date.getDate();
+        
+        // Criar data para cálculo do dia da semana
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+        
+        // Verificar se é feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
+        
+        // Se não deve incluir finais de semana e é final de semana, pular
+        if (!incluirFinaisSemana && isWeekend) {
+          finaisSemanaPulados++;
+          continue;
+        }
+        
+        // Se não deve incluir feriados e é feriado, pular
+        if (!incluirFeriados && isHolidayDay) {
+          feriadosPulados++;
+          const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : '';
+          console.log(`📅 [DATAS-INDIVIDUAIS] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
+          continue;
+        }
+        
+        // Data válida - adicionar no formato usado pelo banco
+        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
+        datasValidas.push(dataFormatada);
+      } catch (error) {
+        console.warn('Erro ao processar data individual:', dataStr, error);
+      }
+    }
+    
+    if (feriadosPulados > 0) {
+      console.log(`📅 [DATAS-INDIVIDUAIS] Total de ${feriadosPulados} feriado(s) pulado(s)`);
+    }
+    if (finaisSemanaPulados > 0) {
+      console.log(`📅 [DATAS-INDIVIDUAIS] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
+    }
+    
+    return datasValidas;
+  } catch (error) {
+    console.error('Erro ao processar datas individuais:', error);
+    return [];
+  }
+}
+
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
   try {
     console.log('📥 Recebendo requisição para criar tempo estimado');
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
     
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
 
     // Validações
     if (!cliente_id) {
@@ -265,17 +358,14 @@ async function criarTempoEstimado(req, res) {
 
     const tarefaIdsArray = todasTarefasComTempo.map(t => String(t.tarefa_id).trim());
 
-    if (!data_inicio) {
-      return res.status(400).json({
-        success: false,
-        error: 'data_inicio é obrigatória'
-      });
-    }
+    // Validar: precisa de período completo OU datas individuais
+    const temPeriodoCompleto = data_inicio && data_fim;
+    const temDatasIndividuais = Array.isArray(datas_individuais) && datas_individuais.length > 0;
 
-    if (!data_fim) {
+    if (!temPeriodoCompleto && !temDatasIndividuais) {
       return res.status(400).json({
         success: false,
-        error: 'data_fim é obrigatória'
+        error: 'É necessário fornecer data_inicio e data_fim OU datas_individuais'
       });
     }
 
@@ -393,19 +483,47 @@ async function criarTempoEstimado(req, res) {
     console.log('📅 [TEMPO-ESTIMADO] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
     console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
     console.log('📅 [TEMPO-ESTIMADO] Valor processado incluirFeriados:', incluirFeriados);
-    console.log('📅 [TEMPO-ESTIMADO] Período:', data_inicio, 'até', data_fim);
-    const datasDoPeriodo = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
-    console.log('📅 [TEMPO-ESTIMADO] Total de datas geradas:', datasDoPeriodo.length);
+    
+    // Lógica para gerar datas: usar apenas datas individuais OU período completo (com filtro de datas individuais se fornecido)
+    let datasDoPeriodo = [];
+    
+    if (temDatasIndividuais && !temPeriodoCompleto) {
+      // Caso 1: Apenas datas individuais (sem período completo)
+      console.log('📅 [TEMPO-ESTIMADO] Usando apenas datas individuais:', datas_individuais.length, 'data(s)');
+      datasDoPeriodo = await processarDatasIndividuais(datas_individuais, incluirFinaisSemana, incluirFeriados);
+      console.log('📅 [TEMPO-ESTIMADO] Total de datas válidas após filtrar finais de semana/feriados:', datasDoPeriodo.length);
+    } else if (temPeriodoCompleto) {
+      // Caso 2: Período completo (com ou sem datas individuais como filtro)
+      console.log('📅 [TEMPO-ESTIMADO] Período:', data_inicio, 'até', data_fim);
+      const todasDatas = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemana, incluirFeriados);
+      console.log('📅 [TEMPO-ESTIMADO] Total de datas geradas do período:', todasDatas.length);
+      
+      if (temDatasIndividuais) {
+        // Aplicar filtro: incluir apenas datas que estão na lista de individuais
+        const datasIndividuaisSet = new Set(datas_individuais);
+        datasDoPeriodo = todasDatas.filter(data => {
+          const dataStr = data.split('T')[0]; // Extrair apenas a data (YYYY-MM-DD)
+          return datasIndividuaisSet.has(dataStr);
+        });
+        console.log('📅 [TEMPO-ESTIMADO] Total de datas após aplicar filtro de datas individuais:', datasDoPeriodo.length);
+      } else {
+        datasDoPeriodo = todasDatas;
+      }
+    }
+    
     if (datasDoPeriodo.length > 0 && datasDoPeriodo.length <= 5) {
-      console.log('📅 [TEMPO-ESTIMADO] Datas geradas:', datasDoPeriodo);
+      console.log('📅 [TEMPO-ESTIMADO] Datas finais:', datasDoPeriodo);
     } else if (datasDoPeriodo.length > 5) {
       console.log('📅 [TEMPO-ESTIMADO] Primeiras 5 datas:', datasDoPeriodo.slice(0, 5));
     }
     
     if (datasDoPeriodo.length === 0) {
+      const mensagemErro = temPeriodoCompleto 
+        ? 'Período inválido ou nenhuma data válida após aplicar filtros'
+        : 'Nenhuma data válida encontrada nas datas individuais fornecidas';
       return res.status(400).json({
         success: false,
-        error: 'Período inválido. Data fim deve ser maior ou igual à data início'
+        error: mensagemErro
       });
     }
 
@@ -455,33 +573,39 @@ async function criarTempoEstimado(req, res) {
               [...tarefasSolicitadas].every(t => tarefasExistentes.has(t));
             
             if (temMesmasTarefas) {
-              // Verificar se o período se sobrepõe
-              const datasGrupo = grupo.datas.sort();
-              if (datasGrupo.length > 0) {
-                const grupoInicio = datasGrupo[0].split('T')[0];
-                const grupoFim = datasGrupo[datasGrupo.length - 1].split('T')[0];
+              // Verificar se há sobreposição de datas
+              // Extrair datas do grupo existente (apenas data, sem hora)
+              const datasGrupoSet = new Set(grupo.datas.map(d => {
+                const dataStr = typeof d === 'string' ? d.split('T')[0] : d;
+                return dataStr;
+              }));
+              
+              // Extrair datas solicitadas (das datasDoPeriodo)
+              const datasSolicitadasSet = new Set(datasDoPeriodo.map(d => d.split('T')[0]));
+              
+              // Verificar se há interseção (datas em comum)
+              const temSobreposicao = [...datasSolicitadasSet].some(data => datasGrupoSet.has(data));
+              
+              if (temSobreposicao) {
+                // Calcular min/max para mensagem de erro
+                const datasGrupo = grupo.datas.map(d => {
+                  const dataStr = typeof d === 'string' ? d.split('T')[0] : d;
+                  return dataStr;
+                }).sort();
+                const grupoInicio = datasGrupo[0];
+                const grupoFim = datasGrupo[datasGrupo.length - 1];
                 
-                // Verificar sobreposição: dois períodos se sobrepõem se (inicio1 <= fim2) && (fim1 >= inicio2)
-                const inicioGrupo = new Date(grupoInicio);
-                const fimGrupo = new Date(grupoFim);
-                const inicioSolicitado = new Date(data_inicio);
-                const fimSolicitado = new Date(data_fim);
+                const datasSolicitadas = [...datasDoPeriodo].map(d => d.split('T')[0]).sort();
+                const solicitadoInicio = datasSolicitadas[0];
+                const solicitadoFim = datasSolicitadas[datasSolicitadas.length - 1];
                 
-                // Normalizar para comparar apenas datas (sem hora)
-                inicioGrupo.setHours(0, 0, 0, 0);
-                fimGrupo.setHours(23, 59, 59, 999);
-                inicioSolicitado.setHours(0, 0, 0, 0);
-                fimSolicitado.setHours(23, 59, 59, 999);
-                
-                if (inicioGrupo <= fimSolicitado && fimGrupo >= inicioSolicitado) {
-                  return {
-                    duplicado: true,
-                    produto_id: produtoId,
-                    tarefas: Array.from(tarefasSolicitadas),
-                    periodo_existente: `${grupoInicio} até ${grupoFim}`,
-                    periodo_solicitado: `${data_inicio} até ${data_fim}`
-                  };
-                }
+                return {
+                  duplicado: true,
+                  produto_id: produtoId,
+                  tarefas: Array.from(tarefasSolicitadas),
+                  periodo_existente: `${grupoInicio} até ${grupoFim}`,
+                  periodo_solicitado: temPeriodoCompleto ? `${data_inicio} até ${data_fim}` : `${solicitadoInicio} até ${solicitadoFim} (${datasSolicitadas.length} dia(s) específico(s))`
+                };
               }
             }
           }
@@ -729,13 +853,26 @@ async function criarTempoEstimado(req, res) {
 
         // Se encontrou o membro_id, salvar histórico
         if (membroIdCriador) {
+          // Calcular data_inicio e data_fim para histórico
+          // Se há período completo, usar diretamente
+          // Se há apenas datas individuais, usar min/max das datas
+          let dataInicioHistorico = data_inicio;
+          let dataFimHistorico = data_fim;
+          
+          if (!temPeriodoCompleto && temDatasIndividuais && datasDoPeriodo.length > 0) {
+            // Extrair apenas as datas (sem hora) e ordenar
+            const datasApenasData = datasDoPeriodo.map(d => d.split('T')[0]).sort();
+            dataInicioHistorico = datasApenasData[0];
+            dataFimHistorico = datasApenasData[datasApenasData.length - 1];
+          }
+          
           const historicoData = {
             agrupador_id: agrupador_id,
             cliente_id: String(cliente_id).trim(),
             responsavel_id: String(responsavel_id).trim(),
             usuario_criador_id: membroIdCriador,
-            data_inicio: data_inicio,
-            data_fim: data_fim,
+            data_inicio: dataInicioHistorico,
+            data_fim: dataFimHistorico,
             produto_ids: produtoIdsArray.map(id => String(id).trim()),
             tarefas: todasTarefasComTempo
           };

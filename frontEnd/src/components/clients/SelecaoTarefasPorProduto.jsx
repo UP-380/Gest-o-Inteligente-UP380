@@ -1055,7 +1055,10 @@ const SelecaoTarefasPorProduto = ({
                             {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
                               const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
                               const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                              if (!periodo || !periodo.inicio || !periodo.fim || !responsavelId) return null;
+                              if (!periodo || !responsavelId) return null;
+                              const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                              const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                              if (!temPeriodoCompleto && !temDatasIndividuais) return null;
                               
                               // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
                               const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
@@ -1449,7 +1452,10 @@ const SelecaoTarefasPorProduto = ({
                               {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
                                 const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
                                 const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                                if (!periodo || !periodo.inicio || !periodo.fim || !responsavelId) return null;
+                                if (!periodo || !responsavelId) return null;
+                                const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                                const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                                if (!temPeriodoCompleto && !temDatasIndividuais) return null;
                                 
                                 // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
                                 const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
