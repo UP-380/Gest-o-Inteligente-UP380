@@ -347,12 +347,62 @@ async function getMembrosIdNome(req, res) {
       });
     }
 
+    // Buscar foto_perfil dos usuários vinculados aos membros
     const membros = (data || []).map(row => ({
       id: row.id,
       nome: row.nome,
       status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
-      usuario_id: row.usuario_id // Incluir usuario_id para permitir busca por usuario_id
+      usuario_id: row.usuario_id, // Incluir usuario_id para permitir busca por usuario_id
+      foto_perfil: null // Será preenchido abaixo
     }));
+
+    // Buscar fotos de perfil dos usuários e resolver avatares customizados
+    if (membros.length > 0) {
+      const usuarioIds = [...new Set(membros.map(m => m.usuario_id).filter(Boolean))];
+      
+      if (usuarioIds.length > 0) {
+        const { data: usuarios, error: usuariosError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('usuarios')
+          .select('id, foto_perfil')
+          .in('id', usuarioIds);
+
+        if (!usuariosError && usuarios && usuarios.length > 0) {
+          const { resolveAvatarUrl } = require('../utils/storage');
+          const usuarioMap = new Map();
+          usuarios.forEach(usuario => {
+            usuarioMap.set(String(usuario.id), usuario.foto_perfil);
+          });
+
+          // Adicionar foto_perfil a cada membro e resolver avatares customizados
+          const avataresParaResolver = [];
+          membros.forEach((membro, index) => {
+            if (membro.usuario_id) {
+              const fotoPerfil = usuarioMap.get(String(membro.usuario_id));
+              if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
+                avataresParaResolver.push({ membro, fotoPerfil, index });
+              } else if (fotoPerfil) {
+                membro.foto_perfil = fotoPerfil;
+              } else {
+                membro.foto_perfil = null;
+              }
+            } else {
+              membro.foto_perfil = null;
+            }
+          });
+
+          // Resolver todas as URLs customizadas em paralelo
+          if (avataresParaResolver.length > 0) {
+            await Promise.all(
+              avataresParaResolver.map(async ({ membro, fotoPerfil }) => {
+                const resolvedUrl = await resolveAvatarUrl(fotoPerfil, 'user');
+                membro.foto_perfil = resolvedUrl || fotoPerfil;
+              })
+            );
+          }
+        }
+      }
+    }
 
     return res.json({
       success: true,

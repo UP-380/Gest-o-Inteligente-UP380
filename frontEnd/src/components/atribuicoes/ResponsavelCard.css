@@ -19,6 +19,86 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+/* Quando usado dentro de selected-item-tag - mesmo estilo dos outros campos */
+.selected-item-tag .responsavel-card-container {
+  min-width: auto;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.selected-item-tag .responsavel-card {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  padding: 4px 10px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  line-height: 16px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.selected-item-tag .responsavel-card:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: none !important;
+}
+
+.selected-item-tag .responsavel-card.active {
+  background: rgba(255, 255, 255, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: none !important;
+}
+
+.selected-item-tag .responsavel-card-content {
+  gap: 4px !important;
+}
+
+.selected-item-tag .responsavel-card-avatar {
+  width: 16px !important;
+  height: 16px !important;
+  font-size: 7px !important;
+  flex-shrink: 0 !important;
+}
+
+.selected-item-tag .responsavel-card-avatar.user-avatar-image img {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.selected-item-tag .responsavel-card-text {
+  font-size: 11px !important;
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  line-height: 16px !important;
+}
+
+.selected-item-tag .responsavel-card-text.has-selection {
+  color: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+.selected-item-tag .responsavel-card-arrow {
+  font-size: 9px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  margin-left: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.selected-item-tag .responsavel-card i.fa-user-tie {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  margin-right: 4px !important;
+}
+
 .responsavel-card:hover:not(.disabled) {
   border-color: #0e3b6f;
   box-shadow: 0 2px 6px rgba(14, 59, 111, 0.1);
@@ -41,6 +121,12 @@
   align-items: center;
   flex: 1;
   min-width: 0;
+  gap: 8px;
+}
+
+.responsavel-card-avatar {
+  flex-shrink: 0;
+  margin-right: 0 !important;
 }
 
 .responsavel-card-text {
@@ -73,12 +159,13 @@
   z-index: 100001 !important;
   background: white;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   animation: dropdownFadeIn 0.2s ease;
   pointer-events: auto;
   will-change: transform;
+  min-width: 320px;
 }
 
 @keyframes dropdownFadeIn {
@@ -93,57 +180,99 @@
 }
 
 .responsavel-card-dropdown-content {
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
   padding: 0;
 }
 
 .responsavel-card-search {
-  padding: 10px;
+  padding: 12px;
   border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
+  background: white;
 }
 
-.responsavel-card-search-input {
-  width: 100%;
+.responsavel-card-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.2s ease;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: all 0.2s ease;
 }
 
-.responsavel-card-search-input:focus {
+.responsavel-card-search-wrapper:focus-within {
   border-color: #0e3b6f;
+  background: white;
   box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
+.responsavel-card-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  outline: none;
+  color: #374151;
+}
+
+.responsavel-card-search-input::placeholder {
+  color: #9ca3af;
+}
+
 .responsavel-card-option {
-  padding: 10px 16px;
+  padding: 8px 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: background-color 0.2s ease;
-  font-size: 13px;
-  color: #495057;
+  transition: background-color 0.15s ease;
+  font-size: 14px;
+  color: #374151;
   user-select: none;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.responsavel-card-option:last-child {
+  border-bottom: none;
+}
+
+.responsavel-card-option-avatar {
+  flex-shrink: 0;
+  margin-right: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 10px !important;
+}
+
+.responsavel-card-option-avatar.user-avatar-image img {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.responsavel-card-option-label {
+  flex: 1;
+  font-weight: 400;
+  color: #374151;
 }
 
 .responsavel-card-option:hover {
-  background-color: #f8f9fa;
+  background-color: #f9fafb;
 }
 
 .responsavel-card-option.selected {
-  background-color: #e3f2fd;
+  background-color: #f3f4f6;
   color: #0e3b6f;
+}
+
+.responsavel-card-option.selected .responsavel-card-option-label {
   font-weight: 500;
-  border-left: 3px solid #0e3b6f;
+  color: #0e3b6f;
 }
 
 .responsavel-card-option.selected:hover {
-  background-color: #bbdefb;
+  background-color: #f3f4f6;
 }
 
 .responsavel-card-option.no-results {
@@ -158,25 +287,4 @@
   background-color: transparent;
 }
 
-.responsavel-card-option-checkbox {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #dee2e6;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.responsavel-card-option.selected .responsavel-card-option-checkbox {
-  background-color: #0e3b6f;
-  border-color: #0e3b6f;
-  color: white;
-}
-
-.responsavel-card-option-checkbox i {
-  font-size: 10px;
-}
 

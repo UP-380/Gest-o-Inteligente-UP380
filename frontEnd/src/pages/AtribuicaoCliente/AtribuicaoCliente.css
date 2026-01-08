@@ -42,6 +42,27 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+/* Seção de Informações Básicas com design melhorado */
+.informacoes-basicas-section {
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.informacoes-basicas-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .informacoes-basicas-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
 .atribuicao-form-section:last-of-type {
   margin-bottom: 0;
 }
@@ -122,6 +143,11 @@
   min-height: auto;
   overflow: visible !important;
   position: relative;
+}
+
+/* Form-group dentro da seção de informações básicas */
+.informacoes-basicas-section .form-group {
+  gap: 10px;
 }
 
 /* Labels mais compactos */
@@ -220,6 +246,130 @@
 /* Ajuste para form-group dentro da seção de tarefas */
 .atribuicao-tarefas-section .form-group {
   width: 100%;
+}
+
+/* ResponsavelCard no modo global - mesma altura do FilterPeriodo */
+.responsavel-card-global-wrapper .responsavel-card-container {
+  width: 100%;
+}
+
+.responsavel-card-global-wrapper .responsavel-card {
+  min-height: 40px;
+  height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e0;
+  background: #ffffff;
+}
+
+.responsavel-card-global-wrapper .responsavel-card:hover:not(.disabled) {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.responsavel-card-global-wrapper .responsavel-card.active {
+  border-color: #0e3b6f !important;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1) !important;
+}
+
+.responsavel-card-global-wrapper .responsavel-card-content {
+  gap: 8px;
+}
+
+.responsavel-card-global-wrapper .responsavel-card-avatar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.responsavel-card-global-wrapper .responsavel-card-text {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* TempoEstimadoInput no modo global - mesma altura do FilterPeriodo */
+.tempo-global-wrapper {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  flex-shrink: 0;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-container {
+  width: 100%;
+  margin-bottom: 0 !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-wrapper {
+  min-height: 40px !important;
+  height: 40px !important;
+  padding: 8px 12px !important;
+  border: 1px solid #cbd5e0 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  transition: all 0.2s ease !important;
+  margin: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-wrapper:hover:not(.disabled) {
+  border-color: #0e3b6f !important;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1) !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-wrapper:focus-within {
+  border-color: #0e3b6f !important;
+  box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1) !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-inputs-separados {
+  display: flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  justify-content: flex-start !important;
+  padding: 0 2px !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-horas,
+.tempo-global-wrapper .tempo-estimado-input-minutos {
+  width: 28px !important;
+  padding: 3px 1px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  text-align: center !important;
+  background: transparent !important;
+  transition: all 0.2s ease !important;
+  min-width: 28px !important;
+  flex-shrink: 0 !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-horas:focus,
+.tempo-global-wrapper .tempo-estimado-input-minutos:focus {
+  outline: none !important;
+  border-color: #0e3b6f !important;
+  background: #f8fafc !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-input-horas:disabled,
+.tempo-global-wrapper .tempo-estimado-input-minutos:disabled {
+  background-color: #f1f5f9 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+.tempo-global-wrapper .tempo-estimado-separador {
+  font-size: 11px !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
 }
 
 /* CustomSelect mais compacto */
