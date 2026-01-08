@@ -361,6 +361,62 @@ export const calcularDiasComOpcoesEDatasIndividuais = (dataInicio, dataFim, incl
   }
 };
 
+/**
+ * Calcula o número de dias válidos apenas com uma lista de datas individuais
+ * Considera opções de incluir finais de semana e feriados
+ * @param {Array<string>} datasIndividuais - Array de datas no formato YYYY-MM-DD
+ * @param {boolean} incluirFinaisSemana - Se deve incluir finais de semana
+ * @param {boolean} incluirFeriados - Se deve incluir feriados
+ * @returns {number} Número de dias válidos
+ */
+export const calcularDiasApenasComDatasIndividuais = (datasIndividuais = [], incluirFinaisSemana = false, incluirFeriados = false) => {
+  if (!Array.isArray(datasIndividuais) || datasIndividuais.length === 0) {
+    return 0;
+  }
+  
+  try {
+    let dias = 0;
+    
+    // Iterar por cada data individual
+    datasIndividuais.forEach(dataStr => {
+      if (!dataStr || typeof dataStr !== 'string') return;
+      
+      try {
+        // Converter string para Date
+        const data = new Date(dataStr + 'T00:00:00');
+        if (isNaN(data.getTime())) return;
+        
+        const isWeekend = isFinalDeSemana(data);
+        const isHoliday = isFeriado(data);
+        
+        // Verificar se deve incluir o dia
+        let incluirDia = true;
+        
+        // Se não deve incluir finais de semana e é final de semana, não incluir
+        if (!incluirFinaisSemana && isWeekend) {
+          incluirDia = false;
+        }
+        
+        // Se não deve incluir feriados e é feriado, não incluir
+        if (!incluirFeriados && isHoliday) {
+          incluirDia = false;
+        }
+        
+        if (incluirDia) {
+          dias++;
+        }
+      } catch (error) {
+        console.warn('Erro ao processar data individual:', dataStr, error);
+      }
+    });
+    
+    return dias;
+  } catch (error) {
+    console.error('Erro ao calcular dias apenas com datas individuais:', error);
+    return 0;
+  }
+};
+
 
 
 

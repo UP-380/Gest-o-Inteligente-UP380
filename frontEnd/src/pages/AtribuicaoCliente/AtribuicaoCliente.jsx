@@ -11,7 +11,7 @@ import SelecaoTarefasPorProduto from '../../components/clients/SelecaoTarefasPor
 import ResponsavelCard from '../../components/atribuicoes/ResponsavelCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, cacheAPI } from '../../services/api';
-import { calcularDiasComOpcoesEDatasIndividuais } from '../../utils/dateUtils';
+import { calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo, calcularDiasApenasComDatasIndividuais } from '../../utils/dateUtils';
 import '../../components/vinculacoes/VinculacaoModal.css';
 import '../BaseConhecimentoCliente/BaseConhecimentoCliente.css';
 import './AtribuicaoCliente.css';
@@ -56,6 +56,109 @@ const AtribuicaoCliente = () => {
   const [verificandoDuplicata, setVerificandoDuplicata] = useState(false);
   const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
   const [habilitarFeriados, setHabilitarFeriados] = useState(false);
+  
+  // Cache de tempo estimado total por responsável no período (independente dos filtros aplicados)
+  const [tempoEstimadoTotalPorResponsavel, setTempoEstimadoTotalPorResponsavel] = useState({}); // { responsavelId: tempoEmMs }
+
+  // Buscar tempo estimado total do responsável no período (independente dos filtros aplicados)
+  const buscarTempoEstimadoTotalPorResponsavel = useCallback(async (
+    responsavelId, 
+    periodoInicio, 
+    periodoFim, 
+    habilitarFinaisSemana, 
+    habilitarFeriados, 
+    datasIndividuais
+  ) => {
+    if (!responsavelId) {
+      return 0;
+    }
+    
+    // Aceitar se tiver período completo ou apenas datas individuais
+    const temPeriodoCompleto = periodoInicio && periodoFim;
+    const temDatasIndividuais = Array.isArray(datasIndividuais) && datasIndividuais.length > 0;
+    
+    if (!temPeriodoCompleto && !temDatasIndividuais) {
+      return 0;
+    }
+    
+    // Se há apenas datas individuais, usar min/max das datas para buscar na API
+    let dataInicio = periodoInicio;
+    let dataFim = periodoFim;
+    
+    if (!temPeriodoCompleto && temDatasIndividuais) {
+      const datasOrdenadas = [...datasIndividuais].sort();
+      dataInicio = datasOrdenadas[0];
+      dataFim = datasOrdenadas[datasOrdenadas.length - 1];
+    }
+
+    try {
+      // Construir query para buscar todos os registros de tempo estimado do responsável no período
+      const params = new URLSearchParams({
+        responsavel_id: String(responsavelId),
+        data_inicio: dataInicio,
+        data_fim: dataFim
+      });
+
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        console.error('Erro ao buscar tempo estimado:', response.status);
+        return 0;
+      }
+
+      const result = await response.json();
+      if (!result.success || !result.data || !Array.isArray(result.data)) {
+        return 0;
+      }
+
+      // Obter datas válidas no período (considerando opções de finais de semana, feriados e datas individuais)
+      // Se há apenas datas individuais, usar apenas essas datas; caso contrário, usar o período completo
+      const datasValidas = temDatasIndividuais && !temPeriodoCompleto
+        ? new Set(datasIndividuais)
+        : obterDatasValidasNoPeriodo(
+            dataInicio,
+            dataFim,
+            habilitarFinaisSemana,
+            habilitarFeriados,
+            datasIndividuais || []
+          );
+
+      // Somar todos os tempo_estimado_dia dos registros cujas datas estão nas datas válidas
+      let tempoTotal = 0;
+      result.data.forEach(registro => {
+        if (!registro.tempo_estimado_dia) return;
+        
+        // Verificar se a data do registro está nas datas válidas
+        let dataStr;
+        if (typeof registro.data === 'string') {
+          dataStr = registro.data.split('T')[0];
+        } else if (registro.data instanceof Date) {
+          const year = registro.data.getFullYear();
+          const month = String(registro.data.getMonth() + 1).padStart(2, '0');
+          const day = String(registro.data.getDate()).padStart(2, '0');
+          dataStr = `${year}-${month}-${day}`;
+        } else {
+          return; // Data inválida, pular
+        }
+
+        // Se não há datas válidas definidas (datasValidas vazio), considerar todas as datas
+        // Caso contrário, verificar se a data está no conjunto de datas válidas
+        if (datasValidas.size === 0 || datasValidas.has(dataStr)) {
+          // tempo_estimado_dia pode vir em milissegundos ou como número
+          const tempo = Number(registro.tempo_estimado_dia) || 0;
+          tempoTotal += tempo;
+        }
+      });
+
+      return tempoTotal;
+    } catch (error) {
+      console.error('Erro ao buscar tempo estimado total por responsável:', error);
+      return 0;
+    }
+  }, []);
 
   // Normalizar horas contratadas para número (pode vir como objeto do backend)
   const horasDisponiveisDia = (() => {
@@ -139,11 +242,17 @@ const AtribuicaoCliente = () => {
   
   // Funções para ordem obrigatória de preenchimento
   const podePreencherResponsavel = () => {
-    return !!(periodoGlobal.inicio && periodoGlobal.fim);
+    // Permitir se há período completo OU se há datas individuais selecionadas
+    const temPeriodoCompleto = !!(periodoGlobal.inicio && periodoGlobal.fim);
+    const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+    return temPeriodoCompleto || temDatasIndividuais;
   };
   
   const podePreencherTempo = () => {
-    return !!(periodoGlobal.inicio && periodoGlobal.fim && responsavelGlobal);
+    // Permitir se há período completo OU datas individuais, E há responsável selecionado
+    const temPeriodoCompleto = !!(periodoGlobal.inicio && periodoGlobal.fim);
+    const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+    return (temPeriodoCompleto || temDatasIndividuais) && !!responsavelGlobal;
   };
   
   // Função para obter responsável de uma tarefa
@@ -189,6 +298,21 @@ const AtribuicaoCliente = () => {
     }));
   };
 
+  // Função para limpar campos globais
+  const handleLimparGlobal = () => {
+    setPeriodoGlobal({
+      inicio: null,
+      fim: null,
+      habilitarFinaisSemana: false,
+      habilitarFeriados: false,
+      datasIndividuais: []
+    });
+    setResponsavelGlobal(null);
+    setTempoGlobal(0);
+    setTempoGlobalParaAplicar(0);
+    showToast('info', 'Campos globais limpos');
+  };
+
   // Função para aplicar período, responsável e tempo global às tarefas selecionadas
   const handleAplicarGlobal = () => {
     if (!tarefasSelecionadasPorProduto || Object.keys(tarefasSelecionadasPorProduto).length === 0) {
@@ -197,12 +321,14 @@ const AtribuicaoCliente = () => {
     }
 
     const globalDatas = Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : [];
+    const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
+    const temDatasIndividuais = globalDatas.length > 0;
     let periodoAplicado = false;
     let responsavelAplicado = false;
     let tempoAplicado = false;
 
-    // Aplicar período global se preenchido
-    if (periodoGlobal.inicio && periodoGlobal.fim) {
+    // Aplicar período global se preenchido (período completo OU datas individuais)
+    if (temPeriodoCompleto || temDatasIndividuais) {
       setPeriodosPorTarefa(prev => {
         const next = { ...prev };
         let changed = false;
@@ -213,8 +339,8 @@ const AtribuicaoCliente = () => {
             const key = getPeriodoKey(produtoId, tarefaId);
 
             next[key] = {
-              inicio: periodoGlobal.inicio,
-              fim: periodoGlobal.fim,
+              inicio: periodoGlobal.inicio || null,
+              fim: periodoGlobal.fim || null,
               datasIndividuais: [...globalDatas],
               habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
               habilitarFeriados: !!periodoGlobal.habilitarFeriados,
@@ -275,7 +401,15 @@ const AtribuicaoCliente = () => {
 
     // Feedback ao usuário
     const itensAplicados = [];
-    if (periodoAplicado) itensAplicados.push('período');
+    if (periodoAplicado) {
+      if (temPeriodoCompleto && temDatasIndividuais) {
+        itensAplicados.push('período e dias específicos');
+      } else if (temPeriodoCompleto) {
+        itensAplicados.push('período');
+      } else if (temDatasIndividuais) {
+        itensAplicados.push('dias específicos');
+      }
+    }
     if (responsavelAplicado) itensAplicados.push('responsável');
     // Tempo zerado também é considerado aplicado
     if (tempoAplicado || (tempoGlobal !== undefined && tempoGlobal !== null && tempoGlobal === 0)) itensAplicados.push('tempo');
@@ -515,10 +649,16 @@ const AtribuicaoCliente = () => {
             return;
           }
           
-          // Verificar se tem período definido
+          // Verificar se tem período definido (período completo OU apenas datas individuais)
           const periodoKey = getPeriodoKey(produtoId, tarefaId);
           const periodo = periodosPorTarefa[periodoKey];
-          if (!periodo || !periodo.inicio || !periodo.fim) {
+          if (!periodo) {
+            temTarefasSemPeriodo = true;
+            return;
+          }
+          const temPeriodoCompleto = periodo.inicio && periodo.fim;
+          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+          if (!temPeriodoCompleto && !temDatasIndividuais) {
             temTarefasSemPeriodo = true;
             return;
           }
@@ -549,15 +689,30 @@ const AtribuicaoCliente = () => {
           
           const periodoKey = getPeriodoKey(produtoId, tarefaId);
           const periodo = periodosPorTarefa[periodoKey];
-          if (!periodo || !periodo.inicio || !periodo.fim) continue;
+          if (!periodo) continue;
+          
+          const temPeriodoCompleto = periodo.inicio && periodo.fim;
+          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+          
+          if (!temPeriodoCompleto && !temDatasIndividuais) continue;
+          
+          // Determinar inicio e fim (usar min/max se apenas datas individuais)
+          let dataInicio = periodo.inicio;
+          let dataFim = periodo.fim;
+          
+          if (!temPeriodoCompleto && temDatasIndividuais) {
+            const datasOrdenadas = [...periodo.datasIndividuais].sort();
+            dataInicio = datasOrdenadas[0];
+            dataFim = datasOrdenadas[datasOrdenadas.length - 1];
+          }
           
           const params = new URLSearchParams({
             cliente_id: String(clienteSelecionado),
             responsavel_id: String(responsavelId),
             produto_id: String(produtoId),
             tarefa_id: String(tarefaId),
-            data_inicio: periodo.inicio,
-            data_fim: periodo.fim
+            data_inicio: dataInicio,
+            data_fim: dataFim
           });
 
           const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
@@ -685,7 +840,16 @@ const AtribuicaoCliente = () => {
   // Funciona tanto no modo "Preencher vários" quanto sem ele
   // excluirTarefa: { produtoId, tarefaId } - opcional, tarefa a ser excluída do cálculo
   const calcularTempoJaAtribuido = useCallback((responsavelId, periodo, tempoEstimadoDiaObj, tarefasSelecionadasObj, responsaveisPorTarefaObj, periodosPorTarefaObj, responsavelGlobalRef, periodoGlobalRef, excluirTarefa = null) => {
-    if (!responsavelId || !periodo || !periodo.inicio || !periodo.fim) {
+    if (!responsavelId || !periodo) {
+      return 0;
+    }
+    
+    const datasIndividuaisPeriodo = Array.isArray(periodo.datasIndividuais) ? periodo.datasIndividuais : [];
+    const temPeriodoCompleto = periodo.inicio && periodo.fim;
+    const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuaisPeriodo.length > 0;
+    
+    // Se não há período completo nem datas individuais, não há como calcular
+    if (!temPeriodoCompleto && !temApenasDatasIndividuais) {
       return 0;
     }
     
@@ -785,26 +949,97 @@ const AtribuicaoCliente = () => {
       const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
       const periodoTarefa = periodosPorTarefaObj[keyPeriodo] || periodoGlobalRef;
       
-      if (!periodoTarefa || !periodoTarefa.inicio || !periodoTarefa.fim) {
+      if (!periodoTarefa) {
         return; // Tarefa sem período definido
       }
       
-      // Verificar sobreposição de períodos
-      // Normalizar datas para comparação (apenas data, sem hora)
-      const inicioTarefa = new Date(periodoTarefa.inicio);
-      inicioTarefa.setHours(0, 0, 0, 0);
-      const fimTarefa = new Date(periodoTarefa.fim);
-      fimTarefa.setHours(23, 59, 59, 999);
-      const inicioPeriodo = new Date(periodo.inicio);
-      inicioPeriodo.setHours(0, 0, 0, 0);
-      const fimPeriodo = new Date(periodo.fim);
-      fimPeriodo.setHours(23, 59, 59, 999);
+      const datasIndividuaisTarefa = Array.isArray(periodoTarefa.datasIndividuais) ? periodoTarefa.datasIndividuais : [];
+      const temPeriodoCompletoTarefa = periodoTarefa.inicio && periodoTarefa.fim;
+      const temApenasDatasIndividuaisTarefa = !temPeriodoCompletoTarefa && datasIndividuaisTarefa.length > 0;
       
-      // Verificar se há sobreposição: períodos se sobrepõem se início de um <= fim do outro
-      const temSobreposicao = inicioTarefa <= fimPeriodo && fimTarefa >= inicioPeriodo;
+      // Se a tarefa não tem período completo nem datas individuais, não contar
+      if (!temPeriodoCompletoTarefa && !temApenasDatasIndividuaisTarefa) {
+        return;
+      }
+      
+      // Verificar sobreposição
+      let temSobreposicao = false;
+      let datasNaInterseccao = [];
+      
+      if (temPeriodoCompleto && temPeriodoCompletoTarefa) {
+        // Caso 1: Ambos têm período completo - verificar sobreposição normal
+        const inicioTarefa = new Date(periodoTarefa.inicio);
+        inicioTarefa.setHours(0, 0, 0, 0);
+        const fimTarefa = new Date(periodoTarefa.fim);
+        fimTarefa.setHours(23, 59, 59, 999);
+        const inicioPeriodo = new Date(periodo.inicio);
+        inicioPeriodo.setHours(0, 0, 0, 0);
+        const fimPeriodo = new Date(periodo.fim);
+        fimPeriodo.setHours(23, 59, 59, 999);
+        
+        temSobreposicao = inicioTarefa <= fimPeriodo && fimTarefa >= inicioPeriodo;
+        
+        if (temSobreposicao) {
+          const inicioInterseccao = inicioTarefa > inicioPeriodo ? inicioTarefa : inicioPeriodo;
+          const fimInterseccao = fimTarefa < fimPeriodo ? fimTarefa : fimPeriodo;
+          
+          // Calcular dias na interseção considerando datas individuais de ambos
+          const datasIndividuaisInterseccao = [
+            ...(Array.isArray(periodoTarefa.datasIndividuais) ? periodoTarefa.datasIndividuais : []),
+            ...datasIndividuaisPeriodo
+          ].filter(data => {
+            const dataObj = new Date(data);
+            dataObj.setHours(0, 0, 0, 0);
+            return dataObj >= inicioInterseccao && dataObj <= fimInterseccao;
+          });
+          
+          const diasNaInterseccao = calcularDiasComOpcoesEDatasIndividuais(
+            inicioInterseccao.toISOString().split('T')[0],
+            fimInterseccao.toISOString().split('T')[0],
+            periodoTarefa.habilitarFinaisSemana || false,
+            periodoTarefa.habilitarFeriados || false,
+            datasIndividuaisInterseccao
+          );
+          
+          datasNaInterseccao = Array(diasNaInterseccao).fill(null); // Placeholder para compatibilidade
+        }
+      } else if (temApenasDatasIndividuais && temApenasDatasIndividuaisTarefa) {
+        // Caso 2: Ambos têm apenas datas individuais - verificar datas em comum
+        const datasPeriodoSet = new Set(datasIndividuaisPeriodo);
+        datasNaInterseccao = datasIndividuaisTarefa.filter(data => datasPeriodoSet.has(data));
+        temSobreposicao = datasNaInterseccao.length > 0;
+      } else if (temApenasDatasIndividuais && temPeriodoCompletoTarefa) {
+        // Caso 3: Período global tem apenas datas individuais, tarefa tem período completo
+        // Verificar se alguma data individual está dentro do período da tarefa
+        const inicioTarefa = new Date(periodoTarefa.inicio);
+        inicioTarefa.setHours(0, 0, 0, 0);
+        const fimTarefa = new Date(periodoTarefa.fim);
+        fimTarefa.setHours(23, 59, 59, 999);
+        
+        datasNaInterseccao = datasIndividuaisPeriodo.filter(data => {
+          const dataObj = new Date(data);
+          dataObj.setHours(0, 0, 0, 0);
+          return dataObj >= inicioTarefa && dataObj <= fimTarefa;
+        });
+        temSobreposicao = datasNaInterseccao.length > 0;
+      } else if (temPeriodoCompleto && temApenasDatasIndividuaisTarefa) {
+        // Caso 4: Período global tem período completo, tarefa tem apenas datas individuais
+        // Verificar se alguma data individual da tarefa está dentro do período global
+        const inicioPeriodo = new Date(periodo.inicio);
+        inicioPeriodo.setHours(0, 0, 0, 0);
+        const fimPeriodo = new Date(periodo.fim);
+        fimPeriodo.setHours(23, 59, 59, 999);
+        
+        datasNaInterseccao = datasIndividuaisTarefa.filter(data => {
+          const dataObj = new Date(data);
+          dataObj.setHours(0, 0, 0, 0);
+          return dataObj >= inicioPeriodo && dataObj <= fimPeriodo;
+        });
+        temSobreposicao = datasNaInterseccao.length > 0;
+      }
       
       if (!temSobreposicao) {
-        return; // Períodos não se sobrepõem
+        return; // Não há sobreposição
       }
       
       // Obter tempo estimado da tarefa (em milissegundos, é o tempo DIÁRIO)
@@ -812,27 +1047,47 @@ const AtribuicaoCliente = () => {
       const tempoTarefaDiario = tempoEstimadoDiaObj[keyTempo] || tempoEstimadoDiaObj[tarefaId] || 0;
       
       // Só contar se a tarefa tem tempo definido (> 0)
-      // E se tiver os três: período, responsável e tempo
       if (tempoTarefaDiario > 0) {
-        // Calcular a interseção dos períodos (apenas os dias que se sobrepõem)
-        // A tarefa só consome tempo nos dias que estão dentro do período que estamos calculando
-        const inicioInterseccao = inicioTarefa > inicioPeriodo ? inicioTarefa : inicioPeriodo;
-        const fimInterseccao = fimTarefa < fimPeriodo ? fimTarefa : fimPeriodo;
+        let diasNaInterseccao = 0;
         
-        // Calcular número de dias válidos na interseção dos períodos
-        // O tempo estimado é DIÁRIO, então precisamos multiplicar pelo número de dias da interseção
-        const diasNaInterseccao = calcularDiasComOpcoesEDatasIndividuais(
-          inicioInterseccao.toISOString().split('T')[0],
-          fimInterseccao.toISOString().split('T')[0],
-          periodoTarefa.habilitarFinaisSemana || false,
-          periodoTarefa.habilitarFeriados || false,
-          Array.isArray(periodoTarefa.datasIndividuais) ? periodoTarefa.datasIndividuais.filter(data => {
-            // Filtrar apenas datas individuais que estão na interseção
+        if (temPeriodoCompleto && temPeriodoCompletoTarefa) {
+          // Já calculado acima
+          const inicioTarefa = new Date(periodoTarefa.inicio);
+          inicioTarefa.setHours(0, 0, 0, 0);
+          const fimTarefa = new Date(periodoTarefa.fim);
+          fimTarefa.setHours(23, 59, 59, 999);
+          const inicioPeriodo = new Date(periodo.inicio);
+          inicioPeriodo.setHours(0, 0, 0, 0);
+          const fimPeriodo = new Date(periodo.fim);
+          fimPeriodo.setHours(23, 59, 59, 999);
+          
+          const inicioInterseccao = inicioTarefa > inicioPeriodo ? inicioTarefa : inicioPeriodo;
+          const fimInterseccao = fimTarefa < fimPeriodo ? fimTarefa : fimPeriodo;
+          
+          const datasIndividuaisInterseccao = [
+            ...(Array.isArray(periodoTarefa.datasIndividuais) ? periodoTarefa.datasIndividuais : []),
+            ...datasIndividuaisPeriodo
+          ].filter(data => {
             const dataObj = new Date(data);
             dataObj.setHours(0, 0, 0, 0);
             return dataObj >= inicioInterseccao && dataObj <= fimInterseccao;
-          }) : []
-        );
+          });
+          
+          diasNaInterseccao = calcularDiasComOpcoesEDatasIndividuais(
+            inicioInterseccao.toISOString().split('T')[0],
+            fimInterseccao.toISOString().split('T')[0],
+            periodoTarefa.habilitarFinaisSemana || false,
+            periodoTarefa.habilitarFeriados || false,
+            datasIndividuaisInterseccao
+          );
+        } else {
+          // Quando há apenas datas individuais, contar quantas datas estão na interseção
+          diasNaInterseccao = calcularDiasApenasComDatasIndividuais(
+            datasNaInterseccao,
+            periodoTarefa.habilitarFinaisSemana || false,
+            periodoTarefa.habilitarFeriados || false
+          );
+        }
         
         // Calcular o tempo total da tarefa na interseção: tempo diário × número de dias da interseção
         const tempoTotalTarefa = tempoTarefaDiario * diasNaInterseccao;
@@ -849,7 +1104,16 @@ const AtribuicaoCliente = () => {
   // Considera todas as tarefas que já têm período, responsável e tempo definidos
   // excluirTarefa: { produtoId, tarefaId } - opcional, tarefa a ser excluída do cálculo
   const calcularTempoDisponivelGlobal = useCallback((responsavelId, periodo, horasContratadasObj, tempoEstimadoDiaObj, tarefasSelecionadasObj, excluirTarefa = null) => {
-    if (!responsavelId || !periodo || !periodo.inicio || !periodo.fim) {
+    if (!responsavelId || !periodo) {
+      return 0;
+    }
+    
+    const datasIndividuais = Array.isArray(periodo.datasIndividuais) ? periodo.datasIndividuais : [];
+    const temPeriodoCompleto = periodo.inicio && periodo.fim;
+    const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuais.length > 0;
+    
+    // Se não há período completo nem datas individuais, não há como calcular
+    if (!temPeriodoCompleto && !temApenasDatasIndividuais) {
       return 0;
     }
     
@@ -860,14 +1124,35 @@ const AtribuicaoCliente = () => {
       return 0; // Sem horas contratadas, não há disponível
     }
     
+    let diasNoPeriodo = 0;
+    let periodoMin = null;
+    let periodoMax = null;
+    
     // Calcular dias no período
-    const diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(
-      periodo.inicio,
-      periodo.fim,
-      periodo.habilitarFinaisSemana || false,
-      periodo.habilitarFeriados || false,
-      Array.isArray(periodo.datasIndividuais) ? periodo.datasIndividuais : []
-    );
+    if (temPeriodoCompleto) {
+      // Caso normal: período completo
+      diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(
+        periodo.inicio,
+        periodo.fim,
+        periodo.habilitarFinaisSemana || false,
+        periodo.habilitarFeriados || false,
+        datasIndividuais
+      );
+      periodoMin = periodo.inicio;
+      periodoMax = periodo.fim;
+    } else if (temApenasDatasIndividuais) {
+      // Caso especial: apenas datas individuais (sem período completo)
+      diasNoPeriodo = calcularDiasApenasComDatasIndividuais(
+        datasIndividuais,
+        periodo.habilitarFinaisSemana || false,
+        periodo.habilitarFeriados || false
+      );
+      
+      // Para buscar tempo estimado na API, usar min/max das datas individuais
+      const datasOrdenadas = [...datasIndividuais].sort();
+      periodoMin = datasOrdenadas[0];
+      periodoMax = datasOrdenadas[datasOrdenadas.length - 1];
+    }
     
     if (diasNoPeriodo <= 0) {
       return 0; // Sem dias válidos no período
@@ -876,11 +1161,16 @@ const AtribuicaoCliente = () => {
     // Calcular tempo disponível total (horas contratadas × dias × 3600000 ms)
     const tempoDisponivelTotal = horasContratadas * diasNoPeriodo * 3600000;
     
-    // Calcular tempo já atribuído (passando os estados atuais)
+    // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
+    // Se não estiver no cache, retornar 0 (será calculado em background)
+    // A chave do cache usa o responsavelId, então funciona tanto para período completo quanto para datas individuais
+    const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
+    
+    // Calcular tempo já atribuído na interface atual (para exibir tempo disponível em tempo real)
     // A função calcularTempoJaAtribuido agora considera TODAS as tarefas preenchidas,
     // não apenas as selecionadas
     // Se excluirTarefa for fornecido, essa tarefa será excluída do cálculo
-    const tempoJaAtribuido = calcularTempoJaAtribuido(
+    const tempoJaAtribuidoNaInterface = calcularTempoJaAtribuido(
       responsavelId, 
       periodo, 
       tempoEstimadoDiaObj, 
@@ -892,11 +1182,107 @@ const AtribuicaoCliente = () => {
       excluirTarefa // Excluir a tarefa especificada se fornecida
     );
     
-    // Calcular tempo disponível restante (pode ser negativo se excedido)
-    const tempoDisponivel = tempoDisponivelTotal - tempoJaAtribuido;
+    // Calcular tempo disponível restante:
+    // Tempo contratado no período - Tempo já estimado no período (via API) - Tempo sendo atribuído agora (na interface)
+    // Pode ser negativo se excedido
+    const tempoDisponivel = tempoDisponivelTotal - tempoEstimadoTotalNoPeriodo - tempoJaAtribuidoNaInterface;
     
     return tempoDisponivel;
-  }, [responsaveisPorTarefa, periodosPorTarefa, responsavelGlobal, periodoGlobal, calcularTempoJaAtribuido]);
+  }, [responsaveisPorTarefa, periodosPorTarefa, responsavelGlobal, periodoGlobal, calcularTempoJaAtribuido, tempoEstimadoTotalPorResponsavel]);
+
+  // Calcular tempo estimado total por responsável quando os períodos e responsáveis mudarem
+  useEffect(() => {
+    const calcularTemposEstimadosTotais = async () => {
+      // Coletar todos os responsáveis únicos e seus períodos
+      const responsaveisComPeriodos = new Map();
+      
+      // Adicionar responsáveis das tarefas individuais
+      Object.entries(responsaveisPorTarefa).forEach(([key, responsavelId]) => {
+        if (!responsavelId) return;
+        const [produtoId, tarefaId] = key.split('_');
+        const periodoKey = `${produtoId}_${tarefaId}`;
+        const periodo = periodosPorTarefa[periodoKey];
+        if (periodo) {
+          const temPeriodoCompleto = periodo.inicio && periodo.fim;
+          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+          
+          // Aceitar se tiver período completo ou apenas datas individuais
+          if (temPeriodoCompleto || temDatasIndividuais) {
+            const responsavelIdStr = String(responsavelId);
+            if (!responsaveisComPeriodos.has(responsavelIdStr)) {
+              responsaveisComPeriodos.set(responsavelIdStr, {
+                responsavelId: responsavelIdStr,
+                periodos: []
+              });
+            }
+            responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodo);
+          }
+        }
+      });
+      
+      // Adicionar responsável global (se houver)
+      if (responsavelGlobal && periodoGlobal) {
+        const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
+        const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+        
+        // Aceitar se tiver período completo ou apenas datas individuais
+        if (temPeriodoCompleto || temDatasIndividuais) {
+          const responsavelIdStr = String(responsavelGlobal);
+          if (!responsaveisComPeriodos.has(responsavelIdStr)) {
+            responsaveisComPeriodos.set(responsavelIdStr, {
+              responsavelId: responsavelIdStr,
+              periodos: []
+            });
+          }
+          responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodoGlobal);
+        }
+      }
+
+      if (responsaveisComPeriodos.size === 0) {
+        setTempoEstimadoTotalPorResponsavel({});
+        return;
+      }
+
+      // Calcular tempo estimado total para cada responsável (considerando todos os períodos)
+      const temposCache = {};
+      const promises = Array.from(responsaveisComPeriodos.entries()).map(async ([responsavelId, { periodos }]) => {
+        let tempoTotal = 0;
+        // Para cada período do responsável, buscar o tempo estimado total
+        for (const periodo of periodos) {
+          const temPeriodoCompleto = periodo.inicio && periodo.fim;
+          const datasIndividuais = Array.isArray(periodo.datasIndividuais) ? periodo.datasIndividuais : [];
+          const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuais.length > 0;
+          
+          let dataInicio = periodo.inicio;
+          let dataFim = periodo.fim;
+          
+          // Se há apenas datas individuais, usar min/max das datas
+          if (temApenasDatasIndividuais) {
+            const datasOrdenadas = [...datasIndividuais].sort();
+            dataInicio = datasOrdenadas[0];
+            dataFim = datasOrdenadas[datasOrdenadas.length - 1];
+          }
+          
+          const tempo = await buscarTempoEstimadoTotalPorResponsavel(
+            responsavelId,
+            dataInicio,
+            dataFim,
+            periodo.habilitarFinaisSemana || false,
+            periodo.habilitarFeriados || false,
+            datasIndividuais
+          );
+          tempoTotal += tempo;
+        }
+        temposCache[responsavelId] = tempoTotal;
+      });
+
+      await Promise.all(promises);
+      setTempoEstimadoTotalPorResponsavel(temposCache);
+    };
+
+    calcularTemposEstimadosTotais();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responsaveisPorTarefa, periodosPorTarefa, responsavelGlobal, periodoGlobal, buscarTempoEstimadoTotalPorResponsavel]);
 
   // Removido: useEffect que buscava horas contratadas quando responsavelSelecionado mudava
   // Agora cada tarefa tem seu próprio responsável, então não há mais um responsável global
@@ -1229,9 +1615,22 @@ const AtribuicaoCliente = () => {
   
   // Buscar horas contratadas quando responsável global mudar e período estiver preenchido
   useEffect(() => {
-    if (responsavelGlobal && periodoGlobal.inicio && periodoGlobal.fim) {
-      buscarHorasContratadasPorResponsavel(responsavelGlobal, periodoGlobal.inicio);
-    } else if (!responsavelGlobal) {
+    if (responsavelGlobal) {
+      const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
+      const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+      
+      if (temPeriodoCompleto || temDatasIndividuais) {
+        // Determinar data para buscar horas contratadas (usar primeira data se apenas datas individuais)
+        let dataParaBuscar = periodoGlobal.inicio;
+        
+        if (!temPeriodoCompleto && temDatasIndividuais) {
+          const datasOrdenadas = [...periodoGlobal.datasIndividuais].sort();
+          dataParaBuscar = datasOrdenadas[0];
+        }
+        
+        buscarHorasContratadasPorResponsavel(responsavelGlobal, dataParaBuscar);
+      }
+    } else {
       // Limpar horas contratadas quando responsável for removido
       setHorasContratadasPorResponsavel(prev => {
         const novo = { ...prev };
@@ -1239,7 +1638,7 @@ const AtribuicaoCliente = () => {
         return novo;
       });
     }
-  }, [responsavelGlobal, periodoGlobal.inicio]);
+  }, [responsavelGlobal, periodoGlobal.inicio, periodoGlobal.fim, periodoGlobal.datasIndividuais]);
   
   // Buscar horas contratadas para tarefas individuais quando responsável e período forem definidos
   useEffect(() => {
@@ -1260,10 +1659,23 @@ const AtribuicaoCliente = () => {
       const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
       const periodo = periodosPorTarefa[keyPeriodo];
       
-      if (periodo && periodo.inicio && periodo.fim) {
-        // Criar chave única para (responsavelId, dataInicio)
-        const chaveUnica = `${String(responsavelId).trim()}_${periodo.inicio}`;
-        responsaveisEPeriodos.add(chaveUnica);
+      if (periodo) {
+        const temPeriodoCompleto = periodo.inicio && periodo.fim;
+        const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+        
+        if (temPeriodoCompleto || temDatasIndividuais) {
+          // Determinar dataInicio para criar chave única (usar min se apenas datas individuais)
+          let dataInicio = periodo.inicio;
+          
+          if (!temPeriodoCompleto && temDatasIndividuais) {
+            const datasOrdenadas = [...periodo.datasIndividuais].sort();
+            dataInicio = datasOrdenadas[0];
+          }
+          
+          // Criar chave única para (responsavelId, dataInicio)
+          const chaveUnica = `${String(responsavelId).trim()}_${dataInicio}`;
+          responsaveisEPeriodos.add(chaveUnica);
+        }
       }
     });
     
@@ -1286,7 +1698,16 @@ const AtribuicaoCliente = () => {
   // Inclui dependências de tarefas individuais para que o cálculo seja atualizado
   // quando tarefas são preenchidas individualmente (modo "Preencher vários" desativado)
   const tempoDisponivelCalculado = useMemo(() => {
-    if (!responsavelGlobal || !periodoGlobal.inicio || !periodoGlobal.fim) {
+    if (!responsavelGlobal) {
+      return 0;
+    }
+    
+    // Verificar se há período completo ou apenas datas individuais
+    const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
+    const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+    
+    // Se não há período completo nem datas individuais, não calcular
+    if (!temPeriodoCompleto && !temDatasIndividuais) {
       return 0;
     }
     
@@ -1317,8 +1738,11 @@ const AtribuicaoCliente = () => {
   const temAlteracoes = () => {
     // Se não há valores preenchidos, não há alterações
     // Tempo pode ser 0 (zerado), mas ainda é considerado um valor válido
+    // Datas individuais também são consideradas valores válidos
+    const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
     const temValoresPreenchidos = 
       (periodoGlobal.inicio && periodoGlobal.fim) || 
+      temDatasIndividuais ||
       responsavelGlobal || 
       (tempoGlobal !== undefined && tempoGlobal !== null);
     
@@ -1328,8 +1752,11 @@ const AtribuicaoCliente = () => {
     
     // Verificar se há valores aplicados (se não há, significa que é a primeira vez e deve habilitar)
     // Tempo pode ser 0 (zerado), mas ainda é considerado um valor aplicado
+    // Datas individuais também são consideradas valores aplicados
+    const temDatasIndividuaisAplicadas = Array.isArray(valoresAplicados.periodo.datasIndividuais) && valoresAplicados.periodo.datasIndividuais.length > 0;
     const temValoresAplicados = 
       (valoresAplicados.periodo.inicio && valoresAplicados.periodo.fim) || 
+      temDatasIndividuaisAplicadas ||
       valoresAplicados.responsavel || 
       (valoresAplicados.tempo !== undefined && valoresAplicados.tempo !== null);
     
@@ -1575,15 +2002,32 @@ const AtribuicaoCliente = () => {
       const obterPeriodoPara = (produtoId, tarefaId) => {
         const key = getPeriodoKey(produtoId, tarefaId);
         const p = periodosPorTarefa[key];
-        if (p && p.inicio && p.fim) {
-          return {
-            inicio: p.inicio,
-            fim: p.fim,
-            incluir_finais_semana: !!p.habilitarFinaisSemana,
-            incluir_feriados: !!p.habilitarFeriados,
-            datas_individuais: Array.isArray(p.datasIndividuais) ? p.datasIndividuais : []
-          };
+        
+        if (p) {
+          const temPeriodoCompleto = p.inicio && p.fim;
+          const temDatasIndividuais = Array.isArray(p.datasIndividuais) && p.datasIndividuais.length > 0;
+          
+          if (temPeriodoCompleto || temDatasIndividuais) {
+            let inicio = p.inicio;
+            let fim = p.fim;
+            
+            // Se há apenas datas individuais, usar min/max das datas para inicio e fim
+            if (!temPeriodoCompleto && temDatasIndividuais) {
+              const datasOrdenadas = [...p.datasIndividuais].sort();
+              inicio = datasOrdenadas[0];
+              fim = datasOrdenadas[datasOrdenadas.length - 1];
+            }
+            
+            return {
+              inicio,
+              fim,
+              incluir_finais_semana: !!p.habilitarFinaisSemana,
+              incluir_feriados: !!p.habilitarFeriados,
+              datas_individuais: Array.isArray(p.datasIndividuais) ? p.datasIndividuais : []
+            };
+          }
         }
+        
         // Fallback para período global da tela
         return {
           inicio: dataInicio,
@@ -1908,7 +2352,7 @@ const AtribuicaoCliente = () => {
                             </div>
                             {!podePreencherResponsavel() && (
                               <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
-                                Preencha o período primeiro
+                                Preencha o período ou selecione dias específicos primeiro
                               </div>
                             )}
                             {podePreencherResponsavel() && responsavelGlobal && tempoDisponivelGlobal !== undefined && tempoDisponivelGlobal !== null && (
@@ -1957,7 +2401,7 @@ const AtribuicaoCliente = () => {
                             )}
                             {!podePreencherTempo() && !podePreencherResponsavel() && (
                               <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000 }}>
-                                Preencha o período primeiro
+                                Preencha o período ou selecione dias específicos primeiro
                               </div>
                             )}
                           </div>
@@ -1969,7 +2413,7 @@ const AtribuicaoCliente = () => {
                               loading || 
                               submitting || 
                               tarefasSelecionadas.length === 0 ||
-                              (!periodoGlobal.inicio && !periodoGlobal.fim && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                              (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
                               !temAlteracoes()
                             }
                             style={{
@@ -1985,22 +2429,22 @@ const AtribuicaoCliente = () => {
                                 loading || 
                                 submitting || 
                                 tarefasSelecionadas.length === 0 ||
-                                (!periodoGlobal.inicio && !periodoGlobal.fim && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
                                 !temAlteracoes()
                               ) ? 0.5 : 1,
                               cursor: (
                                 loading || 
                                 submitting || 
                                 tarefasSelecionadas.length === 0 ||
-                                (!periodoGlobal.inicio && !periodoGlobal.fim && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
                                 !temAlteracoes()
                               ) ? 'not-allowed' : 'pointer'
                             }}
                             title={
                               tarefasSelecionadas.length === 0
                                 ? "Selecione pelo menos uma tarefa para aplicar"
-                                : (!periodoGlobal.inicio && !periodoGlobal.fim && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0))
-                                ? "Preencha pelo menos um campo (período, responsável ou tempo) para aplicar"
+                                : (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0))
+                                ? "Preencha pelo menos um campo (período, dias específicos, responsável ou tempo) para aplicar"
                                 : !temAlteracoes()
                                 ? "Não há alterações para aplicar. Modifique algum campo para habilitar o botão."
                                 : "Aplicar período, responsável e/ou tempo a todas as tarefas selecionadas"
@@ -2008,6 +2452,28 @@ const AtribuicaoCliente = () => {
                           >
                             <i className="fas fa-check" style={{ fontSize: '12px' }}></i>
                             Aplicar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={handleLimparGlobal}
+                            disabled={loading || submitting}
+                            style={{
+                              padding: '8px 16px',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              whiteSpace: 'nowrap',
+                              height: '40px',
+                              opacity: (loading || submitting) ? 0.5 : 1,
+                              cursor: (loading || submitting) ? 'not-allowed' : 'pointer'
+                            }}
+                            title="Limpar todos os campos globais"
+                          >
+                            <i className="fas fa-times" style={{ fontSize: '12px' }}></i>
+                            Limpar
                           </button>
                         </>
                       )}
@@ -2052,14 +2518,20 @@ const AtribuicaoCliente = () => {
                             podePreencherResponsavel: (produtoId, tarefaId) => {
                               const key = getPeriodoKey(produtoId, tarefaId);
                               const periodo = periodosPorTarefa[key];
-                              return !!(periodo && periodo.inicio && periodo.fim);
+                              if (!periodo) return false;
+                              const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                              const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                              return !!(temPeriodoCompleto || temDatasIndividuais);
                             },
                             podePreencherTempo: (produtoId, tarefaId) => {
                               const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
                               const keyResponsavel = getResponsavelKey(produtoId, tarefaId);
                               const periodo = periodosPorTarefa[keyPeriodo];
                               const responsavel = responsaveisPorTarefa[keyResponsavel];
-                              return !!(periodo && periodo.inicio && periodo.fim && responsavel);
+                              if (!periodo || !responsavel) return false;
+                              const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                              const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                              return !!(temPeriodoCompleto || temDatasIndividuais);
                             }
                           }}
                           horasContratadasPorResponsavel={horasContratadasPorResponsavel}
@@ -2379,10 +2851,15 @@ const AtribuicaoCliente = () => {
                           if (!responsavelId) {
                             return true;
                           }
-                          // Verificar período
+                          // Verificar período (período completo OU apenas datas individuais)
                           const periodoKey = getPeriodoKey(produtoIdNormalizado, tarefaIdNormalizado);
                           const periodo = periodosPorTarefa[periodoKey];
-                          if (!periodo || !periodo.inicio || !periodo.fim) {
+                          if (!periodo) {
+                            return true;
+                          }
+                          const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                          if (!temPeriodoCompleto && !temDatasIndividuais) {
                             return true;
                           }
                         }
