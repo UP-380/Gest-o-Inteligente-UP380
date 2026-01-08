@@ -55,7 +55,7 @@ const TempoEstimadoInput = ({ value, onChange, disabled = false, placeholder = "
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div 
-        className="tempo-estimado-input-wrapper"
+        className={`tempo-estimado-input-wrapper ${disabled ? 'disabled' : ''}`}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >

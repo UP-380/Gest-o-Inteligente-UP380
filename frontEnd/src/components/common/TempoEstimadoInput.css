@@ -44,6 +44,22 @@
   transition: all 0.2s ease !important;
 }
 
+/* Estado disabled - similar ao ResponsavelCard */
+.tempo-estimado-input-wrapper.disabled {
+  background-color: #f3f4f6 !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+}
+
+/* Estado disabled quando usado dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-input-wrapper.disabled {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
 .tempo-estimado-input-text {
   flex: 1;
   padding: 10px 12px;
@@ -157,6 +173,18 @@
   font-weight: 500 !important;
   flex-shrink: 0 !important;
   white-space: nowrap !important;
+}
+
+/* Separadores quando disabled */
+.tempo-estimado-input-wrapper.disabled .tempo-estimado-separador {
+  color: #9ca3af !important;
+  opacity: 0.6 !important;
+}
+
+/* Separadores quando disabled dentro de selected-item-tag */
+.selected-item-tag .tempo-estimado-input-wrapper.disabled .tempo-estimado-separador {
+  color: rgba(255, 255, 255, 0.4) !important;
+  opacity: 0.6 !important;
 }
 
 .tempo-estimado-toggle-btn {
