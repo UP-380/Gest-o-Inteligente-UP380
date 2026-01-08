@@ -53,6 +53,12 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   // Usar useRef para rastrear o período anterior e evitar loops infinitos
   const periodoAnteriorRef = useRef({ inicio: localInicio, fim: localFim });
   const processandoPeriodoRef = useRef(false);
+  const onDatasIndividuaisChangeRef = useRef(onDatasIndividuaisChange);
+  
+  // Atualizar ref quando a função mudar (sem causar re-render)
+  useEffect(() => {
+    onDatasIndividuaisChangeRef.current = onDatasIndividuaisChange;
+  }, [onDatasIndividuaisChange]);
   
   useEffect(() => {
     // Evitar processamento simultâneo
@@ -86,10 +92,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         const precisaAtualizar = novasDatas.size !== prevDatas.size || 
                                  ![...prevDatas].every(v => novasDatas.has(v));
         
-        if (precisaAtualizar && onDatasIndividuaisChange) {
+        if (precisaAtualizar && onDatasIndividuaisChangeRef.current) {
           // Usar setTimeout para evitar chamar durante o render
           setTimeout(() => {
-            onDatasIndividuaisChange(Array.from(novasDatas));
+            onDatasIndividuaisChangeRef.current(Array.from(novasDatas));
             processandoPeriodoRef.current = false;
           }, 0);
         } else {
@@ -100,9 +106,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       } else {
         // Se não há período, limpar todas as datas individuais
         if (prevDatas.size > 0) {
-          if (onDatasIndividuaisChange) {
+          if (onDatasIndividuaisChangeRef.current) {
             setTimeout(() => {
-              onDatasIndividuaisChange([]);
+              onDatasIndividuaisChangeRef.current([]);
               processandoPeriodoRef.current = false;
             }, 0);
           } else {
@@ -114,21 +120,34 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         return prevDatas;
       }
     });
-  }, [localInicio, localFim, onDatasIndividuaisChange]);
+  }, [localInicio, localFim]);
+
+  // Usar refs para callbacks para evitar loops infinitos
+  const onWeekendToggleChangeRef = useRef(onWeekendToggleChange);
+  const onHolidayToggleChangeRef = useRef(onHolidayToggleChange);
+  
+  // Atualizar refs quando as funções mudarem (sem causar re-render)
+  useEffect(() => {
+    onWeekendToggleChangeRef.current = onWeekendToggleChange;
+  }, [onWeekendToggleChange]);
+  
+  useEffect(() => {
+    onHolidayToggleChangeRef.current = onHolidayToggleChange;
+  }, [onHolidayToggleChange]);
 
   // Notificar o componente pai sobre o valor inicial do toggle e quando mudar
   useEffect(() => {
-    if (showWeekendToggle && onWeekendToggleChange) {
-      onWeekendToggleChange(habilitarFinaisSemana);
+    if (showWeekendToggle && onWeekendToggleChangeRef.current) {
+      onWeekendToggleChangeRef.current(habilitarFinaisSemana);
     }
-  }, [showWeekendToggle, habilitarFinaisSemana, onWeekendToggleChange]);
+  }, [showWeekendToggle, habilitarFinaisSemana]);
 
   // Notificar o componente pai sobre o valor inicial do toggle de feriados e quando mudar
   useEffect(() => {
-    if (showHolidayToggle && onHolidayToggleChange) {
-      onHolidayToggleChange(habilitarFeriados);
+    if (showHolidayToggle && onHolidayToggleChangeRef.current) {
+      onHolidayToggleChangeRef.current(habilitarFeriados);
     }
-  }, [showHolidayToggle, habilitarFeriados, onHolidayToggleChange]);
+  }, [showHolidayToggle, habilitarFeriados]);
 
   // Buscar feriados quando o mês mudar - sempre buscar para visualização
   useEffect(() => {

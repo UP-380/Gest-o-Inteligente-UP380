@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CustomSelect from '../vinculacoes/CustomSelect';
+import ResponsavelCard from '../atribuicoes/ResponsavelCard';
 import TempoEstimadoInput from '../common/TempoEstimadoInput';
 import FilterPeriodo from '../filters/FilterPeriodo';
 import './SelecaoTarefasPorProduto.css';
@@ -34,7 +35,11 @@ const SelecaoTarefasPorProduto = ({
   periodosPorTarefa = {},
   onPeriodoChange = null,
   modoPeriodoParaMuitos = false,
-  filterPeriodoUiVariant
+  filterPeriodoUiVariant,
+  // Responsáveis por tarefa
+  responsaveisPorTarefa = {},
+  onResponsavelChange = null,
+  colaboradores = []
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -946,6 +951,42 @@ const SelecaoTarefasPorProduto = ({
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada */}
+                        {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
+                          <div 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              marginRight: '8px',
+                              pointerEvents: 'auto',
+                              position: 'relative',
+                              zIndex: 10,
+                              minWidth: '200px',
+                              maxWidth: '250px'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <ResponsavelCard
+                              value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                              options={colaboradores.map(c => ({ 
+                                value: String(c.id), 
+                                label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
+                              }))}
+                              onChange={(e) => {
+                                const responsavelId = e.target.value || null;
+                                if (onResponsavelChange) {
+                                  onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                }
+                              }}
+                              placeholder="Selecione responsável"
+                              disabled={disabledTempo}
+                              colaboradores={colaboradores}
+                            />
+                          </div>
+                        )}
                         {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
                         {showTempoEstimado && tarefa.selecionada && (
                           <div 
@@ -963,10 +1004,10 @@ const SelecaoTarefasPorProduto = ({
                           onMouseDown={(e) => e.stopPropagation()}
                           >
                             <TempoEstimadoInput
-                              value={tempoEstimadoDia[`${produtoId}_${tarefa.id}`] || tempoEstimadoDia[tarefa.id] || 0}
+                              value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
                               onChange={(tempoEmMs) => {
                                 if (onTempoChange) {
-                                  onTempoChange(produtoId, tarefa.id, tempoEmMs);
+                                  onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
                                 }
                               }}
                               disabled={disabledTempo}
@@ -1250,6 +1291,42 @@ const SelecaoTarefasPorProduto = ({
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                          {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
+                          {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
+                            <div 
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                marginRight: '8px',
+                                pointerEvents: 'auto',
+                                position: 'relative',
+                                zIndex: 10,
+                                minWidth: '200px',
+                                maxWidth: '250px'
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
+                              <ResponsavelCard
+                                value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                options={colaboradores.map(c => ({ 
+                                  value: String(c.id), 
+                                  label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
+                                }))}
+                                onChange={(e) => {
+                                  const responsavelId = e.target.value || null;
+                                  if (onResponsavelChange) {
+                                    onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                  }
+                                }}
+                                placeholder="Selecione responsável"
+                                disabled={disabledTempo}
+                                colaboradores={colaboradores}
+                              />
+                            </div>
+                          )}
                           {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
                           {showTempoEstimado && tarefa.selecionada && (
                             <div 
@@ -1267,10 +1344,10 @@ const SelecaoTarefasPorProduto = ({
                           onMouseDown={(e) => e.stopPropagation()}
                             >
                               <TempoEstimadoInput
-                                value={tempoEstimadoDia[`${produtoId}_${tarefa.id}`] || tempoEstimadoDia[tarefa.id] || 0}
+                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
                                 onChange={(tempoEmMs) => {
                                   if (onTempoChange) {
-                                    onTempoChange(produtoId, tarefa.id, tempoEmMs);
+                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
                                   }
                                 }}
                                 disabled={disabledTempo}

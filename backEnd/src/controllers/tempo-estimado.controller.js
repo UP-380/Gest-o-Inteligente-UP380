@@ -203,6 +203,7 @@ async function criarTempoEstimado(req, res) {
               error: `Tarefa do produto ${produtoId} deve ter tarefa_id e tempo_estimado_dia válido (maior que zero)`
             });
           }
+          // responsavel_id é opcional na tarefa (será usado o global se não fornecido)
         }
         
         todasTarefasComTempo.push(...tarefasDoProduto);
@@ -278,10 +279,27 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
-    if (!responsavel_id) {
+    // responsavel_id global é obrigatório APENAS se nenhuma tarefa tiver responsavel_id próprio
+    // Verificar se pelo menos uma tarefa tem responsavel_id ou se há responsavel_id global
+    let temResponsavelGlobal = !!responsavel_id;
+    let temResponsavelPorTarefa = false;
+    
+    if (produtosComTarefasMap && Object.keys(produtosComTarefasMap).length > 0) {
+      for (const tarefasDoProduto of Object.values(produtosComTarefasMap)) {
+        for (const t of tarefasDoProduto) {
+          if (t.responsavel_id) {
+            temResponsavelPorTarefa = true;
+            break;
+          }
+        }
+        if (temResponsavelPorTarefa) break;
+      }
+    }
+    
+    if (!temResponsavelGlobal && !temResponsavelPorTarefa) {
       return res.status(400).json({
         success: false,
-        error: 'responsavel_id é obrigatório'
+        error: 'É necessário fornecer responsavel_id global ou responsavel_id em cada tarefa'
       });
     }
 
@@ -620,6 +638,16 @@ async function criarTempoEstimado(req, res) {
         const chave = `${produtoId}_${tarefaId}`;
         const tipoTarefaId = tipoTarefaPorProdutoTarefa.get(chave) || null;
         
+        // Usar responsavel_id da tarefa se fornecido, caso contrário usar o global
+        const responsavelIdParaTarefa = tarefaObj.responsavel_id 
+          ? String(tarefaObj.responsavel_id).trim()
+          : (responsavel_id ? String(responsavel_id).trim() : null);
+        
+        if (!responsavelIdParaTarefa) {
+          console.warn(`⚠️ Tarefa ${tarefaId} do produto ${produtoId} não tem responsavel_id definido, pulando...`);
+          return;
+        }
+        
         datasDoPeriodo.forEach(dataDoDia => {
           registrosParaInserir.push({
             cliente_id: String(cliente_id).trim(),
@@ -628,7 +656,7 @@ async function criarTempoEstimado(req, res) {
             data: dataDoDia,
             tempo_estimado_dia: tempoEstimado, // em milissegundos
             tipo_tarefa_id: tipoTarefaId, // ID do tipo da tarefa (text) - obtido via herança produto → tipo → tarefa
-            responsavel_id: String(responsavel_id).trim(),
+            responsavel_id: responsavelIdParaTarefa,
             agrupador_id: agrupador_id
           });
         });
