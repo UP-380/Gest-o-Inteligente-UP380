@@ -65,6 +65,7 @@ const DelegarTarefas = () => {
   const [filtroProdutoSelecionado, setFiltroProdutoSelecionado] = useState(null);
   const [filtroTarefaSelecionado, setFiltroTarefaSelecionado] = useState(null);
   const [filtroResponsavelSelecionado, setFiltroResponsavelSelecionado] = useState(null);
+  const [filtroStatusCliente, setFiltroStatusCliente] = useState('ativo');
   
   // Estados para filtros adicionais (que não são o filtro pai)
   const [mostrarFiltrosAdicionais, setMostrarFiltrosAdicionais] = useState(false);
@@ -353,6 +354,38 @@ const DelegarTarefas = () => {
     loadMembros();
     carregarTiposContrato();
   }, []);
+
+  // Recarregar clientes quando o filtro de status mudar (apenas se filtro cliente estiver ativo)
+  useEffect(() => {
+    if (filtros.cliente) {
+      // Carregar clientes e validar seleção após carregamento
+      loadClientes(filtroStatusCliente).then(clientesCarregados => {
+        // Validar se o cliente selecionado ainda está na lista filtrada
+        if (filtroClienteSelecionado && clientesCarregados && clientesCarregados.length > 0) {
+          const clienteSelecionadoValido = clientesCarregados.some(c => {
+            const clienteId = String(c.id).trim();
+            const selecionadoId = Array.isArray(filtroClienteSelecionado) 
+              ? filtroClienteSelecionado.map(id => String(id).trim())
+              : [String(filtroClienteSelecionado).trim()];
+            
+            if (Array.isArray(filtroClienteSelecionado)) {
+              return selecionadoId.includes(clienteId);
+            }
+            return clienteId === selecionadoId[0];
+          });
+          
+          // Se o cliente selecionado não está mais na lista filtrada, limpar a seleção
+          if (!clienteSelecionadoValido) {
+            setFiltroClienteSelecionado(null);
+          }
+        } else if (filtroClienteSelecionado && (!clientesCarregados || clientesCarregados.length === 0)) {
+          // Se não há clientes carregados e havia uma seleção, limpar a seleção
+          setFiltroClienteSelecionado(null);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroStatusCliente, filtros.cliente]);
 
   // Resetar expansão dos dashboards quando filtros forem aplicados
   useEffect(() => {
@@ -791,27 +824,35 @@ const DelegarTarefas = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosUltimosAplicados, registrosAgrupados]);
 
-  const loadClientes = async () => {
+  const loadClientes = async (statusFiltro = null) => {
     setLoading(true);
     try {
-      // Buscar todos os clientes com limite alto para garantir que todos sejam retornados
+      // Determinar o status a usar: se statusFiltro for 'todos' ou null, buscar todos
+      const statusParaBuscar = (statusFiltro && statusFiltro !== 'todos') ? statusFiltro : null;
+      
+      // Buscar clientes com limite alto para garantir que todos sejam retornados
+      // Se statusFiltro for fornecido e diferente de 'todos', filtrar por status
       const clientesResult = await clientesAPI.getPaginated({ 
         page: 1, 
         limit: 10000, 
         search: null, 
-        status: null, 
+        status: statusParaBuscar, 
         incompletos: false 
       });
       if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
         const clientesComDados = clientesResult.data.map(cliente => ({
           id: cliente.id,
-          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`
+          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`,
+          status: cliente.status || 'ativo' // Incluir status para validação posterior
         }));
         setClientes(clientesComDados);
+        return clientesComDados; // Retornar clientes carregados para validação
       }
+      return [];
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
       showToast('error', 'Erro ao carregar clientes');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1022,10 +1063,18 @@ const DelegarTarefas = () => {
     const novasHoras = {};
     const novosTiposContrato = {};
     
-    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados
-    for (const responsavelId of responsaveisIds) {
-      console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
-      const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados (em paralelo)
+    const responsaveisArray = Array.from(responsaveisIds);
+    const resultadosHoras = await Promise.all(
+      responsaveisArray.map(async (responsavelId) => {
+        console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
+        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+        return { responsavelId, resultado };
+      })
+    );
+    
+    // Processar resultados
+    resultadosHoras.forEach(({ responsavelId, resultado }) => {
       if (resultado) {
         novasHoras[responsavelId] = resultado.horascontratadasdia || null;
         novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
@@ -1035,7 +1084,7 @@ const DelegarTarefas = () => {
         novosTiposContrato[responsavelId] = null;
         console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
       }
-    }
+    });
     
     // Substituir cache completamente (não fazer merge) para garantir consistência
     setHorasContratadasPorResponsavel(novasHoras);
@@ -1311,6 +1360,18 @@ const DelegarTarefas = () => {
         });
       }
 
+      // Adicionar filtro de status de cliente (apenas quando filtro_cliente está ativo E é o filtro pai)
+      // Verificar se o filtro pai atual é realmente "cliente"
+      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+      const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
+      
+      if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
+        // Validar que o valor é válido antes de enviar
+        if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
+          params.append('cliente_status', filtroStatusCliente);
+        }
+      }
+
       // Adicionar filtro de período
       if (periodoAUsar.inicio) {
         params.append('data_inicio', periodoAUsar.inicio);
@@ -1338,13 +1399,9 @@ const DelegarTarefas = () => {
           agruparRegistros(result.data || []);
           setTotalRegistros(result.total || 0);
           setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
-          // Carregar nomes dos itens relacionados
-          await carregarNomesRelacionados(result.data || []);
           
-          // Buscar tempos realizados para todos os registros
-          await buscarTemposRealizados(result.data || []);
-          
-          // Carregar custos e horas contratadas para todos os responsáveis encontrados nos registros
+          // Preparar agrupamentos para dados auxiliares (se houver período)
+          let agrupamentosArray = [];
           if (periodoAUsar.inicio && periodoAUsar.fim) {
             const agrupadosTemp = {};
             (result.data || []).forEach(registro => {
@@ -1357,21 +1414,30 @@ const DelegarTarefas = () => {
               }
               agrupadosTemp[agrupadorId].quantidade++;
             });
-            
-            const agrupamentosArray = Object.values(agrupadosTemp);
-            
-            // Carregar todos os dados auxiliares ANTES de marcar como carregado
-            console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares (custos e horas contratadas)...');
-            await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
-            await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
-            
-            // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
-            console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
-            setDadosAuxiliaresCarregados(true);
-          } else {
-            // Se não há período, não precisa carregar horas contratadas, mas ainda marca como carregado
-            setDadosAuxiliaresCarregados(true);
+            agrupamentosArray = Object.values(agrupadosTemp);
           }
+          
+          // Paralelizar todas as operações auxiliares para melhor performance
+          console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares em paralelo...');
+          const operacoesAuxiliares = [
+            carregarNomesRelacionados(result.data || []),
+            buscarTemposRealizados(result.data || [])
+          ];
+          
+          // Adicionar operações de custos e horas contratadas apenas se houver período
+          if (periodoAUsar.inicio && periodoAUsar.fim && agrupamentosArray.length > 0) {
+            operacoesAuxiliares.push(
+              carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim),
+              carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim)
+            );
+          }
+          
+          // Executar todas as operações em paralelo
+          await Promise.all(operacoesAuxiliares);
+          
+          // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
+          console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
+          setDadosAuxiliaresCarregados(true);
         } else {
           // Se não há dados, marca como carregado mesmo assim
           setDadosAuxiliaresCarregados(true);
@@ -1406,46 +1472,74 @@ const DelegarTarefas = () => {
 
     const novosNomes = { ...nomesCache };
 
-    // Carregar nomes de produtos
+    // Carregar nomes de produtos (em paralelo)
     if (produtosIds.size > 0) {
       try {
-        const produtosArray = Array.from(produtosIds);
-        for (const produtoId of produtosArray) {
-          if (!novosNomes.produtos[produtoId]) {
-            const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
-              credentials: 'include',
-              headers: { 'Accept': 'application/json' }
-            });
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                novosNomes.produtos[produtoId] = result.data.nome || `Produto #${produtoId}`;
+        const produtosArray = Array.from(produtosIds).filter(id => !novosNomes.produtos[id]);
+        if (produtosArray.length > 0) {
+          const resultadosProdutos = await Promise.all(
+            produtosArray.map(async (produtoId) => {
+              try {
+                const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
+                  credentials: 'include',
+                  headers: { 'Accept': 'application/json' }
+                });
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    return { produtoId, nome: result.data.nome || `Produto #${produtoId}` };
+                  }
+                }
+                return { produtoId, nome: null };
+              } catch (error) {
+                console.error(`Erro ao carregar produto ${produtoId}:`, error);
+                return { produtoId, nome: null };
               }
+            })
+          );
+          
+          resultadosProdutos.forEach(({ produtoId, nome }) => {
+            if (nome) {
+              novosNomes.produtos[produtoId] = nome;
             }
-          }
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar nomes de produtos:', error);
       }
     }
 
-    // Carregar nomes de tarefas
+    // Carregar nomes de tarefas (em paralelo)
     if (tarefasIds.size > 0) {
       try {
-        const tarefasArray = Array.from(tarefasIds);
-        for (const tarefaId of tarefasArray) {
-          if (!novosNomes.tarefas[tarefaId]) {
-            const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
-              credentials: 'include',
-              headers: { 'Accept': 'application/json' }
-            });
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                novosNomes.tarefas[tarefaId] = result.data.nome || `Tarefa #${tarefaId}`;
+        const tarefasArray = Array.from(tarefasIds).filter(id => !novosNomes.tarefas[id]);
+        if (tarefasArray.length > 0) {
+          const resultadosTarefas = await Promise.all(
+            tarefasArray.map(async (tarefaId) => {
+              try {
+                const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
+                  credentials: 'include',
+                  headers: { 'Accept': 'application/json' }
+                });
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    return { tarefaId, nome: result.data.nome || `Tarefa #${tarefaId}` };
+                  }
+                }
+                return { tarefaId, nome: null };
+              } catch (error) {
+                console.error(`Erro ao carregar tarefa ${tarefaId}:`, error);
+                return { tarefaId, nome: null };
               }
+            })
+          );
+          
+          resultadosTarefas.forEach(({ tarefaId, nome }) => {
+            if (nome) {
+              novosNomes.tarefas[tarefaId] = nome;
             }
-          }
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar nomes de tarefas:', error);
@@ -1671,11 +1765,22 @@ const DelegarTarefas = () => {
 
     const novosCustos = { ...custosPorResponsavel };
     
-    for (const responsavelId of responsaveisIds) {
-      if (!novosCustos[responsavelId]) {
-        const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
+    // Filtrar apenas responsáveis que ainda não têm custo no cache
+    const responsaveisParaBuscar = Array.from(responsaveisIds).filter(id => !novosCustos[id]);
+    
+    // Buscar custos em paralelo para todos os responsáveis que precisam
+    if (responsaveisParaBuscar.length > 0) {
+      const resultadosCustos = await Promise.all(
+        responsaveisParaBuscar.map(async (responsavelId) => {
+          const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
+          return { responsavelId, custoHora };
+        })
+      );
+      
+      // Processar resultados
+      resultadosCustos.forEach(({ responsavelId, custoHora }) => {
         novosCustos[responsavelId] = custoHora;
-      }
+      });
     }
     
     setCustosPorResponsavel(novosCustos);
@@ -2274,6 +2379,7 @@ const DelegarTarefas = () => {
     setFiltroProdutoSelecionado(null);
     setFiltroTarefaSelecionado(null);
     setFiltroResponsavelSelecionado(null);
+    setFiltroStatusCliente('ativo'); // Resetar para valor padrão
     // Limpar filtros adicionais
     setMostrarFiltrosAdicionais(false);
     setFiltrosAdicionaisAtivos({
@@ -2319,6 +2425,11 @@ const DelegarTarefas = () => {
       periodoFim !== filtrosUltimosAplicados.periodoFim
     );
     
+    // Verificar se o filtro de status de cliente mudou (apenas quando filtro cliente está ativo)
+    const statusClienteMudou = filtros.cliente && (
+      filtroStatusCliente !== filtrosUltimosAplicados.filtroStatusCliente
+    );
+    
     // Valores selecionados (filtros "Definir") não contam como mudança pendente
     // pois eles já atualizam automaticamente os resultados
     // const valoresMudaram = (
@@ -2328,8 +2439,8 @@ const DelegarTarefas = () => {
     //   JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
     // );
     
-    // Apenas filtros principais ou período mudando ativam o botão "Aplicar Filtros"
-    return filtrosMudaram || periodoMudou;
+    // Apenas filtros principais, período ou status de cliente mudando ativam o botão "Aplicar Filtros"
+    return filtrosMudaram || periodoMudou || statusClienteMudou;
   };
 
   // Handler para mudança de filtro (apenas um filtro por vez nesta página)
@@ -2400,6 +2511,7 @@ const DelegarTarefas = () => {
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
       filtroResponsavelSelecionado,
+      filtroStatusCliente,
       filtrosAdicionais: {
         cliente: filtroAdicionalCliente,
         tarefa: filtroAdicionalTarefa,
@@ -2562,6 +2674,7 @@ const DelegarTarefas = () => {
         filtroProdutoSelecionado,
         filtroTarefaSelecionado,
         filtroResponsavelSelecionado,
+        filtroStatusCliente,
         filtrosAdicionais
       });
     }
@@ -2793,15 +2906,43 @@ const DelegarTarefas = () => {
                 
                 {/* Componentes de seleção para filtros pai */}
                 {filtros.cliente && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Clientes:</label>
-                    <FilterClientes
-                      value={filtroClienteSelecionado}
-                      onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
-                      disabled={loading || carregandoOpcoesFiltradas.cliente}
-                    />
-                  </div>
+                  <>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Clientes:</label>
+                      <FilterClientes
+                        value={filtroClienteSelecionado}
+                        onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
+                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                        disabled={loading || carregandoOpcoesFiltradas.cliente}
+                      />
+                    </div>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Status:</label>
+                      <select
+                        value={filtroStatusCliente}
+                        onChange={(e) => setFiltroStatusCliente(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          backgroundColor: '#fff',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#0e3b6f'}
+                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                        disabled={loading}
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 
                 {filtros.produto && (
@@ -5553,74 +5694,6 @@ const DelegarTarefas = () => {
               </div>
             )}
 
-            {/* Controles de Paginação */}
-            {totalRegistros > 0 && (
-              <div className="pagination-container" style={{ display: 'flex' }}>
-                <div className="pagination-limit-selector">
-                  <label htmlFor="paginationLimit">Exibir:</label>
-                  <select 
-                    id="paginationLimit" 
-                    className="pagination-limit-select"
-                    value={itemsPerPage}
-                    onChange={(e) => {
-                      setItemsPerPage(parseInt(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <option value="10">10 itens</option>
-                    <option value="20">20 itens</option>
-                    <option value="30">30 itens</option>
-                    <option value="50">50 itens</option>
-                  </select>
-                </div>
-                
-                <div className="pagination-info">
-                  <span>
-                    Mostrando {startItem} a {endItem} de {totalRegistros} atribuições
-                  </span>
-                </div>
-                
-                <div className="pagination-controls">
-                  <button 
-                    className="pagination-btn" 
-                    title="Primeira página"
-                    disabled={currentPage === 1 || loading}
-                    onClick={() => setCurrentPage(1)}
-                  >
-                    <i className="fas fa-angle-double-left"></i>
-                  </button>
-                  <button 
-                    className="pagination-btn" 
-                    title="Página anterior"
-                    disabled={currentPage === 1 || loading}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                  >
-                    <i className="fas fa-angle-left"></i>
-                  </button>
-                  
-                  <span className="pagination-current">
-                    Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                  </span>
-                  
-                  <button 
-                    className="pagination-btn" 
-                    title="Próxima página"
-                    disabled={currentPage === totalPages || totalPages === 0 || loading}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                  >
-                    <i className="fas fa-angle-right"></i>
-                  </button>
-                  <button 
-                    className="pagination-btn" 
-                    title="Última página"
-                    disabled={currentPage === totalPages || totalPages === 0 || loading}
-                    onClick={() => setCurrentPage(totalPages)}
-                  >
-                    <i className="fas fa-angle-double-right"></i>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </main>
       </div>
