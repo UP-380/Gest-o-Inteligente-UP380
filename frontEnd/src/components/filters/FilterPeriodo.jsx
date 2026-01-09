@@ -220,6 +220,29 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     }
   };
 
+  // Função para limpar todos os dados do período
+  const handleLimpar = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Limpar estado local
+    setLocalInicio('');
+    setLocalFim('');
+    setDatasIndividuaisLocal(new Set());
+    setSelectingStart(true);
+    
+    // Notificar componente pai
+    if (onInicioChange) {
+      onInicioChange({ target: { value: '' } });
+    }
+    if (onFimChange) {
+      onFimChange({ target: { value: '' } });
+    }
+    if (onDatasIndividuaisChange) {
+      onDatasIndividuaisChange([]);
+    }
+  };
+
   // Verificar se é final de semana (sábado = 6, domingo = 0)
   const isWeekend = (date) => {
     const dayOfWeek = date.getDay();
@@ -839,6 +862,47 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                       {days}
                     </div>
                   </div>
+
+                  {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
+                  {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'flex-end', 
+                      marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
+                      paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
+                    }}>
+                      <button
+                        type="button"
+                        onClick={handleLimpar}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: isAtribuicaoMini ? '4px 12px' : (size === 'small' ? '6px 14px' : '8px 16px'),
+                          fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'),
+                          fontWeight: 500,
+                          color: '#dc2626',
+                          backgroundColor: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontFamily: 'inherit'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fee2e2';
+                          e.currentTarget.style.borderColor = '#fca5a5';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fef2f2';
+                          e.currentTarget.style.borderColor = '#fecaca';
+                        }}
+                      >
+                        <i className="fas fa-times-circle" style={{ fontSize: isAtribuicaoMini ? '12px' : (size === 'small' ? '13px' : '14px') }}></i>
+                        <span>Limpar</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>,

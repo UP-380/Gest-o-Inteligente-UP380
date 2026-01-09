@@ -127,6 +127,10 @@ const DelegarTarefas = () => {
   // Cache de tempo estimado total por responsável no período (independente dos filtros aplicados)
   const [tempoEstimadoTotalPorResponsavel, setTempoEstimadoTotalPorResponsavel] = useState({}); // { responsavelId: tempoEmMs }
   
+  // Estado para rastrear se dados auxiliares (horas contratadas, tempo estimado total) foram completamente carregados
+  // Isso garante que os dashboards só sejam exibidos quando todos os dados estiverem 100% prontos
+  const [dadosAuxiliaresCarregados, setDadosAuxiliaresCarregados] = useState(false);
+  
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
@@ -729,14 +733,25 @@ const DelegarTarefas = () => {
   }, [filtros.produto, filtros.atividade, filtros.cliente, filtros.responsavel, ordemFiltros]);
 
   // Calcular tempo estimado total por responsável quando os filtros mudarem
+  // IMPORTANTE: Este useEffect só calcula tempo estimado total APÓS os registros estarem carregados
+  // Ele não depende de horas contratadas, então pode executar independentemente
   useEffect(() => {
     const calcularTemposEstimadosTotais = async () => {
       if (!filtrosUltimosAplicados || !filtrosUltimosAplicados.periodoInicio || !filtrosUltimosAplicados.periodoFim) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem período aplicado, limpando cache');
         setTempoEstimadoTotalPorResponsavel({});
         return;
       }
 
-      // Coletar todos os responsáveis únicos dos registros agrupados
+      // Verificar se há registros agrupados antes de calcular
+      // Se não há registros, não precisa calcular
+      if (!registrosAgrupados || registrosAgrupados.length === 0) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem registros agrupados, aguardando carregamento...');
+        setTempoEstimadoTotalPorResponsavel({});
+        return;
+      }
+
+      // Coletar todos os responsáveis únicos dos registros agrupados (resultados filtrados)
       const responsaveisUnicos = new Set();
       registrosAgrupados.forEach(agr => {
         if (agr.primeiroRegistro && agr.primeiroRegistro.responsavel_id) {
@@ -745,9 +760,12 @@ const DelegarTarefas = () => {
       });
 
       if (responsaveisUnicos.size === 0) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Nenhum responsável encontrado nos registros agrupados');
         setTempoEstimadoTotalPorResponsavel({});
         return;
       }
+
+      console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Calculando tempo estimado total para ${responsaveisUnicos.size} responsável(is) filtrado(s):`, Array.from(responsaveisUnicos));
 
       // Calcular tempo estimado total para cada responsável
       const temposCache = {};
@@ -761,10 +779,12 @@ const DelegarTarefas = () => {
           filtrosUltimosAplicados.datasIndividuais ?? []
         );
         temposCache[responsavelId] = tempo;
+        console.log(`  ✅ Responsável ${responsavelId}: ${tempo}ms de tempo estimado total`);
       });
 
       await Promise.all(promises);
       setTempoEstimadoTotalPorResponsavel(temposCache);
+      console.log(`✅ [TEMPO-ESTIMADO-TOTAL] Cache atualizado com ${Object.keys(temposCache).length} responsável(is)`);
     };
 
     calcularTemposEstimadosTotais();
@@ -981,11 +1001,11 @@ const DelegarTarefas = () => {
     }
   };
 
-  // Carregar horas contratadas para todos os responsáveis (incluindo todos os membros do sistema)
+  // Carregar horas contratadas APENAS para responsáveis dos resultados filtrados
   const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
     const responsaveisIds = new Set();
     
-    // Adicionar responsáveis dos registros agrupados
+    // Adicionar APENAS responsáveis dos registros agrupados (resultados filtrados)
     agrupamentos.forEach(agrupamento => {
       const primeiroRegistro = agrupamento.primeiroRegistro;
       if (primeiroRegistro.responsavel_id) {
@@ -993,29 +1013,34 @@ const DelegarTarefas = () => {
       }
     });
     
-    // Adicionar TODOS os membros do sistema para mostrar quem falta estimar
-    membros.forEach(membro => {
-      responsaveisIds.add(String(membro.id));
-    });
-
-    const novasHoras = { ...horasContratadasPorResponsavel };
-    const novosTiposContrato = { ...tipoContratoPorResponsavel };
+    // REMOVIDO: Não adicionar todos os membros do sistema
+    // Isso causava busca de horas para responsáveis não filtrados, gerando inconsistências
     
+    console.log(`📊 [HORAS-CONTRATADAS] Buscando horas contratadas para ${responsaveisIds.size} responsável(is) filtrado(s):`, Array.from(responsaveisIds));
+
+    // Limpar cache e criar novos objetos (não fazer merge) para garantir consistência
+    const novasHoras = {};
+    const novosTiposContrato = {};
+    
+    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados
     for (const responsavelId of responsaveisIds) {
-      if (!novasHoras[responsavelId]) {
-        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
-        if (resultado) {
-          novasHoras[responsavelId] = resultado.horascontratadasdia || null;
-          novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
-        } else {
-          novasHoras[responsavelId] = null;
-          novosTiposContrato[responsavelId] = null;
-        }
+      console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
+      const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+      if (resultado) {
+        novasHoras[responsavelId] = resultado.horascontratadasdia || null;
+        novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
+        console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'})`);
+      } else {
+        novasHoras[responsavelId] = null;
+        novosTiposContrato[responsavelId] = null;
+        console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
       }
     }
     
+    // Substituir cache completamente (não fazer merge) para garantir consistência
     setHorasContratadasPorResponsavel(novasHoras);
     setTipoContratoPorResponsavel(novosTiposContrato);
+    console.log(`✅ [HORAS-CONTRATADAS] Cache atualizado com ${Object.keys(novasHoras).length} responsável(is)`);
   };
 
   // Obter chave única para um registro de tempo estimado
@@ -1166,6 +1191,10 @@ const DelegarTarefas = () => {
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
     setLoading(true);
+    // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
+    // Isso garante que os dashboards não sejam exibidos com dados parciais
+    setDadosAuxiliaresCarregados(false);
+    
     // Resetar grupos expandidos quando recarregar os dados
     setGruposExpandidos(new Set());
     setTarefasExpandidas(new Set());
@@ -1330,14 +1359,32 @@ const DelegarTarefas = () => {
             });
             
             const agrupamentosArray = Object.values(agrupadosTemp);
+            
+            // Carregar todos os dados auxiliares ANTES de marcar como carregado
+            console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares (custos e horas contratadas)...');
             await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
             await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            
+            // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
+            console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
+            setDadosAuxiliaresCarregados(true);
+          } else {
+            // Se não há período, não precisa carregar horas contratadas, mas ainda marca como carregado
+            setDadosAuxiliaresCarregados(true);
           }
+        } else {
+          // Se não há dados, marca como carregado mesmo assim
+          setDadosAuxiliaresCarregados(true);
         }
+      } else {
+        // Se não há resposta ok, marca como carregado para não travar a interface
+        setDadosAuxiliaresCarregados(true);
       }
     } catch (error) {
       console.error('Erro ao carregar registros:', error);
       showToast('error', 'Erro ao carregar registros de tempo estimado');
+      // Em caso de erro, marca como carregado para não travar a interface
+      setDadosAuxiliaresCarregados(true);
     } finally {
       setLoading(false);
     }
@@ -2327,6 +2374,14 @@ const DelegarTarefas = () => {
       return;
     }
     
+    // Limpar caches para garantir dados consistentes com os novos filtros
+    console.log('🔄 [APLICAR-FILTROS] Limpando caches de horas contratadas e tempo estimado');
+    setHorasContratadasPorResponsavel({});
+    setTipoContratoPorResponsavel({});
+    setTempoEstimadoTotalPorResponsavel({});
+    // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
+    setDadosAuxiliaresCarregados(false);
+    
     // Os filtros detalhados (valores selecionados) não são obrigatórios
     // Se um filtro pai está selecionado mas não há valores selecionados, 
     // o sistema vai trazer todos os registros daquele tipo
@@ -2422,10 +2477,33 @@ const DelegarTarefas = () => {
     return false;
   };
 
-  // Não carregar automaticamente - apenas quando filtros forem aplicados
+  // Recarregar dados quando página ou itens por página mudarem (apenas se filtros já foram aplicados)
   useEffect(() => {
-    if (filtrosAplicados) {
-      loadRegistrosTempoEstimado(filtros);
+    if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
+      // Preparar valores selecionados para passar para a função
+      const valoresSelecionados = {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+      
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      };
+      
+      // Preparar configuração de período
+      const configuracaoPeriodo = {
+        inicio: periodoInicio,
+        fim: periodoFim
+      };
+      
+      // Recarregar com todos os parâmetros corretos
+      console.log('🔄 [PAGINAÇÃO] Recarregando dados com filtros aplicados (página:', currentPage, ', itens:', itemsPerPage, ')');
+      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, itemsPerPage]);
@@ -2464,6 +2542,14 @@ const DelegarTarefas = () => {
         inicio: periodoInicio,
         fim: periodoFim
       };
+      
+      // Limpar caches quando filtros detalhados mudarem para garantir consistência
+      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
+      setHorasContratadasPorResponsavel({});
+      setTipoContratoPorResponsavel({});
+      setTempoEstimadoTotalPorResponsavel({});
+      // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
+      setDadosAuxiliaresCarregados(false);
       
       // Recarregar registros com os novos valores selecionados e filtros adicionais
       loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
@@ -2889,7 +2975,9 @@ const DelegarTarefas = () => {
             ) : (
               <div className="atribuicoes-list-container">
                 {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
-                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && (
+                {/* IMPORTANTE: Só exibir dashboards quando dados auxiliares (horas contratadas, tempo estimado total) estiverem 100% carregados */}
+                {/* Isso previne exibição de valores parciais (ex: 40h em vez de 100h) */}
+                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && dadosAuxiliaresCarregados && (
                   <div className="tempo-disponivel-section">
                     <h3 className="tempo-disponivel-title">
                       <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>

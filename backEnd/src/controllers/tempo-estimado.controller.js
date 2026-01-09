@@ -249,13 +249,6 @@ async function criarTempoEstimado(req, res) {
     console.log('📦 Body recebido:', JSON.stringify(req.body, null, 2));
     
     const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
-    
-    console.log('🔍 Campos de período recebidos:', {
-      data_inicio: data_inicio || 'não fornecido',
-      data_fim: data_fim || 'não fornecido',
-      datas_individuais_count: Array.isArray(datas_individuais) ? datas_individuais.length : 'não é array',
-      datas_individuais: Array.isArray(datas_individuais) && datas_individuais.length > 0 ? datas_individuais.slice(0, 5) : 'vazio ou não array'
-    });
 
     // Validações
     if (!cliente_id) {
@@ -366,20 +359,10 @@ async function criarTempoEstimado(req, res) {
     const tarefaIdsArray = todasTarefasComTempo.map(t => String(t.tarefa_id).trim());
 
     // Validar: precisa de período completo OU datas individuais
-    // Considerar período completo se ambos data_inicio e data_fim estiverem definidos e não forem null/undefined/vazio
-    const temPeriodoCompleto = data_inicio && data_fim && 
-                                String(data_inicio).trim() !== '' && 
-                                String(data_fim).trim() !== '';
+    const temPeriodoCompleto = data_inicio && data_fim;
     const temDatasIndividuais = Array.isArray(datas_individuais) && datas_individuais.length > 0;
 
     if (!temPeriodoCompleto && !temDatasIndividuais) {
-      console.error('❌ Validação falhou: período incompleto', {
-        temPeriodoCompleto,
-        temDatasIndividuais,
-        data_inicio: data_inicio || 'não fornecido',
-        data_fim: data_fim || 'não fornecido',
-        datas_individuais_count: Array.isArray(datas_individuais) ? datas_individuais.length : 'não é array'
-      });
       return res.status(400).json({
         success: false,
         error: 'É necessário fornecer data_inicio e data_fim OU datas_individuais'

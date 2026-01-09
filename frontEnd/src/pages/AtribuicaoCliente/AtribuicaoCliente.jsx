@@ -2094,34 +2094,18 @@ const AtribuicaoCliente = () => {
         // Caso contrário, o responsavel_id já está em cada tarefa
         const responsavelComum = grupo.responsavel_id;
         
-        // Verificar se há período completo (ambos inicio e fim definidos)
-        const temPeriodoCompleto = grupo.periodo.inicio && grupo.periodo.fim;
-        const temDatasIndividuais = Array.isArray(grupo.periodo.datas_individuais) && grupo.periodo.datas_individuais.length > 0;
-        
-        // Construir payload base
         const payload = {
           cliente_id: clienteSelecionado,
           produtos_com_tarefas: grupo.produtos_com_tarefas,
+          data_inicio: grupo.periodo.inicio,
+          data_fim: grupo.periodo.fim,
           responsavel_id: responsavelComum, // Pode ser usado como fallback se tarefa não tiver responsavel_id
           incluir_finais_semana: grupo.periodo.incluir_finais_semana,
           incluir_feriados: grupo.periodo.incluir_feriados,
-          datas_individuais: grupo.periodo.datas_individuais || []
+          datas_individuais: grupo.periodo.datas_individuais
         };
-        
-        // Incluir data_inicio e data_fim apenas se ambos estiverem definidos (período completo)
-        if (temPeriodoCompleto) {
-          payload.data_inicio = grupo.periodo.inicio;
-          payload.data_fim = grupo.periodo.fim;
-        }
-        
+
         console.log('💾 [ATRIBUICAO] Salvando grupo:', JSON.stringify(payload, null, 2));
-        console.log('🔍 [ATRIBUICAO] Debug do período:', {
-          temPeriodoCompleto,
-          temDatasIndividuais,
-          inicio: grupo.periodo.inicio,
-          fim: grupo.periodo.fim,
-          datasIndividuaisCount: grupo.periodo.datas_individuais?.length || 0
-        });
 
         const response = await fetch(urlBase, {
           method,
