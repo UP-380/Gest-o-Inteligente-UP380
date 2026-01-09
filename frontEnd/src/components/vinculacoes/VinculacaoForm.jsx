@@ -1716,7 +1716,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           }
         });
         
-        console.log(`✅ Produto ${produtoId}: ${tarefasSelecionadas.length} tarefa(s) selecionada(s) para salvar`, tarefasSelecionadas.map(t => ({ tarefaId: t.tarefaId, tipoTarefa: t.tipoTarefa?.id || t.tipoTarefa, subtarefas: t.subtarefas?.length || 0 })));
+        console.log(`✅ Produto ${produtoId}: ${tarefasSelecionadas.length} tarefa(s) selecionada(s) para salvar`, tarefasSelecionadas.map(t => ({ 
+          tarefaId: t.tarefaId, 
+          tipoTarefa: t.tipoTarefa?.id || t.tipoTarefa, 
+          subtarefas: t.subtarefas?.length || 0,
+          subtarefasIds: t.subtarefas || []
+        })));
         
         // Criar vinculações para tarefas selecionadas
         if (tarefasSelecionadas.length > 0) {
@@ -1732,7 +1737,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               }
             }
             
-            console.log(`  📝 Criando vinculação para tarefa ${tarefaId} (tipo: ${tipoTarefaId}, subtarefas: ${subtarefas?.length || 0})`);
+            console.log(`  📝 Criando vinculação para tarefa ${tarefaId} (tipo: ${tipoTarefaId}, subtarefas: ${subtarefas?.length || 0})`, {
+              subtarefasIds: subtarefas || [],
+              detalhes: subtarefas && subtarefas.length > 0 ? `Criando ${subtarefas.length} vínculo(s) de subtarefa(s)` : 'Criando vínculo apenas da tarefa (sem subtarefas)'
+            });
             
             if (subtarefas && subtarefas.length > 0) {
               // Criar vínculo para cada subtarefa selecionada
@@ -3394,29 +3402,63 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   onTarefasChange={(tarefasPorProduto) => {
                     // Converter formato: { produtoId: [{ id, nome, selecionada, subtarefasSelecionadas, ehExcecao, tipoTarefa }] }
                     // Para: { produtoId: { tarefaId: { selecionada: boolean, subtarefas: [subtarefaId], tipoTarefa: {id, nome} } } }
-                    // IMPORTANTE: Incluir apenas tarefas que estão selecionadas (selecionada === true)
-                    // Se uma tarefa foi desmarcada (selecionada === false), ela NÃO deve estar no estado
-                    // Isso garante que ao salvar, tarefas desmarcadas serão removidas
-                    const novoFormato = {};
-                    Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
-                      const produtoIdNum = parseInt(produtoId, 10);
-                      novoFormato[produtoIdNum] = {};
-                      tarefas.forEach(tarefa => {
-                        // IMPORTANTE: Incluir apenas tarefas que estão explicitamente selecionadas
-                        // Se selecionada === false, a tarefa não será incluída no estado
-                        // Isso garante que tarefas desmarcadas (exceções ou padrão) serão removidas ao salvar
-                        if (tarefa.selecionada === true) {
-                          novoFormato[produtoIdNum][tarefa.id] = {
-                            selecionada: true,
-                            subtarefas: tarefa.subtarefasSelecionadas || [],
-                            tipoTarefa: tarefa.tipoTarefa || null // Preservar tipo de tarefa
-                          };
-                        }
-                        // Se selecionada === false, não incluir no estado (será removida ao salvar)
+                    // IMPORTANTE: Fazer merge com estado existente para preservar tarefas não editadas
+                    setTarefasSelecionadasPorProdutoSecao4(prevEstado => {
+                      const novoFormato = { ...prevEstado }; // Preservar estado existente
+                      
+                      console.log('🔄 onTarefasChange: Recebendo atualização de tarefas', {
+                        produtosRecebidos: Object.keys(tarefasPorProduto).length,
+                        produtosNoEstadoAnterior: Object.keys(prevEstado).length
                       });
+                      
+                      Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
+                        const produtoIdNum = parseInt(produtoId, 10);
+                        
+                        // Inicializar objeto do produto se não existir
+                        if (!novoFormato[produtoIdNum]) {
+                          novoFormato[produtoIdNum] = {};
+                        }
+                        
+                        // Processar cada tarefa recebida
+                        tarefas.forEach(tarefa => {
+                          if (tarefa.selecionada === true) {
+                            // Tarefa está selecionada: atualizar ou criar entrada
+                            novoFormato[produtoIdNum][tarefa.id] = {
+                              selecionada: true,
+                              subtarefas: tarefa.subtarefasSelecionadas || [],
+                              tipoTarefa: tarefa.tipoTarefa || null // Preservar tipo de tarefa
+                            };
+                            console.log(`  ✅ Tarefa ${tarefa.id} do produto ${produtoIdNum}: ${tarefa.subtarefasSelecionadas?.length || 0} subtarefa(s) selecionada(s)`, tarefa.subtarefasSelecionadas);
+                          } else {
+                            // Tarefa foi desmarcada: remover do estado
+                            if (novoFormato[produtoIdNum][tarefa.id]) {
+                              delete novoFormato[produtoIdNum][tarefa.id];
+                              console.log(`  ❌ Tarefa ${tarefa.id} do produto ${produtoIdNum}: removida (desmarcada)`);
+                            }
+                          }
+                        });
+                      });
+                      
+                      // Log detalhado do estado final
+                      const totalTarefas = Object.values(novoFormato).reduce((acc, produto) => {
+                        return acc + Object.keys(produto).length;
+                      }, 0);
+                      
+                      console.log('📋 Tarefas selecionadas atualizadas (merge completo):', {
+                        totalProdutos: Object.keys(novoFormato).length,
+                        totalTarefas: totalTarefas,
+                        detalhes: Object.entries(novoFormato).map(([prodId, tarefas]) => ({
+                          produtoId: prodId,
+                          tarefas: Object.keys(tarefas).length,
+                          subtarefasPorTarefa: Object.entries(tarefas).map(([tId, dados]) => ({
+                            tarefaId: tId,
+                            subtarefas: dados.subtarefas?.length || 0
+                          }))
+                        }))
+                      });
+                      
+                      return novoFormato;
                     });
-                    setTarefasSelecionadasPorProdutoSecao4(novoFormato);
-                    console.log('📋 Tarefas selecionadas atualizadas (apenas selecionadas):', novoFormato);
                   }}
                 />
               </div>

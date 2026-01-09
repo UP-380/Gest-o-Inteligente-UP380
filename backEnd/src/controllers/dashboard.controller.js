@@ -71,8 +71,14 @@ async function getDashboardClientes(req, res) {
       clienteId, 
       colaboradorId, 
       dataInicio, 
-      dataFim 
+      dataFim,
+      incluirClientesInativos = 'false',
+      incluirColaboradoresInativos = 'false'
     } = req.query;
+    
+    // Converter strings para boolean
+    const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
+    const incluirColaboradoresInativosBool = incluirColaboradoresInativos === 'true' || incluirColaboradoresInativos === true;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -417,17 +423,33 @@ async function getDashboardClientes(req, res) {
     }
     
     if (clienteIdsPaginated.length > 0) {
-      const { data: clientesData, error: clientesError } = await supabase
+      let queryClientes = supabase
         .schema('up_gestaointeligente')
         .from('cp_cliente')
-        .select('id, nome')
+        .select('id, nome, status')
         .in('id', clienteIdsPaginated);
+      
+      // Aplicar filtro de status se necessário
+      if (!incluirClientesInativosBool) {
+        queryClientes = queryClientes.or('status.is.null,status.eq.ativo');
+      }
+      
+      const { data: clientesData, error: clientesError } = await queryClientes;
+      
+      // Filtrar clientes inativos após buscar (fallback caso o filtro do Supabase não funcione)
+      let clientesFiltrados = clientesData || [];
+      if (!incluirClientesInativosBool) {
+        clientesFiltrados = clientesFiltrados.filter(c => {
+          const status = c.status || 'ativo';
+          return status !== 'inativo';
+        });
+      }
 
       if (clientesError) {
         console.error('Erro ao buscar clientes:', clientesError);
         return res.status(500).json({ success: false, error: 'Erro ao buscar clientes' });
       }
-      clientes = clientesData || [];
+      clientes = clientesFiltrados;
       
       // Se não encontrou nenhum cliente, construir mensagem específica
       if (clientes.length === 0) {
@@ -619,14 +641,39 @@ async function getDashboardClientes(req, res) {
     }
 
     const contratosPagina = contratosData.data || [];
-    const registrosPaginaRaw = registrosData.data || [];
+    let registrosPaginaRaw = registrosData.data || [];
+    
+    const todosContratos = todosContratosData.data || [];
+    let todosRegistrosRaw = todosRegistrosData.data || [];
+    
+    // Filtrar clientes inativos se necessário
+    if (!incluirClientesInativosBool && clientes.length > 0) {
+      const clientesInativosIds = new Set(
+        clientes
+          .filter(c => {
+            const status = c.status || 'ativo';
+            return status === 'inativo';
+          })
+          .map(c => String(c.id).trim())
+      );
+      
+      if (clientesInativosIds.size > 0) {
+        registrosPaginaRaw = registrosPaginaRaw.filter(r => {
+          if (!r.cliente_id) return true;
+          const clienteIds = String(r.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+          return !clienteIds.some(id => clientesInativosIds.has(id));
+        });
+        todosRegistrosRaw = todosRegistrosRaw.filter(r => {
+          if (!r.cliente_id) return true;
+          const clienteIds = String(r.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+          return !clienteIds.some(id => clientesInativosIds.has(id));
+        });
+      }
+    }
     
     const registrosPagina = clienteIdsPaginated.length > 0 
       ? registrosPaginaRaw.filter(r => registroPertenceAosClientes(r, clienteIdsPaginated))
       : registrosPaginaRaw;
-    
-    const todosContratos = todosContratosData.data || [];
-    const todosRegistrosRaw = todosRegistrosData.data || [];
     
     const todosRegistros = clienteIds.length > 0
       ? todosRegistrosRaw.filter(r => registroPertenceAosClientes(r, clienteIds))
@@ -646,9 +693,31 @@ async function getDashboardClientes(req, res) {
     ])];
 
     // Buscar membros primeiro para poder usar na validação de interseção
-    const membrosData = colaboradorIdsArray.length > 0 
+    let membrosData = colaboradorIdsArray.length > 0 
       ? await getMembrosPorIds(colaboradorIdsArray)
       : (todosUsuarioIds.length > 0 ? await getMembrosPorIds(todosUsuarioIds) : []);
+    
+    // Filtrar membros inativos se necessário
+    if (!incluirColaboradoresInativosBool) {
+      membrosData = membrosData.filter(m => {
+        const status = m.status || 'ativo';
+        return status !== 'inativo';
+      });
+      
+      // Filtrar registros que pertencem a membros inativos
+      const membrosInativosIds = new Set(
+        (colaboradorIdsArray.length > 0 ? colaboradorIdsArray : todosUsuarioIds)
+          .filter(id => {
+            const membro = membrosData.find(m => String(m.id) === String(id) || parseInt(String(m.id)) === parseInt(String(id)));
+            return !membro; // Se não está na lista de membros filtrados, é inativo
+          })
+      );
+      
+      if (membrosInativosIds.size > 0) {
+        registrosPaginaRaw = registrosPaginaRaw.filter(r => !membrosInativosIds.has(r.usuario_id));
+        todosRegistrosRaw = todosRegistrosRaw.filter(r => !membrosInativosIds.has(r.usuario_id));
+      }
+    }
     
     const tarefasData = todosTarefaIds.length > 0 ? (async () => {
       const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
@@ -939,8 +1008,14 @@ async function getDashboardColaboradores(req, res) {
       clienteId, 
       colaboradorId, 
       dataInicio, 
-      dataFim 
+      dataFim,
+      incluirClientesInativos = 'false',
+      incluirColaboradoresInativos = 'false'
     } = req.query;
+    
+    // Converter strings para boolean
+    const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
+    const incluirColaboradoresInativosBool = incluirColaboradoresInativos === 'true' || incluirColaboradoresInativos === true;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -1108,12 +1183,27 @@ async function getDashboardColaboradores(req, res) {
     }
 
     // 2. Paginar os IDs de colaboradores
-    const totalColaboradores = colaboradorIds.length;
+    let totalColaboradores = colaboradorIds.length;
     const totalPages = Math.max(1, Math.ceil(totalColaboradores / limitNum));
-    const colaboradorIdsPaginated = colaboradorIds.slice(offset, offset + limitNum);
+    let colaboradorIdsPaginated = colaboradorIds.slice(offset, offset + limitNum);
 
     // 3. Buscar dados dos colaboradores da página atual
-    const colaboradoresData = await getMembrosPorIds(colaboradorIdsPaginated.map(id => parseInt(id, 10)).filter(id => !isNaN(id)));
+    let colaboradoresData = await getMembrosPorIds(colaboradorIdsPaginated.map(id => parseInt(id, 10)).filter(id => !isNaN(id)));
+    
+    // Filtrar colaboradores inativos se necessário
+    if (!incluirColaboradoresInativosBool) {
+      colaboradoresData = colaboradoresData.filter(c => {
+        const status = c.status || 'ativo';
+        return status !== 'inativo';
+      });
+      
+      // Atualizar colaboradorIdsPaginated para remover inativos
+      const colaboradoresAtivosIds = new Set(colaboradoresData.map(c => String(c.id).trim()));
+      colaboradorIdsPaginated = colaboradorIdsPaginated.filter(id => colaboradoresAtivosIds.has(String(id).trim()));
+      
+      // Recalcular total se necessário (mas manter o total original para paginação)
+    }
+    
     const colaboradoresMap = {};
     colaboradoresData.forEach(colab => {
       const idStr = String(colab.id).trim();
@@ -1192,7 +1282,6 @@ async function getDashboardColaboradores(req, res) {
         const todosRegistrosArrays = await Promise.all(todasQueries);
         const todosRegistros = todosRegistrosArrays.flat();
         
-        console.log(`✅ [DASHBOARD-COLABORADORES] Total de registros buscados para ${colaboradorIdsNumericos.length} colaborador(es) em ${chunks.length} chunk(s): ${todosRegistros.length}`);
         todosRegistrosData = { data: todosRegistros, error: null };
       } catch (error) {
         console.error('❌ Erro ao buscar todos os registros com paginação:', error);
@@ -1203,6 +1292,39 @@ async function getDashboardColaboradores(req, res) {
     // Filtrar registros por cliente se necessário
     let registrosPagina = registrosData.data || [];
     let todosRegistros = todosRegistrosData.data || [];
+    
+    // Filtrar registros de clientes inativos se necessário
+    if (!incluirClientesInativosBool && clienteIdsArray.length > 0) {
+      // Buscar status dos clientes
+      const { data: clientesData } = await supabase
+        .schema('up_gestaointeligente')
+        .from('cp_cliente')
+        .select('id, status')
+        .in('id', clienteIdsArray);
+      
+      const clientesInativosIds = new Set(
+        (clientesData || [])
+          .filter(c => {
+            const status = c.status || 'ativo';
+            return status === 'inativo';
+          })
+          .map(c => String(c.id).trim())
+      );
+      
+      if (clientesInativosIds.size > 0) {
+        registrosPagina = registrosPagina.filter(r => {
+          if (!r.cliente_id) return true;
+          const idsExtraidos = extrairClienteIds(r.cliente_id);
+          return !idsExtraidos.some(id => clientesInativosIds.has(String(id).trim()));
+        });
+        
+        todosRegistros = todosRegistros.filter(r => {
+          if (!r.cliente_id) return true;
+          const idsExtraidos = extrairClienteIds(r.cliente_id);
+          return !idsExtraidos.some(id => clientesInativosIds.has(String(id).trim()));
+        });
+      }
+    }
     
     if (clienteIdsArray.length > 0) {
       registrosPagina = registrosPagina.filter(r => {
@@ -1259,7 +1381,7 @@ async function getDashboardColaboradores(req, res) {
     )];
     const todosUsuarioIds = [...new Set(todosRegistros.map(r => r.usuario_id).filter(Boolean))];
 
-    const [tarefasData, clientesData, membrosData] = await Promise.all([
+    const [tarefasData, clientesData, membrosDataRaw] = await Promise.all([
       todosTarefaIds.length > 0 ? (async () => {
         const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
         const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
@@ -1271,15 +1393,55 @@ async function getDashboardColaboradores(req, res) {
         return tarefas || [];
       })() : Promise.resolve([]),
       todosClienteIds.length > 0 ? (async () => {
-        const { data: clientes } = await supabase
+        let queryClientes = supabase
           .schema('up_gestaointeligente')
           .from('cp_cliente')
-          .select('id, nome')
+          .select('id, nome, status')
           .in('id', todosClienteIds);
-        return clientes || [];
+        
+        // Aplicar filtro de status se necessário
+        if (!incluirClientesInativosBool) {
+          queryClientes = queryClientes.or('status.is.null,status.eq.ativo');
+        }
+        
+        const { data: clientes } = await queryClientes;
+        
+        // Filtrar clientes inativos após buscar (fallback)
+        let clientesFiltrados = clientes || [];
+        if (!incluirClientesInativosBool) {
+          clientesFiltrados = clientesFiltrados.filter(c => {
+            const status = c.status || 'ativo';
+            return status !== 'inativo';
+          });
+        }
+        
+        return clientesFiltrados;
       })() : Promise.resolve([]),
       todosUsuarioIds.length > 0 ? getMembrosPorIds(todosUsuarioIds) : Promise.resolve([])
     ]);
+    
+    // Filtrar membros inativos se necessário
+    let membrosData = membrosDataRaw;
+    if (!incluirColaboradoresInativosBool) {
+      membrosData = membrosData.filter(m => {
+        const status = m.status || 'ativo';
+        return status !== 'inativo';
+      });
+      
+      // Filtrar registros que pertencem a membros inativos
+      const membrosInativosIds = new Set(
+        todosUsuarioIds
+          .filter(id => {
+            const membro = membrosData.find(m => String(m.id) === String(id) || parseInt(String(m.id)) === parseInt(String(id)));
+            return !membro; // Se não está na lista de membros filtrados, é inativo
+          })
+      );
+      
+      if (membrosInativosIds.size > 0) {
+        registrosPagina = registrosPagina.filter(r => !membrosInativosIds.has(r.usuario_id));
+        todosRegistros = todosRegistros.filter(r => !membrosInativosIds.has(r.usuario_id));
+      }
+    }
 
     const todosProdutoIds = [...new Set(tarefasData.map(t => t.produto_id).filter(Boolean))];
     const produtosData = todosProdutoIds.length > 0 ? await getProdutosPorIds(todosProdutoIds) : [];

@@ -10,9 +10,10 @@ const removerAcentos = (texto) => {
     .toLowerCase();
 };
 
-const FilterClientes = ({ value, options = [], onChange, disabled = false }) => {
+const FilterClientes = ({ value, options = [], onChange, disabled = false, showInactiveToggle = false, onInactiveToggleChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mostrarInativos, setMostrarInativos] = useState(false);
   const containerRef = useRef(null);
   const searchInputRef = useRef(null);
 
@@ -42,8 +43,17 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
 
   const selectedText = getSelectedText();
 
-  // Filtrar opções baseado na busca - sem considerar acentos
+  // Filtrar opções baseado na busca e status - sem considerar acentos
   const filteredOptions = options.filter(cliente => {
+    // Se mostrarInativos estiver desativado, filtrar clientes inativos
+    if (!mostrarInativos) {
+      const status = cliente.status || 'ativo';
+      if (status === 'inativo') {
+        return false;
+      }
+    }
+    
+    // Filtrar por busca
     if (!searchQuery.trim()) return true;
     const queryNormalizado = removerAcentos(searchQuery.trim());
     const nomeNormalizado = removerAcentos(cliente.nome || '');
@@ -138,6 +148,13 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
     }
   }, [isOpen]);
 
+  // Notificar o componente pai sobre mudanças no toggle de inativos
+  useEffect(() => {
+    if (showInactiveToggle && onInactiveToggleChange) {
+      onInactiveToggleChange(mostrarInativos);
+    }
+  }, [showInactiveToggle, mostrarInativos, onInactiveToggleChange]);
+
   return (
     <>
       <label className="filter-label">Cliente</label>
@@ -174,14 +191,60 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
           {isOpen && !disabled && (
             <div className="cliente-dropdown">
               <div className="cliente-dropdown-content">
+                {/* Toggle para habilitar clientes inativos */}
+                {showInactiveToggle && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '6px', marginBottom: '4px', padding: '8px 12px', borderBottom: '1px solid #e5e7eb' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                      Habilitar clientes inativos:
+                    </label>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <input
+                        type="checkbox"
+                        id="toggleClientesInativos"
+                        checked={mostrarInativos}
+                        onChange={(e) => {
+                          const novoValor = e.target.checked;
+                          setMostrarInativos(novoValor);
+                        }}
+                        style={{
+                          width: '44px',
+                          height: '24px',
+                          appearance: 'none',
+                          backgroundColor: mostrarInativos ? '#ef4444' : '#cbd5e1',
+                          borderRadius: '12px',
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.2s',
+                          outline: 'none',
+                          border: 'none'
+                        }}
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '2px',
+                          left: mostrarInativos ? '22px' : '2px',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          backgroundColor: '#fff',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="cliente-options-container">
                   {sortedOptions.map((cliente) => {
                     const normalizedClienteId = normalizeId(cliente.id);
                     const isSelected = selectedIds.includes(normalizedClienteId);
+                    const isInativo = (cliente.status || 'ativo') === 'inativo';
                     return (
                       <div
                         key={cliente.id}
-                        className={`cliente-option ${isSelected ? 'selected' : ''}`}
+                        className={`cliente-option ${isSelected ? 'selected' : ''} ${isInativo ? 'inactive' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
@@ -193,6 +256,7 @@ const FilterClientes = ({ value, options = [], onChange, disabled = false }) => 
                           {isSelected && <i className="fas fa-check"></i>}
                         </div>
                         <span>{cliente.nome}</span>
+                        {isInativo && <span className="cliente-option-inactive-badge">inativo</span>}
                       </div>
                     );
                   })}

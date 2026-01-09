@@ -65,6 +65,7 @@ const DelegarTarefas = () => {
   const [filtroProdutoSelecionado, setFiltroProdutoSelecionado] = useState(null);
   const [filtroTarefaSelecionado, setFiltroTarefaSelecionado] = useState(null);
   const [filtroResponsavelSelecionado, setFiltroResponsavelSelecionado] = useState(null);
+  const [filtroStatusCliente, setFiltroStatusCliente] = useState('ativo');
   
   // Estados para filtros adicionais (que não são o filtro pai)
   const [mostrarFiltrosAdicionais, setMostrarFiltrosAdicionais] = useState(false);
@@ -126,6 +127,10 @@ const DelegarTarefas = () => {
   
   // Cache de tempo estimado total por responsável no período (independente dos filtros aplicados)
   const [tempoEstimadoTotalPorResponsavel, setTempoEstimadoTotalPorResponsavel] = useState({}); // { responsavelId: tempoEmMs }
+  
+  // Estado para rastrear se dados auxiliares (horas contratadas, tempo estimado total) foram completamente carregados
+  // Isso garante que os dashboards só sejam exibidos quando todos os dados estiverem 100% prontos
+  const [dadosAuxiliaresCarregados, setDadosAuxiliaresCarregados] = useState(false);
   
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
@@ -349,6 +354,38 @@ const DelegarTarefas = () => {
     loadMembros();
     carregarTiposContrato();
   }, []);
+
+  // Recarregar clientes quando o filtro de status mudar (apenas se filtro cliente estiver ativo)
+  useEffect(() => {
+    if (filtros.cliente) {
+      // Carregar clientes e validar seleção após carregamento
+      loadClientes(filtroStatusCliente).then(clientesCarregados => {
+        // Validar se o cliente selecionado ainda está na lista filtrada
+        if (filtroClienteSelecionado && clientesCarregados && clientesCarregados.length > 0) {
+          const clienteSelecionadoValido = clientesCarregados.some(c => {
+            const clienteId = String(c.id).trim();
+            const selecionadoId = Array.isArray(filtroClienteSelecionado) 
+              ? filtroClienteSelecionado.map(id => String(id).trim())
+              : [String(filtroClienteSelecionado).trim()];
+            
+            if (Array.isArray(filtroClienteSelecionado)) {
+              return selecionadoId.includes(clienteId);
+            }
+            return clienteId === selecionadoId[0];
+          });
+          
+          // Se o cliente selecionado não está mais na lista filtrada, limpar a seleção
+          if (!clienteSelecionadoValido) {
+            setFiltroClienteSelecionado(null);
+          }
+        } else if (filtroClienteSelecionado && (!clientesCarregados || clientesCarregados.length === 0)) {
+          // Se não há clientes carregados e havia uma seleção, limpar a seleção
+          setFiltroClienteSelecionado(null);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroStatusCliente, filtros.cliente]);
 
   // Resetar expansão dos dashboards quando filtros forem aplicados
   useEffect(() => {
@@ -729,14 +766,25 @@ const DelegarTarefas = () => {
   }, [filtros.produto, filtros.atividade, filtros.cliente, filtros.responsavel, ordemFiltros]);
 
   // Calcular tempo estimado total por responsável quando os filtros mudarem
+  // IMPORTANTE: Este useEffect só calcula tempo estimado total APÓS os registros estarem carregados
+  // Ele não depende de horas contratadas, então pode executar independentemente
   useEffect(() => {
     const calcularTemposEstimadosTotais = async () => {
       if (!filtrosUltimosAplicados || !filtrosUltimosAplicados.periodoInicio || !filtrosUltimosAplicados.periodoFim) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem período aplicado, limpando cache');
         setTempoEstimadoTotalPorResponsavel({});
         return;
       }
 
-      // Coletar todos os responsáveis únicos dos registros agrupados
+      // Verificar se há registros agrupados antes de calcular
+      // Se não há registros, não precisa calcular
+      if (!registrosAgrupados || registrosAgrupados.length === 0) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem registros agrupados, aguardando carregamento...');
+        setTempoEstimadoTotalPorResponsavel({});
+        return;
+      }
+
+      // Coletar todos os responsáveis únicos dos registros agrupados (resultados filtrados)
       const responsaveisUnicos = new Set();
       registrosAgrupados.forEach(agr => {
         if (agr.primeiroRegistro && agr.primeiroRegistro.responsavel_id) {
@@ -745,9 +793,12 @@ const DelegarTarefas = () => {
       });
 
       if (responsaveisUnicos.size === 0) {
+        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Nenhum responsável encontrado nos registros agrupados');
         setTempoEstimadoTotalPorResponsavel({});
         return;
       }
+
+      console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Calculando tempo estimado total para ${responsaveisUnicos.size} responsável(is) filtrado(s):`, Array.from(responsaveisUnicos));
 
       // Calcular tempo estimado total para cada responsável
       const temposCache = {};
@@ -761,37 +812,47 @@ const DelegarTarefas = () => {
           filtrosUltimosAplicados.datasIndividuais ?? []
         );
         temposCache[responsavelId] = tempo;
+        console.log(`  ✅ Responsável ${responsavelId}: ${tempo}ms de tempo estimado total`);
       });
 
       await Promise.all(promises);
       setTempoEstimadoTotalPorResponsavel(temposCache);
+      console.log(`✅ [TEMPO-ESTIMADO-TOTAL] Cache atualizado com ${Object.keys(temposCache).length} responsável(is)`);
     };
 
     calcularTemposEstimadosTotais();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrosUltimosAplicados, registrosAgrupados]);
 
-  const loadClientes = async () => {
+  const loadClientes = async (statusFiltro = null) => {
     setLoading(true);
     try {
-      // Buscar todos os clientes com limite alto para garantir que todos sejam retornados
+      // Determinar o status a usar: se statusFiltro for 'todos' ou null, buscar todos
+      const statusParaBuscar = (statusFiltro && statusFiltro !== 'todos') ? statusFiltro : null;
+      
+      // Buscar clientes com limite alto para garantir que todos sejam retornados
+      // Se statusFiltro for fornecido e diferente de 'todos', filtrar por status
       const clientesResult = await clientesAPI.getPaginated({ 
         page: 1, 
         limit: 10000, 
         search: null, 
-        status: null, 
+        status: statusParaBuscar, 
         incompletos: false 
       });
       if (clientesResult.success && clientesResult.data && Array.isArray(clientesResult.data)) {
         const clientesComDados = clientesResult.data.map(cliente => ({
           id: cliente.id,
-          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`
+          nome: cliente.nome || cliente.nome_amigavel || cliente.nome_fantasia || cliente.razao_social || `Cliente #${cliente.id}`,
+          status: cliente.status || 'ativo' // Incluir status para validação posterior
         }));
         setClientes(clientesComDados);
+        return clientesComDados; // Retornar clientes carregados para validação
       }
+      return [];
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
       showToast('error', 'Erro ao carregar clientes');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -981,11 +1042,11 @@ const DelegarTarefas = () => {
     }
   };
 
-  // Carregar horas contratadas para todos os responsáveis (incluindo todos os membros do sistema)
+  // Carregar horas contratadas APENAS para responsáveis dos resultados filtrados
   const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
     const responsaveisIds = new Set();
     
-    // Adicionar responsáveis dos registros agrupados
+    // Adicionar APENAS responsáveis dos registros agrupados (resultados filtrados)
     agrupamentos.forEach(agrupamento => {
       const primeiroRegistro = agrupamento.primeiroRegistro;
       if (primeiroRegistro.responsavel_id) {
@@ -993,29 +1054,34 @@ const DelegarTarefas = () => {
       }
     });
     
-    // Adicionar TODOS os membros do sistema para mostrar quem falta estimar
-    membros.forEach(membro => {
-      responsaveisIds.add(String(membro.id));
-    });
-
-    const novasHoras = { ...horasContratadasPorResponsavel };
-    const novosTiposContrato = { ...tipoContratoPorResponsavel };
+    // REMOVIDO: Não adicionar todos os membros do sistema
+    // Isso causava busca de horas para responsáveis não filtrados, gerando inconsistências
     
+    console.log(`📊 [HORAS-CONTRATADAS] Buscando horas contratadas para ${responsaveisIds.size} responsável(is) filtrado(s):`, Array.from(responsaveisIds));
+
+    // Limpar cache e criar novos objetos (não fazer merge) para garantir consistência
+    const novasHoras = {};
+    const novosTiposContrato = {};
+    
+    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados
     for (const responsavelId of responsaveisIds) {
-      if (!novasHoras[responsavelId]) {
-        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
-        if (resultado) {
-          novasHoras[responsavelId] = resultado.horascontratadasdia || null;
-          novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
-        } else {
-          novasHoras[responsavelId] = null;
-          novosTiposContrato[responsavelId] = null;
-        }
+      console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
+      const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+      if (resultado) {
+        novasHoras[responsavelId] = resultado.horascontratadasdia || null;
+        novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
+        console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'})`);
+      } else {
+        novasHoras[responsavelId] = null;
+        novosTiposContrato[responsavelId] = null;
+        console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
       }
     }
     
+    // Substituir cache completamente (não fazer merge) para garantir consistência
     setHorasContratadasPorResponsavel(novasHoras);
     setTipoContratoPorResponsavel(novosTiposContrato);
+    console.log(`✅ [HORAS-CONTRATADAS] Cache atualizado com ${Object.keys(novasHoras).length} responsável(is)`);
   };
 
   // Obter chave única para um registro de tempo estimado
@@ -1166,6 +1232,10 @@ const DelegarTarefas = () => {
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
     setLoading(true);
+    // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
+    // Isso garante que os dashboards não sejam exibidos com dados parciais
+    setDadosAuxiliaresCarregados(false);
+    
     // Resetar grupos expandidos quando recarregar os dados
     setGruposExpandidos(new Set());
     setTarefasExpandidas(new Set());
@@ -1282,6 +1352,18 @@ const DelegarTarefas = () => {
         });
       }
 
+      // Adicionar filtro de status de cliente (apenas quando filtro_cliente está ativo E é o filtro pai)
+      // Verificar se o filtro pai atual é realmente "cliente"
+      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+      const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
+      
+      if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
+        // Validar que o valor é válido antes de enviar
+        if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
+          params.append('cliente_status', filtroStatusCliente);
+        }
+      }
+
       // Adicionar filtro de período
       if (periodoAUsar.inicio) {
         params.append('data_inicio', periodoAUsar.inicio);
@@ -1330,14 +1412,32 @@ const DelegarTarefas = () => {
             });
             
             const agrupamentosArray = Object.values(agrupadosTemp);
+            
+            // Carregar todos os dados auxiliares ANTES de marcar como carregado
+            console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares (custos e horas contratadas)...');
             await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
             await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            
+            // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
+            console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
+            setDadosAuxiliaresCarregados(true);
+          } else {
+            // Se não há período, não precisa carregar horas contratadas, mas ainda marca como carregado
+            setDadosAuxiliaresCarregados(true);
           }
+        } else {
+          // Se não há dados, marca como carregado mesmo assim
+          setDadosAuxiliaresCarregados(true);
         }
+      } else {
+        // Se não há resposta ok, marca como carregado para não travar a interface
+        setDadosAuxiliaresCarregados(true);
       }
     } catch (error) {
       console.error('Erro ao carregar registros:', error);
       showToast('error', 'Erro ao carregar registros de tempo estimado');
+      // Em caso de erro, marca como carregado para não travar a interface
+      setDadosAuxiliaresCarregados(true);
     } finally {
       setLoading(false);
     }
@@ -2227,6 +2327,7 @@ const DelegarTarefas = () => {
     setFiltroProdutoSelecionado(null);
     setFiltroTarefaSelecionado(null);
     setFiltroResponsavelSelecionado(null);
+    setFiltroStatusCliente('ativo'); // Resetar para valor padrão
     // Limpar filtros adicionais
     setMostrarFiltrosAdicionais(false);
     setFiltrosAdicionaisAtivos({
@@ -2272,6 +2373,11 @@ const DelegarTarefas = () => {
       periodoFim !== filtrosUltimosAplicados.periodoFim
     );
     
+    // Verificar se o filtro de status de cliente mudou (apenas quando filtro cliente está ativo)
+    const statusClienteMudou = filtros.cliente && (
+      filtroStatusCliente !== filtrosUltimosAplicados.filtroStatusCliente
+    );
+    
     // Valores selecionados (filtros "Definir") não contam como mudança pendente
     // pois eles já atualizam automaticamente os resultados
     // const valoresMudaram = (
@@ -2281,8 +2387,8 @@ const DelegarTarefas = () => {
     //   JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
     // );
     
-    // Apenas filtros principais ou período mudando ativam o botão "Aplicar Filtros"
-    return filtrosMudaram || periodoMudou;
+    // Apenas filtros principais, período ou status de cliente mudando ativam o botão "Aplicar Filtros"
+    return filtrosMudaram || periodoMudou || statusClienteMudou;
   };
 
   // Handler para mudança de filtro (apenas um filtro por vez nesta página)
@@ -2327,6 +2433,14 @@ const DelegarTarefas = () => {
       return;
     }
     
+    // Limpar caches para garantir dados consistentes com os novos filtros
+    console.log('🔄 [APLICAR-FILTROS] Limpando caches de horas contratadas e tempo estimado');
+    setHorasContratadasPorResponsavel({});
+    setTipoContratoPorResponsavel({});
+    setTempoEstimadoTotalPorResponsavel({});
+    // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
+    setDadosAuxiliaresCarregados(false);
+    
     // Os filtros detalhados (valores selecionados) não são obrigatórios
     // Se um filtro pai está selecionado mas não há valores selecionados, 
     // o sistema vai trazer todos os registros daquele tipo
@@ -2345,6 +2459,7 @@ const DelegarTarefas = () => {
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
       filtroResponsavelSelecionado,
+      filtroStatusCliente,
       filtrosAdicionais: {
         cliente: filtroAdicionalCliente,
         tarefa: filtroAdicionalTarefa,
@@ -2422,10 +2537,33 @@ const DelegarTarefas = () => {
     return false;
   };
 
-  // Não carregar automaticamente - apenas quando filtros forem aplicados
+  // Recarregar dados quando página ou itens por página mudarem (apenas se filtros já foram aplicados)
   useEffect(() => {
-    if (filtrosAplicados) {
-      loadRegistrosTempoEstimado(filtros);
+    if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
+      // Preparar valores selecionados para passar para a função
+      const valoresSelecionados = {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+      
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      };
+      
+      // Preparar configuração de período
+      const configuracaoPeriodo = {
+        inicio: periodoInicio,
+        fim: periodoFim
+      };
+      
+      // Recarregar com todos os parâmetros corretos
+      console.log('🔄 [PAGINAÇÃO] Recarregando dados com filtros aplicados (página:', currentPage, ', itens:', itemsPerPage, ')');
+      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, itemsPerPage]);
@@ -2465,6 +2603,14 @@ const DelegarTarefas = () => {
         fim: periodoFim
       };
       
+      // Limpar caches quando filtros detalhados mudarem para garantir consistência
+      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
+      setHorasContratadasPorResponsavel({});
+      setTipoContratoPorResponsavel({});
+      setTempoEstimadoTotalPorResponsavel({});
+      // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
+      setDadosAuxiliaresCarregados(false);
+      
       // Recarregar registros com os novos valores selecionados e filtros adicionais
       loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
       
@@ -2476,6 +2622,7 @@ const DelegarTarefas = () => {
         filtroProdutoSelecionado,
         filtroTarefaSelecionado,
         filtroResponsavelSelecionado,
+        filtroStatusCliente,
         filtrosAdicionais
       });
     }
@@ -2707,15 +2854,43 @@ const DelegarTarefas = () => {
                 
                 {/* Componentes de seleção para filtros pai */}
                 {filtros.cliente && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Clientes:</label>
-                    <FilterClientes
-                      value={filtroClienteSelecionado}
-                      onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
-                      disabled={loading || carregandoOpcoesFiltradas.cliente}
-                    />
-                  </div>
+                  <>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Clientes:</label>
+                      <FilterClientes
+                        value={filtroClienteSelecionado}
+                        onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
+                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                        disabled={loading || carregandoOpcoesFiltradas.cliente}
+                      />
+                    </div>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Status:</label>
+                      <select
+                        value={filtroStatusCliente}
+                        onChange={(e) => setFiltroStatusCliente(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          backgroundColor: '#fff',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#0e3b6f'}
+                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                        disabled={loading}
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 
                 {filtros.produto && (
@@ -2889,7 +3064,9 @@ const DelegarTarefas = () => {
             ) : (
               <div className="atribuicoes-list-container">
                 {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
-                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && (
+                {/* IMPORTANTE: Só exibir dashboards quando dados auxiliares (horas contratadas, tempo estimado total) estiverem 100% carregados */}
+                {/* Isso previne exibição de valores parciais (ex: 40h em vez de 100h) */}
+                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && dadosAuxiliaresCarregados && (
                   <div className="tempo-disponivel-section">
                     <h3 className="tempo-disponivel-title">
                       <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
@@ -5465,74 +5642,6 @@ const DelegarTarefas = () => {
               </div>
             )}
 
-            {/* Controles de Paginação */}
-            {totalRegistros > 0 && (
-              <div className="pagination-container" style={{ display: 'flex' }}>
-                <div className="pagination-limit-selector">
-                  <label htmlFor="paginationLimit">Exibir:</label>
-                  <select 
-                    id="paginationLimit" 
-                    className="pagination-limit-select"
-                    value={itemsPerPage}
-                    onChange={(e) => {
-                      setItemsPerPage(parseInt(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <option value="10">10 itens</option>
-                    <option value="20">20 itens</option>
-                    <option value="30">30 itens</option>
-                    <option value="50">50 itens</option>
-                  </select>
-                </div>
-                
-                <div className="pagination-info">
-                  <span>
-                    Mostrando {startItem} a {endItem} de {totalRegistros} atribuições
-                  </span>
-                </div>
-                
-                <div className="pagination-controls">
-                  <button 
-                    className="pagination-btn" 
-                    title="Primeira página"
-                    disabled={currentPage === 1 || loading}
-                    onClick={() => setCurrentPage(1)}
-                  >
-                    <i className="fas fa-angle-double-left"></i>
-                  </button>
-                  <button 
-                    className="pagination-btn" 
-                    title="Página anterior"
-                    disabled={currentPage === 1 || loading}
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                  >
-                    <i className="fas fa-angle-left"></i>
-                  </button>
-                  
-                  <span className="pagination-current">
-                    Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                  </span>
-                  
-                  <button 
-                    className="pagination-btn" 
-                    title="Próxima página"
-                    disabled={currentPage === totalPages || totalPages === 0 || loading}
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                  >
-                    <i className="fas fa-angle-right"></i>
-                  </button>
-                  <button 
-                    className="pagination-btn" 
-                    title="Última página"
-                    disabled={currentPage === totalPages || totalPages === 0 || loading}
-                    onClick={() => setCurrentPage(totalPages)}
-                  >
-                    <i className="fas fa-angle-double-right"></i>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </main>
       </div>

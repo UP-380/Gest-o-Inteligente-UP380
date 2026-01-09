@@ -939,7 +939,8 @@ async function getTempoEstimado(req, res) {
       limit = 20,
       data = null,
       data_inicio = null,
-      data_fim = null
+      data_fim = null,
+      cliente_status = null // 'ativo', 'inativo', ou null/undefined
     } = req.query;
     
     // Processar IDs que podem vir como array
@@ -952,15 +953,92 @@ async function getTempoEstimado(req, res) {
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
 
+    // FILTRO DE STATUS DE CLIENTE: Se cliente_status está presente e filtro_cliente está ativo,
+    // buscar clientes filtrados por status ANTES de aplicar na query
+    let clienteIdsFinais = cliente_id; // Inicializar com os IDs originais
+    
+    // Validar valores válidos para cliente_status
+    const valoresValidosStatus = ['ativo', 'inativo', 'todos', null, undefined];
+    const statusValido = valoresValidosStatus.includes(cliente_status) || 
+                        (cliente_status && String(cliente_status).toLowerCase() === 'todos');
+    
+    // Se cliente_status foi fornecido mas não é válido, retornar erro
+    if (cliente_status && !statusValido) {
+      return res.status(400).json({
+        success: false,
+        error: `Valor inválido para cliente_status: "${cliente_status}". Valores aceitos: 'ativo', 'inativo', 'todos' ou null/undefined`
+      });
+    }
+    
+    // Aplicar filtro de status apenas se for 'ativo' ou 'inativo' (não aplicar para 'todos' ou null)
+    if (cliente_status && cliente_status !== 'todos' && (cliente_status === 'ativo' || cliente_status === 'inativo')) {
+      try {
+        // Buscar clientes filtrados por status
+        let clientesQuery = supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id');
+        
+        if (cliente_status === 'ativo') {
+          clientesQuery = clientesQuery.eq('status', 'ativo');
+        } else if (cliente_status === 'inativo') {
+          clientesQuery = clientesQuery.eq('status', 'inativo');
+        }
+        
+        const { data: clientesFiltrados, error: clientesError } = await clientesQuery;
+        
+        if (clientesError) {
+          console.error('❌ Erro ao buscar clientes por status:', clientesError);
+          // Se houver erro, continuar sem filtrar por status
+        } else if (clientesFiltrados && clientesFiltrados.length > 0) {
+          const clienteIdsFiltrados = clientesFiltrados.map(c => String(c.id).trim()).filter(Boolean);
+          
+          // Se há cliente_id específicos no filtro, fazer interseção
+          if (cliente_id && cliente_id.length > 0) {
+            const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+            clienteIdsFinais = clienteIdsLimpos.filter(id => clienteIdsFiltrados.includes(id));
+          } else {
+            // Se não há cliente_id específicos, usar apenas os clientes filtrados por status
+            clienteIdsFinais = clienteIdsFiltrados;
+          }
+          
+          // Se após a interseção não sobrar nenhum cliente, retornar vazio
+          if (clienteIdsFinais.length === 0) {
+            return res.json({
+              success: true,
+              data: [],
+              total: 0,
+              page: pageNum,
+              limit: limitNum,
+              totalPages: 0
+            });
+          }
+        } else {
+          // Se não encontrou clientes com o status especificado, retornar vazio
+          return res.json({
+            success: true,
+            data: [],
+            total: 0,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: 0
+          });
+        }
+      } catch (error) {
+        console.error('❌ Erro ao processar filtro de status de cliente:', error);
+        // Se houver erro, continuar sem filtrar por status
+      }
+    }
+
     let query = supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado')
       .select('*', { count: 'exact' });
 
     // Aplicar filtros
-    // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
-    if (cliente_id && cliente_id.length > 0) {
-      const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+    // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
+    if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+      const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
       if (clienteIdsLimpos.length === 1) {
         query = query.eq('cliente_id', clienteIdsLimpos[0]);
       } else if (clienteIdsLimpos.length > 1) {
@@ -1054,9 +1132,9 @@ async function getTempoEstimado(req, res) {
           .select('agrupador_id, data');
         
         // Aplicar outros filtros básicos (mas não filtro de data)
-        // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
-        if (cliente_id && cliente_id.length > 0) {
-          const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+        // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
+        if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+          const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
           if (clienteIdsLimpos.length === 1) {
             queryAgrupadores = queryAgrupadores.eq('cliente_id', clienteIdsLimpos[0]);
           } else if (clienteIdsLimpos.length > 1) {
@@ -1097,7 +1175,18 @@ async function getTempoEstimado(req, res) {
           queryAgrupadores = queryAgrupadores.not('tarefa_id', 'is', null);
         }
         if (req.query.filtro_cliente === 'true') {
-          queryAgrupadores = queryAgrupadores.not('cliente_id', 'is', null);
+          // Se há clienteIdsFinais (filtrados por status), usar esses IDs
+          // Caso contrário, buscar apenas registros com cliente_id não nulo
+          if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+            const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+            if (clienteIdsLimpos.length === 1) {
+              queryAgrupadores = queryAgrupadores.eq('cliente_id', clienteIdsLimpos[0]);
+            } else if (clienteIdsLimpos.length > 1) {
+              queryAgrupadores = queryAgrupadores.in('cliente_id', clienteIdsLimpos);
+            }
+          } else {
+            queryAgrupadores = queryAgrupadores.not('cliente_id', 'is', null);
+          }
         }
         if (req.query.filtro_responsavel === 'true') {
           queryAgrupadores = queryAgrupadores.not('responsavel_id', 'is', null);
@@ -1228,9 +1317,9 @@ async function getTempoEstimado(req, res) {
           .in('agrupador_id', agrupadoresValidos);
         
         // Aplicar outros filtros
-        // Agora cliente_id, produto_id, tarefa_id e responsavel_id já são arrays ou null
-        if (cliente_id && cliente_id.length > 0) {
-          const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+        // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
+        if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+          const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
           if (clienteIdsLimpos.length === 1) {
             queryFiltrada = queryFiltrada.eq('cliente_id', clienteIdsLimpos[0]);
           } else if (clienteIdsLimpos.length > 1) {
@@ -1271,7 +1360,18 @@ async function getTempoEstimado(req, res) {
           queryFiltrada = queryFiltrada.not('tarefa_id', 'is', null);
         }
         if (req.query.filtro_cliente === 'true') {
-          queryFiltrada = queryFiltrada.not('cliente_id', 'is', null);
+          // Se há clienteIdsFinais (filtrados por status), usar esses IDs
+          // Caso contrário, buscar apenas registros com cliente_id não nulo
+          if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+            const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+            if (clienteIdsLimpos.length === 1) {
+              queryFiltrada = queryFiltrada.eq('cliente_id', clienteIdsLimpos[0]);
+            } else if (clienteIdsLimpos.length > 1) {
+              queryFiltrada = queryFiltrada.in('cliente_id', clienteIdsLimpos);
+            }
+          } else {
+            queryFiltrada = queryFiltrada.not('cliente_id', 'is', null);
+          }
         }
         if (req.query.filtro_responsavel === 'true') {
           queryFiltrada = queryFiltrada.not('responsavel_id', 'is', null);

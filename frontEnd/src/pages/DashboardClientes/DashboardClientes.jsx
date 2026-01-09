@@ -18,7 +18,8 @@ const RelatoriosClientes = () => {
   const [filtroDataInicio, setFiltroDataInicio] = useState(null);
   const [filtroDataFim, setFiltroDataFim] = useState(null);
   const [filtroColaborador, setFiltroColaborador] = useState(null);
-  const [mostrarInativos, setMostrarInativos] = useState(false);
+  const [mostrarClientesInativos, setMostrarClientesInativos] = useState(false);
+  const [mostrarColaboradoresInativos, setMostrarColaboradoresInativos] = useState(false);
 
   // Estado dos dados
   const [todosClientes, setTodosClientes] = useState([]);
@@ -64,6 +65,7 @@ const RelatoriosClientes = () => {
   // Estado dos resultados
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [dadosCompletos, setDadosCompletos] = useState(false);
   const [allContratos, setAllContratos] = useState([]);
   const [allRegistrosTempo, setAllRegistrosTempo] = useState([]);
 
@@ -143,7 +145,7 @@ const RelatoriosClientes = () => {
 
   // Função helper para verificar se um colaborador está inativo
   const isColaboradorInativo = useCallback((colaboradorId, registro = null) => {
-    if (mostrarInativos) return false; // Se inativos estão habilitados, não filtrar
+    if (mostrarColaboradoresInativos) return false; // Se inativos estão habilitados, não filtrar
     
     // 1. Tentar buscar status do registro.membro (vem do backend)
     if (registro && registro.membro && registro.membro.status) {
@@ -171,11 +173,11 @@ const RelatoriosClientes = () => {
     
     // 3. Se não encontrou, assumir ativo (compatibilidade)
     return false;
-  }, [mostrarInativos, todosColaboradores]);
+  }, [mostrarColaboradoresInativos, todosColaboradores]);
 
   // Função helper para verificar se um cliente está inativo
   const isClienteInativo = useCallback((clienteId, registro = null) => {
-    if (mostrarInativos) return false; // Se inativos estão habilitados, não filtrar
+    if (mostrarClientesInativos) return false; // Se inativos estão habilitados, não filtrar
     
     // 1. Tentar buscar status do registro.cliente (vem do backend)
     if (registro && registro.cliente && registro.cliente.status) {
@@ -204,7 +206,7 @@ const RelatoriosClientes = () => {
     
     // 3. Se não encontrou, assumir ativo (compatibilidade)
     return false;
-  }, [mostrarInativos, todosClientes]);
+  }, [mostrarClientesInativos, todosClientes]);
 
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
@@ -216,6 +218,7 @@ const RelatoriosClientes = () => {
     isRequestInProgressRef.current = true;
     
     setLoading(true);
+    setDadosCompletos(false);
     try {
       // Só envia filtros que foram preenchidos
       const params = {
@@ -242,6 +245,10 @@ const RelatoriosClientes = () => {
         params.dataFim = filtrosAplicados.dataFim;
       }
       
+      // Adicionar flags de inativos
+      params.incluirClientesInativos = mostrarClientesInativos;
+      params.incluirColaboradoresInativos = mostrarColaboradoresInativos;
+      
       const result = await clientesAPI.getRelatorios(params);
       
       // Verificar se esta ainda é a requisição mais recente
@@ -264,6 +271,7 @@ const RelatoriosClientes = () => {
         setAllContratos([]);
         setTotalClients(0);
         setEmptyMessage(null); // Usar mensagem padrão do componente
+        setDadosCompletos(true);
         setLoading(false);
         return;
       }
@@ -275,6 +283,7 @@ const RelatoriosClientes = () => {
         setAllContratos([]);
         setTotalClients(0);
         setEmptyMessage(null); // Usar mensagem padrão do componente
+        setDadosCompletos(true);
         setLoading(false);
         return;
       }
@@ -291,15 +300,15 @@ const RelatoriosClientes = () => {
         // O backend não filtra inativos porque isso é uma opção do frontend
         let registrosFiltrados = todosRegistros || [];
         
-        if (!mostrarInativos) {
+        if (!mostrarColaboradoresInativos || !mostrarClientesInativos) {
           registrosFiltrados = registrosFiltrados.filter(reg => {
             // Filtrar registros de colaboradores inativos
-            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+            if (!mostrarColaboradoresInativos && reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
               return false;
             }
             
             // Filtrar registros relacionados a clientes inativos
-            if (reg.cliente_id) {
+            if (!mostrarClientesInativos && reg.cliente_id) {
               const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
               const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
               if (temClienteInativo) {
@@ -323,13 +332,13 @@ const RelatoriosClientes = () => {
         clientesComResumos.forEach(item => {
           if (item.registros && Array.isArray(item.registros)) {
             item.registros.forEach(registro => {
-              // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
-              if (!mostrarInativos && registro.usuario_id && isColaboradorInativo(registro.usuario_id, registro)) {
+              // Filtrar registros de colaboradores inativos se mostrarColaboradoresInativos estiver desativado
+              if (!mostrarColaboradoresInativos && registro.usuario_id && isColaboradorInativo(registro.usuario_id, registro)) {
                 return; // Pular colaboradores inativos
               }
               
-              // Filtrar registros relacionados a clientes inativos se mostrarInativos estiver desativado
-              if (!mostrarInativos && registro.cliente_id) {
+              // Filtrar registros relacionados a clientes inativos se mostrarClientesInativos estiver desativado
+              if (!mostrarClientesInativos && registro.cliente_id) {
                 const clienteIds = String(registro.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
                 const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, registro));
                 if (temClienteInativo) {
@@ -356,16 +365,16 @@ const RelatoriosClientes = () => {
         
         let registrosArray = Array.from(registrosMap.values());
         
-        // Filtrar registros de colaboradores e clientes inativos se mostrarInativos estiver desativado
-        if (!mostrarInativos) {
+        // Filtrar registros de colaboradores e clientes inativos se os toggles estiverem desativados
+        if (!mostrarColaboradoresInativos || !mostrarClientesInativos) {
           registrosArray = registrosArray.filter(reg => {
             // Filtrar registros de colaboradores inativos
-            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+            if (!mostrarColaboradoresInativos && reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
               return false;
             }
             
             // Filtrar registros relacionados a clientes inativos
-            if (reg.cliente_id) {
+            if (!mostrarClientesInativos && reg.cliente_id) {
               const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
               const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
               if (temClienteInativo) {
@@ -390,33 +399,33 @@ const RelatoriosClientes = () => {
         }
       }
       
-      // Armazenar dados no cache para os cards laterais
-      clientesComResumos.forEach(item => {
-        // Filtrar registros de colaboradores e clientes inativos se mostrarInativos estiver desativado
-        let registrosFiltrados = item.registros || [];
-        if (!mostrarInativos && registrosFiltrados.length > 0) {
-          registrosFiltrados = registrosFiltrados.filter(reg => {
-            // Filtrar registros de colaboradores inativos
-            if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
-              return false;
-            }
-            
-            // Filtrar registros relacionados a clientes inativos
-            if (reg.cliente_id) {
-              const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
-              const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
-              if (temClienteInativo) {
+        // Armazenar dados no cache para os cards laterais
+        clientesComResumos.forEach(item => {
+          // Filtrar registros de colaboradores e clientes inativos se os toggles estiverem desativados
+          let registrosFiltrados = item.registros || [];
+          if ((!mostrarColaboradoresInativos || !mostrarClientesInativos) && registrosFiltrados.length > 0) {
+            registrosFiltrados = registrosFiltrados.filter(reg => {
+              // Filtrar registros de colaboradores inativos
+              if (!mostrarColaboradoresInativos && reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
                 return false;
               }
-            }
-            
-            return true;
-          });
-        }
+              
+              // Filtrar registros relacionados a clientes inativos
+              if (!mostrarClientesInativos && reg.cliente_id) {
+                const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
+                const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
+                if (temClienteInativo) {
+                  return false;
+                }
+              }
+              
+              return true;
+            });
+          }
         
         // Filtrar tempoPorColaborador para remover colaboradores inativos
         let tempoPorColaborador = item.resumo.tempoPorColaborador || {};
-        if (!mostrarInativos && tempoPorColaborador) {
+        if (!mostrarColaboradoresInativos && tempoPorColaborador) {
           const tempoPorColaboradorFiltrado = {};
           Object.keys(tempoPorColaborador).forEach(colabId => {
             if (!isColaboradorInativo(colabId)) {
@@ -450,26 +459,26 @@ const RelatoriosClientes = () => {
       });
       
       // Filtrar registros de colaboradores e clientes inativos nos dados de cada cliente antes de setar
-      // E também remover clientes inativos da lista quando mostrarInativos estiver desativado
+      // E também remover clientes inativos da lista quando mostrarClientesInativos estiver desativado
       const clientesComResumosFiltrados = clientesComResumos
         .map(item => {
-          // Se mostrarInativos estiver desativado, verificar se o próprio cliente está inativo
-          if (!mostrarInativos) {
+          // Se mostrarClientesInativos estiver desativado, verificar se o próprio cliente está inativo
+          if (!mostrarClientesInativos) {
             const clienteStatus = item.cliente?.status || 'ativo';
             if (clienteStatus === 'inativo') {
               return null; // Marcar para remover clientes inativos
             }
           }
           
-          if (!mostrarInativos && item.registros && Array.isArray(item.registros)) {
+          if ((!mostrarColaboradoresInativos || !mostrarClientesInativos) && item.registros && Array.isArray(item.registros)) {
             const registrosFiltrados = item.registros.filter(reg => {
               // Filtrar registros de colaboradores inativos
-              if (reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
+              if (!mostrarColaboradoresInativos && reg.usuario_id && isColaboradorInativo(reg.usuario_id, reg)) {
                 return false;
               }
               
               // Filtrar registros relacionados a clientes inativos
-              if (reg.cliente_id) {
+              if (!mostrarClientesInativos && reg.cliente_id) {
                 const clienteIds = String(reg.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
                 const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, reg));
                 if (temClienteInativo) {
@@ -491,6 +500,9 @@ const RelatoriosClientes = () => {
       setClientes(clientesComResumosFiltrados);
       setTotalClients(result.total || 0);
       setTotalPages(result.totalPages || 1);
+      
+      // Marcar dados como completos apenas quando tudo estiver carregado
+      setDadosCompletos(true);
     } catch (error) {
       // Verificar se esta ainda é a requisição mais recente antes de processar erro
       if (currentRequestId !== requestIdRef.current) {
@@ -503,6 +515,7 @@ const RelatoriosClientes = () => {
       setAllRegistrosTempo([]);
       setAllContratos([]);
       setEmptyMessage(null);
+      setDadosCompletos(false);
     } finally {
       // Limpar flag apenas se esta ainda for a requisição mais recente
       if (currentRequestId === requestIdRef.current) {
@@ -513,7 +526,7 @@ const RelatoriosClientes = () => {
         setLoading(false);
       }
     }
-  }, [currentPage, itemsPerPage, mostrarInativos, isColaboradorInativo, isClienteInativo]);
+  }, [currentPage, itemsPerPage, mostrarColaboradoresInativos, mostrarClientesInativos, isColaboradorInativo, isClienteInativo]);
 
   // Aplicar filtros - só executa quando o botão for clicado
   const aplicarFiltros = useCallback(() => {
@@ -522,6 +535,7 @@ const RelatoriosClientes = () => {
     setAllRegistrosTempo([]);
     setAllContratos([]);
     setEmptyMessage(null);
+    setDadosCompletos(false);
     
     // Validar período (obrigatório)
     if (!filtroDataInicio || !filtroDataFim) {
@@ -578,10 +592,11 @@ const RelatoriosClientes = () => {
       dataInicio: filtroDataInicio,
       dataFim: filtroDataFim,
       colaborador: filtroColaborador,
-      mostrarInativos: mostrarInativos
+      mostrarClientesInativos: mostrarClientesInativos,
+      mostrarColaboradoresInativos: mostrarColaboradoresInativos
     });
     carregarClientesPaginados(filtrosParaEnviar);
-  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarInativos, carregarClientesPaginados]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarClientesPaginados]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -591,7 +606,8 @@ const RelatoriosClientes = () => {
     setFiltroColaborador(null);
     setFiltroDataInicio(null);
     setFiltroDataFim(null);
-    setMostrarInativos(false);
+    setMostrarClientesInativos(false);
+    setMostrarColaboradoresInativos(false);
     setFiltrosAplicadosAtuais({});
     
     // Limpar cache para garantir dados atualizados
@@ -642,9 +658,10 @@ const RelatoriosClientes = () => {
       Array.isArray(filtrosUltimosAplicados.colaborador) ? filtrosUltimosAplicados.colaborador : (filtrosUltimosAplicados.colaborador ? [filtrosUltimosAplicados.colaborador] : [])
     );
     
-    const mostrarInativosChanged = mostrarInativos !== filtrosUltimosAplicados.mostrarInativos;
+    const mostrarClientesInativosChanged = mostrarClientesInativos !== (filtrosUltimosAplicados.mostrarClientesInativos || false);
+    const mostrarColaboradoresInativosChanged = mostrarColaboradoresInativos !== (filtrosUltimosAplicados.mostrarColaboradoresInativos || false);
     
-    return clienteChanged || dataInicioChanged || dataFimChanged || colaboradorChanged || mostrarInativosChanged;
+    return clienteChanged || dataInicioChanged || dataFimChanged || colaboradorChanged || mostrarClientesInativosChanged || mostrarColaboradoresInativosChanged;
   };
 
   // Handlers dos filtros - apenas atualiza o estado, sem filtrar opções
@@ -818,9 +835,9 @@ const RelatoriosClientes = () => {
       }
     });
     
-    // Filtrar tarefas: remover tarefas que só têm colaboradores inativos (se mostrarInativos estiver desativado)
+    // Filtrar tarefas: remover tarefas que só têm colaboradores inativos (se mostrarColaboradoresInativos estiver desativado)
     tarefasPorId.forEach((registros, tarefaId) => {
-      if (!mostrarInativos) {
+      if (!mostrarColaboradoresInativos) {
         // Verificar se todos os registros são de colaboradores inativos
         const todosInativos = registros.every(reg => {
           if (!reg.usuario_id) return false;
@@ -890,7 +907,7 @@ const RelatoriosClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Tarefas', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, mostrarInativos, isColaboradorInativo, isClienteInativo]);
+  }, [allRegistrosTempo, mostrarColaboradoresInativos, isColaboradorInativo, isClienteInativo]);
 
   const handleShowColaboradores = useCallback(async (e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
@@ -921,8 +938,8 @@ const RelatoriosClientes = () => {
     
     allRegistrosTempo.forEach(registro => {
       if (registro.usuario_id) {
-        // Filtrar colaboradores inativos se mostrarInativos estiver desativado
-        if (!mostrarInativos && isColaboradorInativo(registro.usuario_id, registro)) {
+        // Filtrar colaboradores inativos se mostrarColaboradoresInativos estiver desativado
+        if (!mostrarColaboradoresInativos && isColaboradorInativo(registro.usuario_id, registro)) {
           return; // Pular colaboradores inativos
         }
         
@@ -1046,7 +1063,7 @@ const RelatoriosClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Colaboradores', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosColaboradores, mostrarInativos, isColaboradorInativo]);
+  }, [allRegistrosTempo, todosColaboradores, mostrarColaboradoresInativos, isColaboradorInativo]);
 
   const handleShowClientes = useCallback((e) => {
     if (!allRegistrosTempo || allRegistrosTempo.length === 0) {
@@ -1063,8 +1080,8 @@ const RelatoriosClientes = () => {
 
     const clientesMap = new Map();
     allRegistrosTempo.forEach(registro => {
-      // Filtrar registros relacionados a clientes inativos se mostrarInativos estiver desativado
-      if (!mostrarInativos && registro.cliente_id) {
+      // Filtrar registros relacionados a clientes inativos se mostrarClientesInativos estiver desativado
+      if (!mostrarClientesInativos && registro.cliente_id) {
         const clienteIds = String(registro.cliente_id).split(',').map(id => id.trim()).filter(Boolean);
         const temClienteInativo = clienteIds.some(clienteId => isClienteInativo(clienteId, registro));
         if (temClienteInativo) {
@@ -1098,9 +1115,9 @@ const RelatoriosClientes = () => {
       }
     });
 
-    // Filtrar clientes inativos se mostrarInativos estiver desativado
+    // Filtrar clientes inativos se mostrarClientesInativos estiver desativado
     let itens = Array.from(clientesMap.values());
-    if (!mostrarInativos) {
+    if (!mostrarClientesInativos) {
       itens = itens.filter(clienteNome => {
         // Buscar o cliente na lista de todosClientes para verificar status
         const cliente = todosClientes.find(c => c.nome === clienteNome);
@@ -1115,7 +1132,7 @@ const RelatoriosClientes = () => {
     const position = calcularPosicaoMiniCard(e);
     setMiniCardLista({ titulo: 'Clientes', itens });
     setMiniCardPosition(position);
-  }, [allRegistrosTempo, todosClientes, filtroCliente, mostrarInativos, isClienteInativo]);
+  }, [allRegistrosTempo, todosClientes, filtroCliente, mostrarClientesInativos, isClienteInativo]);
 
   // Função para calcular posição do mini card
   const calcularPosicaoMiniCard = useCallback((event) => {
@@ -1355,16 +1372,10 @@ const RelatoriosClientes = () => {
                       <FilterClientes
                         value={filtroCliente}
                         onChange={handleClienteChange}
-                        options={todosClientes.filter(cliente => {
-                          // Se mostrarInativos estiver desativado, filtrar clientes inativos
-                          if (!mostrarInativos) {
-                            const status = cliente.status || 'ativo';
-                            return status !== 'inativo';
-                          }
-                          // Se mostrarInativos estiver ativado, mostrar todos os clientes
-                          return true;
-                        })}
+                        options={todosClientes}
                         disabled={!periodoPreenchido}
+                        showInactiveToggle={true}
+                        onInactiveToggleChange={(value) => setMostrarClientesInativos(value)}
                       />
                       {!periodoPreenchido && (
                         <div className="filter-tooltip">
@@ -1377,17 +1388,10 @@ const RelatoriosClientes = () => {
                       <FilterColaborador
                         value={filtroColaborador}
                         onChange={handleColaboradorChange}
-                        options={todosColaboradores.filter(colab => {
-                          // Se mostrarInativos estiver desativado, filtrar colaboradores inativos
-                          if (!mostrarInativos) {
-                            // Se status não estiver definido, assumir 'ativo' (compatibilidade com cache antigo)
-                            const status = colab.status || 'ativo';
-                            return status !== 'inativo';
-                          }
-                          // Se mostrarInativos estiver ativado, mostrar todos os colaboradores
-                          return true;
-                        })}
+                        options={todosColaboradores}
                         disabled={!periodoPreenchido}
+                        showInactiveToggle={true}
+                        onInactiveToggleChange={(value) => setMostrarColaboradoresInativos(value)}
                       />
                       {!periodoPreenchido && (
                         <div className="filter-tooltip">
@@ -1398,69 +1402,10 @@ const RelatoriosClientes = () => {
                   </>
                 );
               })()}
-
-              {(() => {
-                const periodoPreenchido = filtroDataInicio && filtroDataFim;
-                
-                return (
-                  <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto', minWidth: 'auto', position: 'relative' }}>
-                    <label style={{ fontSize: '14px', fontWeight: '500', color: periodoPreenchido ? '#374151' : '#9ca3af', whiteSpace: 'nowrap', opacity: periodoPreenchido ? 1 : 0.5 }}>
-                      Inativos:
-                    </label>
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <input
-                        type="checkbox"
-                        id="toggleInativos"
-                        checked={mostrarInativos}
-                        onChange={(e) => {
-                          if (periodoPreenchido) {
-                            setMostrarInativos(e.target.checked);
-                          }
-                        }}
-                        disabled={!periodoPreenchido}
-                        style={{
-                          width: '44px',
-                          height: '24px',
-                          appearance: 'none',
-                          backgroundColor: periodoPreenchido 
-                            ? (mostrarInativos ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1')
-                            : '#f3f4f6',
-                          borderRadius: '12px',
-                          position: 'relative',
-                          cursor: periodoPreenchido ? 'pointer' : 'not-allowed',
-                          transition: 'background-color 0.2s',
-                          outline: 'none',
-                          opacity: periodoPreenchido ? 1 : 0.5,
-                          border: periodoPreenchido ? 'none' : '1px solid #d1d5db'
-                        }}
-                      />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '2px',
-                          left: mostrarInativos ? '22px' : '2px',
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          backgroundColor: '#fff',
-                          transition: 'left 0.2s',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                          pointerEvents: 'none'
-                        }}
-                      />
-                    </div>
-                    {!periodoPreenchido && (
-                      <div className="filter-tooltip">
-                        Selecione período TimeTrack
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
             </FiltersCard>
 
-            {/* Cards de Dashboard */}
-            {(allContratos.length > 0 || allRegistrosTempo.length > 0) && (
+            {/* Cards de Dashboard - Só exibir quando dados estiverem completamente carregados */}
+            {filtrosAplicados && dadosCompletos && !loading && (allContratos.length > 0 || allRegistrosTempo.length > 0) && (
               <DashboardCards
                 filtroCliente={filtroCliente}
                 contratos={allContratos}
@@ -1529,7 +1474,20 @@ const RelatoriosClientes = () => {
         {!mostrarIncompletas && (
           <div className="results-container" style={{ marginTop: '30px' }}>
             <div id="resultsContent">
-              {loading ? (
+              {!filtrosAplicados ? (
+                <div className="empty-state" style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  minHeight: '240px', 
+                  color: '#555', 
+                  fontSize: '16px', 
+                  fontWeight: 500, 
+                  textAlign: 'center' 
+                }}>
+                  Selecione os filtros e clique em "Aplicar Filtros" para ver os resultados
+                </div>
+              ) : loading || !dadosCompletos ? (
                 <div className="loading">
                   <i className="fas fa-spinner"></i>
                   <p>Carregando resultados...</p>
@@ -1543,9 +1501,9 @@ const RelatoriosClientes = () => {
                       resumo={item.resumo}
                       contratos={item.contratos || []}
                       registros={(() => {
-                        // Filtrar registros de colaboradores inativos se mostrarInativos estiver desativado
+                        // Filtrar registros de colaboradores inativos se mostrarColaboradoresInativos estiver desativado
                         let registros = item.registros || [];
-                        if (!mostrarInativos && registros.length > 0) {
+                        if (!mostrarColaboradoresInativos && registros.length > 0) {
                           registros = registros.filter(reg => {
                             if (!reg.usuario_id) return false;
                             return !isColaboradorInativo(reg.usuario_id, reg);

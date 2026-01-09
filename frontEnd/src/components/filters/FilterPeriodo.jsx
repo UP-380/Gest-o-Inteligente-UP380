@@ -18,6 +18,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const dropdownRef = useRef(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const isAtribuicaoMini = uiVariant === 'atribuicao-mini';
+  const editandoLocalmenteRef = useRef(false);
 
   // Formatar data para exibição
   const formatarData = (dataStr) => {
@@ -35,6 +36,11 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     : 'Selecionar período';
 
   useEffect(() => {
+    // Não sincronizar se estamos editando localmente (para evitar conflitos)
+    if (editandoLocalmenteRef.current) {
+      editandoLocalmenteRef.current = false;
+      return;
+    }
     setLocalInicio(dataInicio || '');
     setLocalFim(dataFim || '');
   }, [dataInicio, dataFim]);
@@ -220,6 +226,29 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     }
   };
 
+  // Função para limpar todos os dados do período
+  const handleLimpar = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Limpar estado local
+    setLocalInicio('');
+    setLocalFim('');
+    setDatasIndividuaisLocal(new Set());
+    setSelectingStart(true);
+    
+    // Notificar componente pai
+    if (onInicioChange) {
+      onInicioChange({ target: { value: '' } });
+    }
+    if (onFimChange) {
+      onFimChange({ target: { value: '' } });
+    }
+    if (onDatasIndividuaisChange) {
+      onDatasIndividuaisChange([]);
+    }
+  };
+
   // Verificar se é final de semana (sábado = 6, domingo = 0)
   const isWeekend = (date) => {
     const dayOfWeek = date.getDay();
@@ -262,20 +291,21 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     
     // CASO 1: Ctrl pressionado - sempre tratar como dia específico
     if (isCtrlPressed) {
-      // Se há um período definido, verificar se a data está dentro dele
+      // Se há um período completo definido, verificar se a data está dentro dele
+      // Neste caso, as datas individuais funcionam como EXCEÇÕES ao período completo
       if (temPeriodoCompleto) {
         const inicioDate = new Date(localInicio + 'T00:00:00');
         const fimDate = new Date(localFim + 'T00:00:00');
         const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
         const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
         
-        // Se a data está fora do período, não permitir seleção
+        // Se a data está fora do período, não permitir seleção como exceção
         if (dateObj < inicioDateObj || dateObj > fimDateObj) {
           return; // Data fora do período, não permitir seleção
         }
       }
       
-      // Toggle da data na lista de individuais
+      // Toggle da data na lista de individuais (exceções ou dias específicos)
       const novasDatas = new Set(datasIndividuaisLocal);
       
       if (novasDatas.has(dateStr)) {
@@ -285,6 +315,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       }
       
       setDatasIndividuaisLocal(novasDatas);
+      
+      // IMPORTANTE: Não limpar o período completo quando adicionar/remover exceções
+      // O período completo permanece, e as datas individuais são exceções
       
       // Notificar o componente pai
       if (onDatasIndividuaisChange) {
@@ -296,13 +329,78 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
     // CASO 2: Sem Ctrl - aplicar nova lógica inteligente
     
-    // Se não tem nada ainda, primeiro clique adiciona como dia específico
-    if (naoTemNada) {
-      const novasDatas = new Set([dateStr]);
-      setDatasIndividuaisLocal(novasDatas);
+    // Se tem início mas não tem fim (estado intermediário) - VERIFICAR PRIMEIRO
+    // Isso inclui o caso especial de clicar duas vezes no mesmo dia
+    if (localInicio && !localFim) {
+      // Se clicou no mesmo dia, definir início E fim como o mesmo dia
+      if (dateStr === localInicio) {
+        editandoLocalmenteRef.current = true;
+        setLocalInicio(dateStr);
+        setLocalFim(dateStr);
+        setSelectingStart(false);
+        
+        // Limpar datas individuais quando período está completo
+        setDatasIndividuaisLocal(new Set());
+        
+        // Notificar componente pai (importante fazer isso DEPOIS de atualizar o estado local)
+        if (onInicioChange) {
+          onInicioChange({ target: { value: dateStr } });
+        }
+        if (onFimChange) {
+          onFimChange({ target: { value: dateStr } });
+        }
+        if (onDatasIndividuaisChange) {
+          onDatasIndividuaisChange([]);
+        }
+        return;
+      }
       
+      // Se clicou em outro dia, definir fim normalmente
+      editandoLocalmenteRef.current = true;
+      const inicioDate = new Date(localInicio + 'T00:00:00');
+      const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
+      
+      let newInicio = localInicio;
+      let newFim = dateStr;
+      
+      if (dateObj < inicioDateObj) {
+        // Se a data selecionada for anterior à de início, trocar
+        newFim = localInicio;
+        newInicio = dateStr;
+      }
+      
+      setLocalInicio(newInicio);
+      setLocalFim(newFim);
+      setSelectingStart(false);
+      
+      if (onInicioChange) {
+        onInicioChange({ target: { value: newInicio } });
+      }
+      if (onFimChange) {
+        onFimChange({ target: { value: newFim } });
+      }
+      
+      return;
+    }
+    
+    // Se não tem nada ainda, primeiro clique define início (não adiciona como dia específico)
+    if (naoTemNada) {
+      editandoLocalmenteRef.current = true;
+      setLocalInicio(dateStr);
+      setLocalFim('');
+      setSelectingStart(false); // Próximo clique será o fim
+      
+      // Limpar datas individuais
+      setDatasIndividuaisLocal(new Set());
+      
+      if (onInicioChange) {
+        onInicioChange({ target: { value: dateStr } });
+      }
+      if (onFimChange) {
+        onFimChange({ target: { value: '' } });
+      }
       if (onDatasIndividuaisChange) {
-        onDatasIndividuaisChange(Array.from(novasDatas));
+        onDatasIndividuaisChange([]);
       }
       
       return;
@@ -317,6 +415,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       const dataEstaNasIndividuais = datasIndividuaisLocal.has(dateStr);
       
       // Se clicou em uma data nova (não está nas individuais), converter para período completo
+      // Primeira data como início, nova data como fim
       if (!dataEstaNasIndividuais) {
         let newInicio = primeiraData;
         let newFim = dateStr;
@@ -346,7 +445,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       }
       
       // Se clicou em uma data que já está nas individuais
-      // Se é a primeira data, converte para inicio e aguarda fim
+      // Se é a primeira data, definir como início e aguardar fim
       if (dateStr === primeiraData) {
         setLocalInicio(dateStr);
         setLocalFim('');
@@ -369,7 +468,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       }
       
       // Se clicou em outra data que está nas individuais, converter para período completo
-      // Usar a primeira como inicio e a clicada (ou última) como fim
+      // Usar a primeira como inicio e a clicada como fim
       let newInicio = primeiraData;
       let newFim = dateStr;
       
@@ -415,31 +514,6 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       }
       if (onFimChange) {
         onFimChange({ target: { value: '' } });
-      }
-    } else if (localInicio && !localFim) {
-      // Caso especial: tem início mas não tem fim (estado intermediário)
-      // Segundo clique: definir fim
-      const inicioDate = new Date(localInicio + 'T00:00:00');
-      const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
-      
-      let newInicio = localInicio;
-      let newFim = dateStr;
-      
-      if (dateObj < inicioDateObj) {
-        // Se a data selecionada for anterior à de início, trocar
-        newFim = localInicio;
-        newInicio = dateStr;
-      }
-      
-      setLocalInicio(newInicio);
-      setLocalFim(newFim);
-      setSelectingStart(false);
-      
-      if (onInicioChange) {
-        onInicioChange({ target: { value: newInicio } });
-      }
-      if (onFimChange) {
-        onFimChange({ target: { value: newFim } });
       }
     }
   };
@@ -839,6 +913,47 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                       {days}
                     </div>
                   </div>
+
+                  {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
+                  {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'flex-end', 
+                      marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
+                      paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
+                    }}>
+                      <button
+                        type="button"
+                        onClick={handleLimpar}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: isAtribuicaoMini ? '4px 12px' : (size === 'small' ? '6px 14px' : '8px 16px'),
+                          fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'),
+                          fontWeight: 500,
+                          color: '#dc2626',
+                          backgroundColor: '#fef2f2',
+                          border: '1px solid #fecaca',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontFamily: 'inherit'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fee2e2';
+                          e.currentTarget.style.borderColor = '#fca5a5';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fef2f2';
+                          e.currentTarget.style.borderColor = '#fecaca';
+                        }}
+                      >
+                        <i className="fas fa-times-circle" style={{ fontSize: isAtribuicaoMini ? '12px' : (size === 'small' ? '13px' : '14px') }}></i>
+                        <span>Limpar</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>,
