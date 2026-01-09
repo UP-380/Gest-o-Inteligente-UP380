@@ -523,28 +523,72 @@ const SelecaoTarefasPorProduto = ({
 
   // Carregar subtarefas de uma tarefa específica
   const carregarSubtarefasTarefa = async (tarefaId, produtoId) => {
-    if (subtarefasPorTarefa[tarefaId] || carregandoSubtarefas[tarefaId]) return;
+    // Se já está carregando, não fazer nada
+    if (carregandoSubtarefas[tarefaId]) return;
+    
+    // Buscar informações da tarefa usando a referência (sempre atualizada)
+    const tarefaInfo = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
+    const subtarefasVinculadasCliente = tarefaInfo?.subtarefasVinculadasCliente || [];
+    
+    // Verificar se já temos subtarefas carregadas
+    const subtarefasJaCarregadas = subtarefasPorTarefa[tarefaId];
+    
+    // Se já temos subtarefas carregadas, verificar se estão sincronizadas
+    if (subtarefasJaCarregadas) {
+      const subtarefasSelecionadasAtuais = subtarefasJaCarregadas
+        .filter(st => st.selecionada)
+        .map(st => st.id)
+        .sort((a, b) => a - b);
+      
+      // Converter subtarefasVinculadasCliente para números e ordenar para comparação
+      const subtarefasVinculadasIds = subtarefasVinculadasCliente
+        .map(id => {
+          const numId = typeof id === 'number' ? id : parseInt(String(id), 10);
+          return isNaN(numId) ? null : numId;
+        })
+        .filter(id => id !== null)
+        .sort((a, b) => a - b);
+      
+      // Verificar se estão sincronizadas (mesmo tamanho e mesmos IDs)
+      const arraysIguais = subtarefasSelecionadasAtuais.length === subtarefasVinculadasIds.length &&
+        subtarefasSelecionadasAtuais.every((id, index) => id === subtarefasVinculadasIds[index]);
+      
+      if (arraysIguais) {
+        console.log(`✅ Subtarefas já carregadas e sincronizadas para tarefa ${tarefaId} (${subtarefasSelecionadasAtuais.length} subtarefa(s))`);
+        return;
+      }
+      
+      // Se não estão sincronizadas, forçar recarregamento
+      console.log(`🔄 Subtarefas desincronizadas para tarefa ${tarefaId}:`, {
+        atuais: subtarefasSelecionadasAtuais,
+        vinculadas: subtarefasVinculadasIds,
+        forçandoRecarregamento: true
+      });
+    }
     
     setCarregandoSubtarefas(prev => ({ ...prev, [tarefaId]: true }));
     
     try {
-      // Buscar informações da tarefa usando a referência (sempre atualizada)
-      const tarefaInfo = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
-      const subtarefasVinculadasCliente = tarefaInfo?.subtarefasVinculadasCliente || [];
+      // Garantir que estamos usando os dados mais atualizados da tarefa
+      // Buscar novamente para garantir sincronização (caso tenha mudado entre a verificação e agora)
+      const tarefaInfoAtualizada = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
+      const subtarefasVinculadasClienteAtualizadas = tarefaInfoAtualizada?.subtarefasVinculadasCliente || [];
       
       console.log(`📋 Carregando subtarefas para tarefa ${tarefaId} do produto ${produtoId}:`, {
-        subtarefasVinculadasCliente,
-        tarefaInfo: tarefaInfo ? {
-          id: tarefaInfo.id,
-          nome: tarefaInfo.nome,
-          temSubtarefasVinculadas: !!tarefaInfo.subtarefasVinculadasCliente,
-          subtarefasVinculadasCliente: tarefaInfo.subtarefasVinculadasCliente
+        subtarefasVinculadasCliente: subtarefasVinculadasClienteAtualizadas,
+        quantidadeSubtarefasVinculadas: subtarefasVinculadasClienteAtualizadas.length,
+        tarefaInfo: tarefaInfoAtualizada ? {
+          id: tarefaInfoAtualizada.id,
+          nome: tarefaInfoAtualizada.nome,
+          temSubtarefasVinculadas: !!tarefaInfoAtualizada.subtarefasVinculadasCliente,
+          subtarefasVinculadasCliente: tarefaInfoAtualizada.subtarefasVinculadasCliente,
+          subtarefasSelecionadas: tarefaInfoAtualizada.subtarefasSelecionadas || []
         } : null,
-        todasTarefas: tarefasPorProdutoRef.current[produtoId]?.map(t => ({ 
-          id: t.id, 
-          nome: t.nome,
-          temSubtarefas: !!t.subtarefasVinculadasCliente
-        }))
+        debug: {
+          produtoIdTipo: typeof produtoId,
+          produtoIdValor: produtoId,
+          tarefasNoProduto: tarefasPorProdutoRef.current[produtoId]?.length || 0
+        }
       });
       
       const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
@@ -555,14 +599,21 @@ const SelecaoTarefasPorProduto = ({
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
+          // Usar subtarefasVinculadasClienteAtualizadas (dados mais recentes)
           // Converter subtarefasVinculadasCliente para números para comparação correta
-          const subtarefasVinculadasIds = subtarefasVinculadasCliente.map(id => {
+          const subtarefasVinculadasIds = subtarefasVinculadasClienteAtualizadas.map(id => {
             const numId = typeof id === 'number' ? id : parseInt(String(id), 10);
             return isNaN(numId) ? null : numId;
           }).filter(id => id !== null);
           
           console.log(`✅ Subtarefas recebidas da API (${result.data.length}):`, result.data.map(st => ({ id: st.id, nome: st.nome })));
           console.log(`✅ IDs de subtarefas vinculadas ao cliente (${subtarefasVinculadasIds.length}):`, subtarefasVinculadasIds);
+          console.log(`🔍 Debug - Comparação:`, {
+            subtarefasVinculadasClienteOriginal: subtarefasVinculadasCliente,
+            subtarefasVinculadasClienteAtualizada: subtarefasVinculadasClienteAtualizadas,
+            subtarefasVinculadasIds: subtarefasVinculadasIds,
+            totalSubtarefas: result.data.length
+          });
           
           // Inicializar subtarefas: marcar como selecionadas as que já estão vinculadas ao cliente
           const subtarefas = result.data.map(st => {
@@ -571,6 +622,8 @@ const SelecaoTarefasPorProduto = ({
             
             if (estaSelecionada) {
               console.log(`  ✅ Subtarefa ${subtarefaId} (${st.nome}): SELECIONADA`);
+            } else {
+              console.log(`  ⚪ Subtarefa ${subtarefaId} (${st.nome}): NÃO selecionada`);
             }
             
             return {
@@ -580,19 +633,45 @@ const SelecaoTarefasPorProduto = ({
             };
           });
           
-          console.log(`📝 Definindo ${subtarefas.filter(st => st.selecionada).length} subtarefa(s) como selecionada(s)`);
+          const subtarefasSelecionadasCount = subtarefas.filter(st => st.selecionada).length;
+          console.log(`📝 Definindo ${subtarefasSelecionadasCount} subtarefa(s) como selecionada(s) de ${result.data.length} total`);
           
-          setSubtarefasPorTarefa(prev => ({
-            ...prev,
-            [tarefaId]: subtarefas
-          }));
+          if (subtarefasVinculadasIds.length > 0 && subtarefasSelecionadasCount === 0) {
+            console.warn(`⚠️ ATENÇÃO: Há ${subtarefasVinculadasIds.length} subtarefa(s) vinculada(s) mas nenhuma foi marcada como selecionada!`, {
+              subtarefasVinculadasIds,
+              todasSubtarefas: subtarefas.map(st => st.id)
+            });
+          }
+          
+          setSubtarefasPorTarefa(prev => {
+            const novoEstado = {
+              ...prev,
+              [tarefaId]: subtarefas
+            };
+            console.log(`💾 Estado de subtarefas atualizado para tarefa ${tarefaId}:`, {
+              totalSubtarefas: subtarefas.length,
+              selecionadas: subtarefas.filter(st => st.selecionada).length,
+              idsSelecionadas: subtarefas.filter(st => st.selecionada).map(st => st.id)
+            });
+            return novoEstado;
+          });
           
           // Notificar componente pai sobre as subtarefas já selecionadas
           if (onTarefasChange && subtarefasVinculadasIds.length > 0) {
+            console.log(`📤 Notificando componente pai sobre ${subtarefasVinculadasIds.length} subtarefa(s) selecionada(s) para tarefa ${tarefaId}`);
+            // Usar setTarefasPorProduto com callback para garantir sincronização com estado atualizado
             setTarefasPorProduto(prevTarefas => {
               const tarefasAtualizadas = { ...prevTarefas };
-              if (tarefasAtualizadas[produtoId]) {
-                tarefasAtualizadas[produtoId] = tarefasAtualizadas[produtoId].map(t => {
+              // Normalizar produtoId para garantir consistência (pode ser string ou número)
+              const produtoIdStr = String(produtoId);
+              const produtoIdNum = typeof produtoId === 'number' ? produtoId : parseInt(produtoId, 10);
+              
+              // Tentar ambos os formatos (string e número) para garantir compatibilidade
+              const produtoKey = tarefasAtualizadas[produtoIdStr] ? produtoIdStr : 
+                                 tarefasAtualizadas[produtoIdNum] ? produtoIdNum : null;
+              
+              if (produtoKey && tarefasAtualizadas[produtoKey]) {
+                tarefasAtualizadas[produtoKey] = tarefasAtualizadas[produtoKey].map(t => {
                   if (t.id === tarefaId) {
                     return {
                       ...t,
@@ -627,20 +706,34 @@ const SelecaoTarefasPorProduto = ({
       
       // Notificar componente pai sobre mudanças
       if (onTarefasChange) {
-        const tarefasAtualizadas = { ...tarefasPorProduto };
-        Object.keys(tarefasAtualizadas).forEach(produtoId => {
-          tarefasAtualizadas[produtoId] = tarefasAtualizadas[produtoId].map(t => {
-            if (t.id === tarefaId) {
-              const subtarefasSelecionadas = novasSubtarefas[tarefaId]?.filter(st => st.selecionada).map(st => st.id) || [];
-              return {
-                ...t,
-                subtarefasSelecionadas: subtarefasSelecionadas
-              };
+        // Usar setTarefasPorProduto com callback para garantir estado atualizado
+        // Isso preserva todas as tarefas de todos os produtos, não apenas a editada
+        setTarefasPorProduto(prevTarefas => {
+          const tarefasAtualizadas = { ...prevTarefas };
+          
+          // Iterar por TODOS os produtos para preservar todas as tarefas
+          Object.keys(tarefasAtualizadas).forEach(produtoId => {
+            if (tarefasAtualizadas[produtoId]) {
+              tarefasAtualizadas[produtoId] = tarefasAtualizadas[produtoId].map(t => {
+                if (t.id === tarefaId) {
+                  // Atualizar apenas a tarefa editada, preservando outras propriedades
+                  const subtarefasSelecionadas = novasSubtarefas[tarefaId]?.filter(st => st.selecionada).map(st => st.id) || [];
+                  console.log(`🔄 toggleSubtarefa: Atualizando tarefa ${tarefaId} no produto ${produtoId}, ${subtarefasSelecionadas.length} subtarefa(s) selecionada(s)`, subtarefasSelecionadas);
+                  return {
+                    ...t, // Preservar todas as outras propriedades
+                    subtarefasSelecionadas: subtarefasSelecionadas
+                  };
+                }
+                // Preservar todas as outras tarefas sem modificação
+                return t;
+              });
             }
-            return t;
           });
+          
+          console.log(`📊 toggleSubtarefa: Preservando ${Object.keys(tarefasAtualizadas).length} produto(s) com todas as tarefas`);
+          onTarefasChange(tarefasAtualizadas);
+          return tarefasAtualizadas;
         });
-        onTarefasChange(tarefasAtualizadas);
       }
       
       return novasSubtarefas;
@@ -977,8 +1070,8 @@ const SelecaoTarefasPorProduto = ({
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-                        {/* Mini período por tarefa */}
-                        {tarefa.selecionada && (
+                        {/* Mini período por tarefa - mostrar apenas na versão de atribuição */}
+                        {tarefa.selecionada && onPeriodoChange && (
                           <div 
                             style={{ 
                               display: 'flex',
@@ -1378,8 +1471,8 @@ const SelecaoTarefasPorProduto = ({
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-                          {/* Mini período por tarefa (exceção) */}
-                          {tarefa.selecionada && (
+                          {/* Mini período por tarefa (exceção) - mostrar apenas na versão de atribuição */}
+                          {tarefa.selecionada && onPeriodoChange && (
                             <div 
                               style={{ 
                                 display: 'flex',
