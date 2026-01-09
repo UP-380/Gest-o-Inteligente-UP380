@@ -1030,57 +1030,49 @@ async function getTempoEstimado(req, res) {
       }
     }
 
-    // Função auxiliar para aplicar filtros comuns a uma query
-    const aplicarFiltrosComuns = (queryBase) => {
-      let queryFiltrada = queryBase;
-      
-      // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
-      if (clienteIdsFinais && clienteIdsFinais.length > 0) {
-        const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
-        if (clienteIdsLimpos.length === 1) {
-          queryFiltrada = queryFiltrada.eq('cliente_id', clienteIdsLimpos[0]);
-        } else if (clienteIdsLimpos.length > 1) {
-          queryFiltrada = queryFiltrada.in('cliente_id', clienteIdsLimpos);
-        }
-      }
-
-      if (produto_id && produto_id.length > 0) {
-        const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
-        if (produtoIdsLimpos.length === 1) {
-          queryFiltrada = queryFiltrada.eq('produto_id', produtoIdsLimpos[0]);
-        } else if (produtoIdsLimpos.length > 1) {
-          queryFiltrada = queryFiltrada.in('produto_id', produtoIdsLimpos);
-        }
-      }
-
-      if (tarefa_id && tarefa_id.length > 0) {
-        const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
-        if (tarefaIdsLimpos.length === 1) {
-          queryFiltrada = queryFiltrada.eq('tarefa_id', tarefaIdsLimpos[0]);
-        } else if (tarefaIdsLimpos.length > 1) {
-          queryFiltrada = queryFiltrada.in('tarefa_id', tarefaIdsLimpos);
-        }
-      }
-
-      if (responsavel_id && responsavel_id.length > 0) {
-        const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
-        if (responsavelIdsLimpos.length === 1) {
-          queryFiltrada = queryFiltrada.eq('responsavel_id', responsavelIdsLimpos[0]);
-        } else if (responsavelIdsLimpos.length > 1) {
-          queryFiltrada = queryFiltrada.in('responsavel_id', responsavelIdsLimpos);
-        }
-      }
-      
-      return queryFiltrada;
-    };
-
     let query = supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado')
       .select('*', { count: 'exact' });
 
-    // Aplicar filtros comuns
-    query = aplicarFiltrosComuns(query);
+    // Aplicar filtros
+    // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
+    if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+      const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+      if (clienteIdsLimpos.length === 1) {
+        query = query.eq('cliente_id', clienteIdsLimpos[0]);
+      } else if (clienteIdsLimpos.length > 1) {
+        query = query.in('cliente_id', clienteIdsLimpos);
+      }
+    }
+
+    if (produto_id && produto_id.length > 0) {
+      const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+      if (produtoIdsLimpos.length === 1) {
+        query = query.eq('produto_id', produtoIdsLimpos[0]);
+      } else if (produtoIdsLimpos.length > 1) {
+        query = query.in('produto_id', produtoIdsLimpos);
+      }
+    }
+
+    if (tarefa_id && tarefa_id.length > 0) {
+      const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+      if (tarefaIdsLimpos.length === 1) {
+        query = query.eq('tarefa_id', tarefaIdsLimpos[0]);
+      } else if (tarefaIdsLimpos.length > 1) {
+        query = query.in('tarefa_id', tarefaIdsLimpos);
+      }
+    }
+
+    if (responsavel_id && responsavel_id.length > 0) {
+      const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
+      console.log('🔍 [TEMPO-ESTIMADO] Filtrando por responsavel_id:', responsavelIdsLimpos);
+      if (responsavelIdsLimpos.length === 1) {
+        query = query.eq('responsavel_id', responsavelIdsLimpos[0]);
+      } else if (responsavelIdsLimpos.length > 1) {
+        query = query.in('responsavel_id', responsavelIdsLimpos);
+      }
+    }
 
     // Filtro por data específica
     if (data) {
@@ -1139,8 +1131,41 @@ async function getTempoEstimado(req, res) {
           .from('tempo_estimado')
           .select('agrupador_id, data');
         
-        // Aplicar filtros comuns (reutilizando função auxiliar)
-        queryAgrupadores = aplicarFiltrosComuns(queryAgrupadores);
+        // Aplicar outros filtros básicos (mas não filtro de data)
+        // Usar clienteIdsFinais (que pode ter sido filtrado por status) ao invés de cliente_id original
+        if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+          const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+          if (clienteIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('cliente_id', clienteIdsLimpos[0]);
+          } else if (clienteIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('cliente_id', clienteIdsLimpos);
+          }
+        }
+        if (produto_id && produto_id.length > 0) {
+          const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+          if (produtoIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('produto_id', produtoIdsLimpos[0]);
+          } else if (produtoIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('produto_id', produtoIdsLimpos);
+          }
+        }
+        if (tarefa_id && tarefa_id.length > 0) {
+          const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+          if (tarefaIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('tarefa_id', tarefaIdsLimpos[0]);
+          } else if (tarefaIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('tarefa_id', tarefaIdsLimpos);
+          }
+        }
+        if (responsavel_id && responsavel_id.length > 0) {
+          const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
+          console.log('🔍 [TEMPO-ESTIMADO-AGRUPADORES] Filtrando por responsavel_id:', responsavelIdsLimpos);
+          if (responsavelIdsLimpos.length === 1) {
+            queryAgrupadores = queryAgrupadores.eq('responsavel_id', responsavelIdsLimpos[0]);
+          } else if (responsavelIdsLimpos.length > 1) {
+            queryAgrupadores = queryAgrupadores.in('responsavel_id', responsavelIdsLimpos);
+          }
+        }
         
         // Aplicar filtros de agrupamento se existirem
         if (req.query.filtro_produto === 'true') {
@@ -1153,7 +1178,12 @@ async function getTempoEstimado(req, res) {
           // Se há clienteIdsFinais (filtrados por status), usar esses IDs
           // Caso contrário, buscar apenas registros com cliente_id não nulo
           if (clienteIdsFinais && clienteIdsFinais.length > 0) {
-            // Já aplicado em aplicarFiltrosComuns, não precisa aplicar novamente
+            const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+            if (clienteIdsLimpos.length === 1) {
+              queryAgrupadores = queryAgrupadores.eq('cliente_id', clienteIdsLimpos[0]);
+            } else if (clienteIdsLimpos.length > 1) {
+              queryAgrupadores = queryAgrupadores.in('cliente_id', clienteIdsLimpos);
+            }
           } else {
             queryAgrupadores = queryAgrupadores.not('cliente_id', 'is', null);
           }

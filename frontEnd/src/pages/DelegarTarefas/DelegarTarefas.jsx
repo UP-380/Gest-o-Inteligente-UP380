@@ -1063,18 +1063,10 @@ const DelegarTarefas = () => {
     const novasHoras = {};
     const novosTiposContrato = {};
     
-    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados (em paralelo)
-    const responsaveisArray = Array.from(responsaveisIds);
-    const resultadosHoras = await Promise.all(
-      responsaveisArray.map(async (responsavelId) => {
-        console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
-        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
-        return { responsavelId, resultado };
-      })
-    );
-    
-    // Processar resultados
-    resultadosHoras.forEach(({ responsavelId, resultado }) => {
+    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados
+    for (const responsavelId of responsaveisIds) {
+      console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
+      const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
       if (resultado) {
         novasHoras[responsavelId] = resultado.horascontratadasdia || null;
         novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
@@ -1084,7 +1076,7 @@ const DelegarTarefas = () => {
         novosTiposContrato[responsavelId] = null;
         console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
       }
-    });
+    }
     
     // Substituir cache completamente (não fazer merge) para garantir consistência
     setHorasContratadasPorResponsavel(novasHoras);
@@ -1399,9 +1391,13 @@ const DelegarTarefas = () => {
           agruparRegistros(result.data || []);
           setTotalRegistros(result.total || 0);
           setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
+          // Carregar nomes dos itens relacionados
+          await carregarNomesRelacionados(result.data || []);
           
-          // Preparar agrupamentos para dados auxiliares (se houver período)
-          let agrupamentosArray = [];
+          // Buscar tempos realizados para todos os registros
+          await buscarTemposRealizados(result.data || []);
+          
+          // Carregar custos e horas contratadas para todos os responsáveis encontrados nos registros
           if (periodoAUsar.inicio && periodoAUsar.fim) {
             const agrupadosTemp = {};
             (result.data || []).forEach(registro => {
@@ -1414,30 +1410,21 @@ const DelegarTarefas = () => {
               }
               agrupadosTemp[agrupadorId].quantidade++;
             });
-            agrupamentosArray = Object.values(agrupadosTemp);
+            
+            const agrupamentosArray = Object.values(agrupadosTemp);
+            
+            // Carregar todos os dados auxiliares ANTES de marcar como carregado
+            console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares (custos e horas contratadas)...');
+            await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            
+            // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
+            console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
+            setDadosAuxiliaresCarregados(true);
+          } else {
+            // Se não há período, não precisa carregar horas contratadas, mas ainda marca como carregado
+            setDadosAuxiliaresCarregados(true);
           }
-          
-          // Paralelizar todas as operações auxiliares para melhor performance
-          console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares em paralelo...');
-          const operacoesAuxiliares = [
-            carregarNomesRelacionados(result.data || []),
-            buscarTemposRealizados(result.data || [])
-          ];
-          
-          // Adicionar operações de custos e horas contratadas apenas se houver período
-          if (periodoAUsar.inicio && periodoAUsar.fim && agrupamentosArray.length > 0) {
-            operacoesAuxiliares.push(
-              carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim),
-              carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim)
-            );
-          }
-          
-          // Executar todas as operações em paralelo
-          await Promise.all(operacoesAuxiliares);
-          
-          // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
-          console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
-          setDadosAuxiliaresCarregados(true);
         } else {
           // Se não há dados, marca como carregado mesmo assim
           setDadosAuxiliaresCarregados(true);
@@ -1472,74 +1459,46 @@ const DelegarTarefas = () => {
 
     const novosNomes = { ...nomesCache };
 
-    // Carregar nomes de produtos (em paralelo)
+    // Carregar nomes de produtos
     if (produtosIds.size > 0) {
       try {
-        const produtosArray = Array.from(produtosIds).filter(id => !novosNomes.produtos[id]);
-        if (produtosArray.length > 0) {
-          const resultadosProdutos = await Promise.all(
-            produtosArray.map(async (produtoId) => {
-              try {
-                const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
-                  credentials: 'include',
-                  headers: { 'Accept': 'application/json' }
-                });
-                if (response.ok) {
-                  const result = await response.json();
-                  if (result.success && result.data) {
-                    return { produtoId, nome: result.data.nome || `Produto #${produtoId}` };
-                  }
-                }
-                return { produtoId, nome: null };
-              } catch (error) {
-                console.error(`Erro ao carregar produto ${produtoId}:`, error);
-                return { produtoId, nome: null };
+        const produtosArray = Array.from(produtosIds);
+        for (const produtoId of produtosArray) {
+          if (!novosNomes.produtos[produtoId]) {
+            const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                novosNomes.produtos[produtoId] = result.data.nome || `Produto #${produtoId}`;
               }
-            })
-          );
-          
-          resultadosProdutos.forEach(({ produtoId, nome }) => {
-            if (nome) {
-              novosNomes.produtos[produtoId] = nome;
             }
-          });
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar nomes de produtos:', error);
       }
     }
 
-    // Carregar nomes de tarefas (em paralelo)
+    // Carregar nomes de tarefas
     if (tarefasIds.size > 0) {
       try {
-        const tarefasArray = Array.from(tarefasIds).filter(id => !novosNomes.tarefas[id]);
-        if (tarefasArray.length > 0) {
-          const resultadosTarefas = await Promise.all(
-            tarefasArray.map(async (tarefaId) => {
-              try {
-                const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
-                  credentials: 'include',
-                  headers: { 'Accept': 'application/json' }
-                });
-                if (response.ok) {
-                  const result = await response.json();
-                  if (result.success && result.data) {
-                    return { tarefaId, nome: result.data.nome || `Tarefa #${tarefaId}` };
-                  }
-                }
-                return { tarefaId, nome: null };
-              } catch (error) {
-                console.error(`Erro ao carregar tarefa ${tarefaId}:`, error);
-                return { tarefaId, nome: null };
+        const tarefasArray = Array.from(tarefasIds);
+        for (const tarefaId of tarefasArray) {
+          if (!novosNomes.tarefas[tarefaId]) {
+            const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                novosNomes.tarefas[tarefaId] = result.data.nome || `Tarefa #${tarefaId}`;
               }
-            })
-          );
-          
-          resultadosTarefas.forEach(({ tarefaId, nome }) => {
-            if (nome) {
-              novosNomes.tarefas[tarefaId] = nome;
             }
-          });
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar nomes de tarefas:', error);
@@ -1765,22 +1724,11 @@ const DelegarTarefas = () => {
 
     const novosCustos = { ...custosPorResponsavel };
     
-    // Filtrar apenas responsáveis que ainda não têm custo no cache
-    const responsaveisParaBuscar = Array.from(responsaveisIds).filter(id => !novosCustos[id]);
-    
-    // Buscar custos em paralelo para todos os responsáveis que precisam
-    if (responsaveisParaBuscar.length > 0) {
-      const resultadosCustos = await Promise.all(
-        responsaveisParaBuscar.map(async (responsavelId) => {
-          const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
-          return { responsavelId, custoHora };
-        })
-      );
-      
-      // Processar resultados
-      resultadosCustos.forEach(({ responsavelId, custoHora }) => {
+    for (const responsavelId of responsaveisIds) {
+      if (!novosCustos[responsavelId]) {
+        const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
         novosCustos[responsavelId] = custoHora;
-      });
+      }
     }
     
     setCustosPorResponsavel(novosCustos);
