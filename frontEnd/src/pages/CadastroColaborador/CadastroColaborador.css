@@ -1,0 +1,25 @@
+/* Estilos específicos da página CadastroColaborador */
+
+.cadastro-colaborador-container {
+  padding: 20px;
+}
+
+.cadastro-colaborador-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.cadastro-colaborador-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cadastro-colaborador-subtitle {
+  font-size: 14px;
+  color: #666;
+  margin: 4px 0 0 0;
+}
+

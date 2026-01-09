@@ -27,13 +27,20 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
-// Buscar vigências com filtros
+// Buscar vigências com filtros (com join com membro)
 async function buscarVigencias(filters = {}, page = 1, limit = 50) {
   try {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
-      .select('*', { count: 'exact' });
+      .select(`
+        *,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `, { count: 'exact' });
 
     // Aplicar filtros
     if (filters.membro_id) {
@@ -101,13 +108,20 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
   }
 }
 
-// Buscar vigência por ID
+// Buscar vigência por ID (com join com membro)
 async function buscarVigenciaPorId(id) {
   try {
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
-      .select('*')
+      .select(`
+        *,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -121,13 +135,20 @@ async function buscarVigenciaPorId(id) {
   }
 }
 
-// Buscar vigências por membro_id
+// Buscar vigências por membro_id (com join com membro)
 async function buscarVigenciasPorMembro(membroId) {
   try {
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
-      .select('*')
+      .select(`
+        *,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `)
       .eq('membro_id', membroId)
       .order('dt_vigencia', { ascending: false });
 
@@ -178,6 +199,35 @@ async function verificarVigenciaExiste(id) {
     return { data, error: null };
   } catch (error) {
     return { data: null, error };
+  }
+}
+
+// Verificar unicidade de vigência (membro_id + dt_vigencia)
+// Se excludeId for fornecido, exclui esse ID da verificação (útil para updates)
+async function verificarVigenciaUnica(membroId, dtVigencia, excludeId = null) {
+  try {
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('custo_membro_vigencia')
+      .select('id')
+      .eq('membro_id', membroId)
+      .eq('dt_vigencia', dtVigencia);
+
+    // Se excludeId fornecido, excluir da verificação (para updates)
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      return { exists: false, error };
+    }
+
+    // Se encontrou algum registro, já existe
+    return { exists: (data && data.length > 0), error: null };
+  } catch (error) {
+    return { exists: false, error };
   }
 }
 
@@ -245,30 +295,37 @@ async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dat
 // Criar vigência
 async function criarVigencia(dados) {
   try {
-    console.log('🔍 [SERVICE] Tentando inserir dados:', JSON.stringify(dados, null, 2));
+    // Log apenas em desenvolvimento
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 [SERVICE] Tentando inserir dados:', JSON.stringify(dados, null, 2));
+    }
     
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
       .insert([dados])
-      .select()
+      .select(`
+        *,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `)
       .single();
 
     if (error) {
-      console.error('❌ [SERVICE] Erro ao inserir vigência:', error);
-      console.error('❌ [SERVICE] Código do erro:', error.code);
-      console.error('❌ [SERVICE] Mensagem:', error.message);
-      console.error('❌ [SERVICE] Hint:', error.hint);
-      console.error('❌ [SERVICE] Detalhes completos:', JSON.stringify(error, null, 2));
+      console.error('Erro ao inserir vigência:', error);
       return { data: null, error };
     }
 
-    console.log('✅ [SERVICE] Vigência criada com sucesso');
-    console.log('📊 [SERVICE] Dados retornados:', JSON.stringify(data, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ [SERVICE] Vigência criada com sucesso');
+    }
     
     return { data, error: null };
   } catch (error) {
-    console.error('❌ [SERVICE] Erro inesperado ao criar vigência:', error);
+    console.error('Erro inesperado ao criar vigência:', error);
     return { data: null, error };
   }
 }
@@ -276,27 +333,34 @@ async function criarVigencia(dados) {
 // Atualizar vigência
 async function atualizarVigencia(id, dados) {
   try {
-    console.log('🔧 [SERVICE] Atualizando vigência ID:', id);
-    console.log('🔧 [SERVICE] Dados para update:', JSON.stringify(dados, null, 2));
+    // Log apenas em desenvolvimento
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔧 [SERVICE] Atualizando vigência ID:', id);
+    }
     
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
       .update(dados)
       .eq('id', id)
-      .select()
+      .select(`
+        *,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `)
       .single();
 
     if (error) {
-      console.error('❌ [SERVICE] Erro do Supabase ao atualizar vigência:', error);
-      console.error('❌ [SERVICE] Detalhes:', JSON.stringify(error, null, 2));
+      console.error('Erro do Supabase ao atualizar vigência:', error);
       return { data: null, error };
     }
 
-    console.log('✅ [SERVICE] Vigência atualizada com sucesso:', data);
     return { data, error: null };
   } catch (error) {
-    console.error('❌ [SERVICE] Erro inesperado ao atualizar vigência:', error);
+    console.error('Erro inesperado ao atualizar vigência:', error);
     return { data: null, error };
   }
 }
@@ -326,6 +390,7 @@ module.exports = {
   buscarVigenciasPorMembro,
   verificarMembroExiste,
   verificarVigenciaExiste,
+  verificarVigenciaUnica,
   criarVigencia,
   atualizarVigencia,
   deletarVigencia,

@@ -7,6 +7,8 @@ import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardCol
 import CadastroClientes from './pages/CadastroClientes/CadastroClientes';
 import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
 import ConfigCustoMembro from './pages/ConfigCustoMembro/ConfigCustoMembro';
+import CadastroColaborador from './pages/CadastroColaborador/CadastroColaborador';
+import CadastroVigencia from './pages/CadastroVigencia/CadastroVigencia';
 import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroProdutoIndividual from './pages/CadastroProdutoIndividual/CadastroProdutoIndividual';
 import CadastroTarefas from './pages/CadastroTarefas/CadastroTarefas';
@@ -154,6 +156,22 @@ function App() {
           element={
             <ProtectedRoute>
               <GestaoColaboradores />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/colaborador"
+          element={
+            <ProtectedRoute>
+              <CadastroColaborador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/vigencia"
+          element={
+            <ProtectedRoute>
+              <CadastroVigencia />
             </ProtectedRoute>
           }
         />

@@ -6,6 +6,7 @@ const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
 const supabaseDirect = require('../config/database');
 const { resolveAvatarUrl } = require('../utils/storage');
+const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound, sendConflict } = require('../utils/responseHelper');
 
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
@@ -56,18 +57,8 @@ async function getColaboradores(req, res) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('❌ Erro ao buscar colaboradores:', error);
-      console.error('❌ Detalhes do erro:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar colaboradores',
-        details: error.message
-      });
+      console.error('Erro ao buscar colaboradores:', error);
+      return sendError(res, 500, 'Erro ao buscar colaboradores', error.message);
     }
 
     // Buscar salário base mais recente de cada colaborador
@@ -183,21 +174,15 @@ async function getColaboradores(req, res) {
       }
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
-      count: data?.length || 0,
-      total: count || 0,
+    return sendSuccess(res, 200, data || [], null, {
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
+      total: count || 0,
+      count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar colaboradores:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -207,10 +192,7 @@ async function getColaboradorPorId(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     const { data, error } = await supabase
@@ -222,31 +204,17 @@ async function getColaboradorPorId(req, res) {
 
     if (error) {
       console.error('Erro ao buscar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar colaborador', error.message);
     }
 
     if (!data) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
-    return res.json({
-      success: true,
-      data: data
-    });
+    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -257,20 +225,14 @@ async function criarColaborador(req, res) {
 
     // Validações
     if (!nome || !nome.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nome é obrigatório'
-      });
+      return sendValidationError(res, 'Nome é obrigatório');
     }
 
     // Validar CPF se fornecido (formato básico)
     if (cpf && cpf.trim()) {
       const cpfLimpo = cpf.replace(/\D/g, '');
-      if (cpfLimpo.length !== 11) {
-        return res.status(400).json({
-          success: false,
-          error: 'CPF deve conter 11 dígitos'
-        });
+      if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
+        return sendValidationError(res, 'CPF/CNPJ deve conter 11 ou 14 dígitos');
       }
     }
 
@@ -286,22 +248,11 @@ async function criarColaborador(req, res) {
 
       if (errorCheck) {
         console.error('Erro ao verificar CPF:', errorCheck);
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao verificar CPF',
-          details: errorCheck.message
-        });
+        return sendError(res, 500, 'Erro ao verificar CPF', errorCheck.message);
       }
 
       if (existente) {
-        return res.status(409).json({
-          success: false,
-          error: 'CPF já cadastrado',
-          data: {
-            id: existente.id,
-            nome: existente.nome
-          }
-        });
+        return sendConflict(res, 'CPF já cadastrado', null);
       }
     }
 
@@ -321,25 +272,13 @@ async function criarColaborador(req, res) {
 
     if (error) {
       console.error('Erro ao criar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao criar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao criar colaborador', error.message);
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Colaborador criado com sucesso',
-      data: data
-    });
+    return sendCreated(res, data, 'Colaborador criado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao criar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -350,10 +289,7 @@ async function atualizarColaborador(req, res) {
     const { nome, cpf, status } = req.body;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     // Verificar se colaborador existe
@@ -366,18 +302,11 @@ async function atualizarColaborador(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar colaborador', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
     // Preparar dados para atualização
@@ -385,10 +314,7 @@ async function atualizarColaborador(req, res) {
 
     if (nome !== undefined) {
       if (!nome || !nome.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nome não pode ser vazio'
-        });
+        return sendValidationError(res, 'Nome não pode ser vazio');
       }
       dadosUpdate.nome = nome.trim();
     }
@@ -397,10 +323,7 @@ async function atualizarColaborador(req, res) {
       if (cpf && cpf.trim()) {
         const cpfLimpo = cpf.replace(/\D/g, '');
         if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
-          return res.status(400).json({
-            success: false,
-            error: 'CPF/CNPJ deve conter 11 ou 14 dígitos'
-          });
+          return sendValidationError(res, 'CPF/CNPJ deve conter 11 ou 14 dígitos');
         }
 
         // Verificar se CPF já existe em outro colaborador
@@ -414,22 +337,11 @@ async function atualizarColaborador(req, res) {
 
         if (errorCpf) {
           console.error('Erro ao verificar CPF:', errorCpf);
-          return res.status(500).json({
-            success: false,
-            error: 'Erro ao verificar CPF',
-            details: errorCpf.message
-          });
+          return sendError(res, 500, 'Erro ao verificar CPF', errorCpf.message);
         }
 
         if (cpfExistente) {
-          return res.status(409).json({
-            success: false,
-            error: 'CPF já cadastrado para outro colaborador',
-            data: {
-              id: cpfExistente.id,
-              nome: cpfExistente.nome
-            }
-          });
+          return sendConflict(res, 'CPF já cadastrado para outro colaborador', null);
         }
 
         dadosUpdate.cpf = cpfLimpo;
@@ -445,10 +357,7 @@ async function atualizarColaborador(req, res) {
 
     // Se não há nada para atualizar
     if (Object.keys(dadosUpdate).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nenhum dado fornecido para atualização'
-      });
+      return sendValidationError(res, 'Nenhum dado fornecido para atualização');
     }
 
     // Atualizar no banco
@@ -462,25 +371,13 @@ async function atualizarColaborador(req, res) {
 
     if (error) {
       console.error('Erro ao atualizar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao atualizar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao atualizar colaborador', error.message);
     }
 
-    return res.json({
-      success: true,
-      message: 'Colaborador atualizado com sucesso',
-      data: data
-    });
+    return sendUpdated(res, data, 'Colaborador atualizado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao atualizar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -490,10 +387,7 @@ async function deletarColaborador(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     // Verificar se colaborador existe
@@ -506,18 +400,11 @@ async function deletarColaborador(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar colaborador', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
     // Verificar se há registros relacionados (opcional - pode ser ajustado conforme necessidade)
@@ -534,11 +421,7 @@ async function deletarColaborador(req, res) {
     }
 
     if (registrosTempo && registrosTempo.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'Não é possível deletar colaborador com registros de tempo vinculados',
-        message: 'Existem registros de tempo associados a este colaborador. Remova os registros antes de deletar.'
-      });
+      return sendConflict(res, 'Não é possível deletar colaborador com registros de tempo vinculados', 'Existem registros de tempo associados a este colaborador. Remova os registros antes de deletar.');
     }
 
     // Deletar do banco
@@ -550,28 +433,16 @@ async function deletarColaborador(req, res) {
 
     if (error) {
       console.error('Erro ao deletar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao deletar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao deletar colaborador', error.message);
     }
 
-    return res.json({
-      success: true,
-      message: 'Colaborador deletado com sucesso',
-      data: {
-        id: existente.id,
-        nome: existente.nome
-      }
-    });
+    return sendDeleted(res, {
+      id: existente.id,
+      nome: existente.nome
+    }, 'Colaborador deletado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao deletar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -586,25 +457,15 @@ async function getTiposContrato(req, res) {
 
     if (error) {
       console.error('Erro ao buscar tipos de contrato:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar tipos de contrato',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar tipos de contrato', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
+    return sendSuccess(res, 200, data || [], null, {
       count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar tipos de contrato:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 

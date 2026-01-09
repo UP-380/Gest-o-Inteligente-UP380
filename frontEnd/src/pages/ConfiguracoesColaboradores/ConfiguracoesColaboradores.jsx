@@ -10,8 +10,6 @@ import CardContainer from '../../components/common/CardContainer';
 import { calcularVigencia } from '../../utils/calcularVigencia';
 import { useVigenciaSubmit } from '../../hooks/useVigenciaSubmit';
 import { useVigenciaCalculations } from '../../hooks/useVigenciaCalculations';
-import { VigenciaModal } from '../../components/vigencia';
-import ColaboradorModal from '../../components/colaboradores/ColaboradorModal';
 import DataTable from '../../components/common/DataTable';
 import LoadingState from '../../components/common/LoadingState';
 import EditButton from '../../components/common/EditButton';
@@ -878,16 +876,12 @@ const GestaoColaboradores = () => {
 
   // Abrir formulário para novo colaborador
   const handleNewColaborador = () => {
-    resetForm();
-    setShowForm(true);
+    navigate('/cadastro/colaborador');
   };
 
-  // Abrir modal de editar colaborador
+  // Navegar para página de editar colaborador
   const handleEdit = (colaborador) => {
-    setColaboradorEditFormData({
-      nome: colaborador.nome || '',
-      cpf: colaborador.cpf ? aplicarMascaraCpf(colaborador.cpf) : ''
-    });
+    navigate(`/cadastro/colaborador?id=${colaborador.id}`);
     setColaboradorEditando(colaborador);
     setColaboradorEditFormErrors({});
     setShowModalEditarColaborador(true);
@@ -1052,35 +1046,9 @@ const GestaoColaboradores = () => {
   };
 
   // Editar vigência - redireciona para a tela de vigências
-  // Abrir modal de editar vigência
+  // Navegar para página de editar vigência
   const handleEditVigencia = (vigencia) => {
-    // Buscar nome do membro
-    const membro = membros.find(m => m.id === vigencia.membro_id);
-    const nomeMembro = membro?.nome || `Colaborador #${vigencia.membro_id}`;
-    
-    // Preencher formulário com dados da vigência
-    setVigenciaEditFormData({
-      dt_vigencia: vigencia.dt_vigencia ? formatarData(vigencia.dt_vigencia) : '',
-      horascontratadasdia: vigencia.horascontratadasdia ? String(vigencia.horascontratadasdia) : '',
-      salariobase: vigencia.salariobase ? formatarValorParaInput(vigencia.salariobase) : '',
-      tipo_contrato: vigencia.tipo_contrato ? String(vigencia.tipo_contrato) : '',
-      ajudacusto: vigencia.ajudacusto ? formatarValorParaInput(vigencia.ajudacusto) : '0',
-      valetransporte: vigencia.valetransporte ? formatarValorParaInput(vigencia.valetransporte) : '0',
-      vale_refeicao: vigencia.vale_refeicao || vigencia.vale_alimentacao ? formatarValorParaInput(vigencia.vale_refeicao || vigencia.vale_alimentacao) : '0',
-      descricao: vigencia.descricao || '',
-      ferias: vigencia.ferias ? formatarValorParaInput(vigencia.ferias) : '0',
-      terco_ferias: (vigencia.um_terco_ferias || vigencia.terco_ferias) ? formatarValorParaInput(vigencia.um_terco_ferias || vigencia.terco_ferias) : '0', // Lê um_terco_ferias do banco
-      decimoterceiro: vigencia.decimoterceiro ? formatarValorParaInput(vigencia.decimoterceiro) : '0',
-      insspatronal: vigencia.insspatronal ? formatarValorParaInput(vigencia.insspatronal) : '0',
-      insscolaborador: vigencia.insscolaborador ? formatarValorParaInput(vigencia.insscolaborador) : '0',
-      fgts: vigencia.fgts ? formatarValorParaInput(vigencia.fgts) : '0',
-      custo_hora: vigencia.custo_hora ? formatarValorParaInput(vigencia.custo_hora) : '0',
-      descricao_beneficios: vigencia.descricao_beneficios || ''
-    });
-    
-    setVigenciaEditando(vigencia);
-    setVigenciaEditFormErrors({});
-    setShowModalEditarVigencia(true);
+    navigate(`/cadastro/vigencia?id=${vigencia.id}`);
   };
 
   // Fechar modal de editar vigência
@@ -1866,24 +1834,6 @@ const GestaoColaboradores = () => {
           )}
 
           {/* Modal de Novo/Editar Colaborador */}
-          <ColaboradorModal
-            isOpen={showForm}
-            onClose={resetForm}
-            onSubmit={handleSubmit}
-            formData={formData}
-            setFormData={setFormData}
-            formErrors={formErrors}
-            setFormErrors={setFormErrors}
-            submitting={submitting}
-            editingId={editingId}
-            tiposContrato={tiposContrato}
-            loadingTiposContrato={loadingTiposContrato}
-            formatarValorParaInput={formatarValorParaInput}
-            removerFormatacaoMoeda={removerFormatacaoMoeda}
-            aplicarMascaraCpf={aplicarMascaraCpf}
-            vigenciaAberta={vigenciaAberta}
-            setVigenciaAberta={setVigenciaAberta}
-          />
 
           {/* Filtros quando mostrarDetalhes está ativo */}
           {mostrarDetalhes && (
@@ -2286,43 +2236,6 @@ const GestaoColaboradores = () => {
       />
 
       {/* Modal de Nova Vigência */}
-      <VigenciaModal
-        isOpen={showModalNovaVigencia}
-        onClose={fecharModalNovaVigencia}
-        onSubmit={handleSalvarNovaVigencia}
-        formData={vigenciaFormData}
-        setFormData={setVigenciaFormData}
-        formErrors={vigenciaFormErrors}
-        setFormErrors={setVigenciaFormErrors}
-        submitting={submittingVigenciaHook}
-        tiposContrato={tiposContrato}
-        loadingTiposContrato={loadingTiposContrato}
-        formatarValorParaInput={formatarValorParaInput}
-        removerFormatacaoMoeda={removerFormatacaoMoeda}
-        title="Nova Vigência"
-        isEdit={false}
-        membroId={membroIdParaVigencia}
-        setMembroId={setMembroIdParaVigencia}
-        colaboradores={todosColaboradoresParaFiltro}
-      />
-
-      {/* Modal de Editar Vigência */}
-      <VigenciaModal
-        isOpen={showModalEditarVigencia && !!vigenciaEditando}
-        onClose={fecharModalEditarVigencia}
-        onSubmit={handleSalvarEditarVigencia}
-        formData={vigenciaEditFormData}
-        setFormData={setVigenciaEditFormData}
-        formErrors={vigenciaEditFormErrors}
-        setFormErrors={setVigenciaEditFormErrors}
-        submitting={submittingVigenciaHook}
-        tiposContrato={tiposContrato}
-        loadingTiposContrato={loadingTiposContrato}
-        formatarValorParaInput={formatarValorParaInput}
-        removerFormatacaoMoeda={removerFormatacaoMoeda}
-        title={vigenciaEditando ? `Editar Vigência - ${membros.find(m => m.id === vigenciaEditando.membro_id)?.nome || `Colaborador #${vigenciaEditando.membro_id}`}` : 'Editar Vigência'}
-        isEdit={true}
-      />
 
       {/* Modal antigo - removido, usando VigenciaModal acima */}
       {false && showModalEditarVigencia && vigenciaEditando && (
