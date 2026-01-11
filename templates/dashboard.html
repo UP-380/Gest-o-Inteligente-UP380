@@ -3,332 +3,502 @@
 {% block title %}Dashboard Executivo - +Compliance{% endblock %}
 
 {% block content %}
+<style>
+    /* Executive Palette Variables */
+    :root {
+        --color-primary: #0D2A8B;
+        --color-info: #0EA5E9;
+        --color-success: #10B981;
+        --color-warning: #F59E0B;
+        --color-danger: #EF4444;
+        --color-crm: #6366F1;
+        --color-bg-light: #F9FAFB;
+    }
+
+    /* FORÇAR Cor da Marca (Azul Executivo) sobre o Bootstrap */
+    .text-primary {
+        color: var(--color-primary) !important;
+    }
+
+    .bg-primary {
+        background-color: var(--color-primary) !important;
+    }
+
+    /* Badge Correction: Ensure text is white inside primary badges */
+    .badge.bg-primary {
+        color: #ffffff !important;
+    }
+
+    /* Hover effects for primary text */
+    a.text-primary:hover,
+    .btn-link.text-primary:hover {
+        color: #0a216e !important;
+        /* Um tom levemente mais escuro */
+    }
+
+    /* Widget Link Wrapper - Makes the whole card clickable */
+    .dashboard-widget-link {
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        height: 100%;
+    }
+
+    .dashboard-widget-link:hover {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    /* Widget Styles - Compact Version */
+    .dashboard-widget {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 16px 20px;
+        height: 100%;
+        border: 1px solid rgba(13, 42, 139, 0.08);
+        /* Borda sutil azulada */
+        box-shadow: 0 4px 6px -1px rgba(13, 42, 139, 0.06), 0 2px 4px -1px rgba(13, 42, 139, 0.03);
+        /* Sombra Azul */
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dashboard-widget:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 25px -5px rgba(13, 42, 139, 0.15), 0 10px 10px -5px rgba(13, 42, 139, 0.1);
+        /* Glow Azul Intenso */
+        border-color: rgba(13, 42, 139, 0.2);
+    }
+
+    /* Widget Header */
+    .widget-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    /* BRAND COLOR TITLES */
+    .widget-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--color-primary);
+        /* Azul da Marca */
+        opacity: 0.9;
+    }
+
+    /* Widget Icon Box - Smaller */
+    .widget-icon-box {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: transform 0.3s ease;
+    }
+
+    /* Colors for Icon Boxes */
+    .widget-icon-box.primary {
+        background: rgba(13, 42, 139, 0.1);
+        color: var(--color-primary);
+    }
+
+    .widget-icon-box.danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--color-danger);
+    }
+
+    /* Value Typography - Modern Numeric Font */
+    .widget-value,
+    .display-5,
+    .h4,
+    .badge {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-feature-settings: "tnum" on, "lnum" on;
+        /* Tabular & Lining numbers */
+    }
+
+    .widget-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #111827;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        margin-bottom: 12px;
+    }
+
+    /* Footer / Badges */
+    .widget-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: auto;
+    }
+
+    .widget-badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+
+    /* Perfect Centering for List Badges */
+    .list-group-item .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        /* Fixed width for perfect circle/pill */
+        height: 24px;
+        padding: 0;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .widget-arrow {
+        opacity: 0;
+        transform: translateX(-10px);
+        transition: all 0.3s ease;
+        color: #9CA3AF;
+    }
+
+    .dashboard-widget:hover .widget-arrow {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    /* Semantic Overrides */
+    .bg-custom-warning-light {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #B45309;
+    }
+
+    .bg-custom-danger-light {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #B91C1C;
+    }
+
+    .bg-custom-success-light {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #047857;
+    }
+
+    .bg-custom-info-light {
+        background-color: rgba(14, 165, 233, 0.15);
+        color: #0369A1;
+    }
+
+    /* General Dashboard Card (for sections below widgets) */
+    .dashboard-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 16px;
+        border: 1px solid rgba(13, 42, 139, 0.08);
+        /* Borda sutil azulada consistente */
+        box-shadow: 0 4px 6px -1px rgba(13, 42, 139, 0.06), 0 2px 4px -1px rgba(13, 42, 139, 0.03);
+        /* Sombra Azul padrão */
+        height: 100%;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .dashboard-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 20px 25px -5px rgba(13, 42, 139, 0.15), 0 10px 10px -5px rgba(13, 42, 139, 0.1);
+        border-color: rgba(13, 42, 139, 0.2);
+    }
+
+    .dashboard-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    /* BRAND COLOR TITLES */
+    .dashboard-card-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--color-primary);
+        /* Azul da Marca */
+        margin: 0;
+        display: flex;
+        align-items: center;
+        letter-spacing: -0.01em;
+    }
+
+    .dashboard-card-title i {
+        margin-right: 10px;
+        font-size: 1rem;
+        color: var(--color-primary);
+        background: rgba(13, 42, 139, 0.1);
+        padding: 8px;
+        border-radius: 8px;
+    }
+
+    /* Quick Actions Button Style */
+    .btn-quick-action {
+        display: flex;
+        align-items: center;
+        background: var(--color-bg-light);
+        padding: 10px 12px;
+        border-radius: 12px;
+        color: #374151;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        height: 100%;
+    }
+
+    .btn-quick-action:hover {
+        background: #ffffff;
+        border-color: rgba(13, 42, 139, 0.2);
+        color: var(--color-primary);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-quick-action .icon-wrapper {
+        background: rgba(13, 42, 139, 0.1);
+        color: var(--color-primary);
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .btn-quick-action:hover .icon-wrapper {
+        background: var(--color-primary);
+        color: #ffffff;
+    }
+
+    /* List Items (Timeline/Activity) */
+    .activity-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #F3F4F6;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(13, 42, 139, 0.1);
+        color: var(--color-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 16px;
+    }
+</style>
+
 <!-- Cabeçalho Executivo -->
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-2">
     <div>
-        <h2 class="mb-1">Dashboard Executivo</h2>
+        <h2 class="mb-1" style="color: #111827; font-weight: 700; letter-spacing: -0.02em;">Dashboard Executivo</h2>
         <p class="text-muted mb-0">Visão estratégica do mandato parlamentar</p>
     </div>
     <div class="text-end">
-        <div class="text-muted">
+        <div class="text-muted fw-medium">
             <i class="fas fa-calendar-alt me-2"></i>
             {{ "now"|date:"l, d/m/Y" }}
         </div>
-        <div class="text-muted small">
-            <i class="fas fa-clock me-1"></i>
-            {{ "now"|date:"H:i" }}
-        </div>
     </div>
 </div>
 
-<!-- Alertas Prioritários -->
-{% if alertas %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="alert alert-light border-start border-4 border-warning">
-            <h6 class="alert-heading mb-3">
-                <i class="fas fa-bell me-2"></i>
-                Atenção Necessária
-            </h6>
-            <div class="row">
-                {% for alerta in alertas %}
-                <div class="col-md-4 mb-2">
-                    <div class="d-flex align-items-center">
-                        <div class="text-{{ alerta.tipo }} me-2">
-                            <i class="{{ alerta.icone }}"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="fw-bold small">{{ alerta.titulo }}</div>
-                            <a href="{{ alerta.url }}" class="btn btn-outline-{{ alerta.tipo }} btn-xs">
-                                {{ alerta.acao }}
-                            </a>
-                        </div>
+<!-- Widgets Modernos (Azul Unificado) -->
+<div class="row mb-3 g-3">
+    <!-- Widget 1: Documents -->
+    <div class="col-md-3">
+        <a href="{% url 'documentos:oficio_list' %}" class="dashboard-widget-link">
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span class="widget-label">OFÍCIOS NO MÊS</span>
+                    <div class="widget-icon-box {% if oficios_pendentes > 0 %}danger{% else %}primary{% endif %}">
+                        <i class="fas fa-file-signature"></i>
                     </div>
                 </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Métricas Principais -->
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card h-100 border-start border-4 border-primary">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h3 class="text-primary mb-1">{{ atendimentos_abertos }}</h3>
-                        <p class="text-muted mb-0 small">Atendimentos Ativos</p>
-                        {% if atendimentos_atrasados > 0 %}
-                        <span class="badge bg-danger">{{ atendimentos_atrasados }} em atraso</span>
-                        {% endif %}
-                    </div>
-                    <div class="text-primary">
-                        <i class="fas fa-clipboard-list fa-2x"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <a href="{% url 'atendimento:atendimento_list' %}" class="btn btn-outline-primary btn-sm w-100">
-                        Gerenciar
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card h-100 border-start border-4 border-success">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h3 class="text-success mb-1">{{ oficios_mes }}</h3>
-                        <p class="text-muted mb-0 small">Ofícios no Mês</p>
+                <div>
+                    <div class="widget-value">{{ oficios_mes }}</div>
+                    <div class="widget-footer">
                         {% if oficios_pendentes > 0 %}
-                        <span class="badge bg-warning">{{ oficios_pendentes }} pendentes</span>
+                        <span class="widget-badge bg-custom-danger-light">Pendentes</span>
+                        {% else %}
+                        <span class="widget-badge bg-custom-success-light">Em dia</span>
                         {% endif %}
+                        <i class="fas fa-arrow-right widget-arrow"></i>
                     </div>
-                    <div class="text-success">
-                        <i class="fas fa-file-signature fa-2x"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <a href="{% url 'documentos:oficio_list' %}" class="btn btn-outline-success btn-sm w-100">
-                        Gerenciar
-                    </a>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card h-100 border-start border-4 border-warning">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h3 class="text-warning mb-1">{{ proximos_eventos }}</h3>
-                        <p class="text-muted mb-0 small">Próximos Eventos</p>
+
+    <!-- Widget 2: Atendimentos -->
+    <div class="col-md-3">
+        <a href="{% url 'atendimento:atendimento_list' %}" class="dashboard-widget-link">
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span class="widget-label">ATENDIMENTOS</span>
+                    <div class="widget-icon-box {% if atendimentos_atrasados > 0 %}danger{% else %}primary{% endif %}">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="widget-value">{{ atendimentos_abertos }}</div>
+                    <div class="widget-footer">
+                        {% if atendimentos_atrasados > 0 %}
+                        <span class="widget-badge bg-custom-danger-light">Em atraso</span>
+                        {% else %}
+                        <span class="widget-badge bg-custom-success-light">Em dia</span>
+                        {% endif %}
+                        <i class="fas fa-arrow-right widget-arrow"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <!-- Widget 3: Agenda -->
+    <div class="col-md-3">
+        <a href="{% url 'agenda:lista' %}" class="dashboard-widget-link">
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span class="widget-label">EVENTOS PRÓXIMOS</span>
+                    <div class="widget-icon-box primary">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="widget-value">{{ proximos_eventos }}</div>
+                    <div class="widget-footer">
                         {% if eventos_hoje > 0 %}
-                        <span class="badge bg-danger">{{ eventos_hoje }} hoje</span>
+                        <span class="widget-badge bg-custom-info-light">{{ eventos_hoje }} hoje</span>
+                        {% else %}
+                        <span class="text-muted small">Próximos Eventos</span>
                         {% endif %}
+                        <i class="fas fa-arrow-right widget-arrow"></i>
                     </div>
-                    <div class="text-warning">
-                        <i class="fas fa-calendar-check fa-2x"></i>
-                    </div>
-                </div>
-                <div class="mt-2">
-                    <a href="{% url 'agenda:lista' %}" class="btn btn-outline-warning btn-sm w-100">
-                        Ver Agenda
-                    </a>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card h-100 border-start border-4 border-info">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h3 class="text-info mb-1">{{ total_cidadaos }}</h3>
-                        <p class="text-muted mb-0 small">Total de Cidadãos</p>
-                        <span class="badge bg-info">+{{ pessoas_mes }} este mês</span>
-                    </div>
-                    <div class="text-info">
-                        <i class="fas fa-users fa-2x"></i>
+
+    <!-- Widget 4: CRM -->
+    <div class="col-md-3">
+        <a href="{% url 'crm:pessoa_list' %}" class="dashboard-widget-link">
+            <div class="dashboard-widget">
+                <div class="widget-header">
+                    <span class="widget-label">TOTAL DE CIDADÃOS</span>
+                    <div class="widget-icon-box primary">
+                        <i class="fas fa-users"></i>
                     </div>
                 </div>
-                <div class="mt-2">
-                    <a href="{% url 'crm:pessoa_list' %}" class="btn btn-outline-info btn-sm w-100">
-                        Ver CRM
-                    </a>
+                <div>
+                    <div class="widget-value">{{ total_cidadaos }}</div>
+                    <div class="widget-footer">
+                        <span class="widget-badge bg-light text-muted border">+{{ pessoas_mes }} novos</span>
+                        <i class="fas fa-arrow-right widget-arrow"></i>
+                    </div>
                 </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
-<!-- Métricas Parlamentares Avançadas -->
-<div class="row mb-4">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Performance Parlamentar - {{ "now"|date:"F Y" }}
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-3 mb-3">
-                        <div class="border-end">
-                            <h4 class="text-primary mb-1">{{ atendimentos_mes }}</h4>
-                            <small class="text-muted">Demandas Recebidas</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="border-end">
-                            <h4 class="text-success mb-1">{{ atendimentos_resolvidos_mes }}</h4>
-                            <small class="text-muted">Demandas Resolvidas</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <div class="border-end">
-                            <h4 class="text-warning mb-1">{{ taxa_resolucao }}%</h4>
-                            <small class="text-muted">Taxa de Resolução</small>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <h4 class="text-info mb-1">{{ tempo_medio_resposta }}</h4>
-                        <small class="text-muted">Tempo Médio</small>
-                    </div>
-                </div>
-                
-                <!-- Barra de progresso da meta mensal -->
-                <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">Meta Mensal de Atendimentos</small>
-                        <small class="text-muted">{{ atendimentos_mes }}/100</small>
-                    </div>
-                    <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-gradient" role="progressbar" 
-                             style="width: {% widthratio atendimentos_mes 100 100 %}%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-building me-2"></i>
-                    Atividade Parlamentar
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="text-center mb-3">
-                    <h3 class="text-primary">{{ sessoes_semana }}</h3>
-                    <p class="text-muted mb-0">Sessões esta Semana</p>
-                </div>
-                
-                <div class="list-group list-group-flush">
-                    <div class="list-group-item d-flex justify-content-between px-0">
-                        <span class="small">Plenárias</span>
-                        <span class="badge bg-primary">2</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between px-0">
-                        <span class="small">Comissões</span>
-                        <span class="badge bg-success">{{ sessoes_semana|add:"-2"|default:"0" }}</span>
-                    </div>
-                    <div class="list-group-item d-flex justify-content-between px-0">
-                        <span class="small">Audiências</span>
-                        <span class="badge bg-warning">1</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Ações Rápidas e Demandas por Tipo -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-bolt me-2"></i>
-                    Ações Rápidas
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-6 mb-2">
-                        <a href="{% url 'atendimento:atendimento_create' %}" class="btn btn-primary w-100">
-                            <i class="fas fa-plus me-2"></i>
-                            Atendimento
-                        </a>
-                    </div>
-                    <div class="col-6 mb-2">
-                        <a href="{% url 'documentos:oficio_create' %}" class="btn btn-success w-100">
-                            <i class="fas fa-file-alt me-2"></i>
-                            Ofício
-                        </a>
-                    </div>
-                    <div class="col-6 mb-2">
-                        <a href="{% url 'crm:pessoa_create' %}" class="btn btn-info w-100">
-                            <i class="fas fa-user-plus me-2"></i>
-                            Cidadão
-                        </a>
-                    </div>
-                    <div class="col-6 mb-2">
-                        <a href="{% url 'agenda:novo' %}" class="btn btn-warning w-100">
-                            <i class="fas fa-calendar-plus me-2"></i>
-                            Evento
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-chart-pie me-2"></i>
-                    Demandas por Tipo
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if demandas_por_tipo %}
-                    {% for demanda in demandas_por_tipo %}
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="small">{{ demanda.tipo|default:"Outros" }}</span>
-                        <div class="d-flex align-items-center">
-                            <div class="progress me-2" style="width: 60px; height: 6px;">
-                                <div class="progress-bar" role="progressbar" 
-                                     style="width: {% widthratio demanda.total atendimentos_mes 100 %}%"></div>
-                            </div>
-                            <span class="badge bg-secondary">{{ demanda.total }}</span>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted text-center">Nenhuma demanda este mês</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Atividades Recentes -->
+<!-- Main Content Grid -> Left (8) & Right (4) -->
 <div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-history me-2"></i>
+    <!-- Left Column: Performance & Recent Activities -->
+    <div class="col-lg-8 d-flex flex-column gap-3">
+        <!-- Performance Chart Section -->
+        <div class="dashboard-card">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="dashboard-card-title m-0">
+                    <i class="fas fa-chart-line"></i>
+                    Performance Parlamentar <span class="text-muted ms-2 fw-normal fs-6">- {{ "now"|date:"F Y" }}</span>
+                </h5>
+            </div>
+
+            <div class="row text-center mb-2">
+                <div class="col-3">
+                    <div class="border-end">
+                        <h4 class="text-primary mb-1 fw-bold">{{ atendimentos_mes }}</h4>
+                        <small class="text-muted text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 0.05em;">Recebidos</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="border-end">
+                        <h4 class="text-primary mb-1 fw-bold">{{ atendimentos_resolvidos_mes }}</h4>
+                        <small class="text-muted text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 0.05em;">Resolvidos</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="border-end">
+                        <h4 class="text-primary mb-1 fw-bold">{{ taxa_resolucao }}%</h4>
+                        <small class="text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.05em;">Taxa
+                            Res.</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div>
+                        <h4 class="text-primary mb-1 fw-bold">{{ tempo_medio_resposta }}</h4>
+                        <small class="text-muted text-uppercase"
+                            style="font-size: 0.7rem; letter-spacing: 0.05em;">Tempo Médio</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modern Progress Bar -->
+            <div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <small class="text-muted fw-medium">Meta Mensal</small>
+                    <small class="fw-bold text-primary">{{ atendimentos_mes }}/100</small>
+                </div>
+                <div class="progress" style="height: 6px; border-radius: 10px; background-color: #F3F4F6;">
+                    <div class="progress-bar" role="progressbar"
+                        style="background-color: var(--color-primary); width: {% widthratio atendimentos_mes 100 100 %}%">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Atividades Recentes (Moved to Wide Column) -->
+        <div class="dashboard-card flex-grow-1">
+            <div class="dashboard-card-header">
+                <h5 class="dashboard-card-title">
+                    <i class="fas fa-history"></i>
                     Atividades Recentes
                 </h5>
             </div>
-            <div class="card-body">
+            <div>
                 {% if atividades_recentes %}
-                <div class="list-group list-group-flush">
+                <div class="d-flex flex-column">
                     {% for atividade in atividades_recentes %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            <div class="text-{{ atividade.cor }} me-3">
-                                <i class="{{ atividade.icone }}"></i>
-                            </div>
-                            <div>
-                                <div class="fw-bold">{{ atividade.titulo }}</div>
-                                <small class="text-muted">{{ atividade.descricao }}</small>
-                            </div>
+                    <div class="activity-item d-flex align-items-center">
+                        <div class="activity-icon">
+                            <i class="{{ atividade.icone }}"></i>
                         </div>
-                        <small class="text-muted">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-dark">{{ atividade.titulo }}</div>
+                            <small class="text-muted">{{ atividade.descricao }}</small>
+                        </div>
+                        <small class="text-muted fw-medium">
                             {{ atividade.data|timesince }} atrás
                         </small>
                     </div>
@@ -336,48 +506,92 @@
                 </div>
                 {% else %}
                 <div class="text-center text-muted py-4">
-                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                    <p>Nenhuma atividade recente</p>
+                    <i class="fas fa-inbox fa-3x mb-3 text-secondary opacity-50"></i>
+                    <p>Nenhuma atividade recente.</p>
                 </div>
                 {% endif %}
             </div>
         </div>
     </div>
-</div>
 
-<!-- Rodapé com Informações do Sistema -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card bg-light">
-            <div class="card-body py-2">
-                <div class="row text-center">
-                    <div class="col-md-3">
-                        <small class="text-muted">
-                            <i class="fas fa-server me-1"></i>
-                            Sistema: +Compliance v2.0
-                        </small>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">
-                            <i class="fas fa-shield-alt me-1"></i>
-                            Segurança: Ativa
-                        </small>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">
-                            <i class="fas fa-cloud me-1"></i>
-                            Backup: Automático
-                        </small>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">
-                            <i class="fas fa-phone me-1"></i>
-                            Suporte: 24/7
-                        </small>
-                    </div>
+    <!-- Right Column: Activity & Actions -->
+    <div class="col-lg-4 d-flex flex-column gap-3">
+        <!-- Atividade Parlamentar -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header mb-2">
+                <h5 class="dashboard-card-title m-0">
+                    <i class="fas fa-building"></i>
+                    Atividade
+                </h5>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-center flex-column mb-3 py-2">
+                <span class="display-5 fw-bold text-primary">{{ sessoes_semana|default:"0" }}</span>
+                <span class="text-muted small text-uppercase fw-bold"
+                    style="font-size: 0.7rem; letter-spacing: 0.05em;">Sessões na Semana</span>
+            </div>
+
+            <div class="list-group list-group-flush">
+                <div class="list-group-item d-flex justify-content-between px-0 py-2"
+                    style="border-bottom: 1px solid #f3f4f6;">
+                    <span class="text-muted fw-medium custom-list-text">Plenárias</span>
+                    <span class="badge bg-primary rounded-pill px-3">2</span>
+                </div>
+                <!-- Logic fixed: Removing buggy manual value calculation -->
+                <div class="list-group-item d-flex justify-content-between px-0 py-2"
+                    style="border-bottom: 1px solid #f3f4f6;">
+                    <span class="text-muted fw-medium custom-list-text">Comissões</span>
+                    <span class="badge bg-primary rounded-pill px-3">1</span>
+                </div>
+                <div class="list-group-item d-flex justify-content-between px-0 border-0 py-2">
+                    <span class="text-muted fw-medium custom-list-text">Audiências</span>
+                    <span class="badge bg-primary rounded-pill px-3">1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ações Rápidas (Moved to Side Column - 2x2 Grid) -->
+        <div class="dashboard-card">
+            <div class="dashboard-card-header">
+                <h5 class="dashboard-card-title">
+                    <i class="fas fa-bolt"></i>
+                    Ações Rápidas
+                </h5>
+            </div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <a href="{% url 'atendimento:atendimento_create' %}"
+                        class="btn-quick-action justify-content-center flex-column text-center py-2 h-100">
+                        <div class="icon-wrapper mb-1"><i class="fas fa-plus"></i></div>
+                        <span style="font-size: 0.8rem;">Atendimento</span>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{% url 'documentos:oficio_create' %}"
+                        class="btn-quick-action justify-content-center flex-column text-center py-2 h-100">
+                        <div class="icon-wrapper mb-1"><i class="fas fa-file-alt"></i></div>
+                        <span style="font-size: 0.8rem;">Novo Ofício</span>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{% url 'crm:pessoa_create' %}"
+                        class="btn-quick-action justify-content-center flex-column text-center py-2 h-100">
+                        <div class="icon-wrapper mb-1"><i class="fas fa-user-plus"></i></div>
+                        <span style="font-size: 0.8rem;">Novo Cidadão</span>
+                    </a>
+                </div>
+                <div class="col-6">
+                    <a href="{% url 'agenda:novo' %}"
+                        class="btn-quick-action justify-content-center flex-column text-center py-2 h-100">
+                        <div class="icon-wrapper mb-1"><i class="fas fa-calendar-plus"></i></div>
+                        <span style="font-size: 0.8rem;">Agenda</span>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Rodapé Footer Clean -->
+
 {% endblock %}
