@@ -566,27 +566,61 @@ async function getRegistrosAtivos(req, res) {
 }
 
 // GET - Buscar registros de tempo individuais por tempo_estimado_id
+// NOVA LÓGICA: Aceita também parâmetros alternativos (cliente_id, tarefa_id, responsavel_id, data)
+// para buscar quando o tempo_estimado_id é virtual (não existe na tabela antiga)
 async function getRegistrosPorTempoEstimado(req, res) {
   try {
-    const { tempo_estimado_id } = req.query;
+    const { tempo_estimado_id, cliente_id, tarefa_id, responsavel_id, data } = req.query;
 
-    if (!tempo_estimado_id) {
+    if (!tempo_estimado_id && !(cliente_id && tarefa_id && responsavel_id && data)) {
       return res.status(400).json({
         success: false,
-        error: 'tempo_estimado_id é obrigatório'
+        error: 'tempo_estimado_id é obrigatório, ou forneça cliente_id, tarefa_id, responsavel_id e data'
       });
     }
 
-
-    // Buscar todos os registros para este tempo_estimado_id (incluindo finalizados e não finalizados)
-    // Filtrar apenas registros onde cliente_id NÃO é NULL
-    const { data: registros, error } = await supabase
-      .schema('up_gestaointeligente')
-      .from('registro_tempo')
-      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
-      .eq('tempo_estimado_id', String(tempo_estimado_id).trim())
-      .not('cliente_id', 'is', null) // Apenas registros com cliente_id
-      .order('data_inicio', { ascending: false });
+    let registros = [];
+    
+    // Primeiro, tentar buscar por tempo_estimado_id (para compatibilidade com registros antigos)
+    if (tempo_estimado_id) {
+      const { data: registrosPorId, error: errorPorId } = await supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo')
+        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
+        .eq('tempo_estimado_id', String(tempo_estimado_id).trim())
+        .not('cliente_id', 'is', null)
+        .order('data_inicio', { ascending: false });
+      
+      if (!errorPorId && registrosPorId && registrosPorId.length > 0) {
+        registros = registrosPorId;
+      }
+    }
+    
+    // Se não encontrou registros por tempo_estimado_id E temos os critérios alternativos,
+    // buscar usando os critérios da regra (para IDs virtuais da nova tabela)
+    if (registros.length === 0 && cliente_id && tarefa_id && responsavel_id && data) {
+      const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
+      const dataInicio = `${dataFormatada}T00:00:00`;
+      const dataFim = `${dataFormatada}T23:59:59`;
+      
+      const { data: registrosPorCritérios, error: errorPorCritérios } = await supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo')
+        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
+        .eq('cliente_id', String(cliente_id).trim())
+        .eq('tarefa_id', parseInt(tarefa_id, 10))
+        .eq('usuario_id', parseInt(responsavel_id, 10)) // responsavel_id = usuario_id na tabela registro_tempo
+        .gte('data_inicio', dataInicio)
+        .lte('data_inicio', dataFim)
+        .not('cliente_id', 'is', null)
+        .order('data_inicio', { ascending: false });
+      
+      if (!errorPorCritérios && registrosPorCritérios) {
+        registros = registrosPorCritérios;
+      }
+    }
+    
+    const error = null; // Se chegou aqui, não há erro
 
     if (error) {
       return res.status(500).json({
@@ -595,7 +629,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
         details: error.message
       });
     }
-
 
     return res.json({
       success: true,

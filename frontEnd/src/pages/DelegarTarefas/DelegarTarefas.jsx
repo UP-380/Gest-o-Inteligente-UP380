@@ -20,6 +20,7 @@ import DetailSideCard from '../../components/dashboard/DetailSideCard';
 import { useToast } from '../../hooks/useToast';
 import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../services/api';
 import { calcularDiasUteis, calcularDiasComOpcoes, calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo } from '../../utils/dateUtils';
+import { processBatch } from '../../utils/requestPool';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
 import './DelegarTarefas.css';
 
@@ -768,61 +769,17 @@ const DelegarTarefas = () => {
   // Calcular tempo estimado total por responsável quando os filtros mudarem
   // IMPORTANTE: Este useEffect só calcula tempo estimado total APÓS os registros estarem carregados
   // Ele não depende de horas contratadas, então pode executar independentemente
-  useEffect(() => {
-    const calcularTemposEstimadosTotais = async () => {
-      if (!filtrosUltimosAplicados || !filtrosUltimosAplicados.periodoInicio || !filtrosUltimosAplicados.periodoFim) {
-        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem período aplicado, limpando cache');
-        setTempoEstimadoTotalPorResponsavel({});
-        return;
-      }
-
-      // Verificar se há registros agrupados antes de calcular
-      // Se não há registros, não precisa calcular
-      if (!registrosAgrupados || registrosAgrupados.length === 0) {
-        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Sem registros agrupados, aguardando carregamento...');
-        setTempoEstimadoTotalPorResponsavel({});
-        return;
-      }
-
-      // Coletar todos os responsáveis únicos dos registros agrupados (resultados filtrados)
-      const responsaveisUnicos = new Set();
-      registrosAgrupados.forEach(agr => {
-        if (agr.primeiroRegistro && agr.primeiroRegistro.responsavel_id) {
-          responsaveisUnicos.add(String(agr.primeiroRegistro.responsavel_id));
-        }
-      });
-
-      if (responsaveisUnicos.size === 0) {
-        console.log('⚠️ [TEMPO-ESTIMADO-TOTAL] Nenhum responsável encontrado nos registros agrupados');
-        setTempoEstimadoTotalPorResponsavel({});
-        return;
-      }
-
-      console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Calculando tempo estimado total para ${responsaveisUnicos.size} responsável(is) filtrado(s):`, Array.from(responsaveisUnicos));
-
-      // Calcular tempo estimado total para cada responsável
-      const temposCache = {};
-      const promises = Array.from(responsaveisUnicos).map(async (responsavelId) => {
-        const tempo = await buscarTempoEstimadoTotalPorResponsavel(
-          responsavelId,
-          filtrosUltimosAplicados.periodoInicio,
-          filtrosUltimosAplicados.periodoFim,
-          filtrosUltimosAplicados.habilitarFinaisSemana ?? false,
-          filtrosUltimosAplicados.habilitarFeriados ?? false,
-          filtrosUltimosAplicados.datasIndividuais ?? []
-        );
-        temposCache[responsavelId] = tempo;
-        console.log(`  ✅ Responsável ${responsavelId}: ${tempo}ms de tempo estimado total`);
-      });
-
-      await Promise.all(promises);
-      setTempoEstimadoTotalPorResponsavel(temposCache);
-      console.log(`✅ [TEMPO-ESTIMADO-TOTAL] Cache atualizado com ${Object.keys(temposCache).length} responsável(is)`);
-    };
-
-    calcularTemposEstimadosTotais();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtrosUltimosAplicados, registrosAgrupados]);
+  // REMOVIDO: Este useEffect estava sobrescrevendo o cálculo correto feito em loadRegistrosTempoEstimado
+  // O cálculo de tempo estimado total agora é feito diretamente das regras recebidas do backend
+  // em loadRegistrosTempoEstimado, considerando corretamente o período filtrado e as configurações
+  // de cada regra (incluir_finais_semana, incluir_feriados).
+  // 
+  // useEffect(() => {
+  //   const calcularTemposEstimadosTotais = async () => {
+  //     ... código removido ...
+  //   };
+  //   calcularTemposEstimadosTotais();
+  // }, [filtrosUltimosAplicados, registrosAgrupados]);
 
   const loadClientes = async (statusFiltro = null) => {
     setLoading(true);
@@ -1121,9 +1078,24 @@ const DelegarTarefas = () => {
       const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
       if (!tempoEstimadoId) return 0;
 
+      // Construir URL com tempo_estimado_id e critérios da regra (para buscar quando ID virtual não existe)
+      const params = new URLSearchParams({
+        tempo_estimado_id: tempoEstimadoId
+      });
+      
+      // Adicionar critérios da regra como parâmetros alternativos
+      if (reg.cliente_id) params.append('cliente_id', reg.cliente_id);
+      if (reg.tarefa_id) params.append('tarefa_id', reg.tarefa_id);
+      if (reg.responsavel_id) params.append('responsavel_id', reg.responsavel_id);
+      if (reg.data) {
+        // Extrair apenas a data (sem hora) do formato ISO
+        const dataStr = reg.data.includes('T') ? reg.data.split('T')[0] : reg.data;
+        params.append('data', dataStr);
+      }
+
       // Buscar todos os registros de tempo para este tempo_estimado_id (mesmo endpoint usado no PainelUsuario)
       const response = await fetch(
-        `${API_BASE_URL}/registro-tempo/por-tempo-estimado?tempo_estimado_id=${tempoEstimadoId}`,
+        `${API_BASE_URL}/registro-tempo/por-tempo-estimado?${params.toString()}`,
         {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
@@ -1168,20 +1140,19 @@ const DelegarTarefas = () => {
     try {
       // Usar o mesmo endpoint do PainelUsuario para buscar tempos realizados
       // Buscar individualmente para cada registro para garantir que registros ativos sejam incluídos
+      // Usando batches para limitar requisições simultâneas e evitar ERR_INSUFFICIENT_RESOURCES
       const novosTempos = {};
       
-      await Promise.all(
-        registros.map(async (reg) => {
-          const chave = getChaveTempoRealizado(reg);
-          if (!chave) return;
-          
-          const tempoRealizado = await buscarTempoRealizadoIndividual(reg);
-          novosTempos[chave] = {
-            tempo_realizado: tempoRealizado,
-            quantidade_registros: 1
-          };
-        })
-      );
+      await processBatch(registros, async (reg) => {
+        const chave = getChaveTempoRealizado(reg);
+        if (!chave) return;
+        
+        const tempoRealizado = await buscarTempoRealizadoIndividual(reg);
+        novosTempos[chave] = {
+          tempo_realizado: tempoRealizado,
+          quantidade_registros: 1
+        };
+      }, 6); // Limite de 6 requisições simultâneas
       
       // Atualizar estado com os novos tempos
       setTemposRealizados(prev => ({ ...prev, ...novosTempos }));
@@ -1387,44 +1358,190 @@ const DelegarTarefas = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          // Agrupar registros por agrupador_id
-          agruparRegistros(result.data || []);
-          setTotalRegistros(result.total || 0);
-          setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
-          // Carregar nomes dos itens relacionados
-          await carregarNomesRelacionados(result.data || []);
+          // NOVA LÓGICA: Backend retorna REGRAS, não registros calculados
+          const regras = result.data || [];
           
-          // Buscar tempos realizados para todos os registros
-          await buscarTemposRealizados(result.data || []);
-          
-          // Carregar custos e horas contratadas para todos os responsáveis encontrados nos registros
+          // OTIMIZAÇÃO: Calcular tempo estimado total diretamente das regras (sem gerar registros)
+          // CORREÇÃO: Calcular por data única para evitar duplicação quando regras se sobrepõem
           if (periodoAUsar.inicio && periodoAUsar.fim) {
-            const agrupadosTemp = {};
-            (result.data || []).forEach(registro => {
-              const agrupadorId = registro.agrupador_id || 'sem-grupo';
-              if (!agrupadosTemp[agrupadorId]) {
-                agrupadosTemp[agrupadorId] = {
-                  primeiroRegistro: registro,
-                  quantidade: 0
-                };
+            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Período filtrado: ${periodoAUsar.inicio} a ${periodoAUsar.fim}`);
+            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Total de regras recebidas: ${regras.length}`);
+            
+            const temposEstimadosPorResponsavel = {};
+            
+            // Agrupar regras por responsável
+            const regrasPorResponsavel = {};
+            regras.forEach(regra => {
+              if (!regra.responsavel_id) return;
+              const responsavelId = String(regra.responsavel_id);
+              if (!regrasPorResponsavel[responsavelId]) {
+                regrasPorResponsavel[responsavelId] = [];
               }
-              agrupadosTemp[agrupadorId].quantidade++;
+              regrasPorResponsavel[responsavelId].push(regra);
             });
             
-            const agrupamentosArray = Object.values(agrupadosTemp);
+            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Responsáveis únicos: ${Object.keys(regrasPorResponsavel).length}`);
             
-            // Carregar todos os dados auxiliares ANTES de marcar como carregado
-            console.log('🔄 [LOAD-REGISTROS] Carregando dados auxiliares (custos e horas contratadas)...');
-            await carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
-            await carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim);
+            // Para cada responsável, calcular tempo estimado total por data única
+            Object.keys(regrasPorResponsavel).forEach(responsavelId => {
+              const regrasDoResponsavel = regrasPorResponsavel[responsavelId];
+              
+              console.log(`\n📊 [CALCULO-TEMPO-ESTIMADO] Responsável ${responsavelId}: ${regrasDoResponsavel.length} regra(s)`);
+              
+              // Map de data -> maior tempo_estimado_dia (para evitar duplicação)
+              // Se múltiplas regras cobrem a mesma data, usar a maior
+              const tempoPorData = new Map();
+              
+              regrasDoResponsavel.forEach((regra, index) => {
+                // Determinar período de interseção entre regra e filtro
+                const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : periodoAUsar.inicio;
+                const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : periodoAUsar.fim;
+                
+                const periodoInicio = regraInicio > periodoAUsar.inicio ? regraInicio : periodoAUsar.inicio;
+                const periodoFim = regraFim < periodoAUsar.fim ? regraFim : periodoAUsar.fim;
+                
+                console.log(`  📅 Regra ${index + 1} (ID: ${regra.id || regra.agrupador_id}):`);
+                console.log(`     - Período da regra: ${regraInicio} a ${regraFim}`);
+                console.log(`     - Período filtrado: ${periodoAUsar.inicio} a ${periodoAUsar.fim}`);
+                console.log(`     - Interseção calculada: ${periodoInicio} a ${periodoFim}`);
+                console.log(`     - Tempo estimado/dia: ${regra.tempo_estimado_dia || 0}ms`);
+                console.log(`     - Incluir finais de semana: ${regra.incluir_finais_semana !== false}`);
+                console.log(`     - Incluir feriados: ${regra.incluir_feriados !== false}`);
+                
+                if (periodoInicio <= periodoFim) {
+                  // Calcular datas válidas para esta regra no período filtrado
+                  const datasValidasSet = obterDatasValidasNoPeriodo(
+                    periodoInicio,
+                    periodoFim,
+                    regra.incluir_finais_semana !== false,
+                    regra.incluir_feriados !== false
+                  );
+                  
+                  const diasValidos = datasValidasSet.size;
+                  const tempoEstimadoDia = regra.tempo_estimado_dia || 0;
+                  const tempoEstimadoRegra = tempoEstimadoDia * diasValidos;
+                  
+                  console.log(`     - Datas válidas geradas: ${diasValidos} dia(s)`);
+                  console.log(`     - Tempo estimado desta regra: ${tempoEstimadoRegra}ms (${diasValidos} dias × ${tempoEstimadoDia}ms/dia)`);
+                  
+                  // Para cada data válida, usar o maior tempo_estimado_dia
+                  datasValidasSet.forEach(dataStr => {
+                    const tempoAtual = tempoPorData.get(dataStr) || 0;
+                    // Usar o maior valor (se múltiplas regras cobrem a mesma data)
+                    const tempoAnterior = tempoAtual;
+                    const tempoNovo = Math.max(tempoAtual, tempoEstimadoDia);
+                    tempoPorData.set(dataStr, tempoNovo);
+                    
+                    if (tempoNovo !== tempoAnterior && tempoAnterior > 0) {
+                      console.log(`     ⚠️ Data ${dataStr}: sobreposição detectada (${tempoAnterior}ms → ${tempoNovo}ms, usando maior)`);
+                    }
+                  });
+                } else {
+                  console.log(`     ⚠️ Regra fora do período filtrado (interseção inválida)`);
+                }
+              });
+              
+              // Somar todos os tempos do Map
+              let tempoTotal = 0;
+              const totalDatas = tempoPorData.size;
+              tempoPorData.forEach((tempoDia) => {
+                tempoTotal += tempoDia;
+              });
+              
+              console.log(`\n✅ [CALCULO-TEMPO-ESTIMADO] Responsável ${responsavelId}:`);
+              console.log(`   - Total de datas únicas: ${totalDatas}`);
+              console.log(`   - Tempo estimado total: ${tempoTotal}ms (${(tempoTotal / 3600000).toFixed(2)}h)`);
+              
+              temposEstimadosPorResponsavel[responsavelId] = tempoTotal;
+            });
             
-            // Marcar dados auxiliares como completamente carregados APENAS após todas as operações assíncronas terminarem
-            console.log('✅ [LOAD-REGISTROS] Todos os dados auxiliares foram carregados. Liberando exibição dos dashboards.');
-            setDadosAuxiliaresCarregados(true);
-          } else {
-            // Se não há período, não precisa carregar horas contratadas, mas ainda marca como carregado
-            setDadosAuxiliaresCarregados(true);
+            console.log(`\n✅ [CALCULO-TEMPO-ESTIMADO] Resumo final:`, temposEstimadosPorResponsavel);
+            
+            // Atualizar cache de tempo estimado total
+            setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
           }
+          
+          // Gerar registros apenas para a listagem (não para cards)
+          const registrosCalculados = [];
+          if (periodoAUsar.inicio && periodoAUsar.fim) {
+            regras.forEach(regra => {
+              const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : periodoAUsar.inicio;
+              const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : periodoAUsar.fim;
+              
+              const periodoInicio = regraInicio > periodoAUsar.inicio ? regraInicio : periodoAUsar.inicio;
+              const periodoFim = regraFim < periodoAUsar.fim ? regraFim : periodoAUsar.fim;
+              
+              if (periodoInicio <= periodoFim) {
+                const datasValidasSet = obterDatasValidasNoPeriodo(
+                  periodoInicio,
+                  periodoFim,
+                  regra.incluir_finais_semana !== false,
+                  regra.incluir_feriados !== false
+                );
+                
+                const datasValidas = Array.from(datasValidasSet);
+                
+                datasValidas.forEach(dataStr => {
+                  const idVirtual = `${regra.id}_${dataStr}`.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 36);
+                  
+                  registrosCalculados.push({
+                    id: idVirtual,
+                    tempo_estimado_id: idVirtual,
+                    agrupador_id: regra.agrupador_id,
+                    cliente_id: regra.cliente_id,
+                    produto_id: regra.produto_id,
+                    tarefa_id: regra.tarefa_id,
+                    responsavel_id: regra.responsavel_id,
+                    tipo_tarefa_id: regra.tipo_tarefa_id,
+                    data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
+                    tempo_estimado_dia: regra.tempo_estimado_dia,
+                    incluir_finais_semana: regra.incluir_finais_semana !== false,
+                    incluir_feriados: regra.incluir_feriados !== false,
+                    regra_id: regra.id,
+                    responsavel_foto_perfil: regra.responsavel_foto_perfil,
+                    created_at: regra.created_at,
+                    updated_at: regra.updated_at
+                  });
+                });
+              }
+            });
+          }
+          
+          // Agrupar registros por agrupador_id
+          agruparRegistros(registrosCalculados);
+          setTotalRegistros(result.total || 0);
+          setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
+          
+          // OTIMIZAÇÃO: Marcar como carregado para exibir cards (com tempo estimado já calculado)
+          setDadosAuxiliaresCarregados(true);
+          
+          // Carregar dados auxiliares em background (não bloqueia exibição)
+          Promise.all([
+            carregarNomesRelacionados(registrosCalculados),
+            buscarTemposRealizados(registrosCalculados).catch(err => console.error('Erro ao buscar tempos realizados:', err))
+          ]).then(() => {
+            // Carregar custos e horas contratadas
+            if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
+              const agrupadosTemp = {};
+              registrosCalculados.forEach(registro => {
+                const agrupadorId = registro.agrupador_id || 'sem-grupo';
+                if (!agrupadosTemp[agrupadorId]) {
+                  agrupadosTemp[agrupadorId] = {
+                    primeiroRegistro: registro,
+                    quantidade: 0
+                  };
+                }
+                agrupadosTemp[agrupadorId].quantidade++;
+              });
+              
+              const agrupamentosArray = Object.values(agrupadosTemp);
+              
+              Promise.all([
+                carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar custos:', err)),
+                carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar horas contratadas:', err))
+              ]).catch(err => console.error('Erro ao carregar dados auxiliares:', err));
+            }
+          }).catch(err => console.error('Erro ao carregar dados:', err));
         } else {
           // Se não há dados, marca como carregado mesmo assim
           setDadosAuxiliaresCarregados(true);
@@ -1724,12 +1841,14 @@ const DelegarTarefas = () => {
 
     const novosCustos = { ...custosPorResponsavel };
     
-    for (const responsavelId of responsaveisIds) {
-      if (!novosCustos[responsavelId]) {
-        const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
-        novosCustos[responsavelId] = custoHora;
-      }
-    }
+    // Filtrar apenas responsáveis que ainda não têm custo no cache
+    const responsaveisParaBuscar = Array.from(responsaveisIds).filter(id => !novosCustos[id]);
+    
+    // Usar batches para limitar requisições simultâneas e evitar ERR_INSUFFICIENT_RESOURCES
+    await processBatch(responsaveisParaBuscar, async (responsavelId) => {
+      const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
+      novosCustos[responsavelId] = custoHora;
+    }, 4); // Limite de 4 requisições simultâneas
     
     setCustosPorResponsavel(novosCustos);
   };
@@ -2024,20 +2143,13 @@ const DelegarTarefas = () => {
       }
     };
     
-    // Tempo estimado baseado no total do agrupamento dentro do período
-    // Usar a mesma lógica da listagem: somar o tempo_estimado_dia de cada registro
-    const tempoEstimado = agrupamentos
-      .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
-      .reduce((acc, agr) => {
-        if (!agr.registros) return acc;
-        const registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
-          ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
-          : agr.registros;
-        return acc + registrosNoPeriodo.reduce(
-          (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
-          0
-        );
-      }, 0);
+    // Tempo estimado: usar o valor já calculado corretamente em loadRegistrosTempoEstimado
+    // Este valor já considera:
+    // - Período filtrado corretamente
+    // - Interseção entre período da regra e período filtrado
+    // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
+    // - Evita duplicação de datas usando Map de datas únicas
+    const tempoEstimado = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
     
     // Verificar se é PJ (tipo_contrato === 2)
     const tipoContrato = tipoContratoPorResponsavel[String(responsavelId)];
@@ -3875,30 +3987,44 @@ const DelegarTarefas = () => {
                             return false;
                           });
                           
-                          // Calcular tempo estimado - filtrar registros individuais pelo período E pela entidade
-                          const tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
-                            if (!agr.registros) return acc;
-                            // Filtrar registros pelo período
-                            let registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
-                            
-                            // Para cliente, filtrar também pelo cliente_id do registro individual
-                            if (tipoEntidade === 'cliente') {
-                              registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                return clienteIds.includes(String(entidadeId));
-                              });
-                            }
-                            
-                            return acc + registrosNoPeriodo.reduce(
-                              (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
-                              0
-                            );
-                          }, 0);
+                          // Calcular tempo estimado
+                          // Para responsável, usar o valor já calculado corretamente em loadRegistrosTempoEstimado
+                          // Para outras entidades, calcular somando registros (já que não temos cache para elas)
+                          let tempoEstimado;
+                          if (tipoEntidade === 'responsavel') {
+                            // Usar o valor já calculado corretamente que considera:
+                            // - Período filtrado corretamente
+                            // - Interseção entre período da regra e período filtrado
+                            // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
+                            // - Evita duplicação de datas usando Map de datas únicas
+                            tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                            console.log(`🔍 [CALCULO-ESTATISTICAS] Responsável ${entidadeId}: usando tempoEstimadoTotalPorResponsavel = ${tempoEstimado}ms (${(tempoEstimado / 3600000).toFixed(2)}h)`);
+                          } else {
+                            // Para outras entidades (cliente, produto, tarefa), calcular somando registros
+                            tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
+                              if (!agr.registros) return acc;
+                              // Filtrar registros pelo período
+                              let registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
+                              
+                              // Para cliente, filtrar também pelo cliente_id do registro individual
+                              if (tipoEntidade === 'cliente') {
+                                registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  return clienteIds.includes(String(entidadeId));
+                                });
+                              }
+                              
+                              return acc + registrosNoPeriodo.reduce(
+                                (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
+                                0
+                              );
+                            }, 0);
+                          }
                           
                           // Calcular tempo realizado - filtrar registros individuais pelo período E pela entidade
                           const tempoRealizado = agrupamentosFiltrados.reduce((acc, agr) => {
