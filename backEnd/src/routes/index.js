@@ -179,6 +179,7 @@ router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVi
 // IMPORTANTE: Rotas específicas devem vir ANTES das rotas dinâmicas (:id)
 router.get('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
+router.post('/api/tempo-estimado/tempo-realizado-filtros', requireAuth, tempoEstimadoController.getTempoRealizadoComFiltros);
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
@@ -128,6 +128,18 @@ const DelegarTarefas = () => {
   
   // Cache de tempo estimado total por responsável no período (independente dos filtros aplicados)
   const [tempoEstimadoTotalPorResponsavel, setTempoEstimadoTotalPorResponsavel] = useState({}); // { responsavelId: tempoEmMs }
+  
+  // Cache de tempos registrados por responsável e período (tempo registrado via botão play)
+  const [temposRegistradosPorResponsavel, setTemposRegistradosPorResponsavel] = useState({}); // { chave: tempoEmMs } onde chave = responsavelId_periodoInicio_periodoFim
+  const temposRegistradosPorResponsavelRef = useRef({});
+  
+  // Estado de loading para tempos registrados
+  const [carregandoTemposRegistrados, setCarregandoTemposRegistrados] = useState(false);
+  
+  // Atualizar ref quando estado mudar
+  useEffect(() => {
+    temposRegistradosPorResponsavelRef.current = temposRegistradosPorResponsavel;
+  }, [temposRegistradosPorResponsavel]);
   
   // Estado para rastrear se dados auxiliares (horas contratadas, tempo estimado total) foram completamente carregados
   // Isso garante que os dashboards só sejam exibidos quando todos os dados estiverem 100% prontos
@@ -1058,17 +1070,21 @@ const DelegarTarefas = () => {
   };
 
   // Obter chave única para um registro de tempo estimado
+  // IMPORTANTE: Formato deve corresponder exatamente ao formato gerado pelo backend
+  // Backend gera: `${tarefaId}_${responsavelId}_${clienteId}_${tempoEstimadoId}` onde responsavelId é número
   // Se tempo_estimado_id estiver disponível, usar ele para chave mais precisa
   // Caso contrário, usar tarefa_id + responsavel_id + cliente_id + data
   const getChaveTempoRealizado = (registro) => {
     const tarefaId = String(registro.tarefa_id || '').trim();
-    // Normalizar responsavel_id: pode vir como string ou número, sempre converter para número e depois para string
+    // Normalizar responsavel_id: converter para número (como no backend) e depois para string na template
+    // Backend usa: parseInt(String(responsavelIdRaw).trim(), 10) e depois usa na template string
     const responsavelIdRaw = registro.responsavel_id || 0;
-    const responsavelId = String(parseInt(String(responsavelIdRaw).trim(), 10));
+    const responsavelId = parseInt(String(responsavelIdRaw).trim(), 10);
     const clienteId = String(registro.cliente_id || '').trim();
     const tempoEstimadoId = registro.id || registro.tempo_estimado_id || null;
     
-    // Se temos tempo_estimado_id, usar ele na chave (mais preciso, igual ao PainelUsuario)
+    // Se temos tempo_estimado_id, usar ele na chave (mais preciso, igual ao backend)
+    // Formato: tarefaId_responsavelId_clienteId_tempoEstimadoId (responsavelId será convertido para string na template)
     if (tempoEstimadoId) {
       const chave = `${tarefaId}_${responsavelId}_${clienteId}_${String(tempoEstimadoId).trim()}`;
       return chave;
@@ -1080,7 +1096,7 @@ const DelegarTarefas = () => {
       const dataStr = typeof registro.data === 'string' ? registro.data.split('T')[0] : registro.data;
       dataEstimado = dataStr;
     }
-    if (!tarefaId || !responsavelId || !clienteId || !dataEstimado) {
+    if (!tarefaId || isNaN(responsavelId) || !clienteId || !dataEstimado) {
       return null;
     }
     return `${tarefaId}_${responsavelId}_${clienteId}_${dataEstimado}`;
@@ -1149,33 +1165,271 @@ const DelegarTarefas = () => {
   }, []);
 
   // Buscar tempos realizados para registros de tempo estimado
-  // Usa o mesmo método do PainelUsuario: busca individualmente por tempo_estimado_id
+  // Usa endpoint POST /api/tempo-estimado/tempo-realizado que faz conversão correta de usuario_id para responsavel_id
+  // OU novo endpoint POST /api/tempo-estimado/tempo-realizado-filtros quando filtros estiverem aplicados
   const buscarTemposRealizados = useCallback(async (registros) => {
-    if (!registros || registros.length === 0) return;
-    
-    try {
-      // Usar o mesmo endpoint do PainelUsuario para buscar tempos realizados
-      // Buscar individualmente para cada registro para garantir que registros ativos sejam incluídos
-      // Usando batches para limitar requisições simultâneas e evitar ERR_INSUFFICIENT_RESOURCES
-      const novosTempos = {};
-      
-      await processBatch(registros, async (reg) => {
-        const chave = getChaveTempoRealizado(reg);
-        if (!chave) return;
-        
-        const tempoRealizado = await buscarTempoRealizadoIndividual(reg);
-        novosTempos[chave] = {
-          tempo_realizado: tempoRealizado,
-          quantidade_registros: 1
-        };
-      }, 6); // Limite de 6 requisições simultâneas
-      
-      // Atualizar estado com os novos tempos
-      setTemposRealizados(prev => ({ ...prev, ...novosTempos }));
-    } catch (error) {
-      console.error('❌ [DelegarTarefas] Erro ao buscar tempos realizados:', error);
+    if (!registros || registros.length === 0) {
+      console.log('⚠️ [BUSCAR-TEMPOS-REALIZADOS] Nenhum registro fornecido');
+      return;
     }
-  }, [buscarTempoRealizadoIndividual]);
+    
+    // Verificar se há filtros aplicados usando filtrosUltimosAplicados (valores realmente aplicados)
+    // O campo é salvo como filtroResponsavelSelecionado, não responsavel
+    const temFiltrosAplicados = filtrosUltimosAplicados?.filtroResponsavelSelecionado && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim;
+    
+    console.log(`🔍 [BUSCAR-TEMPOS-REALIZADOS] Verificando filtros aplicados:`, {
+      temFiltrosAplicados,
+      filtrosUltimosAplicados: filtrosUltimosAplicados ? {
+        filtroResponsavelSelecionado: filtrosUltimosAplicados.filtroResponsavelSelecionado,
+        periodoInicio: filtrosUltimosAplicados.periodoInicio,
+        periodoFim: filtrosUltimosAplicados.periodoFim
+      } : null,
+      totalRegistros: registros.length
+    });
+    
+    // Sempre usar ambos os métodos quando há filtros aplicados (novo endpoint + método antigo como fallback/complemento)
+    if (temFiltrosAplicados) {
+      // Usar novo endpoint com filtros
+      console.log(`🔍 [BUSCAR-TEMPOS-REALIZADOS] Usando novo endpoint com filtros para ${registros.length} registro(s)`);
+      
+      try {
+        // Preparar filtros para enviar ao backend usando filtrosUltimosAplicados
+        const responsavelAplicado = filtrosUltimosAplicados.filtroResponsavelSelecionado;
+        const periodoInicioAplicado = filtrosUltimosAplicados.periodoInicio;
+        const periodoFimAplicado = filtrosUltimosAplicados.periodoFim;
+        
+        const responsavelIds = Array.isArray(responsavelAplicado) 
+          ? responsavelAplicado 
+          : [responsavelAplicado];
+        
+        console.log(`📤 [BUSCAR-TEMPOS-REALIZADOS] Filtros aplicados detectados:`, {
+          responsavelIds,
+          periodoInicio: periodoInicioAplicado,
+          periodoFim: periodoFimAplicado
+        });
+        
+        // Para cada responsável, buscar tempo realizado
+        const promises = responsavelIds.map(async (responsavelId) => {
+          if (!responsavelId) return null;
+          
+          const body = {
+            responsavel_id: responsavelId,
+            data_inicio: periodoInicioAplicado,
+            data_fim: periodoFimAplicado
+          };
+          
+          // Adicionar filtros adicionais e principais de filtrosUltimosAplicados
+          const tarefaIds = [];
+          const clienteIds = [];
+          const produtoIds = [];
+          
+          // Filtros adicionais de filtrosUltimosAplicados
+          const filtrosAdicionaisAplicados = filtrosUltimosAplicados.filtrosAdicionais || {};
+          if (filtrosAdicionaisAplicados.tarefa) {
+            const ids = Array.isArray(filtrosAdicionaisAplicados.tarefa) 
+              ? filtrosAdicionaisAplicados.tarefa 
+              : [filtrosAdicionaisAplicados.tarefa];
+            tarefaIds.push(...ids.filter(Boolean));
+          }
+          
+          if (filtrosAdicionaisAplicados.cliente) {
+            const ids = Array.isArray(filtrosAdicionaisAplicados.cliente) 
+              ? filtrosAdicionaisAplicados.cliente 
+              : [filtrosAdicionaisAplicados.cliente];
+            clienteIds.push(...ids.filter(Boolean));
+          }
+          
+          if (filtrosAdicionaisAplicados.produto) {
+            const ids = Array.isArray(filtrosAdicionaisAplicados.produto) 
+              ? filtrosAdicionaisAplicados.produto 
+              : [filtrosAdicionaisAplicados.produto];
+            produtoIds.push(...ids.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id)));
+          }
+          
+          // Filtros principais de filtrosUltimosAplicados
+          if (filtrosUltimosAplicados.filtroTarefaSelecionado) {
+            const ids = Array.isArray(filtrosUltimosAplicados.filtroTarefaSelecionado) 
+              ? filtrosUltimosAplicados.filtroTarefaSelecionado 
+              : [filtrosUltimosAplicados.filtroTarefaSelecionado];
+            tarefaIds.push(...ids.filter(Boolean));
+          }
+          
+          if (filtrosUltimosAplicados.filtroClienteSelecionado) {
+            const ids = Array.isArray(filtrosUltimosAplicados.filtroClienteSelecionado) 
+              ? filtrosUltimosAplicados.filtroClienteSelecionado 
+              : [filtrosUltimosAplicados.filtroClienteSelecionado];
+            clienteIds.push(...ids.filter(Boolean));
+          }
+          
+          if (filtrosUltimosAplicados.filtroProdutoSelecionado) {
+            const ids = Array.isArray(filtrosUltimosAplicados.filtroProdutoSelecionado) 
+              ? filtrosUltimosAplicados.filtroProdutoSelecionado 
+              : [filtrosUltimosAplicados.filtroProdutoSelecionado];
+            produtoIds.push(...ids.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id)));
+          }
+          
+          // Adicionar apenas se houver valores
+          if (tarefaIds.length > 0) {
+            body.tarefa_id = [...new Set(tarefaIds)]; // Remover duplicatas
+          }
+          
+          if (clienteIds.length > 0) {
+            body.cliente_id = [...new Set(clienteIds)]; // Remover duplicatas
+          }
+          
+          if (produtoIds.length > 0) {
+            body.produto_id = [...new Set(produtoIds)]; // Remover duplicatas
+          }
+          
+          console.log(`📤 [BUSCAR-TEMPOS-REALIZADOS] Enviando requisição para responsável ${responsavelId}:`, body);
+          
+          const response = await fetch(`${API_BASE_URL}/tempo-estimado/tempo-realizado-filtros`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(body)
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              // O novo endpoint retorna um objeto com chaves no formato: { chave: { tempo_realizado, quantidade_registros } }
+              // Usar diretamente, sem distribuição proporcional
+              console.log(`✅ [BUSCAR-TEMPOS-REALIZADOS] Tempo realizado para responsável ${responsavelId}:`, {
+                chavesRetornadas: Object.keys(result.data).length,
+                chaves: Object.keys(result.data)
+              });
+              
+              // Converter o formato do resultado para o formato esperado pelo estado
+              const novosTempos = {};
+              Object.entries(result.data).forEach(([chave, valor]) => {
+                novosTempos[chave] = {
+                  tempo_realizado: valor.tempo_realizado || 0,
+                  quantidade_registros: valor.quantidade_registros || 0
+                };
+                
+                if (valor.tempo_realizado > 0) {
+                  console.log(`✅ [BUSCAR-TEMPOS-REALIZADOS] Chave "${chave}": ${(valor.tempo_realizado/1000).toFixed(2)}s`);
+                }
+              });
+              
+              return novosTempos;
+            }
+          } else {
+            const errorText = await response.text().catch(() => '');
+            console.error(`❌ [BUSCAR-TEMPOS-REALIZADOS] Erro na resposta para responsável ${responsavelId}:`, response.status, response.statusText, errorText);
+          }
+          return null;
+        });
+        
+        const resultados = await Promise.all(promises);
+        
+        // Consolidar todos os tempos encontrados
+        const novosTempos = {};
+        resultados.forEach(result => {
+          if (result) {
+            Object.assign(novosTempos, result);
+          }
+        });
+        
+        if (Object.keys(novosTempos).length > 0) {
+          console.log(`📊 [BUSCAR-TEMPOS-REALIZADOS] Processamento concluído com novo endpoint:`, {
+            totalRegistros: registros.length,
+            chavesCriadas: Object.keys(novosTempos).length,
+            totalChaves: Object.keys(novosTempos).length,
+            chaves: Object.keys(novosTempos)
+          });
+          
+          // Atualizar estado com os novos tempos (parcial, método antigo pode adicionar mais)
+          setTemposRealizados(prev => {
+            const atualizado = { ...prev, ...novosTempos };
+            console.log(`💾 [BUSCAR-TEMPOS-REALIZADOS] Estado atualizado com novo endpoint. Total de chaves: ${Object.keys(atualizado).length}`);
+            return atualizado;
+          });
+        } else {
+          console.warn('⚠️ [BUSCAR-TEMPOS-REALIZADOS] Nenhum tempo encontrado com novo endpoint');
+        }
+      } catch (error) {
+        console.error('❌ [BUSCAR-TEMPOS-REALIZADOS] Erro ao buscar tempos realizados com filtros:', error);
+        console.log('🔄 [BUSCAR-TEMPOS-REALIZADOS] Continuando com método antigo como fallback...');
+      }
+      
+      // SEMPRE chamar método antigo também quando há filtros aplicados (como fallback/complemento)
+      console.log(`🔄 [BUSCAR-TEMPOS-REALIZADOS] Chamando método antigo como complemento/fallback...`);
+    }
+    
+    // Sempre usar método antigo (se não há filtros aplicados OU como complemento quando há filtros)
+    const usarMetodoAntigo = !temFiltrosAplicados || true; // Sempre usar como complemento
+    
+    if (usarMetodoAntigo) {
+      const contextoMetodo = temFiltrosAplicados ? 'complemento/fallback' : 'método principal';
+      console.log(`🔍 [BUSCAR-TEMPOS-REALIZADOS] Usando método antigo (${contextoMetodo}) para ${registros.length} registro(s)`);
+      
+      try {
+        // Usar endpoint POST que faz busca em lote e conversão correta de usuario_id para responsavel_id
+        const response = await fetch(`${API_BASE_URL}/tempo-estimado/tempo-realizado`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ registros })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            // result.data é um objeto com chaves e valores { chave: { tempo_realizado, quantidade_registros } }
+            const novosTempos = {};
+            let comTempo = 0;
+            
+            Object.entries(result.data).forEach(([chave, valor]) => {
+              const tempoRealizado = valor.tempo_realizado || 0;
+              novosTempos[chave] = {
+                tempo_realizado: tempoRealizado,
+                quantidade_registros: valor.quantidade_registros || 0
+              };
+              
+              if (tempoRealizado > 0) {
+                comTempo++;
+                console.log(`✅ [BUSCAR-TEMPOS-REALIZADOS] Método antigo - Registro com tempo encontrado:`, {
+                  chave,
+                  tempo: `${(tempoRealizado/1000).toFixed(2)}s`,
+                  quantidade_registros: valor.quantidade_registros
+                });
+              }
+            });
+            
+            console.log(`📊 [BUSCAR-TEMPOS-REALIZADOS] Método antigo - Processamento concluído:`, {
+              totalRegistros: registros.length,
+              chavesRetornadas: Object.keys(result.data).length,
+              comTempo,
+              chavesCriadas: Object.keys(novosTempos),
+              totalChaves: Object.keys(novosTempos).length
+            });
+            
+            // Atualizar estado com os novos tempos (mesclar com os já existentes)
+            // Se já havia tempos do novo endpoint, os do método antigo complementam/sobrescrevem
+            setTemposRealizados(prev => {
+              const atualizado = { ...prev, ...novosTempos };
+              console.log(`💾 [BUSCAR-TEMPOS-REALIZADOS] Estado atualizado com método antigo. Total de chaves: ${Object.keys(atualizado).length}`);
+              return atualizado;
+            });
+          } else {
+            console.warn('⚠️ [BUSCAR-TEMPOS-REALIZADOS] Método antigo - Resposta sem dados válidos:', result);
+          }
+        } else {
+          console.error('❌ [BUSCAR-TEMPOS-REALIZADOS] Método antigo - Erro na resposta:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.error('❌ [BUSCAR-TEMPOS-REALIZADOS] Método antigo - Erro ao buscar tempos realizados:', error);
+      }
+    }
+  }, [filtrosUltimosAplicados, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, filtroTarefaSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, getChaveTempoRealizado]);
 
   // Função para obter todos os registros atualmente visíveis (dos agrupamentos)
   const obterTodosRegistrosVisiveis = useCallback(() => {
@@ -1192,12 +1446,29 @@ const DelegarTarefas = () => {
   const getTempoRealizado = (registro) => {
     const chave = getChaveTempoRealizado(registro);
     if (!chave) {
+      console.log('🔍 [GET-TEMPO-REALIZADO] Chave não gerada para registro:', {
+        tarefa_id: registro.tarefa_id,
+        responsavel_id: registro.responsavel_id,
+        cliente_id: registro.cliente_id,
+        id: registro.id,
+        tempo_estimado_id: registro.tempo_estimado_id,
+        data: registro.data
+      });
       return null;
     }
     
     // Tentar encontrar pela chave exata primeiro
     if (temposRealizados[chave]) {
       const tempo = temposRealizados[chave].tempo_realizado || 0;
+      console.log('✅ [GET-TEMPO-REALIZADO] Encontrado pela chave exata:', {
+        chave,
+        tempo: `${(tempo/1000).toFixed(2)}s`,
+        registro: {
+          tarefa_id: registro.tarefa_id,
+          responsavel_id: registro.responsavel_id,
+          id: registro.id
+        }
+      });
       return tempo;
     }
     
@@ -1209,9 +1480,69 @@ const DelegarTarefas = () => {
       if (chavesComId.length > 0) {
         // Pegar o primeiro resultado encontrado
         const tempo = temposRealizados[chavesComId[0]].tempo_realizado || 0;
+        console.log('✅ [GET-TEMPO-REALIZADO] Encontrado por tempo_estimado_id:', {
+          chaveEncontrada: chavesComId[0],
+          chaveProcurada: chave,
+          tempoEstimadoId,
+          tempo: `${(tempo/1000).toFixed(2)}s`
+        });
         return tempo;
       }
     }
+    
+    // Tentar encontrar por partes da chave (tarefa_id + responsavel_id + cliente_id)
+    // Isso ajuda quando há pequenas diferenças na formatação
+    const tarefaId = String(registro.tarefa_id || '').trim();
+    const responsavelIdRaw = registro.responsavel_id || 0;
+    const responsavelId = String(parseInt(String(responsavelIdRaw).trim(), 10));
+    const clienteId = String(registro.cliente_id || '').trim();
+    
+    // Procurar chaves que começam com tarefa_id_responsavelId_clienteId
+    const prefixoChave = `${tarefaId}_${responsavelId}_${clienteId}_`;
+    const chavesComPrefixo = Object.keys(temposRealizados).filter(k => k.startsWith(prefixoChave));
+    if (chavesComPrefixo.length > 0) {
+      // Se há apenas uma chave com esse prefixo, usar ela
+      if (chavesComPrefixo.length === 1) {
+        const tempo = temposRealizados[chavesComPrefixo[0]].tempo_realizado || 0;
+        console.log('✅ [GET-TEMPO-REALIZADO] Encontrado por prefixo da chave:', {
+          chaveEncontrada: chavesComPrefixo[0],
+          chaveProcurada: chave,
+          tempo: `${(tempo/1000).toFixed(2)}s`
+        });
+        return tempo;
+      }
+      // Se há múltiplas, tentar encontrar a mais próxima (com mesmo tempo_estimado_id se disponível)
+      if (tempoEstimadoId) {
+        const chaveExata = chavesComPrefixo.find(k => k.endsWith(`_${tempoEstimadoId}`));
+        if (chaveExata) {
+          const tempo = temposRealizados[chaveExata].tempo_realizado || 0;
+          console.log('✅ [GET-TEMPO-REALIZADO] Encontrado por prefixo + tempo_estimado_id:', {
+            chaveEncontrada: chaveExata,
+            chaveProcurada: chave,
+            tempo: `${(tempo/1000).toFixed(2)}s`
+          });
+          return tempo;
+        }
+      }
+    }
+    
+    // Log quando não encontrar
+    console.log('❌ [GET-TEMPO-REALIZADO] Não encontrado:', {
+      chaveProcurada: chave,
+      prefixoProcurado: prefixoChave,
+      tempoEstimadoId: tempoEstimadoId || 'não disponível',
+      chavesDisponiveis: Object.keys(temposRealizados).slice(0, 10), // Mostrar primeiras 10 chaves
+      chavesComPrefixo: chavesComPrefixo.slice(0, 5),
+      totalChaves: Object.keys(temposRealizados).length,
+      registro: {
+        tarefa_id: registro.tarefa_id,
+        responsavel_id: registro.responsavel_id,
+        cliente_id: registro.cliente_id,
+        id: registro.id,
+        tempo_estimado_id: registro.tempo_estimado_id,
+        data: registro.data
+      }
+    });
     
     return null;
   };
@@ -1518,7 +1849,9 @@ const DelegarTarefas = () => {
           }
           
           // Agrupar registros por agrupador_id
+          console.log(`📦 [LOAD-REGISTROS-TEMPO-ESTIMADO] Agrupando ${registrosCalculados.length} registros calculados`);
           agruparRegistros(registrosCalculados);
+          console.log(`📦 [LOAD-REGISTROS-TEMPO-ESTIMADO] Registros agrupados. Total de agrupamentos será atualizado em setRegistrosAgrupados`);
           
           // Quando há período, usamos limit alto e geramos todos os registros
           // Nesse caso, usar o total de registros calculados para paginação
@@ -1679,6 +2012,18 @@ const DelegarTarefas = () => {
           
           // Carregar TODOS os dados auxiliares em paralelo desde o início (não sequencial)
           // Isso faz com que horas contratadas comecem a carregar imediatamente, não depois de nomes e tempos realizados
+          console.log(`📊 [LOAD-REGISTROS-TEMPO-ESTIMADO] Preparando busca de tempos realizados:`, {
+            totalRegistrosCalculados: registrosCalculados.length,
+            registrosCalculados: registrosCalculados.slice(0, 3).map(r => ({
+              id: r.id,
+              tempo_estimado_id: r.tempo_estimado_id,
+              tarefa_id: r.tarefa_id,
+              responsavel_id: r.responsavel_id,
+              cliente_id: r.cliente_id,
+              data: r.data
+            }))
+          });
+          
           const promisesAuxiliares = [
             carregarNomesRelacionados(registrosCalculados),
             buscarTemposRealizados(registrosCalculados).catch(err => console.error('Erro ao buscar tempos realizados:', err))
@@ -2153,6 +2498,105 @@ const DelegarTarefas = () => {
     );
   };
 
+  // Buscar tempo registrado (via botão play) por responsável e período
+  const buscarTempoRegistrado = useCallback(async (responsavelId, periodoInicio, periodoFim) => {
+    if (!responsavelId || !periodoInicio || !periodoFim) {
+      console.log('⚠️ [BUSCAR-TEMPO-REGISTRADO] Parâmetros inválidos:', { responsavelId, periodoInicio, periodoFim });
+      return 0;
+    }
+
+    // Criar chave única para cache (incluindo filtros adicionais se houver)
+    const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
+    const chave = `${responsavelId}_${periodoInicio}_${periodoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
+
+    // Verificar cache antes de buscar usando ref
+    const cacheAtual = temposRegistradosPorResponsavelRef.current[chave];
+    if (cacheAtual !== undefined) {
+      return cacheAtual;
+    }
+
+    try {
+      // Preparar body com filtros adicionais se houver
+      const body = {
+        responsavel_id: responsavelId,
+        data_inicio: periodoInicio,
+        data_fim: periodoFim
+      };
+
+      // Adicionar filtros adicionais se estiverem aplicados
+      if (filtrosAdicionais.cliente) {
+        body.cliente_id = Array.isArray(filtrosAdicionais.cliente) ? filtrosAdicionais.cliente : [filtrosAdicionais.cliente];
+      }
+      if (filtrosAdicionais.tarefa) {
+        body.tarefa_id = Array.isArray(filtrosAdicionais.tarefa) ? filtrosAdicionais.tarefa : [filtrosAdicionais.tarefa];
+      }
+      if (filtrosAdicionais.produto) {
+        body.produto_id = Array.isArray(filtrosAdicionais.produto) ? filtrosAdicionais.produto : [filtrosAdicionais.produto];
+      }
+
+      console.log(`🔍 [BUSCAR-TEMPO-REGISTRADO] Buscando: responsavel_id=${responsavelId}, periodo=${periodoInicio} a ${periodoFim}`);
+
+      const response = await fetch('/api/tempo-estimado/tempo-realizado-filtros', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`📊 [BUSCAR-TEMPO-REGISTRADO] Resposta: success=${result.success}, count=${result.count}, dataKeys=${result.data ? Object.keys(result.data).length : 0}`);
+        
+        if (result.success && result.data) {
+          // O endpoint retorna um objeto onde cada chave tem um objeto com tempo_realizado e quantidade_registros
+          // Preciso somar todos os tempos_realizado para obter o total
+          let tempoTotalRegistrado = 0;
+          let quantidadeItens = 0;
+          
+          if (typeof result.data === 'object' && result.data !== null) {
+            const chavesDetalhes = [];
+            Object.entries(result.data).forEach(([chaveItem, item]) => {
+              if (item && typeof item === 'object') {
+                const tempoItem = Number(item.tempo_realizado) || 0;
+                tempoTotalRegistrado += tempoItem;
+                quantidadeItens++;
+                chavesDetalhes.push({
+                  chave: chaveItem,
+                  tempo: `${(tempoItem/1000).toFixed(2)}s`,
+                  registros: item.quantidade_registros || 0
+                });
+              }
+            });
+          console.log(`✅ [BUSCAR-TEMPO-REGISTRADO] Tempo total: ${(tempoTotalRegistrado/1000).toFixed(2)}s de ${quantidadeItens} item(ns)`);
+          }
+          
+          // Atualizar cache e ref imediatamente
+          setTemposRegistradosPorResponsavel(prev => {
+            const novo = {
+              ...prev,
+              [chave]: tempoTotalRegistrado
+            };
+            temposRegistradosPorResponsavelRef.current = novo;
+            return novo;
+          });
+          
+          return tempoTotalRegistrado;
+        } else {
+          console.warn('⚠️ [BUSCAR-TEMPO-REGISTRADO] Resposta sem dados válidos');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ [BUSCAR-TEMPO-REGISTRADO] Erro ${response.status}:`, errorText);
+      }
+      return 0;
+    } catch (error) {
+      console.error('❌ [BUSCAR-TEMPO-REGISTRADO] Erro ao buscar tempo registrado:', error);
+      return 0;
+    }
+  }, [filtrosUltimosAplicados]);
+
   // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
   const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
     // Usar valores aplicados do período (ou null se não foram aplicados)
@@ -2264,17 +2708,35 @@ const DelegarTarefas = () => {
     
     const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
     
+    // Buscar tempo registrado (via botão play) do cache
+    // Usar a mesma chave que é usada em buscarTempoRegistrado (incluindo filtros adicionais)
+    // Usar ref para garantir que sempre use o valor mais atualizado
+    const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
+    const chaveTempoRegistrado = `${responsavelId}_${periodoAplicadoInicio}_${periodoAplicadoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
+    const tempoRegistrado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
+    
+    const cacheKeys = Object.keys(temposRegistradosPorResponsavelRef.current);
+    const chaveEncontrada = cacheKeys.includes(chaveTempoRegistrado);
+    
+    console.log(`🔍 [CALCULAR-TEMPO-POR-ENTIDADE] responsavelId=${responsavelId}, chave="${chaveTempoRegistrado}", encontrada=${chaveEncontrada}, tempo=${(tempoRegistrado/1000).toFixed(2)}s`);
+    
+    // Se não encontrou no cache mas há chaves disponíveis, logar aviso
+    if (tempoRegistrado === 0 && cacheKeys.length > 0 && !chaveEncontrada) {
+      console.warn(`⚠️ [CALCULAR-TEMPO-POR-ENTIDADE] Chave não encontrada. Procurada: "${chaveTempoRegistrado}", Disponíveis: ${cacheKeys.length} chave(s)`);
+    }
+    
     return {
       disponivel: tempoDisponivelTotal,
       estimado: tempoEstimado,
       realizado: tempoRealizado,
       sobrando: tempoSobrando,
-      contratado: tempoContratadoTotal
+      contratado: tempoContratadoTotal,
+      registrado: tempoRegistrado
     };
   };
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0, registrado = 0 }) => {
     // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
     const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
     
@@ -2358,6 +2820,15 @@ const DelegarTarefas = () => {
                 {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
               </span>
               </div>
+            </div>
+          </div>
+          <div className="barra-progresso-tempo-item">
+            <div className="barra-progresso-tempo-item-content">
+              <div className="barra-progresso-tempo-item-header">
+                <i className="fas fa-play-circle painel-colaborador-realizado-icon-inline"></i>
+                <span className="barra-progresso-tempo-label">TempoRegistrado</span>
+              </div>
+              <span className="barra-progresso-tempo-badge registrado">{formatarTempoEstimado(registrado, true)}</span>
             </div>
           </div>
           {mostrarContratadasDisponivel && (
@@ -2650,6 +3121,9 @@ const DelegarTarefas = () => {
     setHorasContratadasPorResponsavel({});
     setTipoContratoPorResponsavel({});
     setTempoEstimadoTotalPorResponsavel({});
+    // Limpar cache de tempos registrados também
+    setTemposRegistradosPorResponsavel({});
+    temposRegistradosPorResponsavelRef.current = {};
     // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
     setDadosAuxiliaresCarregados(false);
     
@@ -2870,6 +3344,66 @@ const DelegarTarefas = () => {
       window.removeEventListener('registro-tempo-deletado', handleRegistroTempoAtualizado);
     };
   }, [obterTodosRegistrosVisiveis, buscarTemposRealizados]);
+
+  // Observar mudanças em temposRealizados para garantir que dashboards sejam atualizados
+  useEffect(() => {
+    // Quando temposRealizados mudar, os componentes que dependem dele devem re-renderizar
+    // O React já faz isso automaticamente, mas podemos garantir que os dashboards sejam recalculados
+    const totalChaves = Object.keys(temposRealizados).length;
+    if (totalChaves > 0 && dadosAuxiliaresCarregados) {
+      console.log(`🔄 [TEMPOS-REALIZADOS] Estado atualizado com ${totalChaves} chave(s), dashboards serão recalculados no próximo render`);
+      // O estado já foi atualizado, o React vai re-renderizar automaticamente
+      // Os componentes que usam temposRealizados (via getTempoRealizado) serão atualizados
+    }
+  }, [temposRealizados, dadosAuxiliaresCarregados]);
+
+  // Observar mudanças em temposRegistradosPorResponsavel para garantir que dashboards sejam atualizados
+  useEffect(() => {
+    // Quando temposRegistradosPorResponsavel mudar, os dashboards devem re-renderizar
+    const totalChaves = Object.keys(temposRegistradosPorResponsavel).length;
+    if (totalChaves > 0) {
+      temposRegistradosPorResponsavelRef.current = temposRegistradosPorResponsavel;
+    }
+  }, [temposRegistradosPorResponsavel]);
+
+  // Buscar tempos registrados quando filtros de responsável e período mudarem
+  useEffect(() => {
+    if (!filtrosUltimosAplicados?.filtroResponsavelSelecionado || !filtrosUltimosAplicados?.periodoInicio || !filtrosUltimosAplicados?.periodoFim) {
+      setCarregandoTemposRegistrados(false);
+      return;
+    }
+
+    // Limpar cache quando filtros mudarem para garantir dados atualizados
+    setTemposRegistradosPorResponsavel({});
+    temposRegistradosPorResponsavelRef.current = {};
+    setCarregandoTemposRegistrados(true);
+
+    const buscarTemposRegistrados = async () => {
+      try {
+        const responsavelAplicado = filtrosUltimosAplicados.filtroResponsavelSelecionado;
+        const periodoInicioAplicado = filtrosUltimosAplicados.periodoInicio;
+        const periodoFimAplicado = filtrosUltimosAplicados.periodoFim;
+
+      const responsavelIds = Array.isArray(responsavelAplicado) 
+        ? responsavelAplicado 
+        : [responsavelAplicado];
+
+      // Buscar tempo registrado para cada responsável
+      await Promise.all(
+        responsavelIds.map(async (responsavelId) => {
+          await buscarTempoRegistrado(responsavelId, periodoInicioAplicado, periodoFimAplicado);
+        })
+      );
+      } catch (error) {
+        console.error('❌ [BUSCAR-TEMPOS-REGISTRADOS] Erro ao buscar tempos registrados:', error);
+      } finally {
+        setCarregandoTemposRegistrados(false);
+      }
+    };
+
+    buscarTemposRegistrados();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtrosUltimosAplicados?.filtroResponsavelSelecionado, filtrosUltimosAplicados?.periodoInicio, filtrosUltimosAplicados?.periodoFim, filtrosUltimosAplicados?.filtrosAdicionais, buscarTempoRegistrado]);
 
   // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
   useEffect(() => {
@@ -4099,12 +4633,6 @@ const DelegarTarefas = () => {
                             // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
                             // - Evita duplicação de datas usando Map de datas únicas
                             tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
-                            
-                            // DEBUG: Log do valor usado
-                            console.log(`🔍 [CALCULAR-TEMPO-POR-ENTIDADE] Responsável ${entidadeId}: usando tempoEstimado=${tempoEstimado}ms (${(tempoEstimado/3600000).toFixed(2)}h) do cache`);
-                            if (String(entidadeId) === '75397340197') {
-                              console.log(`🟡 [CALCULAR-TEMPO-POR-ENTIDADE] LUIZ MARCELO (75397340197): tempoEstimado=${tempoEstimado}ms (${(tempoEstimado/3600000).toFixed(2)}h), cache completo:`, Object.keys(tempoEstimadoTotalPorResponsavel).map(id => `${id}:${(tempoEstimadoTotalPorResponsavel[id]/3600000).toFixed(2)}h`));
-                            }
                           } else {
                             // Para outras entidades (cliente, produto, tarefa), calcular somando registros
                             tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
@@ -4149,10 +4677,20 @@ const DelegarTarefas = () => {
                               });
                             }
                             
-                            return acc + registrosNoPeriodo.reduce((sum, reg) => {
+                            // Para responsável, filtrar também pelo responsavel_id do registro individual
+                            if (tipoEntidade === 'responsavel') {
+                              registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
+                                return String(reg.responsavel_id) === String(entidadeId);
+                              });
+                            }
+                            
+                            const tempoDoAgrupamento = registrosNoPeriodo.reduce((sum, reg) => {
                               const tempoRealizadoReg = getTempoRealizado(reg);
-                              return sum + normalizarTempoRealizado(tempoRealizadoReg);
+                              const tempoNormalizado = normalizarTempoRealizado(tempoRealizadoReg);
+                              return sum + tempoNormalizado;
                             }, 0);
+                            
+                            return acc + tempoDoAgrupamento;
                           }, 0);
                           
                           // Para responsável, calcular disponível e sobrando
@@ -4197,12 +4735,18 @@ const DelegarTarefas = () => {
                               ? null  // Ainda carregando
                               : Math.max(0, tempoDisponivelTotal - tempoEstimado);
                             
+                            // Buscar tempo registrado do cache
+                            const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
+                            const chaveTempoRegistrado = `${entidadeId}_${periodoAplicadoInicio}_${periodoAplicadoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
+                            const tempoRegistrado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
+                            
                             return {
                               disponivel: tempoDisponivelTotal,
                               estimado: tempoEstimado,
                               realizado: tempoRealizado,
                               sobrando: tempoSobrando,
-                              contratado: tempoContratadoTotal
+                              contratado: tempoContratadoTotal,
+                              registrado: tempoRegistrado
                             };
                           }
                           
@@ -4212,7 +4756,8 @@ const DelegarTarefas = () => {
                             estimado: tempoEstimado,
                             realizado: tempoRealizado,
                             sobrando: 0,
-                            contratado: 0
+                            contratado: 0,
+                            registrado: 0
                           };
                         };
                         
@@ -4417,6 +4962,7 @@ const DelegarTarefas = () => {
                             filtroPrincipal,
                             registrosAgrupados
                           );
+                          
                           
                           // Obter responsavelId para calcular custo quando filtro principal não é responsavel
                           let responsavelIdParaCusto = null;
@@ -4935,6 +5481,7 @@ const DelegarTarefas = () => {
                                     realizado={0}
                                     sobrando={0}
                                     contratado={0}
+                                    registrado={0}
                                     responsavelId={responsavelIdParaCusto}
                                     mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                   />
@@ -5313,6 +5860,7 @@ const DelegarTarefas = () => {
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
                                   contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
+                                  registrado={tempoInfo.registrado || 0}
                                   responsavelId={responsavelIdParaCusto}
                                   mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                 />
