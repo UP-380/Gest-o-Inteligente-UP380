@@ -303,7 +303,7 @@ const DelegarTarefas = () => {
   };
 
   // Handler genérico para abrir card (EXATAMENTE como handleOpenContas)
-  const handleOpenCard = (entidade, tipo, e, buscarDetalhesFn) => {
+  const handleOpenCard = async (entidade, tipo, e, buscarDetalhesFn) => {
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
@@ -336,6 +336,16 @@ const DelegarTarefas = () => {
       setDetailCardPosition({
         left: calculatedLeft,
         top: documentTop
+      });
+    }
+
+    // Garantir que os tempos realizados estejam atualizados antes de buscar detalhes
+    // Buscar todos os registros visíveis para garantir que tempos realizados estejam disponíveis
+    const registrosVisiveis = obterTodosRegistrosVisiveis();
+    if (registrosVisiveis.length > 0) {
+      // Buscar tempos realizados em background (não bloquear a abertura do card)
+      buscarTemposRealizados(registrosVisiveis).catch(err => {
+        console.error('❌ [HANDLE-OPEN-CARD] Erro ao buscar tempos realizados:', err);
       });
     }
 
@@ -1524,6 +1534,17 @@ const DelegarTarefas = () => {
           return tempo;
         }
       }
+      // Se não encontrou chave exata mas há múltiplas, usar a primeira (pode ser chave agregada do endpoint com filtros)
+      // Isso é útil quando o endpoint /tempo-realizado-filtros retorna uma chave agregada
+      const primeiraChave = chavesComPrefixo[0];
+      const tempo = temposRealizados[primeiraChave].tempo_realizado || 0;
+      console.log('⚠️ [GET-TEMPO-REALIZADO] Usando primeira chave com prefixo (pode ser agregada):', {
+        chaveEncontrada: primeiraChave,
+        chaveProcurada: chave,
+        tempo: `${(tempo/1000).toFixed(2)}s`,
+        totalChavesComPrefixo: chavesComPrefixo.length
+      });
+      return tempo;
     }
     
     // Log quando não encontrar
@@ -2690,53 +2711,31 @@ const DelegarTarefas = () => {
       ? tempoEstimado 
       : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
     
+    // Calcular tempo disponível: contratadas - estimado
     const tempoDisponivelTotal = isPJ 
       ? tempoEstimado 
-      : Math.max(0, (horasContratadasDiaValor * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo); // converter horas para milissegundos e subtrair o tempo já estimado
-    
-    // Tempo realizado baseado nos registros de tempo realizados
-    const tempoRealizado = agrupamentos
-      .filter((agr) => String(agr.primeiroRegistro.responsavel_id) === String(responsavelId))
-      .reduce((acc, agr) => {
-        if (!agr.registros) return acc;
-        const registrosNoPeriodo = agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data));
-        return acc + registrosNoPeriodo.reduce((sum, reg) => {
-          const tempoRealizadoReg = getTempoRealizado(reg);
-          return sum + (tempoRealizadoReg || 0);
-        }, 0);
-      }, 0);
+      : Math.max(0, tempoContratadoTotal - tempoEstimado);
     
     const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
     
-    // Buscar tempo registrado (via botão play) do cache
+    // Tempo realizado agora usa a lógica do registrado (buscar da API tempo-realizado-filtros)
     // Usar a mesma chave que é usada em buscarTempoRegistrado (incluindo filtros adicionais)
     // Usar ref para garantir que sempre use o valor mais atualizado
     const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
     const chaveTempoRegistrado = `${responsavelId}_${periodoAplicadoInicio}_${periodoAplicadoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
-    const tempoRegistrado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
-    
-    const cacheKeys = Object.keys(temposRegistradosPorResponsavelRef.current);
-    const chaveEncontrada = cacheKeys.includes(chaveTempoRegistrado);
-    
-    console.log(`🔍 [CALCULAR-TEMPO-POR-ENTIDADE] responsavelId=${responsavelId}, chave="${chaveTempoRegistrado}", encontrada=${chaveEncontrada}, tempo=${(tempoRegistrado/1000).toFixed(2)}s`);
-    
-    // Se não encontrou no cache mas há chaves disponíveis, logar aviso
-    if (tempoRegistrado === 0 && cacheKeys.length > 0 && !chaveEncontrada) {
-      console.warn(`⚠️ [CALCULAR-TEMPO-POR-ENTIDADE] Chave não encontrada. Procurada: "${chaveTempoRegistrado}", Disponíveis: ${cacheKeys.length} chave(s)`);
-    }
+    const tempoRealizado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
     
     return {
       disponivel: tempoDisponivelTotal,
       estimado: tempoEstimado,
       realizado: tempoRealizado,
       sobrando: tempoSobrando,
-      contratado: tempoContratadoTotal,
-      registrado: tempoRegistrado
+      contratado: tempoContratadoTotal
     };
   };
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0, registrado = 0 }) => {
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
     // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
     const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
     
@@ -2809,7 +2808,7 @@ const DelegarTarefas = () => {
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <i className="fas fa-stopwatch painel-colaborador-realizado-icon-inline"></i>
+                <i className="fas fa-play-circle painel-colaborador-realizado-icon-inline"></i>
                 <span className="barra-progresso-tempo-label">Realizado</span>
               </div>
               <div className="barra-progresso-tempo-badge-wrapper">
@@ -2820,15 +2819,6 @@ const DelegarTarefas = () => {
                 {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
               </span>
               </div>
-            </div>
-          </div>
-          <div className="barra-progresso-tempo-item">
-            <div className="barra-progresso-tempo-item-content">
-              <div className="barra-progresso-tempo-item-header">
-                <i className="fas fa-play-circle painel-colaborador-realizado-icon-inline"></i>
-                <span className="barra-progresso-tempo-label">TempoRegistrado</span>
-              </div>
-              <span className="barra-progresso-tempo-badge registrado">{formatarTempoEstimado(registrado, true)}</span>
             </div>
           </div>
           {mostrarContratadasDisponivel && (
@@ -2845,7 +2835,7 @@ const DelegarTarefas = () => {
                 <span className="barra-progresso-tempo-indicador sobrando"></span>
                 <span className="barra-progresso-tempo-label">Disponível</span>
               </div>
-              <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(sobrando, true)}</span>
+              <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(disponivelValor, true)}</span>
             </div>
           </div>
             </>
@@ -4069,6 +4059,21 @@ const DelegarTarefas = () => {
                                 // Calcular tempo realizado deste registro
                                 const tempoRealizadoReg = getTempoRealizado(reg);
                                 const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                
+                                // Log para debug
+                                if (tempoRealizadoReg === null || tempoRealizadoReg === 0) {
+                                  const chave = getChaveTempoRealizado(reg);
+                                  console.log('⚠️ [BUSCAR-DETALHES] Tempo realizado não encontrado para registro:', {
+                                    chave,
+                                    tarefa_id: reg.tarefa_id,
+                                    responsavel_id: reg.responsavel_id,
+                                    cliente_id: reg.cliente_id,
+                                    id: reg.id,
+                                    tempo_estimado_id: reg.tempo_estimado_id,
+                                    chavesDisponiveis: Object.keys(temposRealizados).slice(0, 5)
+                                  });
+                                }
+                                
                                 tarefa.tempoRealizado += tempoRealizadoValor;
                                 
                                 // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
@@ -4136,6 +4141,19 @@ const DelegarTarefas = () => {
                                   // Calcular tempo realizado deste registro
                                   const tempoRealizadoReg = getTempoRealizado(reg);
                                   const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                  
+                                  // Log para debug
+                                  if (tempoRealizadoReg === null || tempoRealizadoReg === 0) {
+                                    const chave = getChaveTempoRealizado(reg);
+                                    console.log('⚠️ [BUSCAR-DETALHES-CLIENTES] Tempo realizado não encontrado para registro:', {
+                                      chave,
+                                      tarefa_id: reg.tarefa_id,
+                                      responsavel_id: reg.responsavel_id,
+                                      cliente_id: reg.cliente_id,
+                                      id: reg.id
+                                    });
+                                  }
+                                  
                                   cliente.tempoRealizado += tempoRealizadoValor;
                                   
                                   // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
@@ -4230,6 +4248,19 @@ const DelegarTarefas = () => {
                                 // Calcular tempo realizado deste registro
                                 const tempoRealizadoReg = getTempoRealizado(reg);
                                 const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                
+                                // Log para debug
+                                if (tempoRealizadoReg === null || tempoRealizadoReg === 0) {
+                                  const chave = getChaveTempoRealizado(reg);
+                                  console.log('⚠️ [BUSCAR-DETALHES-PRODUTOS] Tempo realizado não encontrado para registro:', {
+                                    chave,
+                                    tarefa_id: reg.tarefa_id,
+                                    responsavel_id: reg.responsavel_id,
+                                    cliente_id: reg.cliente_id,
+                                    id: reg.id
+                                  });
+                                }
+                                
                                 produto.tempoRealizado += tempoRealizadoValor;
                                 
                                 // Calcular tempo estimado deste registro
@@ -4391,6 +4422,19 @@ const DelegarTarefas = () => {
                                 // Calcular tempo realizado deste registro
                                 const tempoRealizadoReg = getTempoRealizado(reg);
                                 const tempoRealizadoValor = normalizarTempoRealizado(tempoRealizadoReg);
+                                
+                                // Log para debug
+                                if (tempoRealizadoReg === null || tempoRealizadoReg === 0) {
+                                  const chave = getChaveTempoRealizado(reg);
+                                  console.log('⚠️ [BUSCAR-DETALHES-RESPONSAVEIS] Tempo realizado não encontrado para registro:', {
+                                    chave,
+                                    tarefa_id: reg.tarefa_id,
+                                    responsavel_id: reg.responsavel_id,
+                                    cliente_id: reg.cliente_id,
+                                    id: reg.id
+                                  });
+                                }
+                                
                                 responsavel.tempoRealizado += tempoRealizadoValor;
                                 
                                 // Calcular tempo estimado deste registro
@@ -4660,38 +4704,10 @@ const DelegarTarefas = () => {
                             }, 0);
                           }
                           
-                          // Calcular tempo realizado - filtrar registros individuais pelo período E pela entidade
-                          const tempoRealizado = agrupamentosFiltrados.reduce((acc, agr) => {
-                            if (!agr.registros) return acc;
-                            // Filtrar registros pelo período
-                            let registrosNoPeriodo = agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data));
-                            
-                            // Para cliente, filtrar também pelo cliente_id do registro individual
-                            if (tipoEntidade === 'cliente') {
-                              registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                return clienteIds.includes(String(entidadeId));
-                              });
-                            }
-                            
-                            // Para responsável, filtrar também pelo responsavel_id do registro individual
-                            if (tipoEntidade === 'responsavel') {
-                              registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
-                                return String(reg.responsavel_id) === String(entidadeId);
-                              });
-                            }
-                            
-                            const tempoDoAgrupamento = registrosNoPeriodo.reduce((sum, reg) => {
-                              const tempoRealizadoReg = getTempoRealizado(reg);
-                              const tempoNormalizado = normalizarTempoRealizado(tempoRealizadoReg);
-                              return sum + tempoNormalizado;
-                            }, 0);
-                            
-                            return acc + tempoDoAgrupamento;
-                          }, 0);
+                          // Tempo realizado agora usa a lógica do registrado (buscar da API tempo-realizado-filtros)
+                          const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
+                          const chaveTempoRegistrado = `${entidadeId}_${periodoAplicadoInicio}_${periodoAplicadoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
+                          const tempoRealizado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
                           
                           // Para responsável, calcular disponível e sobrando
                           if (tipoEntidade === 'responsavel') {
@@ -4726,27 +4742,22 @@ const DelegarTarefas = () => {
                                   ? tempoEstimado 
                                   : (horasContratadasDia || 0) * diasNoPeriodo * 3600000); // converter horas para milissegundos
                             
+                            // Calcular tempo disponível: contratadas - estimado
                             const tempoDisponivelTotal = aindaCarregandoHoras
                               ? null  // Ainda carregando
                               : (isPJ 
                                   ? tempoEstimado 
-                                  : Math.max(0, ((horasContratadasDia || 0) * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo));
+                                  : Math.max(0, tempoContratadoTotal - tempoEstimado));
                             const tempoSobrando = aindaCarregandoHoras
                               ? null  // Ainda carregando
                               : Math.max(0, tempoDisponivelTotal - tempoEstimado);
-                            
-                            // Buscar tempo registrado do cache
-                            const filtrosAdicionais = filtrosUltimosAplicados?.filtrosAdicionais || {};
-                            const chaveTempoRegistrado = `${entidadeId}_${periodoAplicadoInicio}_${periodoAplicadoFim}_${filtrosAdicionais.cliente || ''}_${filtrosAdicionais.tarefa || ''}_${filtrosAdicionais.produto || ''}`;
-                            const tempoRegistrado = temposRegistradosPorResponsavelRef.current[chaveTempoRegistrado] || 0;
                             
                             return {
                               disponivel: tempoDisponivelTotal,
                               estimado: tempoEstimado,
                               realizado: tempoRealizado,
                               sobrando: tempoSobrando,
-                              contratado: tempoContratadoTotal,
-                              registrado: tempoRegistrado
+                              contratado: tempoContratadoTotal
                             };
                           }
                           
@@ -4756,8 +4767,7 @@ const DelegarTarefas = () => {
                             estimado: tempoEstimado,
                             realizado: tempoRealizado,
                             sobrando: 0,
-                            contratado: 0,
-                            registrado: 0
+                            contratado: 0
                           };
                         };
                         
@@ -5481,7 +5491,6 @@ const DelegarTarefas = () => {
                                     realizado={0}
                                     sobrando={0}
                                     contratado={0}
-                                    registrado={0}
                                     responsavelId={responsavelIdParaCusto}
                                     mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                   />
@@ -5860,7 +5869,6 @@ const DelegarTarefas = () => {
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
                                   contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
-                                  registrado={tempoInfo.registrado || 0}
                                   responsavelId={responsavelIdParaCusto}
                                   mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                 />

@@ -903,7 +903,7 @@ const PainelUsuario = () => {
           return `
             <div class="painel-usuario-registro-item-simples" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 8px; color: #374151;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-stopwatch" style="color: #94a3b8;"></i>
+                <i class="fas fa-play-circle" style="color: #94a3b8;"></i>
                 <span class="painel-usuario-registro-tempo-badge" title="${tempoDecimal}h" style="background: #fff4e6; border: 1px solid #ffd8a8; color: #fd7e14; padding: 2px 6px; border-radius: 999px; font-size: 11px; font-weight: 500;">${tempoFormatado}</span>
               </div>
               ${dataFormatada !== '—' ? `<div style="color: #6b7280;">${dataFormatada}</div>` : ''}
@@ -1283,12 +1283,12 @@ const PainelUsuario = () => {
         const tempoRealizadoFormatado = formatarTempoHMS(tempoRealizadoTotal);
         if (tempoRealizadoElement) {
           // Atualizar elemento existente
-          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-play-circle painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
         } else {
           // Criar novo elemento
           tempoRealizadoElement = document.createElement('span');
           tempoRealizadoElement.className = 'painel-usuario-grupo-tempo-realizado';
-          tempoRealizadoElement.innerHTML = `<i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
+          tempoRealizadoElement.innerHTML = `<i class="fas fa-play-circle painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
           
           // Inserir após o tempo estimado (se existir) ou antes do count
           const tempoTotalElement = header.querySelector('.painel-usuario-grupo-tempo-total');
@@ -2826,7 +2826,7 @@ const PainelUsuario = () => {
             <span class="painel-usuario-grupo-badge-orange">CLIENTE</span>
             <h3 class="painel-usuario-grupo-title">${clienteNome}</h3>
             ${tempoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-total"><i class="fas fa-clock" style="color: #0e3b6f; font-size: 12px; margin-right: 4px;"></i>${tempoTotalFormatado}</span>` : ''}
-            ${tempoRealizadoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-realizado"><i class="fas fa-stopwatch painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}</span>` : ''}
+            ${tempoRealizadoTotal > 0 ? `<span class="painel-usuario-grupo-tempo-realizado"><i class="fas fa-play-circle painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}</span>` : ''}
             <span class="painel-usuario-grupo-count">Tarefas: ${items.length}</span>
           </div>
         `;
@@ -2951,7 +2951,7 @@ const PainelUsuario = () => {
                   </span>
                   <span class="painel-usuario-badge-realizado">
                     <div style="display: flex; align-items: center; gap: 6px;">
-                      <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                      <i class="fas fa-play-circle painel-usuario-realizado-icon-inline"></i>
                       <span class="painel-usuario-realizado-label">Realizado:</span>
                       <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
                       ${(() => {
@@ -3601,7 +3601,7 @@ const PainelUsuario = () => {
               </span>
               <span class="painel-usuario-badge-realizado">
                 <div style="display: flex; align-items: center; gap: 6px;">
-                  <i class="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+                  <i class="fas fa-play-circle painel-usuario-realizado-icon-inline"></i>
                   <span class="painel-usuario-realizado-label">Realizado:</span>
                   <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
                   <i 
