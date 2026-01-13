@@ -191,10 +191,13 @@ router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoCon
 // Rotas de Histórico de Atribuições
 console.log('✅ Registrando rotas de histórico de atribuições...');
 router.get('/api/historico-atribuicoes', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicoes);
+router.get('/api/historico-atribuicoes/orfas', requireAuth, historicoAtribuicoesController.getRegrasOrfas);
 router.get('/api/historico-atribuicoes/:id/detalhes-diarios', requireAuth, historicoAtribuicoesController.getDetalhesDiariosAtribuicao);
 router.get('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicaoPorId);
 router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.atualizarHistoricoAtribuicao);
 router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
+router.post('/api/historico-atribuicoes/sincronizar-orfaos', requireAuth, historicoAtribuicoesController.sincronizarHistoricosOrfaos);
+router.delete('/api/historico-atribuicoes/orfas/:agrupador_id', requireAuth, historicoAtribuicoesController.deletarRegrasOrfas);
 console.log('✅ Rotas de histórico de atribuições registradas:', {
   get: '/api/historico-atribuicoes',
   getById: '/api/historico-atribuicoes/:id',

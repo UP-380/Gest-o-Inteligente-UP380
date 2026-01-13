@@ -1124,7 +1124,15 @@ async function getTempoEstimado(req, res) {
     const cliente_id = processarParametroArray(req.query.cliente_id);
     const produto_id = processarParametroArray(req.query.produto_id);
     const tarefa_id = processarParametroArray(req.query.tarefa_id);
-    const responsavel_id = processarParametroArray(req.query.responsavel_id);
+    
+    // Filtrar apenas valores numéricos válidos para responsavel_id (campo INTEGER no banco)
+    // O frontend pode enviar email, nome, etc., mas precisamos apenas dos IDs numéricos
+    const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
+    const responsavel_id = responsavel_id_raw 
+      ? responsavel_id_raw
+          .map(id => parseInt(String(id).trim(), 10))
+          .filter(id => !isNaN(id) && id > 0)
+      : null;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -1243,13 +1251,15 @@ async function getTempoEstimado(req, res) {
     }
 
     if (responsavel_id && responsavel_id.length > 0) {
-      const responsavelIdsLimpos = responsavel_id.map(id => String(id).trim()).filter(Boolean);
-      console.log('🔍 [TEMPO-ESTIMADO] Filtrando por responsavel_id:', responsavelIdsLimpos);
-      if (responsavelIdsLimpos.length === 1) {
-        query = query.eq('responsavel_id', responsavelIdsLimpos[0]);
-      } else if (responsavelIdsLimpos.length > 1) {
-        query = query.in('responsavel_id', responsavelIdsLimpos);
+      // responsavel_id já contém apenas números válidos (filtrado anteriormente)
+      console.log('🔍 [TEMPO-ESTIMADO] Filtrando por responsavel_id:', responsavel_id);
+      if (responsavel_id.length === 1) {
+        query = query.eq('responsavel_id', responsavel_id[0]);
+      } else if (responsavel_id.length > 1) {
+        query = query.in('responsavel_id', responsavel_id);
       }
+    } else {
+      console.log('🔍 [TEMPO-ESTIMADO] NÃO há filtro de responsavel_id - retornando regras de TODOS os responsáveis');
     }
 
     // NOVA LÓGICA: Filtro por período - buscar regras cujo período se sobrepõe ao período filtrado
@@ -1279,15 +1289,127 @@ async function getTempoEstimado(req, res) {
       query = query.lte('data_inicio', dataFormatada).gte('data_fim', dataFormatada);
     }
 
-    // Ordenar por data_inicio (mais recente primeiro)
-    let queryFinal = query.order('data_inicio', { ascending: false });
+    // IMPORTANTE: Quando há filtro de período, usar paginação automática para garantir
+    // que TODAS as regras sejam retornadas (o Supabase tem limite de 1000 por padrão)
+    let regrasEncontradas = [];
+    let error = null;
+    let count = null;
     
-    // Se não há filtro de período completo, aplicar paginação normalmente
-    if (!aplicarFiltroPeriodo && !data) {
-      queryFinal = queryFinal.range(offset, offset + limitNum - 1);
+    if (aplicarFiltroPeriodo || data) {
+      // Quando há filtro de período, usar paginação automática para buscar TODAS as regras
+      // IMPORTANTE: Isso garante que todas as regras sejam retornadas, não apenas as primeiras 1000
+      // CRÍTICO: A função criarQueryBuilder deve construir a query do ZERO a cada chamada,
+      // não reutilizar a mesma instância (o Supabase query builder não pode ser reutilizado)
+      try {
+        const criarQueryBuilder = () => {
+          // Reconstruir a query do zero a cada chamada
+          let queryBuilder = supabase
+            .schema('up_gestaointeligente')
+            .from('tempo_estimado_regra')
+            .select('*', { count: 'exact' });
+          
+          // Aplicar filtros novamente
+          if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+            const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+            if (clienteIdsLimpos.length === 1) {
+              queryBuilder = queryBuilder.eq('cliente_id', clienteIdsLimpos[0]);
+            } else if (clienteIdsLimpos.length > 1) {
+              queryBuilder = queryBuilder.in('cliente_id', clienteIdsLimpos);
+            }
+          }
+          
+          if (produto_id && produto_id.length > 0) {
+            const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+            if (produtoIdsLimpos.length === 1) {
+              queryBuilder = queryBuilder.eq('produto_id', produtoIdsLimpos[0]);
+            } else if (produtoIdsLimpos.length > 1) {
+              queryBuilder = queryBuilder.in('produto_id', produtoIdsLimpos);
+            }
+          }
+          
+          if (tarefa_id && tarefa_id.length > 0) {
+            const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+            if (tarefaIdsLimpos.length === 1) {
+              queryBuilder = queryBuilder.eq('tarefa_id', tarefaIdsLimpos[0]);
+            } else if (tarefaIdsLimpos.length > 1) {
+              queryBuilder = queryBuilder.in('tarefa_id', tarefaIdsLimpos);
+            }
+          }
+          
+          if (responsavel_id && responsavel_id.length > 0) {
+            if (responsavel_id.length === 1) {
+              queryBuilder = queryBuilder.eq('responsavel_id', responsavel_id[0]);
+            } else if (responsavel_id.length > 1) {
+              queryBuilder = queryBuilder.in('responsavel_id', responsavel_id);
+            }
+          }
+          
+          // Aplicar filtro de período
+          if (aplicarFiltroPeriodo) {
+            queryBuilder = queryBuilder.lte('data_inicio', periodoFimFiltro).gte('data_fim', periodoInicioFiltro);
+          } else if (data_inicio) {
+            const inicioFormatado = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+            queryBuilder = queryBuilder.gte('data_fim', inicioFormatado);
+          } else if (data_fim) {
+            const fimFormatado = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+            queryBuilder = queryBuilder.lte('data_inicio', fimFormatado);
+          }
+          
+          if (data) {
+            const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
+            queryBuilder = queryBuilder.lte('data_inicio', dataFormatada).gte('data_fim', dataFormatada);
+          }
+          
+          // Aplicar ordenação
+          return queryBuilder.order('data_inicio', { ascending: false });
+        };
+        
+        console.log(`🔍 [TEMPO-ESTIMADO-DEBUG] Iniciando busca paginada com filtros:`, {
+          clienteIdsFinais: clienteIdsFinais?.length || 0,
+          produto_id: produto_id?.length || 0,
+          tarefa_id: tarefa_id?.length || 0,
+          responsavel_id: responsavel_id?.length || 0,
+          aplicarFiltroPeriodo,
+          periodoInicioFiltro,
+          periodoFimFiltro
+        });
+        
+        regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, {
+          limit: 1000,
+          logProgress: true
+        });
+        // Quando usamos paginação automática, o count é o tamanho do array retornado
+        count = regrasEncontradas.length;
+        console.log(`📊 [TEMPO-ESTIMADO] Busca paginada completa: ${regrasEncontradas.length} regra(s) encontradas`);
+        
+        // DEBUG: Verificar quantas regras do Luiz Marcelo foram retornadas
+        const regrasLuizMarcelo = regrasEncontradas.filter(r => String(r.responsavel_id) === '75397340197');
+        console.log(`🔍 [TEMPO-ESTIMADO-DEBUG] Regras do Luiz Marcelo (75397340197) retornadas: ${regrasLuizMarcelo.length}`);
+        if (regrasLuizMarcelo.length > 0) {
+          console.log(`🔍 [TEMPO-ESTIMADO-DEBUG] Primeiras 3 regras do Luiz Marcelo:`, regrasLuizMarcelo.slice(0, 3).map(r => ({
+            id: r.id,
+            agrupador_id: r.agrupador_id,
+            periodo: `${r.data_inicio} a ${r.data_fim}`,
+            tempo_estimado_dia: r.tempo_estimado_dia
+          })));
+        } else if (regrasEncontradas.length > 0) {
+          // Se há regras mas nenhuma do Luiz Marcelo, listar alguns responsáveis presentes
+          const responsaveisUnicos = [...new Set(regrasEncontradas.map(r => String(r.responsavel_id)).filter(Boolean))].slice(0, 10);
+          console.log(`🔍 [TEMPO-ESTIMADO-DEBUG] Nenhuma regra do Luiz Marcelo encontrada. Responsáveis presentes nas regras:`, responsaveisUnicos);
+        }
+      } catch (pagError) {
+        console.error('❌ Erro ao buscar regras com paginação:', pagError);
+        error = pagError;
+      }
+    } else {
+      // Se não há filtro de período, aplicar paginação normalmente
+      const queryComOrdenacao = query.order('data_inicio', { ascending: false });
+      const queryFinal = queryComOrdenacao.range(offset, offset + limitNum - 1);
+      const resultado = await queryFinal;
+      regrasEncontradas = resultado.data || [];
+      error = resultado.error || null;
+      count = resultado.count || null;
     }
-
-    const { data: regrasEncontradas, error, count } = await queryFinal;
 
     if (error) {
       console.error('❌ Erro ao buscar regras de tempo estimado:', error);
@@ -1298,21 +1420,121 @@ async function getTempoEstimado(req, res) {
       });
     }
 
-    // OTIMIZAÇÃO: Retornar apenas REGRAS (sem calcular registros dinamicamente)
-    // O frontend vai calcular registros apenas quando necessário
     console.log(`📊 Encontradas ${regrasEncontradas?.length || 0} regra(s) que correspondem aos filtros`);
     
-    // Aplicar paginação nas REGRAS (não nos registros calculados)
+    // DEBUG: Log informações sobre as regras encontradas
+    if (regrasEncontradas && regrasEncontradas.length > 0) {
+      console.log('🔍 [DEBUG-TEMPO-ESTIMADO] Primeiras regras encontradas:', regrasEncontradas.slice(0, 3).map(r => ({
+        id: r.id,
+        agrupador_id: r.agrupador_id,
+        cliente_id: r.cliente_id,
+        tarefa_id: r.tarefa_id,
+        responsavel_id: r.responsavel_id,
+        periodo: `${r.data_inicio} a ${r.data_fim}`,
+        incluir_finais_semana: r.incluir_finais_semana,
+        incluir_feriados: r.incluir_feriados
+      })));
+    }
+    
     const regrasFiltradas = regrasEncontradas || [];
-    const totalRegras = count || regrasFiltradas.length;
     
-    // Buscar fotos de perfil dos responsáveis (para as regras retornadas)
-    const regrasParaRetornar = regrasFiltradas;
+    // NOVA LÓGICA: Se houver filtro por data específica (data_inicio === data_fim ou parâmetro 'data'),
+    // expandir as regras em registros dinâmicos para o PainelUsuario
+    // Normalizar datas para comparação (remover hora se houver)
+    const dataInicioNormalizada = data_inicio ? (data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio) : null;
+    const dataFimNormalizada = data_fim ? (data_fim.includes('T') ? data_fim.split('T')[0] : data_fim) : null;
+    const deveExpandirRegras = (dataInicioNormalizada && dataFimNormalizada && dataInicioNormalizada === dataFimNormalizada) || data;
     
-    if (regrasParaRetornar && regrasParaRetornar.length > 0) {
+    // DEBUG: Log informações sobre filtros e decisão de expansão
+    console.log('🔍 [DEBUG-TEMPO-ESTIMADO] Parâmetros recebidos:', {
+      data_inicio,
+      data_fim,
+      data,
+      dataInicioNormalizada,
+      dataFimNormalizada,
+      deveExpandirRegras,
+      totalRegrasEncontradas: regrasFiltradas.length
+    });
+    
+    let dadosParaRetornar = [];
+    let totalParaRetornar = 0;
+    
+    if (deveExpandirRegras) {
+      // Expandir regras em registros dinâmicos
+      console.log('🔄 Expandindo regras em registros dinâmicos para filtro por data específica');
+      
+      // Determinar data(s) para filtrar
+      let dataInicioFiltro = null;
+      let dataFimFiltro = null;
+      
+      if (data) {
+        const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
+        dataInicioFiltro = dataFormatada;
+        dataFimFiltro = dataFormatada;
+      } else if (dataInicioNormalizada && dataFimNormalizada && dataInicioNormalizada === dataFimNormalizada) {
+        dataInicioFiltro = dataInicioNormalizada;
+        dataFimFiltro = dataFimNormalizada;
+      }
+      
+      // Cache de feriados para otimização (reutilizar entre regras)
+      const cacheFeriados = {};
+      
+      // Expandir cada regra em registros
+      // NOTA: calcularRegistrosDinamicos já filtra pelo período fornecido, então não precisamos filtrar novamente
+      const todosRegistros = [];
+      for (const regra of regrasFiltradas) {
+        try {
+          const registrosExpandidos = await calcularRegistrosDinamicos(
+            regra,
+            dataInicioFiltro,
+            dataFimFiltro,
+            cacheFeriados
+          );
+          
+          // DEBUG: Log informações sobre a expansão de cada regra
+          console.log(`🔍 [DEBUG-TEMPO-ESTIMADO] Regra ${regra.id} expandida:`, {
+            regraId: regra.id,
+            agrupadorId: regra.agrupador_id,
+            periodoRegra: `${regra.data_inicio} a ${regra.data_fim}`,
+            registrosGerados: registrosExpandidos.length,
+            dataFiltro: dataInicioFiltro
+          });
+          
+          // calcularRegistrosDinamicos já filtra pelo período, então adicionamos todos os registros retornados
+          todosRegistros.push(...registrosExpandidos);
+        } catch (error) {
+          console.error(`❌ Erro ao expandir regra ${regra.id}:`, error);
+        }
+      }
+      
+      dadosParaRetornar = todosRegistros;
+      totalParaRetornar = todosRegistros.length;
+      
+      // DEBUG: Log amostra dos registros gerados
+      if (todosRegistros.length > 0) {
+        console.log(`🔍 [DEBUG-TEMPO-ESTIMADO] Amostra do primeiro registro:`, {
+          id: todosRegistros[0].id,
+          data: todosRegistros[0].data,
+          cliente_id: todosRegistros[0].cliente_id,
+          tarefa_id: todosRegistros[0].tarefa_id,
+          responsavel_id: todosRegistros[0].responsavel_id
+        });
+      }
+      
+      console.log(`✅ Expandidas ${regrasFiltradas.length} regra(s) em ${totalParaRetornar} registro(s) para a data ${dataInicioFiltro || 'especificada'}`);
+    } else {
+      // Comportamento original: retornar regras sem expandir
+      dadosParaRetornar = regrasFiltradas;
+      totalParaRetornar = count || regrasFiltradas.length;
+    }
+    
+    // Buscar fotos de perfil dos responsáveis
+    const dadosParaRetornarComFotos = dadosParaRetornar;
+    
+    if (dadosParaRetornarComFotos && dadosParaRetornarComFotos.length > 0) {
       // Extrair responsavel_ids únicos
       const responsavelIds = [...new Set(
-        regrasParaRetornar
+        dadosParaRetornarComFotos
           .map(r => r.responsavel_id)
           .filter(Boolean)
       )];
@@ -1353,56 +1575,84 @@ async function getTempoEstimado(req, res) {
                 usuarioMap.set(String(usuario.id), usuario.foto_perfil);
               });
 
-              // Adicionar foto_perfil às regras
-              regrasParaRetornar.forEach(regra => {
-                if (regra.responsavel_id) {
-                  const responsavelIdStr = String(regra.responsavel_id);
+              // Adicionar foto_perfil aos dados (regras ou registros)
+              dadosParaRetornarComFotos.forEach(item => {
+                if (item.responsavel_id) {
+                  const responsavelIdStr = String(item.responsavel_id);
                   const usuarioId = membroMap.get(responsavelIdStr);
                   if (usuarioId) {
                     const fotoPerfil = usuarioMap.get(String(usuarioId));
-                    regra.responsavel_foto_perfil = fotoPerfil || null;
+                    item.responsavel_foto_perfil = fotoPerfil || null;
                   } else {
-                    regra.responsavel_foto_perfil = null;
+                    item.responsavel_foto_perfil = null;
                   }
                 } else {
-                  regra.responsavel_foto_perfil = null;
+                  item.responsavel_foto_perfil = null;
                 }
               });
             } else {
               // Se não encontrar usuarios, definir foto_perfil como null
-              regrasParaRetornar.forEach(regra => {
-                regra.responsavel_foto_perfil = null;
+              dadosParaRetornarComFotos.forEach(item => {
+                item.responsavel_foto_perfil = null;
               });
             }
           } else {
             // Se não houver usuario_ids, definir foto_perfil como null
-            regrasParaRetornar.forEach(regra => {
-              regra.responsavel_foto_perfil = null;
+            dadosParaRetornarComFotos.forEach(item => {
+              item.responsavel_foto_perfil = null;
             });
           }
         } else {
           // Se não encontrar membros, definir foto_perfil como null
-          regrasParaRetornar.forEach(regra => {
-            regra.responsavel_foto_perfil = null;
+          dadosParaRetornarComFotos.forEach(item => {
+            item.responsavel_foto_perfil = null;
           });
         }
       } else {
         // Se não houver responsavel_ids, definir foto_perfil como null
-        regrasParaRetornar.forEach(regra => {
-          regra.responsavel_foto_perfil = null;
+        dadosParaRetornarComFotos.forEach(item => {
+          item.responsavel_foto_perfil = null;
         });
       }
     }
 
-    const totalPagesCalculado = Math.ceil(totalRegras / limitNum);
+    // Aplicar paginação apenas se não expandimos as regras (comportamento original)
+    // Quando expandimos, já retornamos apenas os registros da data específica
+    let dadosPaginados = dadosParaRetornarComFotos;
+    if (!deveExpandirRegras) {
+      // Paginação para regras (comportamento original)
+      const inicioPagina = offset;
+      const fimPagina = offset + limitNum;
+      dadosPaginados = dadosParaRetornarComFotos.slice(inicioPagina, fimPagina);
+    }
 
-    console.log(`📄 Retornando ${regrasParaRetornar.length} regra(s) (total: ${totalRegras}, página: ${pageNum}, totalPages: ${totalPagesCalculado})`);
+    const totalPagesCalculado = Math.ceil(totalParaRetornar / limitNum);
+
+    const tipoDados = deveExpandirRegras ? 'registro(s)' : 'regra(s)';
+    console.log(`📄 Retornando ${dadosPaginados.length} ${tipoDados} (total: ${totalParaRetornar}, página: ${pageNum}, totalPages: ${totalPagesCalculado})`);
+    
+    // DEBUG: Log formato dos dados antes de retornar
+    if (dadosPaginados.length > 0) {
+      const primeiroItem = dadosPaginados[0];
+      console.log('🔍 [DEBUG-TEMPO-ESTIMADO] Formato do primeiro item retornado:', {
+        temId: !!primeiroItem.id,
+        temTempoEstimadoId: !!primeiroItem.tempo_estimado_id,
+        temData: !!primeiroItem.data,
+        formatoData: primeiroItem.data ? primeiroItem.data.substring(0, 10) : null,
+        temTempoEstimadoDia: !!primeiroItem.tempo_estimado_dia,
+        temClienteId: !!primeiroItem.cliente_id,
+        temTarefaId: !!primeiroItem.tarefa_id,
+        temResponsavelId: !!primeiroItem.responsavel_id,
+        temResponsavelFotoPerfil: 'responsavel_foto_perfil' in primeiroItem,
+        keys: Object.keys(primeiroItem)
+      });
+    }
 
     return res.json({
       success: true,
-      data: regrasParaRetornar || [],
-      count: regrasParaRetornar?.length || 0,
-      total: totalRegras || 0,
+      data: dadosPaginados || [],
+      count: dadosPaginados?.length || 0,
+      total: totalParaRetornar || 0,
       page: pageNum,
       limit: limitNum,
       totalPages: totalPagesCalculado
@@ -1432,6 +1682,11 @@ async function getTempoEstimadoPorId(req, res) {
       });
     }
 
+    // NOTA: Este endpoint busca apenas na tabela antiga tempo_estimado
+    // IDs virtuais (gerados dinamicamente a partir de regras) não existem nesta tabela
+    // e não podem ser buscados diretamente por ID, então retornarão 404
+    console.log(`🔍 [GET-TEMPO-ESTIMADO-POR-ID] Buscando tempo estimado com ID: ${id}`);
+
     const { data: tempoEstimado, error } = await supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado')
@@ -1439,28 +1694,28 @@ async function getTempoEstimadoPorId(req, res) {
       .eq('id', id)
       .maybeSingle();
 
-    if (error) {
-      console.error('Erro ao buscar tempo estimado:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar tempo estimado',
-        details: error.message
-      });
-    }
-
-    if (!tempoEstimado) {
+    // Para IDs virtuais ou quando a tabela não existe, retornar 404 em vez de 500
+    // Isso evita erros no frontend quando busca IDs virtuais
+    if (error || !tempoEstimado) {
+      if (error) {
+        console.log(`⚠️ [GET-TEMPO-ESTIMADO-POR-ID] Erro ao buscar (provavelmente ID virtual ou tabela não acessível): ${id}`);
+      } else {
+        console.log(`⚠️ [GET-TEMPO-ESTIMADO-POR-ID] Tempo estimado não encontrado para ID: ${id}`);
+      }
       return res.status(404).json({
         success: false,
         error: 'Tempo estimado não encontrado'
       });
     }
 
+    console.log(`✅ [GET-TEMPO-ESTIMADO-POR-ID] Tempo estimado encontrado para ID: ${id}`);
     return res.json({
       success: true,
       data: tempoEstimado
     });
   } catch (error) {
-    console.error('Erro inesperado ao buscar tempo estimado:', error);
+    console.error('❌ [GET-TEMPO-ESTIMADO-POR-ID] Erro inesperado ao buscar tempo estimado:', error);
+    console.error('❌ [GET-TEMPO-ESTIMADO-POR-ID] Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -2259,6 +2514,8 @@ module.exports = {
   atualizarTempoEstimadoPorAgrupador,
   deletarTempoEstimadoPorAgrupador,
   getTempoEstimadoPorAgrupador,
-  getTempoRealizadoPorTarefasEstimadas
+  getTempoRealizadoPorTarefasEstimadas,
+  calcularRegistrosDinamicos
 };
+
 

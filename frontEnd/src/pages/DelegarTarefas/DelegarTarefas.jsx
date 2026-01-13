@@ -766,21 +766,6 @@ const DelegarTarefas = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.produto, filtros.atividade, filtros.cliente, filtros.responsavel, ordemFiltros]);
 
-  // Calcular tempo estimado total por responsável quando os filtros mudarem
-  // IMPORTANTE: Este useEffect só calcula tempo estimado total APÓS os registros estarem carregados
-  // Ele não depende de horas contratadas, então pode executar independentemente
-  // REMOVIDO: Este useEffect estava sobrescrevendo o cálculo correto feito em loadRegistrosTempoEstimado
-  // O cálculo de tempo estimado total agora é feito diretamente das regras recebidas do backend
-  // em loadRegistrosTempoEstimado, considerando corretamente o período filtrado e as configurações
-  // de cada regra (incluir_finais_semana, incluir_feriados).
-  // 
-  // useEffect(() => {
-  //   const calcularTemposEstimadosTotais = async () => {
-  //     ... código removido ...
-  //   };
-  //   calcularTemposEstimadosTotais();
-  // }, [filtrosUltimosAplicados, registrosAgrupados]);
-
   const loadClientes = async (statusFiltro = null) => {
     setLoading(true);
     try {
@@ -1200,8 +1185,74 @@ const DelegarTarefas = () => {
     return null;
   };
 
+  // Calcular tempo estimado total diretamente dos registros calculados
+  // Esta função garante que o cálculo considere exatamente os mesmos filtros aplicados na geração dos registros
+  const calcularTempoEstimadoDosRegistros = (registrosCalculados, periodoInicio, periodoFim) => {
+    const temposPorResponsavel = {};
+    
+    console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Calculando tempo estimado de ${registrosCalculados.length} registros para período ${periodoInicio} a ${periodoFim}`);
+    
+    // Agrupar registros por responsável
+    const registrosPorResponsavel = {};
+    registrosCalculados.forEach(registro => {
+      if (!registro.responsavel_id) return;
+      const responsavelId = String(registro.responsavel_id);
+      if (!registrosPorResponsavel[responsavelId]) {
+        registrosPorResponsavel[responsavelId] = [];
+      }
+      registrosPorResponsavel[responsavelId].push(registro);
+    });
+    
+    console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Encontrados ${Object.keys(registrosPorResponsavel).length} responsáveis únicos`);
+    
+    // Para cada responsável, calcular tempo estimado total
+    Object.keys(registrosPorResponsavel).forEach(responsavelId => {
+      const registrosDoResponsavel = registrosPorResponsavel[responsavelId];
+      
+      // Map de data -> maior tempo_estimado_dia (evitar duplicação)
+      const tempoPorData = new Map();
+      
+      registrosDoResponsavel.forEach(registro => {
+        // Extrair data do registro
+        const dataStr = registro.data ? registro.data.split('T')[0] : null;
+        if (!dataStr) return;
+        
+        // Verificar se a data está no período (já deve estar, mas garantir)
+        if (periodoInicio && periodoFim) {
+          if (dataStr < periodoInicio || dataStr > periodoFim) return;
+        }
+        
+        // Obter tempo estimado do registro
+        let tempoEstimadoDia = Number(registro.tempo_estimado_dia) || 0;
+        
+        // Converter se necessário (horas decimais para milissegundos)
+        if (tempoEstimadoDia > 0 && tempoEstimadoDia < 1000) {
+          tempoEstimadoDia = Math.round(tempoEstimadoDia * 3600000);
+        }
+        
+        // Usar o maior valor para a mesma data
+        const tempoAtual = tempoPorData.get(dataStr) || 0;
+        tempoPorData.set(dataStr, Math.max(tempoAtual, tempoEstimadoDia));
+      });
+      
+      // Somar todos os tempos do Map
+      let tempoTotal = 0;
+      tempoPorData.forEach((tempoDia) => {
+        tempoTotal += tempoDia;
+      });
+      
+      temposPorResponsavel[responsavelId] = tempoTotal;
+      
+      // DEBUG: Log por responsável
+      console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Responsável ${responsavelId}: ${registrosDoResponsavel.length} registro(s), ${tempoPorData.size} data(s) única(s), total=${tempoTotal}ms (${(tempoTotal/3600000).toFixed(2)}h)`);
+    });
+    
+    return temposPorResponsavel;
+  };
+
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
+    console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Função chamada');
     setLoading(true);
     // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
     // Isso garante que os dashboards não sejam exibidos com dados parciais
@@ -1226,6 +1277,13 @@ const DelegarTarefas = () => {
         responsavel: filtroResponsavelSelecionado
       };
       
+      // DEBUG: Log dos parâmetros
+      console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Parâmetros:', {
+        filtro_responsavel: filtrosAUsar.responsavel,
+        responsavel_selecionado: valoresAUsar.responsavel,
+        periodo: `${periodoAUsar.inicio} a ${periodoAUsar.fim}`
+      });
+      
       // Usar filtros adicionais passados como parâmetro, ou os estados atuais
       const filtrosAdicionaisAUsar = filtrosAdicionaisParaAplicar !== null ? filtrosAdicionaisParaAplicar : {
         cliente: filtroAdicionalCliente,
@@ -1233,10 +1291,19 @@ const DelegarTarefas = () => {
         produto: filtroAdicionalProduto
       };
       
+      // IMPORTANTE: Quando há filtro de período, usar limit alto para garantir todas as regras
+      // Isso é necessário para calcular tempo estimado corretamente
+      // A paginação será aplicada apenas na listagem de registros, não nas regras retornadas
+      const temPeriodo = periodoAUsar.inicio && periodoAUsar.fim;
+      const limitParaBusca = temPeriodo ? '10000' : itemsPerPage.toString();
+      const pageParaBusca = temPeriodo ? '1' : currentPage.toString();
+      
       const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString()
+        page: pageParaBusca,
+        limit: limitParaBusca
       });
+      
+      console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca com limit=${limitParaBusca}, page=${pageParaBusca} (temPeriodo=${temPeriodo})`);
 
       // Adicionar filtros
       if (filtrosAUsar.produto) {
@@ -1277,19 +1344,20 @@ const DelegarTarefas = () => {
       }
       if (filtrosAUsar.responsavel) {
         params.append('filtro_responsavel', 'true');
-        // Adicionar IDs de responsáveis selecionados se houver
-        if (valoresAUsar.responsavel) {
-          const responsavelIds = Array.isArray(valoresAUsar.responsavel) 
-            ? valoresAUsar.responsavel 
-            : [valoresAUsar.responsavel];
-          responsavelIds.forEach(id => {
-            if (id) {
-              const idStr = String(id).trim();
-              params.append('responsavel_id', idStr);
-            }
-          });
-        } else {
-        }
+      }
+      // IMPORTANTE: Sempre enviar responsavel_id quando houver colaborador selecionado,
+      // mesmo que o filtro de responsável não esteja ativo
+      // Isso garante que o tempo estimado seja calculado corretamente para o colaborador selecionado
+      if (valoresAUsar.responsavel) {
+        const responsavelIds = Array.isArray(valoresAUsar.responsavel) 
+          ? valoresAUsar.responsavel 
+          : [valoresAUsar.responsavel];
+        responsavelIds.forEach(id => {
+          if (id) {
+            const idStr = String(id).trim();
+            params.append('responsavel_id', idStr);
+          }
+        });
       }
       
       // Adicionar filtros adicionais (que não são o filtro pai)
@@ -1361,104 +1429,13 @@ const DelegarTarefas = () => {
           // NOVA LÓGICA: Backend retorna REGRAS, não registros calculados
           const regras = result.data || [];
           
-          // OTIMIZAÇÃO: Calcular tempo estimado total diretamente das regras (sem gerar registros)
-          // CORREÇÃO: Calcular por data única para evitar duplicação quando regras se sobrepõem
-          if (periodoAUsar.inicio && periodoAUsar.fim) {
-            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Período filtrado: ${periodoAUsar.inicio} a ${periodoAUsar.fim}`);
-            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Total de regras recebidas: ${regras.length}`);
-            
-            const temposEstimadosPorResponsavel = {};
-            
-            // Agrupar regras por responsável
-            const regrasPorResponsavel = {};
-            regras.forEach(regra => {
-              if (!regra.responsavel_id) return;
-              const responsavelId = String(regra.responsavel_id);
-              if (!regrasPorResponsavel[responsavelId]) {
-                regrasPorResponsavel[responsavelId] = [];
-              }
-              regrasPorResponsavel[responsavelId].push(regra);
-            });
-            
-            console.log(`🔍 [CALCULO-TEMPO-ESTIMADO] Responsáveis únicos: ${Object.keys(regrasPorResponsavel).length}`);
-            
-            // Para cada responsável, calcular tempo estimado total por data única
-            Object.keys(regrasPorResponsavel).forEach(responsavelId => {
-              const regrasDoResponsavel = regrasPorResponsavel[responsavelId];
-              
-              console.log(`\n📊 [CALCULO-TEMPO-ESTIMADO] Responsável ${responsavelId}: ${regrasDoResponsavel.length} regra(s)`);
-              
-              // Map de data -> maior tempo_estimado_dia (para evitar duplicação)
-              // Se múltiplas regras cobrem a mesma data, usar a maior
-              const tempoPorData = new Map();
-              
-              regrasDoResponsavel.forEach((regra, index) => {
-                // Determinar período de interseção entre regra e filtro
-                const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : periodoAUsar.inicio;
-                const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : periodoAUsar.fim;
-                
-                const periodoInicio = regraInicio > periodoAUsar.inicio ? regraInicio : periodoAUsar.inicio;
-                const periodoFim = regraFim < periodoAUsar.fim ? regraFim : periodoAUsar.fim;
-                
-                console.log(`  📅 Regra ${index + 1} (ID: ${regra.id || regra.agrupador_id}):`);
-                console.log(`     - Período da regra: ${regraInicio} a ${regraFim}`);
-                console.log(`     - Período filtrado: ${periodoAUsar.inicio} a ${periodoAUsar.fim}`);
-                console.log(`     - Interseção calculada: ${periodoInicio} a ${periodoFim}`);
-                console.log(`     - Tempo estimado/dia: ${regra.tempo_estimado_dia || 0}ms`);
-                console.log(`     - Incluir finais de semana: ${regra.incluir_finais_semana !== false}`);
-                console.log(`     - Incluir feriados: ${regra.incluir_feriados !== false}`);
-                
-                if (periodoInicio <= periodoFim) {
-                  // Calcular datas válidas para esta regra no período filtrado
-                  const datasValidasSet = obterDatasValidasNoPeriodo(
-                    periodoInicio,
-                    periodoFim,
-                    regra.incluir_finais_semana !== false,
-                    regra.incluir_feriados !== false
-                  );
-                  
-                  const diasValidos = datasValidasSet.size;
-                  const tempoEstimadoDia = regra.tempo_estimado_dia || 0;
-                  const tempoEstimadoRegra = tempoEstimadoDia * diasValidos;
-                  
-                  console.log(`     - Datas válidas geradas: ${diasValidos} dia(s)`);
-                  console.log(`     - Tempo estimado desta regra: ${tempoEstimadoRegra}ms (${diasValidos} dias × ${tempoEstimadoDia}ms/dia)`);
-                  
-                  // Para cada data válida, usar o maior tempo_estimado_dia
-                  datasValidasSet.forEach(dataStr => {
-                    const tempoAtual = tempoPorData.get(dataStr) || 0;
-                    // Usar o maior valor (se múltiplas regras cobrem a mesma data)
-                    const tempoAnterior = tempoAtual;
-                    const tempoNovo = Math.max(tempoAtual, tempoEstimadoDia);
-                    tempoPorData.set(dataStr, tempoNovo);
-                    
-                    if (tempoNovo !== tempoAnterior && tempoAnterior > 0) {
-                      console.log(`     ⚠️ Data ${dataStr}: sobreposição detectada (${tempoAnterior}ms → ${tempoNovo}ms, usando maior)`);
-                    }
-                  });
-                } else {
-                  console.log(`     ⚠️ Regra fora do período filtrado (interseção inválida)`);
-                }
-              });
-              
-              // Somar todos os tempos do Map
-              let tempoTotal = 0;
-              const totalDatas = tempoPorData.size;
-              tempoPorData.forEach((tempoDia) => {
-                tempoTotal += tempoDia;
-              });
-              
-              console.log(`\n✅ [CALCULO-TEMPO-ESTIMADO] Responsável ${responsavelId}:`);
-              console.log(`   - Total de datas únicas: ${totalDatas}`);
-              console.log(`   - Tempo estimado total: ${tempoTotal}ms (${(tempoTotal / 3600000).toFixed(2)}h)`);
-              
-              temposEstimadosPorResponsavel[responsavelId] = tempoTotal;
-            });
-            
-            console.log(`\n✅ [CALCULO-TEMPO-ESTIMADO] Resumo final:`, temposEstimadosPorResponsavel);
-            
-            // Atualizar cache de tempo estimado total
-            setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
+          // DEBUG: Log das regras recebidas
+          console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Total de regras recebidas do backend: ${regras.length}`);
+          if (regras.length > 0) {
+            const responsaveisNasRegras = new Set(regras.map(r => String(r.responsavel_id)).filter(Boolean));
+            console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Responsáveis presentes nas regras:`, Array.from(responsaveisNasRegras));
+            const regrasLuizMarcelo = regras.filter(r => String(r.responsavel_id) === '75397340197');
+            console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Regras do Luiz Marcelo (75397340197): ${regrasLuizMarcelo.length}`);
           }
           
           // Gerar registros apenas para a listagem (não para cards)
@@ -1509,8 +1486,58 @@ const DelegarTarefas = () => {
           
           // Agrupar registros por agrupador_id
           agruparRegistros(registrosCalculados);
-          setTotalRegistros(result.total || 0);
-          setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
+          
+          // Quando há período, usamos limit alto e geramos todos os registros
+          // Nesse caso, usar o total de registros calculados para paginação
+          // Caso contrário, usar o total retornado pelo backend
+          const totalParaPaginar = temPeriodo 
+            ? registrosCalculados.length 
+            : (result.total || 0);
+          
+          setTotalRegistros(totalParaPaginar);
+          setTotalPages(Math.ceil(totalParaPaginar / itemsPerPage));
+          
+          // NOVA LÓGICA: Calcular tempo estimado total diretamente dos registros calculados
+          // SEMPRE usar a mesma lógica, independente de ter ou não filtro de responsável
+          // Como a busca principal já retorna todas as regras (limit alto quando há período),
+          // podemos usar os mesmos dados para todos os casos
+          if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
+            // SEMPRE calcular usando os registros calculados da busca principal
+            // Isso garante consistência independente dos filtros aplicados
+            let temposEstimadosPorResponsavel = calcularTempoEstimadoDosRegistros(
+              registrosCalculados,
+              periodoAUsar.inicio,
+              periodoAUsar.fim
+            );
+            
+            // Se há filtro de responsável específico, já está filtrado nos registrosCalculados
+            // Se não há, o cálculo já retorna todos os responsáveis
+            // Não precisamos mais fazer buscas individuais, pois a busca principal já retorna tudo
+            
+            // Verificar se há responsável selecionado apenas para log
+            const temResponsavelSelecionado = valoresAUsar.responsavel && (
+              (Array.isArray(valoresAUsar.responsavel) && valoresAUsar.responsavel.length > 0) ||
+              (!Array.isArray(valoresAUsar.responsavel) && valoresAUsar.responsavel)
+            );
+            
+            if (temResponsavelSelecionado) {
+              console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Com responsável selecionado. Calculado para ${Object.keys(temposEstimadosPorResponsavel).length} responsável(is)`);
+            } else {
+              console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Sem responsável selecionado. Calculado para ${Object.keys(temposEstimadosPorResponsavel).length} responsável(is) usando dados da busca principal`);
+            }
+            
+            // DEBUG: Log do cache antes de atualizar
+            console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Cache antes de atualizar:', Object.keys(temposEstimadosPorResponsavel).map(id => ({
+              id,
+              tempo: `${(temposEstimadosPorResponsavel[id]/3600000).toFixed(2)}h`
+            })));
+            
+            // Atualizar cache de tempo estimado total
+            setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
+          } else {
+            // Se não há registros calculados, limpar cache de tempo estimado
+            setTempoEstimadoTotalPorResponsavel({});
+          }
           
           // OTIMIZAÇÃO: Marcar como carregado para exibir cards (com tempo estimado já calculado)
           setDadosAuxiliaresCarregados(true);
@@ -2002,85 +2029,6 @@ const DelegarTarefas = () => {
     );
   };
 
-  // Buscar tempo estimado total do responsável no período (independente dos filtros aplicados)
-  const buscarTempoEstimadoTotalPorResponsavel = async (
-    responsavelId, 
-    periodoInicio, 
-    periodoFim, 
-    habilitarFinaisSemana, 
-    habilitarFeriados, 
-    datasIndividuais
-  ) => {
-    if (!responsavelId || !periodoInicio || !periodoFim) {
-      return 0;
-    }
-
-    try {
-      // Construir query para buscar todos os registros de tempo estimado do responsável no período
-      const params = new URLSearchParams({
-        responsavel_id: String(responsavelId),
-        data_inicio: periodoInicio,
-        data_fim: periodoFim
-      });
-
-      const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) {
-        console.error('Erro ao buscar tempo estimado:', response.status);
-        return 0;
-      }
-
-      const result = await response.json();
-      if (!result.success || !result.data || !Array.isArray(result.data)) {
-        return 0;
-      }
-
-      // Obter datas válidas no período (considerando opções de finais de semana, feriados e datas individuais)
-      const datasValidas = obterDatasValidasNoPeriodo(
-        periodoInicio,
-        periodoFim,
-        habilitarFinaisSemana,
-        habilitarFeriados,
-        datasIndividuais || []
-      );
-
-      // Somar todos os tempo_estimado_dia dos registros cujas datas estão nas datas válidas
-      let tempoTotal = 0;
-      result.data.forEach(registro => {
-        if (!registro.tempo_estimado_dia) return;
-        
-        // Verificar se a data do registro está nas datas válidas
-        let dataStr;
-        if (typeof registro.data === 'string') {
-          dataStr = registro.data.split('T')[0];
-        } else if (registro.data instanceof Date) {
-          const year = registro.data.getFullYear();
-          const month = String(registro.data.getMonth() + 1).padStart(2, '0');
-          const day = String(registro.data.getDate()).padStart(2, '0');
-          dataStr = `${year}-${month}-${day}`;
-        } else {
-          return; // Data inválida, pular
-        }
-
-        // Se não há datas válidas definidas (datasValidas vazio), considerar todas as datas
-        // Caso contrário, verificar se a data está no conjunto de datas válidas
-        if (datasValidas.size === 0 || datasValidas.has(dataStr)) {
-          // tempo_estimado_dia pode vir em milissegundos ou como número
-          const tempo = Number(registro.tempo_estimado_dia) || 0;
-          tempoTotal += tempo;
-        }
-      });
-
-      return tempoTotal;
-    } catch (error) {
-      console.error('Erro ao buscar tempo estimado total por responsável:', error);
-      return 0;
-    }
-  };
-
   // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
   const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
     // Usar valores aplicados do período (ou null se não foram aplicados)
@@ -2547,6 +2495,7 @@ const DelegarTarefas = () => {
     
     // Limpar caches para garantir dados consistentes com os novos filtros
     console.log('🔄 [APLICAR-FILTROS] Limpando caches de horas contratadas e tempo estimado');
+    console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - APLICAR-FILTROS');
     setHorasContratadasPorResponsavel({});
     setTipoContratoPorResponsavel({});
     setTempoEstimadoTotalPorResponsavel({});
@@ -2717,6 +2666,7 @@ const DelegarTarefas = () => {
       
       // Limpar caches quando filtros detalhados mudarem para garantir consistência
       console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
+      console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
       setHorasContratadasPorResponsavel({});
       setTipoContratoPorResponsavel({});
       setTempoEstimadoTotalPorResponsavel({});
@@ -3998,7 +3948,12 @@ const DelegarTarefas = () => {
                             // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
                             // - Evita duplicação de datas usando Map de datas únicas
                             tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
-                            console.log(`🔍 [CALCULO-ESTATISTICAS] Responsável ${entidadeId}: usando tempoEstimadoTotalPorResponsavel = ${tempoEstimado}ms (${(tempoEstimado / 3600000).toFixed(2)}h)`);
+                            
+                            // DEBUG: Log do valor usado
+                            console.log(`🔍 [CALCULAR-TEMPO-POR-ENTIDADE] Responsável ${entidadeId}: usando tempoEstimado=${tempoEstimado}ms (${(tempoEstimado/3600000).toFixed(2)}h) do cache`);
+                            if (String(entidadeId) === '75397340197') {
+                              console.log(`🟡 [CALCULAR-TEMPO-POR-ENTIDADE] LUIZ MARCELO (75397340197): tempoEstimado=${tempoEstimado}ms (${(tempoEstimado/3600000).toFixed(2)}h), cache completo:`, Object.keys(tempoEstimadoTotalPorResponsavel).map(id => `${id}:${(tempoEstimadoTotalPorResponsavel[id]/3600000).toFixed(2)}h`));
+                            }
                           } else {
                             // Para outras entidades (cliente, produto, tarefa), calcular somando registros
                             tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {

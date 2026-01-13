@@ -88,6 +88,14 @@ const HistoricoAtribuicoes = () => {
   const [tarefaDiariaParaDeletar, setTarefaDiariaParaDeletar] = useState(null);
   const [deletandoTarefaDiaria, setDeletandoTarefaDiaria] = useState(false);
 
+  // Estado para regras órfãs (sem histórico)
+  const [regrasOrfas, setRegrasOrfas] = useState([]);
+  const [carregandoRegrasOrfas, setCarregandoRegrasOrfas] = useState(false);
+  const [sincronizandoOrfas, setSincronizandoOrfas] = useState(false);
+  const [showDeleteRegraOrfaModal, setShowDeleteRegraOrfaModal] = useState(false);
+  const [regraOrfaParaDeletar, setRegraOrfaParaDeletar] = useState(null);
+  const [deletandoRegraOrfa, setDeletandoRegraOrfa] = useState(false);
+
   // Carregar dados para filtros
   useEffect(() => {
     const carregarDados = async () => {
@@ -348,9 +356,120 @@ const HistoricoAtribuicoes = () => {
     }
   }, [currentPage, itemsPerPage, filtroResponsavel, filtroUsuarioCriador, filtroDataInicio, filtroDataFim, showToast]);
 
+  // Carregar regras órfãs (sem histórico)
+  const carregarRegrasOrfas = useCallback(async () => {
+    try {
+      setCarregandoRegrasOrfas(true);
+      const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/orfas`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        // Se o endpoint não existir ou der erro, apenas logar e continuar
+        console.warn('Endpoint de regras órfãs não disponível ou erro:', response.status);
+        setRegrasOrfas([]);
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setRegrasOrfas(result.data || []);
+      } else {
+        console.error('Erro ao carregar regras órfãs:', result.error);
+        setRegrasOrfas([]);
+      }
+    } catch (error) {
+      // Erro não deve quebrar a página - apenas logar e continuar
+      console.warn('Erro ao carregar regras órfãs (não crítico):', error);
+      setRegrasOrfas([]);
+    } finally {
+      setCarregandoRegrasOrfas(false);
+    }
+  }, []);
+
+  // Sincronizar regras órfãs (criar históricos)
+  const sincronizarRegrasOrfas = useCallback(async () => {
+    setSincronizandoOrfas(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/sincronizar-orfaos`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast('success', `Sincronização concluída: ${result.historicosCriados} histórico(s) criado(s)`);
+        // Recarregar histórico e regras órfãs
+        await carregarHistorico();
+        await carregarRegrasOrfas();
+      } else {
+        showToast('error', result.error || 'Erro ao sincronizar regras órfãs');
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar regras órfãs:', error);
+      showToast('error', 'Erro ao sincronizar regras órfãs');
+    } finally {
+      setSincronizandoOrfas(false);
+    }
+  }, [carregarHistorico, carregarRegrasOrfas, showToast]);
+
+  // Deletar regra órfã
+  const deletarRegraOrfa = useCallback(async () => {
+    if (!regraOrfaParaDeletar) return;
+
+    setDeletandoRegraOrfa(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/historico-atribuicoes/orfas/${regraOrfaParaDeletar.agrupador_id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast('success', 'Regras deletadas com sucesso');
+        setShowDeleteRegraOrfaModal(false);
+        setRegraOrfaParaDeletar(null);
+        // Recarregar lista de regras órfãs
+        await carregarRegrasOrfas();
+      } else {
+        showToast('error', result.error || 'Erro ao deletar regras');
+      }
+    } catch (error) {
+      console.error('Erro ao deletar regra órfã:', error);
+      showToast('error', 'Erro ao deletar regras');
+    } finally {
+      setDeletandoRegraOrfa(false);
+    }
+  }, [regraOrfaParaDeletar, carregarRegrasOrfas, showToast]);
+
   useEffect(() => {
     carregarHistorico();
   }, [carregarHistorico]);
+
+  useEffect(() => {
+    carregarRegrasOrfas();
+  }, [carregarRegrasOrfas]);
 
   // Handlers de filtros
   const handleResponsavelChange = (e) => {
@@ -1263,6 +1382,189 @@ const HistoricoAtribuicoes = () => {
                   />
                 </div>
               </FiltersCard>
+
+              {/* Seção de Regras Órfãs (sem histórico) */}
+              {regrasOrfas && Array.isArray(regrasOrfas) && regrasOrfas.length > 0 && (
+                <div style={{
+                  marginBottom: '24px',
+                  padding: '16px',
+                  backgroundColor: '#fef3c7',
+                  border: '1px solid #fbbf24',
+                  borderRadius: '8px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px'
+                  }}>
+                    <div>
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        color: '#92400e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <i className="fas fa-exclamation-triangle"></i>
+                        Atribuições sem Histórico ({regrasOrfas.length})
+                      </h3>
+                      <p style={{
+                        margin: '4px 0 0 0',
+                        fontSize: '13px',
+                        color: '#78350f'
+                      }}>
+                        Estas atribuições têm regras de tempo estimado mas não possuem histórico associado.
+                      </p>
+                    </div>
+                    <button
+                      className="btn-primary"
+                      onClick={sincronizarRegrasOrfas}
+                      disabled={sincronizandoOrfas}
+                      style={{
+                        minWidth: '180px'
+                      }}
+                    >
+                      {sincronizandoOrfas ? (
+                        <>
+                          <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-sync" style={{ marginRight: '8px' }}></i>
+                          Criar Históricos
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  <div style={{
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    border: '1px solid #fde68a',
+                    borderRadius: '6px',
+                    backgroundColor: '#fffbeb'
+                  }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: '13px'
+                    }}>
+                      <thead>
+                        <tr style={{
+                          backgroundColor: '#fef3c7',
+                          borderBottom: '2px solid #fbbf24'
+                        }}>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>Cliente</th>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>Responsável</th>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>Período</th>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>Produtos</th>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 600, color: '#92400e' }}>Tarefas</th>
+                          <th style={{ padding: '10px', textAlign: 'center', fontWeight: 600, color: '#92400e', width: '100px' }}>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {regrasOrfas.map((regra, index) => (
+                          <tr key={regra.agrupador_id || index} style={{
+                            borderBottom: '1px solid #fde68a',
+                            backgroundColor: index % 2 === 0 ? '#fffbeb' : '#fef3c7'
+                          }}>
+                            <td style={{ padding: '10px' }}>
+                              {regra.cliente?.nome || `Cliente #${regra.cliente_id}`}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {regra.responsavel?.nome || `Responsável #${regra.responsavel_id}`}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {regra.data_inicio && regra.data_fim ? (
+                                `${formatarData(regra.data_inicio)} até ${formatarData(regra.data_fim)}`
+                              ) : (
+                                <span style={{ color: '#9ca3af' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {regra.produtos && Array.isArray(regra.produtos) && regra.produtos.length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {regra.produtos.map((produto, idx) => (
+                                    <span key={idx} style={{
+                                      padding: '2px 6px',
+                                      backgroundColor: '#fbbf24',
+                                      color: '#78350f',
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
+                                      fontWeight: 500
+                                    }}>
+                                      {produto?.nome || `Produto #${produto?.id || idx}`}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#9ca3af' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              {regra.tarefas && Array.isArray(regra.tarefas) && regra.tarefas.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  {regra.tarefas.slice(0, 3).map((tarefa, idx) => (
+                                    <span key={idx} style={{
+                                      fontSize: '12px',
+                                      color: '#78350f'
+                                    }}>
+                                      {tarefa?.tarefa_nome || `Tarefa #${tarefa?.tarefa_id || idx}`} ({formatarTempo(tarefa?.tempo_estimado_dia || 0)})
+                                    </span>
+                                  ))}
+                                  {regra.tarefas.length > 3 && (
+                                    <span style={{
+                                      fontSize: '11px',
+                                      color: '#9ca3af',
+                                      fontStyle: 'italic'
+                                    }}>
+                                      +{regra.tarefas.length - 3} mais
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#9ca3af' }}>—</span>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  setRegraOrfaParaDeletar(regra);
+                                  setShowDeleteRegraOrfaModal(true);
+                                }}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#dc2626',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  transition: 'background-color 0.2s'
+                                }}
+                                onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                                onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+                                title="Deletar regras"
+                              >
+                                <i className="fas fa-trash"></i>
+                                Deletar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Tabela */}
               <div className="historico-table-container with-horizontal-scroll">
@@ -2332,6 +2634,38 @@ const HistoricoAtribuicoes = () => {
             cancelText="Cancelar"
             confirmButtonClass="btn-danger"
             loading={deletandoTarefaDiaria}
+          />
+
+          {/* Modal de confirmação para exclusão de regra órfã */}
+          <ConfirmModal
+            isOpen={showDeleteRegraOrfaModal}
+            onClose={() => {
+              setShowDeleteRegraOrfaModal(false);
+              setRegraOrfaParaDeletar(null);
+            }}
+            onConfirm={deletarRegraOrfa}
+            title="Confirmar Exclusão de Regras"
+            message={
+              regraOrfaParaDeletar ? (
+                <>
+                  <p>Tem certeza que deseja excluir estas regras de tempo estimado?</p>
+                  <p style={{ marginTop: '12px', fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
+                    <strong>Cliente:</strong> {regraOrfaParaDeletar.cliente?.nome || `Cliente #${regraOrfaParaDeletar.cliente_id}`}<br />
+                    <strong>Responsável:</strong> {regraOrfaParaDeletar.responsavel?.nome || `Responsável #${regraOrfaParaDeletar.responsavel_id}`}<br />
+                    <strong>Período:</strong> {regraOrfaParaDeletar.data_inicio && regraOrfaParaDeletar.data_fim ? `${formatarData(regraOrfaParaDeletar.data_inicio)} até ${formatarData(regraOrfaParaDeletar.data_fim)}` : '—'}<br />
+                    <strong>Quantidade de regras:</strong> {regraOrfaParaDeletar.quantidade_regras || 0}
+                  </p>
+                  <p style={{ marginTop: '16px', color: '#dc2626', fontWeight: 500, fontSize: '13px' }}>
+                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
+                    Esta ação não pode ser desfeita. Todas as regras de tempo estimado relacionadas serão permanentemente removidas.
+                  </p>
+                </>
+              ) : null
+            }
+            confirmText="Deletar"
+            cancelText="Cancelar"
+            confirmButtonClass="btn-danger"
+            loading={deletandoRegraOrfa}
           />
         </main>
       </div>
