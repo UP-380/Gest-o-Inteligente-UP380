@@ -1001,29 +1001,60 @@ const DelegarTarefas = () => {
     
     console.log(`📊 [HORAS-CONTRATADAS] Buscando horas contratadas para ${responsaveisIds.size} responsável(is) filtrado(s):`, Array.from(responsaveisIds));
 
-    // Limpar cache e criar novos objetos (não fazer merge) para garantir consistência
-    const novasHoras = {};
-    const novosTiposContrato = {};
+    // Limpar cache inicialmente para garantir consistência
+    setHorasContratadasPorResponsavel({});
+    setTipoContratoPorResponsavel({});
     
-    // Buscar horas contratadas APENAS para responsáveis nos resultados filtrados
-    for (const responsavelId of responsaveisIds) {
-      console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
-      const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
-      if (resultado) {
-        novasHoras[responsavelId] = resultado.horascontratadasdia || null;
-        novosTiposContrato[responsavelId] = resultado.tipo_contrato || null;
-        console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'})`);
-      } else {
-        novasHoras[responsavelId] = null;
-        novosTiposContrato[responsavelId] = null;
-        console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
+    // Criar array de promises para requisições paralelas
+    // Cada requisição atualiza o estado incrementalmente assim que completa
+    const promises = Array.from(responsaveisIds).map(async (responsavelId) => {
+      try {
+        console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
+        const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
+        
+        // Atualizar estado incrementalmente assim que cada requisição completa
+        if (resultado) {
+          setHorasContratadasPorResponsavel(prev => ({
+            ...prev,
+            [responsavelId]: resultado.horascontratadasdia || null
+          }));
+          setTipoContratoPorResponsavel(prev => ({
+            ...prev,
+            [responsavelId]: resultado.tipo_contrato || null
+          }));
+          console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'})`);
+        } else {
+          setHorasContratadasPorResponsavel(prev => ({
+            ...prev,
+            [responsavelId]: null
+          }));
+          setTipoContratoPorResponsavel(prev => ({
+            ...prev,
+            [responsavelId]: null
+          }));
+          console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
+        }
+        
+        return resultado;
+      } catch (error) {
+        // Tratamento de erro individual para cada requisição
+        console.error(`  ❌ Erro ao buscar horas contratadas para responsável ${responsavelId}:`, error);
+        // Atualizar estado com null em caso de erro
+        setHorasContratadasPorResponsavel(prev => ({
+          ...prev,
+          [responsavelId]: null
+        }));
+        setTipoContratoPorResponsavel(prev => ({
+          ...prev,
+          [responsavelId]: null
+        }));
+        return null;
       }
-    }
+    });
     
-    // Substituir cache completamente (não fazer merge) para garantir consistência
-    setHorasContratadasPorResponsavel(novasHoras);
-    setTipoContratoPorResponsavel(novosTiposContrato);
-    console.log(`✅ [HORAS-CONTRATADAS] Cache atualizado com ${Object.keys(novasHoras).length} responsável(is)`);
+    // Aguardar todas as requisições paralelas completarem
+    await Promise.all(promises);
+    console.log(`✅ [HORAS-CONTRATADAS] Todas as requisições completadas para ${responsaveisIds.size} responsável(is)`);
   };
 
   // Obter chave única para um registro de tempo estimado
@@ -1625,36 +1656,43 @@ const DelegarTarefas = () => {
             setTempoEstimadoTotalPorResponsavel({});
           }
           
+          // OTIMIZAÇÃO: Preparar agrupamentos ANTES de marcar como carregado para iniciar carregamento de horas contratadas mais cedo
+          let agrupamentosArray = [];
+          if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
+            const agrupadosTemp = {};
+            registrosCalculados.forEach(registro => {
+              const agrupadorId = registro.agrupador_id || 'sem-grupo';
+              if (!agrupadosTemp[agrupadorId]) {
+                agrupadosTemp[agrupadorId] = {
+                  primeiroRegistro: registro,
+                  quantidade: 0
+                };
+              }
+              agrupadosTemp[agrupadorId].quantidade++;
+            });
+            
+            agrupamentosArray = Object.values(agrupadosTemp);
+          }
+          
           // OTIMIZAÇÃO: Marcar como carregado para exibir cards (com tempo estimado já calculado)
           setDadosAuxiliaresCarregados(true);
           
-          // Carregar dados auxiliares em background (não bloqueia exibição)
-          Promise.all([
+          // Carregar TODOS os dados auxiliares em paralelo desde o início (não sequencial)
+          // Isso faz com que horas contratadas comecem a carregar imediatamente, não depois de nomes e tempos realizados
+          const promisesAuxiliares = [
             carregarNomesRelacionados(registrosCalculados),
             buscarTemposRealizados(registrosCalculados).catch(err => console.error('Erro ao buscar tempos realizados:', err))
-          ]).then(() => {
-            // Carregar custos e horas contratadas
-            if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
-              const agrupadosTemp = {};
-              registrosCalculados.forEach(registro => {
-                const agrupadorId = registro.agrupador_id || 'sem-grupo';
-                if (!agrupadosTemp[agrupadorId]) {
-                  agrupadosTemp[agrupadorId] = {
-                    primeiroRegistro: registro,
-                    quantidade: 0
-                  };
-                }
-                agrupadosTemp[agrupadorId].quantidade++;
-              });
-              
-              const agrupamentosArray = Object.values(agrupadosTemp);
-              
-              Promise.all([
-                carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar custos:', err)),
-                carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar horas contratadas:', err))
-              ]).catch(err => console.error('Erro ao carregar dados auxiliares:', err));
-            }
-          }).catch(err => console.error('Erro ao carregar dados:', err));
+          ];
+          
+          // Adicionar carregamento de custos e horas contratadas em paralelo (não esperar nomes e tempos realizados)
+          if (agrupamentosArray.length > 0) {
+            promisesAuxiliares.push(
+              carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar custos:', err)),
+              carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar horas contratadas:', err))
+            );
+          }
+          
+          Promise.all(promisesAuxiliares).catch(err => console.error('Erro ao carregar dados auxiliares:', err));
         } else {
           // Se não há dados, marca como carregado mesmo assim
           setDadosAuxiliaresCarregados(true);
@@ -2202,6 +2240,12 @@ const DelegarTarefas = () => {
     // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
     const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
     
+    // Calcular tempo contratado total (horas contratadas por dia × dias no período)
+    // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
+    const tempoContratadoTotal = isPJ 
+      ? tempoEstimado 
+      : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
+    
     const tempoDisponivelTotal = isPJ 
       ? tempoEstimado 
       : Math.max(0, (horasContratadasDiaValor * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo); // converter horas para milissegundos e subtrair o tempo já estimado
@@ -2224,24 +2268,45 @@ const DelegarTarefas = () => {
       disponivel: tempoDisponivelTotal,
       estimado: tempoEstimado,
       realizado: tempoRealizado,
-      sobrando: tempoSobrando
+      sobrando: tempoSobrando,
+      contratado: tempoContratadoTotal
     };
   };
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true }) => {
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
+    // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
+    const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
+    
     // Permitir exibir mesmo quando disponivel for 0 (sem vigência)
     const disponivelValor = disponivel || 0;
+    const contratadoValor = contratado !== null && contratado !== undefined ? contratado : 0;
     
     // Calcular tempo excedido (quando estimado > contratado)
-    const tempoExcedido = mostrarContratadasDisponivel && estimado > disponivelValor ? estimado - disponivelValor : 0;
+    const tempoExcedido = mostrarContratadasDisponivel && !aindaCarregandoContratado && estimado > contratadoValor ? estimado - contratadoValor : 0;
     
     // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
-    const totalParaBarra = mostrarContratadasDisponivel ? disponivelValor : (estimado || 1);
+    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
     const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
     const percentualRealizado = totalParaBarra > 0 ? (realizado / totalParaBarra) * 100 : 0;
     const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
     const custoRealizado = realizado > 0 ? calcularCustoPorTempo(realizado, responsavelId) : null;
+    
+    // Se Contratadas ainda está carregando, não renderizar Estimado ainda (aguardar ambos estarem prontos)
+    if (aindaCarregandoContratado) {
+      return (
+        <div className="barra-progresso-tempo">
+          <div className="barra-progresso-tempo-range"></div>
+          <div className="barra-progresso-tempo-legenda">
+            <div className="barra-progresso-tempo-item">
+              <div className="barra-progresso-tempo-item-content">
+                <span className="barra-progresso-tempo-label">Carregando...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     
     return (
       <div className="barra-progresso-tempo">
@@ -2300,7 +2365,7 @@ const DelegarTarefas = () => {
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <span className="barra-progresso-tempo-label">Contratadas</span>
-                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(disponivelValor, true)}</span>
+                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(contratadoValor, true)}</span>
             </div>
           </div>
           <div className="barra-progresso-tempo-item">
@@ -4106,21 +4171,38 @@ const DelegarTarefas = () => {
                             );
                             
                             // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
-                            const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)] || 0;
+                            const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)];
+                            
+                            // Verificar se horas contratadas ainda está carregando (undefined = ainda não carregado)
+                            const aindaCarregandoHoras = horasContratadasDia === undefined;
                             
                             // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
                             const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
                             
-                            const tempoDisponivelTotal = isPJ 
-                              ? tempoEstimado 
-                              : Math.max(0, (horasContratadasDia * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo);
-                            const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
+                            // Calcular tempo contratado total (horas contratadas por dia × dias no período)
+                            // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
+                            // Retornar null se ainda está carregando para distinguir de "já carregado mas sem valor" (0)
+                            const tempoContratadoTotal = aindaCarregandoHoras
+                              ? null  // Ainda carregando - permite distinguir de 0 (já carregado mas sem valor)
+                              : (isPJ 
+                                  ? tempoEstimado 
+                                  : (horasContratadasDia || 0) * diasNoPeriodo * 3600000); // converter horas para milissegundos
+                            
+                            const tempoDisponivelTotal = aindaCarregandoHoras
+                              ? null  // Ainda carregando
+                              : (isPJ 
+                                  ? tempoEstimado 
+                                  : Math.max(0, ((horasContratadasDia || 0) * diasNoPeriodo * 3600000) - tempoEstimadoTotalNoPeriodo));
+                            const tempoSobrando = aindaCarregandoHoras
+                              ? null  // Ainda carregando
+                              : Math.max(0, tempoDisponivelTotal - tempoEstimado);
                             
                             return {
                               disponivel: tempoDisponivelTotal,
                               estimado: tempoEstimado,
                               realizado: tempoRealizado,
-                              sobrando: tempoSobrando
+                              sobrando: tempoSobrando,
+                              contratado: tempoContratadoTotal
                             };
                           }
                           
@@ -4129,7 +4211,8 @@ const DelegarTarefas = () => {
                             disponivel: 0,
                             estimado: tempoEstimado,
                             realizado: tempoRealizado,
-                            sobrando: 0
+                            sobrando: 0,
+                            contratado: 0
                           };
                         };
                         
@@ -4851,6 +4934,7 @@ const DelegarTarefas = () => {
                                     estimado={0}
                                     realizado={0}
                                     sobrando={0}
+                                    contratado={0}
                                     responsavelId={responsavelIdParaCusto}
                                     mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                   />
@@ -5228,6 +5312,7 @@ const DelegarTarefas = () => {
                                   estimado={tempoInfo.estimado}
                                   realizado={tempoInfo.realizado}
                                   sobrando={tempoInfo.sobrando}
+                                  contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
                                   responsavelId={responsavelIdParaCusto}
                                   mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                 />
