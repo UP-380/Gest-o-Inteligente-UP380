@@ -4,6 +4,7 @@
 
 const supabase = require('../config/database');
 const { buscarTodosComPaginacao } = require('../services/database-utils');
+const { calcularRegistrosDinamicos } = require('./tempo-estimado.controller');
 
 // GET - Buscar histórico de atribuições
 async function getHistoricoAtribuicoes(req, res) {
@@ -360,16 +361,16 @@ async function atualizarHistoricoAtribuicao(req, res) {
       tempoPorTarefa.set(String(t.tarefa_id).trim(), parseInt(t.tempo_estimado_dia, 10));
     });
 
-    // Deletar todos os registros antigos do agrupamento
-    console.log('🗑️ Deletando registros antigos do agrupamento:', agrupador_id);
+    // Deletar todas as regras antigas do agrupamento
+    console.log('🗑️ Deletando regras antigas do agrupamento:', agrupador_id);
     const { error: deleteError } = await supabase
       .schema('up_gestaointeligente')
-      .from('tempo_estimado')
+      .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);
 
     if (deleteError) {
-      console.error('❌ Erro ao deletar registros antigos:', deleteError);
+      console.error('❌ Erro ao deletar regras antigas:', deleteError);
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar atribuição',
@@ -377,44 +378,83 @@ async function atualizarHistoricoAtribuicao(req, res) {
       });
     }
 
-    // Criar novos registros
-    const registrosParaInserir = [];
+    // Buscar tipo_tarefa_id para cada tarefa (se necessário)
+    const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
+      try {
+        if (!tarefaId) return null;
+        
+        const tarefaIdStr = String(tarefaId).trim();
+        const tarefaIdNum = parseInt(tarefaIdStr, 10);
+        
+        if (isNaN(tarefaIdNum)) {
+          return null;
+        }
+        
+        const { data: vinculados, error } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .select('tarefa_tipo_id')
+          .eq('tarefa_id', tarefaIdNum)
+          .not('tarefa_tipo_id', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        
+        if (error || !vinculados) {
+          return null;
+        }
+        
+        return vinculados.tarefa_tipo_id ? String(vinculados.tarefa_tipo_id).trim() : null;
+      } catch (error) {
+        console.error('Erro ao buscar tipo_tarefa_id:', error);
+        return null;
+      }
+    };
+
+    // Criar novas regras (agrupando por produto + tarefa + tempo_estimado_dia)
+    const regrasParaInserir = [];
     
-    produtoIdsFinal.forEach(produtoId => {
-      tarefasFinal.forEach(tarefa => {
+    for (const produtoId of produtoIdsFinal) {
+      for (const tarefa of tarefasFinal) {
         const tarefaId = String(tarefa.tarefa_id).trim();
         const tempoEstimado = tempoPorTarefa.get(tarefaId);
         
         if (!tempoEstimado || tempoEstimado <= 0) {
           console.warn(`⚠️ Tarefa ${tarefaId} não tem tempo estimado válido, pulando...`);
-          return;
+          continue;
         }
 
-        datasDoPeriodo.forEach(dataDoDia => {
-          registrosParaInserir.push({
-            cliente_id: String(clienteIdFinal).trim(),
-            produto_id: String(produtoId).trim(),
-            tarefa_id: tarefaId,
-            data: dataDoDia,
-            tempo_estimado_dia: tempoEstimado,
-            responsavel_id: String(responsavelIdFinal).trim(),
-            agrupador_id: agrupador_id
-          });
+        // Buscar tipo_tarefa_id
+        const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(tarefaId);
+
+        // Criar uma regra para esta combinação produto + tarefa + tempo
+        regrasParaInserir.push({
+          agrupador_id: agrupador_id,
+          cliente_id: String(clienteIdFinal).trim(),
+          produto_id: produtoId ? parseInt(produtoId, 10) : null,
+          tarefa_id: parseInt(tarefaId, 10),
+          responsavel_id: parseInt(responsavelIdFinal, 10),
+          tipo_tarefa_id: tipoTarefaId,
+          data_inicio: dataInicioFinal.split('T')[0], // Apenas data, sem hora
+          data_fim: dataFimFinal.split('T')[0], // Apenas data, sem hora
+          tempo_estimado_dia: tempoEstimado,
+          incluir_finais_semana: true, // Default true (pode ser ajustado se necessário)
+          incluir_feriados: true, // Default true (pode ser ajustado se necessário)
+          created_by: historicoAtual.usuario_criador_id || null
         });
-      });
-    });
+      }
+    }
 
-    console.log(`📝 Criando ${registrosParaInserir.length} novo(s) registro(s) de tempo estimado`);
+    console.log(`📝 Criando ${regrasParaInserir.length} nova(s) regra(s) de tempo estimado`);
 
-    // Inserir novos registros
-    const { data: dadosInseridos, error: insertError } = await supabase
+    // Inserir novas regras
+    const { data: regrasInseridas, error: insertError } = await supabase
       .schema('up_gestaointeligente')
-      .from('tempo_estimado')
-      .insert(registrosParaInserir)
+      .from('tempo_estimado_regra')
+      .insert(regrasParaInserir)
       .select();
 
     if (insertError) {
-      console.error('❌ Erro ao inserir novos registros:', insertError);
+      console.error('❌ Erro ao inserir novas regras:', insertError);
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar atribuição',
@@ -422,7 +462,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
       });
     }
 
-    console.log(`✅ ${dadosInseridos.length} registro(s) de tempo estimado atualizado(s) com sucesso`);
+    console.log(`✅ ${regrasInseridas.length} regra(s) de tempo estimado atualizada(s) com sucesso`);
 
     // Buscar histórico atualizado com dados relacionados
     const [clienteData, responsavelData, usuarioCriadorData] = await Promise.all([
@@ -584,16 +624,16 @@ async function getDetalhesDiariosAtribuicao(req, res) {
       });
     }
 
-    // Buscar todos os registros de tempo_estimado para este agrupador
-    const { data: registrosTempo, error: tempoError } = await supabase
+    // Buscar todas as regras de tempo_estimado_regra para este agrupador
+    const { data: regrasTempo, error: tempoError } = await supabase
       .schema('up_gestaointeligente')
-      .from('tempo_estimado')
+      .from('tempo_estimado_regra')
       .select('*')
       .eq('agrupador_id', historico.agrupador_id)
-      .order('data', { ascending: true });
+      .order('data_inicio', { ascending: true });
 
     if (tempoError) {
-      console.error('❌ Erro ao buscar registros de tempo:', tempoError);
+      console.error('❌ Erro ao buscar regras de tempo:', tempoError);
       return res.status(500).json({
         success: false,
         error: 'Erro ao buscar detalhes diários',
@@ -601,10 +641,17 @@ async function getDetalhesDiariosAtribuicao(req, res) {
       });
     }
 
+    if (!regrasTempo || regrasTempo.length === 0) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
     // Buscar nomes de tarefas
     const tarefaIds = new Set();
-    registrosTempo.forEach(reg => {
-      if (reg.tarefa_id) tarefaIds.add(String(reg.tarefa_id));
+    regrasTempo.forEach(regra => {
+      if (regra.tarefa_id) tarefaIds.add(String(regra.tarefa_id));
     });
 
     const nomesTarefas = {};
@@ -622,6 +669,26 @@ async function getDetalhesDiariosAtribuicao(req, res) {
       }
     }
 
+    // Calcular registros diários dinamicamente a partir das regras
+    const registrosTempo = [];
+    for (const regra of regrasTempo) {
+      // Usar calcularRegistrosDinamicos para gerar registros diários da regra
+      const registrosVirtuais = await calcularRegistrosDinamicos(
+        regra,
+        historico.data_inicio,
+        historico.data_fim
+      );
+      
+      // Adicionar informações adicionais de cada registro virtual
+      registrosVirtuais.forEach(reg => {
+        registrosTempo.push({
+          ...reg,
+          tarefa_nome: nomesTarefas[String(reg.tarefa_id)] || `Tarefa #${reg.tarefa_id}`,
+          regra_id: regra.id // ID da regra para referência
+        });
+      });
+    }
+
     // Agrupar por data
     const detalhesPorData = {};
     registrosTempo.forEach(reg => {
@@ -633,9 +700,9 @@ async function getDetalhesDiariosAtribuicao(req, res) {
       }
 
       detalhesPorData[dataStr].push({
-        id: reg.id, // ID do registro de tempo_estimado para editar/deletar
+        id: reg.regra_id, // ID da regra (para manter compatibilidade com frontend)
         tarefa_id: reg.tarefa_id,
-        tarefa_nome: nomesTarefas[String(reg.tarefa_id)] || `Tarefa #${reg.tarefa_id}`,
+        tarefa_nome: reg.tarefa_nome || nomesTarefas[String(reg.tarefa_id)] || `Tarefa #${reg.tarefa_id}`,
         produto_id: reg.produto_id,
         tempo_estimado_dia: reg.tempo_estimado_dia,
         responsavel_id: reg.responsavel_id
@@ -664,11 +731,449 @@ async function getDetalhesDiariosAtribuicao(req, res) {
   }
 }
 
+// GET - Sincronizar históricos para regras órfãs (sem histórico associado)
+async function sincronizarHistoricosOrfaos(req, res) {
+  try {
+    console.log('🔄 Iniciando sincronização de históricos órfãos...');
+
+    // Buscar todos os agrupador_id únicos de regras que não têm histórico
+    const { data: regrasSemHistorico, error: regrasError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado_regra')
+      .select('agrupador_id, cliente_id, responsavel_id, produto_id, tarefa_id, data_inicio, data_fim, created_by')
+      .not('agrupador_id', 'is', null);
+
+    if (regrasError) {
+      console.error('❌ Erro ao buscar regras:', regrasError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar regras',
+        details: regrasError.message
+      });
+    }
+
+    if (!regrasSemHistorico || regrasSemHistorico.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Nenhuma regra encontrada',
+        historicosCriados: 0
+      });
+    }
+
+    // Agrupar regras por agrupador_id
+    const regrasPorAgrupador = new Map();
+    regrasSemHistorico.forEach(regra => {
+      const agrupadorId = regra.agrupador_id;
+      if (!regrasPorAgrupador.has(agrupadorId)) {
+        regrasPorAgrupador.set(agrupadorId, []);
+      }
+      regrasPorAgrupador.get(agrupadorId).push(regra);
+    });
+
+    // Verificar quais agrupadores já têm histórico
+    const agrupadoresComHistorico = new Set();
+    if (regrasPorAgrupador.size > 0) {
+      const agrupadorIds = Array.from(regrasPorAgrupador.keys());
+      
+      // Buscar em lotes (Supabase tem limite de 1000 itens no IN)
+      const batchSize = 1000;
+      for (let i = 0; i < agrupadorIds.length; i += batchSize) {
+        const batch = agrupadorIds.slice(i, i + batchSize);
+        const { data: historicos, error: historicoError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('historico_atribuicoes')
+          .select('agrupador_id')
+          .in('agrupador_id', batch);
+
+        if (!historicoError && historicos) {
+          historicos.forEach(h => {
+            if (h.agrupador_id) {
+              agrupadoresComHistorico.add(h.agrupador_id);
+            }
+          });
+        }
+      }
+    }
+
+    // Filtrar apenas agrupadores sem histórico
+    const agrupadoresOrfaos = Array.from(regrasPorAgrupador.keys()).filter(
+      agrupadorId => !agrupadoresComHistorico.has(agrupadorId)
+    );
+
+    console.log(`📊 Total de agrupadores: ${regrasPorAgrupador.size}`);
+    console.log(`📊 Agrupadores com histórico: ${agrupadoresComHistorico.size}`);
+    console.log(`📊 Agrupadores órfãos: ${agrupadoresOrfaos.length}`);
+
+    if (agrupadoresOrfaos.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Todos os agrupadores já têm histórico associado',
+        historicosCriados: 0
+      });
+    }
+
+    // Criar históricos para agrupadores órfãos
+    const historicosParaCriar = [];
+    let historicosCriados = 0;
+
+    for (const agrupadorId of agrupadoresOrfaos) {
+      // Buscar todas as regras completas do agrupador
+      const { data: regrasCompletas, error: regrasError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tempo_estimado_regra')
+        .select('*')
+        .eq('agrupador_id', agrupadorId);
+
+      if (regrasError || !regrasCompletas || regrasCompletas.length === 0) {
+        console.warn(`⚠️ Erro ao buscar regras do agrupador ${agrupadorId}:`, regrasError);
+        continue;
+      }
+
+      // Pegar dados da primeira regra (todas devem ter os mesmos dados básicos)
+      const primeiraRegra = regrasCompletas[0];
+      
+      // Calcular período mínimo e máximo
+      let dataInicioMin = primeiraRegra.data_inicio;
+      let dataFimMax = primeiraRegra.data_fim;
+      const produtoIds = new Set();
+      const tarefasMap = new Map(); // tarefa_id -> tempo_estimado_dia (usar o maior se houver duplicatas)
+
+      regrasCompletas.forEach(regra => {
+        if (regra.data_inicio && regra.data_inicio < dataInicioMin) {
+          dataInicioMin = regra.data_inicio;
+        }
+        if (regra.data_fim && regra.data_fim > dataFimMax) {
+          dataFimMax = regra.data_fim;
+        }
+        if (regra.produto_id) {
+          produtoIds.add(regra.produto_id);
+        }
+        if (regra.tarefa_id) {
+          const tarefaIdStr = String(regra.tarefa_id);
+          const tempoAtual = tarefasMap.get(tarefaIdStr) || 0;
+          // Usar o maior tempo_estimado_dia se houver múltiplas regras para a mesma tarefa
+          tarefasMap.set(tarefaIdStr, Math.max(tempoAtual, regra.tempo_estimado_dia || 0));
+        }
+      });
+
+      // Converter tarefas para array no formato esperado
+      const tarefasArray = Array.from(tarefasMap.entries()).map(([tarefa_id, tempo_estimado_dia]) => ({
+        tarefa_id: parseInt(tarefa_id, 10),
+        tempo_estimado_dia: tempo_estimado_dia
+      }));
+
+      // Usar created_by da primeira regra, ou null se não houver
+      const usuarioCriadorId = primeiraRegra.created_by || null;
+
+      historicosParaCriar.push({
+        agrupador_id: agrupadorId,
+        cliente_id: primeiraRegra.cliente_id,
+        responsavel_id: primeiraRegra.responsavel_id,
+        usuario_criador_id: usuarioCriadorId ? String(usuarioCriadorId) : null,
+        data_inicio: dataInicioMin.split('T')[0], // Apenas data, sem hora
+        data_fim: dataFimMax.split('T')[0], // Apenas data, sem hora
+        produto_ids: Array.from(produtoIds).filter(id => id !== null && id !== undefined).map(id => parseInt(id, 10)),
+        tarefas: tarefasArray
+      });
+    }
+
+    // Inserir históricos em lotes
+    const batchSize = 100;
+    for (let i = 0; i < historicosParaCriar.length; i += batchSize) {
+      const batch = historicosParaCriar.slice(i, i + batchSize);
+      const { error: insertError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('historico_atribuicoes')
+        .insert(batch);
+
+      if (insertError) {
+        console.error(`❌ Erro ao inserir lote ${i / batchSize + 1}:`, insertError);
+      } else {
+        historicosCriados += batch.length;
+        console.log(`✅ Lote ${i / batchSize + 1}: ${batch.length} histórico(s) criado(s)`);
+      }
+    }
+
+    console.log(`✅ Sincronização concluída: ${historicosCriados} histórico(s) criado(s)`);
+
+    return res.json({
+      success: true,
+      message: `Sincronização concluída: ${historicosCriados} histórico(s) criado(s)`,
+      historicosCriados: historicosCriados,
+      totalAgrupadoresOrfaos: agrupadoresOrfaos.length
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao sincronizar históricos:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// GET - Buscar regras órfãs (sem histórico associado) formatadas para exibição
+async function getRegrasOrfas(req, res) {
+  try {
+    console.log('🔍 Buscando regras órfãs...');
+
+    // Buscar todos os agrupador_id únicos de regras
+    const { data: todasRegras, error: regrasError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado_regra')
+      .select('agrupador_id')
+      .not('agrupador_id', 'is', null);
+
+    if (regrasError) {
+      console.error('❌ Erro ao buscar regras:', regrasError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar regras',
+        details: regrasError.message
+      });
+    }
+
+    if (!todasRegras || todasRegras.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Obter agrupador_ids únicos
+    const agrupadorIds = [...new Set(todasRegras.map(r => r.agrupador_id))];
+
+    // Verificar quais agrupadores já têm histórico
+    const agrupadoresComHistorico = new Set();
+    const batchSize = 1000;
+    for (let i = 0; i < agrupadorIds.length; i += batchSize) {
+      const batch = agrupadorIds.slice(i, i + batchSize);
+      const { data: historicos } = await supabase
+        .schema('up_gestaointeligente')
+        .from('historico_atribuicoes')
+        .select('agrupador_id')
+        .in('agrupador_id', batch);
+
+      if (historicos) {
+        historicos.forEach(h => {
+          if (h.agrupador_id) {
+            agrupadoresComHistorico.add(h.agrupador_id);
+          }
+        });
+      }
+    }
+
+    // Filtrar apenas agrupadores sem histórico
+    const agrupadoresOrfaos = agrupadorIds.filter(
+      agrupadorId => !agrupadoresComHistorico.has(agrupadorId)
+    );
+
+    if (agrupadoresOrfaos.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // Buscar regras completas para cada agrupador órfão
+    const regrasOrfasFormatadas = [];
+    
+    for (const agrupadorId of agrupadoresOrfaos) {
+      const { data: regrasDoAgrupador } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tempo_estimado_regra')
+        .select('*')
+        .eq('agrupador_id', agrupadorId)
+        .order('data_inicio', { ascending: true });
+
+      if (!regrasDoAgrupador || regrasDoAgrupador.length === 0) continue;
+
+      const primeiraRegra = regrasDoAgrupador[0];
+      
+      // Calcular período mínimo e máximo
+      let dataInicioMin = primeiraRegra.data_inicio;
+      let dataFimMax = primeiraRegra.data_fim;
+      const produtoIds = new Set();
+      const tarefasMap = new Map();
+
+      regrasDoAgrupador.forEach(regra => {
+        if (regra.data_inicio && regra.data_inicio < dataInicioMin) {
+          dataInicioMin = regra.data_inicio;
+        }
+        if (regra.data_fim && regra.data_fim > dataFimMax) {
+          dataFimMax = regra.data_fim;
+        }
+        if (regra.produto_id) {
+          produtoIds.add(regra.produto_id);
+        }
+        if (regra.tarefa_id) {
+          const tarefaIdStr = String(regra.tarefa_id);
+          const tempoAtual = tarefasMap.get(tarefaIdStr) || 0;
+          tarefasMap.set(tarefaIdStr, Math.max(tempoAtual, regra.tempo_estimado_dia || 0));
+        }
+      });
+
+      // Buscar nomes relacionados
+      const [clienteData, responsavelData] = await Promise.all([
+        supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id, nome')
+          .eq('id', primeiraRegra.cliente_id)
+          .maybeSingle(),
+        supabase
+          .schema('up_gestaointeligente')
+          .from('membro')
+          .select('id, nome')
+          .eq('id', primeiraRegra.responsavel_id)
+          .maybeSingle()
+      ]);
+
+      // Buscar nomes de produtos
+      const produtoIdsArray = Array.from(produtoIds).filter(id => id !== null);
+      const nomesProdutos = {};
+      if (produtoIdsArray.length > 0) {
+        const { data: produtos } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_produto')
+          .select('id, nome')
+          .in('id', produtoIdsArray);
+
+        if (produtos) {
+          produtos.forEach(p => {
+            nomesProdutos[String(p.id)] = p.nome;
+          });
+        }
+      }
+
+      // Buscar nomes de tarefas
+      const tarefaIdsArray = Array.from(tarefasMap.keys());
+      const nomesTarefas = {};
+      if (tarefaIdsArray.length > 0) {
+        const { data: tarefas } = await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .select('id, nome')
+          .in('id', tarefaIdsArray.map(id => parseInt(id, 10)));
+
+        if (tarefas) {
+          tarefas.forEach(t => {
+            nomesTarefas[String(t.id)] = t.nome;
+          });
+        }
+      }
+
+      regrasOrfasFormatadas.push({
+        agrupador_id: agrupadorId,
+        cliente_id: primeiraRegra.cliente_id,
+        cliente: clienteData.data || null,
+        responsavel_id: primeiraRegra.responsavel_id,
+        responsavel: responsavelData.data || null,
+        data_inicio: dataInicioMin.split('T')[0],
+        data_fim: dataFimMax.split('T')[0],
+        produto_ids: produtoIdsArray,
+        produtos: produtoIdsArray.map(id => ({
+          id,
+          nome: nomesProdutos[String(id)] || `Produto #${id}`
+        })),
+        tarefas: Array.from(tarefasMap.entries()).map(([tarefa_id, tempo_estimado_dia]) => ({
+          tarefa_id: parseInt(tarefa_id, 10),
+          tarefa_nome: nomesTarefas[tarefa_id] || `Tarefa #${tarefa_id}`,
+          tempo_estimado_dia: tempo_estimado_dia
+        })),
+        quantidade_regras: regrasDoAgrupador.length,
+        created_at: primeiraRegra.created_at || null
+      });
+    }
+
+    console.log(`✅ Encontradas ${regrasOrfasFormatadas.length} regra(s) órfã(s)`);
+
+    return res.json({
+      success: true,
+      data: regrasOrfasFormatadas,
+      count: regrasOrfasFormatadas.length
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao buscar regras órfãs:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
+// DELETE - Deletar regras órfãs por agrupador_id
+async function deletarRegrasOrfas(req, res) {
+  try {
+    const { agrupador_id } = req.params;
+
+    if (!agrupador_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'agrupador_id é obrigatório'
+      });
+    }
+
+    console.log(`🗑️ Deletando regras órfãs para agrupador_id: ${agrupador_id}`);
+
+    // Verificar se existe histórico associado (não deveria, mas vamos garantir)
+    const { data: historicoExistente } = await supabase
+      .schema('up_gestaointeligente')
+      .from('historico_atribuicoes')
+      .select('id')
+      .eq('agrupador_id', agrupador_id)
+      .maybeSingle();
+
+    if (historicoExistente) {
+      return res.status(400).json({
+        success: false,
+        error: 'Não é possível deletar: existe histórico associado a este agrupador'
+      });
+    }
+
+    // Deletar todas as regras do agrupador
+    const { error: deleteError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado_regra')
+      .delete()
+      .eq('agrupador_id', agrupador_id);
+
+    if (deleteError) {
+      console.error('❌ Erro ao deletar regras:', deleteError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao deletar regras',
+        details: deleteError.message
+      });
+    }
+
+    console.log(`✅ Regras órfãs deletadas com sucesso para agrupador_id: ${agrupador_id}`);
+
+    return res.json({
+      success: true,
+      message: 'Regras deletadas com sucesso'
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao deletar regras órfãs:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   getHistoricoAtribuicoes,
   getHistoricoAtribuicaoPorId,
   atualizarHistoricoAtribuicao,
   deletarHistoricoAtribuicao,
-  getDetalhesDiariosAtribuicao
+  getDetalhesDiariosAtribuicao,
+  sincronizarHistoricosOrfaos,
+  getRegrasOrfas,
+  deletarRegrasOrfas
 };
 

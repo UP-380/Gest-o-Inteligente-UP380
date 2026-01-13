@@ -11,6 +11,7 @@ const Sidebar = () => {
   const [relatoriosExpanded, setRelatoriosExpanded] = useState(false);
   const [cadastrosExpanded, setCadastrosExpanded] = useState(false);
   const [cadastrosTarefasExpanded, setCadastrosTarefasExpanded] = useState(false);
+  const [cadastrosClientesExpanded, setCadastrosClientesExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
   const [baseConhecimentoExpanded, setBaseConhecimentoExpanded] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,6 +36,7 @@ const Sidebar = () => {
 
   const isCadastrosActive = () => {
     return isActive('/cadastro/clientes') || 
+           isActive('/cadastro/contato-cliente') ||
            isActive('/cadastro/colaboradores') || 
            isActive('/cadastro/produtos') || location.pathname.startsWith('/cadastro/produto') || 
            isActive('/cadastro/tipo-tarefas') || location.pathname.startsWith('/cadastro/tipo-tarefa') ||
@@ -69,6 +71,7 @@ const Sidebar = () => {
   // Expandir automaticamente o menu Cadastros se estiver em uma das páginas relacionadas
   useEffect(() => {
     const isCadastrosActive = location.pathname === '/cadastro/clientes' || 
+                              location.pathname === '/cadastro/contato-cliente' ||
                               location.pathname === '/cadastro/colaboradores' || 
                               (location.pathname === '/cadastro/produtos' || location.pathname.startsWith('/cadastro/produto')) || 
                               (location.pathname === '/cadastro/tipo-tarefas' || location.pathname.startsWith('/cadastro/tipo-tarefa')) ||
@@ -86,6 +89,11 @@ const Sidebar = () => {
                            (location.pathname === '/cadastro/subtarefas' || location.pathname.startsWith('/cadastro/subtarefa'));
       if (isTarefasPage) {
         setCadastrosTarefasExpanded(true);
+      }
+      // Se for uma página de clientes, expandir também o submenu Clientes
+      const isClientesPage = location.pathname === '/cadastro/clientes' || location.pathname === '/cadastro/contato-cliente';
+      if (isClientesPage) {
+        setCadastrosClientesExpanded(true);
       }
     }
   }, [location.pathname]);
@@ -181,6 +189,12 @@ const Sidebar = () => {
     setCadastrosTarefasExpanded(!cadastrosTarefasExpanded);
   };
 
+  const toggleCadastrosClientes = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCadastrosClientesExpanded(!cadastrosClientesExpanded);
+  };
+
   const toggleConfiguracoes = (e) => {
     e.preventDefault();
     setConfiguracoesExpanded(!configuracoesExpanded);
@@ -231,10 +245,23 @@ const Sidebar = () => {
   const cadastrosSubItems = useMemo(() => {
     const allItems = [
       {
-        path: '/cadastro/clientes',
-        icon: 'fa-briefcase',
         label: 'Clientes',
-        title: 'Clientes'
+        icon: 'fa-briefcase',
+        title: 'Clientes',
+        subItems: [
+          {
+            path: '/cadastro/clientes',
+            icon: 'fa-building',
+            label: 'Empresas',
+            title: 'Cadastro de Empresas'
+          },
+          {
+            path: '/cadastro/contato-cliente',
+            icon: 'fa-address-book',
+            label: 'Contatos',
+            title: 'Contatos dos Clientes'
+          }
+        ]
       },
       {
         path: '/cadastro/colaboradores',
@@ -541,20 +568,26 @@ const Sidebar = () => {
                 {cadastrosSubItems.map((subItem) => {
                   // Se o item tiver subItems, renderizar como um submenu aninhado
                   if (subItem.subItems) {
+                    // Determinar qual toggle usar baseado no label
+                    const isTarefas = subItem.label === 'Tarefas';
+                    const isClientes = subItem.label === 'Clientes';
+                    const isExpanded = isTarefas ? cadastrosTarefasExpanded : (isClientes ? cadastrosClientesExpanded : false);
+                    const toggleFunction = isTarefas ? toggleCadastrosTarefas : (isClientes ? toggleCadastrosClientes : null);
+                    
                     return (
                       <div key={subItem.label} className="sidebar-nested-menu-group">
                         <button
                           type="button"
-                          className={`sidebar-item sidebar-submenu-item sidebar-nested-toggle ${cadastrosTarefasExpanded ? 'expanded' : ''}`}
+                          className={`sidebar-item sidebar-submenu-item sidebar-nested-toggle ${isExpanded ? 'expanded' : ''}`}
                           title={subItem.title}
-                          onClick={toggleCadastrosTarefas}
+                          onClick={toggleFunction}
                           style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
                         >
                           <i className={`fas ${subItem.icon}`}></i>
                           <span className="sidebar-text">{subItem.label}</span>
-                          <i className={`fas fa-chevron-right sidebar-chevron ${cadastrosTarefasExpanded ? 'expanded' : ''}`}></i>
+                          <i className={`fas fa-chevron-right sidebar-chevron ${isExpanded ? 'expanded' : ''}`}></i>
                         </button>
-                        <div className={`sidebar-nested-submenu ${cadastrosTarefasExpanded ? 'open' : ''}`}>
+                        <div className={`sidebar-nested-submenu ${isExpanded ? 'open' : ''}`}>
                           {subItem.subItems.map((nestedItem) => (
                             <Link
                               key={nestedItem.path}

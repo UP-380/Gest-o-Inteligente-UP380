@@ -32,6 +32,7 @@ const clienteSistemaController = require('../controllers/cliente-sistema.control
 const clienteAdquirenteController = require('../controllers/cliente-adquirente.controller');
 const baseConhecimentoController = require('../controllers/base-conhecimento.controller');
 const clienteSubtarefaObservacaoController = require('../controllers/cliente-subtarefa-observacao.controller');
+const contatoClienteController = require('../controllers/contato-cliente.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const apiClientes = require('../services/api-clientes');
@@ -175,25 +176,29 @@ router.put('/api/vinculados/:id', requireAuth, vinculadosController.atualizarVin
 router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVinculado);
 
 // Rotas de Tempo Estimado (CRUD completo)
+// IMPORTANTE: Rotas específicas devem vir ANTES das rotas dinâmicas (:id)
+router.get('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
+router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
+router.post('/api/tempo-estimado/tempo-realizado-filtros', requireAuth, tempoEstimadoController.getTempoRealizadoComFiltros);
+router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
+router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
+router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoEstimado);
 router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
 router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.deletarTempoEstimado);
 
-// Rotas de Tempo Estimado por Agrupador
-router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
-router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
-router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
-router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
-
 // Rotas de Histórico de Atribuições
 console.log('✅ Registrando rotas de histórico de atribuições...');
 router.get('/api/historico-atribuicoes', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicoes);
+router.get('/api/historico-atribuicoes/orfas', requireAuth, historicoAtribuicoesController.getRegrasOrfas);
 router.get('/api/historico-atribuicoes/:id/detalhes-diarios', requireAuth, historicoAtribuicoesController.getDetalhesDiariosAtribuicao);
 router.get('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.getHistoricoAtribuicaoPorId);
 router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.atualizarHistoricoAtribuicao);
 router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
+router.post('/api/historico-atribuicoes/sincronizar-orfaos', requireAuth, historicoAtribuicoesController.sincronizarHistoricosOrfaos);
+router.delete('/api/historico-atribuicoes/orfas/:agrupador_id', requireAuth, historicoAtribuicoesController.deletarRegrasOrfas);
 console.log('✅ Rotas de histórico de atribuições registradas:', {
   get: '/api/historico-atribuicoes',
   getById: '/api/historico-atribuicoes/:id',
@@ -289,6 +294,17 @@ router.get('/api/cliente-subtarefa-observacao/cliente/:cliente_id', requireAuth,
 router.post('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
 router.put('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.salvarObservacao);
 router.delete('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.deletarObservacao);
+
+// Rotas de Contato Cliente (CRUD completo)
+// IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
+router.get('/api/clientes/:cliente_id/contatos', requireAuth, contatoClienteController.getContatosPorCliente);
+router.post('/api/contatos/vincular', requireAuth, contatoClienteController.vincularContatoCliente);
+router.delete('/api/contatos/vinculo/:id', requireAuth, contatoClienteController.desvincularContatoCliente);
+router.get('/api/contatos', requireAuth, contatoClienteController.getContatos);
+router.post('/api/contatos', requireAuth, contatoClienteController.criarContato);
+router.get('/api/contatos/:id', requireAuth, contatoClienteController.getContatoPorId);
+router.put('/api/contatos/:id', requireAuth, contatoClienteController.atualizarContato);
+router.delete('/api/contatos/:id', requireAuth, contatoClienteController.deletarContato);
 
 // Rotas de Usuários (CRUD completo / Gestão de Permissões)
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas

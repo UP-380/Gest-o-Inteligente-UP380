@@ -55,10 +55,11 @@ const TimerAtivo = () => {
             buscarInformacoesTarefa(registro);
           }
           
-          // Buscar tempo estimado se disponível
-          if (registro.tempo_estimado_id) {
-            buscarTempoEstimado(registro.tempo_estimado_id);
-          }
+          // REMOVIDO: Buscar tempo estimado - IDs virtuais não podem ser buscados diretamente
+          // O tempo estimado não é crítico para o funcionamento do timer ativo
+          // if (registro.tempo_estimado_id) {
+          //   buscarTempoEstimado(registro.tempo_estimado_id);
+          // }
         } else {
           setRegistroAtivo(null);
           setTarefaNome('');
@@ -136,21 +137,28 @@ const TimerAtivo = () => {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          let tempo = result.data.tempo_estimado_dia || result.data.tempo_estimado_total || 0;
-          // Se o tempo for menor que 1000, provavelmente está em horas decimais
-          // Se for maior ou igual a 1000, provavelmente já está em milissegundos
-          if (tempo > 0 && tempo < 1000) {
-            // Converter horas decimais para milissegundos
-            tempo = tempo * 3600000;
-          }
-          setTempoEstimado(tempo);
+      
+      // IDs virtuais (gerados dinamicamente a partir de regras) não existem na tabela antiga
+      // então retornarão 404 ou 500, o que é esperado e não deve ser tratado como erro
+      if (!response.ok) {
+        // ID virtual ou registro não encontrado - não pode ser buscado diretamente, ignorar silenciosamente
+        return;
+      }
+      
+      const result = await response.json();
+      if (result.success && result.data) {
+        let tempo = result.data.tempo_estimado_dia || result.data.tempo_estimado_total || 0;
+        // Se o tempo for menor que 1000, provavelmente está em horas decimais
+        // Se for maior ou igual a 1000, provavelmente já está em milissegundos
+        if (tempo > 0 && tempo < 1000) {
+          // Converter horas decimais para milissegundos
+          tempo = tempo * 3600000;
         }
+        setTempoEstimado(tempo);
       }
     } catch (error) {
-      console.warn('[TimerAtivo] Erro ao buscar tempo estimado:', error);
+      // Erro de rede ou outros erros - ignorar silenciosamente
+      // (IDs virtuais não podem ser buscados diretamente)
     }
   };
 

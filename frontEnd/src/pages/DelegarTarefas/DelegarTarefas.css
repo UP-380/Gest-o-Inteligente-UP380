@@ -1374,7 +1374,7 @@
 }
 
 .barra-progresso-tempo-valor.realizado {
-  color: #fd7e14; /* Laranja padrão do sistema */
+  color: #f97316; /* Laranja padrão do sistema */
 }
 
 .barra-progresso-tempo-custo {
@@ -1392,7 +1392,7 @@
 }
 
 .barra-progresso-tempo-custo.realizado {
-  color: #fd7e14; /* Laranja padrão do sistema */
+  color: #f97316; /* Laranja padrão do sistema */
 }
 
 .barra-progresso-tempo-custo-placeholder {
@@ -1449,7 +1449,7 @@
 }
 
 .barra-progresso-tempo-fill.realizado {
-  background-color: #fd7e14; /* Laranja padrão do sistema */
+  background-color: #f97316; /* Laranja padrão do sistema */
   z-index: 3;
 }
 
@@ -1494,7 +1494,7 @@
 }
 
 .barra-progresso-tempo-item-header .painel-colaborador-realizado-icon-inline {
-  color: #fd7e14 !important; /* Laranja padrão do sistema - mesma cor do painel */
+  color: #f97316 !important; /* Laranja padrão do sistema - mesma cor do painel */
 }
 
 .barra-progresso-tempo-indicador {
@@ -1510,8 +1510,8 @@
 }
 
 .barra-progresso-tempo-indicador.realizado {
-  background: #fd7e14; /* Laranja padrão do sistema */
-  box-shadow: 0 1px 3px rgba(253, 126, 20, 0.3);
+  background: #f97316; /* Laranja padrão do sistema */
+  box-shadow: 0 1px 3px rgba(249, 115, 22, 0.3);
 }
 
 .barra-progresso-tempo-indicador.sobrando {
@@ -1572,9 +1572,9 @@
 }
 
 .barra-progresso-tempo-badge.realizado {
-  background: #fff4e6; /* Laranja claro */
-  color: #fd7e14; /* Laranja padrão do sistema */
-  border: 1px solid #ffd8a8;
+  background: rgba(253, 126, 20, 0.1);
+  color: #fd7e14;
+  border: 1px solid rgba(253, 126, 20, 0.3);
 }
 
 .barra-progresso-tempo-badge.disponivel {

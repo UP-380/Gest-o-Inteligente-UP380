@@ -24,6 +24,7 @@ import CadastroAdquirente from './pages/CadastroAdquirente/CadastroAdquirente';
 import CadastroAdquirenteIndividual from './pages/CadastroAdquirenteIndividual/CadastroAdquirenteIndividual';
 import CadastroSistemas from './pages/CadastroSistemas/CadastroSistemas';
 import CadastroSistemaIndividual from './pages/CadastroSistemaIndividual/CadastroSistemaIndividual';
+import CadastroContatoCliente from './pages/CadastroContatoCliente/CadastroContatoCliente';
 import DelegarTarefas from './pages/DelegarTarefas/DelegarTarefas';
 import HistoricoAtribuicoes from './pages/HistoricoAtribuicoes/HistoricoAtribuicoes';
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
@@ -298,6 +299,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroSistemaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/contato-cliente"
+          element={
+            <ProtectedRoute>
+              <CadastroContatoCliente />
             </ProtectedRoute>
           }
         />
