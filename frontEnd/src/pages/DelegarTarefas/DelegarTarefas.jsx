@@ -1186,7 +1186,9 @@ const DelegarTarefas = () => {
   };
 
   // Calcular tempo estimado total diretamente dos registros calculados
-  // Esta função garante que o cálculo considere exatamente os mesmos filtros aplicados na geração dos registros
+  // DEPRECATED: Esta função não é mais usada - o cálculo foi movido para o backend
+  // Mantida apenas como referência. O cálculo agora é feito pelo endpoint /api/tempo-estimado/total
+  // eslint-disable-next-line no-unused-vars
   const calcularTempoEstimadoDosRegistros = (registrosCalculados, periodoInicio, periodoFim) => {
     const temposPorResponsavel = {};
     
@@ -1497,45 +1499,129 @@ const DelegarTarefas = () => {
           setTotalRegistros(totalParaPaginar);
           setTotalPages(Math.ceil(totalParaPaginar / itemsPerPage));
           
-          // NOVA LÓGICA: Calcular tempo estimado total diretamente dos registros calculados
-          // SEMPRE usar a mesma lógica, independente de ter ou não filtro de responsável
-          // Como a busca principal já retorna todas as regras (limit alto quando há período),
-          // podemos usar os mesmos dados para todos os casos
-          if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
-            // SEMPRE calcular usando os registros calculados da busca principal
-            // Isso garante consistência independente dos filtros aplicados
-            let temposEstimadosPorResponsavel = calcularTempoEstimadoDosRegistros(
-              registrosCalculados,
-              periodoAUsar.inicio,
-              periodoAUsar.fim
-            );
+          // NOVA LÓGICA: Buscar tempo estimado total do backend
+          // O cálculo agora é feito no servidor, garantindo consistência e melhor performance
+          if (periodoAUsar.inicio && periodoAUsar.fim) {
+            // Construir parâmetros para o endpoint de tempo estimado total
+            const paramsTotal = new URLSearchParams();
             
-            // Se há filtro de responsável específico, já está filtrado nos registrosCalculados
-            // Se não há, o cálculo já retorna todos os responsáveis
-            // Não precisamos mais fazer buscas individuais, pois a busca principal já retorna tudo
+            // Adicionar período (obrigatório)
+            paramsTotal.append('data_inicio', periodoAUsar.inicio);
+            paramsTotal.append('data_fim', periodoAUsar.fim);
             
-            // Verificar se há responsável selecionado apenas para log
-            const temResponsavelSelecionado = valoresAUsar.responsavel && (
-              (Array.isArray(valoresAUsar.responsavel) && valoresAUsar.responsavel.length > 0) ||
-              (!Array.isArray(valoresAUsar.responsavel) && valoresAUsar.responsavel)
-            );
-            
-            if (temResponsavelSelecionado) {
-              console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Com responsável selecionado. Calculado para ${Object.keys(temposEstimadosPorResponsavel).length} responsável(is)`);
-            } else {
-              console.log(`🔍 [CALCULAR-TEMPO-ESTIMADO] Sem responsável selecionado. Calculado para ${Object.keys(temposEstimadosPorResponsavel).length} responsável(is) usando dados da busca principal`);
+            // Adicionar filtros de valores selecionados
+            if (valoresAUsar.produto) {
+              const produtoIds = Array.isArray(valoresAUsar.produto) 
+                ? valoresAUsar.produto 
+                : [valoresAUsar.produto];
+              produtoIds.forEach(id => {
+                if (id) paramsTotal.append('produto_id', String(id).trim());
+              });
             }
             
-            // DEBUG: Log do cache antes de atualizar
-            console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Cache antes de atualizar:', Object.keys(temposEstimadosPorResponsavel).map(id => ({
-              id,
-              tempo: `${(temposEstimadosPorResponsavel[id]/3600000).toFixed(2)}h`
-            })));
+            if (valoresAUsar.tarefa) {
+              const tarefaIds = Array.isArray(valoresAUsar.tarefa) 
+                ? valoresAUsar.tarefa 
+                : [valoresAUsar.tarefa];
+              tarefaIds.forEach(id => {
+                if (id) paramsTotal.append('tarefa_id', String(id).trim());
+              });
+            }
             
-            // Atualizar cache de tempo estimado total
-            setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
+            if (valoresAUsar.cliente) {
+              const clienteIds = Array.isArray(valoresAUsar.cliente) 
+                ? valoresAUsar.cliente 
+                : [valoresAUsar.cliente];
+              clienteIds.forEach(id => {
+                if (id) paramsTotal.append('cliente_id', String(id).trim());
+              });
+            }
+            
+            if (valoresAUsar.responsavel) {
+              const responsavelIds = Array.isArray(valoresAUsar.responsavel) 
+                ? valoresAUsar.responsavel 
+                : [valoresAUsar.responsavel];
+              responsavelIds.forEach(id => {
+                if (id) paramsTotal.append('responsavel_id', String(id).trim());
+              });
+            }
+            
+            // Adicionar filtros adicionais
+            if (filtrosAdicionaisAUsar.cliente) {
+              const clienteIds = Array.isArray(filtrosAdicionaisAUsar.cliente) 
+                ? filtrosAdicionaisAUsar.cliente 
+                : [filtrosAdicionaisAUsar.cliente];
+              clienteIds.forEach(id => {
+                if (id) paramsTotal.append('cliente_id', String(id).trim());
+              });
+            }
+            if (filtrosAdicionaisAUsar.tarefa) {
+              const tarefaIds = Array.isArray(filtrosAdicionaisAUsar.tarefa) 
+                ? filtrosAdicionaisAUsar.tarefa 
+                : [filtrosAdicionaisAUsar.tarefa];
+              tarefaIds.forEach(id => {
+                if (id) paramsTotal.append('tarefa_id', String(id).trim());
+              });
+            }
+            if (filtrosAdicionaisAUsar.produto) {
+              const produtoIds = Array.isArray(filtrosAdicionaisAUsar.produto) 
+                ? filtrosAdicionaisAUsar.produto 
+                : [filtrosAdicionaisAUsar.produto];
+              produtoIds.forEach(id => {
+                if (id) paramsTotal.append('produto_id', String(id).trim());
+              });
+            }
+            
+            // Adicionar filtro de status de cliente se aplicável
+            const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+            const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
+            if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
+              if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
+                paramsTotal.append('cliente_status', filtroStatusCliente);
+              }
+            }
+            
+            const urlTotal = `${API_BASE_URL}/tempo-estimado/total?${paramsTotal}`;
+            
+            try {
+              console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Buscando tempo estimado total do backend: ${urlTotal}`);
+              
+              const responseTotal = await fetch(urlTotal, {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              });
+              
+              if (responseTotal.status === 401) {
+                window.location.href = '/login';
+                return;
+              }
+              
+              if (responseTotal.ok) {
+                const resultTotal = await responseTotal.json();
+                if (resultTotal.success && resultTotal.data) {
+                  const temposEstimadosPorResponsavel = resultTotal.data || {};
+                  
+                  console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Tempo estimado total recebido do backend:`, Object.keys(temposEstimadosPorResponsavel).map(id => ({
+                    id,
+                    tempo: `${(temposEstimadosPorResponsavel[id]/3600000).toFixed(2)}h`
+                  })));
+                  
+                  // Atualizar cache de tempo estimado total
+                  setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
+                } else {
+                  console.warn('⚠️ [LOAD-REGISTROS-TEMPO-ESTIMADO] Resposta do backend sem dados válidos');
+                  setTempoEstimadoTotalPorResponsavel({});
+                }
+              } else {
+                console.error('❌ [LOAD-REGISTROS-TEMPO-ESTIMADO] Erro ao buscar tempo estimado total:', responseTotal.status);
+                setTempoEstimadoTotalPorResponsavel({});
+              }
+            } catch (error) {
+              console.error('❌ [LOAD-REGISTROS-TEMPO-ESTIMADO] Erro ao buscar tempo estimado total do backend:', error);
+              setTempoEstimadoTotalPorResponsavel({});
+            }
           } else {
-            // Se não há registros calculados, limpar cache de tempo estimado
+            // Se não há período, limpar cache de tempo estimado
             setTempoEstimadoTotalPorResponsavel({});
           }
           

@@ -2505,6 +2505,251 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
   }
 }
 
+// GET - Calcular tempo estimado total por responsável
+async function getTempoEstimadoTotal(req, res) {
+  try {
+    // Processar parâmetros que podem vir como array (quando múltiplos valores são passados)
+    const processarParametroArray = (param) => {
+      if (!param) return null;
+      if (Array.isArray(param)) {
+        return param.filter(Boolean);
+      }
+      if (typeof param === 'string' && param.includes(',')) {
+        return param.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      // Valor único - retornar como array
+      return [String(param).trim()].filter(Boolean);
+    };
+    
+    console.log('🔍 [TEMPO-ESTIMADO-TOTAL] req.query completo:', JSON.stringify(req.query, null, 2));
+    
+    const { 
+      data_inicio = null,
+      data_fim = null,
+      cliente_status = null
+    } = req.query;
+    
+    // Processar IDs que podem vir como array
+    const cliente_id = processarParametroArray(req.query.cliente_id);
+    const produto_id = processarParametroArray(req.query.produto_id);
+    const tarefa_id = processarParametroArray(req.query.tarefa_id);
+    
+    // Filtrar apenas valores numéricos válidos para responsavel_id
+    const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
+    const responsavel_id = responsavel_id_raw 
+      ? responsavel_id_raw
+          .map(id => parseInt(String(id).trim(), 10))
+          .filter(id => !isNaN(id) && id > 0)
+      : null;
+    
+    // Validar período obrigatório
+    if (!data_inicio || !data_fim) {
+      return res.status(400).json({
+        success: false,
+        error: 'data_inicio e data_fim são obrigatórios para calcular tempo estimado total'
+      });
+    }
+    
+    // FILTRO DE STATUS DE CLIENTE
+    let clienteIdsFinais = cliente_id;
+    
+    if (cliente_status && cliente_status !== 'todos' && (cliente_status === 'ativo' || cliente_status === 'inativo')) {
+      try {
+        let clientesQuery = supabase
+          .schema('up_gestaointeligente')
+          .from('cp_cliente')
+          .select('id');
+        
+        if (cliente_status === 'ativo') {
+          clientesQuery = clientesQuery.eq('status', 'ativo');
+        } else if (cliente_status === 'inativo') {
+          clientesQuery = clientesQuery.eq('status', 'inativo');
+        }
+        
+        const { data: clientesFiltrados, error: clientesError } = await clientesQuery;
+        
+        if (!clientesError && clientesFiltrados && clientesFiltrados.length > 0) {
+          const clienteIdsFiltrados = clientesFiltrados.map(c => String(c.id).trim()).filter(Boolean);
+          
+          if (cliente_id && cliente_id.length > 0) {
+            const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
+            clienteIdsFinais = clienteIdsLimpos.filter(id => clienteIdsFiltrados.includes(id));
+          } else {
+            clienteIdsFinais = clienteIdsFiltrados;
+          }
+          
+          if (clienteIdsFinais.length === 0) {
+            return res.json({
+              success: true,
+              data: {}
+            });
+          }
+        } else if (!clientesFiltrados || clientesFiltrados.length === 0) {
+          return res.json({
+            success: true,
+            data: {}
+          });
+        }
+      } catch (error) {
+        console.error('❌ Erro ao processar filtro de status de cliente:', error);
+      }
+    }
+    
+    // Buscar TODAS as regras (sem paginação, usando paginação automática)
+    const criarQueryBuilder = () => {
+      let queryBuilder = supabase
+        .schema('up_gestaointeligente')
+        .from('tempo_estimado_regra')
+        .select('*');
+      
+      // Aplicar filtros
+      if (clienteIdsFinais && clienteIdsFinais.length > 0) {
+        const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
+        if (clienteIdsLimpos.length === 1) {
+          queryBuilder = queryBuilder.eq('cliente_id', clienteIdsLimpos[0]);
+        } else if (clienteIdsLimpos.length > 1) {
+          queryBuilder = queryBuilder.in('cliente_id', clienteIdsLimpos);
+        }
+      }
+      
+      if (produto_id && produto_id.length > 0) {
+        const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
+        if (produtoIdsLimpos.length === 1) {
+          queryBuilder = queryBuilder.eq('produto_id', produtoIdsLimpos[0]);
+        } else if (produtoIdsLimpos.length > 1) {
+          queryBuilder = queryBuilder.in('produto_id', produtoIdsLimpos);
+        }
+      }
+      
+      if (tarefa_id && tarefa_id.length > 0) {
+        const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
+        if (tarefaIdsLimpos.length === 1) {
+          queryBuilder = queryBuilder.eq('tarefa_id', tarefaIdsLimpos[0]);
+        } else if (tarefaIdsLimpos.length > 1) {
+          queryBuilder = queryBuilder.in('tarefa_id', tarefaIdsLimpos);
+        }
+      }
+      
+      if (responsavel_id && responsavel_id.length > 0) {
+        if (responsavel_id.length === 1) {
+          queryBuilder = queryBuilder.eq('responsavel_id', responsavel_id[0]);
+        } else if (responsavel_id.length > 1) {
+          queryBuilder = queryBuilder.in('responsavel_id', responsavel_id);
+        }
+      }
+      
+      // Aplicar filtro de período
+      const periodoInicioFiltro = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+      const periodoFimFiltro = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+      queryBuilder = queryBuilder.lte('data_inicio', periodoFimFiltro).gte('data_fim', periodoInicioFiltro);
+      
+      return queryBuilder.order('data_inicio', { ascending: false });
+    };
+    
+    // Buscar todas as regras usando paginação automática
+    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, {
+      limit: 1000,
+      logProgress: true
+    });
+    
+    console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Encontradas ${regrasEncontradas.length} regra(s)`);
+    
+    // Expandir regras em registros usando calcularRegistrosDinamicos
+    const periodoInicioFiltro = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+    const periodoFimFiltro = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+    
+    const cacheFeriados = {};
+    const todosRegistros = [];
+    
+    for (const regra of regrasEncontradas) {
+      try {
+        const registrosExpandidos = await calcularRegistrosDinamicos(
+          regra,
+          periodoInicioFiltro,
+          periodoFimFiltro,
+          cacheFeriados
+        );
+        todosRegistros.push(...registrosExpandidos);
+      } catch (error) {
+        console.error(`❌ Erro ao expandir regra ${regra.id}:`, error);
+      }
+    }
+    
+    console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Expandidas ${regrasEncontradas.length} regra(s) em ${todosRegistros.length} registro(s)`);
+    
+    // Calcular tempo estimado total por responsável (mesma lógica do frontend)
+    const temposPorResponsavel = {};
+    
+    // Agrupar registros por responsável
+    const registrosPorResponsavel = {};
+    todosRegistros.forEach(registro => {
+      if (!registro.responsavel_id) return;
+      const responsavelId = String(registro.responsavel_id);
+      if (!registrosPorResponsavel[responsavelId]) {
+        registrosPorResponsavel[responsavelId] = [];
+      }
+      registrosPorResponsavel[responsavelId].push(registro);
+    });
+    
+    console.log(`🔍 [TEMPO-ESTIMADO-TOTAL] Encontrados ${Object.keys(registrosPorResponsavel).length} responsáveis únicos`);
+    
+    // Para cada responsável, calcular tempo estimado total
+    Object.keys(registrosPorResponsavel).forEach(responsavelId => {
+      const registrosDoResponsavel = registrosPorResponsavel[responsavelId];
+      
+      // Map de data -> maior tempo_estimado_dia (evitar duplicação)
+      const tempoPorData = new Map();
+      
+      registrosDoResponsavel.forEach(registro => {
+        // Extrair data do registro
+        const dataStr = registro.data ? registro.data.split('T')[0] : null;
+        if (!dataStr) return;
+        
+        // Verificar se a data está no período (já deve estar, mas garantir)
+        if (periodoInicioFiltro && periodoFimFiltro) {
+          if (dataStr < periodoInicioFiltro || dataStr > periodoFimFiltro) return;
+        }
+        
+        // Obter tempo estimado do registro
+        let tempoEstimadoDia = Number(registro.tempo_estimado_dia) || 0;
+        
+        // Converter se necessário (horas decimais para milissegundos)
+        if (tempoEstimadoDia > 0 && tempoEstimadoDia < 1000) {
+          tempoEstimadoDia = Math.round(tempoEstimadoDia * 3600000);
+        }
+        
+        // Usar o maior valor para a mesma data
+        const tempoAtual = tempoPorData.get(dataStr) || 0;
+        tempoPorData.set(dataStr, Math.max(tempoAtual, tempoEstimadoDia));
+      });
+      
+      // Somar todos os tempos do Map
+      let tempoTotal = 0;
+      tempoPorData.forEach((tempoDia) => {
+        tempoTotal += tempoDia;
+      });
+      
+      temposPorResponsavel[responsavelId] = tempoTotal;
+      
+      // DEBUG: Log por responsável
+      console.log(`🔍 [TEMPO-ESTIMADO-TOTAL] Responsável ${responsavelId}: ${registrosDoResponsavel.length} registro(s), ${tempoPorData.size} data(s) única(s), total=${tempoTotal}ms (${(tempoTotal/3600000).toFixed(2)}h)`);
+    });
+    
+    return res.json({
+      success: true,
+      data: temposPorResponsavel
+    });
+  } catch (error) {
+    console.error('❌ Erro inesperado ao calcular tempo estimado total:', error);
+    console.error('❌ Stack trace:', error.stack);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarTempoEstimado,
   getTempoEstimado,
@@ -2515,6 +2760,7 @@ module.exports = {
   deletarTempoEstimadoPorAgrupador,
   getTempoEstimadoPorAgrupador,
   getTempoRealizadoPorTarefasEstimadas,
+  getTempoEstimadoTotal,
   calcularRegistrosDinamicos
 };
 
