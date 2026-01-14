@@ -995,8 +995,16 @@ const PainelUsuario = () => {
     try {
       if (!reg.tarefa_id || !reg.cliente_id) return 0;
 
+      // Extrair data do registro
+      let dataParam = '';
+      if (reg.data) {
+        const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
+        const dataStr = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
+        dataParam = `&data=${dataStr}`;
+      }
+
       const response = await fetch(
-        `/api/registro-tempo/realizado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}`,
+        `/api/registro-tempo/realizado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}${dataParam}`,
         {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }

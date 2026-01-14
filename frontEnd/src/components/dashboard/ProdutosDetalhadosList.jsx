@@ -90,18 +90,12 @@ const ProdutosDetalhadosList = ({
     <div className="tarefas-detalhadas-list">
       {produtos.map((produto, produtoIndex) => {
         const isProdutoExpanded = produtosExpandidos.has(produto.id);
-        const tempoRealizadoFormatado = formatarTempoEstimado 
-          ? formatarTempoEstimado(produto.tempoRealizado || 0, true) 
+        // Tempo realizado sempre 0 (lógica removida)
+        const tempoRealizadoFormatado = '0s';
+
+        const tempoEstimadoFormatado = formatarTempoEstimado
+          ? formatarTempoEstimado(produto.tempoEstimado || 0, true)
           : '0s';
-        
-        const tempoEstimadoFormatado = formatarTempoEstimado 
-          ? formatarTempoEstimado(produto.tempoEstimado || 0, true) 
-          : '0s';
-        
-        // Calcular custo realizado
-        const custoRealizado = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-          ? calcularCustoPorTempo(produto.tempoRealizado || 0, produto.responsavelId)
-          : null;
         
         // Calcular custo estimado
         const custoEstimado = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
@@ -146,13 +140,8 @@ const ProdutosDetalhadosList = ({
                     </div>
                     <div className="tarefa-detalhada-tempo-card-content">
                       <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                        {tempoRealizadoFormatado}
+                        0s
                       </div>
-                      {custoRealizado !== null && formatarValorMonetario && (
-                        <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                          {formatarValorMonetario(custoRealizado)}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -178,18 +167,12 @@ const ProdutosDetalhadosList = ({
                   {produto.clientes.map((cliente, clienteIndex) => {
                     const clienteKey = `${produto.id}-${cliente.id}`;
                     const isClienteExpanded = clientesExpandidos.has(clienteKey);
-                    const tempoRealizadoClienteFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(cliente.tempoRealizado || 0, true) 
+                    // Tempo realizado sempre 0 (lógica removida)
+                    const tempoRealizadoClienteFormatado = '0s';
+
+                    const tempoEstimadoClienteFormatado = formatarTempoEstimado
+                      ? formatarTempoEstimado(cliente.tempoEstimado || 0, true)
                       : '0s';
-                    
-                    const tempoEstimadoClienteFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(cliente.tempoEstimado || 0, true) 
-                      : '0s';
-                    
-                    // Calcular custo realizado do cliente
-                    const custoRealizadoCliente = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                      ? calcularCustoPorTempo(cliente.tempoRealizado || 0, produto.responsavelId)
-                      : null;
                     
                     // Calcular custo estimado do cliente
                     const custoEstimadoCliente = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
@@ -229,13 +212,8 @@ const ProdutosDetalhadosList = ({
                                 <div className="tarefa-detalhada-tempo-card-content">
                                   <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                   <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                    {tempoRealizadoClienteFormatado}
+                                    0s
                                   </div>
-                                  {custoRealizadoCliente !== null && formatarValorMonetario && (
-                                    <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                      {formatarValorMonetario(custoRealizadoCliente)}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </div>
@@ -312,13 +290,8 @@ const ProdutosDetalhadosList = ({
                                             <div className="tarefa-detalhada-tempo-card-content">
                                               <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                               <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                {tempoRealizadoTarefaFormatado}
+                                                0s
                                               </div>
-                                              {custoRealizadoTarefa !== null && formatarValorMonetario && (
-                                                <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                  {formatarValorMonetario(custoRealizadoTarefa)}
-                                                </div>
-                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -399,17 +372,8 @@ const ProdutosDetalhadosList = ({
                                             }
                                             
                                             const grupoData = registrosPorData.get(dataNormalizada);
-                                            let tempoRealizadoReg = Number(registro.tempo_realizado) || 0;
-                                            // Converter horas decimais para milissegundos se necessário
-                                            if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1) {
-                                              tempoRealizadoReg = Math.round(tempoRealizadoReg * 3600000);
-                                            }
-                                            // Se resultado < 1 segundo, arredondar para 1 segundo
-                                            if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1000) {
-                                              tempoRealizadoReg = 1000;
-                                            }
+                                            // Tempo realizado sempre 0 (lógica removida)
                                             grupoData.registros.push(registro);
-                                            grupoData.tempoRealizadoTotal += tempoRealizadoReg;
                                           });
 
                                           // Buscar tempo estimado por data nos registros da tarefa
@@ -442,7 +406,8 @@ const ProdutosDetalhadosList = ({
                                               {datasOrdenadas.map((dataNormalizada) => {
                                                 const grupoData = registrosPorData.get(dataNormalizada);
                                                 const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                                const tempoRealizadoDia = grupoData.tempoRealizadoTotal;
+                                                // Tempo realizado sempre 0 (lógica removida)
+                                                const tempoRealizadoDia = 0;
                                                 
                                                 const tempoEstimadoFormatado = formatarTempoEstimado 
                                                   ? formatarTempoEstimado(tempoEstimadoDia, true) 
@@ -489,21 +454,14 @@ const ProdutosDetalhadosList = ({
                                                         )}
                                                         
                                                         {/* Card Realizado do Dia */}
-                                                        {tempoRealizadoDia > 0 && (
-                                                          <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
-                                                            <div className="tarefa-detalhada-tempo-card-content">
-                                                              <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
-                                                              <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                                {tempoRealizadoFormatado}
-                                                              </div>
-                                                              {custoRealizadoDia !== null && formatarValorMonetario && (
-                                                                <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                                  {formatarValorMonetario(custoRealizadoDia)}
-                                                                </div>
-                                                              )}
+                                                        <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
+                                                          <div className="tarefa-detalhada-tempo-card-content">
+                                                            <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
+                                                            <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
+                                                              0s
                                                             </div>
                                                           </div>
-                                                        )}
+                                                        </div>
                                                       </div>
                                                     </div>
                                                     
@@ -723,13 +681,8 @@ const ProdutosDetalhadosList = ({
                                 <div className="tarefa-detalhada-tempo-card-content">
                                   <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                   <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                    {tempoRealizadoTarefaFormatado}
+                                    0s
                                   </div>
-                                  {custoRealizadoTarefa !== null && formatarValorMonetario && (
-                                    <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                      {formatarValorMonetario(custoRealizadoTarefa)}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </div>
@@ -788,9 +741,8 @@ const ProdutosDetalhadosList = ({
                               }
                               
                               const grupoData = registrosPorData.get(dataNormalizada);
-                              const tempoRealizadoReg = registro.tempo_realizado || 0;
+                              // Tempo realizado sempre 0 (lógica removida)
                               grupoData.registros.push(registro);
-                              grupoData.tempoRealizadoTotal += tempoRealizadoReg;
                             }
                           });
                           
@@ -824,7 +776,8 @@ const ProdutosDetalhadosList = ({
                               {datasOrdenadas.map((dataNormalizada) => {
                                 const grupoData = registrosPorData.get(dataNormalizada);
                                 const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                const tempoRealizadoDia = grupoData.tempoRealizadoTotal;
+                                // Tempo realizado sempre 0 (lógica removida)
+                                const tempoRealizadoDia = 0;
                                 
                                 const tempoEstimadoFormatado = formatarTempoEstimado 
                                   ? formatarTempoEstimado(tempoEstimadoDia, true) 
@@ -871,21 +824,14 @@ const ProdutosDetalhadosList = ({
                                         )}
                                         
                                         {/* Card Realizado do Dia */}
-                                        {tempoRealizadoDia > 0 && (
-                                          <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
-                                            <div className="tarefa-detalhada-tempo-card-content">
-                                              <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
-                                              <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                {tempoRealizadoFormatado}
-                                              </div>
-                                              {custoRealizadoDia !== null && formatarValorMonetario && (
-                                                <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                  {formatarValorMonetario(custoRealizadoDia)}
-                                                </div>
-                                              )}
+                                        <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
+                                          <div className="tarefa-detalhada-tempo-card-content">
+                                            <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
+                                            <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
+                                              0s
                                             </div>
                                           </div>
-                                        )}
+                                        </div>
                                       </div>
                                     </div>
                                     

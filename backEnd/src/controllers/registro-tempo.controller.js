@@ -412,7 +412,7 @@ async function getRegistroAtivo(req, res) {
 // GET - Buscar tempo realizado total de uma tarefa específica
 async function getTempoRealizado(req, res) {
   try {
-    const { tarefa_id, cliente_id, usuario_id } = req.query;
+    const { tarefa_id, cliente_id, usuario_id, data } = req.query;
 
     if (!tarefa_id) {
       return res.status(400).json({
@@ -435,15 +435,31 @@ async function getTempoRealizado(req, res) {
       });
     }
 
-    // Buscar todos os registros finalizados para esta tarefa específica
-    const { data: registros, error } = await supabase
+    // Construir query para buscar registros de tempo
+    let query = supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
-      .select('tempo_realizado')
+      .select('tempo_realizado, produto_id, tipo_tarefa_id') // Incluir produto_id e tipo_tarefa_id
       .eq('usuario_id', parseInt(usuario_id, 10))
       .eq('tarefa_id', String(tarefa_id).trim())
-      .eq('cliente_id', String(cliente_id).trim())
-      .not('tempo_realizado', 'is', null);
+      .eq('cliente_id', String(cliente_id).trim());
+
+    // Adicionar filtro por data se fornecido
+    if (data) {
+      // Normalizar data para formato YYYY-MM-DD
+      const dataStr = data.includes('T') ? data.split('T')[0] : data;
+      const dataInicio = new Date(dataStr + 'T00:00:00');
+      const dataFim = new Date(dataStr + 'T23:59:59.999');
+      
+      // Filtrar registros onde data_inicio está na data especificada
+      query = query
+        .gte('data_inicio', dataInicio.toISOString())
+        .lte('data_inicio', dataFim.toISOString());
+    }
+
+    query = query.not('tempo_realizado', 'is', null);
+
+    const { data: registros, error } = await query;
 
     if (error) {
       console.error('Erro ao buscar tempo realizado:', error);
@@ -459,12 +475,18 @@ async function getTempoRealizado(req, res) {
       return sum + (Number(reg.tempo_realizado) || 0);
     }, 0);
 
+    // Coletar IDs únicos de produto e tipo_tarefa dos registros encontrados
+    const produtoIds = [...new Set((registros || []).map(r => r.produto_id).filter(Boolean))];
+    const tipoTarefaIds = [...new Set((registros || []).map(r => r.tipo_tarefa_id).filter(Boolean))];
+
     return res.json({
       success: true,
       data: {
         tempo_realizado_ms: tempoTotalMs,
         tempo_realizado_horas: tempoTotalMs / (1000 * 60 * 60),
-        registros_count: (registros || []).length
+        registros_count: (registros || []).length,
+        produto_ids: produtoIds, // IDs de produtos relacionados
+        tipo_tarefa_ids: tipoTarefaIds // IDs de tipos de tarefa relacionados
       }
     });
   } catch (error) {
