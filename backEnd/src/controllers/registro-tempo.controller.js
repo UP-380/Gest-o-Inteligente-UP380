@@ -548,20 +548,42 @@ async function getRegistrosAtivos(req, res) {
 // Aceita parâmetros (cliente_id, tarefa_id, responsavel_id, data) para buscar registros
 async function getRegistrosPorTempoEstimado(req, res) {
   try {
-    const { cliente_id, tarefa_id, responsavel_id, data } = req.query;
-
-    if (!(cliente_id && tarefa_id && responsavel_id && data)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Forneça cliente_id, tarefa_id, responsavel_id e data'
-      });
-    }
+    const { cliente_id, tarefa_id, responsavel_id, data, usuario_id } = req.query;
 
     let registros = [];
 
-    // Buscar usando os critérios (cliente_id, tarefa_id, responsavel_id, data)
-    // Aceitamos busca parcial (ex: só tarefa + data) para ser mais robusto
-    if (data && (tarefa_id || cliente_id || responsavel_id)) {
+    // NOVA LÓGICA: Buscar usando os mesmos critérios do getTempoRealizado
+    // (tarefa_id + cliente_id + usuario_id + data)
+    if (tarefa_id && cliente_id && usuario_id) {
+      let query = supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo')
+        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
+        .eq('usuario_id', parseInt(usuario_id, 10))
+        .eq('tarefa_id', String(tarefa_id).trim())
+        .eq('cliente_id', String(cliente_id).trim());
+
+      // Filtrar por data se fornecido
+      if (data) {
+        const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
+        const dataInicio = `${dataFormatada}T00:00:00`;
+        const dataFim = `${dataFormatada}T23:59:59.999`;
+        query = query.gte('data_inicio', dataInicio).lte('data_inicio', dataFim);
+      }
+
+      // Incluir apenas registros finalizados (com tempo_realizado)
+      query = query.not('tempo_realizado', 'is', null);
+      query = query.order('data_inicio', { ascending: false });
+
+      const { data: registrosPorCriterios, error: errorPorCriterios } = await query;
+
+      if (!errorPorCriterios && registrosPorCriterios) {
+        registros = registrosPorCriterios;
+      }
+    }
+    // LÓGICA ORIGINAL: Buscar usando critérios (cliente_id, tarefa_id, responsavel_id, data)
+    // Mantida para compatibilidade com outras partes do sistema
+    else if (data && (tarefa_id || cliente_id || responsavel_id)) {
 
       const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
       const dataInicio = `${dataFormatada}T00:00:00`;
@@ -597,16 +619,6 @@ async function getRegistrosPorTempoEstimado(req, res) {
       if (!errorPorCritérios && registrosPorCritérios) {
         registros = registrosPorCritérios;
       }
-    }
-
-    const error = null; // Se chegou aqui, não há erro
-
-    if (error) {
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar registros de tempo',
-        details: error.message
-      });
     }
 
     return res.json({

@@ -819,8 +819,7 @@ const PainelUsuario = () => {
 
   // Função para buscar registros de tempo individuais de uma tarefa
   const buscarRegistrosTimetrack = useCallback(async (reg) => {
-    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
-    if (!tempoEstimadoId) return [];
+    if (!usuario?.id || !reg.tarefa_id || !reg.cliente_id) return [];
     
     const chaveTimetrack = criarChaveTempo(reg);
     if (!chaveTimetrack) return [];
@@ -831,10 +830,22 @@ const PainelUsuario = () => {
     }
     
     try {
-      const response = await fetch(`/api/registro-tempo/por-tempo-estimado?tempo_estimado_id=${tempoEstimadoId}`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' }
-      });
+      // Extrair data do registro
+      let dataParam = '';
+      if (reg.data) {
+        const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
+        const dataStr = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
+        dataParam = `&data=${dataStr}`;
+      }
+
+      // Usar os mesmos critérios do buscarTempoRealizado
+      const response = await fetch(
+        `/api/registro-tempo/por-tempo-estimado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}${dataParam}`,
+        {
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        }
+      );
       
       if (response.ok) {
         const result = await response.json();
@@ -860,7 +871,7 @@ const PainelUsuario = () => {
     } catch (error) {
       return [];
     }
-  }, [criarChaveTempo]);
+  }, [criarChaveTempo, usuario]);
 
   // Função para renderizar lista de timetracks individuais
   const renderizarTimetracksIndividuais = useCallback((reg) => {
