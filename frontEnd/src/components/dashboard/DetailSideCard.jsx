@@ -58,7 +58,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data && Array.isArray(result.data)) {
@@ -133,26 +133,39 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         }
       });
 
-      // Buscar registros individuais para cada tempo_estimado_id
-      const promises = tempoEstimadoIds.map(async (tempoEstimadoId) => {
+      // Buscar registros individuais para cada registro estimado (usando ID ou critérios)
+      const promises = tarefa.registros.map(async (reg) => {
         try {
-          const response = await fetch(`${API_BASE_URL}/registro-tempo/por-tempo-estimado?tempo_estimado_id=${tempoEstimadoId}`, {
+          const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+
+          const params = new URLSearchParams();
+          if (tempoEstimadoId) params.append('tempo_estimado_id', tempoEstimadoId);
+
+          // Adicionar critérios extras se disponível (importante para registros virtuais)
+          if (reg.cliente_id) params.append('cliente_id', reg.cliente_id);
+          if (reg.tarefa_id) params.append('tarefa_id', reg.tarefa_id);
+          if (reg.responsavel_id) params.append('responsavel_id', reg.responsavel_id);
+          if (reg.data) {
+            const dataStr = typeof reg.data === 'string' ? reg.data.split('T')[0] : (reg.data instanceof Date ? reg.data.toISOString().split('T')[0] : null);
+            if (dataStr) params.append('data', dataStr);
+          }
+
+          const response = await fetch(`${API_BASE_URL}/registro-tempo/por-tempo-estimado?${params.toString()}`, {
             credentials: 'include',
             headers: { 'Accept': 'application/json' }
           });
-          
+
           if (response.ok) {
             const result = await response.json();
             if (result.success && Array.isArray(result.data)) {
-              // Obter responsavelId para este tempo_estimado_id
-              const responsavelId = responsavelIdMap.get(String(tempoEstimadoId)) || tarefa.responsavelId || null;
-              
+              // Obter responsavelId
+              const responsavelId = reg.responsavel_id || tarefa.responsavelId || null;
+
               return result.data.map(r => ({
                 ...r,
                 tempo_estimado_id: tempoEstimadoId,
-                responsavelId: responsavelId, // Incluir responsavelId para calcular custo
-                // Calcular tempo realizado se não estiver presente
-                tempo_realizado: r.tempo_realizado || (r.data_inicio && r.data_fim 
+                responsavelId: responsavelId,
+                tempo_realizado: r.tempo_realizado || (r.data_inicio && r.data_fim
                   ? (new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime())
                   : 0)
               }));
@@ -167,7 +180,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
       const resultados = await Promise.all(promises);
       const registros = resultados.flat();
-      
+
       // Ordenar por data_inicio (mais recente primeiro)
       registros.sort((a, b) => {
         const dataA = a.data_inicio ? new Date(a.data_inicio).getTime() : 0;
@@ -252,21 +265,21 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
   // Se for tarefas, clientes, produtos ou responsáveis, os dados já vêm agrupados com tempo realizado total e registros
   // Para outros tipos, agrupar por nome (para mostrar apenas uma vez cada item)
   const itensLista = (tipo === 'tarefas' || tipo === 'clientes' || tipo === 'produtos' || tipo === 'responsaveis')
-    ? dados.registros 
+    ? dados.registros
     : (() => {
-        const itensUnicos = {};
-        dados.registros.forEach(reg => {
-          const chave = reg.nome || `${reg.tipo}_${reg.id || reg.tarefa_id || reg.produto_id || reg.cliente_id || reg.responsavel_id}`;
-          if (!itensUnicos[chave]) {
-            itensUnicos[chave] = {
-              nome: reg.nome || chave,
-              tipo: reg.tipo,
-              id: reg.id || reg.tarefa_id || reg.produto_id || reg.cliente_id || reg.responsavel_id
-            };
-          }
-        });
-        return Object.values(itensUnicos);
-      })();
+      const itensUnicos = {};
+      dados.registros.forEach(reg => {
+        const chave = reg.nome || `${reg.tipo}_${reg.id || reg.tarefa_id || reg.produto_id || reg.cliente_id || reg.responsavel_id}`;
+        if (!itensUnicos[chave]) {
+          itensUnicos[chave] = {
+            nome: reg.nome || chave,
+            tipo: reg.tipo,
+            id: reg.id || reg.tarefa_id || reg.produto_id || reg.cliente_id || reg.responsavel_id
+          };
+        }
+      });
+      return Object.values(itensUnicos);
+    })();
 
   const toggleTarefa = (tarefaId) => {
     setTarefasExpandidas(prev => {
