@@ -138,6 +138,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         try {
           const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
 
+
           const params = new URLSearchParams();
           if (tempoEstimadoId) params.append('tempo_estimado_id', tempoEstimadoId);
 

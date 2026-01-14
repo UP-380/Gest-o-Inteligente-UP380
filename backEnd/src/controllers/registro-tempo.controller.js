@@ -9,17 +9,17 @@ const { v4: uuidv4 } = require('uuid');
 async function buscarTipoTarefaIdPorTarefa(tarefaId) {
   try {
     if (!tarefaId) return null;
-    
+
     const tarefaIdStr = String(tarefaId).trim();
     const tarefaIdNum = parseInt(tarefaIdStr, 10);
-    
+
     if (isNaN(tarefaIdNum)) {
       console.warn('⚠️ tarefa_id não é um número válido:', tarefaIdStr);
       return null;
     }
-    
+
     console.log('🔍 Buscando tipo_tarefa_id para tarefa_id:', tarefaIdNum, '(tipo:', typeof tarefaIdNum + ')');
-    
+
     // Buscar na tabela vinculados onde há vínculo entre tarefa e tipo_tarefa
     // (sem produto, cliente ou subtarefa)
     const { data: vinculados, error: vinculadoError } = await supabase
@@ -32,21 +32,21 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
       .is('cliente_id', null)
       .is('subtarefa_id', null)
       .limit(10);
-    
+
     if (vinculadoError) {
       console.error('❌ Erro ao buscar tipo_tarefa_id do vinculado:', vinculadoError);
       console.error('❌ Detalhes do erro:', JSON.stringify(vinculadoError, null, 2));
       return null;
     }
-    
+
     console.log(`📋 Vinculados encontrados: ${vinculados?.length || 0}`);
     if (vinculados && vinculados.length > 0) {
       console.log('📋 Dados dos vinculados:', JSON.stringify(vinculados, null, 2));
       // Pegar o primeiro vinculado encontrado
       const vinculado = vinculados[0];
       if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
-        const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number' 
-          ? vinculado.tarefa_tipo_id 
+        const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number'
+          ? vinculado.tarefa_tipo_id
           : parseInt(vinculado.tarefa_tipo_id, 10);
         if (!isNaN(tipoTarefaId)) {
           console.log('✅ Tipo_tarefa_id encontrado:', tipoTarefaId);
@@ -56,7 +56,7 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
         }
       }
     }
-    
+
     console.warn('⚠️ Tipo_tarefa_id não encontrado para tarefa_id:', tarefaIdNum);
     return null;
   } catch (error) {
@@ -68,20 +68,13 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
 // POST - Iniciar registro de tempo (criar com data_inicio)
 async function iniciarRegistroTempo(req, res) {
   try {
-    const { tarefa_id, tempo_estimado_id, cliente_id, usuario_id } = req.body;
+    const { tarefa_id, cliente_id, usuario_id } = req.body;
 
     // Validações obrigatórias
     if (!tarefa_id) {
       return res.status(400).json({
         success: false,
         error: 'tarefa_id é obrigatório'
-      });
-    }
-
-    if (!tempo_estimado_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'tempo_estimado_id é obrigatório'
       });
     }
 
@@ -127,56 +120,29 @@ async function iniciarRegistroTempo(req, res) {
       });
     }
 
-    // Buscar produto_id - tentar primeiro do tempo_estimado, depois da tarefa
+    // Buscar produto_id da tarefa
     let produtoId = null;
     try {
-      console.log('🔍 Buscando produto_id para tempo_estimado_id:', tempo_estimado_id, 'e tarefa_id:', tarefa_id);
-      
-      // Primeiro tentar buscar do tempo_estimado
-      const { data: tempoEstimado, error: tempoEstimadoError } = await supabase
+      console.log('🔍 Buscando produto_id da tarefa:', tarefa_id);
+      const { data: tarefa, error: tarefaError } = await supabase
         .schema('up_gestaointeligente')
-        .from('tempo_estimado')
-        .select('produto_id, id, tarefa_id, cliente_id')
-        .eq('id', String(tempo_estimado_id).trim())
+        .from('tarefa')
+        .select('produto_id, id')
+        .eq('id', String(tarefa_id).trim())
         .maybeSingle();
 
-      if (tempoEstimadoError) {
-        console.error('❌ Erro ao buscar produto_id do tempo_estimado:', tempoEstimadoError);
-      } else if (tempoEstimado) {
-        console.log('📋 Dados do tempo_estimado encontrado:', JSON.stringify(tempoEstimado, null, 2));
-        if (tempoEstimado.produto_id) {
-          produtoId = String(tempoEstimado.produto_id).trim();
-          console.log('✅ Produto_id encontrado no tempo_estimado:', produtoId);
+      if (tarefaError) {
+        console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
+      } else if (tarefa) {
+        console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
+        if (tarefa.produto_id) {
+          produtoId = String(tarefa.produto_id).trim();
+          console.log('✅ Produto_id encontrado na tarefa:', produtoId);
         } else {
-          console.warn('⚠️ Tempo_estimado não possui produto_id. Tentando buscar da tarefa...');
+          console.warn('⚠️ Tarefa não possui produto_id');
         }
       } else {
-        console.warn('⚠️ Tempo_estimado não encontrado para id:', tempo_estimado_id);
-      }
-
-      // Se não encontrou no tempo_estimado, tentar buscar da tarefa
-      if (!produtoId && tarefa_id) {
-        console.log('🔍 Tentando buscar produto_id da tarefa:', tarefa_id);
-        const { data: tarefa, error: tarefaError } = await supabase
-          .schema('up_gestaointeligente')
-          .from('tarefa')
-          .select('produto_id, id')
-          .eq('id', String(tarefa_id).trim())
-          .maybeSingle();
-
-        if (tarefaError) {
-          console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
-        } else if (tarefa) {
-          console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
-          if (tarefa.produto_id) {
-            produtoId = String(tarefa.produto_id).trim();
-            console.log('✅ Produto_id encontrado na tarefa:', produtoId);
-          } else {
-            console.warn('⚠️ Tarefa não possui produto_id');
-          }
-        } else {
-          console.warn('⚠️ Tarefa não encontrada para id:', tarefa_id);
-        }
+        console.warn('⚠️ Tarefa não encontrada para id:', tarefa_id);
       }
     } catch (error) {
       console.error('❌ Erro ao buscar produto_id:', error);
@@ -199,7 +165,6 @@ async function iniciarRegistroTempo(req, res) {
     const dadosInsert = {
       id: registroId,
       tarefa_id: String(tarefa_id).trim(),
-      tempo_estimado_id: String(tempo_estimado_id).trim(),
       cliente_id: String(cliente_id).trim(),
       usuario_id: parseInt(usuario_id, 10),
       data_inicio: dataInicio,
@@ -413,7 +378,7 @@ async function getRegistroAtivo(req, res) {
       const dataStr = typeof data === 'string' ? data.split('T')[0] : new Date(data).toISOString().split('T')[0];
       const inicioDia = `${dataStr}T00:00:00.000Z`;
       const fimDia = `${dataStr}T23:59:59.999Z`;
-      
+
       query = query
         .gte('data_inicio', inicioDia)
         .lte('data_inicio', fimDia);
@@ -447,19 +412,12 @@ async function getRegistroAtivo(req, res) {
 // GET - Buscar tempo realizado total de uma tarefa específica
 async function getTempoRealizado(req, res) {
   try {
-    const { tarefa_id, tempo_estimado_id, cliente_id, usuario_id } = req.query;
+    const { tarefa_id, cliente_id, usuario_id } = req.query;
 
     if (!tarefa_id) {
       return res.status(400).json({
         success: false,
         error: 'tarefa_id é obrigatório'
-      });
-    }
-
-    if (!tempo_estimado_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'tempo_estimado_id é obrigatório'
       });
     }
 
@@ -485,7 +443,6 @@ async function getTempoRealizado(req, res) {
       .eq('usuario_id', parseInt(usuario_id, 10))
       .eq('tarefa_id', String(tarefa_id).trim())
       .eq('cliente_id', String(cliente_id).trim())
-      .eq('tempo_estimado_id', String(tempo_estimado_id).trim())
       .not('tempo_realizado', 'is', null);
 
     if (error) {
@@ -565,61 +522,61 @@ async function getRegistrosAtivos(req, res) {
   }
 }
 
-// GET - Buscar registros de tempo individuais por tempo_estimado_id
-// NOVA LÓGICA: Aceita também parâmetros alternativos (cliente_id, tarefa_id, responsavel_id, data)
-// para buscar quando o tempo_estimado_id é virtual (não existe na tabela antiga)
+// GET - Buscar registros de tempo individuais por critérios
+// Aceita parâmetros (cliente_id, tarefa_id, responsavel_id, data) para buscar registros
 async function getRegistrosPorTempoEstimado(req, res) {
   try {
-    const { tempo_estimado_id, cliente_id, tarefa_id, responsavel_id, data } = req.query;
+    const { cliente_id, tarefa_id, responsavel_id, data } = req.query;
 
-    if (!tempo_estimado_id && !(cliente_id && tarefa_id && responsavel_id && data)) {
+    if (!(cliente_id && tarefa_id && responsavel_id && data)) {
       return res.status(400).json({
         success: false,
-        error: 'tempo_estimado_id é obrigatório, ou forneça cliente_id, tarefa_id, responsavel_id e data'
+        error: 'Forneça cliente_id, tarefa_id, responsavel_id e data'
       });
     }
 
     let registros = [];
-    
-    // Primeiro, tentar buscar por tempo_estimado_id (para compatibilidade com registros antigos)
-    if (tempo_estimado_id) {
-      const { data: registrosPorId, error: errorPorId } = await supabase
-        .schema('up_gestaointeligente')
-        .from('registro_tempo')
-        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
-        .eq('tempo_estimado_id', String(tempo_estimado_id).trim())
-        .not('cliente_id', 'is', null)
-        .order('data_inicio', { ascending: false });
-      
-      if (!errorPorId && registrosPorId && registrosPorId.length > 0) {
-        registros = registrosPorId;
-      }
-    }
-    
-    // Se não encontrou registros por tempo_estimado_id E temos os critérios alternativos,
-    // buscar usando os critérios da regra (para IDs virtuais da nova tabela)
-    if (registros.length === 0 && cliente_id && tarefa_id && responsavel_id && data) {
+
+    // Buscar usando os critérios (cliente_id, tarefa_id, responsavel_id, data)
+    // Aceitamos busca parcial (ex: só tarefa + data) para ser mais robusto
+    if (data && (tarefa_id || cliente_id || responsavel_id)) {
+
       const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
       const dataInicio = `${dataFormatada}T00:00:00`;
       const dataFim = `${dataFormatada}T23:59:59`;
-      
-      const { data: registrosPorCritérios, error: errorPorCritérios } = await supabase
+
+      let query = supabase
         .schema('up_gestaointeligente')
         .from('registro_tempo')
-        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
-        .eq('cliente_id', String(cliente_id).trim())
-        .eq('tarefa_id', parseInt(tarefa_id, 10))
-        .eq('usuario_id', parseInt(responsavel_id, 10)) // responsavel_id = usuario_id na tabela registro_tempo
-        .gte('data_inicio', dataInicio)
-        .lte('data_inicio', dataFim)
-        .not('cliente_id', 'is', null)
-        .order('data_inicio', { ascending: false });
-      
+        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id');
+
+      // Aplicar filtros dinamicamente
+      if (cliente_id) {
+        query = query.eq('cliente_id', String(cliente_id).trim());
+      } else {
+        query = query.not('cliente_id', 'is', null);
+      }
+
+      if (tarefa_id) {
+        query = query.eq('tarefa_id', String(tarefa_id).trim());
+      }
+
+      if (responsavel_id) {
+        query = query.eq('usuario_id', parseInt(responsavel_id, 10));
+      }
+
+      // Filtro de data é obrigatório para esse caso de uso
+      query = query.gte('data_inicio', dataInicio).lte('data_inicio', dataFim);
+
+      query = query.order('data_inicio', { ascending: false });
+
+      const { data: registrosPorCritérios, error: errorPorCritérios } = await query;
+
       if (!errorPorCritérios && registrosPorCritérios) {
         registros = registrosPorCritérios;
       }
     }
-    
+
     const error = null; // Se chegou aqui, não há erro
 
     if (error) {
@@ -668,7 +625,7 @@ async function getHistoricoRegistros(req, res) {
     const { data: registros, error } = await supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
-      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, tempo_estimado_id')
+      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
       .eq('usuario_id', usuarioIdInt)
       .not('data_fim', 'is', null) // Apenas registros finalizados
       .not('cliente_id', 'is', null) // Apenas registros com cliente_id
@@ -768,38 +725,12 @@ async function atualizarRegistroTempo(req, res) {
       dadosUpdate.tarefa_id = String(tarefa_id).trim();
     }
 
-    // Buscar produto_id - tentar primeiro do tempo_estimado, depois da tarefa
+    // Buscar produto_id da tarefa
     try {
-      const tempoEstimadoId = registroExistente.tempo_estimado_id;
       const tarefaIdParaBuscar = tarefa_id || registroExistente.tarefa_id;
       let produtoIdEncontrado = null;
 
-      if (tempoEstimadoId) {
-        console.log('🔍 [atualizarRegistroTempo] Buscando produto_id para tempo_estimado_id:', tempoEstimadoId);
-        const { data: tempoEstimado, error: tempoEstimadoError } = await supabase
-          .schema('up_gestaointeligente')
-          .from('tempo_estimado')
-          .select('produto_id, id, tarefa_id, cliente_id')
-          .eq('id', String(tempoEstimadoId).trim())
-          .maybeSingle();
-
-        if (tempoEstimadoError) {
-          console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id do tempo_estimado:', tempoEstimadoError);
-        } else if (tempoEstimado) {
-          console.log('📋 [atualizarRegistroTempo] Dados do tempo_estimado encontrado:', JSON.stringify(tempoEstimado, null, 2));
-          if (tempoEstimado.produto_id) {
-            produtoIdEncontrado = String(tempoEstimado.produto_id).trim();
-            console.log('✅ [atualizarRegistroTempo] Produto_id encontrado no tempo_estimado:', produtoIdEncontrado);
-          } else {
-            console.warn('⚠️ [atualizarRegistroTempo] Tempo_estimado não possui produto_id. Tentando buscar da tarefa...');
-          }
-        } else {
-          console.warn('⚠️ [atualizarRegistroTempo] Tempo_estimado não encontrado para id:', tempoEstimadoId);
-        }
-      }
-
-      // Se não encontrou no tempo_estimado, tentar buscar da tarefa
-      if (!produtoIdEncontrado && tarefaIdParaBuscar) {
+      if (tarefaIdParaBuscar) {
         console.log('🔍 [atualizarRegistroTempo] Tentando buscar produto_id da tarefa:', tarefaIdParaBuscar);
         const { data: tarefa, error: tarefaError } = await supabase
           .schema('up_gestaointeligente')
@@ -826,10 +757,10 @@ async function atualizarRegistroTempo(req, res) {
       // Atualizar produto_id se encontrado
       if (produtoIdEncontrado) {
         dadosUpdate.produto_id = produtoIdEncontrado;
-      } else if (tempoEstimadoId || tarefaIdParaBuscar) {
+      } else if (tarefaIdParaBuscar) {
         // Se tentou buscar mas não encontrou, definir como null explicitamente
         dadosUpdate.produto_id = null;
-        console.warn('⚠️ [atualizarRegistroTempo] Produto_id não encontrado em nenhuma fonte');
+        console.warn('⚠️ [atualizarRegistroTempo] Produto_id não encontrado');
       }
     } catch (error) {
       console.error('❌ [atualizarRegistroTempo] Erro ao buscar produto_id:', error);
@@ -924,10 +855,10 @@ async function atualizarRegistroTempo(req, res) {
       for (const registro of registrosUsuario) {
         const outroInicio = new Date(registro.data_inicio);
         const outroFim = new Date(registro.data_fim);
-        
+
         // Sobreposição: (novo_inicio < outro_fim) E (novo_fim > outro_inicio)
         const temSobreposicao = (novoInicio < outroFim) && (novoFim > outroInicio);
-        
+
         if (temSobreposicao) {
           const formatarData = (date) => {
             return date.toLocaleString('pt-BR', {
@@ -938,7 +869,7 @@ async function atualizarRegistroTempo(req, res) {
               minute: '2-digit'
             });
           };
-          
+
           return res.status(400).json({
             success: false,
             error: `Conflito com registro existente: ${formatarData(outroInicio)} - ${formatarData(outroFim)}`
@@ -955,7 +886,7 @@ async function atualizarRegistroTempo(req, res) {
     // ============================================
     // SALVAR HISTÓRICO DE EDIÇÃO
     // ============================================
-    
+
     // Buscar histórico anterior (se existir)
     const { data: historicoAnterior, error: errorHistorico } = await supabase
       .schema('up_gestaointeligente')
@@ -1054,12 +985,11 @@ async function atualizarRegistroTempo(req, res) {
 // GET - Listar registros de tempo com filtros (endpoint genérico consolidado)
 async function getRegistrosTempo(req, res) {
   try {
-    const { 
-      usuario_id, 
-      cliente_id, 
-      tarefa_id, 
-      tempo_estimado_id,
-      data_inicio, 
+    const {
+      usuario_id,
+      cliente_id,
+      tarefa_id,
+      data_inicio,
       data_fim,
       ativo, // true/false para filtrar apenas ativos ou finalizados
       page = 1,
@@ -1067,7 +997,7 @@ async function getRegistrosTempo(req, res) {
       // Compatibilidade com formato antigo do dashboard-clientes.js
       colaboradorId // alias para usuario_id
     } = req.query;
-    
+
     // Usar colaboradorId se fornecido e usuario_id não foi fornecido (compatibilidade)
     const usuarioIdFinal = usuario_id || colaboradorId;
 
@@ -1096,10 +1026,6 @@ async function getRegistrosTempo(req, res) {
       query = query.eq('tarefa_id', String(tarefa_id).trim());
     }
 
-    if (tempo_estimado_id) {
-      query = query.eq('tempo_estimado_id', String(tempo_estimado_id).trim());
-    }
-
     // Filtro de status (ativo/finalizado)
     if (ativo === 'true') {
       query = query.is('data_fim', null);
@@ -1111,7 +1037,7 @@ async function getRegistrosTempo(req, res) {
     // Suporta tanto data_inicio/data_fim quanto dataInicio/dataFim (compatibilidade)
     const periodoInicio = data_inicio || req.query.dataInicio;
     const periodoFim = data_fim || req.query.dataFim;
-    
+
     if (periodoInicio && periodoFim) {
       const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
       const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
@@ -1278,7 +1204,7 @@ async function deletarRegistroTempo(req, res) {
     // ============================================
     // SALVAR HISTÓRICO DE DELEÇÃO
     // ============================================
-    
+
     // Buscar histórico anterior (se existir)
     const { data: historicoAnterior, error: errorHistorico } = await supabase
       .schema('up_gestaointeligente')
@@ -1333,24 +1259,24 @@ async function deletarRegistroTempo(req, res) {
     if (errorSalvarHistorico) {
       console.error('[deletarRegistroTempo] Erro ao salvar histórico:', errorSalvarHistorico);
       console.error('[deletarRegistroTempo] Dados tentados:', JSON.stringify(dadosHistorico, null, 2));
-      
+
       // Se o erro for relacionado à coluna deletado não existir, tentar sem ela
       if (errorSalvarHistorico.message && (
-        errorSalvarHistorico.message.includes('deletado') || 
+        errorSalvarHistorico.message.includes('deletado') ||
         errorSalvarHistorico.message.includes('column') ||
         errorSalvarHistorico.hint && errorSalvarHistorico.hint.includes('deletado')
       )) {
         console.warn('[deletarRegistroTempo] Coluna deletado não encontrada, tentando sem ela...');
         const dadosHistoricoSemDeletado = { ...dadosHistorico };
         delete dadosHistoricoSemDeletado.deletado;
-        
+
         const { data: historicoSalvo2, error: errorSalvarHistorico2 } = await supabase
           .schema('up_gestaointeligente')
           .from('registro_tempo_edicoes')
           .insert([dadosHistoricoSemDeletado])
           .select()
           .single();
-        
+
         if (errorSalvarHistorico2) {
           console.error('[deletarRegistroTempo] Erro ao salvar histórico (sem deletado):', errorSalvarHistorico2);
           return res.status(500).json({
@@ -1360,7 +1286,7 @@ async function deletarRegistroTempo(req, res) {
             hint: errorSalvarHistorico2.hint || null
           });
         }
-        
+
         historicoSalvo = historicoSalvo2;
         console.log('✅ Histórico de deleção salvo (sem coluna deletado):', historicoSalvo.id);
       } else {

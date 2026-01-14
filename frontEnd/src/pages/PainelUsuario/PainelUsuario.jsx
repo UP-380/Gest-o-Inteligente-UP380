@@ -993,11 +993,10 @@ const PainelUsuario = () => {
     if (!usuario?.id) return 0;
 
     try {
-      const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
-      if (!tempoEstimadoId) return 0;
+      if (!reg.tarefa_id || !reg.cliente_id) return 0;
 
       const response = await fetch(
-        `/api/registro-tempo/realizado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}&tempo_estimado_id=${tempoEstimadoId}`,
+        `/api/registro-tempo/realizado?usuario_id=${usuario.id}&tarefa_id=${reg.tarefa_id}&cliente_id=${reg.cliente_id}`,
         {
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
@@ -1107,7 +1106,6 @@ const PainelUsuario = () => {
         },
         body: JSON.stringify({
           tarefa_id: String(reg.tarefa_id).trim(),
-          tempo_estimado_id: String(tempoEstimadoId).trim(),
           cliente_id: String(reg.cliente_id).trim(),
           usuario_id: parseInt(usuario.id, 10)
         })
@@ -1116,8 +1114,48 @@ const PainelUsuario = () => {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
+        // Se o erro for "já existe registro ativo", buscar esse registro e atualizar o botão
+        if (result.error && result.error.includes('Já existe um registro de tempo ativo')) {
+          // Buscar o registro ativo existente
+          try {
+            const params = new URLSearchParams({
+              usuario_id: usuario.id,
+              tarefa_id: reg.tarefa_id,
+              cliente_id: reg.cliente_id
+            });
+            
+            const responseAtivo = await fetch(
+              `/api/registro-tempo/ativo?${params}`,
+              {
+                credentials: 'include',
+                headers: { 'Accept': 'application/json' }
+              }
+            );
+
+            if (responseAtivo.ok) {
+              const resultAtivo = await responseAtivo.json();
+              if (resultAtivo.success && resultAtivo.data) {
+                // Atualizar estado com o registro ativo existente
+                const novoRegistrosAtivos = new Map(registrosAtivosRef.current);
+                novoRegistrosAtivos.set(tempoEstimadoIdStr, {
+                  registro_id: resultAtivo.data.id,
+                  data_inicio: resultAtivo.data.data_inicio
+                });
+                registrosAtivosRef.current = novoRegistrosAtivos;
+                setRegistrosAtivos(novoRegistrosAtivos);
+
+                // Atualizar botão para estado ativo (stop)
+                atualizarBotaoTempoEstimado(tempoEstimadoId, true);
+                return;
+              }
+            }
+          } catch (error) {
+            // Se não conseguir buscar, apenas mostrar o erro
+          }
+        }
+        
         alert(result.error || 'Erro ao iniciar registro de tempo');
-        // Reverter estado do botão
+        // Reverter estado do botão apenas se não encontrou registro ativo
         atualizarBotaoTempoEstimado(tempoEstimadoId, false);
         return;
       }
@@ -1412,8 +1450,8 @@ const PainelUsuario = () => {
           if (!tempoEstimadoId) return;
 
           try {
-            // Buscar registro ativo por tempo_estimado_id
-            // O backend precisa retornar qual tempo_estimado_id está ativo
+            // Buscar registro ativo por tarefa_id + cliente_id + usuario_id
+            // Como não temos mais tempo_estimado_id no backend, buscamos por esses critérios
             const params = new URLSearchParams({
               usuario_id: usuario.id,
               tarefa_id: reg.tarefa_id,
@@ -1431,15 +1469,12 @@ const PainelUsuario = () => {
             if (response.ok) {
               const result = await response.json();
               if (result.success && result.data) {
-                // Verificar se o registro ativo pertence a este tempo_estimado_id
-                // O backend deve retornar tempo_estimado_id no resultado
-                const tempoEstimadoIdAtivo = result.data.tempo_estimado_id;
-                if (String(tempoEstimadoIdAtivo).trim() === String(tempoEstimadoId).trim()) {
-                  novosRegistrosAtivos.set(String(tempoEstimadoId).trim(), {
-                    registro_id: result.data.id,
-                    data_inicio: result.data.data_inicio
-                  });
-                }
+                // Se encontrou um registro ativo para esta tarefa + cliente + usuário,
+                // associar ao tempo_estimado_id do frontend
+                novosRegistrosAtivos.set(String(tempoEstimadoId).trim(), {
+                  registro_id: result.data.id,
+                  data_inicio: result.data.data_inicio
+                });
               }
             }
           } catch (error) {
