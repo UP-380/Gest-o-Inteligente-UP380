@@ -705,18 +705,42 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         try {
           const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
 
+          // Extrair ID real da tarefa para garantir busca correta
+          const tarefaIdReal = tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id);
 
           const params = new URLSearchParams();
-          if (tempoEstimadoId) params.append('tempo_estimado_id', tempoEstimadoId);
 
-          // Adicionar critérios extras se disponível (importante para registros virtuais)
-          if (reg.cliente_id) params.append('cliente_id', reg.cliente_id);
-          if (reg.tarefa_id) params.append('tarefa_id', reg.tarefa_id);
-          if (reg.responsavel_id) params.append('responsavel_id', reg.responsavel_id);
+          // 1. Usuario ID (Responsável)
+          if (reg.responsavel_id) {
+            params.append('usuario_id', reg.responsavel_id);
+            // Também enviar responsavel_id explicitamente para que o backend possa converter para usuario_id real
+            params.append('responsavel_id', reg.responsavel_id);
+          }
+
+          // 2. Tarefa ID (Real/Limpo)
+          if (tarefaIdReal || reg.tarefa_id) {
+            params.append('tarefa_id', tarefaIdReal || reg.tarefa_id);
+          }
+
+          // 3. Cliente ID
+          if (reg.cliente_id) {
+            params.append('cliente_id', reg.cliente_id);
+          }
+
+          // 4. Data
           if (reg.data) {
             const dataStr = typeof reg.data === 'string' ? reg.data.split('T')[0] : (reg.data instanceof Date ? reg.data.toISOString().split('T')[0] : null);
-            if (dataStr) params.append('data', dataStr);
+            if (dataStr) {
+              params.append('data', dataStr);
+            }
           }
+
+          // Manter tempo_estimado_id apenas como fallback ou referência secundária
+          if (tempoEstimadoId) {
+            params.append('tempo_estimado_id', tempoEstimadoId);
+          }
+
+          console.log('[DEBUG_INDIVIDUAL] Buscando registros (igual PainelUsuario):', params.toString());
 
           const response = await fetch(`${API_BASE_URL}/registro-tempo/por-tempo-estimado?${params.toString()}`, {
             credentials: 'include',
@@ -1017,4 +1041,3 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 };
 
 export default DetailSideCard;
-

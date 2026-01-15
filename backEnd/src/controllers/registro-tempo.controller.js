@@ -602,16 +602,46 @@ async function getRegistrosPorTempoEstimado(req, res) {
   try {
     const { cliente_id, tarefa_id, responsavel_id, data, usuario_id } = req.query;
 
+    console.log('🚀 [getRegistrosPorTempoEstimado] Recebido:', {
+      query: req.query,
+      url: req.url
+    });
+
     let registros = [];
+    let usuarioIdParaBusca = usuario_id ? parseInt(usuario_id, 10) : null;
+
+    // Se temos responsavel_id (membro.id), precisamos obter o usuario_id real
+    // O frontend pode estar enviando responsavel_id no campo usuario_id, então
+    // sempre que houver responsavel_id, vamos validar/buscar o usuario_id correto.
+    if (responsavel_id) {
+      const responsavelIdNum = parseInt(String(responsavel_id).trim(), 10);
+
+      const { data: membro, error: errorMembro } = await supabase
+        .schema('up_gestaointeligente')
+        .from('membro')
+        .select('id, usuario_id')
+        .eq('id', responsavelIdNum)
+        .maybeSingle();
+
+      if (!errorMembro && membro && membro.usuario_id) {
+        usuarioIdParaBusca = membro.usuario_id;
+        console.log(`✅ [getRegistrosPorTempoEstimado] Convertido responsavel_id ${responsavelIdNum} -> usuario_id ${usuarioIdParaBusca}`);
+      } else {
+        console.warn(`⚠️ [getRegistrosPorTempoEstimado] Não foi possível converter responsavel_id ${responsavelIdNum} para usuario_id`, errorMembro || 'Membro não encontrado ou sem usuario_id');
+      }
+    }
+
 
     // NOVA LÓGICA: Buscar usando os mesmos critérios do getTempoRealizado
     // (tarefa_id + cliente_id + usuario_id + data)
-    if (tarefa_id && cliente_id && usuario_id) {
+    if (tarefa_id && cliente_id && usuarioIdParaBusca) {
+      console.log('[getRegistrosPorTempoEstimado] NOVA LÓGICA iniciada:', { tarefa_id, cliente_id, usuario_id: usuarioIdParaBusca, data });
+
       let query = supabase
         .schema('up_gestaointeligente')
         .from('registro_tempo')
-        .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
-        .eq('usuario_id', parseInt(usuario_id, 10))
+        .select('*') // Selecionar tudo para debug
+        .eq('usuario_id', usuarioIdParaBusca)
         .eq('tarefa_id', String(tarefa_id).trim())
         .eq('cliente_id', String(cliente_id).trim());
 
@@ -621,6 +651,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
         const dataInicio = `${dataFormatada}T00:00:00`;
         const dataFim = `${dataFormatada}T23:59:59.999`;
         query = query.gte('data_inicio', dataInicio).lte('data_inicio', dataFim);
+        console.log('[getRegistrosPorTempoEstimado] Filtro de data aplicado:', { dataInicio, dataFim });
       }
 
       // Incluir apenas registros finalizados (com tempo_realizado)
@@ -628,6 +659,15 @@ async function getRegistrosPorTempoEstimado(req, res) {
       query = query.order('data_inicio', { ascending: false });
 
       const { data: registrosPorCriterios, error: errorPorCriterios } = await query;
+
+      if (errorPorCriterios) {
+        console.error('[getRegistrosPorTempoEstimado] Erro na query:', errorPorCriterios);
+      } else {
+        console.log('[getRegistrosPorTempoEstimado] Registros encontrados:', registrosPorCriterios ? registrosPorCriterios.length : 0);
+        if (registrosPorCriterios && registrosPorCriterios.length > 0) {
+          // console.log('[getRegistrosPorTempoEstimado] Exemplo:', registrosPorCriterios[0]);
+        }
+      }
 
       if (!errorPorCriterios && registrosPorCriterios) {
         registros = registrosPorCriterios;
