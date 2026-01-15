@@ -255,9 +255,15 @@ const DelegarTarefas = () => {
         const tarefaId = String(reg.tarefa_id);
         const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-        if (!tarefasMap.has(tarefaId)) {
-          tarefasMap.set(tarefaId, {
-            id: tarefaId,
+        // Usar chave composta para diferenciar tarefas com mesmo ID mas contextos diferentes (cliente/produto)
+        const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+        const produtoIdKey = String(reg.produto_id || 'sem_produto');
+        const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+        if (!tarefasMap.has(compositeKey)) {
+          tarefasMap.set(compositeKey, {
+            id: compositeKey, // Usar chave composta como ID para evitar conflitos de estado no frontend
+            originalTarefaId: tarefaId, // Manter ID original se necessário
             nome: nomeTarefa,
             tipo: 'tarefa',
             tempoRealizado: 0,
@@ -268,7 +274,7 @@ const DelegarTarefas = () => {
           });
         }
 
-        const tarefa = tarefasMap.get(tarefaId);
+        const tarefa = tarefasMap.get(compositeKey);
 
         // Tempo realizado sempre 0 (lógica removida)
         tarefa.tempoRealizado += 0;
@@ -3425,7 +3431,13 @@ const DelegarTarefas = () => {
                                 }
 
                                 if (pertenceAEntidade) {
-                                  if (reg.tarefa_id) tarefasUnicas.add(String(reg.tarefa_id));
+                                  if (reg.tarefa_id) {
+                                    // Contar tarefas únicas considerando o contexto (cliente e produto)
+                                    // Isso garante que a mesma tarefa para clientes/produtos diferentes conte separatadamente
+                                    const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                    const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                    tarefasUnicas.add(`${reg.tarefa_id}_${clienteIdKey}_${produtoIdKey}`);
+                                  }
                                   if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
                                   if (reg.cliente_id) {
                                     // cliente_id pode ser múltiplo, adicionar cada um
@@ -3511,20 +3523,26 @@ const DelegarTarefas = () => {
                                 const tarefaId = String(reg.tarefa_id);
                                 const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                if (!tarefasMap.has(tarefaId)) {
-                                  tarefasMap.set(tarefaId, {
-                                    id: tarefaId,
+                                // Usar chave composta para diferenciar tarefas com mesmo ID mas contextos diferentes (cliente/produto)
+                                const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                if (!tarefasMap.has(compositeKey)) {
+                                  tarefasMap.set(compositeKey, {
+                                    id: compositeKey, // Usar chave composta como ID
+                                    originalId: tarefaId,
                                     nome: nomeTarefa,
                                     tipo: 'tarefa',
                                     tempoRealizado: 0,
                                     tempoEstimado: 0,
-                                    responsavelId: reg.responsavel_id || null, // Guardar responsavelId do primeiro registro
-                                    clienteId: reg.cliente_id || null, // Guardar clienteId do primeiro registro
-                                    registros: [] // Registros de tempo estimado relacionados
+                                    responsavelId: reg.responsavel_id || null,
+                                    clienteId: reg.cliente_id || null,
+                                    registros: []
                                   });
                                 }
 
-                                const tarefa = tarefasMap.get(tarefaId);
+                                const tarefa = tarefasMap.get(compositeKey);
 
                                 // Tempo realizado será buscado depois
                                 // tarefa.tempoRealizado será atualizado após buscar
@@ -3603,18 +3621,24 @@ const DelegarTarefas = () => {
                                     const tarefaId = String(reg.tarefa_id);
                                     const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                    if (!cliente.tarefas.has(tarefaId)) {
-                                      cliente.tarefas.set(tarefaId, {
-                                        id: tarefaId,
+                                    // Usar chave composta para diferenciar tarefas
+                                    const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                    const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                    const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                    if (!cliente.tarefas.has(compositeKey)) {
+                                      cliente.tarefas.set(compositeKey, {
+                                        id: compositeKey, // Usar chave composta como ID
+                                        originalId: tarefaId,
                                         nome: nomeTarefa,
                                         tempoRealizado: 0,
                                         tempoEstimado: 0,
-                                        responsavelId: reg.responsavel_id || entidadeId, // Guardar responsavelId para calcular custo
+                                        responsavelId: reg.responsavel_id || entidadeId,
                                         registros: []
                                       });
                                     }
 
-                                    const tarefa = cliente.tarefas.get(tarefaId);
+                                    const tarefa = cliente.tarefas.get(compositeKey);
                                     tarefa.tempoRealizado += 0;
                                     tarefa.tempoEstimado += tempoEstimadoReg;
                                     tarefa.registros.push({
@@ -3730,9 +3754,15 @@ const DelegarTarefas = () => {
                                     const tarefaId = String(reg.tarefa_id);
                                     const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                    if (!produto.tarefas.has(tarefaId)) {
-                                      produto.tarefas.set(tarefaId, {
-                                        id: tarefaId,
+                                    // Usar chave composta para diferenciar tarefas
+                                    const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                    const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                    const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                    if (!produto.tarefas.has(compositeKey)) {
+                                      produto.tarefas.set(compositeKey, {
+                                        id: compositeKey, // Usar chave composta como ID
+                                        originalId: tarefaId,
                                         nome: nomeTarefa,
                                         tempoRealizado: 0,
                                         tempoEstimado: 0,
@@ -3741,7 +3771,7 @@ const DelegarTarefas = () => {
                                       });
                                     }
 
-                                    const tarefa = produto.tarefas.get(tarefaId);
+                                    const tarefa = produto.tarefas.get(compositeKey);
                                     tarefa.tempoRealizado += 0;
                                     tarefa.tempoEstimado += tempoEstimadoReg;
                                     tarefa.registros.push({
@@ -3780,9 +3810,15 @@ const DelegarTarefas = () => {
                                         const tarefaId = String(reg.tarefa_id);
                                         const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                        if (!cliente.tarefas.has(tarefaId)) {
-                                          cliente.tarefas.set(tarefaId, {
-                                            id: tarefaId,
+                                        // Usar chave composta para diferenciar tarefas
+                                        const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                        const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                        const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                        if (!cliente.tarefas.has(compositeKey)) {
+                                          cliente.tarefas.set(compositeKey, {
+                                            id: compositeKey, // Usar chave composta como ID
+                                            originalId: tarefaId,
                                             nome: nomeTarefa,
                                             tempoRealizado: 0,
                                             tempoEstimado: 0,
@@ -3791,7 +3827,7 @@ const DelegarTarefas = () => {
                                           });
                                         }
 
-                                        const tarefa = cliente.tarefas.get(tarefaId);
+                                        const tarefa = cliente.tarefas.get(compositeKey);
                                         tarefa.tempoRealizado += 0;
                                         tarefa.tempoEstimado += tempoEstimadoReg;
                                         tarefa.registros.push({
@@ -3910,9 +3946,15 @@ const DelegarTarefas = () => {
                                       const tarefaId = String(reg.tarefa_id);
                                       const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                      if (!produto.tarefas.has(tarefaId)) {
-                                        produto.tarefas.set(tarefaId, {
-                                          id: tarefaId,
+                                      // Usar chave composta para diferenciar tarefas
+                                      const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                      const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                      const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                      if (!produto.tarefas.has(compositeKey)) {
+                                        produto.tarefas.set(compositeKey, {
+                                          id: compositeKey, // Usar chave composta como ID
+                                          originalId: tarefaId,
                                           nome: nomeTarefa,
                                           tempoRealizado: 0,
                                           tempoEstimado: 0,
@@ -3921,7 +3963,7 @@ const DelegarTarefas = () => {
                                         });
                                       }
 
-                                      const tarefa = produto.tarefas.get(tarefaId);
+                                      const tarefa = produto.tarefas.get(compositeKey);
                                       tarefa.tempoRealizado += 0;
                                       tarefa.tempoEstimado += tempoEstimadoReg;
                                       tarefa.registros.push({
@@ -3960,9 +4002,15 @@ const DelegarTarefas = () => {
                                           const tarefaId = String(reg.tarefa_id);
                                           const nomeTarefa = getNomeTarefa(reg.tarefa_id);
 
-                                          if (!cliente.tarefas.has(tarefaId)) {
-                                            cliente.tarefas.set(tarefaId, {
-                                              id: tarefaId,
+                                          // Usar chave composta para diferenciar tarefas
+                                          const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                          const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                          const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                          if (!cliente.tarefas.has(compositeKey)) {
+                                            cliente.tarefas.set(compositeKey, {
+                                              id: compositeKey, // Usar chave composta como ID
+                                              originalId: tarefaId,
                                               nome: nomeTarefa,
                                               tempoRealizado: 0,
                                               tempoEstimado: 0,
@@ -3971,7 +4019,7 @@ const DelegarTarefas = () => {
                                             });
                                           }
 
-                                          const tarefa = cliente.tarefas.get(tarefaId);
+                                          const tarefa = cliente.tarefas.get(compositeKey);
                                           tarefa.tempoRealizado += 0;
                                           tarefa.tempoEstimado += tempoEstimadoReg;
                                           tarefa.registros.push({

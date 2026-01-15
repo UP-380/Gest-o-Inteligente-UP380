@@ -110,7 +110,18 @@ const TarefasDetalhadasList = ({
               const isExpanded = tarefasExpandidas.has(tarefa.id);
 
               // Buscar tempo realizado do prop ou usar 0 como padrão
-              const tempoRealizadoMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+              let tempoRealizadoMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+
+              // Fallback: se for 0 e tivermos registros individuais carregados, somar deles
+              const registrosDaTarefa = registrosIndividuais[tarefa.id];
+              if ((!tempoRealizadoMs || tempoRealizadoMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
+                tempoRealizadoMs = registrosDaTarefa.reduce((total, reg) => {
+                  let tempoReg = Number(reg.tempo_realizado) || 0;
+                  if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                  if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                  return total + tempoReg;
+                }, 0);
+              }
               const tempoRealizadoFormatado = formatarTempoHMS
                 ? formatarTempoHMS(tempoRealizadoMs)
                 : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
@@ -245,7 +256,20 @@ const TarefasDetalhadasList = ({
                           }
 
                           const grupoData = registrosPorData.get(dataNormalizada);
-                          // Tempo realizado sempre 0 (lógica removida)
+
+                          // Calcular tempo realizado para soma
+                          let tempoReg = Number(registro.tempo_realizado) || 0;
+
+                          // Converter horas decimais para milissegundos se necessário
+                          if (tempoReg > 0 && tempoReg < 1) {
+                            tempoReg = Math.round(tempoReg * 3600000);
+                          }
+                          // Se resultado < 1 segundo, arredondar para 1 segundo
+                          if (tempoReg > 0 && tempoReg < 1000) {
+                            tempoReg = 1000;
+                          }
+
+                          grupoData.tempoRealizadoTotal += tempoReg;
                           grupoData.registros.push(registro);
                         });
 
@@ -284,8 +308,10 @@ const TarefasDetalhadasList = ({
                                 ? formatarTempoEstimado(tempoEstimadoDia, true)
                                 : '0s';
 
-                              // Tempo realizado sempre 0 (lógica removida)
-                              const tempoRealizadoFormatado = '0s';
+                              // Restaurar lógica de formatação do tempo realizado
+                              const tempoRealizadoFormatado = formatarTempoHMS
+                                ? formatarTempoHMS(grupoData.tempoRealizadoTotal)
+                                : (formatarTempoEstimado ? formatarTempoEstimado(grupoData.tempoRealizadoTotal, true) : '0s');
 
                               // Calcular custos
                               const custoEstimadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
@@ -324,7 +350,7 @@ const TarefasDetalhadasList = ({
                                         <div className="tarefa-detalhada-tempo-card-content">
                                           <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                           <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                            0s
+                                            {tempoRealizadoFormatado}
                                           </div>
                                         </div>
                                       </div>
