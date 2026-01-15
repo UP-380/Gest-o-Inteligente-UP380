@@ -195,10 +195,13 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
         setTemposRealizadosPorTarefa(novosTempos);
       } else if (tipo === 'responsaveis') {
-        const novosTempos = {};
+        const novosTempos = {}; // Responsavel ID -> Time
+        const novosTemposProduto = {}; // RespID-ProdID -> Time
+        const novosTemposCliente = {}; // RespID-ProdID-ClientID -> Time
+        const novosTemposTarefa = {}; // RespID-ProdID-ClientID-TaskID -> Time (plus fallback IDs)
 
-        // Buscar tempo realizado para cada responsável
-        const promises = dados.registros.map(async (responsavel) => {
+        // 1. Fetch Top Level (Responsavel) - Keep existing logic
+        const promisesResponsaveis = dados.registros.map(async (responsavel) => {
           try {
             const response = await fetch('/api/registro-tempo/realizado-total', {
               method: 'POST',
@@ -227,12 +230,120 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
           }
         });
 
-        const resultados = await Promise.all(promises);
+        // 2. Fetch Nested Levels
+        const promisesNested = dados.registros.map(async (responsavel) => {
+          if (!responsavel.produtos || !Array.isArray(responsavel.produtos)) return;
+
+          await Promise.all(responsavel.produtos.map(async (produto) => {
+            const produtoKey = `${responsavel.id}-${produto.id}`;
+            const produtoKeyAlt = String(produto.id);
+
+            // Buscar tempo do produto para este responsável específico
+            try {
+              const response = await fetch('/api/registro-tempo/realizado-total', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  responsavel_id: responsavel.id,
+                  data_inicio: periodoInicio,
+                  data_fim: periodoFim,
+                  produto_id: produto.id
+                })
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                  const tempoMs = result.data.tempo_realizado_ms || 0;
+                  novosTemposProduto[produtoKey] = tempoMs;
+                  // Não sobrescrever a chave simples se já existir (pode vir de outro responsável), 
+                  // mas para visualização detalhada precisamos da chave composta.
+                  // A chave simples é apenas fallback.
+                  if (!novosTemposProduto[produtoKeyAlt]) novosTemposProduto[produtoKeyAlt] = tempoMs;
+                }
+              }
+            } catch (err) { console.error(err); }
+
+            if (!produto.clientes || !Array.isArray(produto.clientes)) return;
+
+            await Promise.all(produto.clientes.map(async (cliente) => {
+              const clienteKey = `${responsavel.id}-${produto.id}-${cliente.id}`;
+              const clienteKeyAlt = String(cliente.id);
+
+              // Buscar tempo do cliente para este responsável E produto
+              try {
+                const response = await fetch('/api/registro-tempo/realizado-total', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavel.id,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    produto_id: produto.id,
+                    cliente_id: cliente.id
+                  })
+                });
+
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    const tempoMs = result.data.tempo_realizado_ms || 0;
+                    novosTemposCliente[clienteKey] = tempoMs;
+                    if (!novosTemposCliente[clienteKeyAlt]) novosTemposCliente[clienteKeyAlt] = tempoMs;
+                  }
+                }
+              } catch (err) { console.error(err); }
+
+              if (!cliente.tarefas || !Array.isArray(cliente.tarefas)) return;
+
+              await Promise.all(cliente.tarefas.map(async (tarefa) => {
+                const tarefaKey = `${responsavel.id}-${produto.id}-${cliente.id}-${tarefa.id}`;
+                const tarefaKeyAlt = String(tarefa.id);
+
+                // Buscar tempo da tarefa para este responsável, produto e cliente
+                try {
+                  const response = await fetch('/api/registro-tempo/realizado-total', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      responsavel_id: responsavel.id,
+                      data_inicio: periodoInicio,
+                      data_fim: periodoFim,
+                      produto_id: produto.id,
+                      cliente_id: cliente.id,
+                      tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
+                    })
+                  });
+
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                      const tempoMs = result.data.tempo_realizado_ms || 0;
+                      novosTemposTarefa[tarefaKey] = tempoMs;
+                      // Fallback simples
+                      novosTemposTarefa[tarefaKeyAlt] = tempoMs;
+                    }
+                  }
+                } catch (err) { console.error(err); }
+              }));
+            }));
+          }));
+        });
+
+        const resultados = await Promise.all(promisesResponsaveis);
+        await Promise.all(promisesNested);
+
         resultados.forEach(({ responsavelId, tempoRealizado }) => {
           novosTempos[responsavelId] = tempoRealizado;
         });
 
         setTemposRealizadosPorResponsavel(novosTempos);
+        setTemposRealizadosPorProduto(novosTemposProduto);
+        setTemposRealizadosPorCliente(novosTemposCliente);
+        setTemposRealizadosPorTarefa(novosTemposTarefa);
       } else if (tipo === 'clientes') {
         const novosTempos = {};
 
@@ -1013,6 +1124,9 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
               temposRealizadosPorResponsavel={temposRealizadosPorResponsavel}
+              temposRealizadosPorProduto={temposRealizadosPorProduto}
+              temposRealizadosPorCliente={temposRealizadosPorCliente}
+              temposRealizadosPorTarefa={temposRealizadosPorTarefa}
             />
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

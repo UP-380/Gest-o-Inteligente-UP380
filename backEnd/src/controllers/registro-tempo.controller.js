@@ -602,10 +602,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
   try {
     const { cliente_id, tarefa_id, responsavel_id, data, usuario_id } = req.query;
 
-    console.log('🚀 [getRegistrosPorTempoEstimado] Recebido:', {
-      query: req.query,
-      url: req.url
-    });
+
 
     let registros = [];
     let usuarioIdParaBusca = usuario_id ? parseInt(usuario_id, 10) : null;
@@ -625,9 +622,9 @@ async function getRegistrosPorTempoEstimado(req, res) {
 
       if (!errorMembro && membro && membro.usuario_id) {
         usuarioIdParaBusca = membro.usuario_id;
-        console.log(`✅ [getRegistrosPorTempoEstimado] Convertido responsavel_id ${responsavelIdNum} -> usuario_id ${usuarioIdParaBusca}`);
+
       } else {
-        console.warn(`⚠️ [getRegistrosPorTempoEstimado] Não foi possível converter responsavel_id ${responsavelIdNum} para usuario_id`, errorMembro || 'Membro não encontrado ou sem usuario_id');
+
       }
     }
 
@@ -635,7 +632,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
     // NOVA LÓGICA: Buscar usando os mesmos critérios do getTempoRealizado
     // (tarefa_id + cliente_id + usuario_id + data)
     if (tarefa_id && cliente_id && usuarioIdParaBusca) {
-      console.log('[getRegistrosPorTempoEstimado] NOVA LÓGICA iniciada:', { tarefa_id, cliente_id, usuario_id: usuarioIdParaBusca, data });
+
 
       let query = supabase
         .schema('up_gestaointeligente')
@@ -651,7 +648,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
         const dataInicio = `${dataFormatada}T00:00:00`;
         const dataFim = `${dataFormatada}T23:59:59.999`;
         query = query.gte('data_inicio', dataInicio).lte('data_inicio', dataFim);
-        console.log('[getRegistrosPorTempoEstimado] Filtro de data aplicado:', { dataInicio, dataFim });
+
       }
 
       // Incluir apenas registros finalizados (com tempo_realizado)
@@ -661,12 +658,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
       const { data: registrosPorCriterios, error: errorPorCriterios } = await query;
 
       if (errorPorCriterios) {
-        console.error('[getRegistrosPorTempoEstimado] Erro na query:', errorPorCriterios);
-      } else {
-        console.log('[getRegistrosPorTempoEstimado] Registros encontrados:', registrosPorCriterios ? registrosPorCriterios.length : 0);
-        if (registrosPorCriterios && registrosPorCriterios.length > 0) {
-          // console.log('[getRegistrosPorTempoEstimado] Exemplo:', registrosPorCriterios[0]);
-        }
+        console.error('Erro na query getRegistrosPorTempoEstimado:', errorPorCriterios);
       }
 
       if (!errorPorCriterios && registrosPorCriterios) {

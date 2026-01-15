@@ -47,7 +47,7 @@ const ProdutosDetalhadosList = ({
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
   const [temposRealizadosPorTarefa, setTemposRealizadosPorTarefa] = useState({}); // Buscar diretamente igual ao TarefasDetalhadasList
-  
+
   const toggleResponsavel = (tarefaId, dataNormalizada, responsavelKey) => {
     const key = `${tarefaId}_${dataNormalizada}_${responsavelKey}`;
     setResponsaveisExpandidos(prev => {
@@ -64,7 +64,7 @@ const ProdutosDetalhadosList = ({
   // Buscar tempos realizados diretamente para TODAS as tarefas (igual ao TarefasDetalhadasList)
   useEffect(() => {
     if (!periodoInicio || !periodoFim || !produtos || produtos.length === 0) return;
-    
+
     // Coletar TODAS as tarefas de todos os produtos e clientes
     const todasTarefas = [];
     produtos.forEach(produto => {
@@ -78,13 +78,13 @@ const ProdutosDetalhadosList = ({
         });
       }
     });
-    
+
     if (todasTarefas.length === 0) return;
-    
+
     // Buscar tempos realizados diretamente (EXATAMENTE igual ao TarefasDetalhadasList)
     const buscarTemposRealizados = async () => {
       const novosTempos = {};
-      
+
       const promises = todasTarefas.map(async ({ tarefa, cliente, produto }) => {
         // Coletar responsáveis únicos desta tarefa (igual ao tipo 'tarefas' linha ~139-146)
         const responsaveisUnicos = new Set();
@@ -95,11 +95,11 @@ const ProdutosDetalhadosList = ({
             }
           });
         }
-        
+
         if (responsaveisUnicos.size === 0) {
           return { tarefaId: tarefa.id, tempoRealizado: 0 };
         }
-        
+
         // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
         let tempoTotal = 0;
         const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
@@ -117,7 +117,7 @@ const ProdutosDetalhadosList = ({
                 produto_id: produto.id || null
               })
             });
-            
+
             if (response.ok) {
               const result = await response.json();
               if (result.success && result.data) {
@@ -130,21 +130,21 @@ const ProdutosDetalhadosList = ({
             return 0;
           }
         });
-        
+
         const resultados = await Promise.all(promisesResponsaveis);
         tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
-        
+
         return { tarefaId: tarefa.id, tempoRealizado: tempoTotal };
       });
-      
+
       const resultados = await Promise.all(promises);
       resultados.forEach(({ tarefaId, tempoRealizado }) => {
         novosTempos[tarefaId] = tempoRealizado;
       });
-      
+
       setTemposRealizadosPorTarefa(novosTempos);
     };
-    
+
     buscarTemposRealizados();
   }, [produtos, periodoInicio, periodoFim]);
 
@@ -192,8 +192,8 @@ const ProdutosDetalhadosList = ({
         const isProdutoExpanded = produtosExpandidos.has(produto.id);
         // Buscar tempo realizado do prop ou usar 0 como padrão (tentar ambas as chaves como em clientes)
         const produtoIdStr = String(produto.id || '');
-        const tempoRealizadoMs = temposRealizadosPorProduto[produtoIdStr] 
-          || temposRealizadosPorProduto[produto.id] 
+        const tempoRealizadoMs = temposRealizadosPorProduto[produtoIdStr]
+          || temposRealizadosPorProduto[produto.id]
           || temposRealizadosPorProduto[String(produto.id)]
           || produto.tempoRealizado || 0;
         const tempoRealizadoFormatado = formatarTempoHMS
@@ -203,7 +203,7 @@ const ProdutosDetalhadosList = ({
         const tempoEstimadoFormatado = formatarTempoEstimado
           ? formatarTempoEstimado(produto.tempoEstimado || 0, true)
           : '0s';
-        
+
         // Calcular custo estimado
         const custoEstimado = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
           ? calcularCustoPorTempo(produto.tempoEstimado || 0, produto.responsavelId)
@@ -238,7 +238,7 @@ const ProdutosDetalhadosList = ({
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Card Realizado */}
                   <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado">
                     <div className="tarefa-detalhada-tempo-label tarefa-detalhada-tempo-label-realizado">
@@ -295,7 +295,7 @@ const ProdutosDetalhadosList = ({
                     const tempoEstimadoClienteFormatado = formatarTempoEstimado
                       ? formatarTempoEstimado(cliente.tempoEstimado || 0, true)
                       : '0s';
-                    
+
                     // Calcular custo estimado do cliente
                     const custoEstimadoCliente = produto.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                       ? calcularCustoPorTempo(cliente.tempoEstimado || 0, produto.responsavelId)
@@ -328,7 +328,7 @@ const ProdutosDetalhadosList = ({
                                   )}
                                 </div>
                               </div>
-                              
+
                               {/* Card Realizado do Cliente */}
                               <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                 <div className="tarefa-detalhada-tempo-card-content">
@@ -370,20 +370,33 @@ const ProdutosDetalhadosList = ({
                                 const clienteIdNormalizado = clienteIdCalculado ? String(clienteIdCalculado) : clienteIdStr;
                                 // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
                                 // Usar temposRealizadosPorTarefa que busca diretamente do endpoint
-                                const tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                                // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
+                                // Usar temposRealizadosPorTarefa que busca diretamente do endpoint
+                                let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+
+                                // Fallback: se for 0 e tivermos registros, somar deles
+                                const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                                if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
+                                  tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
+                                    let tempoReg = Number(reg.tempo_realizado) || 0;
+                                    if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                    if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                    return total + tempoReg;
+                                  }, 0);
+                                }
                                 const tempoRealizadoTarefaFormatado = formatarTempoHMS
                                   ? formatarTempoHMS(tempoRealizadoTarefaMs)
                                   : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
-                                
-                                const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
+
+                                const tempoEstimadoTarefaFormatado = formatarTempoEstimado
+                                  ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
                                   : '0s';
-                                
+
                                 // Calcular custo realizado da tarefa (usar tempoRealizadoTarefaMs que já foi buscado)
                                 const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tempoRealizadoTarefaMs, tarefa.responsavelId)
                                   : null;
-                                
+
                                 // Calcular custo estimado da tarefa
                                 const custoEstimadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tarefa.tempoEstimado || 0, tarefa.responsavelId)
@@ -416,7 +429,7 @@ const ProdutosDetalhadosList = ({
                                               )}
                                             </div>
                                           </div>
-                                          
+
                                           {/* Card Realizado da Tarefa */}
                                           <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                             <div className="tarefa-detalhada-tempo-card-content">
@@ -488,13 +501,13 @@ const ProdutosDetalhadosList = ({
 
                                           // Agrupar registros por data
                                           const registrosPorData = new Map();
-                                          
+
                                           registros.forEach(registro => {
                                             const dataInicio = registro.data_inicio || registro.created_at || registro.data;
                                             const dataNormalizada = normalizarData(dataInicio);
-                                            
+
                                             if (!dataNormalizada) return;
-                                            
+
                                             if (!registrosPorData.has(dataNormalizada)) {
                                               registrosPorData.set(dataNormalizada, {
                                                 data: dataNormalizada,
@@ -502,7 +515,7 @@ const ProdutosDetalhadosList = ({
                                                 tempoRealizadoTotal: 0
                                               });
                                             }
-                                            
+
                                             const grupoData = registrosPorData.get(dataNormalizada);
                                             // Tempo realizado sempre 0 (lógica removida)
                                             grupoData.registros.push(registro);
@@ -514,7 +527,7 @@ const ProdutosDetalhadosList = ({
                                             tarefa.registros.forEach(reg => {
                                               const dataReg = reg.data || reg.data_inicio || reg.created_at;
                                               const dataNormalizada = normalizarData(dataReg);
-                                              
+
                                               if (dataNormalizada) {
                                                 const tempoEstimadoDia = reg.tempo_estimado_dia || 0;
                                                 if (!tempoEstimadoPorData.has(dataNormalizada)) {
@@ -538,22 +551,28 @@ const ProdutosDetalhadosList = ({
                                               {datasOrdenadas.map((dataNormalizada) => {
                                                 const grupoData = registrosPorData.get(dataNormalizada);
                                                 const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                                // Tempo realizado sempre 0 (lógica removida)
-                                                const tempoRealizadoDia = 0;
-                                                
-                                                const tempoEstimadoFormatado = formatarTempoEstimado 
-                                                  ? formatarTempoEstimado(tempoEstimadoDia, true) 
+                                                // Calcular sumatória do dia
+                                                let tempoRealizadoDia = 0;
+                                                grupoData.registros.forEach(reg => {
+                                                  let tempoReg = Number(reg.tempo_realizado) || 0;
+                                                  if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                                  if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                                  tempoRealizadoDia += tempoReg;
+                                                });
+
+                                                const tempoEstimadoFormatado = formatarTempoEstimado
+                                                  ? formatarTempoEstimado(tempoEstimadoDia, true)
                                                   : '0s';
-                                                
-                                                const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                  ? formatarTempoEstimado(tempoRealizadoDia, true) 
+
+                                                const tempoRealizadoFormatado = formatarTempoEstimado
+                                                  ? formatarTempoEstimado(tempoRealizadoDia, true)
                                                   : '0s';
 
                                                 // Calcular custos
                                                 const custoEstimadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                                   ? calcularCustoPorTempo(tempoEstimadoDia, tarefa.responsavelId)
                                                   : null;
-                                                
+
                                                 const custoRealizadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                                   ? calcularCustoPorTempo(tempoRealizadoDia, tarefa.responsavelId)
                                                   : null;
@@ -584,7 +603,7 @@ const ProdutosDetalhadosList = ({
                                                             </div>
                                                           </div>
                                                         )}
-                                                        
+
                                                         {/* Card Realizado do Dia */}
                                                         <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                                           <div className="tarefa-detalhada-tempo-card-content">
@@ -596,38 +615,38 @@ const ProdutosDetalhadosList = ({
                                                         </div>
                                                       </div>
                                                     </div>
-                                                    
+
                                                     {/* Lista de registros individuais da data - Agrupados por responsável */}
                                                     {grupoData.registros.length > 0 && (() => {
                                                       // Agrupar registros por responsável
                                                       const registrosPorResponsavel = new Map();
-                                                      
+
                                                       grupoData.registros.forEach((registro) => {
                                                         const responsavelId = registro.usuario_id || registro.membro?.id || 'desconhecido';
                                                         let nomeResponsavel = registro.membro?.nome;
-                                                        
+
                                                         // Se não encontrou no registro.membro, buscar usando a função
                                                         if (!nomeResponsavel && getNomeColaboradorPorUsuarioId && responsavelId !== 'desconhecido') {
                                                           nomeResponsavel = getNomeColaboradorPorUsuarioId(responsavelId);
                                                         }
-                                                        
+
                                                         // Fallback para caso não encontre
                                                         if (!nomeResponsavel) {
                                                           nomeResponsavel = `Colaborador #${responsavelId}`;
                                                         }
-                                                        
+
                                                         const responsavelKey = String(responsavelId);
-                                                        
+
                                                         if (!registrosPorResponsavel.has(responsavelKey)) {
                                                           registrosPorResponsavel.set(responsavelKey, {
                                                             nome: nomeResponsavel,
                                                             registros: []
                                                           });
                                                         }
-                                                        
+
                                                         registrosPorResponsavel.get(responsavelKey).registros.push(registro);
                                                       });
-                                                      
+
                                                       return (
                                                         <div className="tarefa-detalhada-registros-individuais">
                                                           {Array.from(registrosPorResponsavel.entries()).map(([responsavelKey, grupoResponsavel]) => {
@@ -645,19 +664,19 @@ const ProdutosDetalhadosList = ({
                                                               }
                                                               tempoTotalResponsavel += tempoReg;
                                                             });
-                                                            
-                                                            const tempoTotalFormatado = formatarTempoEstimado 
-                                                              ? formatarTempoEstimado(tempoTotalResponsavel, true) 
+
+                                                            const tempoTotalFormatado = formatarTempoEstimado
+                                                              ? formatarTempoEstimado(tempoTotalResponsavel, true)
                                                               : formatarTempoHMS(tempoTotalResponsavel);
-                                                            
+
                                                             // Calcular custo total do responsável
                                                             const custoTotalResponsavel = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                                               ? calcularCustoPorTempo(tempoTotalResponsavel, responsavelKey)
                                                               : null;
-                                                            
+
                                                             const responsavelKeyFull = `${tarefa.id}_${dataNormalizada}_${responsavelKey}`;
                                                             const isResponsavelExpanded = responsaveisExpandidos.has(responsavelKeyFull);
-                                                            
+
                                                             return (
                                                               <div key={`responsavel_${tarefa.id}_${dataNormalizada}_${responsavelKey}`} className="tarefa-detalhada-responsavel-group">
                                                                 <div className="tarefa-detalhada-responsavel-header">
@@ -694,16 +713,16 @@ const ProdutosDetalhadosList = ({
                                                                       if (tempoMs > 0 && tempoMs < 1000) {
                                                                         tempoMs = 1000;
                                                                       }
-                                                                      
-                                                                      const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                                        ? formatarTempoEstimado(tempoMs, true) 
+
+                                                                      const tempoRealizadoFormatado = formatarTempoEstimado
+                                                                        ? formatarTempoEstimado(tempoMs, true)
                                                                         : formatarTempoHMS(tempoMs);
-                                                                      
+
                                                                       const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-                                                                      
+
                                                                       // Formatar data e hora completa
                                                                       const dataFormatada = formatarDataHora(registro.data_inicio || registro.created_at || registro.data);
-                                                                      
+
                                                                       return (
                                                                         <div
                                                                           key={`reg_${tarefa.id}_${dataNormalizada}_${responsavelKey}_${regIdx}_${registro.id || regIdx}`}
@@ -763,20 +782,32 @@ const ProdutosDetalhadosList = ({
                     const tarefaKey = `${produto.id}-${tarefa.id}`;
                     const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
                     // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
-                    const tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                    // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
+                    let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+
+                    // Fallback: se for 0 e tivermos registros, somar deles
+                    const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                    if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
+                      tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
+                        let tempoReg = Number(reg.tempo_realizado) || 0;
+                        if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                        if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                        return total + tempoReg;
+                      }, 0);
+                    }
                     const tempoRealizadoTarefaFormatado = formatarTempoHMS
                       ? formatarTempoHMS(tempoRealizadoTarefaMs)
                       : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
-                    
-                    const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
+
+                    const tempoEstimadoTarefaFormatado = formatarTempoEstimado
+                      ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
                       : '0s';
-                    
+
                     // Calcular custo realizado da tarefa
                     const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                       ? calcularCustoPorTempo(tempoRealizadoTarefaMs, tarefa.responsavelId)
                       : null;
-                    
+
                     // Calcular custo estimado da tarefa
                     const custoEstimadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                       ? calcularCustoPorTempo(tarefa.tempoEstimado || 0, tarefa.responsavelId)
@@ -809,7 +840,7 @@ const ProdutosDetalhadosList = ({
                                   )}
                                 </div>
                               </div>
-                              
+
                               {/* Card Realizado da Tarefa */}
                               <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                 <div className="tarefa-detalhada-tempo-card-content">
@@ -839,7 +870,7 @@ const ProdutosDetalhadosList = ({
                         {isTarefaExpanded && (() => {
                           const registrosTarefa = registrosIndividuais[tarefa.id] || [];
                           if (registrosTarefa.length === 0) return null;
-                          
+
                           // Agrupar registros por data
                           const registrosPorData = new Map();
                           const normalizarData = (dataInput) => {
@@ -852,7 +883,7 @@ const ProdutosDetalhadosList = ({
                               return null;
                             }
                           };
-                          
+
                           const formatarDataExibicao = (dataStr) => {
                             try {
                               const date = new Date(dataStr);
@@ -861,11 +892,11 @@ const ProdutosDetalhadosList = ({
                               return dataStr;
                             }
                           };
-                          
+
                           registrosTarefa.forEach((registro) => {
                             const dataReg = registro.data || registro.data_inicio || registro.created_at;
                             const dataNormalizada = normalizarData(dataReg);
-                            
+
                             if (dataNormalizada) {
                               if (!registrosPorData.has(dataNormalizada)) {
                                 registrosPorData.set(dataNormalizada, {
@@ -873,20 +904,20 @@ const ProdutosDetalhadosList = ({
                                   tempoRealizadoTotal: 0
                                 });
                               }
-                              
+
                               const grupoData = registrosPorData.get(dataNormalizada);
                               // Tempo realizado sempre 0 (lógica removida)
                               grupoData.registros.push(registro);
                             }
                           });
-                          
+
                           // Buscar tempo estimado por data nos registros da tarefa
                           const tempoEstimadoPorData = new Map();
                           if (tarefa.registros && Array.isArray(tarefa.registros)) {
                             tarefa.registros.forEach(reg => {
                               const dataReg = reg.data || reg.data_inicio || reg.created_at;
                               const dataNormalizada = normalizarData(dataReg);
-                              
+
                               if (dataNormalizada) {
                                 const tempoEstimadoDia = reg.tempo_estimado_dia || 0;
                                 if (!tempoEstimadoPorData.has(dataNormalizada)) {
@@ -899,33 +930,39 @@ const ProdutosDetalhadosList = ({
                               }
                             });
                           }
-                          
+
                           // Ordenar datas (mais recente primeiro)
                           const datasOrdenadas = Array.from(registrosPorData.keys()).sort((a, b) => {
                             return new Date(b).getTime() - new Date(a).getTime();
                           });
-                          
+
                           return (
                             <div className="tarefa-detalhada-registros-list">
                               {datasOrdenadas.map((dataNormalizada) => {
                                 const grupoData = registrosPorData.get(dataNormalizada);
                                 const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                // Tempo realizado sempre 0 (lógica removida)
-                                const tempoRealizadoDia = 0;
-                                
-                                const tempoEstimadoFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tempoEstimadoDia, true) 
+                                // Calcular sumatória do dia
+                                let tempoRealizadoDia = 0;
+                                grupoData.registros.forEach(reg => {
+                                  let tempoReg = Number(reg.tempo_realizado) || 0;
+                                  if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                  if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                  tempoRealizadoDia += tempoReg;
+                                });
+
+                                const tempoEstimadoFormatado = formatarTempoEstimado
+                                  ? formatarTempoEstimado(tempoEstimadoDia, true)
                                   : '0s';
-                                
-                                const tempoRealizadoFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tempoRealizadoDia, true) 
+
+                                const tempoRealizadoFormatado = formatarTempoEstimado
+                                  ? formatarTempoEstimado(tempoRealizadoDia, true)
                                   : '0s';
 
                                 // Calcular custos
                                 const custoEstimadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tempoEstimadoDia, tarefa.responsavelId)
                                   : null;
-                                
+
                                 const custoRealizadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tempoRealizadoDia, tarefa.responsavelId)
                                   : null;
@@ -956,7 +993,7 @@ const ProdutosDetalhadosList = ({
                                             </div>
                                           </div>
                                         )}
-                                        
+
                                         {/* Card Realizado do Dia */}
                                         <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                           <div className="tarefa-detalhada-tempo-card-content">
@@ -968,38 +1005,38 @@ const ProdutosDetalhadosList = ({
                                         </div>
                                       </div>
                                     </div>
-                                    
+
                                     {/* Lista de registros individuais da data - Agrupados por responsável */}
                                     {grupoData.registros.length > 0 && (() => {
                                       // Agrupar registros por responsável
                                       const registrosPorResponsavel = new Map();
-                                      
+
                                       grupoData.registros.forEach((registro) => {
                                         const responsavelId = registro.usuario_id || registro.membro?.id || 'desconhecido';
                                         let nomeResponsavel = registro.membro?.nome;
-                                        
+
                                         // Se não encontrou no registro.membro, buscar usando a função
                                         if (!nomeResponsavel && getNomeColaboradorPorUsuarioId && responsavelId !== 'desconhecido') {
                                           nomeResponsavel = getNomeColaboradorPorUsuarioId(responsavelId);
                                         }
-                                        
+
                                         // Fallback para caso não encontre
                                         if (!nomeResponsavel) {
                                           nomeResponsavel = `Colaborador #${responsavelId}`;
                                         }
-                                        
+
                                         const responsavelKey = String(responsavelId);
-                                        
+
                                         if (!registrosPorResponsavel.has(responsavelKey)) {
                                           registrosPorResponsavel.set(responsavelKey, {
                                             nome: nomeResponsavel,
                                             registros: []
                                           });
                                         }
-                                        
+
                                         registrosPorResponsavel.get(responsavelKey).registros.push(registro);
                                       });
-                                      
+
                                       return (
                                         <div className="tarefa-detalhada-registros-individuais">
                                           {Array.from(registrosPorResponsavel.entries()).map(([responsavelKey, grupoResponsavel]) => {
@@ -1017,14 +1054,14 @@ const ProdutosDetalhadosList = ({
                                               }
                                               tempoTotalResponsavel += tempoReg;
                                             });
-                                            
-                                            const tempoTotalFormatado = formatarTempoEstimado 
-                                              ? formatarTempoEstimado(tempoTotalResponsavel, true) 
+
+                                            const tempoTotalFormatado = formatarTempoEstimado
+                                              ? formatarTempoEstimado(tempoTotalResponsavel, true)
                                               : formatarTempoHMS(tempoTotalResponsavel);
-                                            
+
                                             const responsavelKeyFull = `${tarefa.id}_${dataNormalizada}_${responsavelKey}`;
                                             const isResponsavelExpanded = responsaveisExpandidos.has(responsavelKeyFull);
-                                            
+
                                             return (
                                               <div key={`responsavel_${tarefa.id}_${dataNormalizada}_${responsavelKey}`} className="tarefa-detalhada-responsavel-group">
                                                 <div className="tarefa-detalhada-responsavel-header">
@@ -1061,16 +1098,16 @@ const ProdutosDetalhadosList = ({
                                                       if (tempoMs > 0 && tempoMs < 1000) {
                                                         tempoMs = 1000;
                                                       }
-                                                      
-                                                      const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                        ? formatarTempoEstimado(tempoMs, true) 
+
+                                                      const tempoRealizadoFormatado = formatarTempoEstimado
+                                                        ? formatarTempoEstimado(tempoMs, true)
                                                         : formatarTempoHMS(tempoMs);
-                                                      
+
                                                       const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-                                                      
+
                                                       // Formatar data e hora completa
                                                       const dataFormatada = formatarDataHora(registro.data_inicio || registro.created_at || registro.data);
-                                                      
+
                                                       return (
                                                         <div
                                                           key={`reg_${tarefa.id}_${dataNormalizada}_${responsavelKey}_${regIdx}_${registro.id || regIdx}`}
