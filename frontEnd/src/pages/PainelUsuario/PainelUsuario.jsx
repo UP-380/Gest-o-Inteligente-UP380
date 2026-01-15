@@ -37,18 +37,18 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
     const titleColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconHoverColor = isAtivo ? '#144577' : '#f97316';
-    
+
     // Verificar cache de informações de completude
     const cacheInfo = informacoesCache[cliente.id];
     const temConta = cacheInfo ? cacheInfo.temConta : null; // null = ainda não verificado, false = sem dados, true = com dados
     const temSistema = cacheInfo ? cacheInfo.temSistema : null;
     const temAdquirente = cacheInfo ? cacheInfo.temAdquirente : null;
-    
+
     // Cores dos ícones: cinza claro se não houver dados (false), cor normal se houver (true) ou ainda não verificado (null)
     const contaIconColor = temConta === false ? '#d1d5db' : iconColor;
     const sistemaIconColor = temSistema === false ? '#d1d5db' : iconColor;
     const adquirenteIconColor = temAdquirente === false ? '#d1d5db' : iconColor;
-    
+
     // Desabilitar botões quando não houver dados confirmados
     const contaDisabled = temConta === false;
     const sistemaDisabled = temSistema === false;
@@ -60,14 +60,14 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
     const hasAnySelected = selectedClienteId !== null && selectedClienteId !== undefined;
 
     return (
-      <div 
-        key={cliente.id} 
+      <div
+        key={cliente.id}
         className="cliente-knowledge-card"
         style={{
           // Simplesmente mudar a cor da borda quando selecionado - mesma espessura, não altera tamanho
           border: isSelected ? '1px solid #0e3b6f' : '1px solid #e5e7eb',
-          boxShadow: isSelected 
-            ? '0 4px 12px rgba(14, 59, 111, 0.2)' 
+          boxShadow: isSelected
+            ? '0 4px 12px rgba(14, 59, 111, 0.2)'
             : '0 1px 3px rgba(0, 0, 0, 0.1)',
           cursor: onSelectCliente ? 'pointer' : 'default',
           // Aplicar estilo apagado quando há seleção mas este não está selecionado
@@ -95,7 +95,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
               size="medium"
               customImagePath={cliente.foto_perfil_path || null}
             />
-            <h3 
+            <h3
               className="cliente-knowledge-card-title"
               style={{ color: titleColor, flex: 1 }}
             >
@@ -110,7 +110,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
             )}
             {/* Checkbox de seleção - no canto superior direito */}
             {onSelectCliente && (
-              <div 
+              <div
                 style={{
                   width: '20px',
                   height: '20px',
@@ -241,7 +241,7 @@ const PainelUsuario = () => {
   // Não recarregar quando desplugar para manter o modo atual
   useEffect(() => {
     if (preferenciaCarregadaRef.current) return; // Já carregou uma vez, não recarregar
-    
+
     const carregarPreferenciaVisualizacao = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/preferencia-view-mode`, {
@@ -286,7 +286,7 @@ const PainelUsuario = () => {
   });
   const [clientesListaCache, setClientesListaCache] = useState(null);
   const [colaboradoresCache, setColaboradoresCache] = useState([]);
-  
+
   // Sincronizar ref com estado do cache
   useEffect(() => {
     nomesCacheRef.current = nomesCache;
@@ -296,7 +296,7 @@ const PainelUsuario = () => {
   const registrosAtivosRef = useRef(new Map()); // Ref para acesso em funções não-hook
   const [temposRealizados, setTemposRealizados] = useState(new Map()); // Map<chave, tempo_realizado_ms>
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
-  
+
   // Cache de subtarefas vinculadas por tarefa_id
   const [subtarefasCache, setSubtarefasCache] = useState(new Map()); // Map<tarefa_id, subtarefas[]>
   const subtarefasCacheRef = useRef(new Map()); // Ref para acesso síncrono
@@ -370,19 +370,19 @@ const PainelUsuario = () => {
     // Fallback
     return `Tarefa #${idStr}`;
   };
-  
+
   // Função para buscar nome do cliente usando o endpoint de base-conhecimento
   const buscarNomeCliente = useCallback(async (clienteId) => {
     if (!clienteId) return null;
-    
+
     const idStr = String(clienteId).trim();
-    
+
     // Verificar se já está no cache
     const cacheAtual = nomesCacheRef.current;
     if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
       return cacheAtual.clientes[idStr];
     }
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
         credentials: 'include',
@@ -404,22 +404,22 @@ const PainelUsuario = () => {
       if (result.success && result.data && result.data.cliente) {
         const cliente = result.data.cliente;
         // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
-        const nome = cliente.nome || 
-                     cliente.nome_amigavel || 
-                     cliente.amigavel ||
-                     cliente.nome_fantasia || 
-                     cliente.fantasia ||
-                     cliente.razao_social || 
-                     cliente.razao ||
-                     null;
-        
+        const nome = cliente.nome ||
+          cliente.nome_amigavel ||
+          cliente.amigavel ||
+          cliente.nome_fantasia ||
+          cliente.fantasia ||
+          cliente.razao_social ||
+          cliente.razao ||
+          null;
+
         if (nome) {
           // Atualizar cache
           const novos = { ...nomesCacheRef.current };
           novos.clientes[idStr] = nome;
           nomesCacheRef.current = novos;
           setNomesCache(novos);
-          
+
           return nome;
         }
       }
@@ -428,23 +428,23 @@ const PainelUsuario = () => {
       return null;
     }
   }, []);
-  
+
   // Função síncrona para obter nome do cliente (retorna do cache ou string vazia)
   const getNomeCliente = (id) => {
     if (!id) return '';
     const idStr = String(id).trim();
     const cacheAtual = nomesCacheRef.current;
     const nome = cacheAtual.clientes && cacheAtual.clientes[idStr];
-    
+
     // Se não estiver no cache, disparar busca assíncrona
     if (!nome) {
-      buscarNomeCliente(idStr).catch(() => {});
+      buscarNomeCliente(idStr).catch(() => { });
       return ''; // Retornar string vazia enquanto carrega
     }
-    
+
     return nome;
   };
-  
+
   const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || `Colaborador #${id}`;
 
   const formatarTempoComCusto = (tempo, responsavelId) => {
@@ -461,26 +461,26 @@ const PainelUsuario = () => {
   // Função para formatar milissegundos em formato legível (ex: "2min 25s" ou "1h 2min 25s")
   const formatarTempoHMS = (milissegundos) => {
     if (!milissegundos || milissegundos === 0) return '0s';
-    
+
     const totalSegundos = Math.floor(milissegundos / 1000);
     const horas = Math.floor(totalSegundos / 3600);
     const minutos = Math.floor((totalSegundos % 3600) / 60);
     const segundos = totalSegundos % 60;
-    
+
     const partes = [];
-    
+
     if (horas > 0) {
       partes.push(`${horas}h`);
     }
-    
+
     if (minutos > 0) {
       partes.push(`${minutos}min`);
     }
-    
+
     if (segundos > 0 || partes.length === 0) {
       partes.push(`${segundos}s`);
     }
-    
+
     return partes.join(' ');
   };
 
@@ -488,7 +488,7 @@ const PainelUsuario = () => {
   const criarChaveRegistro = useCallback((clienteId, tarefaId, data = null) => {
     const clienteIdStr = String(clienteId).trim();
     const tarefaIdStr = String(tarefaId).trim();
-    
+
     // Se data for fornecida, incluir na chave
     if (data) {
       let dataStr;
@@ -505,7 +505,7 @@ const PainelUsuario = () => {
       }
       return `${clienteIdStr}_${tarefaIdStr}_${dataStr}`;
     }
-    
+
     // Fallback: chave sem data (para compatibilidade)
     return `${clienteIdStr}_${tarefaIdStr}`;
   }, []);
@@ -528,14 +528,14 @@ const PainelUsuario = () => {
   // Buscar subtarefas vinculadas a uma tarefa
   const buscarSubtarefas = useCallback(async (tarefaId) => {
     if (!tarefaId) return [];
-    
+
     const tarefaIdStr = String(tarefaId);
-    
+
     // Verificar se já está no cache
     if (subtarefasCacheRef.current.has(tarefaIdStr)) {
       return subtarefasCacheRef.current.get(tarefaIdStr);
     }
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
         credentials: 'include',
@@ -544,7 +544,7 @@ const PainelUsuario = () => {
           'Content-Type': 'application/json',
         },
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -580,9 +580,9 @@ const PainelUsuario = () => {
     if (!subtarefas || subtarefas.length === 0) {
       return '';
     }
-    
+
     const concluidas = subtarefasConcluidasRef.current.get(chave) || new Set();
-    
+
     const subtarefasHtml = subtarefas.map((subtarefa) => {
       const isConcluida = concluidas.has(String(subtarefa.id));
       const temDescricao = subtarefa.descricao && subtarefa.descricao.trim() !== '';
@@ -624,7 +624,7 @@ const PainelUsuario = () => {
         </div>
       `;
     }).join('');
-    
+
     return `
       <div class="painel-usuario-subtarefas-list">
         ${subtarefasHtml}
@@ -653,20 +653,20 @@ const PainelUsuario = () => {
     if (!tempoEstimadoId) {
       return;
     }
-    
+
     const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
-    
+
     // Buscar APENAS o botão deste tempo estimado específico
     const botoes = document.querySelectorAll(
       `button[data-tempo-estimado-id="${tempoEstimadoIdStr}"]`
     );
-    
+
     botoes.forEach((btn) => {
       if (!btn) return;
-      
+
       const icon = btn.querySelector('i');
       if (!icon) return;
-      
+
       // Atualizar classes e atributos imediatamente
       if (isAtivo) {
         // Estado ativo: botão de parar
@@ -717,7 +717,7 @@ const PainelUsuario = () => {
   const obterTempoRealizadoFormatado = useCallback((reg) => {
     const chaveTempo = criarChaveTempo(reg);
     if (!chaveTempo) return '0s';
-    
+
     const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
     return formatarTempoHMS(tempoRealizadoMs);
   }, [criarChaveTempo]);
@@ -726,7 +726,7 @@ const PainelUsuario = () => {
   const obterTempoRealizadoMs = useCallback((reg) => {
     const chaveTempo = criarChaveTempo(reg);
     if (!chaveTempo) return 0;
-    
+
     return temposRealizadosRef.current.get(chaveTempo) || 0;
   }, [criarChaveTempo]);
 
@@ -734,11 +734,11 @@ const PainelUsuario = () => {
   const atualizarTempoRealizadoEBarraProgresso = useCallback((reg, tempoRealizadoMs) => {
     const chaveTempo = criarChaveTempo(reg);
     if (!chaveTempo) return;
-    
+
     const tempoFormatado = formatarTempoHMS(tempoRealizadoMs);
     const tarefaIdStr = String(reg.tarefa_id).trim();
     const clienteIdStr = String(reg.cliente_id).trim();
-    
+
     // Atualizar todos os pills de tempo realizado desta tarefa
     const tempoPills = document.querySelectorAll(
       `.painel-usuario-realizado-pill[data-tarefa-id="${tarefaIdStr}"][data-cliente-id="${clienteIdStr}"]`
@@ -746,7 +746,7 @@ const PainelUsuario = () => {
     tempoPills.forEach((pill) => {
       pill.textContent = tempoFormatado;
     });
-    
+
     // Atualizar barra de progresso
     const tempoEstimado = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
     if (tempoEstimado > 0) {
@@ -756,7 +756,7 @@ const PainelUsuario = () => {
       const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(8, porcentagemExcessoBruta) : 0;
       const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
       const porcentagemFormatada = porcentagem.toFixed(0);
-      
+
       // Buscar pelos pills e encontrar a barra próxima
       tempoPills.forEach((pill) => {
         const itemTarefa = pill.closest('.painel-usuario-tarefa-item-lista, .painel-usuario-tarefa-card');
@@ -767,17 +767,17 @@ const PainelUsuario = () => {
             const barraFill = barraBase?.querySelector('.painel-usuario-barra-progresso-fill');
             const barraFillExcesso = barraBase?.querySelector('.painel-usuario-barra-progresso-fill-excesso');
             const barraLabel = barraContainer.querySelector('.painel-usuario-barra-progresso-label');
-            
+
             if (barraFill) {
               barraFill.style.width = `${porcentagemLimitada}%`;
               barraFill.style.background = corBarra;
             }
-            
+
             if (porcentagemExcesso > 0) {
               // No modo quadro, usar tamanho fixo para garantir visibilidade
               const isQuadro = barraBase?.classList.contains('painel-usuario-barra-progresso-base-quadro');
               const excedenteWidth = isQuadro ? '25px' : `${porcentagemExcesso}%`;
-              
+
               if (!barraFillExcesso) {
                 // Criar elemento de excesso se não existir
                 const excessoEl = document.createElement('div');
@@ -797,7 +797,7 @@ const PainelUsuario = () => {
               // Remover elemento de excesso se não houver mais excesso
               barraFillExcesso.remove();
             }
-            
+
             if (barraLabel) {
               barraLabel.textContent = `${porcentagemFormatada}%`;
               barraLabel.style.color = porcentagemFormatada > 100 ? '#dc2626' : '#6b7280';
@@ -812,7 +812,7 @@ const PainelUsuario = () => {
   useEffect(() => {
     timetracksDataRef.current = timetracksData;
   }, [timetracksData]);
-  
+
   useEffect(() => {
     timetracksExpandidosRef.current = timetracksExpandidos;
   }, [timetracksExpandidos]);
@@ -820,15 +820,15 @@ const PainelUsuario = () => {
   // Função para buscar registros de tempo individuais de uma tarefa
   const buscarRegistrosTimetrack = useCallback(async (reg) => {
     if (!usuario?.id || !reg.tarefa_id || !reg.cliente_id) return [];
-    
+
     const chaveTimetrack = criarChaveTempo(reg);
     if (!chaveTimetrack) return [];
-    
+
     // Verificar se já está no cache (usar ref para acesso síncrono)
     if (timetracksDataRef.current.has(chaveTimetrack)) {
       return timetracksDataRef.current.get(chaveTimetrack);
     }
-    
+
     try {
       // Extrair data do registro
       let dataParam = '';
@@ -846,7 +846,7 @@ const PainelUsuario = () => {
           headers: { Accept: 'application/json' }
         }
       );
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && Array.isArray(result.data)) {
@@ -857,13 +857,13 @@ const PainelUsuario = () => {
             data_fim: r.data_fim,
             created_at: r.created_at
           }));
-          
+
           // Armazenar no cache (tanto no estado quanto na ref)
           const novoMap = new Map(timetracksDataRef.current);
           novoMap.set(chaveTimetrack, registros);
           timetracksDataRef.current = novoMap;
           setTimetracksData(novoMap);
-          
+
           return registros;
         }
       }
@@ -877,41 +877,41 @@ const PainelUsuario = () => {
   const renderizarTimetracksIndividuais = useCallback((reg) => {
     const chaveTimetrack = criarChaveTempo(reg);
     if (!chaveTimetrack) return '';
-    
+
     // Usar ref para garantir acesso aos dados mais recentes
     const registros = timetracksDataRef.current.get(chaveTimetrack) || [];
-    
+
     if (registros.length === 0) {
       return '<div style="padding: 8px 0; color: #9ca3af; font-size: 11px; font-style: italic;">Nenhum registro de tempo encontrado</div>';
     }
-    
+
     return `
       <div class="painel-usuario-timetracks-list" style="display: flex; flex-direction: column; gap: 6px; padding-left: 24px; margin-top: 4px; border-left: 2px solid #ffd8a8;">
         ${registros.map((registro, idx) => {
-          const tempoRealizado = Number(registro.tempo_realizado) || 0;
-          let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
-          if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
-          const tempoFormatado = formatarTempoHMS(tempoMs);
-          const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-          
-          let dataRegistro = null;
-          if (registro.data_inicio) {
-            dataRegistro = new Date(registro.data_inicio);
-          } else if (registro.created_at) {
-            dataRegistro = new Date(registro.created_at);
-          }
-          
-          const dataFormatada = dataRegistro
-            ? dataRegistro.toLocaleString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            : '—';
-          
-          return `
+      const tempoRealizado = Number(registro.tempo_realizado) || 0;
+      let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
+      if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
+      const tempoFormatado = formatarTempoHMS(tempoMs);
+      const tempoDecimal = (tempoMs / 3600000).toFixed(2);
+
+      let dataRegistro = null;
+      if (registro.data_inicio) {
+        dataRegistro = new Date(registro.data_inicio);
+      } else if (registro.created_at) {
+        dataRegistro = new Date(registro.created_at);
+      }
+
+      const dataFormatada = dataRegistro
+        ? dataRegistro.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+        : '—';
+
+      return `
             <div class="painel-usuario-registro-item-simples" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 8px; color: #374151;">
               <div style="display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-play-circle" style="color: #94a3b8;"></i>
@@ -920,7 +920,7 @@ const PainelUsuario = () => {
               ${dataFormatada !== '—' ? `<div style="color: #6b7280;">${dataFormatada}</div>` : ''}
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }, [timetracksData, formatarTempoHMS, criarChaveTempo]);
@@ -929,28 +929,28 @@ const PainelUsuario = () => {
   const renderizarBarraProgressoTarefa = useCallback((reg, modo = 'quadro') => {
     const tempoEstimado = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
     const tempoRealizado = obterTempoRealizadoMs(reg);
-    
+
     if (tempoEstimado <= 0) {
       return ''; // Não mostrar barra se não houver tempo estimado
     }
-    
+
     // Calcular porcentagem (realizado / estimado * 100)
     const porcentagem = (tempoRealizado / tempoEstimado) * 100;
     const porcentagemLimitada = Math.min(100, porcentagem); // Limitar a 100% para a barra base
     // Calcular o excedente: se > 100%, mostrar uma barra vermelha adicional
     const porcentagemExcessoBruta = porcentagem > 100 ? porcentagem - 100 : 0;
     const porcentagemExcesso = porcentagemExcessoBruta > 0 ? Math.min(8, porcentagemExcessoBruta) : 0;
-    
+
     // Cor: laranja padrão (#f59e0b) se <= 100%, vermelho se > 100%
     const corBarra = porcentagem > 100 ? '#dc2626' : '#f59e0b';
-    
+
     const porcentagemFormatada = porcentagem.toFixed(0);
-    
+
     if (modo === 'quadro') {
       // No modo quadro, usar tamanho fixo em pixels para o excedente para garantir visibilidade
       // O CSS vai limitar o máximo para não sobrepor a porcentagem
       const excedenteWidth = porcentagemExcessoBruta > 0 ? '25px' : '0px';
-      
+
       // Modo quadro: barra abaixo do nome
       return `
         <div class="painel-usuario-barra-progresso-wrapper painel-usuario-barra-progresso-quadro" style="margin-top: 8px;">
@@ -1049,7 +1049,7 @@ const PainelUsuario = () => {
     }
 
     const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
-    
+
     // Verificar se já existe registro ativo para este tempo estimado
     if (registrosAtivosRef.current.has(tempoEstimadoIdStr)) {
       return; // Já existe registro ativo para este tempo estimado
@@ -1065,13 +1065,13 @@ const PainelUsuario = () => {
       if (registrosAtivosRef.current.size > 0) {
         // Encontrar o primeiro registro ativo
         const [tempoEstimadoIdAtivo, registroAtivo] = Array.from(registrosAtivosRef.current.entries())[0];
-        
+
         // Buscar o registro completo nas tarefas registradas pelo tempo_estimado_id
         const regAtivo = tarefasRegistrosRef.current.find(r => {
           const id = r.id || r.tempo_estimado_id;
           return String(id).trim() === String(tempoEstimadoIdAtivo).trim();
         });
-        
+
         // Se encontrou o registro completo, parar o registro ativo
         if (regAtivo && registroAtivo?.registro_id) {
           try {
@@ -1126,7 +1126,8 @@ const PainelUsuario = () => {
         body: JSON.stringify({
           tarefa_id: String(reg.tarefa_id).trim(),
           cliente_id: String(reg.cliente_id).trim(),
-          usuario_id: parseInt(usuario.id, 10)
+          usuario_id: parseInt(usuario.id, 10),
+          produto_id: reg.produto_id ? String(reg.produto_id).trim() : null
         })
       });
 
@@ -1142,7 +1143,7 @@ const PainelUsuario = () => {
               tarefa_id: reg.tarefa_id,
               cliente_id: reg.cliente_id
             });
-            
+
             const responseAtivo = await fetch(
               `/api/registro-tempo/ativo?${params}`,
               {
@@ -1172,11 +1173,21 @@ const PainelUsuario = () => {
             // Se não conseguir buscar, apenas mostrar o erro
           }
         }
-        
+
         alert(result.error || 'Erro ao iniciar registro de tempo');
         // Reverter estado do botão apenas se não encontrou registro ativo
         atualizarBotaoTempoEstimado(tempoEstimadoId, false);
         return;
+      }
+
+      // Log do ID do registro conforme solicitado
+      console.log('▶️ Plug iniciado! ID do registro:', result.data.id);
+
+      // Log do Produto ID
+      if (reg.produto_id) {
+        console.log('📦 Produto da tarefa:', reg.produto_id, `(${getNomeProduto(reg.produto_id)})`);
+      } else {
+        console.warn('⚠️ Tarefa sem produto_id no frontend:', reg.tarefa_id);
       }
 
       // Atualizar estado com o registro ativo usando tempo_estimado_id como chave
@@ -1228,7 +1239,7 @@ const PainelUsuario = () => {
 
     const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
     const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
-    
+
     if (!registroAtivo?.registro_id) {
       return; // Nenhum registro ativo encontrado
     }
@@ -1276,7 +1287,7 @@ const PainelUsuario = () => {
         novosTempos.set(chaveTempo, tempoRealizado);
         temposRealizadosRef.current = novosTempos;
         setTemposRealizados(novosTempos);
-        
+
         // Atualizar imediatamente o tempo realizado e a barra de progresso no DOM
         atualizarTempoRealizadoEBarraProgresso(reg, tempoRealizado);
       }
@@ -1299,32 +1310,32 @@ const PainelUsuario = () => {
   // Função auxiliar para atualizar tempos realizados totais nos headers dos clientes
   const atualizarTemposRealizadosHeaders = useCallback(() => {
     const temposAtuais = temposRealizadosRef.current;
-    
+
     // Atualizar headers no modo LISTA
     const headersClientes = document.querySelectorAll('.painel-usuario-grupo-cliente-header');
     headersClientes.forEach((header) => {
       const clienteCard = header.closest('.painel-usuario-cliente-card');
       if (!clienteCard) return;
-      
+
       // Encontrar todas as tarefas deste cliente
       const tarefasDoCliente = Array.from(clienteCard.querySelectorAll('.painel-usuario-tarefa-item-lista'));
       if (tarefasDoCliente.length === 0) return;
-      
+
       // Calcular tempo realizado total do cliente
       let tempoRealizadoTotal = 0;
       tarefasDoCliente.forEach((tarefaItem) => {
         const btn = tarefaItem.querySelector('[data-tarefa-id]');
         if (!btn) return;
-        
+
         const tarefaId = btn.getAttribute('data-tarefa-id');
         const clienteId = btn.getAttribute('data-cliente-id');
-        
+
         // Encontrar o registro completo para obter tempo_estimado_id
-        const reg = tarefasRegistrosRef.current.find(r => 
-          String(r.tarefa_id).trim() === tarefaId && 
+        const reg = tarefasRegistrosRef.current.find(r =>
+          String(r.tarefa_id).trim() === tarefaId &&
           String(r.cliente_id).trim() === clienteId
         );
-        
+
         if (reg) {
           const chaveTempo = criarChaveTempo(reg);
           if (chaveTempo) {
@@ -1333,7 +1344,7 @@ const PainelUsuario = () => {
           }
         }
       });
-      
+
       // Atualizar ou criar o elemento de tempo realizado no header
       let tempoRealizadoElement = header.querySelector('.painel-usuario-grupo-tempo-realizado');
       if (tempoRealizadoTotal > 0) {
@@ -1346,7 +1357,7 @@ const PainelUsuario = () => {
           tempoRealizadoElement = document.createElement('span');
           tempoRealizadoElement.className = 'painel-usuario-grupo-tempo-realizado';
           tempoRealizadoElement.innerHTML = `<i class="fas fa-play-circle painel-usuario-realizado-icon-inline" style="margin-right: 4px;"></i>${tempoRealizadoFormatado}`;
-          
+
           // Inserir após o tempo estimado (se existir) ou antes do count
           const tempoTotalElement = header.querySelector('.painel-usuario-grupo-tempo-total');
           const countElement = header.querySelector('.painel-usuario-grupo-count');
@@ -1363,36 +1374,36 @@ const PainelUsuario = () => {
         tempoRealizadoElement.remove();
       }
     });
-    
+
     // Atualizar headers no modo QUADRO (colunas)
     const colunas = document.querySelectorAll('.painel-usuario-coluna');
     colunas.forEach((coluna) => {
       const colunaHeader = coluna.querySelector('div[style*="padding: 10px 12px"]');
       if (!colunaHeader) return;
-      
+
       // Obter o nome do cliente do header
       const clienteNomeEl = colunaHeader.querySelector('div:first-child');
       if (!clienteNomeEl) return;
       const clienteNome = clienteNomeEl.textContent.trim();
-      
+
       // Encontrar todas as tarefas desta coluna
       const tarefasCards = Array.from(coluna.querySelectorAll('.painel-usuario-tarefa-card'));
       if (tarefasCards.length === 0) return;
-      
+
       // Calcular tempo realizado total do cliente
       let tempoRealizadoTotal = 0;
       tarefasCards.forEach((tarefaCard) => {
         const btn = tarefaCard.querySelector('[data-tempo-estimado-id]');
         if (!btn) return;
-        
+
         const tempoEstimadoId = btn.getAttribute('data-tempo-estimado-id');
         if (!tempoEstimadoId) return;
-        
+
         // Encontrar o registro completo
-        const reg = tarefasRegistrosRef.current.find(r => 
+        const reg = tarefasRegistrosRef.current.find(r =>
           String(r.id || r.tempo_estimado_id).trim() === tempoEstimadoId
         );
-        
+
         if (reg) {
           const chaveTempo = criarChaveTempo(reg);
           if (chaveTempo) {
@@ -1401,7 +1412,7 @@ const PainelUsuario = () => {
           }
         }
       });
-      
+
       // Atualizar o componente React ClienteTempoInfo que está no tempoInfoContainer
       const tempoInfoContainer = colunaHeader.querySelector('div[style*="margin-left: auto"]');
       if (tempoInfoContainer) {
@@ -1431,12 +1442,12 @@ const PainelUsuario = () => {
 
     try {
       const novosTempos = new Map();
-      
+
       await Promise.all(
         tarefasRegistrosRef.current.map(async (reg) => {
           const chaveTempo = criarChaveTempo(reg);
           if (!chaveTempo) return;
-          
+
           const tempoRealizado = await buscarTempoRealizado(reg);
           novosTempos.set(chaveTempo, tempoRealizado);
         })
@@ -1444,7 +1455,7 @@ const PainelUsuario = () => {
 
       temposRealizadosRef.current = novosTempos;
       setTemposRealizados(novosTempos);
-      
+
       // Atualizar headers dos clientes
       atualizarTemposRealizadosHeaders();
     } catch (error) {
@@ -1476,7 +1487,7 @@ const PainelUsuario = () => {
               tarefa_id: reg.tarefa_id,
               cliente_id: reg.cliente_id
             });
-            
+
             const response = await fetch(
               `/api/registro-tempo/ativo?${params}`,
               {
@@ -1504,7 +1515,7 @@ const PainelUsuario = () => {
 
       registrosAtivosRef.current = novosRegistrosAtivos;
       setRegistrosAtivos(novosRegistrosAtivos);
-      
+
       // Sincronizar todos os botões após verificar registros ativos
       sincronizarTodosBotoes();
     } catch (error) {
@@ -1537,7 +1548,7 @@ const PainelUsuario = () => {
     // Usar ref para garantir que sempre retorna o modo atual, mesmo durante re-renderizações
     return modoVisualizacaoRef.current[CARD_ID_TAREFAS] || modoVisualizacao[CARD_ID_TAREFAS] || 'quadro';
   };
-  
+
   // Sincronizar ref com estado sempre que o modo mudar
   useEffect(() => {
     modoVisualizacaoRef.current = modoVisualizacao;
@@ -1545,11 +1556,11 @@ const PainelUsuario = () => {
 
   const alternarModoVisualizacao = useCallback(async (modoDesejado = null) => {
     const cardId = CARD_ID_TAREFAS;
-    
+
     // Calcular o novo modo
     const modoAtual = modoVisualizacao[cardId] || 'quadro';
     const novoModo = modoDesejado || (modoAtual === 'lista' ? 'quadro' : 'lista');
-    
+
     // Atualizar o estado do modo imediatamente
     setModoVisualizacao((prev) => {
       return { ...prev, [cardId]: novoModo };
@@ -1573,7 +1584,7 @@ const PainelUsuario = () => {
     } catch (error) {
       // Erro ao salvar preferência - não crítico
     }
-    
+
     // Re-renderizar tarefas imediatamente (sem afetar cards de clientes)
     const card = tarefasContainerRef.current;
     if (card) {
@@ -1583,23 +1594,23 @@ const PainelUsuario = () => {
         // Obter a data atual do header se disponível
         const header = wrapper.querySelector('.painel-usuario-header-board');
         let dataParaUsar = dataTarefasSelecionada || new Date();
-        
+
         if (header) {
           const dataDoHeader = obterDataDoHeader(header);
           if (dataDoHeader) {
             dataParaUsar = dataDoHeader;
           }
         }
-        
+
         // Normalizar a data
         dataParaUsar = new Date(dataParaUsar);
         dataParaUsar.setHours(0, 0, 0, 0);
-        
+
         // Filtrar registros por clientes selecionados
         // Não usar clientesSelecionadosIds diretamente aqui para evitar dependência
         // A filtragem será feita em renderTarefasNoCard ou será renderizado sem filtro aqui
         let registrosFiltrados = tarefasRegistrosRef.current;
-        
+
         // Remover containers antigos de tarefas
         const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
         let boardContainer = null;
@@ -1614,17 +1625,17 @@ const PainelUsuario = () => {
             break;
           }
         }
-        
+
         if (listaContainer) listaContainer.remove();
         if (boardContainer) boardContainer.remove();
-        
+
         // Atualizar toggle no header IMEDIATAMENTE
         if (header) {
           const toggleView = header.querySelector('.painel-usuario-toggle-view');
           if (toggleView) {
             const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
             const btnLista = toggleView.querySelector('button[data-mode="lista"]');
-            
+
             if (btnQuadro && btnLista) {
               if (novoModo === 'quadro') {
                 btnQuadro.classList.add('active');
@@ -1636,7 +1647,7 @@ const PainelUsuario = () => {
             }
           }
         }
-        
+
         // Renderizar tarefas no novo modo IMEDIATAMENTE
         if (novoModo === 'lista') {
           renderTarefasEmLista(registrosFiltrados, wrapper, dataParaUsar);
@@ -1665,7 +1676,7 @@ const PainelUsuario = () => {
   const formatarDataExibicao = (data) => {
     if (!data) return 'hoje';
     if (ehHoje(data)) return 'hoje';
-    
+
     const dia = String(data.getDate()).padStart(2, '0');
     const mes = String(data.getMonth() + 1).padStart(2, '0');
     const ano = data.getFullYear();
@@ -1694,7 +1705,7 @@ const PainelUsuario = () => {
   const obterDataDoHeader = (headerElement) => {
     // Tentar obter do atributo data do header
     let dataAtualStr = headerElement.getAttribute('data-data-selecionada');
-    
+
     // Se não encontrar, tentar obter do elemento dataDisplay (span com a data)
     if (!dataAtualStr) {
       const dataDisplay = headerElement.querySelector('span[data-data-selecionada]');
@@ -1702,11 +1713,11 @@ const PainelUsuario = () => {
         dataAtualStr = dataDisplay.getAttribute('data-data-selecionada');
       }
     }
-    
+
     if (dataAtualStr) {
       return new Date(dataAtualStr);
     }
-    
+
     // Tentar extrair do texto do elemento dataDisplay
     const dataDisplay = headerElement.querySelector('span[style*="min-width: 80px"]');
     if (dataDisplay) {
@@ -1722,34 +1733,34 @@ const PainelUsuario = () => {
         return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
       }
     }
-    
+
     // Fallback: usar estado ou hoje
     return dataTarefasSelecionada || new Date();
   };
 
   const navigate = useNavigate();
-  
+
   // Estados para DetailSideCard de clientes
   const [detailCardCliente, setDetailCardCliente] = useState(null);
   const [detailCardClientePosition, setDetailCardClientePosition] = useState(null);
-  
+
   // Estado para cache de informações de completude dos clientes
   const [informacoesCacheClientes, setInformacoesCacheClientes] = useState({});
-  
+
   // Estado para cliente selecionado para filtrar tarefas (seleção única)
   const [clienteSelecionadoId, setClienteSelecionadoId] = useState(null);
 
   // Função para buscar clientes por IDs
   const buscarClientesPorIds = useCallback(async (clienteIds) => {
     if (!clienteIds || clienteIds.length === 0) return [];
-    
+
     try {
       // Buscar todos os clientes e filtrar pelos IDs
       const response = await fetch('/api/clientes?page=1&limit=10000', {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && Array.isArray(result.data)) {
@@ -1757,9 +1768,9 @@ const PainelUsuario = () => {
           return result.data.filter(cliente => idsSet.has(String(cliente.id).trim()));
         }
       }
-      } catch (error) {
-        // Erro ao buscar clientes - não crítico
-      }
+    } catch (error) {
+      // Erro ao buscar clientes - não crítico
+    }
     return [];
   }, []);
 
@@ -1848,7 +1859,7 @@ const PainelUsuario = () => {
             temAdquirente: (result.data.adquirentes || []).length > 0
           }
         }));
-        
+
         return result.data;
       }
       return null;
@@ -1863,16 +1874,16 @@ const PainelUsuario = () => {
     if (cacheInfo && cacheInfo.temConta === false) {
       return;
     }
-    
+
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardClientePosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -1894,16 +1905,16 @@ const PainelUsuario = () => {
     if (cacheInfo && cacheInfo.temSistema === false) {
       return;
     }
-    
+
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardClientePosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -1925,16 +1936,16 @@ const PainelUsuario = () => {
     if (cacheInfo && cacheInfo.temAdquirente === false) {
       return;
     }
-    
+
     if (e) {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardClientePosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -2015,15 +2026,15 @@ const PainelUsuario = () => {
       }
       clientesCardsRootRef.current = null;
     }
-    
+
     // Limpar apenas o conteúdo HTML, mas manter o container
     container.innerHTML = '';
-    
+
     // Criar novo root para React
     try {
       const root = createRoot(container);
       clientesCardsRootRef.current = root;
-      
+
       // Renderizar componente React
       root.render(
         <ClienteKnowledgeCards
@@ -2037,14 +2048,14 @@ const PainelUsuario = () => {
           onSelectCliente={handleSelectCliente}
         />
       );
-      
+
       // Carregar informações de completude após renderizar
       carregarInformacoesCompletudeClientes(clientes);
-      } catch (error) {
-        // Erro ao renderizar cards de clientes - não crítico
-      }
+    } catch (error) {
+      // Erro ao renderizar cards de clientes - não crítico
+    }
   }, [informacoesCacheClientes, handleOpenContasCliente, handleOpenSistemasCliente, handleOpenAdquirentesCliente, handleViewKnowledgeCliente, carregarInformacoesCompletudeClientes, clienteSelecionadoId, handleSelectCliente]);
-  
+
   // Atualizar componente quando cache ou seleção mudar
   useEffect(() => {
     if (clientesCardsRootRef.current && clientesCardsDataRef.current) {
@@ -2078,24 +2089,24 @@ const PainelUsuario = () => {
     // Remover containers antigos de tarefas (preservar header e container de clientes)
     const wrapperChildren = Array.from(wrapper.children);
     const clientesContainerRef = clientesCardsContainerRef.current;
-    
+
     wrapperChildren.forEach(child => {
       // Preservar header
       if (child.classList && child.classList.contains('painel-usuario-header-board')) return;
-      
+
       // Preservar container de clientes (o container passado para React, não o div interno)
       if (clientesContainerRef && child === clientesContainerRef) return;
-      
+
       // Verificar se é container de tarefas (lista ou board)
       const isListaContainer = child.classList && child.classList.contains('painel-usuario-lista-container');
       const style = window.getComputedStyle(child);
       const isBoardContainer = style.display === 'flex' && style.gap && (style.overflowY === 'auto' || style.overflowY === 'scroll');
-      
+
       if (isListaContainer || isBoardContainer) {
         child.remove();
       }
     });
-    
+
     // Atualizar contador no header - buscar de forma mais robusta
     const header = wrapper.querySelector('.painel-usuario-header-board');
     if (header) {
@@ -2107,15 +2118,15 @@ const PainelUsuario = () => {
           const style = child.style.cssText || window.getComputedStyle(child).cssText;
           return style.includes('margin-left: auto') || style.includes('marginLeft: auto') || child.style.marginLeft === 'auto';
         });
-        
+
         if (subtitle) {
           // Atualizar apenas o texto, preservando o botão e seus event listeners
           const btnLimpar = subtitle.querySelector('button');
-          
+
           // Remover apenas os nós de texto
           const textNodes = Array.from(subtitle.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
           textNodes.forEach(node => node.remove());
-          
+
           // Adicionar o novo texto
           if (btnLimpar) {
             // Se houver botão, adicionar texto após o botão
@@ -2126,14 +2137,14 @@ const PainelUsuario = () => {
           }
         }
       }
-      
+
       // Atualizar o toggle para refletir o modo atual
       const toggleView = header.querySelector('.painel-usuario-toggle-view');
       if (toggleView) {
         const modo = obterModoVisualizacao();
         const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
         const btnLista = toggleView.querySelector('button[data-mode="lista"]');
-        
+
         if (btnQuadro && btnLista) {
           // Atualizar classes active
           if (modo === 'quadro') {
@@ -2150,7 +2161,7 @@ const PainelUsuario = () => {
     // Renderizar tarefas novamente
     const modo = obterModoVisualizacao();
     const dataParaRenderizar = dataSelecionada || dataTarefasSelecionada || new Date();
-    
+
     if (modo === 'lista') {
       renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
     } else {
@@ -2163,14 +2174,14 @@ const PainelUsuario = () => {
     if (!card) {
       return;
     }
-    
+
     card.classList.add('painel-usuario-tarefas-content');
-    
+
     // Verificar se já existe um wrapper com cards de clientes
     let wrapper = card.querySelector('div[style*="flex-direction: column"]');
     let clientesContainer = null;
-    
-      if (wrapper) {
+
+    if (wrapper) {
       // Se o wrapper já existe, preservar o container de clientes
       // Procurar pelo container que contém os cards de clientes (tem a classe clientes-knowledge-grid)
       const clientesGrid = wrapper.querySelector('.clientes-knowledge-grid');
@@ -2180,11 +2191,11 @@ const PainelUsuario = () => {
         // Se não encontrar pelo grid, procurar pelo primeiro div que não é header
         clientesContainer = wrapper.querySelector('div[style*="width: 100%"]:not(.painel-usuario-header-board)');
       }
-      
+
       // Remover apenas o header e as tarefas, mantendo os cards de clientes
       const header = wrapper.querySelector('.painel-usuario-header-board');
       const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
-      
+
       // Para o board, procurar de forma mais específica
       let boardContainer = null;
       const wrapperChildren = Array.from(wrapper.children);
@@ -2197,14 +2208,14 @@ const PainelUsuario = () => {
           break;
         }
       }
-      
+
       if (header) header.remove();
       if (listaContainer) listaContainer.remove();
       if (boardContainer) boardContainer.remove();
     } else {
       // Se não existe wrapper, criar um novo (primeira renderização)
       card.innerHTML = '';
-      
+
       wrapper = document.createElement('div');
       wrapper.style.width = '100%';
       wrapper.style.minHeight = '600px';
@@ -2213,7 +2224,7 @@ const PainelUsuario = () => {
       wrapper.style.gap = '12px';
       wrapper.style.boxSizing = 'border-box';
       wrapper.style.minWidth = '0';
-      
+
       // Criar container para cards de clientes
       clientesContainer = document.createElement('div');
       clientesContainer.style.width = '100%';
@@ -2243,14 +2254,14 @@ const PainelUsuario = () => {
           clientesIdsSet.add(String(reg.cliente_id).trim());
         }
       });
-      
+
       // Se não existe container, criar um novo
       if (!clientesContainer) {
         clientesContainer = document.createElement('div');
         clientesContainer.style.width = '100%';
         wrapper.insertBefore(clientesContainer, wrapper.firstChild);
       }
-      
+
       // Buscar e renderizar clientes apenas se ainda não foram renderizados
       if (clientesIdsSet.size > 0 && (!clientesCardsRootRef.current || !clientesCardsDataRef.current)) {
         const clientesIdsArray = Array.from(clientesIdsSet);
@@ -2267,21 +2278,21 @@ const PainelUsuario = () => {
 
     const header = document.createElement('div');
     header.className = 'painel-usuario-header-board';
-    
+
     // Calcular data para exibir ANTES de criar os botões
     const dataParaExibir = dataSelecionada || dataTarefasSelecionada || new Date();
     const dataParaExibirCopy = new Date(dataParaExibir);
     dataParaExibirCopy.setHours(0, 0, 0, 0); // Normalizar para início do dia
     // Armazenar a data no header ANTES de criar os botões
     header.setAttribute('data-data-selecionada', dataParaExibirCopy.toISOString());
-    
+
     const headerLeft = document.createElement('div');
     headerLeft.style.display = 'flex';
     headerLeft.style.flexDirection = 'row';
     headerLeft.style.alignItems = 'center';
     headerLeft.style.gap = '12px';
     headerLeft.style.flex = '1';
-    
+
     // Título fixo "Minhas tarefas"
     const title = document.createElement('div');
     title.style.fontWeight = '700';
@@ -2289,13 +2300,13 @@ const PainelUsuario = () => {
     title.style.fontSize = '14px';
     title.textContent = 'Minhas tarefas';
     headerLeft.appendChild(title);
-    
+
     // Container para navegação de data (setas + data)
     const navContainer = document.createElement('div');
     navContainer.style.display = 'inline-flex';
     navContainer.style.alignItems = 'center';
     navContainer.style.gap = '6px';
-    
+
     // Botão de navegação anterior
     const btnAnterior = document.createElement('button');
     btnAnterior.type = 'button';
@@ -2340,7 +2351,7 @@ const PainelUsuario = () => {
       }
     });
     navContainer.appendChild(btnAnterior);
-    
+
     // Função auxiliar para formatar data para input
     function formatDateForInput(date) {
       const year = date.getFullYear();
@@ -2348,12 +2359,12 @@ const PainelUsuario = () => {
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
-    
+
     // Container para data e calendário
     const dataContainer = document.createElement('div');
     dataContainer.style.position = 'relative';
     dataContainer.style.display = 'inline-block';
-    
+
     // Data exibida entre as setas
     const dataDisplay = document.createElement('span');
     dataDisplay.style.fontSize = '12px';
@@ -2367,7 +2378,7 @@ const PainelUsuario = () => {
     // Armazenar a data no elemento para uso nos botões
     dataDisplay.setAttribute('data-data-selecionada', dataParaExibirCopy.toISOString());
     navContainer.appendChild(dataDisplay);
-    
+
     // Botão de calendário
     const btnCalendario = document.createElement('button');
     btnCalendario.type = 'button';
@@ -2397,7 +2408,7 @@ const PainelUsuario = () => {
       btnCalendario.style.background = 'transparent';
       btnCalendario.style.color = '#9ca3af';
     });
-    
+
     // Container para o DatePicker (será renderizado via React)
     const datePickerContainer = document.createElement('div');
     datePickerContainer.style.position = 'absolute';
@@ -2410,10 +2421,10 @@ const PainelUsuario = () => {
     datePickerContainer.style.opacity = '0';
     datePickerContainer.style.pointerEvents = 'none';
     datePickerContainer.style.transition = 'opacity 0.2s ease, visibility 0.2s ease';
-    
+
     // Renderizar apenas o calendário (sem o campo de input)
     const datePickerRoot = createRoot(datePickerContainer);
-    
+
     // Componente customizado que renderiza apenas o calendário (sem periodo-select-display)
     const CalendarOnly = ({ value, onChange, onClose }) => {
       const [currentMonth, setCurrentMonth] = useState(() => {
@@ -2425,20 +2436,20 @@ const PainelUsuario = () => {
         }
         return new Date();
       });
-      
+
       const formatDateForInput = (date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
       };
-      
+
       const isSameDay = (date1, date2) => {
         return date1.getFullYear() === date2.getFullYear() &&
-               date1.getMonth() === date2.getMonth() &&
-               date1.getDate() === date2.getDate();
+          date1.getMonth() === date2.getMonth() &&
+          date1.getDate() === date2.getDate();
       };
-      
+
       const handleDateClick = (date) => {
         const dateStr = formatDateForInput(date);
         if (onChange) {
@@ -2448,51 +2459,51 @@ const PainelUsuario = () => {
           onClose();
         }
       };
-      
+
       const handlePrevMonth = () => {
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
       };
-      
+
       const handleNextMonth = () => {
         setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
       };
-      
+
       const renderCalendar = () => {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
-        
-        const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
-                          'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+        const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+          'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
         const monthYear = `${monthNames[month]} de ${year}`;
-        
+
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const firstDayWeekday = firstDay.getDay();
         const daysInMonth = lastDay.getDate();
-        
+
         const days = [];
-        
+
         // Dias vazios do início
         for (let i = 0; i < firstDayWeekday; i++) {
           days.push(React.createElement('div', { key: `empty-${i}`, className: 'periodo-calendar-day empty' }));
         }
-        
+
         // Dias do mês
         for (let day = 1; day <= daysInMonth; day++) {
           const currentDate = new Date(year, month, day);
           let dayClasses = 'periodo-calendar-day';
-          
+
           // Verificar se é a data selecionada
           if (value) {
             const selectedDate = new Date(value + 'T00:00:00');
             const selectedDateObj = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
             const isSelected = isSameDay(currentDate, selectedDateObj);
-            
+
             if (isSelected) {
               dayClasses += ' selected';
             }
           }
-          
+
           days.push(
             React.createElement('div', {
               key: day,
@@ -2501,41 +2512,41 @@ const PainelUsuario = () => {
             }, day)
           );
         }
-        
+
         return { monthYear, days };
       };
-      
+
       const { monthYear, days } = renderCalendar();
-      
-      return React.createElement('div', { 
+
+      return React.createElement('div', {
         className: 'periodo-dropdown',
         onClick: (e) => e.stopPropagation(),
         style: { position: 'relative', display: 'block' }
       }, React.createElement('div', { className: 'periodo-dropdown-content' },
         React.createElement('div', { style: { padding: '12px' } },
-          React.createElement('div', { 
+          React.createElement('div', {
             style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }
           },
-            React.createElement('i', { 
-              className: 'fas fa-calendar-alt', 
-              style: { color: '#4b5563', fontSize: '14px' } 
+            React.createElement('i', {
+              className: 'fas fa-calendar-alt',
+              style: { color: '#4b5563', fontSize: '14px' }
             }),
-            React.createElement('span', { 
-              style: { fontWeight: 600, color: '#111827', fontSize: '13px' } 
+            React.createElement('span', {
+              style: { fontWeight: 600, color: '#111827', fontSize: '13px' }
             }, 'Selecionar data')
           ),
           React.createElement('div', { className: 'periodo-calendar-container' },
             React.createElement('div', { className: 'periodo-calendar-header' },
-              React.createElement('button', { 
-                className: 'periodo-calendar-nav', 
-                type: 'button', 
-                onClick: handlePrevMonth 
+              React.createElement('button', {
+                className: 'periodo-calendar-nav',
+                type: 'button',
+                onClick: handlePrevMonth
               }, React.createElement('i', { className: 'fas fa-chevron-left' })),
               React.createElement('span', { className: 'periodo-calendar-month-year' }, monthYear),
-              React.createElement('button', { 
-                className: 'periodo-calendar-nav', 
-                type: 'button', 
-                onClick: handleNextMonth 
+              React.createElement('button', {
+                className: 'periodo-calendar-nav',
+                type: 'button',
+                onClick: handleNextMonth
               }, React.createElement('i', { className: 'fas fa-chevron-right' }))
             ),
             React.createElement('div', { className: 'periodo-calendar-weekdays' },
@@ -2552,7 +2563,7 @@ const PainelUsuario = () => {
         )
       ));
     };
-    
+
     // Função para atualizar o calendário
     const updateCalendar = (dataAtual) => {
       const dataStrAtual = formatDateForInput(dataAtual);
@@ -2579,10 +2590,10 @@ const PainelUsuario = () => {
         })
       );
     };
-    
+
     // Renderizar inicialmente
     updateCalendar(dataParaExibirCopy);
-    
+
     // Ao clicar no botão de calendário, mostrar o DatePicker
     let closeHandler = null;
     btnCalendario.addEventListener('click', (e) => {
@@ -2595,12 +2606,12 @@ const PainelUsuario = () => {
         datePickerContainer.style.visibility = 'visible';
         datePickerContainer.style.opacity = '1';
         datePickerContainer.style.pointerEvents = 'auto';
-        
+
         // Remover handler anterior se existir
         if (closeHandler) {
           document.removeEventListener('mousedown', closeHandler);
         }
-        
+
         // Fechar ao clicar fora
         closeHandler = (event) => {
           if (!dataContainer.contains(event.target) && !datePickerContainer.contains(event.target)) {
@@ -2624,12 +2635,12 @@ const PainelUsuario = () => {
         }
       }
     });
-    
+
     navContainer.appendChild(btnCalendario);
-    
+
     dataContainer.appendChild(datePickerContainer);
     navContainer.appendChild(dataContainer);
-    
+
     // Botão de navegação próxima
     const btnProxima = document.createElement('button');
     btnProxima.type = 'button';
@@ -2674,9 +2685,9 @@ const PainelUsuario = () => {
       }
     });
     navContainer.appendChild(btnProxima);
-    
+
     headerLeft.appendChild(navContainer);
-    
+
     // Subtítulo com quantidade de tarefas (na mesma linha)
     const subtitle = document.createElement('div');
     subtitle.style.fontSize = '12px';
@@ -2685,15 +2696,15 @@ const PainelUsuario = () => {
     subtitle.style.alignItems = 'center';
     subtitle.style.gap = '8px';
     subtitle.style.marginLeft = 'auto';
-    
+
     subtitle.appendChild(document.createTextNode(`${registrosFiltrados.length} tarefa(s)`));
     headerLeft.appendChild(subtitle);
-    
+
     header.appendChild(headerLeft);
-    
+
     const toggleView = document.createElement('div');
     toggleView.className = 'painel-usuario-toggle-view';
-    
+
     const btnQuadro = document.createElement('button');
     btnQuadro.type = 'button';
     btnQuadro.className = `painel-usuario-toggle-btn ${modo === 'quadro' ? 'active' : ''}`;
@@ -2705,7 +2716,7 @@ const PainelUsuario = () => {
       alternarModoVisualizacao('quadro');
     });
     toggleView.appendChild(btnQuadro);
-    
+
     const btnLista = document.createElement('button');
     btnLista.type = 'button';
     btnLista.className = `painel-usuario-toggle-btn ${modo === 'lista' ? 'active' : ''}`;
@@ -2717,9 +2728,9 @@ const PainelUsuario = () => {
       alternarModoVisualizacao('lista');
     });
     toggleView.appendChild(btnLista);
-    
+
     header.appendChild(toggleView);
-    
+
     // Inserir header após o container de clientes (se existir) ou no início
     if (clientesContainer && clientesContainer.parentNode === wrapper) {
       wrapper.insertBefore(header, clientesContainer.nextSibling);
@@ -2734,7 +2745,7 @@ const PainelUsuario = () => {
     } else {
       renderTarefasEmQuadro(registrosFiltrados, wrapper, dataParaRenderizar);
     }
-    
+
     // Garantir que o wrapper está no card (apenas se for primeira renderização)
     if (!card.contains(wrapper)) {
       card.appendChild(wrapper);
@@ -2743,7 +2754,7 @@ const PainelUsuario = () => {
 
   const toggleClienteLista = useCallback((clienteNome) => {
     const estavaExpandido = clientesExpandidosLista.has(clienteNome);
-    
+
     setClientesExpandidosLista((prev) => {
       const novo = new Set(prev);
       if (novo.has(clienteNome)) {
@@ -2774,16 +2785,16 @@ const PainelUsuario = () => {
           if (listaContainer) {
             const headerRect = targetHeader.getBoundingClientRect();
             const containerRect = listaContainer.getBoundingClientRect();
-            
+
             // Calcular a posição do header relativa ao container
             const headerTopRelative = targetHeader.offsetTop;
             const containerScrollTop = listaContainer.scrollTop;
             const containerHeight = listaContainer.clientHeight;
-            
+
             // Se o header está fora da área visível (acima ou muito abaixo), fazer scroll
             const headerVisibleTop = headerTopRelative - containerScrollTop;
             const headerVisibleBottom = headerVisibleTop + headerRect.height;
-            
+
             if (headerVisibleTop < 0 || headerVisibleBottom > containerHeight) {
               // Fazer scroll para mostrar o header com uma margem de 20px do topo
               listaContainer.scrollTo({
@@ -2829,7 +2840,7 @@ const PainelUsuario = () => {
           acc[clienteNome].push(reg);
         } else if (reg.cliente_id) {
           // Se não tiver nome ainda, disparar busca e usar um grupo temporário
-          buscarNomeCliente(reg.cliente_id).catch(() => {});
+          buscarNomeCliente(reg.cliente_id).catch(() => { });
           const tempKey = `_loading_${reg.cliente_id}`;
           if (!acc[tempKey]) acc[tempKey] = [];
           acc[tempKey].push(reg);
@@ -2841,7 +2852,7 @@ const PainelUsuario = () => {
         // Pular grupos temporários de carregamento
         if (clienteNome.startsWith('_loading_')) return;
         const isExpanded = clientesExpandidosLista.has(clienteNome);
-        
+
         // Calcular tempo estimado total do cliente
         const tempoTotal = items.reduce((sum, reg) => {
           const tempo = reg.tempo_estimado_dia || reg.tempo_estimado_total || 0;
@@ -2903,11 +2914,11 @@ const PainelUsuario = () => {
           content.style.background = '#ffffff';
           // Garantir que o content não bloqueie cliques no header
           content.style.pointerEvents = 'auto';
-          
+
           // Limitar a 6 tarefas visíveis e adicionar scroll se houver mais
           const maxTarefasVisiveis = 6;
           const temMaisTarefas = items.length > maxTarefasVisiveis;
-          
+
           if (temMaisTarefas) {
             // Adicionar classe para scroll interno
             content.classList.add('painel-usuario-grupo-cliente-content-scroll');
@@ -2915,13 +2926,13 @@ const PainelUsuario = () => {
 
           // Buscar todas as subtarefas em paralelo antes de renderizar
           const tarefaIdsUnicos = [...new Set(items.map(reg => reg.tarefa_id).filter(id => id))];
-          const promessasSubtarefas = tarefaIdsUnicos.map(tarefaId => 
+          const promessasSubtarefas = tarefaIdsUnicos.map(tarefaId =>
             buscarSubtarefas(tarefaId).catch(err => {
               console.error(`Erro ao buscar subtarefas para tarefa ${tarefaId}:`, err);
               return [];
             })
           );
-          
+
           // Iniciar busca em paralelo (não aguardar para renderizar)
           Promise.all(promessasSubtarefas).then(() => {
             // Após todas as buscas, atualizar contadores de todos os items
@@ -2946,7 +2957,7 @@ const PainelUsuario = () => {
               }
             });
           });
-          
+
           // Renderizar todas as tarefas, mas o CSS vai limitar a altura
           items.forEach((reg, index) => {
             const item = document.createElement('div');
@@ -2964,7 +2975,7 @@ const PainelUsuario = () => {
             if (!tempoEstimadoId) {
               return; // Pular este registro se não tiver ID
             }
-            
+
             const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
             const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
             const isAtivo = !!registroAtivo;
@@ -2972,7 +2983,7 @@ const PainelUsuario = () => {
             const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
             const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
             const btnAction = isAtivo ? 'parar' : 'iniciar';
-            
+
             item.innerHTML = `
               <div class="painel-usuario-tarefa-item-lista-content">
                 <div class="painel-usuario-tarefa-item-lista-main">
@@ -3009,9 +3020,9 @@ const PainelUsuario = () => {
                       <span class="painel-usuario-realizado-label">Realizado:</span>
                       <span class="painel-usuario-realizado-pill" data-tarefa-id="${reg.tarefa_id}" data-cliente-id="${reg.cliente_id}">${obterTempoRealizadoFormatado(reg)}</span>
                       ${(() => {
-                        const chaveTimetrack = criarChaveTempo(reg);
-                        const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
-                        return `
+                const chaveTimetrack = criarChaveTempo(reg);
+                const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
+                return `
                           <i 
                             class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
                             data-chave-timetrack="${chaveTimetrack}"
@@ -3019,15 +3030,15 @@ const PainelUsuario = () => {
                             title="${isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais'}"
                           ></i>
                         `;
-                      })()}
+              })()}
                     </div>
                     ${(() => {
-                      const chaveSubtarefas = criarChaveSubtarefas(reg);
-                      const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
-                      const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
-                      const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
-                      // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
-                      return `
+                const chaveSubtarefas = criarChaveSubtarefas(reg);
+                const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+                const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
+                const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+                // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
+                return `
                         <div class="painel-usuario-subtarefas-info">
                           <span class="painel-usuario-subtarefas-count" style="color: ${pendentes === 0 && subtarefas ? '#10b981' : '#f59e0b'};" data-tarefa-id="${reg.tarefa_id}">${subtarefas ? `${pendentes} pendente${pendentes !== 1 ? 's' : ''}` : '...'}</span>
                           <i 
@@ -3039,7 +3050,7 @@ const PainelUsuario = () => {
                           ></i>
                         </div>
                   `;
-                })()}
+              })()}
               </span>
             </div>
             <div class="painel-usuario-timetracks-container">
@@ -3053,7 +3064,7 @@ const PainelUsuario = () => {
             </div>
               </div>
             `;
-            
+
             // Verificar se já temos subtarefas no cache e atualizar contador imediatamente
             const chaveSubtarefas = criarChaveSubtarefas(reg);
             const subtarefasNoCache = subtarefasCacheRef.current.get(String(reg.tarefa_id));
@@ -3069,7 +3080,7 @@ const PainelUsuario = () => {
                 }
               }
             }
-            
+
             // Configurar wrapper de subtarefas
             const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveSubtarefas}"]`);
             if (subtarefasWrapper) {
@@ -3079,20 +3090,20 @@ const PainelUsuario = () => {
                 const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
                 const concluidas = new Set(estadoAtual); // Criar uma cópia
                 const subtarefaIdStr = String(subtarefaId);
-                
+
                 // Alternar apenas esta subtarefa específica
                 if (concluidas.has(subtarefaIdStr)) {
                   concluidas.delete(subtarefaIdStr);
                 } else {
                   concluidas.add(subtarefaIdStr);
                 }
-                
+
                 // Atualizar o estado e o ref simultaneamente
                 const novoMap = new Map(subtarefasConcluidasRef.current);
                 novoMap.set(chave, concluidas);
                 subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
                 setSubtarefasConcluidas(novoMap);
-                
+
                 // Atualizar renderização
                 const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                 if (wrapper) {
@@ -3100,7 +3111,7 @@ const PainelUsuario = () => {
                   // Reaplicar listeners
                   adicionarListenersBolinhas(wrapper, tarefaIdVal, chave, subtarefasVal);
                 }
-                
+
                 // Atualizar contador
                 const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                 if (countElement) {
@@ -3113,59 +3124,59 @@ const PainelUsuario = () => {
                   }
                 }
               };
-              
-                // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição
-                const adicionarListenersBolinhas = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
-                  // Listeners nas bolinhas
-                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
-                    bolinha.addEventListener('click', function(e) {
-                      e.stopPropagation();
-                      const subtarefaId = this.getAttribute('data-subtarefa-id');
+
+              // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição
+              const adicionarListenersBolinhas = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
+                // Listeners nas bolinhas
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
+                  bolinha.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const subtarefaId = this.getAttribute('data-subtarefa-id');
+                    alternarSubtarefa(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
+                  });
+                });
+
+                // Listeners nos nomes
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
+                  nome.style.cursor = 'pointer';
+                  nome.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const itemEl = this.closest('.painel-usuario-subtarefa-item');
+                    if (itemEl) {
+                      const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
                       alternarSubtarefa(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
-                    });
+                    }
                   });
-                  
-                  // Listeners nos nomes
-                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
-                    nome.style.cursor = 'pointer';
-                    nome.addEventListener('click', function(e) {
-                      e.stopPropagation();
-                      const itemEl = this.closest('.painel-usuario-subtarefa-item');
-                      if (itemEl) {
-                        const subtarefaId = itemEl.getAttribute('data-subtarefa-id');
-                        alternarSubtarefa(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
-                      }
-                    });
+                });
+
+                // Listeners nos botões de descrição
+                wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
+                  btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const subtarefaId = this.getAttribute('data-subtarefa-id');
+                    const subtarefaIdStr = String(subtarefaId);
+                    const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
+                    const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
+
+                    if (estavaExpandida) {
+                      novoExpandidas.delete(subtarefaIdStr);
+                    } else {
+                      novoExpandidas.add(subtarefaIdStr);
+                    }
+
+                    descricoesSubtarefasExpandidasRef.current = novoExpandidas;
+                    setDescricoesSubtarefasExpandidas(novoExpandidas);
+
+                    // Re-renderizar as subtarefas para atualizar a descrição
+                    const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
+                    if (wrapper) {
+                      wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
+                      adicionarListenersBolinhas(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
+                    }
                   });
-                  
-                  // Listeners nos botões de descrição
-                  wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                      e.stopPropagation();
-                      const subtarefaId = this.getAttribute('data-subtarefa-id');
-                      const subtarefaIdStr = String(subtarefaId);
-                      const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
-                      const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
-                      
-                      if (estavaExpandida) {
-                        novoExpandidas.delete(subtarefaIdStr);
-                      } else {
-                        novoExpandidas.add(subtarefaIdStr);
-                      }
-                      
-                      descricoesSubtarefasExpandidasRef.current = novoExpandidas;
-                      setDescricoesSubtarefasExpandidas(novoExpandidas);
-                      
-                      // Re-renderizar as subtarefas para atualizar a descrição
-                      const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
-                      if (wrapper) {
-                        wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chaveVal);
-                        adicionarListenersBolinhas(wrapper, tarefaIdVal, chaveVal, subtarefasVal);
-                      }
-                    });
-                  });
-                };
-              
+                });
+              };
+
               // Verificar se já temos subtarefas e renderizar se expandido
               const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
               if (subtarefas && subtarefas.length > 0) {
@@ -3179,11 +3190,11 @@ const PainelUsuario = () => {
                 }
               }
             }
-            
+
             // Atualizar contador quando as subtarefas forem carregadas (se ainda não estiverem no cache)
             (async () => {
               const subtarefas = await buscarSubtarefas(reg.tarefa_id);
-              
+
               // Atualizar contador quando subtarefas forem carregadas
               if (subtarefas && subtarefas.length > 0) {
                 const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
@@ -3198,34 +3209,34 @@ const PainelUsuario = () => {
                 }
               }
             })();
-            
+
             // Adicionar event listener à setinha de subtarefas
             const subtarefasArrow = item.querySelector('.painel-usuario-subtarefas-arrow');
             if (subtarefasArrow) {
               const arrowClone = subtarefasArrow.cloneNode(true);
               subtarefasArrow.parentNode.replaceChild(arrowClone, subtarefasArrow);
-              
+
               arrowClone.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const chave = arrowClone.getAttribute('data-chave-subtarefas');
                 const tarefaId = arrowClone.getAttribute('data-tarefa-id');
                 if (!chave) return;
-                
+
                 const estavaExpandido = subtarefasExpandidasRef.current.has(chave);
                 const novoExpandidos = new Set(subtarefasExpandidasRef.current);
-                
+
                 if (estavaExpandido) {
                   novoExpandidos.delete(chave);
                 } else {
                   novoExpandidos.add(chave);
                 }
-                
+
                 subtarefasExpandidasRef.current = novoExpandidos;
                 setSubtarefasExpandidas(novoExpandidos);
-                
+
                 const isExpanded = novoExpandidos.has(chave);
                 const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
-                
+
                 if (isExpanded) {
                   let subtarefas = subtarefasCacheRef.current.get(String(tarefaId));
                   if (!subtarefas) {
@@ -3234,33 +3245,33 @@ const PainelUsuario = () => {
                   if (subtarefas && subtarefas.length > 0) {
                     subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
                     subtarefasWrapper.style.display = 'block';
-                    
+
                     // Função helper para alternar estado de uma subtarefa (lista - expandir)
                     const alternarSubtarefaArrow = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                       // Sempre pegar o estado mais atualizado do ref
                       const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
                       const concluidas = new Set(estadoAtual); // Criar uma cópia
                       const subtarefaIdStr = String(subtarefaId);
-                      
+
                       // Alternar apenas esta subtarefa específica
                       if (concluidas.has(subtarefaIdStr)) {
                         concluidas.delete(subtarefaIdStr);
                       } else {
                         concluidas.add(subtarefaIdStr);
                       }
-                      
+
                       // Atualizar o estado e o ref simultaneamente
                       const novoMap = new Map(subtarefasConcluidasRef.current);
                       novoMap.set(chave, concluidas);
                       subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
                       setSubtarefasConcluidas(novoMap);
-                      
+
                       const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                       if (wrapper) {
                         wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                         adicionarListenersBolinhasArrow(wrapper, tarefaIdVal, chave, subtarefasVal);
                       }
-                      
+
                       // Atualizar contador
                       const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                       if (countElement) {
@@ -3273,22 +3284,22 @@ const PainelUsuario = () => {
                         }
                       }
                     };
-                    
+
                     // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (lista - expandir)
                     const adicionarListenersBolinhasArrow = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
                       // Listeners nas bolinhas
                       wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
-                        bolinha.addEventListener('click', function(e) {
+                        bolinha.addEventListener('click', function (e) {
                           e.stopPropagation();
                           const subtarefaId = this.getAttribute('data-subtarefa-id');
                           alternarSubtarefaArrow(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
                         });
                       });
-                      
+
                       // Listeners nos nomes
                       wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
                         nome.style.cursor = 'pointer';
-                        nome.addEventListener('click', function(e) {
+                        nome.addEventListener('click', function (e) {
                           e.stopPropagation();
                           const itemEl = this.closest('.painel-usuario-subtarefa-item');
                           if (itemEl) {
@@ -3297,25 +3308,25 @@ const PainelUsuario = () => {
                           }
                         });
                       });
-                      
+
                       // Listeners nos botões de descrição
                       wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
-                        btn.addEventListener('click', function(e) {
+                        btn.addEventListener('click', function (e) {
                           e.stopPropagation();
                           const subtarefaId = this.getAttribute('data-subtarefa-id');
                           const subtarefaIdStr = String(subtarefaId);
                           const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
                           const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
-                          
+
                           if (estavaExpandida) {
                             novoExpandidas.delete(subtarefaIdStr);
                           } else {
                             novoExpandidas.add(subtarefaIdStr);
                           }
-                          
+
                           descricoesSubtarefasExpandidasRef.current = novoExpandidas;
                           setDescricoesSubtarefasExpandidas(novoExpandidas);
-                          
+
                           // Re-renderizar as subtarefas para atualizar a descrição
                           const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
                           if (wrapper) {
@@ -3325,19 +3336,19 @@ const PainelUsuario = () => {
                         });
                       });
                     };
-                    
+
                     adicionarListenersBolinhasArrow(subtarefasWrapper, tarefaId, chave, subtarefas);
                   }
                 } else {
                   subtarefasWrapper.style.display = 'none';
                 }
-                
+
                 // Atualizar ícone da setinha
                 arrowClone.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow`;
                 arrowClone.setAttribute('title', isExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas');
               });
             }
-            
+
             // Adicionar event listener ao botão play/stop
             const btn = item.querySelector(`button[data-action]`);
             if (btn) {
@@ -3363,57 +3374,57 @@ const PainelUsuario = () => {
                 }
               });
             }
-            
+
             // Adicionar event listener à setinha de expandir timetrack
             const expandArrow = item.querySelector('.painel-usuario-timetrack-arrow');
             if (expandArrow) {
               // Remover listeners anteriores para evitar duplicação
               const newExpandArrow = expandArrow.cloneNode(true);
               expandArrow.parentNode.replaceChild(newExpandArrow, expandArrow);
-              
+
               newExpandArrow.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 e.preventDefault();
                 const chave = newExpandArrow.getAttribute('data-chave-timetrack');
                 if (!chave) return;
-                
+
                 // Usar ref para verificar estado atual (mais confiável)
                 const estavaExpandido = timetracksExpandidosRef.current.has(chave);
                 const novoExpandidos = new Set(timetracksExpandidosRef.current);
-                
+
                 if (estavaExpandido) {
                   novoExpandidos.delete(chave);
                 } else {
                   novoExpandidos.add(chave);
                 }
-                
+
                 // Atualizar ref imediatamente
                 timetracksExpandidosRef.current = novoExpandidos;
                 // Atualizar estado (para sincronizar com React)
                 setTimetracksExpandidos(novoExpandidos);
-                
+
                 const isTimetrackExpanded = novoExpandidos.has(chave);
-                
+
                 // Se está expandindo, buscar dados se necessário
                 if (isTimetrackExpanded && !timetracksDataRef.current.has(chave)) {
                   await buscarRegistrosTimetrack(reg);
                   await new Promise(resolve => setTimeout(resolve, 10));
                 }
-                
+
                 // Renderizar timetracks
                 const timetracksHtml = isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
-                
+
                 // Encontrar o container de timetracks dentro do item-lista-content
                 const itemContent = item.querySelector('.painel-usuario-tarefa-item-lista-content');
                 let timetracksContainer = itemContent ? itemContent.querySelector('.painel-usuario-timetracks-container') : null;
-                
+
                 if (!timetracksContainer && itemContent) {
                   // Se não existe, criar e adicionar após os tags, mas antes das subtarefas
                   timetracksContainer = document.createElement('div');
                   timetracksContainer.className = 'painel-usuario-timetracks-container';
                   const tagsContainer = itemContent.querySelector('.painel-usuario-tarefa-tags');
                   const subtarefasWrapper = itemContent.querySelector('.painel-usuario-subtarefas-wrapper');
-                  
+
                   if (tagsContainer && tagsContainer.parentNode) {
                     // Se existe subtarefas wrapper, inserir antes dele, senão inserir após tags
                     if (subtarefasWrapper && subtarefasWrapper.parentNode) {
@@ -3425,17 +3436,17 @@ const PainelUsuario = () => {
                     itemContent.appendChild(timetracksContainer);
                   }
                 }
-                
+
                 if (timetracksContainer) {
                   timetracksContainer.innerHTML = timetracksHtml;
                 }
-                
+
                 // Atualizar ícone da setinha
                 newExpandArrow.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow`;
                 newExpandArrow.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
               });
             }
-            
+
             // Garantir que cliques no item não bloqueiem o header
             item.addEventListener('click', (e) => {
               // Se não foi o botão que foi clicado, não fazer nada (deixar propagar)
@@ -3444,7 +3455,7 @@ const PainelUsuario = () => {
                 return;
               }
             });
-            
+
             content.appendChild(item);
           });
 
@@ -3465,13 +3476,13 @@ const PainelUsuario = () => {
     if (target && target.classList && target.classList.contains('painel-usuario-tarefas-content')) {
       wrapper = target.querySelector('div[style*="flex-direction: column"]');
     }
-    
+
     // Se ainda não tiver wrapper, usar renderTarefasNoCard que cria a estrutura correta
     if (!wrapper) {
       renderTarefasNoCard(registros, target, dataSelecionada);
       return;
     }
-    
+
     // Remover boardContainer existente para evitar duplicação
     const wrapperChildren = Array.from(wrapper.children);
     for (const child of wrapperChildren) {
@@ -3517,7 +3528,7 @@ const PainelUsuario = () => {
           acc[clienteNome].push(reg);
         } else if (reg.cliente_id) {
           // Se não tiver nome ainda, disparar busca e usar um grupo temporário
-          buscarNomeCliente(reg.cliente_id).catch(() => {});
+          buscarNomeCliente(reg.cliente_id).catch(() => { });
           const tempKey = `_loading_${reg.cliente_id}`;
           if (!acc[tempKey]) acc[tempKey] = [];
           acc[tempKey].push(reg);
@@ -3565,7 +3576,7 @@ const PainelUsuario = () => {
         colunaHeader.style.gap = '12px';
         colunaHeader.style.flexWrap = 'nowrap'; // Mudar para nowrap para manter tudo na mesma linha
         colunaHeader.style.minWidth = '0'; // Permitir que o flex item encolha se necessário
-        
+
         // Nome do cliente
         const clienteNomeEl = document.createElement('div');
         clienteNomeEl.textContent = clienteNome;
@@ -3573,7 +3584,7 @@ const PainelUsuario = () => {
         clienteNomeEl.style.whiteSpace = 'nowrap'; // Não quebrar o nome
         clienteNomeEl.style.overflow = 'visible'; // Permitir que o nome seja visível mesmo se longo
         colunaHeader.appendChild(clienteNomeEl);
-        
+
         // Container para as informações de tempo (na mesma linha, alinhado à direita)
         const tempoInfoContainer = document.createElement('div');
         tempoInfoContainer.style.display = 'flex';
@@ -3583,7 +3594,7 @@ const PainelUsuario = () => {
         tempoInfoContainer.style.marginLeft = 'auto';
         tempoInfoContainer.style.flexShrink = '0'; // Não encolher o container de tempo
         colunaHeader.appendChild(tempoInfoContainer);
-        
+
         // Renderizar componente React de informações de tempo
         const root = createRoot(tempoInfoContainer);
         root.render(
@@ -3595,7 +3606,7 @@ const PainelUsuario = () => {
             modoQuadro={true}
           />
         );
-        
+
         coluna.appendChild(colunaHeader);
 
         const colunaBody = document.createElement('div');
@@ -3614,7 +3625,7 @@ const PainelUsuario = () => {
           if (!tempoEstimadoId) {
             return; // Pular este registro se não tiver ID
           }
-          
+
           const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
           const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
           const isAtivo = !!registroAtivo;
@@ -3622,10 +3633,10 @@ const PainelUsuario = () => {
           const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
           const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
           const btnAction = isAtivo ? 'parar' : 'iniciar';
-          
+
           const chaveTimetrack = criarChaveTempo(reg);
           const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
-          
+
           item.innerHTML = `
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
@@ -3666,12 +3677,12 @@ const PainelUsuario = () => {
                   ></i>
                 </div>
                 ${(() => {
-                  const chaveSubtarefas = criarChaveSubtarefas(reg);
-                  const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
-                  const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
-                  const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
-                  // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
-                  return `
+              const chaveSubtarefas = criarChaveSubtarefas(reg);
+              const subtarefas = subtarefasCacheRef.current.get(String(reg.tarefa_id));
+              const pendentes = subtarefas ? contarSubtarefasPendentes(subtarefas, chaveSubtarefas) : (subtarefas && subtarefas.length > 0 ? subtarefas.length : 0);
+              const isSubtarefasExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
+              // Sempre mostrar o contador, mesmo que seja 0 ou ainda não tenha carregado
+              return `
                     <div class="painel-usuario-subtarefas-info">
                       <span class="painel-usuario-subtarefas-count" style="color: ${pendentes === 0 && subtarefas ? '#10b981' : '#f59e0b'};" data-tarefa-id="${reg.tarefa_id}">${subtarefas ? `${pendentes} pendente${pendentes !== 1 ? 's' : ''}` : '...'}</span>
                       <i 
@@ -3683,7 +3694,7 @@ const PainelUsuario = () => {
                       ></i>
                     </div>
                   `;
-                })()}
+            })()}
               </span>
             </div>
             <div class="painel-usuario-timetracks-container">
@@ -3692,12 +3703,12 @@ const PainelUsuario = () => {
             <div class="painel-usuario-subtarefas-wrapper" data-chave-subtarefas="${criarChaveSubtarefas(reg)}" data-tarefa-id="${reg.tarefa_id}" style="display: none;">
             </div>
           `;
-          
+
           // Buscar e renderizar subtarefas após criar o item
           const chaveSubtarefas = criarChaveSubtarefas(reg);
           (async () => {
             const subtarefas = await buscarSubtarefas(reg.tarefa_id);
-            
+
             // Atualizar contador quando subtarefas forem carregadas
             if (subtarefas && subtarefas.length > 0) {
               const pendentes = contarSubtarefasPendentes(subtarefas, chaveSubtarefas);
@@ -3711,7 +3722,7 @@ const PainelUsuario = () => {
                 }
               }
             }
-            
+
             const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveSubtarefas}"]`);
             if (subtarefasWrapper && subtarefas && subtarefas.length > 0) {
               const isExpanded = subtarefasExpandidasRef.current.has(chaveSubtarefas);
@@ -3721,33 +3732,33 @@ const PainelUsuario = () => {
               } else {
                 subtarefasWrapper.style.display = 'none';
               }
-              
+
               // Função helper para alternar estado de uma subtarefa (quadro)
               const alternarSubtarefaQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                 // Sempre pegar o estado mais atualizado do ref
                 const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
                 const concluidas = new Set(estadoAtual); // Criar uma cópia
                 const subtarefaIdStr = String(subtarefaId);
-                
+
                 // Alternar apenas esta subtarefa específica
                 if (concluidas.has(subtarefaIdStr)) {
                   concluidas.delete(subtarefaIdStr);
                 } else {
                   concluidas.add(subtarefaIdStr);
                 }
-                
+
                 // Atualizar o estado e o ref simultaneamente
                 const novoMap = new Map(subtarefasConcluidasRef.current);
                 novoMap.set(chave, concluidas);
                 subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
                 setSubtarefasConcluidas(novoMap);
-                
+
                 const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                 if (wrapper) {
                   wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                   adicionarListenersBolinhasQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
                 }
-                
+
                 // Atualizar contador
                 const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                 if (countElement) {
@@ -3760,22 +3771,22 @@ const PainelUsuario = () => {
                   }
                 }
               };
-              
+
               // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (visualização quadro)
               const adicionarListenersBolinhasQuadro = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
                 // Listeners nas bolinhas
                 wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
-                  bolinha.addEventListener('click', function(e) {
+                  bolinha.addEventListener('click', function (e) {
                     e.stopPropagation();
                     const subtarefaId = this.getAttribute('data-subtarefa-id');
                     alternarSubtarefaQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
                   });
                 });
-                
+
                 // Listeners nos nomes
                 wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
                   nome.style.cursor = 'pointer';
-                  nome.addEventListener('click', function(e) {
+                  nome.addEventListener('click', function (e) {
                     e.stopPropagation();
                     const itemEl = this.closest('.painel-usuario-subtarefa-item');
                     if (itemEl) {
@@ -3784,25 +3795,25 @@ const PainelUsuario = () => {
                     }
                   });
                 });
-                
+
                 // Listeners nos botões de descrição
                 wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
-                  btn.addEventListener('click', function(e) {
+                  btn.addEventListener('click', function (e) {
                     e.stopPropagation();
                     const subtarefaId = this.getAttribute('data-subtarefa-id');
                     const subtarefaIdStr = String(subtarefaId);
                     const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
                     const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
-                    
+
                     if (estavaExpandida) {
                       novoExpandidas.delete(subtarefaIdStr);
                     } else {
                       novoExpandidas.add(subtarefaIdStr);
                     }
-                    
+
                     descricoesSubtarefasExpandidasRef.current = novoExpandidas;
                     setDescricoesSubtarefasExpandidas(novoExpandidas);
-                    
+
                     // Re-renderizar as subtarefas para atualizar a descrição
                     const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
                     if (wrapper) {
@@ -3812,38 +3823,38 @@ const PainelUsuario = () => {
                   });
                 });
               };
-              
+
               adicionarListenersBolinhasQuadro(subtarefasWrapper, reg.tarefa_id, chaveSubtarefas, subtarefas);
             }
           })();
-          
+
           // Adicionar event listener à setinha de subtarefas
           const subtarefasArrow = item.querySelector('.painel-usuario-subtarefas-arrow');
           if (subtarefasArrow) {
             const arrowClone = subtarefasArrow.cloneNode(true);
             subtarefasArrow.parentNode.replaceChild(arrowClone, subtarefasArrow);
-            
+
             arrowClone.addEventListener('click', async (e) => {
               e.stopPropagation();
               const chave = arrowClone.getAttribute('data-chave-subtarefas');
               const tarefaId = arrowClone.getAttribute('data-tarefa-id');
               if (!chave) return;
-              
+
               const estavaExpandido = subtarefasExpandidasRef.current.has(chave);
               const novoExpandidos = new Set(subtarefasExpandidasRef.current);
-              
+
               if (estavaExpandido) {
                 novoExpandidos.delete(chave);
               } else {
                 novoExpandidos.add(chave);
               }
-              
+
               subtarefasExpandidasRef.current = novoExpandidos;
               setSubtarefasExpandidas(novoExpandidos);
-              
+
               const isExpanded = novoExpandidos.has(chave);
               const subtarefasWrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
-              
+
               if (isExpanded) {
                 let subtarefas = subtarefasCacheRef.current.get(String(tarefaId));
                 if (!subtarefas) {
@@ -3852,33 +3863,33 @@ const PainelUsuario = () => {
                 if (subtarefas && subtarefas.length > 0) {
                   subtarefasWrapper.innerHTML = renderizarSubtarefas(subtarefas, tarefaId, chave);
                   subtarefasWrapper.style.display = 'block';
-                  
+
                   // Função helper para alternar estado de uma subtarefa (expandir quadro)
                   const alternarSubtarefaExpandQuadro = (subtarefaId, chave, tarefaIdVal, subtarefasVal) => {
                     // Sempre pegar o estado mais atualizado do ref
                     const estadoAtual = subtarefasConcluidasRef.current.get(chave) || new Set();
                     const concluidas = new Set(estadoAtual); // Criar uma cópia
                     const subtarefaIdStr = String(subtarefaId);
-                    
+
                     // Alternar apenas esta subtarefa específica
                     if (concluidas.has(subtarefaIdStr)) {
                       concluidas.delete(subtarefaIdStr);
                     } else {
                       concluidas.add(subtarefaIdStr);
                     }
-                    
+
                     // Atualizar o estado e o ref simultaneamente
                     const novoMap = new Map(subtarefasConcluidasRef.current);
                     novoMap.set(chave, concluidas);
                     subtarefasConcluidasRef.current = novoMap; // Atualizar ref imediatamente
                     setSubtarefasConcluidas(novoMap);
-                    
+
                     const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chave}"]`);
                     if (wrapper) {
                       wrapper.innerHTML = renderizarSubtarefas(subtarefasVal, tarefaIdVal, chave);
                       adicionarListenersBolinhasExpandQuadro(wrapper, tarefaIdVal, chave, subtarefasVal);
                     }
-                    
+
                     // Atualizar contador
                     const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
                     if (countElement) {
@@ -3891,22 +3902,22 @@ const PainelUsuario = () => {
                       }
                     }
                   };
-                  
+
                   // Função helper para adicionar listeners nas bolinhas, nomes e botões de descrição (expandir quadro)
                   const adicionarListenersBolinhasExpandQuadro = (wrapperEl, tarefaIdVal, chaveVal, subtarefasVal) => {
                     // Listeners nas bolinhas
                     wrapperEl.querySelectorAll('.painel-usuario-subtarefa-bolinha').forEach(bolinha => {
-                      bolinha.addEventListener('click', function(e) {
+                      bolinha.addEventListener('click', function (e) {
                         e.stopPropagation();
                         const subtarefaId = this.getAttribute('data-subtarefa-id');
                         alternarSubtarefaExpandQuadro(subtarefaId, chaveVal, tarefaIdVal, subtarefasVal);
                       });
                     });
-                    
+
                     // Listeners nos nomes
                     wrapperEl.querySelectorAll('.painel-usuario-subtarefa-nome').forEach(nome => {
                       nome.style.cursor = 'pointer';
-                      nome.addEventListener('click', function(e) {
+                      nome.addEventListener('click', function (e) {
                         e.stopPropagation();
                         const itemEl = this.closest('.painel-usuario-subtarefa-item');
                         if (itemEl) {
@@ -3915,25 +3926,25 @@ const PainelUsuario = () => {
                         }
                       });
                     });
-                    
+
                     // Listeners nos botões de descrição
                     wrapperEl.querySelectorAll('.painel-usuario-subtarefa-descricao-btn').forEach(btn => {
-                      btn.addEventListener('click', function(e) {
+                      btn.addEventListener('click', function (e) {
                         e.stopPropagation();
                         const subtarefaId = this.getAttribute('data-subtarefa-id');
                         const subtarefaIdStr = String(subtarefaId);
                         const estavaExpandida = descricoesSubtarefasExpandidasRef.current.has(subtarefaIdStr);
                         const novoExpandidas = new Set(descricoesSubtarefasExpandidasRef.current);
-                        
+
                         if (estavaExpandida) {
                           novoExpandidas.delete(subtarefaIdStr);
                         } else {
                           novoExpandidas.add(subtarefaIdStr);
                         }
-                        
+
                         descricoesSubtarefasExpandidasRef.current = novoExpandidas;
                         setDescricoesSubtarefasExpandidas(novoExpandidas);
-                        
+
                         // Re-renderizar as subtarefas para atualizar a descrição
                         const wrapper = item.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${chaveVal}"]`);
                         if (wrapper) {
@@ -3943,19 +3954,19 @@ const PainelUsuario = () => {
                       });
                     });
                   };
-                  
+
                   adicionarListenersBolinhasExpandQuadro(subtarefasWrapper, tarefaId, chave, subtarefas);
                 }
               } else {
                 subtarefasWrapper.style.display = 'none';
               }
-              
+
               // Atualizar ícone da setinha
               arrowClone.className = `fas fa-chevron-${isExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow`;
               arrowClone.setAttribute('title', isExpanded ? 'Ocultar subtarefas' : 'Ver subtarefas');
             });
           }
-          
+
           // Adicionar event listener ao botão play/stop
           const btn = item.querySelector(`button[data-action]`);
           if (btn) {
@@ -3980,45 +3991,45 @@ const PainelUsuario = () => {
               }
             });
           }
-          
+
           // Adicionar event listener à setinha de expandir timetrack
           const expandArrow = item.querySelector('.painel-usuario-timetrack-arrow');
           if (expandArrow) {
             // Remover listeners anteriores para evitar duplicação
             const newExpandArrow = expandArrow.cloneNode(true);
             expandArrow.parentNode.replaceChild(newExpandArrow, expandArrow);
-            
+
             newExpandArrow.addEventListener('click', async (e) => {
               e.stopPropagation();
               const chave = newExpandArrow.getAttribute('data-chave-timetrack');
               if (!chave) return;
-              
+
               // Usar ref para verificar estado atual (mais confiável)
               const estavaExpandido = timetracksExpandidosRef.current.has(chave);
               const novoExpandidos = new Set(timetracksExpandidosRef.current);
-              
+
               if (estavaExpandido) {
                 novoExpandidos.delete(chave);
               } else {
                 novoExpandidos.add(chave);
               }
-              
+
               // Atualizar ref imediatamente
               timetracksExpandidosRef.current = novoExpandidos;
               // Atualizar estado (para sincronizar com React)
               setTimetracksExpandidos(novoExpandidos);
-              
+
               const isTimetrackExpanded = novoExpandidos.has(chave);
-              
+
               // Se está expandindo, buscar dados se necessário
               if (isTimetrackExpanded && !timetracksDataRef.current.has(chave)) {
                 await buscarRegistrosTimetrack(reg);
                 await new Promise(resolve => setTimeout(resolve, 10));
               }
-              
+
               // Renderizar timetracks
               const timetracksHtml = isTimetrackExpanded ? renderizarTimetracksIndividuais(reg) : '';
-              
+
               // Encontrar o container de timetracks ou criar um novo
               let timetracksContainer = item.querySelector('.painel-usuario-timetracks-container');
               if (!timetracksContainer) {
@@ -4027,13 +4038,13 @@ const PainelUsuario = () => {
                 item.appendChild(timetracksContainer);
               }
               timetracksContainer.innerHTML = timetracksHtml;
-              
+
               // Atualizar ícone da setinha
               newExpandArrow.className = `fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow`;
               newExpandArrow.setAttribute('title', isTimetrackExpanded ? 'Ocultar timetracks' : 'Ver timetracks individuais');
             });
           }
-          
+
           colunaBody.appendChild(item);
         });
 
@@ -4074,25 +4085,25 @@ const PainelUsuario = () => {
     });
 
     const novos = { ...nomesCache };
-    
+
     // Buscar tarefas/atividades em lote usando a rota de múltiplos IDs
     if (tarefasIds.size > 0) {
       try {
         const tarefasIdsArray = Array.from(tarefasIds);
         const tarefasFaltando = tarefasIdsArray.filter(id => !novos.tarefas[id]);
-        
+
         if (tarefasFaltando.length > 0) {
           // Usar a rota de múltiplos IDs para buscar todas as tarefas de uma vez
           const idsParam = tarefasFaltando.join(',');
-          
+
           const response = await fetch(`/api/tarefas-por-ids?ids=${idsParam}`, {
             credentials: 'include',
             headers: { Accept: 'application/json' }
           });
-          
+
           if (response.ok) {
             const result = await response.json();
-            
+
             if (result.success && result.data) {
               // result.data é um objeto { id: nome }
               // Os IDs podem vir como números ou strings, garantir que sejam strings
@@ -4106,7 +4117,7 @@ const PainelUsuario = () => {
               });
             }
           }
-          
+
           // Para tarefas que não foram encontradas na busca em lote, usar fallback
           tarefasFaltando.forEach(id => {
             const idStr = String(id);
@@ -4124,35 +4135,35 @@ const PainelUsuario = () => {
         });
       }
     }
-    
+
     // Buscar produtos em lote usando a rota de múltiplos IDs
     if (produtosIds.size > 0) {
       try {
         const produtosIdsArray = Array.from(produtosIds);
         const produtosFaltando = produtosIdsArray.filter(id => !novos.produtos[id]);
-        
+
         if (produtosFaltando.length > 0) {
           // Usar a rota de múltiplos IDs para buscar todas os produtos de uma vez
           const idsParam = produtosFaltando.join(',');
           const response = await fetch(`/api/produtos-por-ids-numericos?ids=${idsParam}`, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-          
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
+            credentials: 'include',
+            headers: { Accept: 'application/json' }
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
               // result.data é um objeto { id: nome }
               Object.entries(result.data).forEach(([id, nome]) => {
                 if (nome) {
                   novos.produtos[String(id)] = nome;
-          } else {
+                } else {
                   novos.produtos[String(id)] = `produto #${id}`;
-          }
+                }
               });
             }
           }
-          
+
           // Para produtos que não foram encontrados na busca em lote, usar fallback
           produtosFaltando.forEach(id => {
             if (!novos.produtos[id]) {
@@ -4165,16 +4176,16 @@ const PainelUsuario = () => {
         Array.from(produtosIds).forEach(id => {
           if (!novos.produtos[id]) {
             novos.produtos[id] = `produto #${id}`;
-      }
+          }
         });
       }
     }
-    
+
     // Para clientes, usar o endpoint de base-conhecimento para buscar nomes
     if (clientesIds.size > 0) {
       const clientesIdsArray = Array.from(clientesIds);
       const clientesFaltando = clientesIdsArray.filter(id => !novos.clientes[id]);
-      
+
       if (clientesFaltando.length > 0) {
         // Buscar nomes em paralelo usando o endpoint de base-conhecimento
         const promessasBusca = clientesFaltando.map(async (id) => {
@@ -4192,23 +4203,23 @@ const PainelUsuario = () => {
               if (result.success && result.data && result.data.cliente) {
                 const cliente = result.data.cliente;
                 // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
-                const nome = cliente.nome || 
-                             cliente.nome_amigavel || 
-                             cliente.amigavel ||
-                             cliente.nome_fantasia || 
-                             cliente.fantasia ||
-                             cliente.razao_social || 
-                             cliente.razao ||
-                             null;
-                
+                const nome = cliente.nome ||
+                  cliente.nome_amigavel ||
+                  cliente.amigavel ||
+                  cliente.nome_fantasia ||
+                  cliente.fantasia ||
+                  cliente.razao_social ||
+                  cliente.razao ||
+                  null;
+
                 if (nome) {
                   return { id: String(id), nome };
                 }
               }
             }
-        } catch (error) {
-          // Erro ao buscar nome do cliente - não crítico
-        }
+          } catch (error) {
+            // Erro ao buscar nome do cliente - não crítico
+          }
           return null;
         });
 
@@ -4220,12 +4231,12 @@ const PainelUsuario = () => {
         });
       }
     }
-    
+
     // Buscar colaboradores individualmente
     if (colaboradoresIds.size > 0) {
       const colaboradoresIdsArray = Array.from(colaboradoresIds);
       const colaboradoresFaltando = colaboradoresIdsArray.filter(id => !novos.colaboradores[id]);
-      
+
       if (colaboradoresFaltando.length > 0) {
         try {
           const colaboradoresLista = await carregarColaboradores();
@@ -4317,10 +4328,10 @@ const PainelUsuario = () => {
     const emailBusca = normalizeText(usuario.email_usuario || '');
     const nomeBusca = normalizeText(
       usuario.nome ||
-        usuario.nome_usuario ||
-        usuario.nomecompleto ||
-        usuario.nome_completo ||
-        ''
+      usuario.nome_usuario ||
+      usuario.nomecompleto ||
+      usuario.nome_completo ||
+      ''
     );
 
     const matchEmail = colaboradores.find(
@@ -4428,10 +4439,10 @@ const PainelUsuario = () => {
       const nomesPossiveis = [
         normalizeText(
           usuario?.nome ||
-            usuario?.nome_usuario ||
-            usuario?.nomecompleto ||
-            usuario?.nome_completo ||
-            ''
+          usuario?.nome_usuario ||
+          usuario?.nomecompleto ||
+          usuario?.nome_completo ||
+          ''
         )
       ].filter(Boolean);
 
@@ -4479,17 +4490,17 @@ const PainelUsuario = () => {
           return false;
         }
       };
-      
+
       // Filtrar APENAS registros da data selecionada E do responsável correto
       // Garantir que não carregamos dados de outras datas
       const idsUnicosSet = new Set(idsUnicos);
       registros = registros.filter((r) => {
         const dataOk = ehDataSelecionada(r.data);
-        const responsavelOk = idsUnicosSet.has(String(r.responsavel_id)) || 
-                             idsUnicosSet.has(Number(r.responsavel_id));
+        const responsavelOk = idsUnicosSet.has(String(r.responsavel_id)) ||
+          idsUnicosSet.has(Number(r.responsavel_id));
         return dataOk && responsavelOk;
       });
-      
+
       // Se após filtrar não há registros, significa que não há tarefas para esta data
       // Não fazer fallbacks que carregariam outras datas
 
@@ -4500,10 +4511,10 @@ const PainelUsuario = () => {
       // Atualizar referência e estado primeiro para renderização mais rápida
       tarefasRegistrosRef.current = registros;
       setTarefasRegistros(registros);
-      
+
       // Renderizar imediatamente com os dados disponíveis (sem esperar nomes/tempos)
       renderTarefasNoCard(registros, alvoManual, dataParaUsar);
-      
+
       // Carregar dados adicionais em paralelo (sem bloquear renderização)
       if (registros.length > 0) {
         Promise.all([
@@ -4569,8 +4580,8 @@ const PainelUsuario = () => {
 
       // Buscar o registro completo para obter tempo_estimado_id
       const registrosCompletos = tarefasRegistrosRef.current.filter(reg => {
-        return tarefasComRegistrosAtivos.some(ativo => 
-          String(reg.cliente_id).trim() === ativo.clienteId && 
+        return tarefasComRegistrosAtivos.some(ativo =>
+          String(reg.cliente_id).trim() === ativo.clienteId &&
           String(reg.tarefa_id).trim() === ativo.tarefaId
         );
       });
@@ -4581,18 +4592,18 @@ const PainelUsuario = () => {
         registrosCompletos.map(async (reg) => {
           const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
           if (!tempoEstimadoId) return;
-          
+
           const chaveTempo = criarChaveTempo(reg);
           if (!chaveTempo) return;
-          
+
           const tempoRealizado = await buscarTempoRealizado(reg);
           novosTempos.set(chaveTempo, tempoRealizado);
-          
+
           // Atualizar apenas o elemento de tempo realizado no DOM, sem re-renderizar tudo
           const tempoFormatado = formatarTempoHMS(tempoRealizado);
           const tarefaIdStr = String(reg.tarefa_id).trim();
           const clienteIdStr = String(reg.cliente_id).trim();
-          
+
           // Buscar todos os pills e atualizar apenas o que corresponde a esta tarefa e cliente
           const tempoPills = document.querySelectorAll(`.painel-usuario-realizado-pill[data-tarefa-id="${tarefaIdStr}"][data-cliente-id="${clienteIdStr}"]`);
           tempoPills.forEach((pill) => {
@@ -4604,7 +4615,7 @@ const PainelUsuario = () => {
       if (novosTempos.size > 0) {
         temposRealizadosRef.current = novosTempos;
         setTemposRealizados(novosTempos);
-        
+
         // Atualizar tempos realizados totais nos headers dos clientes (modo lista)
         atualizarTemposRealizadosHeaders();
       }
@@ -4620,10 +4631,10 @@ const PainelUsuario = () => {
       setTimeout(async () => {
         // Verificar registros ativos novamente
         await verificarRegistrosAtivos();
-        
+
         // Buscar tempos realizados atualizados
         await buscarTemposRealizados();
-        
+
         // Sincronizar TODOS os botões para garantir consistência
         sincronizarTodosBotoes();
       }, 100);
@@ -4634,10 +4645,10 @@ const PainelUsuario = () => {
       setTimeout(async () => {
         // Verificar registros ativos novamente
         await verificarRegistrosAtivos();
-        
+
         // Buscar tempos realizados atualizados
         await buscarTemposRealizados();
-        
+
         // Atualizar tempo realizado no DOM diretamente para todas as tarefas
         // Isso garante que o tempo seja atualizado imediatamente, igual ao botão na tarefa
         tarefasRegistrosRef.current.forEach(async (reg) => {
@@ -4645,7 +4656,7 @@ const PainelUsuario = () => {
           if (chaveTempo) {
             const tempoRealizadoMs = temposRealizadosRef.current.get(chaveTempo) || 0;
             atualizarTempoRealizadoEBarraProgresso(reg, tempoRealizadoMs);
-            
+
             // Recarregar timetracks individuais se o container estiver expandido
             const chaveTimetrack = criarChaveTempo(reg);
             if (chaveTimetrack && timetracksExpandidosRef.current.has(chaveTimetrack)) {
@@ -4654,14 +4665,14 @@ const PainelUsuario = () => {
               novoMap.delete(chaveTimetrack);
               timetracksDataRef.current = novoMap;
               setTimetracksData(novoMap);
-              
+
               // Recarregar timetracks
               await buscarRegistrosTimetrack(reg);
-              
+
               // Atualizar o container de timetracks no DOM
               const tarefaIdStr = String(reg.tarefa_id).trim();
               const clienteIdStr = String(reg.cliente_id).trim();
-              
+
               // Buscar pelo contexto do card pai (mais confiável)
               const tarefaCards = document.querySelectorAll('.painel-usuario-tarefa-card');
               tarefaCards.forEach(card => {
@@ -4678,13 +4689,13 @@ const PainelUsuario = () => {
             }
           }
         });
-        
+
         // Atualizar headers dos clientes com os novos tempos realizados
         atualizarTemposRealizadosHeaders();
-        
+
         // Sincronizar TODOS os botões para garantir consistência
         sincronizarTodosBotoes();
-        
+
         // NÃO re-renderizar tudo - isso causa fechamento/abertura dos clientes
         // Os tempos já foram atualizados diretamente no DOM acima
       }, 300); // Delay aumentado para garantir processamento completo
@@ -4692,7 +4703,7 @@ const PainelUsuario = () => {
 
     window.addEventListener('registro-tempo-iniciado', handleRegistroIniciado);
     window.addEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
-    
+
     return () => {
       window.removeEventListener('registro-tempo-iniciado', handleRegistroIniciado);
       window.removeEventListener('registro-tempo-finalizado', handleRegistroFinalizado);
@@ -4717,20 +4728,20 @@ const PainelUsuario = () => {
         // Encontrar o wrapper existente (não recriar tudo)
         const card = tarefasContainerRef.current;
         const wrapper = card.querySelector('div[style*="flex-direction: column"]');
-        
+
         if (wrapper) {
           // Atualizar apenas as tarefas, preservando cards de clientes e header
           // Usar a lógica diretamente aqui para evitar dependência circular
           const registrosFiltrados = clienteSelecionadoId
             ? (() => {
-                const selectedId = String(clienteSelecionadoId).trim();
-                return tarefasRegistrosRef.current.filter(reg => {
-                  const regClienteId = String(reg.cliente_id || '').trim();
-                  return regClienteId === selectedId;
-                });
-              })()
+              const selectedId = String(clienteSelecionadoId).trim();
+              return tarefasRegistrosRef.current.filter(reg => {
+                const regClienteId = String(reg.cliente_id || '').trim();
+                return regClienteId === selectedId;
+              });
+            })()
             : tarefasRegistrosRef.current;
-          
+
           // Remover containers antigos de tarefas
           const listaContainer = wrapper.querySelector('.painel-usuario-lista-container');
           let boardContainer = null;
@@ -4745,10 +4756,10 @@ const PainelUsuario = () => {
               break;
             }
           }
-          
+
           if (listaContainer) listaContainer.remove();
           if (boardContainer) boardContainer.remove();
-          
+
           // Atualizar contador no header
           const header = wrapper.querySelector('.painel-usuario-header-board');
           if (header) {
@@ -4759,7 +4770,7 @@ const PainelUsuario = () => {
                 const style = child.style.cssText || window.getComputedStyle(child).cssText;
                 return style.includes('margin-left: auto') || style.includes('marginLeft: auto') || child.style.marginLeft === 'auto';
               });
-              
+
               if (subtitle) {
                 const btnLimpar = subtitle.querySelector('button');
                 const textNodes = Array.from(subtitle.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
@@ -4771,14 +4782,14 @@ const PainelUsuario = () => {
                 }
               }
             }
-            
+
             // Atualizar o toggle para refletir o modo atual
             const toggleView = header.querySelector('.painel-usuario-toggle-view');
             if (toggleView) {
               const modo = obterModoVisualizacao();
               const btnQuadro = toggleView.querySelector('button[data-mode="quadro"]');
               const btnLista = toggleView.querySelector('button[data-mode="lista"]');
-              
+
               if (btnQuadro && btnLista) {
                 // Atualizar classes active
                 if (modo === 'quadro') {
@@ -4791,11 +4802,11 @@ const PainelUsuario = () => {
               }
             }
           }
-          
+
           // Renderizar tarefas novamente
           const modo = obterModoVisualizacao();
           const dataParaRenderizar = dataTarefasSelecionada || new Date();
-          
+
           if (modo === 'lista') {
             renderTarefasEmLista(registrosFiltrados, wrapper, dataParaRenderizar);
           } else {
@@ -4807,7 +4818,7 @@ const PainelUsuario = () => {
         }
       }
     }, 50);
-    
+
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSelecionadoId]);

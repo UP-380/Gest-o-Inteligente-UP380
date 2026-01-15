@@ -10,10 +10,10 @@
  */
 export const formatDate = (dateString, includeTime = false) => {
   if (!dateString) return '-';
-  
+
   try {
     const date = new Date(dateString);
-    
+
     if (includeTime) {
       return date.toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -23,7 +23,7 @@ export const formatDate = (dateString, includeTime = false) => {
         minute: '2-digit'
       });
     }
-    
+
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -64,7 +64,7 @@ const calcularPascoa = (year) => {
  */
 const obterFeriadosBrasileiros = (year) => {
   const feriados = [];
-  
+
   // Feriados fixos
   feriados.push(new Date(year, 0, 1));   // Ano Novo
   feriados.push(new Date(year, 3, 21));  // Tiradentes
@@ -75,25 +75,25 @@ const obterFeriadosBrasileiros = (year) => {
   feriados.push(new Date(year, 10, 15)); // Proclamação da República
   feriados.push(new Date(year, 10, 20)); // Dia da Consciência Negra (não é feriado nacional, mas comum em alguns estados)
   feriados.push(new Date(year, 11, 25)); // Natal
-  
+
   // Feriados móveis baseados na Páscoa
   const pascoa = calcularPascoa(year);
-  
+
   // Carnaval (48 dias antes da Páscoa)
   const carnaval = new Date(pascoa);
   carnaval.setDate(pascoa.getDate() - 48);
   feriados.push(carnaval);
-  
+
   // Sexta-feira Santa (2 dias antes da Páscoa)
   const sextaFeiraSanta = new Date(pascoa);
   sextaFeiraSanta.setDate(pascoa.getDate() - 2);
   feriados.push(sextaFeiraSanta);
-  
+
   // Corpus Christi (60 dias após a Páscoa)
   const corpusChristi = new Date(pascoa);
   corpusChristi.setDate(pascoa.getDate() + 60);
   feriados.push(corpusChristi);
-  
+
   return feriados;
 };
 
@@ -105,11 +105,11 @@ const obterFeriadosBrasileiros = (year) => {
 const isFeriado = (date) => {
   const year = date.getFullYear();
   const feriados = obterFeriadosBrasileiros(year);
-  
+
   return feriados.some(feriado => {
     return feriado.getDate() === date.getDate() &&
-           feriado.getMonth() === date.getMonth() &&
-           feriado.getFullYear() === date.getFullYear();
+      feriado.getMonth() === date.getMonth() &&
+      feriado.getFullYear() === date.getFullYear();
   });
 };
 
@@ -131,31 +131,31 @@ const isFinalDeSemana = (date) => {
  */
 export const calcularDiasUteis = (dataInicio, dataFim) => {
   if (!dataInicio || !dataFim) return 0;
-  
+
   try {
     const inicio = new Date(dataInicio);
     const fim = new Date(dataFim);
-    
+
     // Normalizar para início do dia
     inicio.setHours(0, 0, 0, 0);
     fim.setHours(0, 0, 0, 0);
-    
+
     if (inicio > fim) return 0;
-    
+
     let diasUteis = 0;
     const dataAtual = new Date(inicio);
-    
+
     // Iterar por cada dia no período
     while (dataAtual <= fim) {
       // Verificar se não é final de semana e não é feriado
       if (!isFinalDeSemana(dataAtual) && !isFeriado(dataAtual)) {
         diasUteis++;
       }
-      
+
       // Avançar para o próximo dia
       dataAtual.setDate(dataAtual.getDate() + 1);
     }
-    
+
     return diasUteis;
   } catch (error) {
     console.error('Erro ao calcular dias úteis:', error);
@@ -173,46 +173,46 @@ export const calcularDiasUteis = (dataInicio, dataFim) => {
  */
 export const calcularDiasComOpcoes = (dataInicio, dataFim, incluirFinaisSemana = false, incluirFeriados = false) => {
   if (!dataInicio || !dataFim) return 0;
-  
+
   try {
     const inicio = new Date(dataInicio);
     const fim = new Date(dataFim);
-    
+
     // Normalizar para início do dia
     inicio.setHours(0, 0, 0, 0);
     fim.setHours(0, 0, 0, 0);
-    
+
     if (inicio > fim) return 0;
-    
+
     let dias = 0;
     const dataAtual = new Date(inicio);
-    
+
     // Iterar por cada dia no período
     while (dataAtual <= fim) {
       const isWeekend = isFinalDeSemana(dataAtual);
       const isHoliday = isFeriado(dataAtual);
-      
+
       // Se deve incluir o dia
       let incluirDia = true;
-      
+
       // Se não deve incluir finais de semana e é final de semana, não incluir
       if (!incluirFinaisSemana && isWeekend) {
         incluirDia = false;
       }
-      
+
       // Se não deve incluir feriados e é feriado, não incluir
       if (!incluirFeriados && isHoliday) {
         incluirDia = false;
       }
-      
+
       if (incluirDia) {
         dias++;
       }
-      
+
       // Avançar para o próximo dia
       dataAtual.setDate(dataAtual.getDate() + 1);
     }
-    
+
     return dias;
   } catch (error) {
     console.error('Erro ao calcular dias com opções:', error);
@@ -231,12 +231,12 @@ const formatDateForInput = (date) => {
 // Obter conjunto de datas válidas no período (considerando opções e datas individuais)
 export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSemana = false, incluirFeriados = false, datasIndividuais = []) => {
   if (!dataInicio || !dataFim) return new Set();
-  
+
   try {
     // Garantir que as datas sejam interpretadas no timezone local, não UTC
     // Se a data vier como string "YYYY-MM-DD", criar Date manualmente para evitar problemas de timezone
     let inicio, fim;
-    
+
     if (typeof dataInicio === 'string' && dataInicio.match(/^\d{4}-\d{2}-\d{2}/)) {
       // Formato YYYY-MM-DD: criar Date no timezone local
       const [ano, mes, dia] = dataInicio.split('T')[0].split('-');
@@ -245,7 +245,7 @@ export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSem
       inicio = new Date(dataInicio);
       inicio.setHours(0, 0, 0, 0);
     }
-    
+
     if (typeof dataFim === 'string' && dataFim.match(/^\d{4}-\d{2}-\d{2}/)) {
       // Formato YYYY-MM-DD: criar Date no timezone local
       const [ano, mes, dia] = dataFim.split('T')[0].split('-');
@@ -254,47 +254,47 @@ export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSem
       fim = new Date(dataFim);
       fim.setHours(0, 0, 0, 0);
     }
-    
+
     if (inicio > fim) return new Set();
-    
+
     // Criar Set de datas individuais desselecionadas para busca rápida
     const datasIndividuaisSet = new Set(datasIndividuais || []);
-    
+
     const datasValidas = new Set();
     const dataAtual = new Date(inicio);
-    
+
     // Iterar por cada dia no período
     while (dataAtual <= fim) {
       const dataStr = formatDateForInput(dataAtual);
       const isWeekend = isFinalDeSemana(dataAtual);
       const isHoliday = isFeriado(dataAtual);
-      
+
       // Verificar se deve incluir o dia
       let incluirDia = true;
-      
+
       // Se não deve incluir finais de semana e é final de semana, não incluir
       if (!incluirFinaisSemana && isWeekend) {
         incluirDia = false;
       }
-      
+
       // Se não deve incluir feriados e é feriado, não incluir
       if (!incluirFeriados && isHoliday) {
         incluirDia = false;
       }
-      
+
       // Se a data está em datasIndividuais, excluir (foi desselecionada)
       if (datasIndividuaisSet.has(dataStr)) {
         incluirDia = false;
       }
-      
+
       if (incluirDia) {
         datasValidas.add(dataStr);
       }
-      
+
       // Avançar para o próximo dia
       dataAtual.setDate(dataAtual.getDate() + 1);
     }
-    
+
     return datasValidas;
   } catch (error) {
     console.error('Erro ao obter datas válidas no período:', error);
@@ -305,55 +305,55 @@ export const obterDatasValidasNoPeriodo = (dataInicio, dataFim, incluirFinaisSem
 // Calcular dias considerando opções e datas individuais (selecionadas/desselecionadas)
 export const calcularDiasComOpcoesEDatasIndividuais = (dataInicio, dataFim, incluirFinaisSemana = false, incluirFeriados = false, datasIndividuais = []) => {
   if (!dataInicio || !dataFim) return 0;
-  
+
   try {
     const inicio = new Date(dataInicio);
     const fim = new Date(dataFim);
-    
+
     // Normalizar para início do dia
     inicio.setHours(0, 0, 0, 0);
     fim.setHours(0, 0, 0, 0);
-    
+
     if (inicio > fim) return 0;
-    
+
     // Criar Set de datas individuais para busca rápida
     const datasIndividuaisSet = new Set(datasIndividuais || []);
-    
+
     let dias = 0;
     const dataAtual = new Date(inicio);
-    
+
     // Iterar por cada dia no período
     while (dataAtual <= fim) {
       const dataStr = formatDateForInput(dataAtual);
       const isWeekend = isFinalDeSemana(dataAtual);
       const isHoliday = isFeriado(dataAtual);
-      
+
       // Se deve incluir o dia
       let incluirDia = true;
-      
+
       // Se não deve incluir finais de semana e é final de semana, não incluir
       if (!incluirFinaisSemana && isWeekend) {
         incluirDia = false;
       }
-      
+
       // Se não deve incluir feriados e é feriado, não incluir
       if (!incluirFeriados && isHoliday) {
         incluirDia = false;
       }
-      
+
       // Se a data está em datasIndividuais, excluir do cálculo (foi desselecionada)
       if (datasIndividuaisSet.has(dataStr)) {
         incluirDia = false;
       }
-      
+
       if (incluirDia) {
         dias++;
       }
-      
+
       // Avançar para o próximo dia
       dataAtual.setDate(dataAtual.getDate() + 1);
     }
-    
+
     return dias;
   } catch (error) {
     console.error('Erro ao calcular dias com opções e datas individuais:', error);
@@ -373,35 +373,35 @@ export const calcularDiasApenasComDatasIndividuais = (datasIndividuais = [], inc
   if (!Array.isArray(datasIndividuais) || datasIndividuais.length === 0) {
     return 0;
   }
-  
+
   try {
     let dias = 0;
-    
+
     // Iterar por cada data individual
     datasIndividuais.forEach(dataStr => {
       if (!dataStr || typeof dataStr !== 'string') return;
-      
+
       try {
         // Converter string para Date
         const data = new Date(dataStr + 'T00:00:00');
         if (isNaN(data.getTime())) return;
-        
+
         const isWeekend = isFinalDeSemana(data);
         const isHoliday = isFeriado(data);
-        
+
         // Verificar se deve incluir o dia
         let incluirDia = true;
-        
+
         // Se não deve incluir finais de semana e é final de semana, não incluir
         if (!incluirFinaisSemana && isWeekend) {
           incluirDia = false;
         }
-        
+
         // Se não deve incluir feriados e é feriado, não incluir
         if (!incluirFeriados && isHoliday) {
           incluirDia = false;
         }
-        
+
         if (incluirDia) {
           dias++;
         }
@@ -409,7 +409,7 @@ export const calcularDiasApenasComDatasIndividuais = (datasIndividuais = [], inc
         console.warn('Erro ao processar data individual:', dataStr, error);
       }
     });
-    
+
     return dias;
   } catch (error) {
     console.error('Erro ao calcular dias apenas com datas individuais:', error);

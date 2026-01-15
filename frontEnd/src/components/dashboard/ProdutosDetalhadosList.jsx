@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './TarefasDetalhadasList.css';
 
 /**
@@ -16,6 +16,12 @@ import './TarefasDetalhadasList.css';
  * @param {Function} props.formatarTempoHMS - Função para formatar tempo em HMS
  * @param {Function} props.onToggleProduto - Função chamada ao clicar no botão de expandir/colapsar produto
  * @param {Function} props.buscarRegistrosIndividuais - Função para buscar registros individuais de uma tarefa
+ * @param {Object} props.temposRealizadosPorProduto - Objeto com tempos realizados por produto ID (chave: produtoId, valor: tempoEmMs)
+ * @param {Object} props.temposRealizadosPorClientePorProduto - Objeto com tempos realizados por cliente dentro de cada produto (chave: produtoId, valor: { [clienteId]: tempoEmMs })
+ * @param {Object} props.temposRealizadosPorTarefaPorClientePorProduto - Objeto com tempos realizados por tarefa dentro de cada cliente dentro de cada produto (chave: produtoId, valor: { [clienteId]: { [tarefaId]: tempoEmMs } })
+ * @param {String} props.periodoInicio - Data de início do período (opcional, para busca direta)
+ * @param {String} props.periodoFim - Data de fim do período (opcional, para busca direta)
+ * @param {Object} props.filtrosAdicionais - Filtros adicionais (opcional, para busca direta)
  */
 const ProdutosDetalhadosList = ({
   produtos,
@@ -29,11 +35,18 @@ const ProdutosDetalhadosList = ({
   formatarTempoHMS,
   onToggleProduto,
   buscarRegistrosIndividuais,
-  getNomeColaboradorPorUsuarioId = null
+  getNomeColaboradorPorUsuarioId = null,
+  temposRealizadosPorProduto = {},
+  temposRealizadosPorClientePorProduto = {},
+  temposRealizadosPorTarefaPorClientePorProduto = {},
+  periodoInicio = null,
+  periodoFim = null,
+  filtrosAdicionais = null
 }) => {
   const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
+  const [temposRealizadosPorTarefa, setTemposRealizadosPorTarefa] = useState({}); // Buscar diretamente igual ao TarefasDetalhadasList
   
   const toggleResponsavel = (tarefaId, dataNormalizada, responsavelKey) => {
     const key = `${tarefaId}_${dataNormalizada}_${responsavelKey}`;
@@ -47,6 +60,93 @@ const ProdutosDetalhadosList = ({
       return newExpanded;
     });
   };
+
+  // Buscar tempos realizados diretamente para TODAS as tarefas (igual ao TarefasDetalhadasList)
+  useEffect(() => {
+    if (!periodoInicio || !periodoFim || !produtos || produtos.length === 0) return;
+    
+    // Coletar TODAS as tarefas de todos os produtos e clientes
+    const todasTarefas = [];
+    produtos.forEach(produto => {
+      if (produto.clientes && Array.isArray(produto.clientes)) {
+        produto.clientes.forEach(cliente => {
+          if (cliente.tarefas && Array.isArray(cliente.tarefas)) {
+            cliente.tarefas.forEach(tarefa => {
+              todasTarefas.push({ tarefa, cliente, produto });
+            });
+          }
+        });
+      }
+    });
+    
+    if (todasTarefas.length === 0) return;
+    
+    // Buscar tempos realizados diretamente (EXATAMENTE igual ao TarefasDetalhadasList)
+    const buscarTemposRealizados = async () => {
+      const novosTempos = {};
+      
+      const promises = todasTarefas.map(async ({ tarefa, cliente, produto }) => {
+        // Coletar responsáveis únicos desta tarefa (igual ao tipo 'tarefas' linha ~139-146)
+        const responsaveisUnicos = new Set();
+        if (tarefa.registros && Array.isArray(tarefa.registros)) {
+          tarefa.registros.forEach(reg => {
+            if (reg.responsavel_id) {
+              responsaveisUnicos.add(reg.responsavel_id);
+            }
+          });
+        }
+        
+        if (responsaveisUnicos.size === 0) {
+          return { tarefaId: tarefa.id, tempoRealizado: 0 };
+        }
+        
+        // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
+        let tempoTotal = 0;
+        const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+          try {
+            const response = await fetch('/api/registro-tempo/realizado-total', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                responsavel_id: responsavelId,
+                data_inicio: periodoInicio,
+                data_fim: periodoFim,
+                tarefa_id: tarefa.id,
+                cliente_id: cliente.id || null,
+                produto_id: produto.id || null
+              })
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                return result.data.tempo_realizado_ms || 0;
+              }
+            }
+            return 0;
+          } catch (error) {
+            console.error('Erro ao buscar tempo realizado da tarefa:', error);
+            return 0;
+          }
+        });
+        
+        const resultados = await Promise.all(promisesResponsaveis);
+        tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+        
+        return { tarefaId: tarefa.id, tempoRealizado: tempoTotal };
+      });
+      
+      const resultados = await Promise.all(promises);
+      resultados.forEach(({ tarefaId, tempoRealizado }) => {
+        novosTempos[tarefaId] = tempoRealizado;
+      });
+      
+      setTemposRealizadosPorTarefa(novosTempos);
+    };
+    
+    buscarTemposRealizados();
+  }, [produtos, periodoInicio, periodoFim]);
 
   if (!produtos || produtos.length === 0) {
     return (
@@ -90,8 +190,15 @@ const ProdutosDetalhadosList = ({
     <div className="tarefas-detalhadas-list">
       {produtos.map((produto, produtoIndex) => {
         const isProdutoExpanded = produtosExpandidos.has(produto.id);
-        // Tempo realizado sempre 0 (lógica removida)
-        const tempoRealizadoFormatado = '0s';
+        // Buscar tempo realizado do prop ou usar 0 como padrão (tentar ambas as chaves como em clientes)
+        const produtoIdStr = String(produto.id || '');
+        const tempoRealizadoMs = temposRealizadosPorProduto[produtoIdStr] 
+          || temposRealizadosPorProduto[produto.id] 
+          || temposRealizadosPorProduto[String(produto.id)]
+          || produto.tempoRealizado || 0;
+        const tempoRealizadoFormatado = formatarTempoHMS
+          ? formatarTempoHMS(tempoRealizadoMs)
+          : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
 
         const tempoEstimadoFormatado = formatarTempoEstimado
           ? formatarTempoEstimado(produto.tempoEstimado || 0, true)
@@ -140,7 +247,7 @@ const ProdutosDetalhadosList = ({
                     </div>
                     <div className="tarefa-detalhada-tempo-card-content">
                       <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                        0s
+                        {tempoRealizadoFormatado}
                       </div>
                     </div>
                   </div>
@@ -167,8 +274,23 @@ const ProdutosDetalhadosList = ({
                   {produto.clientes.map((cliente, clienteIndex) => {
                     const clienteKey = `${produto.id}-${cliente.id}`;
                     const isClienteExpanded = clientesExpandidos.has(clienteKey);
-                    // Tempo realizado sempre 0 (lógica removida)
-                    const tempoRealizadoClienteFormatado = '0s';
+                    // Buscar tempo realizado do prop ou usar fallback (garantir que IDs sejam strings)
+                    const produtoIdStr = String(produto.id);
+                    const clienteIdStr = String(cliente.id);
+                    // Normalizar clienteId usando mesma lógica do ClientesDetalhadosList
+                    const clienteIdCalculado = cliente.id || (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome)) ? cliente.nome : null);
+                    const clienteIdNormalizado = clienteIdCalculado ? String(clienteIdCalculado) : clienteIdStr;
+                    // Tentar múltiplas variações de chave para garantir correspondência
+                    const tempoRealizadoClienteMs = temposRealizadosPorClientePorProduto?.[produtoIdStr]?.[clienteIdNormalizado]
+                      || temposRealizadosPorClientePorProduto?.[produtoIdStr]?.[clienteIdCalculado]
+                      || temposRealizadosPorClientePorProduto?.[produtoIdStr]?.[clienteIdStr]
+                      || temposRealizadosPorClientePorProduto?.[produto.id]?.[cliente.id]
+                      || temposRealizadosPorClientePorProduto?.[produtoIdStr]?.[cliente.id]
+                      || temposRealizadosPorClientePorProduto?.[String(produto.id)]?.[clienteIdNormalizado]
+                      || cliente.tempoRealizado || 0;
+                    const tempoRealizadoClienteFormatado = formatarTempoHMS
+                      ? formatarTempoHMS(tempoRealizadoClienteMs)
+                      : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoClienteMs, true) : '0s');
 
                     const tempoEstimadoClienteFormatado = formatarTempoEstimado
                       ? formatarTempoEstimado(cliente.tempoEstimado || 0, true)
@@ -212,7 +334,7 @@ const ProdutosDetalhadosList = ({
                                 <div className="tarefa-detalhada-tempo-card-content">
                                   <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                   <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                    0s
+                                    {tempoRealizadoClienteFormatado}
                                   </div>
                                 </div>
                               </div>
@@ -239,17 +361,27 @@ const ProdutosDetalhadosList = ({
                               {cliente.tarefas.map((tarefa, tarefaIndex) => {
                                 const tarefaKey = `${produto.id}-${cliente.id}-${tarefa.id}`;
                                 const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                                const tempoRealizadoTarefaFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tarefa.tempoRealizado || 0, true) 
-                                  : '0s';
+                                // Buscar tempo realizado do prop hierárquico ou usar fallback (garantir que IDs sejam strings)
+                                const produtoIdStr = String(produto.id);
+                                const clienteIdStr = String(cliente.id);
+                                const tarefaIdStr = String(tarefa.id);
+                                // Normalizar clienteId usando mesma lógica
+                                const clienteIdCalculado = cliente.id || (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome)) ? cliente.nome : null);
+                                const clienteIdNormalizado = clienteIdCalculado ? String(clienteIdCalculado) : clienteIdStr;
+                                // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
+                                // Usar temposRealizadosPorTarefa que busca diretamente do endpoint
+                                const tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                                const tempoRealizadoTarefaFormatado = formatarTempoHMS
+                                  ? formatarTempoHMS(tempoRealizadoTarefaMs)
+                                  : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
                                 
                                 const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
                                   ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
                                   : '0s';
                                 
-                                // Calcular custo realizado da tarefa
+                                // Calcular custo realizado da tarefa (usar tempoRealizadoTarefaMs que já foi buscado)
                                 const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                                  ? calcularCustoPorTempo(tarefa.tempoRealizado || 0, tarefa.responsavelId)
+                                  ? calcularCustoPorTempo(tempoRealizadoTarefaMs, tarefa.responsavelId)
                                   : null;
                                 
                                 // Calcular custo estimado da tarefa
@@ -290,7 +422,7 @@ const ProdutosDetalhadosList = ({
                                             <div className="tarefa-detalhada-tempo-card-content">
                                               <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                               <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                0s
+                                                {tempoRealizadoTarefaFormatado}
                                               </div>
                                             </div>
                                           </div>
@@ -458,7 +590,7 @@ const ProdutosDetalhadosList = ({
                                                           <div className="tarefa-detalhada-tempo-card-content">
                                                             <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                                             <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                              0s
+                                                              {tempoRealizadoFormatado}
                                                             </div>
                                                           </div>
                                                         </div>
@@ -630,9 +762,11 @@ const ProdutosDetalhadosList = ({
                   {produto.tarefas.map((tarefa, tarefaIndex) => {
                     const tarefaKey = `${produto.id}-${tarefa.id}`;
                     const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                    const tempoRealizadoTarefaFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(tarefa.tempoRealizado || 0, true) 
-                      : '0s';
+                    // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
+                    const tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                    const tempoRealizadoTarefaFormatado = formatarTempoHMS
+                      ? formatarTempoHMS(tempoRealizadoTarefaMs)
+                      : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
                     
                     const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
                       ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
@@ -640,7 +774,7 @@ const ProdutosDetalhadosList = ({
                     
                     // Calcular custo realizado da tarefa
                     const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                      ? calcularCustoPorTempo(tarefa.tempoRealizado || 0, tarefa.responsavelId)
+                      ? calcularCustoPorTempo(tempoRealizadoTarefaMs, tarefa.responsavelId)
                       : null;
                     
                     // Calcular custo estimado da tarefa
@@ -681,7 +815,7 @@ const ProdutosDetalhadosList = ({
                                 <div className="tarefa-detalhada-tempo-card-content">
                                   <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                   <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                    0s
+                                    {tempoRealizadoTarefaFormatado}
                                   </div>
                                 </div>
                               </div>
@@ -828,7 +962,7 @@ const ProdutosDetalhadosList = ({
                                           <div className="tarefa-detalhada-tempo-card-content">
                                             <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
                                             <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                              0s
+                                              {tempoRealizadoFormatado}
                                             </div>
                                           </div>
                                         </div>

@@ -214,6 +214,7 @@ router.put('/api/registro-tempo/finalizar/:id', requireAuth, registroTempoContro
 router.get('/api/registro-tempo/ativo', requireAuth, registroTempoController.getRegistroAtivo);
 router.get('/api/registro-tempo/ativos', requireAuth, registroTempoController.getRegistrosAtivos);
 router.get('/api/registro-tempo/realizado', requireAuth, registroTempoController.getTempoRealizado);
+router.post('/api/registro-tempo/realizado-total', requireAuth, registroTempoController.getTempoRealizadoTotal);
 router.get('/api/registro-tempo/por-tempo-estimado', requireAuth, registroTempoController.getRegistrosPorTempoEstimado);
 router.get('/api/registro-tempo/historico', requireAuth, registroTempoController.getHistoricoRegistros);
 router.get('/api/registro-tempo/debug/sem-tarefa', requireAuth, registroTempoController.getRegistrosSemTarefa);

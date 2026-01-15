@@ -40,7 +40,7 @@ const formatarDataHora = (dataInput) => {
   }
 };
 
-const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRealizado, formatarTempoEstimado, formatarData, calcularCustoPorTempo, formatarValorMonetario, getNomeCliente }) => {
+const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRealizado, formatarTempoEstimado, formatarData, calcularCustoPorTempo, formatarValorMonetario, getNomeCliente, periodoInicio, periodoFim, filtrosAdicionais }) => {
   const cardRef = useRef(null);
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
@@ -49,6 +49,14 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
   const [registrosIndividuais, setRegistrosIndividuais] = useState({});
   const [carregandoRegistros, setCarregandoRegistros] = useState({});
   const [nomesColaboradoresPorUsuarioId, setNomesColaboradoresPorUsuarioId] = useState(new Map());
+  const [temposRealizadosPorTarefa, setTemposRealizadosPorTarefa] = useState({});
+  const [temposRealizadosPorResponsavel, setTemposRealizadosPorResponsavel] = useState({});
+  const [temposRealizadosPorCliente, setTemposRealizadosPorCliente] = useState({});
+  const [temposRealizadosPorProduto, setTemposRealizadosPorProduto] = useState({});
+  // Estados para tempos hierárquicos
+  const [temposRealizadosPorTarefaPorCliente, setTemposRealizadosPorTarefaPorCliente] = useState({});
+  const [temposRealizadosPorClientePorProduto, setTemposRealizadosPorClientePorProduto] = useState({});
+  const [temposRealizadosPorTarefaPorClientePorProduto, setTemposRealizadosPorTarefaPorClientePorProduto] = useState({});
 
   // Buscar nomes de colaboradores por usuario_id
   useEffect(() => {
@@ -84,6 +92,559 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     if (!usuarioId) return null;
     return nomesColaboradoresPorUsuarioId.get(String(usuarioId)) || null;
   };
+
+  // Função auxiliar para normalizar ID do cliente (mesma lógica do ClientesDetalhadosList)
+  const normalizarClienteId = (cliente) => {
+    if (!cliente) return null;
+    // Se tem id, usar id (convertido para string para consistência)
+    if (cliente.id) return String(cliente.id);
+    // Se nome é UUID, usar nome como ID (mesma lógica do ClientesDetalhadosList linha 201)
+    if (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome))) {
+      return String(cliente.nome);
+    }
+    // Se não encontrou, retornar null (mesma lógica do ClientesDetalhadosList)
+    return null;
+  };
+
+  // Função auxiliar para normalizar ID (genérico)
+  const normalizarId = (item) => {
+    if (!item) return '';
+    if (item.id) return String(item.id);
+    if (item.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(item.nome))) {
+      return String(item.nome);
+    }
+    return String(item.nome || item.id || '');
+  };
+
+  // Buscar tempos realizados para tarefas, responsáveis, clientes e produtos quando os dados são recebidos
+  useEffect(() => {
+    if (!dados?.registros || dados.registros.length === 0 || !periodoInicio || !periodoFim) {
+      setTemposRealizadosPorTarefa({});
+      setTemposRealizadosPorResponsavel({});
+      setTemposRealizadosPorCliente({});
+      setTemposRealizadosPorProduto({});
+      setTemposRealizadosPorTarefaPorCliente({});
+      setTemposRealizadosPorClientePorProduto({});
+      setTemposRealizadosPorTarefaPorClientePorProduto({});
+      return;
+    }
+
+    const buscarTemposRealizados = async () => {
+      if (tipo === 'tarefas') {
+        const novosTempos = {};
+        
+        // Buscar tempo realizado para cada tarefa
+        const promises = dados.registros.map(async (tarefa) => {
+          // Coletar responsáveis únicos desta tarefa
+          const responsaveisUnicos = new Set();
+          if (tarefa.registros && Array.isArray(tarefa.registros)) {
+            tarefa.registros.forEach(reg => {
+              if (reg.responsavel_id) {
+                responsaveisUnicos.add(reg.responsavel_id);
+              }
+            });
+          }
+          
+          if (responsaveisUnicos.size === 0) {
+            return { tarefaId: tarefa.id, tempoRealizado: 0 };
+          }
+          
+          // Buscar tempo realizado para cada responsável e somar
+          let tempoTotal = 0;
+          const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+            try {
+              const response = await fetch('/api/registro-tempo/realizado-total', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  responsavel_id: responsavelId,
+                  data_inicio: periodoInicio,
+                  data_fim: periodoFim,
+                  tarefa_id: tarefa.id,
+                  cliente_id: tarefa.clienteId || filtrosAdicionais?.cliente_id || null,
+                  produto_id: filtrosAdicionais?.produto_id || null
+                })
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                  return result.data.tempo_realizado_ms || 0;
+                }
+              }
+              return 0;
+            } catch (error) {
+              console.error('Erro ao buscar tempo realizado da tarefa:', error);
+              return 0;
+            }
+          });
+          
+          const resultados = await Promise.all(promisesResponsaveis);
+          tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+          
+          return { tarefaId: tarefa.id, tempoRealizado: tempoTotal };
+        });
+        
+        const resultados = await Promise.all(promises);
+        resultados.forEach(({ tarefaId, tempoRealizado }) => {
+          novosTempos[tarefaId] = tempoRealizado;
+        });
+        
+        setTemposRealizadosPorTarefa(novosTempos);
+      } else if (tipo === 'responsaveis') {
+        const novosTempos = {};
+        
+        // Buscar tempo realizado para cada responsável
+        const promises = dados.registros.map(async (responsavel) => {
+          try {
+            const response = await fetch('/api/registro-tempo/realizado-total', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                responsavel_id: responsavel.id,
+                data_inicio: periodoInicio,
+                data_fim: periodoFim,
+                tarefa_id: filtrosAdicionais?.tarefa_id || null,
+                cliente_id: filtrosAdicionais?.cliente_id || null,
+                produto_id: filtrosAdicionais?.produto_id || null
+              })
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                return { responsavelId: responsavel.id, tempoRealizado: result.data.tempo_realizado_ms || 0 };
+              }
+            }
+            return { responsavelId: responsavel.id, tempoRealizado: 0 };
+          } catch (error) {
+            console.error('Erro ao buscar tempo realizado do responsável:', error);
+            return { responsavelId: responsavel.id, tempoRealizado: 0 };
+          }
+        });
+        
+        const resultados = await Promise.all(promises);
+        resultados.forEach(({ responsavelId, tempoRealizado }) => {
+          novosTempos[responsavelId] = tempoRealizado;
+        });
+        
+        setTemposRealizadosPorResponsavel(novosTempos);
+      } else if (tipo === 'clientes') {
+        const novosTempos = {};
+        
+        // Para clientes, buscar tempo realizado de todos os responsáveis relacionados
+        const responsaveisUnicos = new Set();
+        dados.registros.forEach(cliente => {
+          if (cliente.registros && Array.isArray(cliente.registros)) {
+            cliente.registros.forEach(reg => {
+              if (reg.responsavel_id) {
+                responsaveisUnicos.add(reg.responsavel_id);
+              }
+            });
+          }
+        });
+        
+        // Buscar tempo realizado para cada cliente
+        const promises = dados.registros.map(async (cliente) => {
+          let tempoTotal = 0;
+          const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+            try {
+              const response = await fetch('/api/registro-tempo/realizado-total', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  responsavel_id: responsavelId,
+                  data_inicio: periodoInicio,
+                  data_fim: periodoFim,
+                  tarefa_id: filtrosAdicionais?.tarefa_id || null,
+                  cliente_id: cliente.id,
+                  produto_id: filtrosAdicionais?.produto_id || null
+                })
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                  return result.data.tempo_realizado_ms || 0;
+                }
+              }
+              return 0;
+            } catch (error) {
+              console.error('Erro ao buscar tempo realizado do cliente:', error);
+              return 0;
+            }
+          });
+          
+          const resultados = await Promise.all(promisesResponsaveis);
+          tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+          
+          // Usar cliente.id como string para consistência
+          const clienteIdStr = String(cliente.id || '');
+          return { clienteId: clienteIdStr, tempoRealizado: tempoTotal };
+        });
+        
+        const resultados = await Promise.all(promises);
+        resultados.forEach(({ clienteId, tempoRealizado }) => {
+          novosTempos[clienteId] = tempoRealizado;
+        });
+        
+        setTemposRealizadosPorCliente(novosTempos);
+        
+        // Calcular tempo realizado por tarefa dentro de cada cliente
+        const temposPorTarefaPorCliente = {};
+        const promisesTarefas = dados.registros.map(async (cliente) => {
+          // Usar cliente.id como string diretamente (mesma lógica do cálculo de tempo total por cliente linha 284)
+          const clienteIdStr = String(cliente.id || '');
+          
+          if (!cliente.tarefas || !Array.isArray(cliente.tarefas) || cliente.tarefas.length === 0) {
+            return { clienteId: clienteIdStr, temposPorTarefa: {} };
+          }
+          
+          const temposPorTarefa = {};
+          const tarefasPromises = cliente.tarefas.map(async (tarefa) => {
+            // Coletar responsáveis únicos desta tarefa específica (igual ao tipo 'tarefas' linha ~139-146)
+            const responsaveisUnicosTarefa = new Set();
+            if (tarefa.registros && Array.isArray(tarefa.registros)) {
+              tarefa.registros.forEach(reg => {
+                if (reg.responsavel_id) {
+                  responsaveisUnicosTarefa.add(reg.responsavel_id);
+                }
+              });
+            }
+            
+            if (responsaveisUnicosTarefa.size === 0) {
+              return { tarefaId: String(tarefa.id), tempoRealizado: 0 };
+            }
+            
+            let tempoTotalTarefa = 0;
+            // Usar responsaveisUnicosTarefa ao invés de responsaveisUnicos do nível de cliente
+            const promisesResponsaveisTarefa = Array.from(responsaveisUnicosTarefa).map(async (responsavelId) => {
+              try {
+                const response = await fetch('/api/registro-tempo/realizado-total', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavelId,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    tarefa_id: tarefa.id,
+                    cliente_id: cliente.id,
+                    produto_id: filtrosAdicionais?.produto_id || null
+                  })
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    return result.data.tempo_realizado_ms || 0;
+                  }
+                }
+                return 0;
+              } catch (error) {
+                console.error('Erro ao buscar tempo realizado da tarefa dentro do cliente:', error);
+                return 0;
+              }
+            });
+            
+            const resultadosTarefa = await Promise.all(promisesResponsaveisTarefa);
+            tempoTotalTarefa = resultadosTarefa.reduce((sum, tempo) => sum + tempo, 0);
+            
+            return { tarefaId: String(tarefa.id), tempoRealizado: tempoTotalTarefa };
+          });
+          
+          const resultadosTarefas = await Promise.all(tarefasPromises);
+          resultadosTarefas.forEach(({ tarefaId, tempoRealizado }) => {
+            temposPorTarefa[tarefaId] = tempoRealizado;
+          });
+          
+          return { clienteId: clienteIdStr, temposPorTarefa };
+        });
+        
+        const resultadosTarefasPorCliente = await Promise.all(promisesTarefas);
+        resultadosTarefasPorCliente.forEach(({ clienteId, temposPorTarefa }) => {
+          temposPorTarefaPorCliente[clienteId] = temposPorTarefa;
+        });
+        
+        setTemposRealizadosPorTarefaPorCliente(temposPorTarefaPorCliente);
+      } else if (tipo === 'produtos') {
+        const novosTempos = {};
+        
+        // Para produtos, buscar tempo realizado de todos os responsáveis relacionados
+        // Se há filtro de responsável nos filtrosAdicionais OU entidadeId é um responsável, usar apenas esse responsável
+        const responsaveisUnicos = new Set();
+        
+        // Se há responsavel_id nos filtrosAdicionais, usar apenas esse
+        if (filtrosAdicionais?.responsavel_id) {
+          const responsavelIds = Array.isArray(filtrosAdicionais.responsavel_id) 
+            ? filtrosAdicionais.responsavel_id 
+            : [filtrosAdicionais.responsavel_id];
+          responsavelIds.forEach(id => {
+            if (id) responsaveisUnicos.add(id);
+          });
+        } else {
+          // Caso contrário, coletar de todos os registros (igual à lógica de clientes)
+          dados.registros.forEach(produto => {
+            if (produto.registros && Array.isArray(produto.registros)) {
+              produto.registros.forEach(reg => {
+                if (reg.responsavel_id) {
+                  responsaveisUnicos.add(reg.responsavel_id);
+                }
+              });
+            }
+          });
+          
+          // Se não encontrou nenhum responsável nos registros e há entidadeId, pode ser que o filtro principal seja responsavel
+          // Nesse caso, usar o entidadeId como responsável
+          if (responsaveisUnicos.size === 0 && entidadeId) {
+            console.log(`⚠️ [DETAIL-SIDE-CARD] Nenhum responsável encontrado nos registros, usando entidadeId como fallback: ${entidadeId}`);
+            responsaveisUnicos.add(entidadeId);
+          }
+        }
+        
+        // Buscar tempo realizado para cada produto (EXATAMENTE igual à lógica de clientes)
+        const promises = dados.registros.map(async (produto) => {
+          let tempoTotal = 0;
+          const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+            try {
+              const response = await fetch('/api/registro-tempo/realizado-total', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  responsavel_id: responsavelId,
+                  data_inicio: periodoInicio,
+                  data_fim: periodoFim,
+                  tarefa_id: filtrosAdicionais?.tarefa_id || null,
+                  cliente_id: filtrosAdicionais?.cliente_id || null,
+                  produto_id: parseInt(String(produto.id).trim(), 10) || null
+                })
+              });
+              
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                  return result.data.tempo_realizado_ms || 0;
+                }
+              }
+              return 0;
+            } catch (error) {
+              console.error('Erro ao buscar tempo realizado do produto:', error);
+              return 0;
+            }
+          });
+          
+          const resultados = await Promise.all(promisesResponsaveis);
+          tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+          
+          // Usar produto.id como string para consistência (igual à lógica de clientes)
+          const produtoIdStr = String(produto.id || '');
+          return { produtoId: produtoIdStr, tempoRealizado: tempoTotal };
+        });
+        
+        const resultados = await Promise.all(promises);
+        resultados.forEach(({ produtoId, tempoRealizado }) => {
+          novosTempos[produtoId] = tempoRealizado;
+        });
+        
+        setTemposRealizadosPorProduto(novosTempos);
+        
+        // Calcular tempo realizado por cliente dentro de cada produto
+        const temposPorClientePorProduto = {};
+        // Calcular tempo realizado por tarefa dentro de cada cliente dentro de cada produto
+        const temposPorTarefaPorClientePorProduto = {};
+        
+        const promisesProdutosHierarquicos = dados.registros.map(async (produto) => {
+          const produtoIdNormalizado = String(produto.id);
+          if (!produto.clientes || !Array.isArray(produto.clientes) || produto.clientes.length === 0) {
+            return { 
+              produtoId: produtoIdNormalizado, 
+              temposPorCliente: {},
+              temposPorTarefaPorCliente: {}
+            };
+          }
+          
+          const temposPorCliente = {};
+          const temposPorTarefaPorCliente = {};
+          
+          const clientesPromises = produto.clientes.map(async (cliente) => {
+            // Garantir que clienteIdNormalizado nunca seja null - usar cliente.id como fallback
+            let clienteIdNormalizado = normalizarClienteId(cliente);
+            if (!clienteIdNormalizado && cliente.id) {
+              clienteIdNormalizado = String(cliente.id);
+            }
+            // Se ainda for null, usar cliente.id diretamente
+            if (!clienteIdNormalizado) {
+              clienteIdNormalizado = cliente.id ? String(cliente.id) : 'unknown';
+            }
+            // Calcular tempo realizado por cliente dentro do produto
+            let tempoTotalCliente = 0;
+            const promisesResponsaveisCliente = Array.from(responsaveisUnicos).map(async (responsavelId) => {
+              try {
+                const response = await fetch('/api/registro-tempo/realizado-total', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavelId,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    tarefa_id: filtrosAdicionais?.tarefa_id || null,
+                    cliente_id: cliente.id,
+                    produto_id: parseInt(String(produto.id).trim(), 10) || null
+                  })
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    return result.data.tempo_realizado_ms || 0;
+                  }
+                }
+                return 0;
+              } catch (error) {
+                console.error('Erro ao buscar tempo realizado do cliente dentro do produto:', error);
+                return 0;
+              }
+            });
+            
+            const resultadosCliente = await Promise.all(promisesResponsaveisCliente);
+            tempoTotalCliente = resultadosCliente.reduce((sum, tempo) => sum + tempo, 0);
+            
+            // Calcular tempo realizado por tarefa dentro deste cliente dentro deste produto
+            const temposPorTarefa = {};
+            if (cliente.tarefas && Array.isArray(cliente.tarefas) && cliente.tarefas.length > 0) {
+              const tarefasPromises = cliente.tarefas.map(async (tarefa) => {
+                // Coletar responsáveis únicos desta tarefa específica (igual ao tipo 'tarefas' linha ~139-146)
+                const responsaveisUnicosTarefa = new Set();
+                if (tarefa.registros && Array.isArray(tarefa.registros)) {
+                  tarefa.registros.forEach(reg => {
+                    if (reg.responsavel_id) {
+                      responsaveisUnicosTarefa.add(reg.responsavel_id);
+                    }
+                  });
+                }
+                
+                // Se a tarefa não tem registros próprios, usar responsáveis do nível superior (produto) como fallback
+                if (responsaveisUnicosTarefa.size === 0 && responsaveisUnicos.size > 0) {
+                  responsaveisUnicos.forEach(respId => responsaveisUnicosTarefa.add(respId));
+                }
+                
+                if (responsaveisUnicosTarefa.size === 0) {
+                  return { tarefaId: tarefa.id, tempoRealizado: 0 };
+                }
+                
+                // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
+                let tempoTotalTarefa = 0;
+                const promisesResponsaveisTarefa = Array.from(responsaveisUnicosTarefa).map(async (responsavelId) => {
+                  try {
+                    // Usar mesma lógica do tipo 'tarefas' - cliente_id pode ser null se não estiver disponível
+                    const clienteIdParaBusca = cliente.id || null;
+                    const response = await fetch('/api/registro-tempo/realizado-total', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        responsavel_id: responsavelId,
+                        data_inicio: periodoInicio,
+                        data_fim: periodoFim,
+                        tarefa_id: tarefa.id,
+                        cliente_id: clienteIdParaBusca,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
+                      })
+                    });
+                    
+                    if (response.ok) {
+                      const result = await response.json();
+                      if (result.success && result.data) {
+                        return result.data.tempo_realizado_ms || 0;
+                      }
+                    }
+                    return 0;
+                  } catch (error) {
+                    console.error('Erro ao buscar tempo realizado da tarefa dentro do cliente dentro do produto:', error);
+                    return 0;
+                  }
+                });
+                
+                const resultadosTarefa = await Promise.all(promisesResponsaveisTarefa);
+                tempoTotalTarefa = resultadosTarefa.reduce((sum, tempo) => sum + tempo, 0);
+                
+                // Retornar tarefaId sem converter para string (igual ao tipo 'tarefas')
+                return { tarefaId: tarefa.id, tempoRealizado: tempoTotalTarefa };
+              });
+              
+              const resultadosTarefas = await Promise.all(tarefasPromises);
+              resultadosTarefas.forEach(({ tarefaId, tempoRealizado }) => {
+                // Armazenar com múltiplas variações de chaves para garantir correspondência
+                const tarefaIdStr = String(tarefaId);
+                
+                // Armazenar com tarefaId como string
+                temposPorTarefa[tarefaIdStr] = tempoRealizado;
+                
+                // Também armazenar com o ID original se for diferente (number)
+                if (typeof tarefaId !== 'string') {
+                  temposPorTarefa[tarefaId] = tempoRealizado;
+                }
+              });
+            }
+            
+            return { 
+              clienteId: clienteIdNormalizado, 
+              tempoRealizado: tempoTotalCliente,
+              temposPorTarefa
+            };
+          });
+          
+          const resultadosClientes = await Promise.all(clientesPromises);
+          resultadosClientes.forEach((resultado, index) => {
+            const { clienteId, tempoRealizado, temposPorTarefa } = resultado;
+            const cliente = produto.clientes[index];
+            
+            // Armazenar com múltiplas variações de clienteId para garantir correspondência
+            // Usar clienteId normalizado
+            temposPorCliente[clienteId] = tempoRealizado;
+            temposPorTarefaPorCliente[clienteId] = temposPorTarefa;
+            
+            // Também armazenar com cliente.id original se diferente
+            if (cliente && cliente.id) {
+              const clienteIdOriginal = String(cliente.id);
+              if (clienteIdOriginal !== clienteId) {
+                temposPorCliente[clienteIdOriginal] = tempoRealizado;
+                temposPorTarefaPorCliente[clienteIdOriginal] = temposPorTarefa;
+              }
+              
+              // Também armazenar com cliente.id como number se for diferente
+              if (typeof cliente.id !== 'string' && String(cliente.id) !== clienteId) {
+                temposPorCliente[cliente.id] = tempoRealizado;
+                temposPorTarefaPorCliente[cliente.id] = temposPorTarefa;
+              }
+            }
+          });
+          
+          return { 
+            produtoId: produtoIdNormalizado, 
+            temposPorCliente,
+            temposPorTarefaPorCliente
+          };
+        });
+        
+        const resultadosProdutosHierarquicos = await Promise.all(promisesProdutosHierarquicos);
+        resultadosProdutosHierarquicos.forEach(({ produtoId, temposPorCliente, temposPorTarefaPorCliente }) => {
+          temposPorClientePorProduto[produtoId] = temposPorCliente;
+          temposPorTarefaPorClientePorProduto[produtoId] = temposPorTarefaPorCliente;
+        });
+        
+        setTemposRealizadosPorClientePorProduto(temposPorClientePorProduto);
+        setTemposRealizadosPorTarefaPorClientePorProduto(temposPorTarefaPorClientePorProduto);
+      }
+    };
+
+    buscarTemposRealizados();
+  }, [tipo, dados, periodoInicio, periodoFim, filtrosAdicionais]);
 
   useEffect(() => {
     // Fechar ao clicar fora
@@ -366,6 +927,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               onToggleTarefa={toggleTarefa}
               getNomeCliente={getNomeCliente}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+              temposRealizadosPorTarefa={temposRealizadosPorTarefa}
             />
           ) : tipo === 'clientes' ? (
             <ClientesDetalhadosList
@@ -382,6 +944,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
               getNomeCliente={getNomeCliente}
+              temposRealizadosPorCliente={temposRealizadosPorCliente}
+              temposRealizadosPorTarefaPorCliente={temposRealizadosPorTarefaPorCliente}
             />
           ) : tipo === 'produtos' ? (
             <ProdutosDetalhadosList
@@ -397,6 +961,12 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               onToggleProduto={toggleProduto}
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+              temposRealizadosPorProduto={temposRealizadosPorProduto}
+              temposRealizadosPorClientePorProduto={temposRealizadosPorClientePorProduto}
+              temposRealizadosPorTarefaPorClientePorProduto={temposRealizadosPorTarefaPorClientePorProduto}
+              periodoInicio={periodoInicio}
+              periodoFim={periodoFim}
+              filtrosAdicionais={filtrosAdicionais}
             />
           ) : tipo === 'responsaveis' ? (
             <ResponsaveisDetalhadosList
@@ -412,6 +982,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               onToggleResponsavel={toggleResponsavel}
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+              temposRealizadosPorResponsavel={temposRealizadosPorResponsavel}
             />
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

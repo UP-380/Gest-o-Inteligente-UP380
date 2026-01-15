@@ -16,6 +16,7 @@ import './TarefasDetalhadasList.css';
  * @param {Function} props.formatarTempoHMS - Função para formatar tempo em HMS
  * @param {Function} props.onToggleTarefa - Função chamada ao clicar no botão de expandir/colapsar
  * @param {Function} props.getNomeCliente - Função para obter o nome do cliente pelo ID
+ * @param {Object} props.temposRealizadosPorTarefa - Objeto com tempos realizados por tarefa ID (chave: tarefaId, valor: tempoEmMs)
  */
 const TarefasDetalhadasList = ({
   tarefas,
@@ -29,7 +30,8 @@ const TarefasDetalhadasList = ({
   formatarTempoHMS,
   onToggleTarefa,
   getNomeCliente,
-  getNomeColaboradorPorUsuarioId = null
+  getNomeColaboradorPorUsuarioId = null,
+  temposRealizadosPorTarefa = {}
 }) => {
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
 
@@ -107,8 +109,11 @@ const TarefasDetalhadasList = ({
             {grupoCliente.tarefas.map((tarefa, index) => {
               const isExpanded = tarefasExpandidas.has(tarefa.id);
 
-              // Tempo realizado sempre 0 (lógica removida)
-              const tempoRealizadoFormatado = '0s';
+              // Buscar tempo realizado do prop ou usar 0 como padrão
+              const tempoRealizadoMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+              const tempoRealizadoFormatado = formatarTempoHMS
+                ? formatarTempoHMS(tempoRealizadoMs)
+                : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
 
               const tempoEstimadoFormatado = formatarTempoEstimado
                 ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
@@ -157,7 +162,7 @@ const TarefasDetalhadasList = ({
                           </div>
                           <div className="tarefa-detalhada-tempo-card-content">
                             <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                              0s
+                              {tempoRealizadoFormatado}
                             </div>
                           </div>
                         </div>

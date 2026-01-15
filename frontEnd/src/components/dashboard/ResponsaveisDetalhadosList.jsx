@@ -16,6 +16,7 @@ import './TarefasDetalhadasList.css';
  * @param {Function} props.formatarTempoHMS - Função para formatar tempo em HMS
  * @param {Function} props.onToggleResponsavel - Função chamada ao clicar no botão de expandir/colapsar responsável
  * @param {Function} props.buscarRegistrosIndividuais - Função para buscar registros individuais de uma tarefa
+ * @param {Object} props.temposRealizadosPorResponsavel - Objeto com tempos realizados por responsável ID (chave: responsavelId, valor: tempoEmMs)
  */
 const ResponsaveisDetalhadosList = ({
   responsaveis,
@@ -29,7 +30,8 @@ const ResponsaveisDetalhadosList = ({
   formatarTempoHMS,
   onToggleResponsavel,
   buscarRegistrosIndividuais,
-  getNomeColaboradorPorUsuarioId = null
+  getNomeColaboradorPorUsuarioId = null,
+  temposRealizadosPorResponsavel = {}
 }) => {
   const [produtosExpandidos, setProdutosExpandidos] = useState(new Set());
   const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
@@ -104,8 +106,11 @@ const ResponsaveisDetalhadosList = ({
     <div className="tarefas-detalhadas-list">
       {responsaveis.map((responsavel, responsavelIndex) => {
         const isResponsavelExpanded = responsaveisExpandidos.has(responsavel.id);
-        // Tempo realizado sempre 0 (lógica removida)
-        const tempoRealizadoFormatado = '0s';
+        // Buscar tempo realizado do prop ou usar 0 como padrão
+        const tempoRealizadoMs = temposRealizadosPorResponsavel[responsavel.id] || responsavel.tempoRealizado || 0;
+        const tempoRealizadoFormatado = formatarTempoHMS
+          ? formatarTempoHMS(tempoRealizadoMs)
+          : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
 
         const tempoEstimadoFormatado = formatarTempoEstimado
           ? formatarTempoEstimado(responsavel.tempoEstimado || 0, true)
@@ -154,7 +159,7 @@ const ResponsaveisDetalhadosList = ({
                     </div>
                     <div className="tarefa-detalhada-tempo-card-content">
                       <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                        0s
+                        {tempoRealizadoFormatado}
                       </div>
                     </div>
                   </div>

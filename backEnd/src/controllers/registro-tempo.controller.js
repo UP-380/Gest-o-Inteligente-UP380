@@ -68,7 +68,7 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
 // POST - Iniciar registro de tempo (criar com data_inicio)
 async function iniciarRegistroTempo(req, res) {
   try {
-    const { tarefa_id, cliente_id, usuario_id } = req.body;
+    const { tarefa_id, cliente_id, usuario_id, produto_id } = req.body;
 
     // Validações obrigatórias
     if (!tarefa_id) {
@@ -120,32 +120,71 @@ async function iniciarRegistroTempo(req, res) {
       });
     }
 
-    // Buscar produto_id da tarefa
-    let produtoId = null;
-    try {
-      console.log('🔍 Buscando produto_id da tarefa:', tarefa_id);
-      const { data: tarefa, error: tarefaError } = await supabase
-        .schema('up_gestaointeligente')
-        .from('tarefa')
-        .select('produto_id, id')
-        .eq('id', String(tarefa_id).trim())
-        .maybeSingle();
+    // Definir produtoId (Prioridade: Body > Tarefa > Vinculados)
+    let produtoId = produto_id ? String(produto_id).trim() : null;
 
-      if (tarefaError) {
-        console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
-      } else if (tarefa) {
-        console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
-        if (tarefa.produto_id) {
-          produtoId = String(tarefa.produto_id).trim();
-          console.log('✅ Produto_id encontrado na tarefa:', produtoId);
+    // Se veio no body, logar
+    if (produtoId) {
+      console.log('✅ Produto_id recebido do frontend:', produtoId);
+    }
+
+    // Se NÃO veio no body, buscar no banco (Fallback)
+    if (!produtoId) {
+      try {
+        console.log('🔍 Buscando produto_id da tarefa (fallback):', tarefa_id);
+        const { data: tarefa, error: tarefaError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tarefa')
+          .select('produto_id, id')
+          .eq('id', String(tarefa_id).trim())
+          .maybeSingle();
+
+        if (tarefaError) {
+          console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
+        } else if (tarefa) {
+          console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
+          if (tarefa.produto_id) {
+            produtoId = String(tarefa.produto_id).trim();
+            console.log('✅ Produto_id encontrado na tarefa:', produtoId);
+          } else {
+            console.warn('⚠️ Tarefa não possui produto_id');
+          }
         } else {
-          console.warn('⚠️ Tarefa não possui produto_id');
+          console.warn('⚠️ Tarefa não encontrada para id:', tarefa_id);
         }
-      } else {
-        console.warn('⚠️ Tarefa não encontrada para id:', tarefa_id);
+      } catch (error) {
+        console.error('❌ Erro ao buscar produto_id:', error);
       }
-    } catch (error) {
-      console.error('❌ Erro ao buscar produto_id:', error);
+    }
+
+    // Se não encontrou na tabela tarefa, tentar buscar na tabela vinculados
+    if (!produtoId) {
+      try {
+        console.log('🔍 Buscando produto_id na tabela vinculados para tarefa:', tarefa_id);
+        // Converter para inteiro pois tarefa_id em vinculados geralmente é int8
+        const tarefaIdInt = parseInt(String(tarefa_id).trim(), 10);
+
+        if (!isNaN(tarefaIdInt)) {
+          const { data: vinculados, error: vinculadoError } = await supabase
+            .schema('up_gestaointeligente')
+            .from('vinculados')
+            .select('produto_id')
+            .eq('tarefa_id', tarefaIdInt)
+            .not('produto_id', 'is', null)
+            .limit(1);
+
+          if (vinculadoError) {
+            console.error('❌ Erro ao buscar produto_id em vinculados:', vinculadoError);
+          } else if (vinculados && vinculados.length > 0) {
+            produtoId = String(vinculados[0].produto_id).trim();
+            console.log('✅ Produto_id encontrado em vinculados:', produtoId);
+          } else {
+            console.log('⚠️ Nenhum vínculo de produto encontrado para esta tarefa em vinculados');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar produto_id em vinculados:', error);
+      }
     }
 
     // Buscar tipo_tarefa_id da tabela vinculados
@@ -450,11 +489,24 @@ async function getTempoRealizado(req, res) {
       const dataStr = data.includes('T') ? data.split('T')[0] : data;
       const dataInicio = new Date(dataStr + 'T00:00:00');
       const dataFim = new Date(dataStr + 'T23:59:59.999');
-      
-      // Filtrar registros onde data_inicio está na data especificada
-      query = query
-        .gte('data_inicio', dataInicio.toISOString())
-        .lte('data_inicio', dataFim.toISOString());
+
+      const inicioStr = dataInicio.toISOString();
+      const fimStr = dataFim.toISOString();
+
+      // Filtrar registros que se sobrepõem ao período
+      // Usar OR para garantir que encontramos TODOS os registros relevantes:
+      // 1. data_inicio está dentro do período, OU
+      // 2. data_fim está dentro do período, OU
+      // 3. registro cobre todo o período (começa antes e termina depois), OU
+      // 4. registro ativo (data_fim é NULL) que começou no período ou antes
+      const orConditions = [
+        `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`, // data_inicio dentro do período
+        `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`, // data_fim dentro do período
+        `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`, // registro cobre o período
+        `and(data_inicio.lte.${fimStr},data_fim.is.null)` // registro ativo que começou no período ou antes
+      ].join(',');
+
+      query = query.or(orConditions);
     }
 
     query = query.not('tempo_realizado', 'is', null);
@@ -1370,11 +1422,265 @@ async function deletarRegistroTempo(req, res) {
   }
 }
 
+// POST - Buscar tempo realizado total por responsável com período e filtros opcionais
+// Similar ao getTempoRealizado mas aceita responsavel_id e não exige tarefa_id/cliente_id
+async function getTempoRealizadoTotal(req, res) {
+  try {
+    const {
+      responsavel_id,
+      data_inicio,
+      data_fim,
+      tarefa_id,
+      cliente_id,
+      produto_id
+    } = req.body;
+
+    console.log('🔍 [TEMPO-REALIZADO-TOTAL] Busca iniciada:', { responsavel_id, data_inicio, data_fim, tarefa_id, cliente_id, produto_id });
+
+    // Validar que responsavel_id e período são obrigatórios
+    if (!responsavel_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'responsavel_id é obrigatório'
+      });
+    }
+
+    if (!data_inicio || !data_fim) {
+      return res.status(400).json({
+        success: false,
+        error: 'data_inicio e data_fim são obrigatórios'
+      });
+    }
+
+    // Converter responsavel_id (membro.id) para usuario_id via tabela membro
+    const responsavelIdNum = parseInt(String(responsavel_id).trim(), 10);
+    if (isNaN(responsavelIdNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'responsavel_id inválido'
+      });
+    }
+
+    const { data: membro, error: errorMembro } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .select('id, usuario_id')
+      .eq('id', responsavelIdNum)
+      .maybeSingle();
+
+    if (errorMembro) {
+      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar membro:', errorMembro);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar membro',
+        details: errorMembro.message
+      });
+    }
+
+    if (!membro) {
+      console.error(`❌ [TEMPO-REALIZADO-TOTAL] Membro não encontrado para responsavel_id (membro.id) = ${responsavelIdNum}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Responsável não encontrado'
+      });
+    }
+
+    if (!membro.usuario_id) {
+      console.error(`❌ [TEMPO-REALIZADO-TOTAL] Membro encontrado (id=${membro.id}) mas sem usuario_id associado`);
+      return res.status(404).json({
+        success: false,
+        error: 'Responsável não possui usuario_id associado'
+      });
+    }
+
+    const usuarioId = membro.usuario_id;
+    console.log(`✅ [TEMPO-REALIZADO-TOTAL] responsavel_id ${responsavelIdNum} → usuario_id ${usuarioId}`);
+
+    // Preparar filtros de período - SIMPLES como em getTempoRealizado
+    // Normalizar datas para formato YYYY-MM-DD (remover parte de tempo se existir)
+    const dataInicioStr = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+    const dataFimStr = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+
+    console.log(`📅 [TEMPO-REALIZADO-TOTAL] Período normalizado: ${dataInicioStr} até ${dataFimStr}`);
+
+    // Criar datas de início e fim do período (00:00:00 até 23:59:59.999)
+    // Usar timezone local para garantir consistência
+    const dataInicioFiltro = new Date(dataInicioStr + 'T00:00:00');
+    const dataFimFiltro = new Date(dataFimStr + 'T23:59:59.999');
+
+    const inicioStr = dataInicioFiltro.toISOString();
+    const fimStr = dataFimFiltro.toISOString();
+
+    console.log(`📅 [TEMPO-REALIZADO-TOTAL] Período ISO: ${inicioStr} até ${fimStr}`);
+
+    // Construir query base
+    // Incluir tarefa_id para poder fazer JOIN com tabela tarefa se necessário
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo')
+      .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id')
+      .eq('usuario_id', usuarioId);
+
+    // Filtrar registros que se sobrepõem ao período
+    // Usar OR para garantir que encontramos TODOS os registros relevantes:
+    // 1. data_inicio está dentro do período, OU
+    // 2. data_fim está dentro do período, OU
+    // 3. registro cobre todo o período (começa antes e termina depois), OU
+    // 4. registro ativo (data_fim é NULL) que começou no período ou antes
+    const orConditions = [
+      `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`, // data_inicio dentro do período
+      `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`, // data_fim dentro do período
+      `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`, // registro cobre o período
+      `and(data_inicio.lte.${fimStr},data_fim.is.null)` // registro ativo que começou no período ou antes
+    ].join(',');
+
+    query = query.or(orConditions);
+
+    console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Query base: usuario_id=${usuarioId}, período: ${inicioStr} até ${fimStr}`);
+
+    // Filtros adicionais opcionais
+    if (tarefa_id) {
+      const tarefaIds = Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id];
+      const tarefaIdsLimpos = tarefaIds.map(id => String(id).trim()).filter(id => id.length > 0);
+      if (tarefaIdsLimpos.length > 0) {
+        if (tarefaIdsLimpos.length === 1) {
+          query = query.eq('tarefa_id', tarefaIdsLimpos[0]);
+        } else {
+          query = query.in('tarefa_id', tarefaIdsLimpos);
+        }
+        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Filtro tarefa_id aplicado:`, tarefaIdsLimpos);
+      }
+    }
+
+    if (cliente_id) {
+      const clienteIds = Array.isArray(cliente_id) ? cliente_id : [cliente_id];
+      const clienteIdsLimpos = clienteIds.map(id => String(id).trim()).filter(id => id.length > 0);
+      if (clienteIdsLimpos.length > 0) {
+        if (clienteIdsLimpos.length === 1) {
+          query = query.eq('cliente_id', clienteIdsLimpos[0]);
+        } else {
+          query = query.in('cliente_id', clienteIdsLimpos);
+        }
+        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Filtro cliente_id aplicado:`, clienteIdsLimpos);
+      }
+    }
+
+    // Excluir registros onde tempo_realizado é NULL
+    query = query.not('tempo_realizado', 'is', null);
+
+    const { data: registros, error: errorTempo } = await query;
+
+    if (errorTempo) {
+      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar registros de tempo:', errorTempo);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar registros de tempo',
+        details: errorTempo.message
+      });
+    }
+
+    console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registros?.length || 0} registros encontrados na query`);
+
+    // Aplicar regra de exclusão: excluir registros onde cliente_id, produto_id E tipo_tarefa_id são TODOS NULL
+    // REGRA: Excluir apenas quando TODAS as três colunas são NULL simultaneamente
+    let registrosExcluidosPorRegra = 0;
+    let registrosFiltrados = (registros || []).filter(reg => {
+      const todasNull = reg.cliente_id === null && reg.produto_id === null && reg.tipo_tarefa_id === null;
+      if (todasNull) {
+        registrosExcluidosPorRegra++;
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registrosFiltrados.length} registros após regra de exclusão (${registrosExcluidosPorRegra} excluídos)`);
+
+    // Se há filtro de produto_id, aplicar estritamente com base na coluna produto_id do registro
+    // LÓGICA ATUALIZADA: Não buscar produto_id na tarefa se estiver vazio no registro.
+    // Se produto_id no registro for null, ignorar o registro para este cálculo.
+    if (produto_id) {
+      const produtoIds = Array.isArray(produto_id) ? produto_id : [produto_id];
+      // Normalizar para strings para comparação segura
+      const produtoIdsLimpos = produtoIds.map(id => String(id).trim()).filter(id => id.length > 0 && id !== 'null' && id !== 'undefined');
+
+      if (produtoIdsLimpos.length > 0) {
+        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Aplicando filtro produto_id estrito (sem fallback):`, produtoIdsLimpos);
+
+        const registrosAntesFiltro = registrosFiltrados.length;
+        registrosFiltrados = registrosFiltrados.filter(reg => {
+          // Se coluna produto_id é nula ou vazia, não considerar
+          if (!reg.produto_id) return false;
+
+          // Normalizar ID do registro para string e comparar
+          const regProdutoId = String(reg.produto_id).trim();
+          return produtoIdsLimpos.includes(regProdutoId);
+        });
+
+        console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registrosFiltrados.length} registros após filtro produto_id estrito (${registrosAntesFiltro - registrosFiltrados.length} excluídos por não terem o produto_id correspondente)`);
+      }
+    }
+
+    // Calcular tempo total
+    let tempoTotalMs = 0;
+    registrosFiltrados.forEach(reg => {
+      let tempo = Number(reg.tempo_realizado) || 0;
+
+      // Se não tem tempo_realizado mas tem data_inicio e data_fim, calcular
+      if (!tempo && reg.data_inicio) {
+        const dataInicio = new Date(reg.data_inicio);
+        const dataFim = reg.data_fim ? new Date(reg.data_fim) : new Date();
+        tempo = Math.max(0, dataFim.getTime() - dataInicio.getTime());
+      }
+
+      // Se valor < 1 (decimal), está em horas -> converter para ms
+      if (tempo > 0 && tempo < 1) {
+        tempo = Math.round(tempo * 3600000);
+      }
+
+      tempoTotalMs += tempo;
+    });
+
+    const tempoTotalSegundos = (tempoTotalMs / 1000).toFixed(2);
+    const tempoTotalMinutos = (tempoTotalMs / 60000).toFixed(2);
+    console.log(`✅ [TEMPO-REALIZADO-TOTAL] Tempo total calculado: ${tempoTotalMs}ms (${tempoTotalSegundos}s / ${tempoTotalMinutos}min) de ${registrosFiltrados.length} registros`);
+
+    // Log detalhado para debug
+    if (registrosFiltrados.length > 0) {
+      console.log(`📋 [TEMPO-REALIZADO-TOTAL] Detalhes dos registros encontrados:`);
+      registrosFiltrados.slice(0, 5).forEach((reg, idx) => {
+        console.log(`  [${idx + 1}] tarefa_id: ${reg.tarefa_id}, produto_id: ${reg.produto_id}, tempo: ${reg.tempo_realizado}ms`);
+      });
+      if (registrosFiltrados.length > 5) {
+        console.log(`  ... e mais ${registrosFiltrados.length - 5} registros`);
+      }
+    } else {
+      console.log(`⚠️ [TEMPO-REALIZADO-TOTAL] Nenhum registro encontrado após todos os filtros`);
+      console.log(`   Filtros aplicados: usuario_id=${usuarioId}, período=${dataInicioStr} até ${dataFimStr}, produto_id=${produto_id || 'não especificado'}, tarefa_id=${tarefa_id || 'não especificado'}, cliente_id=${cliente_id || 'não especificado'}`);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        tempo_realizado_ms: tempoTotalMs,
+        registros_count: registrosFiltrados.length
+      }
+    });
+  } catch (error) {
+    console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   iniciarRegistroTempo,
   finalizarRegistroTempo,
   getRegistroAtivo,
   getTempoRealizado,
+  getTempoRealizadoTotal,
   getRegistrosAtivos,
   getRegistrosPorTempoEstimado,
   getHistoricoRegistros,

@@ -19,6 +19,8 @@ const API_BASE_URL = '/api';
  * @param {Function} props.onToggleCliente - Função chamada ao clicar no botão de expandir/colapsar cliente
  * @param {Function} props.buscarRegistrosIndividuais - Função para buscar registros individuais de uma tarefa
  * @param {Function} props.getNomeCliente - Função para obter o nome do cliente pelo ID
+ * @param {Object} props.temposRealizadosPorCliente - Objeto com tempos realizados por cliente ID (chave: clienteId, valor: tempoEmMs)
+ * @param {Object} props.temposRealizadosPorTarefaPorCliente - Objeto com tempos realizados por tarefa dentro de cada cliente (chave: clienteId, valor: { [tarefaId]: tempoEmMs })
  */
 const ClientesDetalhadosList = ({
   clientes,
@@ -33,7 +35,9 @@ const ClientesDetalhadosList = ({
   onToggleCliente,
   buscarRegistrosIndividuais,
   getNomeColaboradorPorUsuarioId = null,
-  getNomeCliente = null
+  getNomeCliente = null,
+  temposRealizadosPorCliente = {},
+  temposRealizadosPorTarefaPorCliente = {}
 }) => {
   const [nomesClientesCache, setNomesClientesCache] = useState({});
   const nomesClientesCacheRef = useRef({});
@@ -195,9 +199,17 @@ const ClientesDetalhadosList = ({
       {clientes.map((cliente, clienteIndex) => {
         // Garantir que temos o ID do cliente (pode estar em cliente.id ou cliente.nome se for UUID)
         const clienteId = cliente.id || (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cliente.nome) ? cliente.nome : null);
+        // Normalizar para string para garantir correspondência (usar fallback se null)
+        const clienteIdFinal = clienteId ? String(clienteId) : String(cliente.id || cliente.nome || '');
         const isClienteExpanded = clientesExpandidos.has(clienteId || cliente.id);
-        // Tempo realizado sempre 0 (lógica removida)
-        const tempoRealizadoFormatado = '0s';
+        // Buscar tempo realizado do prop ou usar 0 como padrão (tentar ambas as chaves)
+        const tempoRealizadoMs = temposRealizadosPorCliente[clienteIdFinal] 
+          || temposRealizadosPorCliente[clienteId] 
+          || temposRealizadosPorCliente[String(cliente.id)]
+          || cliente.tempoRealizado || 0;
+        const tempoRealizadoFormatado = formatarTempoHMS
+          ? formatarTempoHMS(tempoRealizadoMs)
+          : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
 
         const tempoEstimadoFormatado = formatarTempoEstimado
           ? formatarTempoEstimado(cliente.tempoEstimado || 0, true)
@@ -249,7 +261,7 @@ const ClientesDetalhadosList = ({
                     </div>
                     <div className="tarefa-detalhada-tempo-card-content">
                       <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                        0s
+                        {tempoRealizadoFormatado}
                       </div>
                     </div>
                   </div>
@@ -276,8 +288,21 @@ const ClientesDetalhadosList = ({
                   {cliente.tarefas.map((tarefa, tarefaIndex) => {
                     const tarefaKey = `${cliente.id}-${tarefa.id}`;
                     const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                    // Tempo realizado sempre 0 (lógica removida)
-                    const tempoRealizadoTarefaFormatado = '0s';
+                    // Buscar tempo realizado do prop ou usar fallback
+                    // Usar cliente.id como string diretamente (mesma lógica do cálculo)
+                    const clienteIdStr = String(cliente.id || '');
+                    const tarefaIdStr = String(tarefa.id);
+                    // Tentar primeiro com cliente.id direto (chave primária), depois com normalizações como fallback
+                    const tempoRealizadoTarefaMs = temposRealizadosPorTarefaPorCliente?.[clienteIdStr]?.[tarefaIdStr]
+                      || temposRealizadosPorTarefaPorCliente?.[clienteIdFinal]?.[tarefaIdStr]
+                      || temposRealizadosPorTarefaPorCliente?.[clienteId]?.[tarefaIdStr]
+                      || temposRealizadosPorTarefaPorCliente?.[clienteIdStr]?.[tarefa.id]
+                      || temposRealizadosPorTarefaPorCliente?.[clienteIdFinal]?.[tarefa.id]
+                      || temposRealizadosPorTarefaPorCliente?.[clienteId]?.[tarefa.id]
+                      || tarefa.tempoRealizado || 0;
+                    const tempoRealizadoTarefaFormatado = formatarTempoHMS
+                      ? formatarTempoHMS(tempoRealizadoTarefaMs)
+                      : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
 
                     const tempoEstimadoTarefaFormatado = formatarTempoEstimado
                       ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
