@@ -16,6 +16,7 @@ import './TarefasDetalhadasList.css';
  * @param {Function} props.formatarTempoHMS - Função para formatar tempo em HMS
  * @param {Function} props.onToggleResponsavel - Função chamada ao clicar no botão de expandir/colapsar responsável
  * @param {Function} props.buscarRegistrosIndividuais - Função para buscar registros individuais de uma tarefa
+ * @param {Object} props.temposRealizadosPorResponsavel - Objeto com tempos realizados por responsável ID (chave: responsavelId, valor: tempoEmMs)
  */
 const ResponsaveisDetalhadosList = ({
   responsaveis,
@@ -29,13 +30,17 @@ const ResponsaveisDetalhadosList = ({
   formatarTempoHMS,
   onToggleResponsavel,
   buscarRegistrosIndividuais,
-  getNomeColaboradorPorUsuarioId = null
+  getNomeColaboradorPorUsuarioId = null,
+  temposRealizadosPorResponsavel = {},
+  temposRealizadosPorProduto = {},
+  temposRealizadosPorCliente = {},
+  temposRealizadosPorTarefa = {}
 }) => {
   const [produtosExpandidos, setProdutosExpandidos] = useState(new Set());
   const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [responsaveisRegistrosExpandidos, setResponsaveisRegistrosExpandidos] = useState(new Set());
-  
+
   const toggleResponsavel = (tarefaId, dataNormalizada, responsavelKey) => {
     const key = `${tarefaId}_${dataNormalizada}_${responsavelKey}`;
     setResponsaveisRegistrosExpandidos(prev => {
@@ -104,19 +109,16 @@ const ResponsaveisDetalhadosList = ({
     <div className="tarefas-detalhadas-list">
       {responsaveis.map((responsavel, responsavelIndex) => {
         const isResponsavelExpanded = responsaveisExpandidos.has(responsavel.id);
-        const tempoRealizadoFormatado = formatarTempoEstimado 
-          ? formatarTempoEstimado(responsavel.tempoRealizado || 0, true) 
+        // Buscar tempo realizado do prop ou usar 0 como padrão
+        const tempoRealizadoMs = temposRealizadosPorResponsavel[responsavel.id] || responsavel.tempoRealizado || 0;
+        const tempoRealizadoFormatado = formatarTempoHMS
+          ? formatarTempoHMS(tempoRealizadoMs)
+          : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');
+
+        const tempoEstimadoFormatado = formatarTempoEstimado
+          ? formatarTempoEstimado(responsavel.tempoEstimado || 0, true)
           : '0s';
-        
-        const tempoEstimadoFormatado = formatarTempoEstimado 
-          ? formatarTempoEstimado(responsavel.tempoEstimado || 0, true) 
-          : '0s';
-        
-        // Calcular custo realizado
-        const custoRealizado = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-          ? calcularCustoPorTempo(responsavel.tempoRealizado || 0, responsavel.responsavelId)
-          : null;
-        
+
         // Calcular custo estimado
         const custoEstimado = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
           ? calcularCustoPorTempo(responsavel.tempoEstimado || 0, responsavel.responsavelId)
@@ -151,7 +153,7 @@ const ResponsaveisDetalhadosList = ({
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Card Realizado */}
                   <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado">
                     <div className="tarefa-detalhada-tempo-label tarefa-detalhada-tempo-label-realizado">
@@ -162,11 +164,6 @@ const ResponsaveisDetalhadosList = ({
                       <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
                         {tempoRealizadoFormatado}
                       </div>
-                      {custoRealizado !== null && formatarValorMonetario && (
-                        <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                          {formatarValorMonetario(custoRealizado)}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -192,19 +189,22 @@ const ResponsaveisDetalhadosList = ({
                   {responsavel.produtos.map((produto, produtoIndex) => {
                     const produtoKey = `${responsavel.id}-${produto.id}`;
                     const isProdutoExpanded = produtosExpandidos.has(produtoKey);
-                    const tempoRealizadoProdutoFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(produto.tempoRealizado || 0, true) 
+                    // Tempo realizado: tentar buscar do mapa hierárquico
+
+                    const produtoKeyAlt = String(produto.id); // Fallback para ID simples
+                    const tempoRealizadoProdutoMs = temposRealizadosPorProduto[produtoKey]
+                      || temposRealizadosPorProduto[produtoKeyAlt]
+                      || produto.tempoRealizado
+                      || 0;
+
+                    const tempoRealizadoProdutoFormatado = formatarTempoHMS
+                      ? formatarTempoHMS(tempoRealizadoProdutoMs)
+                      : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoProdutoMs, true) : '0s');
+
+                    const tempoEstimadoProdutoFormatado = formatarTempoEstimado
+                      ? formatarTempoEstimado(produto.tempoEstimado || 0, true)
                       : '0s';
-                    
-                    const tempoEstimadoProdutoFormatado = formatarTempoEstimado 
-                      ? formatarTempoEstimado(produto.tempoEstimado || 0, true) 
-                      : '0s';
-                    
-                    // Calcular custo realizado do produto
-                    const custoRealizadoProduto = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                      ? calcularCustoPorTempo(produto.tempoRealizado || 0, responsavel.responsavelId)
-                      : null;
-                    
+
                     // Calcular custo estimado do produto
                     const custoEstimadoProduto = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                       ? calcularCustoPorTempo(produto.tempoEstimado || 0, responsavel.responsavelId)
@@ -237,7 +237,7 @@ const ResponsaveisDetalhadosList = ({
                                   )}
                                 </div>
                               </div>
-                              
+
                               {/* Card Realizado do Produto */}
                               <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                 <div className="tarefa-detalhada-tempo-card-content">
@@ -245,11 +245,6 @@ const ResponsaveisDetalhadosList = ({
                                   <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
                                     {tempoRealizadoProdutoFormatado}
                                   </div>
-                                  {custoRealizadoProduto !== null && formatarValorMonetario && (
-                                    <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                      {formatarValorMonetario(custoRealizadoProduto)}
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </div>
@@ -275,19 +270,22 @@ const ResponsaveisDetalhadosList = ({
                               {produto.clientes.map((cliente, clienteIndex) => {
                                 const clienteKey = `${responsavel.id}-${produto.id}-${cliente.id}`;
                                 const isClienteExpanded = clientesExpandidos.has(clienteKey);
-                                const tempoRealizadoClienteFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(cliente.tempoRealizado || 0, true) 
+
+                                // Tempo realizado: tentar buscar do mapa hierárquico
+                                const clienteKeyAlt = String(cliente.id); // Fallback para ID simples
+                                const tempoRealizadoClienteMs = temposRealizadosPorCliente[clienteKey]
+                                  || temposRealizadosPorCliente[clienteKeyAlt]
+                                  || cliente.tempoRealizado
+                                  || 0;
+
+                                const tempoRealizadoClienteFormatado = formatarTempoHMS
+                                  ? formatarTempoHMS(tempoRealizadoClienteMs)
+                                  : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoClienteMs, true) : '0s');
+
+                                const tempoEstimadoClienteFormatado = formatarTempoEstimado
+                                  ? formatarTempoEstimado(cliente.tempoEstimado || 0, true)
                                   : '0s';
-                                
-                                const tempoEstimadoClienteFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(cliente.tempoEstimado || 0, true) 
-                                  : '0s';
-                                
-                                // Calcular custo realizado do cliente
-                                const custoRealizadoCliente = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                                  ? calcularCustoPorTempo(cliente.tempoRealizado || 0, responsavel.responsavelId)
-                                  : null;
-                                
+
                                 // Calcular custo estimado do cliente
                                 const custoEstimadoCliente = responsavel.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(cliente.tempoEstimado || 0, responsavel.responsavelId)
@@ -320,7 +318,7 @@ const ResponsaveisDetalhadosList = ({
                                               )}
                                             </div>
                                           </div>
-                                          
+
                                           {/* Card Realizado do Cliente */}
                                           <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                             <div className="tarefa-detalhada-tempo-card-content">
@@ -328,11 +326,6 @@ const ResponsaveisDetalhadosList = ({
                                               <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
                                                 {tempoRealizadoClienteFormatado}
                                               </div>
-                                              {custoRealizadoCliente !== null && formatarValorMonetario && (
-                                                <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                  {formatarValorMonetario(custoRealizadoCliente)}
-                                                </div>
-                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -358,19 +351,33 @@ const ResponsaveisDetalhadosList = ({
                                           {cliente.tarefas.map((tarefa, tarefaIndex) => {
                                             const tarefaKey = `${responsavel.id}-${produto.id}-${cliente.id}-${tarefa.id}`;
                                             const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                                            const tempoRealizadoTarefaFormatado = formatarTempoEstimado 
-                                              ? formatarTempoEstimado(tarefa.tempoRealizado || 0, true) 
+
+                                            // Tempo realizado: tentar buscar do mapa, depois tarefa diretamente
+                                            const tarefaKeyAlt = String(tarefa.id);
+                                            let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefaKey]
+                                              || temposRealizadosPorTarefa[tarefaKeyAlt]
+                                              || tarefa.tempoRealizado
+                                              || 0;
+
+                                            // Fallback: se for 0 e tivermos registros, somar deles
+                                            const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                                            if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
+                                              tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
+                                                let tempoReg = Number(reg.tempo_realizado) || 0;
+                                                if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                                if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                                return total + tempoReg;
+                                              }, 0);
+                                            }
+
+                                            const tempoRealizadoTarefaFormatado = formatarTempoHMS
+                                              ? formatarTempoHMS(tempoRealizadoTarefaMs)
+                                              : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
+
+                                            const tempoEstimadoTarefaFormatado = formatarTempoEstimado
+                                              ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
                                               : '0s';
-                                            
-                                            const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
-                                              ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
-                                              : '0s';
-                                            
-                                            // Calcular custo realizado da tarefa
-                                            const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                                              ? calcularCustoPorTempo(tarefa.tempoRealizado || 0, tarefa.responsavelId)
-                                              : null;
-                                            
+
                                             // Calcular custo estimado da tarefa
                                             const custoEstimadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                               ? calcularCustoPorTempo(tarefa.tempoEstimado || 0, tarefa.responsavelId)
@@ -403,7 +410,7 @@ const ResponsaveisDetalhadosList = ({
                                                           )}
                                                         </div>
                                                       </div>
-                                                      
+
                                                       {/* Card Realizado da Tarefa */}
                                                       <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                                         <div className="tarefa-detalhada-tempo-card-content">
@@ -411,11 +418,6 @@ const ResponsaveisDetalhadosList = ({
                                                           <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
                                                             {tempoRealizadoTarefaFormatado}
                                                           </div>
-                                                          {custoRealizadoTarefa !== null && formatarValorMonetario && (
-                                                            <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                              {formatarValorMonetario(custoRealizadoTarefa)}
-                                                            </div>
-                                                          )}
                                                         </div>
                                                       </div>
                                                     </div>
@@ -480,13 +482,13 @@ const ResponsaveisDetalhadosList = ({
 
                                                       // Agrupar registros por data
                                                       const registrosPorData = new Map();
-                                                      
+
                                                       registros.forEach(registro => {
                                                         const dataInicio = registro.data_inicio || registro.created_at || registro.data;
                                                         const dataNormalizada = normalizarData(dataInicio);
-                                                        
+
                                                         if (!dataNormalizada) return;
-                                                        
+
                                                         if (!registrosPorData.has(dataNormalizada)) {
                                                           registrosPorData.set(dataNormalizada, {
                                                             data: dataNormalizada,
@@ -494,19 +496,10 @@ const ResponsaveisDetalhadosList = ({
                                                             tempoRealizadoTotal: 0
                                                           });
                                                         }
-                                                        
+
                                                         const grupoData = registrosPorData.get(dataNormalizada);
-                                                        let tempoRealizadoReg = Number(registro.tempo_realizado) || 0;
-                                                        // Converter horas decimais para milissegundos se necessário
-                                                        if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1) {
-                                                          tempoRealizadoReg = Math.round(tempoRealizadoReg * 3600000);
-                                                        }
-                                                        // Se resultado < 1 segundo, arredondar para 1 segundo
-                                                        if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1000) {
-                                                          tempoRealizadoReg = 1000;
-                                                        }
+                                                        // Tempo realizado sempre 0 (lógica removida)
                                                         grupoData.registros.push(registro);
-                                                        grupoData.tempoRealizadoTotal += tempoRealizadoReg;
                                                       });
 
                                                       // Buscar tempo estimado por data nos registros da tarefa
@@ -515,7 +508,7 @@ const ResponsaveisDetalhadosList = ({
                                                         tarefa.registros.forEach(reg => {
                                                           const dataReg = reg.data || reg.data_inicio || reg.created_at;
                                                           const dataNormalizada = normalizarData(dataReg);
-                                                          
+
                                                           if (dataNormalizada) {
                                                             const tempoEstimadoDia = reg.tempo_estimado_dia || 0;
                                                             if (!tempoEstimadoPorData.has(dataNormalizada)) {
@@ -539,23 +532,26 @@ const ResponsaveisDetalhadosList = ({
                                                           {datasOrdenadas.map((dataNormalizada) => {
                                                             const grupoData = registrosPorData.get(dataNormalizada);
                                                             const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                                            const tempoRealizadoDia = grupoData.tempoRealizadoTotal;
-                                                            
-                                                            const tempoEstimadoFormatado = formatarTempoEstimado 
-                                                              ? formatarTempoEstimado(tempoEstimadoDia, true) 
+                                                            // Calcular sumatória do dia
+                                                            let tempoRealizadoDia = 0;
+                                                            grupoData.registros.forEach(reg => {
+                                                              let tempoReg = Number(reg.tempo_realizado) || 0;
+                                                              if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                                              if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                                              tempoRealizadoDia += tempoReg;
+                                                            });
+
+                                                            const tempoEstimadoFormatado = formatarTempoEstimado
+                                                              ? formatarTempoEstimado(tempoEstimadoDia, true)
                                                               : '0s';
-                                                            
-                                                            const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                              ? formatarTempoEstimado(tempoRealizadoDia, true) 
-                                                              : '0s';
+
+                                                            const tempoRealizadoFormatado = formatarTempoEstimado
+                                                              ? formatarTempoEstimado(tempoRealizadoDia, true)
+                                                              : formatarTempoHMS(tempoRealizadoDia);
 
                                                             // Calcular custos
                                                             const custoEstimadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                                               ? calcularCustoPorTempo(tempoEstimadoDia, tarefa.responsavelId)
-                                                              : null;
-                                                            
-                                                            const custoRealizadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                                                              ? calcularCustoPorTempo(tempoRealizadoDia, tarefa.responsavelId)
                                                               : null;
 
                                                             return (
@@ -584,158 +580,151 @@ const ResponsaveisDetalhadosList = ({
                                                                         </div>
                                                                       </div>
                                                                     )}
-                                                                    
+
                                                                     {/* Card Realizado do Dia */}
-                                                                    {tempoRealizadoDia > 0 && (
-                                                                      <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
-                                                                        <div className="tarefa-detalhada-tempo-card-content">
-                                                                          <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
-                                                                          <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                                            {tempoRealizadoFormatado}
-                                                                          </div>
-                                                                          {custoRealizadoDia !== null && formatarValorMonetario && (
-                                                                            <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                                              {formatarValorMonetario(custoRealizadoDia)}
-                                                                            </div>
-                                                                          )}
+                                                                    <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
+                                                                      <div className="tarefa-detalhada-tempo-card-content">
+                                                                        <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
+                                                                        <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
+                                                                          {tempoRealizadoFormatado}
                                                                         </div>
                                                                       </div>
-                                                                    )}
+                                                                    </div>
                                                                   </div>
                                                                 </div>
-                                                                
+
                                                                 {/* Lista de registros individuais da data - Agrupados por responsável */}
                                                                 {grupoData.registros.length > 0 && (() => {
                                                                   // Agrupar registros por responsável
                                                                   const registrosPorResponsavel = new Map();
-                                                                  
-                                          grupoData.registros.forEach((registro) => {
-                                            const responsavelId = registro.usuario_id || registro.membro?.id || 'desconhecido';
-                                            let nomeResponsavel = registro.membro?.nome;
-                                            
-                                            // Se não encontrou no registro.membro, buscar usando a função
-                                            if (!nomeResponsavel && getNomeColaboradorPorUsuarioId && responsavelId !== 'desconhecido') {
-                                              nomeResponsavel = getNomeColaboradorPorUsuarioId(responsavelId);
-                                            }
-                                            
-                                            // Fallback para caso não encontre
-                                            if (!nomeResponsavel) {
-                                              nomeResponsavel = `Colaborador #${responsavelId}`;
-                                            }
-                                            
-                                            const responsavelKey = String(responsavelId);
-                                                                    
+
+                                                                  grupoData.registros.forEach((registro) => {
+                                                                    const responsavelId = registro.usuario_id || registro.membro?.id || 'desconhecido';
+                                                                    let nomeResponsavel = registro.membro?.nome;
+
+                                                                    // Se não encontrou no registro.membro, buscar usando a função
+                                                                    if (!nomeResponsavel && getNomeColaboradorPorUsuarioId && responsavelId !== 'desconhecido') {
+                                                                      nomeResponsavel = getNomeColaboradorPorUsuarioId(responsavelId);
+                                                                    }
+
+                                                                    // Fallback para caso não encontre
+                                                                    if (!nomeResponsavel) {
+                                                                      nomeResponsavel = `Colaborador #${responsavelId}`;
+                                                                    }
+
+                                                                    const responsavelKey = String(responsavelId);
+
                                                                     if (!registrosPorResponsavel.has(responsavelKey)) {
                                                                       registrosPorResponsavel.set(responsavelKey, {
                                                                         nome: nomeResponsavel,
                                                                         registros: []
                                                                       });
                                                                     }
-                                                                    
+
                                                                     registrosPorResponsavel.get(responsavelKey).registros.push(registro);
                                                                   });
-                                                                  
-                                                       return (
-                                                         <div className="tarefa-detalhada-registros-individuais">
-                                                           {Array.from(registrosPorResponsavel.entries()).map(([responsavelKey, grupoResponsavel]) => {
-                                                             // Calcular tempo total do responsável
-                                                             let tempoTotalResponsavel = 0;
-                                                             grupoResponsavel.registros.forEach(reg => {
-                                                               let tempoReg = Number(reg.tempo_realizado) || 0;
-                                                               // Converter horas decimais para milissegundos se necessário
-                                                               if (tempoReg > 0 && tempoReg < 1) {
-                                                                 tempoReg = Math.round(tempoReg * 3600000);
-                                                               }
-                                                               // Se resultado < 1 segundo, arredondar para 1 segundo
-                                                               if (tempoReg > 0 && tempoReg < 1000) {
-                                                                 tempoReg = 1000;
-                                                               }
-                                                               tempoTotalResponsavel += tempoReg;
-                                                             });
-                                                             
-                                                             const tempoTotalFormatado = formatarTempoEstimado 
-                                                               ? formatarTempoEstimado(tempoTotalResponsavel, true) 
-                                                               : formatarTempoHMS(tempoTotalResponsavel);
-                                                             
-                                                             // Calcular custo total do responsável
-                                                             const custoTotalResponsavel = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
-                                                               ? calcularCustoPorTempo(tempoTotalResponsavel, responsavelKey)
-                                                               : null;
-                                                             
-                                                             const responsavelKeyFull = `${tarefa.id}_${dataNormalizada}_${responsavelKey}`;
-                                                             const isResponsavelExpanded = responsaveisRegistrosExpandidos.has(responsavelKeyFull);
-                                                             
-                                                             return (
-                                                               <div key={`responsavel_${tarefa.id}_${dataNormalizada}_${responsavelKey}`} className="tarefa-detalhada-responsavel-group">
-                                                                 <div className="tarefa-detalhada-responsavel-header">
-                                                                   <div className="tarefa-detalhada-responsavel-nome-wrapper">
-                                                                     <i className="fas fa-user" style={{ color: '#6b7280', fontSize: '13px' }}></i>
-                                                                     <span className="tarefa-detalhada-responsavel-nome">{grupoResponsavel.nome}</span>
-                                                                   </div>
-                                                                   <button
-                                                                     className="tarefa-detalhada-responsavel-toggle"
-                                                                     onClick={() => toggleResponsavel(tarefa.id, dataNormalizada, responsavelKey)}
-                                                                     title={isResponsavelExpanded ? "Ocultar registros" : "Ver registros"}
-                                                                   >
-                                                                     <i
-                                                                       className={`fas fa-chevron-down ${isResponsavelExpanded ? 'expanded' : ''}`}
-                                                                       style={{
-                                                                         color: '#1e3a8a',
-                                                                         fontSize: '12px',
-                                                                         transform: isResponsavelExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                                         transition: 'transform 0.2s'
-                                                                       }}
-                                                                     ></i>
-                                                                   </button>
-                                                                 </div>
-                                                                 {isResponsavelExpanded && (
-                                                                   <div className="tarefa-detalhada-responsavel-registros">
-                                                                     {grupoResponsavel.registros.map((registro, regIdx) => {
-                                                                       const tempoRealizadoReg = registro.tempo_realizado || 0;
-                                                                       // Converter horas decimais para milissegundos se necessário
-                                                                       let tempoMs = tempoRealizadoReg;
-                                                                       if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1) {
-                                                                         tempoMs = Math.round(tempoRealizadoReg * 3600000);
-                                                                       }
-                                                                       // Se resultado < 1 segundo, arredondar para 1 segundo
-                                                                       if (tempoMs > 0 && tempoMs < 1000) {
-                                                                         tempoMs = 1000;
-                                                                       }
-                                                                       
-                                                                       const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                                         ? formatarTempoEstimado(tempoMs, true) 
-                                                                         : formatarTempoHMS(tempoMs);
-                                                                       
-                                                                       const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-                                                                       
-                                                                       // Formatar data e hora completa
-                                                                       const dataFormatada = formatarDataHora(registro.data_inicio || registro.created_at || registro.data);
-                                                                       
-                                                                       return (
-                                                                         <div
-                                                                           key={`reg_${tarefa.id}_${dataNormalizada}_${responsavelKey}_${regIdx}_${registro.id || regIdx}`}
-                                                                           className="tarefa-detalhada-registro-item-simples"
-                                                                         >
-                                                                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                             <i className="fas fa-stopwatch" style={{ color: '#94a3b8' }}></i>
-                                                                             <span
-                                                                               className="tarefa-detalhada-registro-tempo-badge"
-                                                                               title={`${tempoDecimal}h`}
-                                                                             >
-                                                                               {tempoRealizadoFormatado}
-                                                                             </span>
-                                                                           </div>
-                                                                           {dataFormatada !== '—' && (
-                                                                             <div style={{ color: '#6b7280' }}>{dataFormatada}</div>
-                                                                           )}
-                                                                         </div>
-                                                                       );
-                                                                     })}
-                                                                   </div>
-                                                                 )}
-                                                               </div>
-                                                             );
-                                                                    })}
+
+                                                                  return (
+                                                                    <div className="tarefa-detalhada-registros-individuais">
+                                                                      {Array.from(registrosPorResponsavel.entries()).map(([responsavelKey, grupoResponsavel]) => {
+                                                                        // Calcular tempo total do responsável
+                                                                        let tempoTotalResponsavel = 0;
+                                                                        grupoResponsavel.registros.forEach(reg => {
+                                                                          let tempoReg = Number(reg.tempo_realizado) || 0;
+                                                                          // Converter horas decimais para milissegundos se necessário
+                                                                          if (tempoReg > 0 && tempoReg < 1) {
+                                                                            tempoReg = Math.round(tempoReg * 3600000);
+                                                                          }
+                                                                          // Se resultado < 1 segundo, arredondar para 1 segundo
+                                                                          if (tempoReg > 0 && tempoReg < 1000) {
+                                                                            tempoReg = 1000;
+                                                                          }
+                                                                          tempoTotalResponsavel += tempoReg;
+                                                                        });
+
+                                                                        const tempoTotalFormatado = formatarTempoEstimado
+                                                                          ? formatarTempoEstimado(tempoTotalResponsavel, true)
+                                                                          : formatarTempoHMS(tempoTotalResponsavel);
+
+                                                                        // Calcular custo total do responsável
+                                                                        const custoTotalResponsavel = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
+                                                                          ? calcularCustoPorTempo(tempoTotalResponsavel, responsavelKey)
+                                                                          : null;
+
+                                                                        const responsavelKeyFull = `${tarefa.id}_${dataNormalizada}_${responsavelKey}`;
+                                                                        const isResponsavelExpanded = responsaveisRegistrosExpandidos.has(responsavelKeyFull);
+
+                                                                        return (
+                                                                          <div key={`responsavel_${tarefa.id}_${dataNormalizada}_${responsavelKey}`} className="tarefa-detalhada-responsavel-group">
+                                                                            <div className="tarefa-detalhada-responsavel-header">
+                                                                              <div className="tarefa-detalhada-responsavel-nome-wrapper">
+                                                                                <i className="fas fa-user" style={{ color: '#6b7280', fontSize: '13px' }}></i>
+                                                                                <span className="tarefa-detalhada-responsavel-nome">{grupoResponsavel.nome}</span>
+                                                                              </div>
+                                                                              <button
+                                                                                className="tarefa-detalhada-responsavel-toggle"
+                                                                                onClick={() => toggleResponsavel(tarefa.id, dataNormalizada, responsavelKey)}
+                                                                                title={isResponsavelExpanded ? "Ocultar registros" : "Ver registros"}
+                                                                              >
+                                                                                <i
+                                                                                  className={`fas fa-chevron-down ${isResponsavelExpanded ? 'expanded' : ''}`}
+                                                                                  style={{
+                                                                                    color: '#1e3a8a',
+                                                                                    fontSize: '12px',
+                                                                                    transform: isResponsavelExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                                                    transition: 'transform 0.2s'
+                                                                                  }}
+                                                                                ></i>
+                                                                              </button>
+                                                                            </div>
+                                                                            {isResponsavelExpanded && (
+                                                                              <div className="tarefa-detalhada-responsavel-registros">
+                                                                                {grupoResponsavel.registros.map((registro, regIdx) => {
+                                                                                  const tempoRealizadoReg = registro.tempo_realizado || 0;
+                                                                                  // Converter horas decimais para milissegundos se necessário
+                                                                                  let tempoMs = tempoRealizadoReg;
+                                                                                  if (tempoRealizadoReg > 0 && tempoRealizadoReg < 1) {
+                                                                                    tempoMs = Math.round(tempoRealizadoReg * 3600000);
+                                                                                  }
+                                                                                  // Se resultado < 1 segundo, arredondar para 1 segundo
+                                                                                  if (tempoMs > 0 && tempoMs < 1000) {
+                                                                                    tempoMs = 1000;
+                                                                                  }
+
+                                                                                  const tempoRealizadoFormatado = formatarTempoEstimado
+                                                                                    ? formatarTempoEstimado(tempoMs, true)
+                                                                                    : formatarTempoHMS(tempoMs);
+
+                                                                                  const tempoDecimal = (tempoMs / 3600000).toFixed(2);
+
+                                                                                  // Formatar data e hora completa
+                                                                                  const dataFormatada = formatarDataHora(registro.data_inicio || registro.created_at || registro.data);
+
+                                                                                  return (
+                                                                                    <div
+                                                                                      key={`reg_${tarefa.id}_${dataNormalizada}_${responsavelKey}_${regIdx}_${registro.id || regIdx}`}
+                                                                                      className="tarefa-detalhada-registro-item-simples"
+                                                                                    >
+                                                                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                                        <i className="fas fa-stopwatch" style={{ color: '#94a3b8' }}></i>
+                                                                                        <span
+                                                                                          className="tarefa-detalhada-registro-tempo-badge"
+                                                                                          title={`${tempoDecimal}h`}
+                                                                                        >
+                                                                                          {tempoRealizadoFormatado}
+                                                                                        </span>
+                                                                                      </div>
+                                                                                      {dataFormatada !== '—' && (
+                                                                                        <div style={{ color: '#6b7280' }}>{dataFormatada}</div>
+                                                                                      )}
+                                                                                    </div>
+                                                                                  );
+                                                                                })}
+                                                                              </div>
+                                                                            )}
+                                                                          </div>
+                                                                        );
+                                                                      })}
                                                                     </div>
                                                                   );
                                                                 })()}
@@ -769,19 +758,37 @@ const ResponsaveisDetalhadosList = ({
                               {produto.tarefas.map((tarefa, tarefaIndex) => {
                                 const tarefaKey = `${responsavel.id}-${produto.id}-${tarefa.id}`;
                                 const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                                const tempoRealizadoTarefaFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tarefa.tempoRealizado || 0, true) 
+                                // Tempo realizado: tentar buscar do mapa, depois tarefa diretamente
+                                const tarefaKeyAlt = String(tarefa.id);
+                                let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefaKey]
+                                  || temposRealizadosPorTarefa[tarefaKeyAlt]
+                                  || tarefa.tempoRealizado
+                                  || 0;
+
+                                // Fallback: se for 0 e tivermos registros, somar deles
+                                const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                                if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
+                                  tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
+                                    let tempoReg = Number(reg.tempo_realizado) || 0;
+                                    if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                    if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                    return total + tempoReg;
+                                  }, 0);
+                                }
+
+                                const tempoRealizadoTarefaFormatado = formatarTempoHMS
+                                  ? formatarTempoHMS(tempoRealizadoTarefaMs)
+                                  : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoTarefaMs, true) : '0s');
+
+                                const tempoEstimadoTarefaFormatado = formatarTempoEstimado
+                                  ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true)
                                   : '0s';
-                                
-                                const tempoEstimadoTarefaFormatado = formatarTempoEstimado 
-                                  ? formatarTempoEstimado(tarefa.tempoEstimado || 0, true) 
-                                  : '0s';
-                                
+
                                 // Calcular custo realizado da tarefa
                                 const custoRealizadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tarefa.tempoRealizado || 0, tarefa.responsavelId)
                                   : null;
-                                
+
                                 // Calcular custo estimado da tarefa
                                 const custoEstimadoTarefa = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                   ? calcularCustoPorTempo(tarefa.tempoEstimado || 0, tarefa.responsavelId)
@@ -814,7 +821,7 @@ const ResponsaveisDetalhadosList = ({
                                               )}
                                             </div>
                                           </div>
-                                          
+
                                           {/* Card Realizado da Tarefa */}
                                           <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
                                             <div className="tarefa-detalhada-tempo-card-content">
@@ -884,13 +891,13 @@ const ResponsaveisDetalhadosList = ({
 
                                       // Agrupar registros por data
                                       const registrosPorData = new Map();
-                                      
+
                                       registros.forEach(registro => {
                                         const dataInicio = registro.data_inicio || registro.created_at || registro.data;
                                         const dataNormalizada = normalizarData(dataInicio);
-                                        
+
                                         if (!dataNormalizada) return;
-                                        
+
                                         if (!registrosPorData.has(dataNormalizada)) {
                                           registrosPorData.set(dataNormalizada, {
                                             data: dataNormalizada,
@@ -898,11 +905,11 @@ const ResponsaveisDetalhadosList = ({
                                             tempoRealizadoTotal: 0
                                           });
                                         }
-                                        
+
                                         const grupoData = registrosPorData.get(dataNormalizada);
                                         const tempoRealizadoReg = registro.tempo_realizado || 0;
                                         grupoData.registros.push(registro);
-                                        grupoData.tempoRealizadoTotal += tempoRealizadoReg;
+                                        // Tempo realizado sempre 0 (lógica removida)
                                       });
 
                                       // Buscar tempo estimado por data nos registros da tarefa
@@ -911,7 +918,7 @@ const ResponsaveisDetalhadosList = ({
                                         tarefa.registros.forEach(reg => {
                                           const dataReg = reg.data || reg.data_inicio || reg.created_at;
                                           const dataNormalizada = normalizarData(dataReg);
-                                          
+
                                           if (dataNormalizada) {
                                             const tempoEstimadoDia = reg.tempo_estimado_dia || 0;
                                             if (!tempoEstimadoPorData.has(dataNormalizada)) {
@@ -935,21 +942,28 @@ const ResponsaveisDetalhadosList = ({
                                           {datasOrdenadas.map((dataNormalizada) => {
                                             const grupoData = registrosPorData.get(dataNormalizada);
                                             const tempoEstimadoDia = tempoEstimadoPorData.get(dataNormalizada) || 0;
-                                            const tempoRealizadoDia = grupoData.tempoRealizadoTotal;
-                                            
-                                            const tempoEstimadoFormatado = formatarTempoEstimado 
-                                              ? formatarTempoEstimado(tempoEstimadoDia, true) 
+                                            // Calcular sumatória do dia
+                                            let tempoRealizadoDia = 0;
+                                            grupoData.registros.forEach(reg => {
+                                              let tempoReg = Number(reg.tempo_realizado) || 0;
+                                              if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
+                                              if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
+                                              tempoRealizadoDia += tempoReg;
+                                            });
+
+                                            const tempoEstimadoFormatado = formatarTempoEstimado
+                                              ? formatarTempoEstimado(tempoEstimadoDia, true)
                                               : '0s';
-                                            
-                                            const tempoRealizadoFormatado = formatarTempoEstimado 
-                                              ? formatarTempoEstimado(tempoRealizadoDia, true) 
-                                              : '0s';
+
+                                            const tempoRealizadoFormatado = formatarTempoEstimado
+                                              ? formatarTempoEstimado(tempoRealizadoDia, true)
+                                              : formatarTempoHMS(tempoRealizadoDia);
 
                                             // Calcular custos
                                             const custoEstimadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                               ? calcularCustoPorTempo(tempoEstimadoDia, tarefa.responsavelId)
                                               : null;
-                                            
+
                                             const custoRealizadoDia = tarefa.responsavelId && calcularCustoPorTempo && formatarValorMonetario
                                               ? calcularCustoPorTempo(tempoRealizadoDia, tarefa.responsavelId)
                                               : null;
@@ -980,57 +994,50 @@ const ResponsaveisDetalhadosList = ({
                                                         </div>
                                                       </div>
                                                     )}
-                                                    
+
                                                     {/* Card Realizado do Dia */}
-                                                    {tempoRealizadoDia > 0 && (
-                                                      <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
-                                                        <div className="tarefa-detalhada-tempo-card-content">
-                                                          <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
-                                                          <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
-                                                            {tempoRealizadoFormatado}
-                                                          </div>
-                                                          {custoRealizadoDia !== null && formatarValorMonetario && (
-                                                            <div className="tarefa-detalhada-tempo-custo tarefa-detalhada-tempo-custo-realizado">
-                                                              {formatarValorMonetario(custoRealizadoDia)}
-                                                            </div>
-                                                          )}
+                                                    <div className="tarefa-detalhada-tempo-card tarefa-detalhada-tempo-card-realizado tarefa-detalhada-tempo-card-dia">
+                                                      <div className="tarefa-detalhada-tempo-card-content">
+                                                        <i className="fas fa-stopwatch" style={{ color: '#fd7e14', fontSize: '10px' }}></i>
+                                                        <div className="tarefa-detalhada-tempo-valor tarefa-detalhada-tempo-valor-realizado">
+                                                          {tempoRealizadoFormatado}
                                                         </div>
                                                       </div>
-                                                    )}
+                                                    </div>
                                                   </div>
                                                 </div>
-                                                
+
                                                 {/* Lista de registros individuais da data - Agrupados por responsável */}
                                                 {grupoData.registros.length > 0 && (() => {
                                                   // Agrupar registros por responsável
                                                   const registrosPorResponsavel = new Map();
-                                                  
+
                                                   grupoData.registros.forEach((registro) => {
                                                     const responsavelId = registro.usuario_id || registro.membro?.id || 'desconhecido';
                                                     let nomeResponsavel = registro.membro?.nome;
-                                                    
+
                                                     // Se não encontrou no registro.membro, buscar usando a função
                                                     if (!nomeResponsavel && getNomeColaboradorPorUsuarioId && responsavelId !== 'desconhecido') {
                                                       nomeResponsavel = getNomeColaboradorPorUsuarioId(responsavelId);
                                                     }
-                                                    
+
                                                     // Fallback para caso não encontre
                                                     if (!nomeResponsavel) {
                                                       nomeResponsavel = `Colaborador #${responsavelId}`;
                                                     }
-                                                    
+
                                                     const responsavelKey = String(responsavelId);
-                                                    
+
                                                     if (!registrosPorResponsavel.has(responsavelKey)) {
                                                       registrosPorResponsavel.set(responsavelKey, {
                                                         nome: nomeResponsavel,
                                                         registros: []
                                                       });
                                                     }
-                                                    
+
                                                     registrosPorResponsavel.get(responsavelKey).registros.push(registro);
                                                   });
-                                                  
+
                                                   return (
                                                     <div className="tarefa-detalhada-registros-individuais">
                                                       {Array.from(registrosPorResponsavel.entries()).map(([responsavelKey, grupoResponsavel]) => {
@@ -1048,14 +1055,14 @@ const ResponsaveisDetalhadosList = ({
                                                           }
                                                           tempoTotalResponsavel += tempoReg;
                                                         });
-                                                        
-                                                        const tempoTotalFormatado = formatarTempoEstimado 
-                                                          ? formatarTempoEstimado(tempoTotalResponsavel, true) 
+
+                                                        const tempoTotalFormatado = formatarTempoEstimado
+                                                          ? formatarTempoEstimado(tempoTotalResponsavel, true)
                                                           : formatarTempoHMS(tempoTotalResponsavel);
-                                                        
+
                                                         const responsavelKeyFull = `${tarefa.id}_${dataNormalizada}_${responsavelKey}`;
                                                         const isResponsavelExpanded = responsaveisRegistrosExpandidos.has(responsavelKeyFull);
-                                                        
+
                                                         return (
                                                           <div key={`responsavel_${tarefa.id}_${dataNormalizada}_${responsavelKey}`} className="tarefa-detalhada-responsavel-group">
                                                             <div className="tarefa-detalhada-responsavel-header">
@@ -1092,16 +1099,16 @@ const ResponsaveisDetalhadosList = ({
                                                                   if (tempoMs > 0 && tempoMs < 1000) {
                                                                     tempoMs = 1000;
                                                                   }
-                                                                  
-                                                                  const tempoRealizadoFormatado = formatarTempoEstimado 
-                                                                    ? formatarTempoEstimado(tempoMs, true) 
+
+                                                                  const tempoRealizadoFormatado = formatarTempoEstimado
+                                                                    ? formatarTempoEstimado(tempoMs, true)
                                                                     : formatarTempoHMS(tempoMs);
-                                                                  
+
                                                                   const tempoDecimal = (tempoMs / 3600000).toFixed(2);
-                                                                  
+
                                                                   // Formatar data e hora completa
                                                                   const dataFormatada = formatarDataHora(registro.data_inicio || registro.created_at || registro.data);
-                                                                  
+
                                                                   return (
                                                                     <div
                                                                       key={`reg_${tarefa.id}_${dataNormalizada}_${responsavelKey}_${regIdx}_${registro.id || regIdx}`}
