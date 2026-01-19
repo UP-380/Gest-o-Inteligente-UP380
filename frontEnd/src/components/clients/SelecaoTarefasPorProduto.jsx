@@ -19,9 +19,9 @@ const API_BASE_URL = '/api';
  * @param {array} tarefasSelecionadas - Array de IDs das tarefas selecionadas
  * @param {boolean} showSubtarefas - Se true, mostra botão e funcionalidade de subtarefas (padrão: true)
  */
-const SelecaoTarefasPorProduto = ({ 
-  clienteId, 
-  produtos, 
+const SelecaoTarefasPorProduto = ({
+  clienteId,
+  produtos,
   onTarefasChange,
   refreshKey = 0, // Key para forçar recarregamento
   showTempoEstimado = false, // Nova prop: mostrar campos de tempo estimado
@@ -45,7 +45,8 @@ const SelecaoTarefasPorProduto = ({
   horasContratadasPorResponsavel = {}, // { responsavelId: horas }
   calcularTempoDisponivel = null, // função para calcular tempo disponível
   formatarTempoEstimado = null, // função para formatar tempo
-  tarefasSelecionadasPorProduto = null // objeto com todas as tarefas selecionadas para cálculo de tempo disponível
+  tarefasSelecionadasPorProduto = null, // objeto com todas as tarefas selecionadas para cálculo de tempo disponível
+  initialTarefas = null // Nova prop: tarefas iniciais para carregar (evita fetch automático)
 }) => {
   const [tarefasPorProduto, setTarefasPorProduto] = useState({}); // { produtoId: [{ id, nome, selecionada }] }
   const tarefasPorProdutoRef = useRef({}); // Referência para acessar o estado atualizado
@@ -60,7 +61,7 @@ const SelecaoTarefasPorProduto = ({
   const [carregandoSubtarefas, setCarregandoSubtarefas] = useState({}); // { tarefaId: boolean } - estado de carregamento de subtarefas
   const [tarefasExpandidas, setTarefasExpandidas] = useState({}); // { tarefaId: boolean } - quais tarefas estão expandidas para mostrar subtarefas
   const [tarefaSelecionadaParaAdicionar, setTarefaSelecionadaParaAdicionar] = useState({}); // { produtoId: string } - Valor do CustomSelect para adicionar tarefa por produto
-  
+
   // Normalizar horas contratadas por dia para evitar renderizar objeto no JSX
   const horasDisponiveisDia = (() => {
     if (horasContratadasDia == null) return null;
@@ -75,13 +76,24 @@ const SelecaoTarefasPorProduto = ({
 
   // Carregar tarefas dos produtos quando produtos mudarem ou refreshKey mudar
   useEffect(() => {
+    // Se foram fornecidas tarefas iniciais, usar elas direto e não buscar na API
+    if (initialTarefas) {
+      console.log('📦 [SelecaoTarefasPorProduto] Usando initialTarefas fornecidas:', initialTarefas);
+      setTarefasPorProduto(initialTarefas);
+      tarefasPorProdutoRef.current = initialTarefas;
+      if (onTarefasChange) {
+        onTarefasChange(initialTarefas);
+      }
+      return;
+    }
+
     if (produtos && produtos.length > 0) {
       loadTarefasPorProdutos();
     } else {
       setTarefasPorProduto({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(produtos), refreshKey]);
+  }, [JSON.stringify(produtos), refreshKey, initialTarefas]);
 
   // Atualizar referência sempre que o estado mudar
   useEffect(() => {
@@ -107,10 +119,10 @@ const SelecaoTarefasPorProduto = ({
 
       // Buscar tarefas dos produtos para este cliente específico
       // Usar a API que considera o cliente (herança híbrida)
-      const url = clienteId 
+      const url = clienteId
         ? `${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIds.join(',')}`
         : `${API_BASE_URL}/tarefas-por-produtos?produtoIds=${produtoIds.join(',')}`;
-      
+
       const response = await fetch(url, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
@@ -119,11 +131,11 @@ const SelecaoTarefasPorProduto = ({
       if (response.ok) {
         const result = await response.json();
         console.log('📦 Resposta da API tarefas-por-cliente-produtos:', result);
-        
+
         if (result.success && result.data) {
           // Inicializar tarefas por produto
           const novasTarefasPorProduto = {};
-          
+
           result.data.forEach(item => {
             const produtoId = item.produtoId;
             // A API retorna tarefas com estrutura: { id, nome, tipoTarefa, subtarefas, subtarefasVinculadasCliente, ehExcecao, estaVinculadaAoCliente }
@@ -135,9 +147,9 @@ const SelecaoTarefasPorProduto = ({
               const temSubtarefasVinculadas = tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0;
               // Marcar como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
               const selecionada = estaVinculadaAoCliente || temSubtarefasVinculadas;
-              
+
               console.log(`  📋 Tarefa ${tarefa.id} (${tarefa.nome}): estaVinculadaAoCliente=${estaVinculadaAoCliente}, ehExcecao=${ehExcecao}, temSubtarefasVinculadas=${temSubtarefasVinculadas}, selecionada=${selecionada}, subtarefasVinculadasCliente=${tarefa.subtarefasVinculadasCliente?.length || 0}`);
-              
+
               return {
                 id: tarefa.id,
                 nome: tarefa.nome,
@@ -169,7 +181,7 @@ const SelecaoTarefasPorProduto = ({
           });
           tarefasPorProdutoRef.current = novasTarefasPorProduto; // Atualizar referência
           setTarefasPorProduto(novasTarefasPorProduto);
-          
+
           // Notificar componente pai sobre as tarefas iniciais
           if (onTarefasChange) {
             onTarefasChange(novasTarefasPorProduto);
@@ -204,13 +216,13 @@ const SelecaoTarefasPorProduto = ({
   const toggleTarefa = (produtoId, tarefaId) => {
     setTarefasPorProduto(prev => {
       const novasTarefas = { ...prev };
-      
+
       if (!novasTarefas[produtoId]) {
         novasTarefas[produtoId] = [];
       }
 
       const tarefaIndex = novasTarefas[produtoId].findIndex(t => t.id === tarefaId);
-      
+
       if (tarefaIndex >= 0) {
         // Tarefa existe, toggle seleção
         novasTarefas[produtoId][tarefaIndex] = {
@@ -232,7 +244,7 @@ const SelecaoTarefasPorProduto = ({
   const selecionarTodasTarefas = (produtoId) => {
     setTarefasPorProduto(prev => {
       const novasTarefas = { ...prev };
-      
+
       if (novasTarefas[produtoId]) {
         novasTarefas[produtoId] = novasTarefas[produtoId].map(t => ({
           ...t,
@@ -252,7 +264,7 @@ const SelecaoTarefasPorProduto = ({
   const desselecionarTodasTarefas = (produtoId) => {
     setTarefasPorProduto(prev => {
       const novasTarefas = { ...prev };
-      
+
       if (novasTarefas[produtoId]) {
         novasTarefas[produtoId] = novasTarefas[produtoId].map(t => ({
           ...t,
@@ -274,7 +286,7 @@ const SelecaoTarefasPorProduto = ({
       const pId = typeof p === 'object' ? p.id : p;
       return parseInt(pId, 10) === parseInt(produtoId, 10);
     });
-    
+
     if (typeof produto === 'object' && produto.nome) {
       return produto.nome;
     }
@@ -284,7 +296,7 @@ const SelecaoTarefasPorProduto = ({
   // Carregar todas as tarefas disponíveis com tipos
   const loadTarefasDisponiveis = async () => {
     if (tarefasComTipos.length > 0) return;
-    
+
     setCarregandoTarefas(true);
     try {
       // Carregar tipos de tarefa
@@ -292,7 +304,7 @@ const SelecaoTarefasPorProduto = ({
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tipos = [];
       if (responseTipos.ok) {
         const resultTipos = await responseTipos.json();
@@ -307,7 +319,7 @@ const SelecaoTarefasPorProduto = ({
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefas = [];
       if (responseTarefas.ok) {
         const resultTarefas = await responseTarefas.json();
@@ -324,7 +336,7 @@ const SelecaoTarefasPorProduto = ({
       });
 
       const tarefasComTiposMap = new Map();
-      
+
       if (responseVinculados.ok) {
         const resultVinculados = await responseVinculados.json();
         if (resultVinculados.success && resultVinculados.data) {
@@ -332,17 +344,17 @@ const SelecaoTarefasPorProduto = ({
           const vinculadosTarefaTipo = resultVinculados.data.filter(v => {
             return v.cp_tarefa && v.cp_tarefa_tipo && !v.cp_produto && !v.cp_cliente && !v.cp_subtarefa;
           });
-          
+
           // Extrair tarefas únicas com seus tipos
           vinculadosTarefaTipo.forEach(v => {
             const tarefaId = parseInt(v.cp_tarefa, 10);
             const tipoTarefaId = parseInt(v.cp_tarefa_tipo, 10);
             const key = `${tarefaId}-${tipoTarefaId}`;
-            
+
             if (!tarefasComTiposMap.has(key) && !isNaN(tarefaId) && !isNaN(tipoTarefaId)) {
               const tarefaNome = v.tarefa_nome || tarefas.find(t => t.id === tarefaId)?.nome || `Tarefa ${tarefaId}`;
               const tipoTarefaNome = v.tipo_tarefa_nome || tipos.find(t => t.id === tipoTarefaId)?.nome || `Tipo ${tipoTarefaId}`;
-              
+
               tarefasComTiposMap.set(key, {
                 tarefaId,
                 tarefaNome,
@@ -393,15 +405,15 @@ const SelecaoTarefasPorProduto = ({
       console.warn('⚠️ Não é possível adicionar exceção sem clienteId');
       return;
     }
-    
+
     // Buscar tarefa com tipo nas tarefasComTipos
     let tarefaComTipo = tarefasComTipos.find(tt => tt.tarefaId === tarefaId);
-    
+
     // Se não encontrou nas tarefas com tipos, buscar nas tarefas disponíveis
     if (!tarefaComTipo) {
       const tarefa = tarefasDisponiveis.find(t => t.id === tarefaId);
       if (!tarefa) return;
-      
+
       // Tentar encontrar o tipo da tarefa
       const tipoTarefaId = tarefa.tipoatividade_id || tarefa.tipo_tarefa_id || null;
       if (tipoTarefaId) {
@@ -416,7 +428,7 @@ const SelecaoTarefasPorProduto = ({
         }
       }
     }
-    
+
     // Verificar se a tarefa já existe na lista
     const tarefasDoProduto = tarefasPorProduto[produtoId] || [];
     const existe = tarefasDoProduto.some(t => t.id === tarefaId);
@@ -428,21 +440,21 @@ const SelecaoTarefasPorProduto = ({
       // IMPORTANTE: NÃO criar vínculo Produto → Tarefa
       // A exceção deve ser APENAS Cliente → Produto → Tarefa
       // Isso garante que a tarefa seja vinculada ao produto SOMENTE para este cliente específico
-      
+
       // Criar vínculo Cliente → Produto → Tarefa (exceção apenas para este cliente)
       const vinculadoClienteProdutoTarefa = {
         cp_cliente: String(clienteId).trim(),
         cp_produto: produtoId,
         cp_tarefa: tarefaId
       };
-      
+
       // Adicionar tipo de tarefa se disponível
       if (tarefaComTipo && tarefaComTipo.tipoTarefaId) {
         vinculadoClienteProdutoTarefa.cp_tarefa_tipo = tarefaComTipo.tipoTarefaId;
       }
-      
+
       console.log('🔗 Criando exceção (Cliente → Produto → Tarefa):', vinculadoClienteProdutoTarefa);
-      
+
       const responseClienteProdutoTarefa = await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
         method: 'POST',
         headers: {
@@ -459,11 +471,11 @@ const SelecaoTarefasPorProduto = ({
         console.error('❌ Erro ao criar vínculo Cliente → Produto → Tarefa:', errorText);
         throw new Error('Erro ao criar exceção');
       }
-      
+
       // 3. Adicionar na lista local
       setTarefasPorProduto(prev => {
         const novasTarefas = { ...prev };
-        
+
         if (!novasTarefas[produtoId]) {
           novasTarefas[produtoId] = [];
         }
@@ -501,7 +513,7 @@ const SelecaoTarefasPorProduto = ({
   const getTarefasDisponiveisParaAdicionar = (produtoId) => {
     const tarefasDoProduto = tarefasPorProduto[produtoId] || [];
     const tarefasIdsDoProduto = new Set(tarefasDoProduto.map(t => t.id));
-    
+
     // Filtrar tarefas que não estão no produto e formatar para CustomSelect
     return tarefasComTipos
       .filter(tt => !tarefasIdsDoProduto.has(tt.tarefaId))
@@ -525,21 +537,21 @@ const SelecaoTarefasPorProduto = ({
   const carregarSubtarefasTarefa = async (tarefaId, produtoId) => {
     // Se já está carregando, não fazer nada
     if (carregandoSubtarefas[tarefaId]) return;
-    
+
     // Buscar informações da tarefa usando a referência (sempre atualizada)
     const tarefaInfo = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
     const subtarefasVinculadasCliente = tarefaInfo?.subtarefasVinculadasCliente || [];
-    
+
     // Verificar se já temos subtarefas carregadas
     const subtarefasJaCarregadas = subtarefasPorTarefa[tarefaId];
-    
+
     // Se já temos subtarefas carregadas, verificar se estão sincronizadas
     if (subtarefasJaCarregadas) {
       const subtarefasSelecionadasAtuais = subtarefasJaCarregadas
         .filter(st => st.selecionada)
         .map(st => st.id)
         .sort((a, b) => a - b);
-      
+
       // Converter subtarefasVinculadasCliente para números e ordenar para comparação
       const subtarefasVinculadasIds = subtarefasVinculadasCliente
         .map(id => {
@@ -548,16 +560,16 @@ const SelecaoTarefasPorProduto = ({
         })
         .filter(id => id !== null)
         .sort((a, b) => a - b);
-      
+
       // Verificar se estão sincronizadas (mesmo tamanho e mesmos IDs)
       const arraysIguais = subtarefasSelecionadasAtuais.length === subtarefasVinculadasIds.length &&
         subtarefasSelecionadasAtuais.every((id, index) => id === subtarefasVinculadasIds[index]);
-      
+
       if (arraysIguais) {
         console.log(`✅ Subtarefas já carregadas e sincronizadas para tarefa ${tarefaId} (${subtarefasSelecionadasAtuais.length} subtarefa(s))`);
         return;
       }
-      
+
       // Se não estão sincronizadas, forçar recarregamento
       console.log(`🔄 Subtarefas desincronizadas para tarefa ${tarefaId}:`, {
         atuais: subtarefasSelecionadasAtuais,
@@ -565,15 +577,15 @@ const SelecaoTarefasPorProduto = ({
         forçandoRecarregamento: true
       });
     }
-    
+
     setCarregandoSubtarefas(prev => ({ ...prev, [tarefaId]: true }));
-    
+
     try {
       // Garantir que estamos usando os dados mais atualizados da tarefa
       // Buscar novamente para garantir sincronização (caso tenha mudado entre a verificação e agora)
       const tarefaInfoAtualizada = tarefasPorProdutoRef.current[produtoId]?.find(t => t.id === tarefaId);
       const subtarefasVinculadasClienteAtualizadas = tarefaInfoAtualizada?.subtarefasVinculadasCliente || [];
-      
+
       console.log(`📋 Carregando subtarefas para tarefa ${tarefaId} do produto ${produtoId}:`, {
         subtarefasVinculadasCliente: subtarefasVinculadasClienteAtualizadas,
         quantidadeSubtarefasVinculadas: subtarefasVinculadasClienteAtualizadas.length,
@@ -590,12 +602,12 @@ const SelecaoTarefasPorProduto = ({
           tarefasNoProduto: tarefasPorProdutoRef.current[produtoId]?.length || 0
         }
       });
-      
+
       const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -605,7 +617,7 @@ const SelecaoTarefasPorProduto = ({
             const numId = typeof id === 'number' ? id : parseInt(String(id), 10);
             return isNaN(numId) ? null : numId;
           }).filter(id => id !== null);
-          
+
           console.log(`✅ Subtarefas recebidas da API (${result.data.length}):`, result.data.map(st => ({ id: st.id, nome: st.nome })));
           console.log(`✅ IDs de subtarefas vinculadas ao cliente (${subtarefasVinculadasIds.length}):`, subtarefasVinculadasIds);
           console.log(`🔍 Debug - Comparação:`, {
@@ -614,35 +626,35 @@ const SelecaoTarefasPorProduto = ({
             subtarefasVinculadasIds: subtarefasVinculadasIds,
             totalSubtarefas: result.data.length
           });
-          
+
           // Inicializar subtarefas: marcar como selecionadas as que já estão vinculadas ao cliente
           const subtarefas = result.data.map(st => {
             const subtarefaId = typeof st.id === 'number' ? st.id : parseInt(String(st.id), 10);
             const estaSelecionada = subtarefasVinculadasIds.includes(subtarefaId);
-            
+
             if (estaSelecionada) {
               console.log(`  ✅ Subtarefa ${subtarefaId} (${st.nome}): SELECIONADA`);
             } else {
               console.log(`  ⚪ Subtarefa ${subtarefaId} (${st.nome}): NÃO selecionada`);
             }
-            
+
             return {
               id: subtarefaId,
               nome: st.nome,
               selecionada: estaSelecionada
             };
           });
-          
+
           const subtarefasSelecionadasCount = subtarefas.filter(st => st.selecionada).length;
           console.log(`📝 Definindo ${subtarefasSelecionadasCount} subtarefa(s) como selecionada(s) de ${result.data.length} total`);
-          
+
           if (subtarefasVinculadasIds.length > 0 && subtarefasSelecionadasCount === 0) {
             console.warn(`⚠️ ATENÇÃO: Há ${subtarefasVinculadasIds.length} subtarefa(s) vinculada(s) mas nenhuma foi marcada como selecionada!`, {
               subtarefasVinculadasIds,
               todasSubtarefas: subtarefas.map(st => st.id)
             });
           }
-          
+
           setSubtarefasPorTarefa(prev => {
             const novoEstado = {
               ...prev,
@@ -655,7 +667,7 @@ const SelecaoTarefasPorProduto = ({
             });
             return novoEstado;
           });
-          
+
           // Notificar componente pai sobre as subtarefas já selecionadas
           if (onTarefasChange && subtarefasVinculadasIds.length > 0) {
             console.log(`📤 Notificando componente pai sobre ${subtarefasVinculadasIds.length} subtarefa(s) selecionada(s) para tarefa ${tarefaId}`);
@@ -665,11 +677,11 @@ const SelecaoTarefasPorProduto = ({
               // Normalizar produtoId para garantir consistência (pode ser string ou número)
               const produtoIdStr = String(produtoId);
               const produtoIdNum = typeof produtoId === 'number' ? produtoId : parseInt(produtoId, 10);
-              
+
               // Tentar ambos os formatos (string e número) para garantir compatibilidade
-              const produtoKey = tarefasAtualizadas[produtoIdStr] ? produtoIdStr : 
-                                 tarefasAtualizadas[produtoIdNum] ? produtoIdNum : null;
-              
+              const produtoKey = tarefasAtualizadas[produtoIdStr] ? produtoIdStr :
+                tarefasAtualizadas[produtoIdNum] ? produtoIdNum : null;
+
               if (produtoKey && tarefasAtualizadas[produtoKey]) {
                 tarefasAtualizadas[produtoKey] = tarefasAtualizadas[produtoKey].map(t => {
                   if (t.id === tarefaId) {
@@ -699,18 +711,18 @@ const SelecaoTarefasPorProduto = ({
     setSubtarefasPorTarefa(prev => {
       const novasSubtarefas = { ...prev };
       if (!novasSubtarefas[tarefaId]) return novasSubtarefas;
-      
-      novasSubtarefas[tarefaId] = novasSubtarefas[tarefaId].map(st => 
+
+      novasSubtarefas[tarefaId] = novasSubtarefas[tarefaId].map(st =>
         st.id === subtarefaId ? { ...st, selecionada: !st.selecionada } : st
       );
-      
+
       // Notificar componente pai sobre mudanças
       if (onTarefasChange) {
         // Usar setTarefasPorProduto com callback para garantir estado atualizado
         // Isso preserva todas as tarefas de todos os produtos, não apenas a editada
         setTarefasPorProduto(prevTarefas => {
           const tarefasAtualizadas = { ...prevTarefas };
-          
+
           // Iterar por TODOS os produtos para preservar todas as tarefas
           Object.keys(tarefasAtualizadas).forEach(produtoId => {
             if (tarefasAtualizadas[produtoId]) {
@@ -729,13 +741,13 @@ const SelecaoTarefasPorProduto = ({
               });
             }
           });
-          
+
           console.log(`📊 toggleSubtarefa: Preservando ${Object.keys(tarefasAtualizadas).length} produto(s) com todas as tarefas`);
           onTarefasChange(tarefasAtualizadas);
           return tarefasAtualizadas;
         });
       }
-      
+
       return novasSubtarefas;
     });
   };
@@ -755,9 +767,9 @@ const SelecaoTarefasPorProduto = ({
 
   return (
     <div className="selecao-tarefas-produto">
-      <div style={{ 
-        fontWeight: '600', 
-        color: '#0e3b6f', 
+      <div style={{
+        fontWeight: '600',
+        color: '#0e3b6f',
         marginBottom: '16px',
         fontSize: '14px',
         borderBottom: '1px solid #dee2e6',
@@ -769,20 +781,20 @@ const SelecaoTarefasPorProduto = ({
         <div>
           <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
           Selecionar Tarefas por Produto
-          <span style={{ 
-            fontSize: '12px', 
-            fontWeight: '400', 
-            color: '#64748b', 
-            marginLeft: '8px' 
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '400',
+            color: '#64748b',
+            marginLeft: '8px'
           }}>
             (Marque as tarefas que este cliente deve ter para cada produto)
           </span>
           {showTempoEstimado && horasDisponiveisDia != null && (
-            <span style={{ 
-              marginLeft: '12px', 
-              fontSize: '11px', 
-              color: '#6b7280', 
-              fontWeight: 'normal' 
+            <span style={{
+              marginLeft: '12px',
+              fontSize: '11px',
+              color: '#6b7280',
+              fontWeight: 'normal'
             }}>
               (Total disponível: {horasDisponiveisDia}h/dia)
             </span>
@@ -800,7 +812,7 @@ const SelecaoTarefasPorProduto = ({
 
         if (tarefas.length === 0) {
           return (
-            <div key={produtoIdNum} style={{ 
+            <div key={produtoIdNum} style={{
               marginBottom: '16px',
               padding: '12px',
               backgroundColor: '#f8f9fa',
@@ -818,15 +830,15 @@ const SelecaoTarefasPorProduto = ({
         }
 
         return (
-          <div key={produtoIdNum} style={{ 
+          <div key={produtoIdNum} style={{
             marginBottom: '16px',
             border: '1px solid #dee2e6',
             borderRadius: '4px',
             overflow: 'hidden'
           }}>
             {/* Header do Produto */}
-            <div 
-              style={{ 
+            <div
+              style={{
                 padding: '12px',
                 backgroundColor: '#f8f9fa',
                 cursor: 'pointer',
@@ -896,7 +908,7 @@ const SelecaoTarefasPorProduto = ({
                   <i className={`fas fa-${todasSelecionadas ? 'square' : 'check-square'}`} style={{ fontSize: '12px' }}></i>
                   {todasSelecionadas ? 'Desmarcar todas' : 'Marcar todas'}
                 </button>
-                <i 
+                <i
                   className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`}
                   style={{ color: '#6c757d', fontSize: '12px' }}
                 ></i>
@@ -905,8 +917,8 @@ const SelecaoTarefasPorProduto = ({
 
             {/* Select para adicionar tarefa */}
             {mostrarAdicionarTarefa[produtoIdNum] && (
-              <div style={{ 
-                padding: '12px', 
+              <div style={{
+                padding: '12px',
                 backgroundColor: '#f8f9fa',
                 borderBottom: '1px solid #dee2e6'
               }}>
@@ -950,7 +962,7 @@ const SelecaoTarefasPorProduto = ({
                   // Separar tarefas normais e exceções
                   const tarefasNormais = tarefas.filter(t => t.ehExcecao !== true);
                   const tarefasExcecao = tarefas.filter(t => t.ehExcecao === true);
-                  
+
                   return (
                     <>
                       {/* Subtítulo para tarefas padrão */}
@@ -972,772 +984,772 @@ const SelecaoTarefasPorProduto = ({
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Tarefas Normais */}
                       {tarefasNormais.map(tarefa => (
-                  <div key={tarefa.id} style={{ marginBottom: '8px' }}>
-                    <div
-                      className="selected-item-tag"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        flexWrap: 'nowrap',
-                        whiteSpace: 'nowrap',
-                        padding: '8px 12px',
-                        minHeight: '43px',
-                        background: tarefa.selecionada 
-                          ? 'linear-gradient(135deg, #0e3b6f, #144577)' 
-                          : 'transparent',
-                        color: tarefa.selecionada ? 'white' : '#212529',
-                        border: tarefa.selecionada 
-                          ? 'none' 
-                          : '1px solid #dee2e6',
-                        borderRadius: '4px',
-                        cursor: 'default',
-                        transition: 'all 0.2s ease',
-                        position: 'relative',
-                        width: '100%',
-                        justifyContent: 'space-between',
-                        boxShadow: tarefa.selecionada 
-                          ? '0 1px 3px rgba(14, 59, 111, 0.2)' 
-                          : 'none',
-                        fontSize: '12px',
-                        fontWeight: '500'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (tarefa.selecionada) {
-                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(14, 59, 111, 0.3)';
-                          e.currentTarget.style.transform = 'translateY(-1px)';
-                        } else {
-                          e.currentTarget.style.backgroundColor = '#f8f9fa';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (tarefa.selecionada) {
-                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(14, 59, 111, 0.2)';
-                          e.currentTarget.style.transform = 'translateY(0)';
-                        } else {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                        <input
-                          type="checkbox"
-                          checked={tarefa.selecionada || false}
-                          onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            margin: 0,
-                            marginRight: '4px',
-                            cursor: 'pointer',
-                            width: '14px',
-                            height: '14px',
-                            flexShrink: 0,
-                            pointerEvents: 'auto'
-                          }}
-                        />
-                        {/* No modo "Período para muitos", o período global é aplicado automaticamente em todas as tarefas selecionadas.
-                            Períodos específicos continuam podendo ser ajustados manualmente em cada tarefa. */}
-                        <div style={{ 
-                          flex: 1, 
-                          minWidth: 0,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          <div style={{ 
-                            fontWeight: '500',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {tarefa.nome}
-                          </div>
-                          {tarefa.tipoTarefa && (
-                            <div style={{ 
-                              fontSize: '10px', 
-                              opacity: tarefa.selecionada ? 0.8 : 0.6,
-                              marginTop: '2px',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-                        {/* Mini período por tarefa - mostrar apenas na versão de atribuição */}
-                        {tarefa.selecionada && onPeriodoChange && (
-                          <div 
-                            style={{ 
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              gap: '4px',
-                              marginRight: '8px',
-                              pointerEvents: 'auto',
-                              minWidth: '260px',
-                              flexShrink: 0
-                            }}
-                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                          >
-                            <div style={{ width: '100%' }}>
-                              <FilterPeriodo
-                                dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
-                                dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
-                                onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
-                                onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
-                                size="small"
-                                uiVariant={filterPeriodoUiVariant}
-                                showWeekendToggle={true}
-                                onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
-                                showHolidayToggle={true}
-                                onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
-                                datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
-                                onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
-                              />
-                            </div>
-                          </div>
-                        )}
-                        {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada */}
-                        {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
-                          <div 
-                            style={{ 
-                              display: 'flex', 
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: '6px',
-                              marginRight: '8px',
-                              pointerEvents: 'auto',
-                              position: 'relative',
-                              zIndex: 10,
-                              flexShrink: 0
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                          >
-                            <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
-                              <ResponsavelCard
-                                value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
-                                options={colaboradores.map(c => ({ 
-                                  value: String(c.id), 
-                                  label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
-                                }))}
-                                onChange={(e) => {
-                                  const responsavelId = e.target.value || null;
-                                  if (onResponsavelChange) {
-                                    onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
-                                  }
-                                }}
-                                placeholder="Selecione responsável"
-                                disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
-                                colaboradores={colaboradores}
-                              />
-                            </div>
-                            {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                Preencha o período primeiro
-                              </div>
-                            )}
-                            {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
-                              const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                              const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                              if (!periodo || !responsavelId) return null;
-                              const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                              const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                              if (!temPeriodoCompleto && !temDatasIndividuais) return null;
-                              
-                              // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
-                              const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
-                              
-                              // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
-                              // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
-                              // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
-                              const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
-                              
-                              // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
-                              if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
-                                const isExcedido = tempoDisponivel < 0;
-                                const isZero = tempoDisponivel === 0;
-                                
-                                return (
-                                  <div 
-                                    style={{ 
-                                      padding: '4px 8px', 
-                                      backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff', 
-                                      border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`, 
-                                      borderRadius: '4px',
-                                      fontSize: '11px',
-                                      color: isExcedido ? '#991b1b' : '#0c4a6e',
-                                      fontWeight: '500',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      whiteSpace: 'nowrap',
-                                      boxSizing: 'border-box',
-                                      cursor: 'help',
-                                      position: 'relative'
-                                    }}
-                                    title={isExcedido ? "Tempo excedido" : "Disponível"}
-                                  >
-                                    <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        )}
-                        {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
-                        {showTempoEstimado && tarefa.selecionada && (
-                          <div 
-                            style={{ 
-                              display: 'flex', 
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              gap: '4px',
-                              marginRight: '8px',
-                              pointerEvents: 'auto',
-                              position: 'relative',
-                              zIndex: 10,
-                              minWidth: '140px'
-                            }}
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          >
-                            <div style={{ width: '100%' }}>
-                              <TempoEstimadoInput
-                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                onChange={(tempoEmMs) => {
-                                  if (onTempoChange) {
-                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                  }
-                                }}
-                                disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
-                              />
-                            </div>
-                            {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                Preencha o responsável primeiro
-                              </div>
-                            )}
-                            {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                              <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                Preencha o período primeiro
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {tarefa.ehExcecao === true && (
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '2px 6px',
-                            backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#fef3c7',
-                            color: tarefa.selecionada ? 'white' : '#92400e',
-                            borderRadius: '3px',
-                            fontWeight: '500',
-                            flexShrink: 0
-                          }}>
-                            Exceção
-                          </span>
-                        )}
-                        {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
-                        {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
-                          <button
-                            type="button"
-                            title="Ver subtarefas"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
-                              if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
-                                carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
-                              }
-                              setTarefasExpandidas(prev => ({
-                                ...prev,
-                                [tarefa.id]: !prev[tarefa.id]
-                              }));
-                            }}
+                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                          <div
+                            className="selected-item-tag"
                             style={{
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              display: 'inline-flex',
+                              display: 'flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              transition: '0.2s',
-                              background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0',
-                              color: tarefa.selecionada ? 'white' : '#475569',
-                              border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #cbd5e1',
+                              gap: '8px',
+                              flexWrap: 'nowrap',
+                              whiteSpace: 'nowrap',
+                              padding: '8px 12px',
+                              minHeight: '43px',
+                              background: tarefa.selecionada
+                                ? 'linear-gradient(135deg, #0e3b6f, #144577)'
+                                : 'transparent',
+                              color: tarefa.selecionada ? 'white' : '#212529',
+                              border: tarefa.selecionada
+                                ? 'none'
+                                : '1px solid #dee2e6',
                               borderRadius: '4px',
-                              cursor: 'pointer',
-                              flexShrink: 0
+                              cursor: 'default',
+                              transition: 'all 0.2s ease',
+                              position: 'relative',
+                              width: '100%',
+                              justifyContent: 'space-between',
+                              boxShadow: tarefa.selecionada
+                                ? '0 1px 3px rgba(14, 59, 111, 0.2)'
+                                : 'none',
+                              fontSize: '12px',
+                              fontWeight: '500'
                             }}
                             onMouseEnter={(e) => {
                               if (tarefa.selecionada) {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(14, 59, 111, 0.3)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
                               } else {
-                                e.currentTarget.style.background = '#cbd5e1';
+                                e.currentTarget.style.backgroundColor = '#f8f9fa';
                               }
                             }}
                             onMouseLeave={(e) => {
                               if (tarefa.selecionada) {
-                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(14, 59, 111, 0.2)';
+                                e.currentTarget.style.transform = 'translateY(0)';
                               } else {
-                                e.currentTarget.style.background = '#e2e8f0';
+                                e.currentTarget.style.backgroundColor = 'transparent';
                               }
                             }}
                           >
-                            {carregandoSubtarefas[tarefa.id] ? (
-                              <i className="fas fa-spinner fa-spin"></i>
-                            ) : (
-                              <>
-                                <i className="fas fa-list-ul"></i>
-                                Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
-                    {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
-                      <div style={{
-                        marginLeft: '24px',
-                        marginTop: '8px',
-                        padding: '8px',
-                        backgroundColor: '#f8f9fa',
-                        borderRadius: '4px',
-                        border: '1px solid #dee2e6'
-                      }}>
-                        {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
-                          <div key={subtarefa.id} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '4px 8px',
-                            marginBottom: '4px',
-                            backgroundColor: subtarefa.selecionada ? '#e3f2fd' : 'transparent',
-                            borderRadius: '3px',
-                            fontSize: '11px'
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={subtarefa.selecionada || false}
-                              onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
-                              style={{
-                                margin: 0,
-                                cursor: 'pointer',
-                                width: '12px',
-                                height: '12px',
-                                flexShrink: 0
-                              }}
-                            />
-                            <span style={{
-                              flex: 1,
-                              color: subtarefa.selecionada ? '#1976d2' : '#495057',
-                              fontWeight: subtarefa.selecionada ? '500' : '400'
-                            }}>
-                              {subtarefa.nome}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  ))}
-                  
-                  {/* Separador entre tarefas normais e exceções */}
-                  {tarefasNormais.length > 0 && tarefasExcecao.length > 0 && (
-                    <div style={{
-                      margin: '12px 0',
-                      padding: '8px 0',
-                      borderTop: '2px solid #e2e8f0',
-                      borderBottom: '2px solid #e2e8f0'
-                    }}>
-                      <div style={{
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        color: '#64748b',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                      }}>
-                        Tarefas Exceção
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Tarefas Exceção */}
-                  {tarefasExcecao.map(tarefa => (
-                    <div key={tarefa.id} style={{ marginBottom: '8px' }}>
-                      <div
-                        className="selected-item-tag tarefa-excecao"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          flexWrap: 'nowrap',
-                          whiteSpace: 'nowrap',
-                          padding: '8px 12px',
-                          minHeight: '43px',
-                          background: tarefa.selecionada 
-                            ? 'linear-gradient(135deg, #f59e0b, #fd7e14)' 
-                            : '#fff4e6',
-                          color: tarefa.selecionada ? 'white' : '#fd7e14',
-                          border: tarefa.selecionada 
-                            ? 'none' 
-                            : '1px solid #ffd8a8',
-                          borderRadius: '4px',
-                          cursor: 'default',
-                          transition: 'all 0.2s ease',
-                          position: 'relative',
-                          width: '100%',
-                          justifyContent: 'space-between',
-                          boxShadow: tarefa.selecionada 
-                            ? '0 1px 3px rgba(245, 158, 11, 0.2)' 
-                            : 'none',
-                          fontSize: '12px',
-                          fontWeight: '500'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (tarefa.selecionada) {
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.3)';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                          } else {
-                            e.currentTarget.style.backgroundColor = '#ffedd5';
-                            e.currentTarget.style.borderColor = '#f59e0b';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (tarefa.selecionada) {
-                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(245, 158, 11, 0.2)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          } else {
-                            e.currentTarget.style.backgroundColor = '#fff4e6';
-                            e.currentTarget.style.borderColor = '#ffd8a8';
-                          }
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                          <input
-                            type="checkbox"
-                            checked={tarefa.selecionada || false}
-                            onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
-                            style={{
-                              margin: 0,
-                              marginRight: '4px',
-                              cursor: 'pointer',
-                              width: '14px',
-                              height: '14px',
-                              flexShrink: 0,
-                              accentColor: '#fd7e14'
-                            }}
-                          />
-                          <div style={{ 
-                            flex: 1, 
-                            minWidth: 0,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            <div style={{ 
-                              fontWeight: '500',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}>
-                              {tarefa.nome}
-                            </div>
-                            {tarefa.tipoTarefa && (
-                              <div style={{ 
-                                fontSize: '10px', 
-                                opacity: tarefa.selecionada ? 0.8 : 0.7,
-                                marginTop: '2px',
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                              <input
+                                type="checkbox"
+                                checked={tarefa.selecionada || false}
+                                onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  margin: 0,
+                                  marginRight: '4px',
+                                  cursor: 'pointer',
+                                  width: '14px',
+                                  height: '14px',
+                                  flexShrink: 0,
+                                  pointerEvents: 'auto'
+                                }}
+                              />
+                              {/* No modo "Período para muitos", o período global é aplicado automaticamente em todas as tarefas selecionadas.
+                            Períodos específicos continuam podendo ser ajustados manualmente em cada tarefa. */}
+                              <div style={{
+                                flex: 1,
+                                minWidth: 0,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap'
                               }}>
-                                Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
+                                <div style={{
+                                  fontWeight: '500',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {tarefa.nome}
+                                </div>
+                                {tarefa.tipoTarefa && (
+                                  <div style={{
+                                    fontSize: '10px',
+                                    opacity: tarefa.selecionada ? 0.8 : 0.6,
+                                    marginTop: '2px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
-                          {/* Mini período por tarefa (exceção) - mostrar apenas na versão de atribuição */}
-                          {tarefa.selecionada && onPeriodoChange && (
-                            <div 
-                              style={{ 
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                marginRight: '8px',
-                                pointerEvents: 'auto'
-                              }}
-                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                              onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                            >
-                              <FilterPeriodo
-                                dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
-                                dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
-                                onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
-                                onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
-                                size="small"
-                                uiVariant={filterPeriodoUiVariant}
-                                showWeekendToggle={true}
-                                onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
-                                showHolidayToggle={true}
-                                onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
-                                datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
-                                onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
-                              />
                             </div>
-                          )}
-                          {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
-                          {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
-                            <div 
-                              style={{ 
-                                display: 'flex', 
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: '6px',
-                                marginRight: '8px',
-                                pointerEvents: 'auto',
-                                position: 'relative',
-                                zIndex: 10,
-                                flexShrink: 0
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                            >
-                              <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
-                                <ResponsavelCard
-                                  value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
-                                  options={colaboradores.map(c => ({ 
-                                    value: String(c.id), 
-                                    label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome 
-                                  }))}
-                                  onChange={(e) => {
-                                    const responsavelId = e.target.value || null;
-                                    if (onResponsavelChange) {
-                                      onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
-                                    }
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                              {/* Mini período por tarefa - mostrar apenas na versão de atribuição */}
+                              {tarefa.selecionada && onPeriodoChange && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    gap: '4px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto',
+                                    minWidth: '260px',
+                                    flexShrink: 0
                                   }}
-                                  placeholder="Selecione responsável"
-                                  disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
-                                  colaboradores={colaboradores}
-                                />
-                              </div>
-                              {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                                <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                  Preencha o período primeiro
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                >
+                                  <div style={{ width: '100%' }}>
+                                    <FilterPeriodo
+                                      dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
+                                      dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                                      onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
+                                      onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
+                                      size="small"
+                                      uiVariant={filterPeriodoUiVariant}
+                                      showWeekendToggle={true}
+                                      onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
+                                      showHolidayToggle={true}
+                                      onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
+                                      datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                                      onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                                    />
+                                  </div>
                                 </div>
                               )}
-                              {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
-                                const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                                const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                                if (!periodo || !responsavelId) return null;
-                                const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                                const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                                if (!temPeriodoCompleto && !temDatasIndividuais) return null;
-                                
-                                // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
-                                const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
-                                
-                                // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
-                                // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
-                                // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
-                                const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
-                                
-                                // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
-                                if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
-                                  const isExcedido = tempoDisponivel < 0;
-                                  const isZero = tempoDisponivel === 0;
-                                  
-                                  return (
-                                    <div 
-                                      style={{ 
-                                        padding: '4px 8px', 
-                                        backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff', 
-                                        border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`, 
-                                        borderRadius: '4px',
-                                        fontSize: '11px',
-                                        color: isExcedido ? '#991b1b' : '#0c4a6e',
-                                        fontWeight: '500',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        whiteSpace: 'nowrap',
-                                        boxSizing: 'border-box',
-                                        cursor: 'help',
-                                        position: 'relative'
+                              {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada */}
+                              {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: 10,
+                                    flexShrink: 0
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                                    <ResponsavelCard
+                                      value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                      options={colaboradores.map(c => ({
+                                        value: String(c.id),
+                                        label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
+                                      }))}
+                                      onChange={(e) => {
+                                        const responsavelId = e.target.value || null;
+                                        if (onResponsavelChange) {
+                                          onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                        }
                                       }}
-                                      title={isExcedido ? "Tempo excedido" : "Disponível"}
-                                    >
-                                      <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
-                                      </span>
+                                      placeholder="Selecione responsável"
+                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
+                                      colaboradores={colaboradores}
+                                    />
+                                  </div>
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
                                     </div>
-                                  );
-                                }
-                                return null;
-                              })()}
-                            </div>
-                          )}
-                          {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
-                          {showTempoEstimado && tarefa.selecionada && (
-                            <div 
-                              style={{ 
-                                display: 'flex', 
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '4px',
-                                marginRight: '8px',
-                                pointerEvents: 'auto',
-                                position: 'relative',
-                                zIndex: 10
-                              }}
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                            >
-                              <TempoEstimadoInput
-                                value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
-                                onChange={(tempoEmMs) => {
-                                  if (onTempoChange) {
-                                    onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
-                                  }
-                                }}
-                                disabled={disabledTempo}
-                              />
-                            </div>
-                          )}
-                          {tarefa.ehExcecao === true && (
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 6px',
-                              backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffd8a8',
-                              color: tarefa.selecionada ? 'white' : '#fd7e14',
-                              borderRadius: '3px',
-                              fontWeight: '500',
-                              flexShrink: 0
-                            }}>
-                              Exceção
-                            </span>
-                          )}
-                          {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
-                          {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
-                            <button
-                              type="button"
-                              title="Ver subtarefas"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
-                                if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
-                                  carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
-                                }
-                                setTarefasExpandidas(prev => ({
-                                  ...prev,
-                                  [tarefa.id]: !prev[tarefa.id]
-                                }));
-                              }}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                                fontWeight: '500',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                transition: '0.2s',
-                                background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffe4cc',
-                                color: tarefa.selecionada ? 'white' : '#fd7e14',
-                                border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #ffd8a8',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                flexShrink: 0
-                              }}
-                              onMouseEnter={(e) => {
-                                if (tarefa.selecionada) {
-                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                                } else {
-                                  e.currentTarget.style.background = '#ffd8a8';
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (tarefa.selecionada) {
-                                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                                } else {
-                                  e.currentTarget.style.background = '#ffe4cc';
-                                }
-                              }}
-                            >
-                              {carregandoSubtarefas[tarefa.id] ? (
-                                <i className="fas fa-spinner fa-spin"></i>
-                              ) : (
-                                <>
-                                  <i className="fas fa-list-ul"></i>
-                                  Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
-                                </>
+                                  )}
+                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                                    const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
+                                    const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
+                                    if (!periodo || !responsavelId) return null;
+                                    const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                                    const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                                    if (!temPeriodoCompleto && !temDatasIndividuais) return null;
+
+                                    // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
+                                    const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
+
+                                    // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
+                                    // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
+                                    // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
+                                    const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
+
+                                    // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
+                                    if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
+                                      const isExcedido = tempoDisponivel < 0;
+                                      const isZero = tempoDisponivel === 0;
+
+                                      return (
+                                        <div
+                                          style={{
+                                            padding: '4px 8px',
+                                            backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
+                                            border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            color: isExcedido ? '#991b1b' : '#0c4a6e',
+                                            fontWeight: '500',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            whiteSpace: 'nowrap',
+                                            boxSizing: 'border-box',
+                                            cursor: 'help',
+                                            position: 'relative'
+                                          }}
+                                          title={isExcedido ? "Tempo excedido" : "Disponível"}
+                                        >
+                                          <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
                               )}
-                            </button>
+                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
+                              {showTempoEstimado && tarefa.selecionada && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    gap: '4px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: 10,
+                                    minWidth: '140px'
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <div style={{ width: '100%' }}>
+                                    <TempoEstimadoInput
+                                      value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
+                                      onChange={(tempoEmMs) => {
+                                        if (onTempoChange) {
+                                          onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
+                                        }
+                                      }}
+                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id))}
+                                    />
+                                  </div>
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o responsável primeiro
+                                    </div>
+                                  )}
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {tarefa.ehExcecao === true && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  padding: '2px 6px',
+                                  backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#fef3c7',
+                                  color: tarefa.selecionada ? 'white' : '#92400e',
+                                  borderRadius: '3px',
+                                  fontWeight: '500',
+                                  flexShrink: 0
+                                }}>
+                                  Exceção
+                                </span>
+                              )}
+                              {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
+                              {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
+                                <button
+                                  type="button"
+                                  title="Ver subtarefas"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
+                                    if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
+                                      carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
+                                    }
+                                    setTarefasExpandidas(prev => ({
+                                      ...prev,
+                                      [tarefa.id]: !prev[tarefa.id]
+                                    }));
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: '0.2s',
+                                    background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#e2e8f0',
+                                    color: tarefa.selecionada ? 'white' : '#475569',
+                                    border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #cbd5e1',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    flexShrink: 0
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (tarefa.selecionada) {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                                    } else {
+                                      e.currentTarget.style.background = '#cbd5e1';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (tarefa.selecionada) {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                                    } else {
+                                      e.currentTarget.style.background = '#e2e8f0';
+                                    }
+                                  }}
+                                >
+                                  {carregandoSubtarefas[tarefa.id] ? (
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                  ) : (
+                                    <>
+                                      <i className="fas fa-list-ul"></i>
+                                      Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
+                          {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
+                            <div style={{
+                              marginLeft: '24px',
+                              marginTop: '8px',
+                              padding: '8px',
+                              backgroundColor: '#f8f9fa',
+                              borderRadius: '4px',
+                              border: '1px solid #dee2e6'
+                            }}>
+                              {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                                <div key={subtarefa.id} style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '4px 8px',
+                                  marginBottom: '4px',
+                                  backgroundColor: subtarefa.selecionada ? '#e3f2fd' : 'transparent',
+                                  borderRadius: '3px',
+                                  fontSize: '11px'
+                                }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={subtarefa.selecionada || false}
+                                    onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                    style={{
+                                      margin: 0,
+                                      cursor: 'pointer',
+                                      width: '12px',
+                                      height: '12px',
+                                      flexShrink: 0
+                                    }}
+                                  />
+                                  <span style={{
+                                    flex: 1,
+                                    color: subtarefa.selecionada ? '#1976d2' : '#495057',
+                                    fontWeight: subtarefa.selecionada ? '500' : '400'
+                                  }}>
+                                    {subtarefa.nome}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      </div>
-                      {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
-                      {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
+                      ))}
+
+                      {/* Separador entre tarefas normais e exceções */}
+                      {tarefasNormais.length > 0 && tarefasExcecao.length > 0 && (
                         <div style={{
-                          marginLeft: '24px',
-                          marginTop: '8px',
-                          padding: '8px',
-                          backgroundColor: '#fff4e6',
-                          borderRadius: '4px',
-                          border: '1px solid #ffd8a8'
+                          margin: '12px 0',
+                          padding: '8px 0',
+                          borderTop: '2px solid #e2e8f0',
+                          borderBottom: '2px solid #e2e8f0'
                         }}>
-                          {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
-                            <div key={subtarefa.id} style={{
+                          <div style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: '#64748b',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                          }}>
+                            Tarefas Exceção
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tarefas Exceção */}
+                      {tarefasExcecao.map(tarefa => (
+                        <div key={tarefa.id} style={{ marginBottom: '8px' }}>
+                          <div
+                            className="selected-item-tag tarefa-excecao"
+                            style={{
                               display: 'flex',
                               alignItems: 'center',
                               gap: '8px',
-                              padding: '4px 8px',
-                              marginBottom: '4px',
-                              backgroundColor: subtarefa.selecionada ? '#ffedd5' : 'transparent',
-                              borderRadius: '3px',
-                              fontSize: '11px'
-                            }}>
+                              flexWrap: 'nowrap',
+                              whiteSpace: 'nowrap',
+                              padding: '8px 12px',
+                              minHeight: '43px',
+                              background: tarefa.selecionada
+                                ? 'linear-gradient(135deg, #f59e0b, #fd7e14)'
+                                : '#fff4e6',
+                              color: tarefa.selecionada ? 'white' : '#fd7e14',
+                              border: tarefa.selecionada
+                                ? 'none'
+                                : '1px solid #ffd8a8',
+                              borderRadius: '4px',
+                              cursor: 'default',
+                              transition: 'all 0.2s ease',
+                              position: 'relative',
+                              width: '100%',
+                              justifyContent: 'space-between',
+                              boxShadow: tarefa.selecionada
+                                ? '0 1px 3px rgba(245, 158, 11, 0.2)'
+                                : 'none',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (tarefa.selecionada) {
+                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(245, 158, 11, 0.3)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                              } else {
+                                e.currentTarget.style.backgroundColor = '#ffedd5';
+                                e.currentTarget.style.borderColor = '#f59e0b';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (tarefa.selecionada) {
+                                e.currentTarget.style.boxShadow = '0 1px 3px rgba(245, 158, 11, 0.2)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                              } else {
+                                e.currentTarget.style.backgroundColor = '#fff4e6';
+                                e.currentTarget.style.borderColor = '#ffd8a8';
+                              }
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                               <input
                                 type="checkbox"
-                                checked={subtarefa.selecionada || false}
-                                onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                checked={tarefa.selecionada || false}
+                                onChange={() => toggleTarefa(produtoIdNum, tarefa.id)}
                                 style={{
                                   margin: 0,
+                                  marginRight: '4px',
                                   cursor: 'pointer',
-                                  width: '12px',
-                                  height: '12px',
-                                  flexShrink: 0
+                                  width: '14px',
+                                  height: '14px',
+                                  flexShrink: 0,
+                                  accentColor: '#fd7e14'
                                 }}
                               />
-                              <span style={{
+                              <div style={{
                                 flex: 1,
-                                color: subtarefa.selecionada ? '#fd7e14' : '#92400e',
-                                fontWeight: subtarefa.selecionada ? '500' : '400'
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
                               }}>
-                                {subtarefa.nome}
-                              </span>
+                                <div style={{
+                                  fontWeight: '500',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {tarefa.nome}
+                                </div>
+                                {tarefa.tipoTarefa && (
+                                  <div style={{
+                                    fontSize: '10px',
+                                    opacity: tarefa.selecionada ? 0.8 : 0.7,
+                                    marginTop: '2px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap'
+                                  }}>
+                                    Tipo: {typeof tarefa.tipoTarefa === 'object' && tarefa.tipoTarefa !== null ? tarefa.tipoTarefa.nome : tarefa.tipoTarefa}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          ))}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                              {/* Mini período por tarefa (exceção) - mostrar apenas na versão de atribuição */}
+                              {tarefa.selecionada && onPeriodoChange && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto'
+                                  }}
+                                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                  onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                >
+                                  <FilterPeriodo
+                                    dataInicio={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.inicio) || null}
+                                    dataFim={(periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.fim) || null}
+                                    onInicioChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { inicio: e.target.value || null })}
+                                    onFimChange={(e) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { fim: e.target.value || null })}
+                                    size="small"
+                                    uiVariant={filterPeriodoUiVariant}
+                                    showWeekendToggle={true}
+                                    onWeekendToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFinaisSemana: !!v })}
+                                    showHolidayToggle={true}
+                                    onHolidayToggleChange={(v) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { habilitarFeriados: !!v })}
+                                    datasIndividuais={periodosPorTarefa?.[`${produtoIdNum}_${tarefa.id}`]?.datasIndividuais || []}
+                                    onDatasIndividuaisChange={(arr) => onPeriodoChange && onPeriodoChange(produtoIdNum, tarefa.id, { datasIndividuais: Array.isArray(arr) ? arr : [] })}
+                                  />
+                                </div>
+                              )}
+                              {/* Card de responsável - mostrar apenas quando tarefa estiver selecionada (exceção) */}
+                              {tarefa.selecionada && onResponsavelChange && colaboradores.length > 0 && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: 10,
+                                    flexShrink: 0
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
+                                    <ResponsavelCard
+                                      value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                      options={colaboradores.map(c => ({
+                                        value: String(c.id),
+                                        label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
+                                      }))}
+                                      onChange={(e) => {
+                                        const responsavelId = e.target.value || null;
+                                        if (onResponsavelChange) {
+                                          onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                        }
+                                      }}
+                                      placeholder="Selecione responsável"
+                                      disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
+                                      colaboradores={colaboradores}
+                                    />
+                                  </div>
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
+                                      Preencha o período primeiro
+                                    </div>
+                                  )}
+                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                                    const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
+                                    const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
+                                    if (!periodo || !responsavelId) return null;
+                                    const temPeriodoCompleto = periodo.inicio && periodo.fim;
+                                    const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
+                                    if (!temPeriodoCompleto && !temDatasIndividuais) return null;
+
+                                    // Usar tarefasSelecionadasPorProduto se fornecido, senão construir objeto mínimo
+                                    const tarefasParaCalculo = tarefasSelecionadasPorProduto || { [produtoIdNum]: { [tarefa.id]: { selecionada: true } } };
+
+                                    // Sempre incluir a tarefa atual no cálculo para mostrar o tempo disponível
+                                    // após atribuir essa tarefa (se ela tiver tempo definido, será subtraída)
+                                    // Não excluir a tarefa atual - queremos mostrar o tempo disponível real
+                                    const tempoDisponivel = calcularTempoDisponivel(responsavelId, periodo, horasContratadasPorResponsavel, tempoEstimadoDia, tarefasParaCalculo, null);
+
+                                    // Exibir sempre: positivo (azul), zero (azul com "0"), negativo (vermelho com "-")
+                                    if (tempoDisponivel !== undefined && tempoDisponivel !== null) {
+                                      const isExcedido = tempoDisponivel < 0;
+                                      const isZero = tempoDisponivel === 0;
+
+                                      return (
+                                        <div
+                                          style={{
+                                            padding: '4px 8px',
+                                            backgroundColor: isExcedido ? '#fef2f2' : '#f0f9ff',
+                                            border: `1px solid ${isExcedido ? '#ef4444' : '#0ea5e9'}`,
+                                            borderRadius: '4px',
+                                            fontSize: '11px',
+                                            color: isExcedido ? '#991b1b' : '#0c4a6e',
+                                            fontWeight: '500',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            whiteSpace: 'nowrap',
+                                            boxSizing: 'border-box',
+                                            cursor: 'help',
+                                            position: 'relative'
+                                          }}
+                                          title={isExcedido ? "Tempo excedido" : "Disponível"}
+                                        >
+                                          <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {isExcedido ? `-${formatarTempoEstimado(Math.abs(tempoDisponivel), false)}` : formatarTempoEstimado(tempoDisponivel, false)}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                              )}
+                              {/* Campo de tempo estimado - mostrar apenas se showTempoEstimado=true e tarefa selecionada */}
+                              {showTempoEstimado && tarefa.selecionada && (
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px',
+                                    marginRight: '8px',
+                                    pointerEvents: 'auto',
+                                    position: 'relative',
+                                    zIndex: 10
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  <TempoEstimadoInput
+                                    value={tempoEstimadoDia[`${String(produtoIdNum).trim()}_${String(tarefa.id).trim()}`] || tempoEstimadoDia[String(tarefa.id).trim()] || 0}
+                                    onChange={(tempoEmMs) => {
+                                      if (onTempoChange) {
+                                        onTempoChange(produtoIdNum, tarefa.id, tempoEmMs);
+                                      }
+                                    }}
+                                    disabled={disabledTempo}
+                                  />
+                                </div>
+                              )}
+                              {tarefa.ehExcecao === true && (
+                                <span style={{
+                                  fontSize: '10px',
+                                  padding: '2px 6px',
+                                  backgroundColor: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffd8a8',
+                                  color: tarefa.selecionada ? 'white' : '#fd7e14',
+                                  borderRadius: '3px',
+                                  fontWeight: '500',
+                                  flexShrink: 0
+                                }}>
+                                  Exceção
+                                </span>
+                              )}
+                              {/* Botão para ver subtarefas - mostrar apenas se showSubtarefas=true */}
+                              {showSubtarefas && (tarefa.subtarefas?.length > 0 || subtarefasPorTarefa[tarefa.id]?.length > 0) && (
+                                <button
+                                  type="button"
+                                  title="Ver subtarefas"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const temSubtarefas = subtarefasPorTarefa[tarefa.id]?.length > 0;
+                                    if (!temSubtarefas && !carregandoSubtarefas[tarefa.id]) {
+                                      carregarSubtarefasTarefa(tarefa.id, produtoIdNum);
+                                    }
+                                    setTarefasExpandidas(prev => ({
+                                      ...prev,
+                                      [tarefa.id]: !prev[tarefa.id]
+                                    }));
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    fontSize: '12px',
+                                    fontWeight: '500',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: '0.2s',
+                                    background: tarefa.selecionada ? 'rgba(255, 255, 255, 0.2)' : '#ffe4cc',
+                                    color: tarefa.selecionada ? 'white' : '#fd7e14',
+                                    border: tarefa.selecionada ? '1px solid rgba(255, 255, 255, 0.3)' : '1px solid #ffd8a8',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    flexShrink: 0
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (tarefa.selecionada) {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                                    } else {
+                                      e.currentTarget.style.background = '#ffd8a8';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (tarefa.selecionada) {
+                                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                                    } else {
+                                      e.currentTarget.style.background = '#ffe4cc';
+                                    }
+                                  }}
+                                >
+                                  {carregandoSubtarefas[tarefa.id] ? (
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                  ) : (
+                                    <>
+                                      <i className="fas fa-list-ul"></i>
+                                      Subtarefas {subtarefasPorTarefa[tarefa.id]?.length || tarefa.subtarefas?.length || 0}
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {/* Lista de subtarefas - mostrar apenas se showSubtarefas=true e tarefa expandida */}
+                          {showSubtarefas && tarefasExpandidas[tarefa.id] && subtarefasPorTarefa[tarefa.id] && (
+                            <div style={{
+                              marginLeft: '24px',
+                              marginTop: '8px',
+                              padding: '8px',
+                              backgroundColor: '#fff4e6',
+                              borderRadius: '4px',
+                              border: '1px solid #ffd8a8'
+                            }}>
+                              {subtarefasPorTarefa[tarefa.id].map(subtarefa => (
+                                <div key={subtarefa.id} style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '4px 8px',
+                                  marginBottom: '4px',
+                                  backgroundColor: subtarefa.selecionada ? '#ffedd5' : 'transparent',
+                                  borderRadius: '3px',
+                                  fontSize: '11px'
+                                }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={subtarefa.selecionada || false}
+                                    onChange={() => toggleSubtarefa(tarefa.id, subtarefa.id)}
+                                    style={{
+                                      margin: 0,
+                                      cursor: 'pointer',
+                                      width: '12px',
+                                      height: '12px',
+                                      flexShrink: 0
+                                    }}
+                                  />
+                                  <span style={{
+                                    flex: 1,
+                                    color: subtarefa.selecionada ? '#fd7e14' : '#92400e',
+                                    fontWeight: subtarefa.selecionada ? '500' : '400'
+                                  }}>
+                                    {subtarefa.nome}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      ))}
                     </>
                   );
                 })()}
@@ -1746,7 +1758,7 @@ const SelecaoTarefasPorProduto = ({
           </div>
         );
       })}
-      
+
       {/* Mensagem de validação de tempo total - mostrar apenas se showTempoEstimado=true */}
       {showTempoEstimado && horasDisponiveisDia != null && Object.keys(tarefasPorProduto).length > 0 && (() => {
         let totalTempoMs = 0;
@@ -1760,21 +1772,21 @@ const SelecaoTarefasPorProduto = ({
           });
         });
         const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
-        
+
         if (totalHorasPorDia > 0) {
           const estaExcedendo = totalHorasPorDia > horasDisponiveisDia;
-          
+
           return (
-            <div style={{ 
-              marginTop: '16px', 
-              padding: '12px', 
+            <div style={{
+              marginTop: '16px',
+              padding: '12px',
               backgroundColor: estaExcedendo ? '#fef2f2' : '#f0fdf4',
               border: `1px solid ${estaExcedendo ? '#fecaca' : '#bbf7d0'}`,
               borderRadius: '6px'
             }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: '8px',
                 fontSize: '12px',
                 color: estaExcedendo ? '#dc2626' : '#16a34a',
