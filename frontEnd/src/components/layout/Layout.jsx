@@ -15,9 +15,9 @@ const Layout = ({ children }) => {
         <div className="header-container">
           <div className="header-left">
             <div className="header-logo">
-              <img 
-                src="/assets/images/LOGO DO SISTEMA .png" 
-                alt="UP Gestão Inteligente" 
+              <img
+                src="/assets/images/LOGO DO SISTEMA .png"
+                alt="UP Gestão Inteligente"
                 className="header-logo-img"
                 onError={(e) => {
                   // Fallback se a imagem não for encontrada
@@ -26,9 +26,10 @@ const Layout = ({ children }) => {
               />
             </div>
           </div>
-          
+
           {/* Timer ativo e perfil de usuário no header (apenas desktop) */}
           <div className="header-right">
+            <div id="header-extra-content"></div>
             <TimerAtivo />
             <div className="header-user-profile">
               <UserProfile />
@@ -36,10 +37,10 @@ const Layout = ({ children }) => {
           </div>
         </div>
       </header>
-      
+
       {/* Conteúdo principal */}
       {children}
-      
+
       {/* Container de notificações toast */}
       <div id="toastContainer" className="toast-container" aria-live="polite" aria-atomic="true"></div>
     </>

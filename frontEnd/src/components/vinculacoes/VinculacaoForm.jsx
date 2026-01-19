@@ -45,7 +45,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   const [produtos, setProdutos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Estados de loading individuais para cada seção
   const [savingSecao1, setSavingSecao1] = useState(false);
   const [savingSecao2, setSavingSecao2] = useState(false);
@@ -119,7 +119,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       if (!tiposTarefaCarregados) {
         loadTiposTarefa();
       }
-      
+
       // Se já estão carregados, buscar tarefas do produto
       if (tarefasCarregadas && tiposTarefaCarregados) {
         loadTarefasPorProduto(produtoSelecionado);
@@ -163,7 +163,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Carregar tipos de tarefa sob demanda (com cache)
   const loadTiposTarefa = async (forceRefresh = false) => {
     if (!forceRefresh && (tiposTarefaCarregados || tiposTarefa.length > 0)) return;
-    
+
     setLoading(true);
     try {
       const tiposRes = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
@@ -187,7 +187,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Carregar tarefas sob demanda (com cache)
   const loadTarefas = async (forceRefresh = false) => {
     if (!forceRefresh && (tarefasCarregadas || tarefas.length > 0)) return;
-    
+
     setLoading(true);
     try {
       const tarefasRes = await fetch(`${API_BASE_URL}/tarefa?limit=1000`, {
@@ -211,7 +211,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Carregar subtarefas sob demanda
   const loadSubtarefas = async () => {
     if (subtarefasCarregadas || subtarefas.length > 0) return;
-    
+
     setLoading(true);
     try {
       const subtarefasRes = await fetch(`${API_BASE_URL}/subtarefa?limit=1000`, {
@@ -235,7 +235,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Carregar produtos sob demanda
   const loadProdutos = async (forceRefresh = false) => {
     if (!forceRefresh && (produtosCarregados || produtos.length > 0)) return;
-    
+
     setLoading(true);
     try {
       const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
@@ -259,7 +259,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Carregar clientes sob demanda
   const loadClientes = async (forceRefresh = false) => {
     if (!forceRefresh && (clientesCarregados || clientes.length > 0)) return;
-    
+
     setLoading(true);
     try {
       const clientesRes = await fetch(`${API_BASE_URL}/clientes?limit=10000`, {
@@ -311,7 +311,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefasNaoVinculadas = [];
       if (response.ok) {
         const result = await response.json();
@@ -325,10 +325,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefasVinculadasIds = [];
       let tarefasVinculadasComNomes = [];
-      
+
       if (responseVinculadas.ok) {
         const resultVinculadas = await responseVinculadas.json();
         if (resultVinculadas.success && resultVinculadas.data) {
@@ -337,14 +337,14 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             const vTipoId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
             return vTipoId === tipoTarefaId && v.cp_tarefa;
           });
-          
+
           // Extrair IDs únicos das tarefas já vinculadas
           tarefasVinculadasIds = [...new Set(
             vinculadosDoTipo
               .map(v => parseInt(v.cp_tarefa, 10))
               .filter(id => !isNaN(id))
           )];
-          
+
           // Buscar nomes das tarefas vinculadas
           if (tarefasVinculadasIds.length > 0) {
             // Buscar na lista de todas as tarefas carregadas
@@ -372,9 +372,9 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           todasTarefas.push(tarefaVinculada);
         }
       });
-      
+
       setTarefasDoTipoDisponiveis(todasTarefas);
-      
+
       // 4. Pré-selecionar tarefas já vinculadas (para permitir edição/remoção)
       // Isso funciona tanto para criação quanto edição
       if (tarefasVinculadasIds.length > 0) {
@@ -397,12 +397,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       if (tipoTarefaId !== null) {
         url += `&tarefaTipoId=${tipoTarefaId}`;
       }
-      
+
       const response = await fetch(url, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let todasSubtarefas = [];
       if (response.ok) {
         const result = await response.json();
@@ -416,9 +416,9 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let subtarefasVinculadasIds = [];
-      
+
       if (responseVinculadas.ok) {
         const resultVinculadas = await responseVinculadas.json();
         if (resultVinculadas.success && resultVinculadas.data) {
@@ -433,7 +433,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             }
             return matchTarefa;
           });
-          
+
           // Extrair IDs únicos das subtarefas já vinculadas
           subtarefasVinculadasIds = [...new Set(
             vinculadosDaTarefa
@@ -442,9 +442,9 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           )];
         }
       }
-      
+
       setSubtarefasDaTarefaDisponiveis(todasSubtarefas);
-      
+
       // 3. Pré-selecionar subtarefas já vinculadas (para permitir edição/remoção)
       // Isso funciona tanto para criação quanto edição
       if (subtarefasVinculadasIds.length > 0) {
@@ -469,10 +469,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefasComTiposDisponiveis = [];
       const tarefasComTiposMap = new Map();
-      
+
       if (responseTarefasDisponiveis.ok) {
         const resultTarefasDisponiveis = await responseTarefasDisponiveis.json();
         if (resultTarefasDisponiveis.success && resultTarefasDisponiveis.data) {
@@ -480,17 +480,17 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           const vinculadosTarefaTipo = resultTarefasDisponiveis.data.filter(v => {
             return v.cp_tarefa && v.cp_tarefa_tipo && !v.cp_produto && !v.cp_cliente && !v.cp_subtarefa;
           });
-          
+
           // Extrair tarefas únicas com seus tipos
           vinculadosTarefaTipo.forEach(v => {
             const tarefaId = parseInt(v.cp_tarefa, 10);
             const tipoTarefaId = parseInt(v.cp_tarefa_tipo, 10);
             const key = `${tarefaId}-${tipoTarefaId}`;
-            
+
             if (!tarefasComTiposMap.has(key) && !isNaN(tarefaId) && !isNaN(tipoTarefaId)) {
               const tarefaNome = v.tarefa_nome || tarefas.find(t => t.id === tarefaId)?.nome || `Tarefa ${tarefaId}`;
               const tipoTarefaNome = v.tipo_tarefa_nome || tiposTarefa.find(t => t.id === tipoTarefaId)?.nome || `Tipo ${tipoTarefaId}`;
-              
+
               tarefasComTiposMap.set(key, {
                 tarefaId,
                 tarefaNome,
@@ -499,21 +499,21 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               });
             }
           });
-          
+
           tarefasComTiposDisponiveis = Array.from(tarefasComTiposMap.values());
         }
       }
-      
+
       // 2. Buscar tarefas JÁ vinculadas a este produto (para mostrar e permitir editar)
       // IMPORTANTE: Buscar TODAS as vinculações (com ou sem subtarefa), pois na seção 3 salvamos com subtarefas
       const responseVinculadas = await fetch(`${API_BASE_URL}/vinculados?filtro_produto=true&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefasVinculadasChaves = [];
       const tarefasVinculadasMap = new Map(); // Map para agrupar por tarefa+tipo
-      
+
       if (responseVinculadas.ok) {
         const resultVinculadas = await responseVinculadas.json();
         if (resultVinculadas.success && resultVinculadas.data) {
@@ -523,15 +523,15 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
             return vProdutoId === produtoId && v.cp_tarefa && !v.cp_cliente;
           });
-          
+
           // Agrupar vinculações por tarefa+tipo (uma tarefa pode ter múltiplas vinculações com subtarefas diferentes)
           vinculadosDoProduto.forEach(v => {
             const tarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
             const tipoTarefaId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
-            
+
             if (tarefaId) {
               let tipoIdFinal = tipoTarefaId;
-              
+
               // Se não tem tipo, tentar buscar na lista de tarefas disponíveis
               if (!tipoIdFinal) {
                 const tarefaComTipo = tarefasComTiposDisponiveis.find(tt => tt.tarefaId === tarefaId);
@@ -539,10 +539,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   tipoIdFinal = tarefaComTipo.tipoTarefaId;
                 }
               }
-              
+
               // Criar chave composta
               const key = tipoIdFinal ? `${tarefaId}-${tipoIdFinal}` : `${tarefaId}-null`;
-              
+
               // Adicionar ao map (se já existe, não precisa adicionar novamente)
               if (!tarefasVinculadasMap.has(key)) {
                 tarefasVinculadasMap.set(key, {
@@ -554,23 +554,23 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               }
             }
           });
-          
+
           // Converter map em array de chaves
           tarefasVinculadasChaves = Array.from(tarefasVinculadasMap.keys());
-          
+
           console.log(`📋 [Seção 3] Tarefas vinculadas ao produto ${produtoId}:`, {
             totalVinculados: vinculadosDoProduto.length,
             tarefasUnicas: tarefasVinculadasChaves.length,
             chaves: tarefasVinculadasChaves
           });
-          
+
           // Adicionar tarefas vinculadas à lista de disponíveis se não estiverem lá
           tarefasVinculadasMap.forEach((info, key) => {
             const keyExiste = tarefasComTiposDisponiveis.find(tt => {
               const ttKey = tt.tipoTarefaId ? `${tt.tarefaId}-${tt.tipoTarefaId}` : `${tt.tarefaId}-null`;
               return ttKey === key;
             });
-            
+
             if (!keyExiste && info.tipoTarefaId) {
               tarefasComTiposDisponiveis.push({
                 tarefaId: info.tarefaId,
@@ -585,7 +585,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 3. Mostrar todas as tarefas disponíveis (tarefas que têm vínculos tipo-tarefa)
       setTarefasDoProdutoComTipos(tarefasComTiposDisponiveis);
-      
+
       // 4. Pré-selecionar tarefas já vinculadas ao produto (para permitir edição/remoção)
       if (tarefasVinculadasChaves.length > 0) {
         console.log(`✅ [Seção 3] Marcando ${tarefasVinculadasChaves.length} tarefa(s) como selecionada(s) para o produto ${produtoId}`);
@@ -606,13 +606,13 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Função auxiliar para recarregar tarefas com tipos
   const recarregarTarefasComTipos = async () => {
     if (tiposTarefa.length === 0 || tarefas.length === 0) return;
-    
+
     try {
       const vinculadosTipoTarefaRes = await fetch(`${API_BASE_URL}/vinculados?filtro_tipo_atividade=true&filtro_atividade=true&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       if (vinculadosTipoTarefaRes.ok) {
         const vinculadosData = await vinculadosTipoTarefaRes.json();
         if (vinculadosData.success && vinculadosData.data) {
@@ -645,7 +645,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Função para carregar tarefas da seção 4 (após salvar)
   const loadTarefasSecao4 = async () => {
     if (!clienteSelecionado || produtosDoClienteSelecionados.length === 0) return;
-    
+
     try {
       // Buscar tarefas dos produtos para este cliente específico
       const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteSelecionado}&produtoIds=${produtosDoClienteSelecionados.join(',')}`, {
@@ -658,16 +658,16 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         if (result.success && result.data) {
           // Atualizar tarefas selecionadas por produto
           const novasTarefasSelecionadas = {};
-          
+
           result.data.forEach(item => {
             const produtoId = item.produtoId;
             novasTarefasSelecionadas[produtoId] = {};
-            
+
             (item.tarefas || []).forEach(tarefa => {
               const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
               const subtarefasVinculadas = tarefa.subtarefasVinculadasCliente || [];
               const temSubtarefasVinculadas = subtarefasVinculadas.length > 0;
-              
+
               // Marcar tarefa como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
               // Uma tarefa vinculada ao cliente deve aparecer marcada independentemente de ser exceção
               if (estaVinculadaAoCliente || temSubtarefasVinculadas) {
@@ -678,7 +678,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               }
             });
           });
-          
+
           setTarefasSelecionadasPorProdutoSecao4(novasTarefasSelecionadas);
           console.log('✅ Tarefas da seção 4 recarregadas após salvar:', novasTarefasSelecionadas);
         }
@@ -692,38 +692,38 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   // Esta função é chamada após salvar qualquer seção para manter todos os dados sincronizados
   const atualizarTodosComponentesRelacionados = async () => {
     console.log('🔄 Atualizando todos os componentes relacionados...');
-    
+
     try {
       // 1. Sempre recarregar tarefas com tipos (afeta Seção 2 e outras seções)
       await recarregarTarefasComTipos();
-      
+
       // 2. Se há tipo de tarefa selecionado na Seção 1, recarregar tarefas do tipo
       if (tipoTarefaSelecionado) {
         await loadTarefasPorTipo(tipoTarefaSelecionado);
       }
-      
+
       // 3. Se há tarefa selecionada na Seção 2, recarregar subtarefas
       if (tarefaSelecionada && tipoTarefaDaTarefaSelecionada) {
         await loadSubtarefasPorTarefa(tarefaSelecionada, tipoTarefaDaTarefaSelecionada);
       }
-      
+
       // 4. Se há produto selecionado na Seção 3, recarregar tarefas do produto
       if (produtoSelecionado) {
         await loadTarefasPorProduto(produtoSelecionado);
       }
-      
+
       // 5. Se há cliente selecionado na Seção 4, recarregar produtos do cliente
       if (clienteSelecionado) {
         await loadProdutosPorCliente(clienteSelecionado);
       }
-      
+
       // 6. Se há cliente e produtos selecionados na Seção 4, recarregar tarefas
       if (clienteSelecionado && produtosDoClienteSelecionados.length > 0) {
         await loadTarefasSecao4();
         // Incrementar contador para forçar recarregamento do componente SelecaoTarefasPorProduto
         setRefreshTarefasSecao4(prev => prev + 1);
       }
-      
+
       console.log('✅ Todos os componentes relacionados foram atualizados');
     } catch (error) {
       console.error('❌ Erro ao atualizar componentes relacionados:', error);
@@ -732,67 +732,46 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
   const loadProdutosPorCliente = async (clienteId) => {
     try {
-      // Buscar produtos que têm vínculos (produtos vinculados a tarefas, similar às outras seções)
-      // Isso busca na tabela vinculados apenas produtos que têm vinculações
-      const responseVinculadas = await fetch(`${API_BASE_URL}/vinculados?filtro_produto=true&limit=1000`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-      
-      let produtosComVinculosIds = [];
-      let produtosComVinculosComNomes = [];
-      
-      if (responseVinculadas.ok) {
-        const resultVinculadas = await responseVinculadas.json();
-        if (resultVinculadas.success && resultVinculadas.data) {
-          // Filtrar apenas vinculados que têm produto e não têm cliente (produtos com vínculos de tarefas)
-          const vinculadosComProduto = resultVinculadas.data.filter(v => {
-            return v.cp_produto && !v.cp_cliente; // Produtos com vínculos (sem cliente ainda)
+      // 1. Garantir que temos todos os produtos carregados
+      let todosProdutos = [...produtos];
+
+      // Se a lista de produtos estiver vazia, tentar carregar novamente ou usar o que vier da API
+      if (todosProdutos.length === 0) {
+        try {
+          const produtosRes = await fetch(`${API_BASE_URL}/produtos?limit=1000`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
           });
-          
-          // Extrair IDs únicos dos produtos que têm vínculos
-          produtosComVinculosIds = [...new Set(
-            vinculadosComProduto
-              .map(v => parseInt(v.cp_produto, 10))
-              .filter(id => !isNaN(id))
-          )];
-          
-          // Buscar nomes dos produtos com vínculos
-          if (produtosComVinculosIds.length > 0) {
-            // Buscar na lista de todos os produtos carregados
-            produtosComVinculosComNomes = produtosComVinculosIds.map(produtoId => {
-              const produto = produtos.find(p => p.id === produtoId);
-              if (produto) {
-                return { id: produtoId, nome: produto.nome };
-              }
-              // Se não encontrou na lista, buscar pelo nome do vinculado
-              const vinculado = vinculadosComProduto.find(v => parseInt(v.cp_produto, 10) === produtoId);
-              if (vinculado && vinculado.produto_nome) {
-                return { id: produtoId, nome: vinculado.produto_nome };
-              }
-              return null;
-            }).filter(Boolean);
+          if (produtosRes.ok) {
+            const produtosData = await produtosRes.json();
+            if (produtosData.success) {
+              todosProdutos = produtosData.data || [];
+              setProdutos(todosProdutos);
+              setProdutosCarregados(true);
+            }
           }
+        } catch (e) {
+          console.error('Erro ao buscar lista completa de produtos:', e);
         }
       }
 
-      // Buscar produtos JÁ vinculados a este cliente (para mostrar e permitir editar)
+      // 2. Buscar produtos JÁ vinculados a este cliente (para pré-selecionar)
       const responseCliente = await fetch(`${API_BASE_URL}/vinculados?filtro_cliente=true&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let produtosVinculadosAoClienteIds = [];
-      
+
       if (responseCliente.ok) {
         const resultCliente = await responseCliente.json();
         if (resultCliente.success && resultCliente.data) {
           // Filtrar apenas vinculados deste cliente
           const vinculadosDoCliente = resultCliente.data.filter(v => {
             const vClienteId = v.cp_cliente || '';
-            return vClienteId === clienteId && v.cp_produto;
+            return String(vClienteId) === String(clienteId) && v.cp_produto;
           });
-          
+
           // Extrair IDs únicos dos produtos já vinculados ao cliente
           produtosVinculadosAoClienteIds = [...new Set(
             vinculadosDoCliente
@@ -802,36 +781,33 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         }
       }
 
-      // Mostrar apenas produtos que têm vínculos (produtosComVinculosComNomes)
-      // Mas garantir que produtos já vinculados ao cliente também apareçam
-      const produtosDisponiveis = [...produtosComVinculosComNomes];
-      
-      // Adicionar produtos já vinculados ao cliente que não estão na lista de produtos com vínculos
-      if (produtosVinculadosAoClienteIds.length > 0) {
-        produtosVinculadosAoClienteIds.forEach(produtoId => {
-          if (!produtosDisponiveis.find(p => p.id === produtoId)) {
-            const produto = produtos.find(p => p.id === produtoId);
-            if (produto) {
-              produtosDisponiveis.push({ id: produtoId, nome: produto.nome });
-            }
-          }
-        });
-      }
-      
+      // 3. Definir produtos disponíveis como TODOS os produtos do sistema
+      // O usuário solicitou que traga todos os produtos, independente de vínculo prévio com tarefas
+      const produtosDisponiveis = todosProdutos.map(p => ({
+        id: p.id,
+        nome: p.nome
+      }));
+
+      // Ordenar alfabeticamente
+      produtosDisponiveis.sort((a, b) => a.nome.localeCompare(b.nome));
+
       setProdutosDoClienteDisponiveis(produtosDisponiveis);
-      
-      // Pré-selecionar produtos já vinculados ao cliente (para permitir edição/remoção)
+
+      // 4. Pré-selecionar produtos já vinculados ao cliente
       if (produtosVinculadosAoClienteIds.length > 0) {
-        setProdutosDoClienteSelecionados(produtosVinculadosAoClienteIds);
-        // Guardar o estado original para comparar depois (para detectar mudanças)
-        setProdutosDoClienteVinculadosOriginalmente(produtosVinculadosAoClienteIds);
+        const idsValidos = produtosVinculadosAoClienteIds.filter(id =>
+          produtosDisponiveis.some(p => p.id === id)
+        );
+        setProdutosDoClienteSelecionados(idsValidos);
+        // Guardar o estado original para comparar depois
+        setProdutosDoClienteVinculadosOriginalmente(idsValidos);
       } else {
-        // Se não há vinculações existentes, limpar estado original
         setProdutosDoClienteSelecionados([]);
         setProdutosDoClienteVinculadosOriginalmente([]);
       }
     } catch (error) {
       console.error('Erro ao carregar produtos do cliente:', error);
+      showToast('error', 'Erro ao carregar produtos do cliente.');
     }
   };
 
@@ -974,7 +950,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         const [tarefaIdStr, tipoTarefaIdStr] = chaveComposta.split('-');
         const tarefaDoProdutoId = parseInt(tarefaIdStr, 10);
         const tipoTarefaDoProdutoId = tipoTarefaIdStr === 'null' || tipoTarefaIdStr === '' ? null : parseInt(tipoTarefaIdStr, 10);
-        
+
         // Buscar subtarefas desta tarefa (combinando tarefa_id + tarefa_tipo_id)
         let subtarefasDaTarefa = [];
         try {
@@ -983,12 +959,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           if (tipoTarefaDoProdutoId !== null) {
             url += `&tarefaTipoId=${tipoTarefaDoProdutoId}`;
           }
-          
+
           const responseSubtarefas = await fetch(url, {
             credentials: 'include',
             headers: { 'Accept': 'application/json' }
           });
-          
+
           if (responseSubtarefas.ok) {
             const resultSubtarefas = await responseSubtarefas.json();
             if (resultSubtarefas.success && resultSubtarefas.data) {
@@ -998,7 +974,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         } catch (error) {
           console.error('Erro ao buscar subtarefas da tarefa:', error);
         }
-        
+
         if (subtarefasDaTarefa.length > 0) {
           // Se há subtarefas, criar uma vinculação para cada subtarefa
           subtarefasDaTarefa.forEach(subtarefaId => {
@@ -1056,19 +1032,19 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (responseBuscar.ok) {
           const resultBuscar = await responseBuscar.json();
           if (resultBuscar.success && resultBuscar.data) {
             // Para cada produto selecionado
-      produtosIds.forEach(produtoDoClienteId => {
+            produtosIds.forEach(produtoDoClienteId => {
               // Buscar todas as vinculações deste produto (sem cliente)
               const vinculadosDoProduto = resultBuscar.data.filter(v => {
                 const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
-                return vProdutoId === produtoDoClienteId && 
-                       !v.cp_cliente; // Apenas vinculações produto (sem cliente)
+                return vProdutoId === produtoDoClienteId &&
+                  !v.cp_cliente; // Apenas vinculações produto (sem cliente)
               });
-              
+
               // Para cada vinculação do produto, criar uma nova vinculação com cliente
               vinculadosDoProduto.forEach(vinculado => {
                 combinacoes.push({
@@ -1079,16 +1055,16 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   cp_cliente: clienteId
                 });
               });
-              
+
               // Se não há vinculações do produto (apenas produto sem tarefas), criar vinculação simples
               if (vinculadosDoProduto.length === 0) {
-        combinacoes.push({
-          cp_tarefa_tipo: null,
-          cp_tarefa: null,
-          cp_subtarefa: null,
-          cp_produto: produtoDoClienteId,
-          cp_cliente: clienteId
-        });
+                combinacoes.push({
+                  cp_tarefa_tipo: null,
+                  cp_tarefa: null,
+                  cp_subtarefa: null,
+                  cp_produto: produtoDoClienteId,
+                  cp_cliente: clienteId
+                });
               }
             });
           }
@@ -1104,17 +1080,17 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             cp_produto: produtoDoClienteId,
             cp_cliente: clienteId
           });
-      });
+        });
       }
     }
 
     // Filtrar combinações vazias (onde todos os campos são null)
     return combinacoes.filter(combinacao => {
       return combinacao.cp_tarefa_tipo !== null ||
-             combinacao.cp_tarefa !== null ||
-             combinacao.cp_subtarefa !== null ||
-             combinacao.cp_produto !== null ||
-             combinacao.cp_cliente !== null;
+        combinacao.cp_tarefa !== null ||
+        combinacao.cp_subtarefa !== null ||
+        combinacao.cp_produto !== null ||
+        combinacao.cp_cliente !== null;
     });
   };
 
@@ -1140,16 +1116,16 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (responseBuscar.ok) {
           const resultBuscar = await responseBuscar.json();
           if (resultBuscar.success && resultBuscar.data) {
             vinculadosExistentes = resultBuscar.data.filter(v => {
               const vTipoId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
-              return vTipoId === tipoTarefaSelecionado && 
-                     !v.cp_produto && 
-                     !v.cp_cliente && 
-                     !v.cp_subtarefa;
+              return vTipoId === tipoTarefaSelecionado &&
+                !v.cp_produto &&
+                !v.cp_cliente &&
+                !v.cp_subtarefa;
             });
           }
         }
@@ -1170,7 +1146,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (!responseDelete.ok) {
               console.warn(`⚠️ Erro ao deletar vinculado ${vinculado.id}:`, responseDelete.status);
             }
@@ -1193,7 +1169,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // 4. SALVAR novas vinculações
       if (novasCombinacoes.length > 0) {
         console.log(`💾 Salvando ${novasCombinacoes.length} nova(s) vinculação(ões)`);
-        
+
         if (onSubmit) {
           await onSubmit(novasCombinacoes);
         } else {
@@ -1215,11 +1191,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             setSavingSecao1(false);
             return;
           }
-          
+
           const result = await response.json().catch(() => ({}));
           console.log('✅ Vinculações criadas com sucesso:', result);
         }
-        
+
         showToast('success', `Seção 1 salva com sucesso! ${novasCombinacoes.length} vinculação(ões) criada(s).`);
       } else {
         console.log('ℹ️ Nenhuma vinculação para criar');
@@ -1228,10 +1204,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 5. Atualizar estado original
       setTarefasVinculadasOriginalmente(tarefasDoTipoSelecionadas);
-      
+
       // 6. Atualizar todos os componentes relacionados
       await atualizarTodosComponentesRelacionados();
-      
+
     } catch (error) {
       console.error('❌ Erro inesperado ao salvar Seção 1:', error);
       showToast('error', `Erro ao salvar Seção 1: ${error.message || 'Erro desconhecido'}`);
@@ -1263,18 +1239,18 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (responseBuscar.ok) {
           const resultBuscar = await responseBuscar.json();
           if (resultBuscar.success && resultBuscar.data) {
             vinculadosExistentes = resultBuscar.data.filter(v => {
               const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
               const vTipoTarefaId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
-              return vTarefaId === tarefaSelecionada && 
-                     vTipoTarefaId === tipoTarefaDaTarefaSelecionada &&
-                     v.cp_subtarefa &&
-                     !v.cp_produto && 
-                     !v.cp_cliente;
+              return vTarefaId === tarefaSelecionada &&
+                vTipoTarefaId === tipoTarefaDaTarefaSelecionada &&
+                v.cp_subtarefa &&
+                !v.cp_produto &&
+                !v.cp_cliente;
             });
           }
         }
@@ -1295,7 +1271,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (!responseDelete.ok) {
               console.warn(`⚠️ Erro ao deletar vinculado ${vinculado.id}:`, responseDelete.status);
             }
@@ -1318,7 +1294,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // 4. SALVAR novas vinculações
       if (novasCombinacoes.length > 0) {
         console.log(`💾 Salvando ${novasCombinacoes.length} nova(s) vinculação(ões)`);
-        
+
         if (onSubmit) {
           await onSubmit(novasCombinacoes);
         } else {
@@ -1340,11 +1316,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             setSavingSecao2(false);
             return;
           }
-          
+
           const result = await response.json().catch(() => ({}));
           console.log('✅ Vinculações criadas com sucesso:', result);
         }
-        
+
         showToast('success', `Seção 2 salva com sucesso! ${novasCombinacoes.length} vinculação(ões) criada(s).`);
       } else {
         console.log('ℹ️ Nenhuma vinculação para criar');
@@ -1353,10 +1329,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 5. Atualizar estado original
       setSubtarefasVinculadasOriginalmente(subtarefasDaTarefaSelecionadas);
-      
+
       // 6. Atualizar todos os componentes relacionados
       await atualizarTodosComponentesRelacionados();
-      
+
     } catch (error) {
       console.error('❌ Erro inesperado ao salvar Seção 2:', error);
       showToast('error', `Erro ao salvar Seção 2: ${error.message || 'Erro desconhecido'}`);
@@ -1387,7 +1363,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (responseBuscar.ok) {
           const resultBuscar = await responseBuscar.json();
           if (resultBuscar.success && resultBuscar.data) {
@@ -1414,7 +1390,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (!responseDelete.ok) {
               console.warn(`⚠️ Erro ao deletar vinculado ${vinculado.id}:`, responseDelete.status);
             }
@@ -1427,12 +1403,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 3. CRIAR novas vinculações baseadas na seleção atual
       const novasCombinacoes = [];
-      
+
       for (const chaveComposta of tarefasDoProdutoSelecionadas) {
         const [tarefaIdStr, tipoTarefaIdStr] = chaveComposta.split('-');
         const tarefaId = parseInt(tarefaIdStr, 10);
         const tipoTarefaId = tipoTarefaIdStr === 'null' || tipoTarefaIdStr === '' ? null : parseInt(tipoTarefaIdStr, 10);
-        
+
         // Buscar subtarefas desta tarefa
         let subtarefasDaTarefa = [];
         try {
@@ -1443,12 +1419,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           if (produtoSelecionado) {
             url += `&produtoId=${produtoSelecionado}`;
           }
-          
+
           const responseSubtarefas = await fetch(url, {
             credentials: 'include',
             headers: { 'Accept': 'application/json' }
           });
-          
+
           if (responseSubtarefas.ok) {
             const resultSubtarefas = await responseSubtarefas.json();
             if (resultSubtarefas.success && resultSubtarefas.data) {
@@ -1458,7 +1434,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         } catch (error) {
           console.error('Erro ao buscar subtarefas da tarefa:', error);
         }
-        
+
         // Se a tarefa tem subtarefas, criar vinculação para cada subtarefa
         if (subtarefasDaTarefa.length > 0) {
           subtarefasDaTarefa.forEach(subtarefaId => {
@@ -1485,7 +1461,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // 4. SALVAR novas vinculações
       if (novasCombinacoes.length > 0) {
         console.log(`💾 Salvando ${novasCombinacoes.length} nova(s) vinculação(ões)`);
-        
+
         if (onSubmit) {
           await onSubmit(novasCombinacoes);
         } else {
@@ -1507,11 +1483,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             setSavingSecao3(false);
             return;
           }
-          
+
           const result = await response.json().catch(() => ({}));
           console.log('✅ Vinculações criadas com sucesso:', result);
         }
-        
+
         showToast('success', `Seção 3 salva com sucesso! ${novasCombinacoes.length} vinculação(ões) criada(s).`);
       } else {
         console.log('ℹ️ Nenhuma vinculação para criar');
@@ -1520,10 +1496,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 5. Atualizar estado original
       setTarefasDoProdutoVinculadasOriginalmente(tarefasDoProdutoSelecionadas);
-      
+
       // 6. Atualizar todos os componentes relacionados
       await atualizarTodosComponentesRelacionados();
-      
+
     } catch (error) {
       console.error('Erro ao salvar Seção 3:', error);
       showToast('error', 'Erro ao salvar Seção 3. Tente novamente.');
@@ -1543,7 +1519,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
     setSavingSecao4(true);
     try {
       const clienteIdStr = String(clienteSelecionado).trim();
-      
+
       console.log('📊 Seção 4 - Iniciando salvamento:', {
         clienteId: clienteIdStr,
         produtosSelecionados: produtosDoClienteSelecionados,
@@ -1559,7 +1535,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
-        
+
         if (responseBuscar.ok) {
           const resultBuscar = await responseBuscar.json();
           if (resultBuscar.success && resultBuscar.data) {
@@ -1570,10 +1546,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
               const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
               // Incluir vinculações que têm cliente, produto e tarefa (exceções e padrão)
-              return vClienteId === clienteIdStr && 
-                     vProdutoId && 
-                     produtosDoClienteSelecionados.includes(vProdutoId) &&
-                     vTarefaId; // Apenas vinculações com tarefa (não produto-cliente direto)
+              return vClienteId === clienteIdStr &&
+                vProdutoId &&
+                produtosDoClienteSelecionados.includes(vProdutoId) &&
+                vTarefaId; // Apenas vinculações com tarefa (não produto-cliente direto)
             });
           }
         }
@@ -1596,7 +1572,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (!responseDelete.ok) {
               console.warn(`⚠️ Erro ao deletar vinculado ${vinculado.id}:`, responseDelete.status);
             }
@@ -1610,13 +1586,13 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // 3. CRIAR novas vinculações baseadas na seleção atual (apenas relacionamentos marcados)
       // IMPORTANTE: Apenas salvar relacionamentos Cliente → Produto → Tarefa → Subtarefa que foram marcados
       const novasCombinacoes = [];
-      
+
       // Buscar tarefas dos produtos para obter tipos de tarefa
       const responseTarefas = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteIdStr}&produtoIds=${produtosDoClienteSelecionados.join(',')}`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-      
+
       let tarefasPorProdutoData = {};
       if (responseTarefas.ok) {
         const resultTarefas = await responseTarefas.json().catch(() => ({ success: false, data: [] }));
@@ -1626,29 +1602,29 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
           });
         }
       }
-      
+
       // Processar cada produto selecionado
       for (const produtoId of produtosDoClienteSelecionados) {
         const tarefasDoProduto = tarefasPorProdutoData[produtoId] || [];
-        
+
         // Verificar se há tarefas selecionadas para este produto
         const tarefasSelecionadasMap = tarefasSelecionadasPorProdutoSecao4[produtoId] || {};
-        
+
         console.log(`📊 Processando produto ${produtoId}:`, {
           tarefasNaAPI: tarefasDoProduto.length,
           tarefasNoEstado: Object.keys(tarefasSelecionadasMap).length,
           tarefasSelecionadasMap: tarefasSelecionadasMap
         });
-        
+
         // Criar um mapa de tarefas da API para acesso rápido
         const tarefasDoProdutoMap = new Map();
         tarefasDoProduto.forEach(tarefa => {
           tarefasDoProdutoMap.set(tarefa.id, tarefa);
         });
-        
+
         // Obter tarefas selecionadas (incluindo tarefas que podem não estar na API ainda, como exceções recém-adicionadas)
         const tarefasSelecionadas = [];
-        
+
         // 1. Processar tarefas que estão na API
         tarefasDoProduto.forEach(tarefa => {
           const dados = tarefasSelecionadasMap[tarefa.id];
@@ -1668,20 +1644,20 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             });
           }
         });
-        
+
         // 2. Processar tarefas que estão no estado mas não estão na API (exceções recém-adicionadas)
         // IMPORTANTE: Tarefas adicionadas como exceção podem não estar na API ainda, mas devem ser salvas
         Object.entries(tarefasSelecionadasMap).forEach(([tarefaIdStr, dados]) => {
           const tarefaId = parseInt(tarefaIdStr, 10);
           // Se a tarefa não está na API mas está marcada como selecionada, incluir
           if (!tarefasDoProdutoMap.has(tarefaId)) {
-            const estaSelecionada = typeof dados === 'object' && dados !== null 
-              ? dados.selecionada === true 
+            const estaSelecionada = typeof dados === 'object' && dados !== null
+              ? dados.selecionada === true
               : dados === true;
-            
+
             if (estaSelecionada) {
               console.log(`📌 Incluindo tarefa ${tarefaId} que está no estado mas não está na API (exceção recém-adicionada)`, dados);
-              
+
               // Priorizar tipo de tarefa do estado (preservado quando a tarefa foi adicionada como exceção)
               let tipoTarefaEncontrado = null;
               if (typeof dados === 'object' && dados !== null && dados.tipoTarefa) {
@@ -1702,11 +1678,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   }
                 }
               }
-              
+
               if (!tipoTarefaEncontrado) {
                 console.warn(`  ⚠️ Tipo de tarefa não encontrado para tarefa ${tarefaId}`);
               }
-              
+
               tarefasSelecionadas.push({
                 tarefaId: tarefaId,
                 tipoTarefa: tipoTarefaEncontrado,
@@ -1715,14 +1691,14 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             }
           }
         });
-        
-        console.log(`✅ Produto ${produtoId}: ${tarefasSelecionadas.length} tarefa(s) selecionada(s) para salvar`, tarefasSelecionadas.map(t => ({ 
-          tarefaId: t.tarefaId, 
-          tipoTarefa: t.tipoTarefa?.id || t.tipoTarefa, 
+
+        console.log(`✅ Produto ${produtoId}: ${tarefasSelecionadas.length} tarefa(s) selecionada(s) para salvar`, tarefasSelecionadas.map(t => ({
+          tarefaId: t.tarefaId,
+          tipoTarefa: t.tipoTarefa?.id || t.tipoTarefa,
           subtarefas: t.subtarefas?.length || 0,
           subtarefasIds: t.subtarefas || []
         })));
-        
+
         // Criar vinculações para tarefas selecionadas
         if (tarefasSelecionadas.length > 0) {
           tarefasSelecionadas.forEach(({ tarefaId, tipoTarefa, subtarefas }) => {
@@ -1736,12 +1712,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                 tipoTarefaId = tipoTarefa;
               }
             }
-            
+
             console.log(`  📝 Criando vinculação para tarefa ${tarefaId} (tipo: ${tipoTarefaId}, subtarefas: ${subtarefas?.length || 0})`, {
               subtarefasIds: subtarefas || [],
               detalhes: subtarefas && subtarefas.length > 0 ? `Criando ${subtarefas.length} vínculo(s) de subtarefa(s)` : 'Criando vínculo apenas da tarefa (sem subtarefas)'
             });
-            
+
             if (subtarefas && subtarefas.length > 0) {
               // Criar vínculo para cada subtarefa selecionada
               subtarefas.forEach(subtarefaId => {
@@ -1776,7 +1752,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       console.log(`📊 Total de novas combinações a salvar: ${novasCombinacoes.length}`, novasCombinacoes.map(c => ({ tarefa: c.cp_tarefa, tipo: c.cp_tarefa_tipo, subtarefa: c.cp_subtarefa, produto: c.cp_produto, cliente: c.cp_cliente })));
       if (novasCombinacoes.length > 0) {
         console.log(`💾 Salvando ${novasCombinacoes.length} nova(s) vinculação(ões)`);
-        
+
         if (onSubmit) {
           await onSubmit(novasCombinacoes);
         } else {
@@ -1798,11 +1774,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             setSavingSecao4(false);
             return;
           }
-          
+
           const result = await response.json().catch(() => ({}));
           console.log('✅ Vinculações criadas com sucesso:', result);
         }
-        
+
         showToast('success', `Seção 4 salva com sucesso! ${novasCombinacoes.length} vinculação(ões) criada(s).`);
       } else {
         console.log('ℹ️ Nenhuma vinculação para criar');
@@ -1811,10 +1787,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
       // 6. Atualizar estado original
       setProdutosDoClienteVinculadosOriginalmente(produtosDoClienteSelecionados);
-      
+
       // 7. Atualizar todos os componentes relacionados
       await atualizarTodosComponentesRelacionados();
-      
+
     } catch (error) {
       console.error('❌ Erro inesperado ao salvar Seção 4:', error);
       showToast('error', `Erro ao salvar Seção 4: ${error.message || 'Erro desconhecido'}`);
@@ -1827,7 +1803,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
     e.preventDefault();
 
     // Validar que pelo menos uma seção tem seleções
-    const temSelecoes = 
+    const temSelecoes =
       (tipoTarefaSelecionado && tarefasDoTipoSelecionadas.length > 0) ||
       (tarefaSelecionada && subtarefasDaTarefaSelecionadas.length > 0) ||
       (produtoSelecionado && tarefasDoProdutoSelecionadas.length > 0) ||
@@ -1844,13 +1820,13 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // Comparar estado atual com estado original para detectar mudanças
       const tarefasAtuais = new Set(tarefasDoTipoSelecionadas);
       const tarefasOriginais = new Set(tarefasVinculadasOriginalmente);
-      
+
       // Tarefas novas (para criar) - apenas as que NÃO estavam na lista original
       const tarefasNovas = tarefasDoTipoSelecionadas.filter(id => !tarefasOriginais.has(id));
-      
+
       // Tarefas removidas (para deletar) - as que estavam na original mas não estão mais
       const tarefasRemovidas = tarefasVinculadasOriginalmente.filter(id => !tarefasAtuais.has(id));
-      
+
       console.log('📊 Seção 1 - Tipo de Tarefa → Tarefas:', {
         tipoTarefaId: tipoTarefaSelecionado,
         modo: tarefasVinculadasOriginalmente.length > 0 ? 'EDITAR' : 'CRIAR',
@@ -1866,7 +1842,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         // Não retornar, deixar continuar para outras seções
       } else {
         // Há mudanças para processar
-        
+
         // 1. REMOVER vinculações desmarcadas (se houver)
         if (tarefasRemovidas.length > 0) {
           try {
@@ -1875,19 +1851,19 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (responseBuscar.ok) {
               const resultBuscar = await responseBuscar.json();
               if (resultBuscar.success && resultBuscar.data) {
                 const vinculadosParaDeletar = resultBuscar.data.filter(v => {
                   const vTipoId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
                   const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
-                  return vTipoId === tipoTarefaSelecionado && 
-                         vTarefaId && 
-                         tarefasRemovidas.includes(vTarefaId) &&
-                         !v.cp_produto && 
-                         !v.cp_cliente && 
-                         !v.cp_subtarefa; // Apenas vinculações simples tipo-tarefa
+                  return vTipoId === tipoTarefaSelecionado &&
+                    vTarefaId &&
+                    tarefasRemovidas.includes(vTarefaId) &&
+                    !v.cp_produto &&
+                    !v.cp_cliente &&
+                    !v.cp_subtarefa; // Apenas vinculações simples tipo-tarefa
                 });
 
                 // Deletar cada vinculado
@@ -1898,7 +1874,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     headers: { 'Accept': 'application/json' }
                   });
                 }
-                
+
                 console.log(`✅ ${vinculadosParaDeletar.length} vinculação(ões) removida(s)`);
               }
             }
@@ -1918,21 +1894,21 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             cp_produto: null,
             cp_cliente: null
           }));
-          
+
           console.log('📋 Criando novas vinculações:', novasCombinacoes);
-          
+
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setTarefasVinculadasOriginalmente(tarefasDoTipoSelecionadas);
-          
+
           // Chamar onSubmit (os dados serão recarregados quando o usuário interagir com o componente)
           await onSubmit(novasCombinacoes);
-          
+
           return;
         } else {
           // Apenas removemos, sem criar novas
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setTarefasVinculadasOriginalmente(tarefasDoTipoSelecionadas);
-          
+
           showToast('success', 'Vinculação atualizada com sucesso!');
           return;
         }
@@ -1945,13 +1921,13 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // Comparar estado atual com estado original para detectar mudanças
       const subtarefasAtuais = new Set(subtarefasDaTarefaSelecionadas);
       const subtarefasOriginais = new Set(subtarefasVinculadasOriginalmente);
-      
+
       // Subtarefas novas (para criar) - apenas as que NÃO estavam na lista original
       const subtarefasNovas = subtarefasDaTarefaSelecionadas.filter(id => !subtarefasOriginais.has(id));
-      
+
       // Subtarefas removidas (para deletar) - as que estavam na original mas não estão mais
       const subtarefasRemovidas = subtarefasVinculadasOriginalmente.filter(id => !subtarefasAtuais.has(id));
-      
+
       console.log('📊 Seção 2 - Tarefa → Subtarefas:', {
         tarefaId: tarefaSelecionada,
         modo: subtarefasVinculadasOriginalmente.length > 0 ? 'EDITAR' : 'CRIAR',
@@ -1967,7 +1943,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         // Não retornar, deixar continuar para outras seções
       } else {
         // Há mudanças para processar
-        
+
         // 1. REMOVER vinculações desmarcadas (se houver)
         if (subtarefasRemovidas.length > 0) {
           try {
@@ -1976,7 +1952,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (responseBuscar.ok) {
               const resultBuscar = await responseBuscar.json();
               if (resultBuscar.success && resultBuscar.data) {
@@ -1984,12 +1960,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
                   const vTipoTarefaId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
                   const vSubtarefaId = v.cp_subtarefa ? parseInt(v.cp_subtarefa, 10) : null;
-                  return vTarefaId === tarefaSelecionada && 
-                         vTipoTarefaId === tipoTarefaDaTarefaSelecionada &&
-                         vSubtarefaId && 
-                         subtarefasRemovidas.includes(vSubtarefaId) &&
-                         !v.cp_produto && 
-                         !v.cp_cliente; // Deve ter tipo_tarefa_id correspondente, mas não deve ter produto nem cliente
+                  return vTarefaId === tarefaSelecionada &&
+                    vTipoTarefaId === tipoTarefaDaTarefaSelecionada &&
+                    vSubtarefaId &&
+                    subtarefasRemovidas.includes(vSubtarefaId) &&
+                    !v.cp_produto &&
+                    !v.cp_cliente; // Deve ter tipo_tarefa_id correspondente, mas não deve ter produto nem cliente
                 });
 
                 // Deletar cada vinculado
@@ -2000,7 +1976,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     headers: { 'Accept': 'application/json' }
                   });
                 }
-                
+
                 console.log(`✅ ${vinculadosParaDeletar.length} vinculação(ões) removida(s) da Seção 2`);
               }
             }
@@ -2021,21 +1997,21 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             cp_produto: null,
             cp_cliente: null
           }));
-          
+
           console.log('📋 Criando novas vinculações Seção 2:', novasCombinacoes);
-          
+
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setSubtarefasVinculadasOriginalmente(subtarefasDaTarefaSelecionadas);
-          
+
           // Chamar onSubmit (os dados serão recarregados quando o usuário interagir com o componente)
           await onSubmit(novasCombinacoes);
-          
+
           return;
         } else {
           // Apenas removemos, sem criar novas
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setSubtarefasVinculadasOriginalmente(subtarefasDaTarefaSelecionadas);
-          
+
           showToast('success', 'Vinculação atualizada com sucesso!');
           return;
         }
@@ -2048,16 +2024,16 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // Comparar estado atual com estado original para detectar mudanças
       const tarefasAtuais = new Set(tarefasDoProdutoSelecionadas);
       const tarefasOriginais = new Set(tarefasDoProdutoVinculadasOriginalmente);
-      
+
       // Tarefas novas (para criar) - apenas as que NÃO estavam na lista original
       const tarefasNovas = tarefasDoProdutoSelecionadas.filter(chave => !tarefasOriginais.has(chave));
-      
+
       // Tarefas existentes (para atualizar) - as que estão tanto na lista atual quanto na original
       const tarefasExistentes = tarefasDoProdutoSelecionadas.filter(chave => tarefasOriginais.has(chave));
-      
+
       // Tarefas removidas (para deletar) - as que estavam na original mas não estão mais
       const tarefasRemovidas = tarefasDoProdutoVinculadasOriginalmente.filter(chave => !tarefasAtuais.has(chave));
-      
+
       console.log('📊 Seção 3 - Produto → Tarefas:', {
         produtoId: produtoSelecionado,
         modo: tarefasDoProdutoVinculadasOriginalmente.length > 0 ? 'EDITAR' : 'CRIAR',
@@ -2074,7 +2050,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         // Não retornar, deixar continuar para outras seções
       } else {
         // Há mudanças para processar
-        
+
         // 1. REMOVER vinculações desmarcadas (se houver)
         // IMPORTANTE: Remover TODAS as vinculações relacionadas (tarefa + todas suas subtarefas)
         if (tarefasRemovidas.length > 0) {
@@ -2084,7 +2060,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (responseBuscar.ok) {
               const resultBuscar = await responseBuscar.json();
               if (resultBuscar.success && resultBuscar.data) {
@@ -2093,7 +2069,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   const [tarefaIdStr] = chave.split('-');
                   return parseInt(tarefaIdStr, 10);
                 });
-                
+
                 // Filtrar vinculados que devem ser deletados:
                 // - Do produto selecionado
                 // - Da tarefa removida (incluindo todas suas subtarefas)
@@ -2101,11 +2077,11 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                 const vinculadosParaDeletar = resultBuscar.data.filter(v => {
                   const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
                   const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
-                  
-                  return vProdutoId === produtoSelecionado && 
-                         vTarefaId && 
-                         tarefasIdsRemovidas.includes(vTarefaId) &&
-                         !v.cp_cliente;
+
+                  return vProdutoId === produtoSelecionado &&
+                    vTarefaId &&
+                    tarefasIdsRemovidas.includes(vTarefaId) &&
+                    !v.cp_cliente;
                 });
 
                 // Deletar cada vinculado (incluindo tarefa e subtarefas)
@@ -2116,7 +2092,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     headers: { 'Accept': 'application/json' }
                   });
                 }
-                
+
                 console.log(`✅ ${vinculadosParaDeletar.length} vinculação(ões) removida(s) da Seção 3 (incluindo subtarefas)`);
               }
             }
@@ -2136,7 +2112,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (responseBuscar.ok) {
               const resultBuscar = await responseBuscar.json();
               if (resultBuscar.success && resultBuscar.data) {
@@ -2146,7 +2122,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   const [tarefaIdStr, tipoTarefaIdStr] = chaveComposta.split('-');
                   const tarefaId = parseInt(tarefaIdStr, 10);
                   const tipoTarefaId = tipoTarefaIdStr === 'null' || tipoTarefaIdStr === '' ? null : parseInt(tipoTarefaIdStr, 10);
-                  
+
                   // Buscar subtarefas desta tarefa (combinando tarefa_id + tarefa_tipo_id)
                   let subtarefasDaTarefa = [];
                   try {
@@ -2158,12 +2134,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     if (produtoSelecionado) {
                       url += `&produtoId=${produtoSelecionado}`;
                     }
-                    
+
                     const responseSubtarefas = await fetch(url, {
                       credentials: 'include',
                       headers: { 'Accept': 'application/json' }
                     });
-                    
+
                     if (responseSubtarefas.ok) {
                       const resultSubtarefas = await responseSubtarefas.json();
                       if (resultSubtarefas.success && resultSubtarefas.data) {
@@ -2173,38 +2149,38 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   } catch (error) {
                     console.error('Erro ao buscar subtarefas da tarefa:', error);
                   }
-                  
+
                   // Buscar TODOS os vinculados existentes desta tarefa e produto (incluindo subtarefas)
                   const vinculadosExistentes = resultBuscar.data.filter(v => {
                     const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
                     const vTarefaId = v.cp_tarefa ? parseInt(v.cp_tarefa, 10) : null;
                     const vTipoTarefaId = v.cp_tarefa_tipo ? parseInt(v.cp_tarefa_tipo, 10) : null;
-                    
+
                     // Criar chave composta do vinculado
                     const chaveVinculado = vTipoTarefaId ? `${vTarefaId}-${vTipoTarefaId}` : `${vTarefaId}-null`;
-                    
-                    return vProdutoId === produtoSelecionado && 
-                           vTarefaId === tarefaId &&
-                           chaveVinculado === chaveComposta &&
-                           !v.cp_cliente;
+
+                    return vProdutoId === produtoSelecionado &&
+                      vTarefaId === tarefaId &&
+                      chaveVinculado === chaveComposta &&
+                      !v.cp_cliente;
                   });
-                  
+
                   // Coletar IDs de subtarefas já vinculadas
                   const subtarefasJaVinculadas = new Set(
                     vinculadosExistentes
                       .filter(v => v.cp_subtarefa)
                       .map(v => parseInt(v.cp_subtarefa, 10))
                   );
-                  
+
                   // Identificar subtarefas que precisam ser vinculadas
                   const subtarefasParaVincular = subtarefasDaTarefa.filter(
                     stId => !subtarefasJaVinculadas.has(stId)
                   );
-                  
+
                   // Separar vinculados com subtarefa e sem subtarefa
                   const vinculadosComSubtarefa = vinculadosExistentes.filter(v => v.cp_subtarefa);
                   const vinculadosSemSubtarefa = vinculadosExistentes.filter(v => !v.cp_subtarefa);
-                  
+
                   // Atualizar vinculados que JÁ TÊM subtarefa - apenas atualizar tipo e produto
                   for (const vinculado of vinculadosComSubtarefa) {
                     const dadosUpdate = {
@@ -2213,7 +2189,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       cp_produto: produtoSelecionado,
                       cp_subtarefa: parseInt(vinculado.cp_subtarefa, 10) // Manter a subtarefa existente
                     };
-                    
+
                     await fetch(`${API_BASE_URL}/vinculados/${vinculado.id}`, {
                       method: 'PUT',
                       credentials: 'include',
@@ -2224,7 +2200,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       body: JSON.stringify(dadosUpdate)
                     });
                   }
-                  
+
                   // Para vinculados SEM subtarefa: se há subtarefas, atualizar para incluir uma subtarefa
                   // IMPORTANTE: Mesmo que todas as subtarefas já estejam vinculadas em outros registros,
                   // devemos atualizar o vinculado sem subtarefa para incluir uma delas
@@ -2233,25 +2209,25 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     const subtarefasDisponiveis = subtarefasDaTarefa.filter(
                       stId => !subtarefasJaVinculadas.has(stId)
                     );
-                    
+
                     // Se não há subtarefas disponíveis (todas já estão vinculadas), usar a primeira subtarefa da tarefa
-                    const subtarefasParaUsar = subtarefasDisponiveis.length > 0 
-                      ? subtarefasDisponiveis 
+                    const subtarefasParaUsar = subtarefasDisponiveis.length > 0
+                      ? subtarefasDisponiveis
                       : subtarefasDaTarefa; // Usar todas as subtarefas se todas já estão vinculadas
-                    
+
                     // Atualizar cada vinculado sem subtarefa para incluir uma subtarefa
                     for (let i = 0; i < vinculadosSemSubtarefa.length; i++) {
                       // Usar a subtarefa correspondente (ou a primeira se não houver mais)
                       const subtarefaIndex = i < subtarefasParaUsar.length ? i : 0;
                       const subtarefa = subtarefasParaUsar[subtarefaIndex];
-                      
+
                       const dadosUpdate = {
                         cp_tarefa_tipo: tipoTarefaId,
                         cp_tarefa: tarefaId,
                         cp_produto: produtoSelecionado,
                         cp_subtarefa: subtarefa // SEMPRE incluir uma subtarefa se a tarefa tem subtarefas
                       };
-                      
+
                       await fetch(`${API_BASE_URL}/vinculados/${vinculadosSemSubtarefa[i].id}`, {
                         method: 'PUT',
                         credentials: 'include',
@@ -2261,7 +2237,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                         },
                         body: JSON.stringify(dadosUpdate)
                       });
-                      
+
                       // Marcar como vinculada (para evitar criar duplicatas)
                       if (!subtarefasJaVinculadas.has(subtarefa)) {
                         subtarefasJaVinculadas.add(subtarefa);
@@ -2276,7 +2252,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                         cp_produto: produtoSelecionado,
                         cp_subtarefa: null
                       };
-                      
+
                       await fetch(`${API_BASE_URL}/vinculados/${vinculado.id}`, {
                         method: 'PUT',
                         credentials: 'include',
@@ -2288,12 +2264,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       });
                     }
                   }
-                  
+
                   // Criar novas vinculações para subtarefas que ainda não estão vinculadas
                   const subtarefasParaCriar = subtarefasDaTarefa.filter(
                     stId => !subtarefasJaVinculadas.has(stId)
                   );
-                  
+
                   if (subtarefasParaCriar.length > 0) {
                     const novasVinculacoes = subtarefasParaCriar.map(subtarefaId => ({
                       cp_tarefa_tipo: tipoTarefaId,
@@ -2302,7 +2278,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       cp_produto: produtoSelecionado,
                       cp_cliente: null
                     }));
-                    
+
                     await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
                       method: 'POST',
                       credentials: 'include',
@@ -2315,7 +2291,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       })
                     });
                   }
-                  
+
                   // Se não há vinculados existentes mas há subtarefas, criar vinculação para a tarefa sem subtarefa também
                   if (vinculadosExistentes.length === 0 && subtarefasDaTarefa.length > 0) {
                     // Criar vinculação para a tarefa sem subtarefa (além das subtarefas)
@@ -2337,7 +2313,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                       })
                     });
                   }
-                  
+
                   // Se não há vinculados existentes mas a tarefa está na lista de existentes,
                   // criar novas vinculações (pode ter sido removida e adicionada novamente)
                   if (vinculadosExistentes.length === 0) {
@@ -2350,7 +2326,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                         cp_produto: produtoSelecionado,
                         cp_cliente: null
                       }));
-                      
+
                       await fetch(`${API_BASE_URL}/vinculados/multiplos`, {
                         method: 'POST',
                         credentials: 'include',
@@ -2384,7 +2360,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     }
                   }
                 }
-                
+
                 console.log(`✅ ${tarefasExistentes.length} tarefa(s) existente(s) atualizada(s) na Seção 3 com todas as subtarefas`);
               }
             }
@@ -2398,14 +2374,14 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         // 3. CRIAR novas vinculações (se houver)
         if (tarefasNovas.length > 0) {
           const novasCombinacoes = [];
-          
+
           // Buscar subtarefas de cada tarefa selecionada
           for (const chaveComposta of tarefasNovas) {
             // Extrair tarefaId e tipoTarefaId da chave composta
             const [tarefaIdStr, tipoTarefaIdStr] = chaveComposta.split('-');
             const tarefaId = parseInt(tarefaIdStr, 10);
             const tipoTarefaId = tipoTarefaIdStr === 'null' || tipoTarefaIdStr === '' ? null : parseInt(tipoTarefaIdStr, 10);
-            
+
             // Buscar subtarefas desta tarefa (combinando tarefa_id + tarefa_tipo_id)
             let subtarefasDaTarefa = [];
             try {
@@ -2417,12 +2393,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               if (produtoSelecionado) {
                 url += `&produtoId=${produtoSelecionado}`;
               }
-              
+
               const responseSubtarefas = await fetch(url, {
                 credentials: 'include',
                 headers: { 'Accept': 'application/json' }
               });
-              
+
               if (responseSubtarefas.ok) {
                 const resultSubtarefas = await responseSubtarefas.json();
                 if (resultSubtarefas.success && resultSubtarefas.data) {
@@ -2432,7 +2408,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             } catch (error) {
               console.error('Erro ao buscar subtarefas da tarefa:', error);
             }
-            
+
             if (subtarefasDaTarefa.length > 0) {
               // Se há subtarefas, criar uma vinculação para cada subtarefa
               subtarefasDaTarefa.forEach(subtarefaId => {
@@ -2455,28 +2431,28 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               });
             }
           }
-          
+
           console.log('📋 Criando novas vinculações Seção 3:', novasCombinacoes);
-          
+
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setTarefasDoProdutoVinculadasOriginalmente(tarefasDoProdutoSelecionadas);
-          
+
           // Chamar onSubmit (os dados serão recarregados quando o usuário interagir com o componente)
           await onSubmit(novasCombinacoes);
-          
+
           return;
         } else if (tarefasExistentes.length > 0) {
           // Apenas atualizamos existentes, sem criar novas
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setTarefasDoProdutoVinculadasOriginalmente(tarefasDoProdutoSelecionadas);
-          
+
           showToast('success', 'Vinculação atualizada com sucesso!');
           return;
         } else {
           // Apenas removemos, sem criar novas
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setTarefasDoProdutoVinculadasOriginalmente(tarefasDoProdutoSelecionadas);
-          
+
           showToast('success', 'Vinculação atualizada com sucesso!');
           return;
         }
@@ -2489,13 +2465,13 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       // Comparar estado atual com estado original para detectar mudanças
       const produtosAtuais = new Set(produtosDoClienteSelecionados);
       const produtosOriginais = new Set(produtosDoClienteVinculadosOriginalmente);
-      
+
       // Produtos novos (para criar) - apenas os que NÃO estavam na lista original
       const produtosNovos = produtosDoClienteSelecionados.filter(id => !produtosOriginais.has(id));
-      
+
       // Produtos removidos (para deletar) - os que estavam na original mas não estão mais
       const produtosRemovidos = produtosDoClienteVinculadosOriginalmente.filter(id => !produtosAtuais.has(id));
-      
+
       console.log('📊 Seção 4 - Cliente → Produtos:', {
         clienteId: clienteSelecionado,
         modo: produtosDoClienteVinculadosOriginalmente.length > 0 ? 'EDITAR' : 'CRIAR',
@@ -2511,7 +2487,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
         // Não retornar, deixar continuar para outras seções
       } else {
         // Há mudanças para processar
-        
+
         // 1. REMOVER vinculações desmarcadas (se houver)
         if (produtosRemovidos.length > 0) {
           try {
@@ -2520,19 +2496,19 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               credentials: 'include',
               headers: { 'Accept': 'application/json' }
             });
-            
+
             if (responseBuscar.ok) {
               const resultBuscar = await responseBuscar.json();
               if (resultBuscar.success && resultBuscar.data) {
                 const vinculadosParaDeletar = resultBuscar.data.filter(v => {
                   const vClienteId = v.cp_cliente || '';
                   const vProdutoId = v.cp_produto ? parseInt(v.cp_produto, 10) : null;
-                  return vClienteId === clienteSelecionado && 
-                         vProdutoId && 
-                         produtosRemovidos.includes(vProdutoId) &&
-                         !v.cp_tarefa_tipo &&
-                         !v.cp_tarefa &&
-                         !v.cp_subtarefa; // Apenas vinculações simples cliente-produto
+                  return vClienteId === clienteSelecionado &&
+                    vProdutoId &&
+                    produtosRemovidos.includes(vProdutoId) &&
+                    !v.cp_tarefa_tipo &&
+                    !v.cp_tarefa &&
+                    !v.cp_subtarefa; // Apenas vinculações simples cliente-produto
                 });
 
                 // Deletar cada vinculado
@@ -2543,7 +2519,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     headers: { 'Accept': 'application/json' }
                   });
                 }
-                
+
                 console.log(`✅ ${vinculadosParaDeletar.length} vinculação(ões) removida(s) da Seção 4`);
               }
             }
@@ -2563,21 +2539,21 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             cp_produto: produtoId,
             cp_cliente: clienteSelecionado
           }));
-          
+
           console.log('📋 Criando novas vinculações Seção 4:', novasCombinacoes);
-          
+
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setProdutosDoClienteVinculadosOriginalmente(produtosDoClienteSelecionados);
-          
+
           // Chamar onSubmit (os dados serão recarregados quando o usuário interagir com o componente)
           await onSubmit(novasCombinacoes);
-          
+
           return;
         } else {
           // Apenas removemos, sem criar novas
           // Atualizar estado local: sincronizar com o que está selecionado agora
           setProdutosDoClienteVinculadosOriginalmente(produtosDoClienteSelecionados);
-          
+
           showToast('success', 'Vinculação atualizada com sucesso!');
           return;
         }
@@ -2634,7 +2610,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
   const tarefasOptions = tarefas.map(tarefa => ({ value: tarefa.id, label: tarefa.nome }));
   const produtosOptions = produtos.map(produto => ({ value: produto.id, label: produto.nome }));
   const clientesOptions = clientes.map(cliente => ({ value: cliente.id, label: cliente.nome }));
-  
+
   const tarefasDoTipoOptions = tarefasDoTipoDisponiveis.map(tarefa => ({ value: tarefa.id, label: tarefa.nome }));
   const subtarefasOptions = subtarefasDaTarefaDisponiveis.map(subtarefa => ({ value: subtarefa.id, label: subtarefa.nome }));
   const tarefasDoProdutoOptions = tarefasDoProdutoComTipos.map(tt => ({
@@ -2645,7 +2621,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
     grupo: tt.tipoTarefaNome || 'Sem Tipo' // Para agrupamento visual
   }));
   const produtosDoClienteOptions = produtosDoClienteDisponiveis.map(produto => ({ value: produto.id, label: produto.nome }));
-  
+
   // Preparar opções de tarefas com tipos (para Seção 2) - agrupadas por tipo
   const tarefasComTiposOptions = tarefasComTipos.map(tt => ({
     value: `${tt.tarefaId}-${tt.tipoTarefaId}`, // Chave composta: tarefaId-tipoTarefaId
@@ -2654,10 +2630,10 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
     tipoTarefaId: tt.tipoTarefaId,
     grupo: tt.tipoTarefaNome // Para agrupamento visual
   }));
-  
+
   // Valor atual do select de tarefa (chave composta)
-  const tarefaSelecionadaValue = tarefaSelecionada && tipoTarefaDaTarefaSelecionada 
-    ? `${tarefaSelecionada}-${tipoTarefaDaTarefaSelecionada}` 
+  const tarefaSelecionadaValue = tarefaSelecionada && tipoTarefaDaTarefaSelecionada
+    ? `${tarefaSelecionada}-${tipoTarefaDaTarefaSelecionada}`
     : '';
 
   return (
@@ -2694,7 +2670,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             </button>
           </div>
         </div>
-        
+
         <div className="vinculacao-form-row">
           <div className="vinculacao-form-group">
             <label className="vinculacao-form-label">
@@ -2751,28 +2727,28 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   enableSearch={true}
                   keepOpen={true}
                   onToggleItem={(itemValue, isSelected) => {
-                  const itemId = parseInt(itemValue, 10);
-                  if (isSelected) {
-                    // Adicionar se não estiver na lista
-                    if (!tarefasDoTipoSelecionadas.includes(itemId)) {
-                      setTarefasDoTipoSelecionadas([...tarefasDoTipoSelecionadas, itemId]);
+                    const itemId = parseInt(itemValue, 10);
+                    if (isSelected) {
+                      // Adicionar se não estiver na lista
+                      if (!tarefasDoTipoSelecionadas.includes(itemId)) {
+                        setTarefasDoTipoSelecionadas([...tarefasDoTipoSelecionadas, itemId]);
+                      }
+                    } else {
+                      // Remover da lista
+                      setTarefasDoTipoSelecionadas(tarefasDoTipoSelecionadas.filter(id => id !== itemId));
                     }
-                  } else {
-                    // Remover da lista
-                    setTarefasDoTipoSelecionadas(tarefasDoTipoSelecionadas.filter(id => id !== itemId));
-                  }
-                }}
-                onSelectAll={() => {
-                  const allIds = tarefasDoTipoOptions.map(opt => parseInt(opt.value, 10));
-                  const allSelected = allIds.every(id => tarefasDoTipoSelecionadas.includes(id));
-                  if (allSelected) {
-                    // Desmarcar todos
-                    setTarefasDoTipoSelecionadas([]);
-                  } else {
-                    // Selecionar todos
-                    setTarefasDoTipoSelecionadas(allIds);
-                  }
-                }}
+                  }}
+                  onSelectAll={() => {
+                    const allIds = tarefasDoTipoOptions.map(opt => parseInt(opt.value, 10));
+                    const allSelected = allIds.every(id => tarefasDoTipoSelecionadas.includes(id));
+                    if (allSelected) {
+                      // Desmarcar todos
+                      setTarefasDoTipoSelecionadas([]);
+                    } else {
+                      // Selecionar todos
+                      setTarefasDoTipoSelecionadas(allIds);
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -2847,7 +2823,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             </button>
           </div>
         </div>
-        
+
         <div className="vinculacao-form-row">
           <div className="vinculacao-form-group">
             <label className="vinculacao-form-label">
@@ -2911,28 +2887,28 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   enableSearch={true}
                   keepOpen={true}
                   onToggleItem={(itemValue, isSelected) => {
-                  const itemId = parseInt(itemValue, 10);
-                  if (isSelected) {
-                    // Adicionar se não estiver na lista
-                    if (!subtarefasDaTarefaSelecionadas.includes(itemId)) {
-                      setSubtarefasDaTarefaSelecionadas([...subtarefasDaTarefaSelecionadas, itemId]);
+                    const itemId = parseInt(itemValue, 10);
+                    if (isSelected) {
+                      // Adicionar se não estiver na lista
+                      if (!subtarefasDaTarefaSelecionadas.includes(itemId)) {
+                        setSubtarefasDaTarefaSelecionadas([...subtarefasDaTarefaSelecionadas, itemId]);
+                      }
+                    } else {
+                      // Remover da lista
+                      setSubtarefasDaTarefaSelecionadas(subtarefasDaTarefaSelecionadas.filter(id => id !== itemId));
                     }
-                  } else {
-                    // Remover da lista
-                    setSubtarefasDaTarefaSelecionadas(subtarefasDaTarefaSelecionadas.filter(id => id !== itemId));
-                  }
-                }}
-                onSelectAll={() => {
-                  const allIds = subtarefasOptions.map(opt => parseInt(opt.value, 10));
-                  const allSelected = allIds.every(id => subtarefasDaTarefaSelecionadas.includes(id));
-                  if (allSelected) {
-                    // Desmarcar todos
-                    setSubtarefasDaTarefaSelecionadas([]);
-                  } else {
-                    // Selecionar todos
-                    setSubtarefasDaTarefaSelecionadas(allIds);
-                  }
-                }}
+                  }}
+                  onSelectAll={() => {
+                    const allIds = subtarefasOptions.map(opt => parseInt(opt.value, 10));
+                    const allSelected = allIds.every(id => subtarefasDaTarefaSelecionadas.includes(id));
+                    if (allSelected) {
+                      // Desmarcar todos
+                      setSubtarefasDaTarefaSelecionadas([]);
+                    } else {
+                      // Selecionar todos
+                      setSubtarefasDaTarefaSelecionadas(allIds);
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -3007,7 +2983,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             </button>
           </div>
         </div>
-        
+
         <div className="vinculacao-form-row">
           <div className="vinculacao-form-group">
             <label className="vinculacao-form-label">
@@ -3107,7 +3083,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     const [tarefaIdStr, tipoTarefaIdStr] = chaveComposta.split('-');
                     const tarefaId = parseInt(tarefaIdStr, 10);
                     const tipoTarefaId = tipoTarefaIdStr === 'null' || tipoTarefaIdStr === '' ? null : parseInt(tipoTarefaIdStr, 10);
-                    const tarefaComTipo = tarefasDoProdutoComTipos.find(tt => 
+                    const tarefaComTipo = tarefasDoProdutoComTipos.find(tt =>
                       tt.tarefaId === tarefaId && (tt.tipoTarefaId === tipoTarefaId || (tt.tipoTarefaId === null && tipoTarefaId === null))
                     );
                     return tarefaComTipo ? (
@@ -3134,14 +3110,14 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       </div>
 
       {/* Seção 4: Cliente → Produtos */}
-      <div className="vinculacao-form-section" style={{ 
+      <div className="vinculacao-form-section" style={{
         background: '#ffffff',
         border: '1px solid #e5e7eb',
         borderRadius: '12px',
         padding: '24px',
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
       }}>
-        <div className="vinculacao-section-header" style={{ 
+        <div className="vinculacao-section-header" style={{
           marginBottom: '24px',
           paddingBottom: '16px',
           borderBottom: '2px solid #e2e8f0'
@@ -3160,7 +3136,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               <i className="fas fa-users" style={{ fontSize: '24px' }}></i>
             </div>
             <div>
-              <h3 className="vinculacao-section-title" style={{ 
+              <h3 className="vinculacao-section-title" style={{
                 fontSize: '18px',
                 fontWeight: '600',
                 color: '#1f2937',
@@ -3168,7 +3144,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
               }}>
                 Seção 4: Cliente → Produtos
               </h3>
-              <p className="vinculacao-section-description" style={{ 
+              <p className="vinculacao-section-description" style={{
                 fontSize: '14px',
                 color: '#6b7280',
                 margin: 0
@@ -3190,12 +3166,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                 fontWeight: '500',
                 borderRadius: '8px',
                 border: 'none',
-                background: savingSecao4 || loading || !clienteSelecionado || produtosDoClienteSelecionados.length === 0 
-                  ? '#cbd5e1' 
+                background: savingSecao4 || loading || !clienteSelecionado || produtosDoClienteSelecionados.length === 0
+                  ? '#cbd5e1'
                   : '#0e3b6f',
                 color: 'white',
-                cursor: savingSecao4 || loading || !clienteSelecionado || produtosDoClienteSelecionados.length === 0 
-                  ? 'not-allowed' 
+                cursor: savingSecao4 || loading || !clienteSelecionado || produtosDoClienteSelecionados.length === 0
+                  ? 'not-allowed'
                   : 'pointer',
                 transition: 'all 0.2s ease',
                 display: 'flex',
@@ -3229,7 +3205,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
             </button>
           </div>
         </div>
-        
+
         <div className="vinculacao-form-row" style={{ marginBottom: '24px' }}>
           <div className="vinculacao-form-group">
             <label className="vinculacao-form-label">
@@ -3286,28 +3262,28 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   enableSearch={true}
                   keepOpen={true}
                   onToggleItem={(itemValue, isSelected) => {
-                  const itemId = parseInt(itemValue, 10);
-                  if (isSelected) {
-                    // Adicionar se não estiver na lista
-                    if (!produtosDoClienteSelecionados.includes(itemId)) {
-                      setProdutosDoClienteSelecionados([...produtosDoClienteSelecionados, itemId]);
+                    const itemId = parseInt(itemValue, 10);
+                    if (isSelected) {
+                      // Adicionar se não estiver na lista
+                      if (!produtosDoClienteSelecionados.includes(itemId)) {
+                        setProdutosDoClienteSelecionados([...produtosDoClienteSelecionados, itemId]);
+                      }
+                    } else {
+                      // Remover da lista
+                      setProdutosDoClienteSelecionados(produtosDoClienteSelecionados.filter(id => id !== itemId));
                     }
-                  } else {
-                    // Remover da lista
-                    setProdutosDoClienteSelecionados(produtosDoClienteSelecionados.filter(id => id !== itemId));
-                  }
-                }}
-                onSelectAll={() => {
-                  const allIds = produtosDoClienteOptions.map(opt => parseInt(opt.value, 10));
-                  const allSelected = allIds.every(id => produtosDoClienteSelecionados.includes(id));
-                  if (allSelected) {
-                    // Desmarcar todos
-                    setProdutosDoClienteSelecionados([]);
-                  } else {
-                    // Selecionar todos
-                    setProdutosDoClienteSelecionados(allIds);
-                  }
-                }}
+                  }}
+                  onSelectAll={() => {
+                    const allIds = produtosDoClienteOptions.map(opt => parseInt(opt.value, 10));
+                    const allSelected = allIds.every(id => produtosDoClienteSelecionados.includes(id));
+                    if (allSelected) {
+                      // Desmarcar todos
+                      setProdutosDoClienteSelecionados([]);
+                    } else {
+                      // Selecionar todos
+                      setProdutosDoClienteSelecionados(allIds);
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -3350,32 +3326,32 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
 
           {/* Exibir componente de seleção de tarefas e subtarefas para cada produto selecionado */}
           {clienteSelecionado && produtosDoClienteSelecionados.length > 0 && (
-            <div className="vinculacao-form-group" style={{ 
-              marginTop: '24px', 
-              paddingTop: '24px', 
+            <div className="vinculacao-form-group" style={{
+              marginTop: '24px',
+              paddingTop: '24px',
               borderTop: '2px solid #e2e8f0',
               width: '100%',
               gridColumn: '1 / -1' // Ocupar toda a largura da grid
             }}>
-              <div style={{ 
+              <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'flex-start',
                 marginBottom: '12px'
               }}>
                 <div>
-                  <label className="vinculacao-form-label" style={{ 
-                    marginBottom: '6px', 
-                    fontSize: '16px', 
+                  <label className="vinculacao-form-label" style={{
+                    marginBottom: '6px',
+                    fontSize: '16px',
                     fontWeight: '600',
                     color: '#1e293b',
                     display: 'block'
                   }}>
                     Tarefas e Subtarefas dos Produtos Selecionados
                   </label>
-                  <p className="vinculacao-section-description" style={{ 
-                    marginBottom: 0, 
-                    fontSize: '13px', 
+                  <p className="vinculacao-section-description" style={{
+                    marginBottom: 0,
+                    fontSize: '13px',
                     lineHeight: '1.5',
                     color: '#64748b'
                   }}>
@@ -3383,8 +3359,8 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                   </p>
                 </div>
               </div>
-              <div style={{ 
-                marginTop: '16px', 
+              <div style={{
+                marginTop: '16px',
                 width: '100%',
                 background: '#f8fafc',
                 borderRadius: '8px',
@@ -3405,20 +3381,20 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                     // IMPORTANTE: Fazer merge com estado existente para preservar tarefas não editadas
                     setTarefasSelecionadasPorProdutoSecao4(prevEstado => {
                       const novoFormato = { ...prevEstado }; // Preservar estado existente
-                      
+
                       console.log('🔄 onTarefasChange: Recebendo atualização de tarefas', {
                         produtosRecebidos: Object.keys(tarefasPorProduto).length,
                         produtosNoEstadoAnterior: Object.keys(prevEstado).length
                       });
-                      
+
                       Object.entries(tarefasPorProduto).forEach(([produtoId, tarefas]) => {
                         const produtoIdNum = parseInt(produtoId, 10);
-                        
+
                         // Inicializar objeto do produto se não existir
                         if (!novoFormato[produtoIdNum]) {
                           novoFormato[produtoIdNum] = {};
                         }
-                        
+
                         // Processar cada tarefa recebida
                         tarefas.forEach(tarefa => {
                           if (tarefa.selecionada === true) {
@@ -3438,12 +3414,12 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                           }
                         });
                       });
-                      
+
                       // Log detalhado do estado final
                       const totalTarefas = Object.values(novoFormato).reduce((acc, produto) => {
                         return acc + Object.keys(produto).length;
                       }, 0);
-                      
+
                       console.log('📋 Tarefas selecionadas atualizadas (merge completo):', {
                         totalProdutos: Object.keys(novoFormato).length,
                         totalTarefas: totalTarefas,
@@ -3456,7 +3432,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
                           }))
                         }))
                       });
-                      
+
                       return novoFormato;
                     });
                   }}

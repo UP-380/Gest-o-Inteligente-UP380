@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useAuth } from '../../contexts/AuthContext';
@@ -298,6 +299,73 @@ const PainelUsuario = () => {
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
 
   // Cache de subtarefas vinculadas por tarefa_id
+
+
+  // --- SHORTCUT INTERNA UP ---
+  // Helper para verificar se a data é hoje (duplicado da lista para uso no header)
+  const isTaskToday = (dateValue) => {
+    if (!dateValue) return true;
+    const hoje = new Date();
+    const hojePart = hoje.getFullYear() + '-' +
+      String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
+      String(hoje.getDate()).padStart(2, '0');
+
+    if (typeof dateValue === 'string') {
+      return dateValue.split('T')[0] === hojePart;
+    }
+    try {
+      const d = new Date(dateValue);
+      const dPart = d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+      return dPart === hojePart;
+    } catch (e) { return true; }
+  };
+
+  const [internaUpTaskIds, setInternaUpTaskIds] = useState(new Set());
+  const [shortcutTask, setShortcutTask] = useState(null);
+
+  useEffect(() => {
+    const fetchInternaUpIds = async () => {
+      try {
+        const respTipo = await fetch('/api/tipo-tarefa?limit=1000', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        });
+        if (!respTipo.ok) return;
+        const dadosTipo = await respTipo.json();
+        const tipoInternaUp = dadosTipo?.data?.find(t => t.nome && t.nome.trim() === 'Interna UP');
+        if (!tipoInternaUp) return;
+
+        const tipoId = parseInt(tipoInternaUp.id, 10);
+
+        const respVinculados = await fetch('/api/vinculados?filtro_tipo_atividade=true&limit=1000', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' }
+        });
+        if (!respVinculados.ok) return;
+        const dadosVinculados = await respVinculados.json();
+
+        const ids = new Set();
+        (dadosVinculados.data || []).forEach(v => {
+          if (v.tarefa_id && parseInt(v.tarefa_tipo_id, 10) === tipoId) {
+            ids.add(String(v.tarefa_id).trim());
+          }
+        });
+        setInternaUpTaskIds(ids);
+      } catch (e) { console.error('Error fetching Interna UP tasks', e); }
+    };
+    fetchInternaUpIds();
+  }, []);
+
+  useEffect(() => {
+    if (tarefasRegistros.length > 0 && internaUpTaskIds.size > 0) {
+      const found = tarefasRegistros.find(t => internaUpTaskIds.has(String(t.tarefa_id).trim()));
+      setShortcutTask(found || null);
+    } else {
+      setShortcutTask(null);
+    }
+  }, [tarefasRegistros, internaUpTaskIds]);
   const [subtarefasCache, setSubtarefasCache] = useState(new Map()); // Map<tarefa_id, subtarefas[]>
   const subtarefasCacheRef = useRef(new Map()); // Ref para acesso síncrono
   // Estado para controlar subtarefas concluídas: Map<chave, Set<subtarefa_id>>
@@ -3018,7 +3086,17 @@ const PainelUsuario = () => {
               : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
 
             const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
-            const btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+
+            // Verificar se é uma tarefa "Interna UP"
+            const isInternaUp = internaUpTaskIds.has(String(reg.tarefa_id).trim());
+
+            // Só aplica o verde se for "Interna UP" E não estiver bloqueado
+            // Se estiver bloqueado ("isBloqueado" = true), deve continuar cinza, como já definido no `btnStyle` original
+            let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+            if (isInternaUp && !isBloqueado) {
+              btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+            }
+
             const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
 
             item.innerHTML = `
@@ -3041,7 +3119,7 @@ const PainelUsuario = () => {
                 data-action="${btnAction}"
                 ${btnDisabledAttr}
               >
-                    <i class="fas ${btnIcon}"></i>
+                    <i class="fas ${btnIcon}" style="${isInternaUp && !isBloqueado ? 'color: #fff;' : ''}"></i>
                   </button>
                   </div>
                 </div>
@@ -3707,7 +3785,16 @@ const PainelUsuario = () => {
             : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
 
           const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
-          const btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+
+          // Verificar se é uma tarefa "Interna UP"
+          const isInternaUp = internaUpTaskIds.has(String(reg.tarefa_id).trim());
+
+          // Só aplica o verde se for "Interna UP" E não estiver bloqueado
+          let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+          if (isInternaUp && !isBloqueado) {
+            btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+          }
+
           const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
 
           const chaveTimetrack = criarChaveTempo(reg);
@@ -3729,8 +3816,8 @@ const PainelUsuario = () => {
                 data-action="${btnAction}"
                 ${btnDisabledAttr}
               >
-                <i class="fas ${btnIcon}"></i>
-              </button>
+                      <i class="fas ${btnIcon}" style="${isInternaUp && !isBloqueado ? 'color: #fff;' : ''}"></i>
+                    </button>
             </div>
             </div>
             ${renderizarBarraProgressoTarefa(reg, 'quadro')}
@@ -4920,6 +5007,66 @@ const PainelUsuario = () => {
                     </p>
                   </div>
                 </div>
+
+                {shortcutTask && document.getElementById('header-extra-content') && createPortal(
+                  <div className="painel-usuario-header-shortcut has-tooltip" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '15px',
+                    background: '#1f2937', // Dark background matching timer
+                    padding: '6px 3px 6px 15px', // Matching timer-ativo-container
+                    borderRadius: '12px',
+                    border: 'none', // No border matching timer
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    marginRight: '16px',
+                    height: '27px',
+                    position: 'relative',
+                    cursor: 'default',
+                    boxSizing: 'border-box'
+                  }}>
+                    <div className="filter-tooltip">Atividade Interna</div>
+                    <div style={{ display: 'flex', alignItems: 'center', paddingRight: '0', borderRight: 'none' }}>
+                      <span style={{ fontWeight: 500, color: '#e5e7eb', fontSize: '13px', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                        {getNomeTarefa(shortcutTask.tarefa_id, shortcutTask)}
+                      </span>
+                    </div>
+
+                    <button
+                      className={`painel-usuario-btn-reproducao ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'painel-usuario-btn-stop' : 'painel-usuario-btn-play'}`}
+                      onClick={() => {
+                        if (registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim())) {
+                          pararRegistroTempo(shortcutTask);
+                        } else {
+                          if (!isTaskToday(shortcutTask.data)) return;
+                          iniciarRegistroTempo(shortcutTask);
+                        }
+                      }}
+                      disabled={!isTaskToday(shortcutTask.data)}
+                      title=""
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        minWidth: '20px',
+                        borderRadius: '50%', // Round button
+                        border: 'none',
+                        cursor: !isTaskToday(shortcutTask.data) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: 'none',
+                        transition: 'all 0.2s ease',
+                        backgroundColor: !isTaskToday(shortcutTask.data)
+                          ? '#ccc'
+                          : '#28a745', // Always green if enabled, even when stopping
+                        padding: 0
+                      }}
+                    >
+                      <i className={`fas ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'fa-stop' : 'fa-play'}`} style={{ color: '#fff', fontSize: '9px' }}></i>
+                    </button>
+                  </div>,
+                  document.getElementById('header-extra-content')
+                )}
               </div>
             </div>
 
