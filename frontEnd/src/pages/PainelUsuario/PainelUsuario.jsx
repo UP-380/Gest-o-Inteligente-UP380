@@ -2979,10 +2979,47 @@ const PainelUsuario = () => {
             const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
             const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
             const isAtivo = !!registroAtivo;
-            const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
-            const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
-            const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
-            const btnAction = isAtivo ? 'parar' : 'iniciar';
+            // Verificar se é tarefa de outra data
+            const checkDataHoje = () => {
+              if (!reg.data) return true;
+              const hoje = new Date();
+
+              if (typeof reg.data === 'string') {
+                // Tentar extrair YYYY-MM-DD para evitar problemas de fuso horário
+                const dataPart = reg.data.split('T')[0];
+                const hojePart = hoje.getFullYear() + '-' +
+                  String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
+                  String(hoje.getDate()).padStart(2, '0');
+                return dataPart === hojePart;
+              }
+
+              const dataTarefa = new Date(reg.data);
+              return dataTarefa.getDate() === hoje.getDate() &&
+                dataTarefa.getMonth() === hoje.getMonth() &&
+                dataTarefa.getFullYear() === hoje.getFullYear();
+            };
+
+            const isHoje = checkDataHoje();
+
+            // Se não for hoje, bloqueia sempre
+            const isBloqueado = !isHoje;
+
+            // Só exibe como ativo (botão stop) se for hoje E estiver ativo
+            const mostrarComoAtivo = isHoje && isAtivo;
+
+            const btnClass = mostrarComoAtivo
+              ? 'painel-usuario-stop-btn'
+              : (isBloqueado ? 'painel-usuario-play-btn painel-usuario-btn-disabled' : 'painel-usuario-play-btn');
+
+            const btnIcon = mostrarComoAtivo ? 'fa-stop' : 'fa-play';
+
+            const btnTitle = mostrarComoAtivo
+              ? 'Parar registro de tempo'
+              : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
+
+            const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
+            const btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+            const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
 
             item.innerHTML = `
               <div class="painel-usuario-tarefa-item-lista-content">
@@ -2997,10 +3034,12 @@ const PainelUsuario = () => {
                   <div style="display: flex; gap: 6px; align-items: center;">
               <button
                 type="button"
+                style="${btnStyle}"
                 class="${btnClass}"
                 title="${btnTitle}"
                 data-tempo-estimado-id="${tempoEstimadoIdStr}"
                 data-action="${btnAction}"
+                ${btnDisabledAttr}
               >
                     <i class="fas ${btnIcon}"></i>
                   </button>
@@ -3023,7 +3062,7 @@ const PainelUsuario = () => {
                 const chaveTimetrack = criarChaveTempo(reg);
                 const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
                 return `
-                          <i 
+                          <i
                             class="fas fa-chevron-${isTimetrackExpanded ? 'down' : 'right'} painel-usuario-timetrack-arrow"
                             data-chave-timetrack="${chaveTimetrack}"
                             style="cursor: pointer; color: #64748b; font-size: 10px; margin-left: 4px; transition: transform 0.2s ease; display: inline-block;"
@@ -3041,7 +3080,7 @@ const PainelUsuario = () => {
                 return `
                         <div class="painel-usuario-subtarefas-info">
                           <span class="painel-usuario-subtarefas-count" style="color: ${pendentes === 0 && subtarefas ? '#10b981' : '#f59e0b'};" data-tarefa-id="${reg.tarefa_id}">${subtarefas ? `${pendentes} pendente${pendentes !== 1 ? 's' : ''}` : '...'}</span>
-                          <i 
+                          <i
                             class="fas fa-chevron-${isSubtarefasExpanded ? 'down' : 'right'} painel-usuario-subtarefas-arrow"
                             data-chave-subtarefas="${chaveSubtarefas}"
                             data-tarefa-id="${reg.tarefa_id}"
@@ -3629,10 +3668,47 @@ const PainelUsuario = () => {
           const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
           const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
           const isAtivo = !!registroAtivo;
-          const btnClass = isAtivo ? 'painel-usuario-stop-btn' : 'painel-usuario-play-btn';
-          const btnIcon = isAtivo ? 'fa-stop' : 'fa-play';
-          const btnTitle = isAtivo ? 'Parar registro de tempo' : 'Iniciar registro de tempo';
-          const btnAction = isAtivo ? 'parar' : 'iniciar';
+
+          // Verificar se é tarefa de outra data
+          const checkDataHoje = () => {
+            if (!reg.data) return true;
+            const hoje = new Date();
+
+            if (typeof reg.data === 'string') {
+              const dataPart = reg.data.split('T')[0];
+              const hojePart = hoje.getFullYear() + '-' +
+                String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
+                String(hoje.getDate()).padStart(2, '0');
+              return dataPart === hojePart;
+            }
+
+            const dataTarefa = new Date(reg.data);
+            return dataTarefa.getDate() === hoje.getDate() &&
+              dataTarefa.getMonth() === hoje.getMonth() &&
+              dataTarefa.getFullYear() === hoje.getFullYear();
+          };
+
+          const isHoje = checkDataHoje();
+
+          // Se não for hoje, bloqueia sempre
+          const isBloqueado = !isHoje;
+
+          // Só exibe como ativo (botão stop) se for hoje E estiver ativo
+          const mostrarComoAtivo = isHoje && isAtivo;
+
+          const btnClass = mostrarComoAtivo
+            ? 'painel-usuario-stop-btn'
+            : (isBloqueado ? 'painel-usuario-play-btn painel-usuario-btn-disabled' : 'painel-usuario-play-btn');
+
+          const btnIcon = mostrarComoAtivo ? 'fa-stop' : 'fa-play';
+
+          const btnTitle = mostrarComoAtivo
+            ? 'Parar registro de tempo'
+            : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
+
+          const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
+          const btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
+          const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
 
           const chaveTimetrack = criarChaveTempo(reg);
           const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
@@ -3646,10 +3722,12 @@ const PainelUsuario = () => {
               <div style="display: flex; gap: 6px; align-items: center;">
               <button
                 type="button"
+                style="${btnStyle}"
                 class="${btnClass}"
                 title="${btnTitle}"
                 data-tempo-estimado-id="${tempoEstimadoIdStr}"
                 data-action="${btnAction}"
+                ${btnDisabledAttr}
               >
                 <i class="fas ${btnIcon}"></i>
               </button>

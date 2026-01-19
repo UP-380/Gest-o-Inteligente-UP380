@@ -12,7 +12,8 @@
   flex-direction: column;
   gap: 0;
   box-sizing: border-box;
-  overflow-x: hidden; /* Previne overflow horizontal */
+  overflow-x: hidden;
+  /* Previne overflow horizontal */
   /* Garantir que não ultrapasse os limites do container */
   min-width: 0;
   /* Garantir que todos os elementos filhos respeitem os limites */
@@ -65,7 +66,7 @@
 }
 
 /* Garantir que elementos filhos não ultrapassem os limites */
-.painel-usuario-content-section > * {
+.painel-usuario-content-section>* {
   max-width: 100%;
   box-sizing: border-box;
   min-width: 0;
@@ -73,11 +74,14 @@
 
 .painel-usuario-tarefas-container {
   width: 100%;
-  min-height: 600px; /* Altura mínima ajustada */
-  margin-top: 24px; /* Espaçamento consistente após o header */
+  min-height: 600px;
+  /* Altura mínima ajustada */
+  margin-top: 24px;
+  /* Espaçamento consistente após o header */
   box-sizing: border-box;
   max-width: 100%;
-  overflow-x: hidden; /* Previne overflow horizontal */
+  overflow-x: hidden;
+  /* Previne overflow horizontal */
 }
 
 .painel-usuario-tarefas-content {
@@ -144,17 +148,22 @@
   flex-direction: column;
   gap: 8px;
 }
+
 .painel-usuario-coluna-body::-webkit-scrollbar {
   width: 6px;
 }
+
 .painel-usuario-coluna-body::-webkit-scrollbar-track {
   background: transparent;
   border-radius: 999px;
 }
+
 .painel-usuario-coluna-body::-webkit-scrollbar-thumb {
-  background: #e5e7eb; /* cor igual ao card detalhado */
+  background: #e5e7eb;
+  /* cor igual ao card detalhado */
   border-radius: 999px;
 }
+
 .painel-usuario-coluna-body::-webkit-scrollbar-thumb:hover {
   background: #d1d5db;
 }
@@ -167,8 +176,10 @@
   border-radius: 12px;
   padding: 12px;
   background: #ffffff;
-  min-width: 0; /* Permitir que o card encolha */
-  max-width: 100%; /* Não expandir além do container */
+  min-width: 0;
+  /* Permitir que o card encolha */
+  max-width: 100%;
+  /* Não expandir além do container */
   box-sizing: border-box;
 }
 
@@ -195,9 +206,12 @@
 
 .painel-usuario-play-btn {
   border: none;
-  background: #ef4444; /* invertido: fundo vermelho */
-  color: #fee2e2;      /* ícone claro */
-  border-radius: 50%; /* Botão circular */
+  background: #ef4444;
+  /* invertido: fundo vermelho */
+  color: #fee2e2;
+  /* ícone claro */
+  border-radius: 50%;
+  /* Botão circular */
   padding: 0;
   width: 21px;
   height: 21px;
@@ -220,7 +234,8 @@
 }
 
 .painel-usuario-play-btn i {
-  font-size: 9px; /* Mesmo tamanho do ícone do botão de stop do header */
+  font-size: 9px;
+  /* Mesmo tamanho do ícone do botão de stop do header */
 }
 
 .painel-usuario-play-btn:disabled,
@@ -239,16 +254,21 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
 }
 
 .painel-usuario-stop-btn {
-  border: 2px solid #ffffff; /* Borda branca para destacar quando está ativo */
-  background: #dc2626; /* Vermelho mais escuro para diferenciar do play */
-  color: #ffffff;      /* ícone branco */
-  border-radius: 50%; /* Botão circular */
+  border: 2px solid #ffffff;
+  /* Borda branca para destacar quando está ativo */
+  background: #dc2626;
+  /* Vermelho mais escuro para diferenciar do play */
+  color: #ffffff;
+  /* ícone branco */
+  border-radius: 50%;
+  /* Botão circular */
   padding: 0;
   width: 21px;
   height: 21px;
@@ -258,21 +278,25 @@
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3); /* Sombra sutil para destacar */
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+  /* Sombra sutil para destacar */
   transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
   flex-shrink: 0;
 }
 
 .painel-usuario-stop-btn:hover {
-  background: #b91c1c; /* Vermelho ainda mais escuro no hover */
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.4); /* Sombra mais forte no hover */
+  background: #b91c1c;
+  /* Vermelho ainda mais escuro no hover */
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.4);
+  /* Sombra mais forte no hover */
   transform: scale(1.05);
   color: #ffffff;
   border-color: #ffffff;
 }
 
 .painel-usuario-stop-btn i {
-  font-size: 9px; /* Mesmo tamanho do ícone do botão de stop do header */
+  font-size: 9px;
+  /* Mesmo tamanho do ícone do botão de stop do header */
 }
 
 .painel-usuario-tarefa-tags {
@@ -322,7 +346,8 @@
   flex-shrink: 0;
   transition: all 0.2s ease;
   position: relative;
-  margin-top: 2px; /* Alinhar com o texto quando houver descrição */
+  margin-top: 2px;
+  /* Alinhar com o texto quando houver descrição */
 }
 
 .painel-usuario-subtarefa-bolinha:hover {
@@ -460,6 +485,7 @@
     opacity: 0;
     transform: translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -515,7 +541,8 @@
 }
 
 .painel-usuario-estimado-icon-inline {
-  color: #0e3b6f; /* Azul padrão do sistema */
+  color: #0e3b6f;
+  /* Azul padrão do sistema */
   font-size: 12px;
 }
 
@@ -529,9 +556,11 @@
 .painel-usuario-estimado-pill {
   display: inline-block;
   padding: 2px 8px;
-  background: #eef2ff; /* igual ao detail-card */
+  background: #eef2ff;
+  /* igual ao detail-card */
   border-radius: 999px;
-  color: #1e3a8a !important; /* rgb(30, 58, 138) */
+  color: #1e3a8a !important;
+  /* rgb(30, 58, 138) */
   border: none;
   font-size: 12px;
   font-weight: 500;
@@ -551,7 +580,8 @@
 }
 
 .painel-usuario-realizado-icon-inline {
-  color: #fd7e14; /* Laranja padrão do sistema */
+  color: #fd7e14;
+  /* Laranja padrão do sistema */
   font-size: 12px;
 }
 
@@ -565,7 +595,8 @@
 .painel-usuario-realizado-pill {
   display: inline-block;
   padding: 2px 8px;
-  background: #eef2ff; /* mesma cor do estimado */
+  background: #eef2ff;
+  /* mesma cor do estimado */
   border-radius: 999px;
   color: #1e3a8a;
   font-size: 12px;
@@ -660,9 +691,11 @@
   /* Garantir que elementos filhos não saiam do container */
   contain: layout;
   /* Garantir que o container tenha altura mínima e permita scroll apenas quando necessário */
-  min-height: 500px; /* Altura mínima maior para dar mais espaço */
+  min-height: 500px;
+  /* Altura mínima maior para dar mais espaço */
   flex: 1;
-  overflow-y: auto; /* Scroll apenas quando necessário (auto) */
+  overflow-y: auto;
+  /* Scroll apenas quando necessário (auto) */
   overflow-x: hidden;
 }
 
@@ -671,7 +704,8 @@
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  overflow: visible; /* Mudado de hidden para visible para permitir que os balões apareçam completos */
+  overflow: visible;
+  /* Mudado de hidden para visible para permitir que os balões apareçam completos */
   position: relative;
   z-index: 1;
   margin-bottom: 0;
@@ -720,13 +754,16 @@
 
 /* Modo quadro: reduzir largura da barra para evitar sobreposição com porcentagem */
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro {
-  overflow: visible; /* Permitir que o excedente apareça */
+  overflow: visible;
+  /* Permitir que o excedente apareça */
 }
 
 .painel-usuario-barra-progresso-wrapper.painel-usuario-barra-progresso-quadro .painel-usuario-barra-progresso-base {
-  flex: 0 1 calc(100% - 55px); /* Aumentado para 55px para garantir espaço para porcentagem */
+  flex: 0 1 calc(100% - 55px);
+  /* Aumentado para 55px para garantir espaço para porcentagem */
   max-width: calc(100% - 55px);
-  overflow: visible; /* Mudado para visible para permitir que o excedente apareça */
+  overflow: visible;
+  /* Mudado para visible para permitir que o excedente apareça */
 }
 
 .painel-usuario-barra-progresso-container {
@@ -740,14 +777,16 @@
   height: 6px;
   background: #e5e7eb;
   border-radius: 3px;
-  overflow: hidden; /* Mudado de visible para hidden para evitar sobreposição */
+  overflow: hidden;
+  /* Mudado de visible para hidden para evitar sobreposição */
   position: relative;
   min-width: 60px;
 }
 
 /* No modo quadro, permitir que o excedente apareça mas limitar seu tamanho */
 .painel-usuario-barra-progresso-base.painel-usuario-barra-progresso-base-quadro {
-  overflow: visible; /* Permitir que o excedente apareça */
+  overflow: visible;
+  /* Permitir que o excedente apareça */
 }
 
 .painel-usuario-barra-progresso-fill {
@@ -766,15 +805,18 @@
   transition: width 0.3s ease;
   position: absolute;
   top: 0;
-  left: 100%; /* Começar do final da barra base */
+  left: 100%;
+  /* Começar do final da barra base */
   z-index: 2;
   /* Não limitar max-width aqui, será controlado pelo JavaScript */
 }
 
 /* No modo quadro, limitar o excedente para não sobrepor a porcentagem */
 .painel-usuario-barra-progresso-base-quadro .painel-usuario-barra-progresso-fill-excesso {
-  max-width: 35px; /* Limitar a aproximadamente 35px para não sobrepor a porcentagem */
-  min-width: 6px; /* Garantir que seja visível mesmo quando pequeno */
+  max-width: 35px;
+  /* Limitar a aproximadamente 35px para não sobrepor a porcentagem */
+  min-width: 6px;
+  /* Garantir que seja visível mesmo quando pequeno */
   border-top-right-radius: 3px;
   border-bottom-right-radius: 3px;
 }
@@ -783,11 +825,15 @@
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
-  min-width: 45px; /* Aumentado para garantir espaço suficiente */
+  min-width: 45px;
+  /* Aumentado para garantir espaço suficiente */
   text-align: right;
-  flex-shrink: 0; /* Garantir que a porcentagem nunca encolha */
-  z-index: 10; /* Garantir que fique acima da barra */
-  position: relative; /* Para o z-index funcionar */
+  flex-shrink: 0;
+  /* Garantir que a porcentagem nunca encolha */
+  z-index: 10;
+  /* Garantir que fique acima da barra */
+  position: relative;
+  /* Para o z-index funcionar */
 }
 
 .painel-usuario-tarefa-item-lista {
@@ -840,7 +886,8 @@
   width: 100%;
   /* Garantir que o grupo esteja no fluxo normal do documento */
   box-sizing: border-box;
-  overflow: visible; /* Garantir que os balões não sejam cortados */
+  overflow: visible;
+  /* Garantir que os balões não sejam cortados */
 }
 
 .painel-usuario-grupo-cliente-header {
@@ -853,13 +900,16 @@
   user-select: none;
   border-radius: 12px 12px 0 0;
   position: relative;
-  z-index: 2; /* Reduzido de 10 para 2 - apenas para garantir que fique acima do content */
+  z-index: 2;
+  /* Reduzido de 10 para 2 - apenas para garantir que fique acima do content */
   pointer-events: auto !important;
   /* Garantir que o header não saia do fluxo do documento */
   width: 100%;
   box-sizing: border-box;
-  overflow: visible; /* Garantir que os balões não sejam cortados */
-  min-width: 0; /* Permitir que o header encolha se necessário */
+  overflow: visible;
+  /* Garantir que os balões não sejam cortados */
+  min-width: 0;
+  /* Permitir que o header encolha se necessário */
 }
 
 .painel-usuario-grupo-cliente-header:hover {
@@ -871,8 +921,10 @@
   align-items: center;
   gap: 12px;
   flex: 1;
-  min-width: 0; /* Permite que o flex item encolha */
-  overflow: visible; /* Garante que os balões não sejam cortados */
+  min-width: 0;
+  /* Permite que o flex item encolha */
+  overflow: visible;
+  /* Garante que os balões não sejam cortados */
 }
 
 .painel-usuario-grupo-badge-orange {
@@ -894,7 +946,8 @@
   color: #0e3b6f;
   margin: 0;
   flex: 1;
-  min-width: 0; /* Permite que o título encolha se necessário */
+  min-width: 0;
+  /* Permite que o título encolha se necessário */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -911,16 +964,20 @@
   font-weight: 500;
   gap: 4px;
   position: relative;
-  flex-shrink: 0; /* Não permite que o balão encolha */
-  white-space: nowrap; /* Não quebra linha */
+  flex-shrink: 0;
+  /* Não permite que o balão encolha */
+  white-space: nowrap;
+  /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
 .painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo {
   font-size: 11px;
   padding: 2px 6px;
-  white-space: nowrap; /* Não quebrar linha */
-  flex-shrink: 0; /* Não encolher */
+  white-space: nowrap;
+  /* Não quebrar linha */
+  flex-shrink: 0;
+  /* Não encolher */
 }
 
 .painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo i {
@@ -928,7 +985,8 @@
 }
 
 .painel-usuario-grupo-tempo-total i {
-  color: #0e3b6f; /* Azul padrão do sistema */
+  color: #0e3b6f;
+  /* Azul padrão do sistema */
   font-size: 12px;
 }
 
@@ -989,23 +1047,29 @@
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  background: #eef2ff; /* mesma cor do estimado */
-  color: #1e3a8a; /* mesma cor do estimado */
+  background: #eef2ff;
+  /* mesma cor do estimado */
+  color: #1e3a8a;
+  /* mesma cor do estimado */
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
   gap: 4px;
   position: relative;
-  flex-shrink: 0; /* Não permite que o balão encolha */
-  white-space: nowrap; /* Não quebra linha */
+  flex-shrink: 0;
+  /* Não permite que o balão encolha */
+  white-space: nowrap;
+  /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
 .painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo {
   font-size: 11px;
   padding: 2px 6px;
-  white-space: nowrap; /* Não quebrar linha */
-  flex-shrink: 0; /* Não encolher */
+  white-space: nowrap;
+  /* Não quebrar linha */
+  flex-shrink: 0;
+  /* Não encolher */
 }
 
 .painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo i {
@@ -1013,7 +1077,8 @@
 }
 
 .painel-usuario-grupo-tempo-realizado i {
-  color: #fd7e14; /* Laranja padrão do sistema */
+  color: #fd7e14;
+  /* Laranja padrão do sistema */
   font-size: 12px;
 }
 
@@ -1027,16 +1092,20 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 500;
-  flex-shrink: 0; /* Não permite que o balão encolha */
-  white-space: nowrap; /* Não quebra linha */
+  flex-shrink: 0;
+  /* Não permite que o balão encolha */
+  white-space: nowrap;
+  /* Não quebra linha */
 }
 
 /* Estilos específicos para modo quadro */
 .painel-usuario-grupo-copainel-usuarioaborador-quadro-count {
   font-size: 11px;
   padding: 2px 6px;
-  white-space: nowrap; /* Não quebrar linha */
-  flex-shrink: 0; /* Não encolher */
+  white-space: nowrap;
+  /* Não quebrar linha */
+  flex-shrink: 0;
+  /* Não encolher */
 }
 
 .painel-usuario-grupo-cliente-content {
@@ -1109,3 +1178,16 @@
   font-weight: 500;
 }
 
+/* Estilo para botões de play bloqueados (outras datas) */
+.painel-usuario-play-btn.painel-usuario-btn-disabled:disabled {
+  pointer-events: auto !important;
+  cursor: not-allowed !important;
+  background-color: #e5e7eb !important;
+  color: #9ca3af !important;
+  border-color: #d1d5db !important;
+  opacity: 1 !important;
+}
+
+.painel-usuario-play-btn.painel-usuario-btn-disabled:disabled i {
+  animation: none !important;
+}
