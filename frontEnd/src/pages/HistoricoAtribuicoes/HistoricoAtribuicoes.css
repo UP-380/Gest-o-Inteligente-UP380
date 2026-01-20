@@ -57,6 +57,28 @@
   border-bottom: 1px solid #f3f4f6;
   font-size: 13px;
   color: #374151;
+  vertical-align: top;
+}
+
+.btn-ver-mais-tarefas {
+  background: transparent;
+  border: none;
+  color: #0e3b6f;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.btn-ver-mais-tarefas:hover {
+  background: #eff6ff;
+  text-decoration: underline;
 }
 
 .historico-table tbody tr:hover {

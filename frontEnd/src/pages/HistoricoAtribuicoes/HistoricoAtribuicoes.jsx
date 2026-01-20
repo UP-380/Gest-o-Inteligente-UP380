@@ -54,6 +54,7 @@ const HistoricoAtribuicoes = () => {
 
   // Controle de expansão e detalhes
   const [linhasExpandidas, setLinhasExpandidas] = useState(new Set());
+  const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [detalhesDiarios, setDetalhesDiarios] = useState({});
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(new Set());
 
@@ -354,6 +355,16 @@ const HistoricoAtribuicoes = () => {
         }
       }
     }
+  };
+
+  const toggleTarefasExpandidas = (itemId) => {
+    const novoSet = new Set(tarefasExpandidas);
+    if (novoSet.has(itemId)) {
+      novoSet.delete(itemId);
+    } else {
+      novoSet.add(itemId);
+    }
+    setTarefasExpandidas(novoSet);
   };
 
   // Edição de Atribuição
@@ -696,6 +707,11 @@ const HistoricoAtribuicoes = () => {
                             const detalhes = detalhesDiarios[item.id] || [];
                             const carregando = carregandoDetalhes.has(item.id);
 
+                            const isTarefasExpandido = tarefasExpandidas.has(item.id);
+                            const tarefasLista = item.tarefas || [];
+                            const temMaisTarefas = tarefasLista.length > 4;
+                            const tarefasVisiveis = isTarefasExpandido ? tarefasLista : tarefasLista.slice(0, 4);
+
                             return (
                               <React.Fragment key={item.id}>
                                 <tr>
@@ -793,9 +809,9 @@ const HistoricoAtribuicoes = () => {
                                         </div>
                                       )}
 
-                                      {item.tarefas && Array.isArray(item.tarefas) && item.tarefas.length > 0 ? (
+                                      {tarefasLista.length > 0 ? (
                                         <div className="tarefas-list">
-                                          {item.tarefas.map((tarefa, idx) => (
+                                          {tarefasVisiveis.map((tarefa, idx) => (
                                             <div key={idx} className="tarefa-item">
                                               <span className="tarefa-nome">{nomesTarefas[String(tarefa.tarefa_id)] || `Tarefa #${tarefa.tarefa_id}`}</span>
                                               <div className="tarefa-tempo-card">
@@ -804,6 +820,18 @@ const HistoricoAtribuicoes = () => {
                                               </div>
                                             </div>
                                           ))}
+                                          {temMaisTarefas && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); toggleTarefasExpandidas(item.id); }}
+                                              className="btn-ver-mais-tarefas"
+                                            >
+                                              {isTarefasExpandido ? (
+                                                <><i className="fas fa-chevron-up"></i> Ver menos tarefas</>
+                                              ) : (
+                                                <><i className="fas fa-chevron-down"></i> Ver mais {tarefasLista.length - 4} tarefas</>
+                                              )}
+                                            </button>
+                                          )}
                                         </div>
                                       ) : <span>-</span>}
                                     </div>
