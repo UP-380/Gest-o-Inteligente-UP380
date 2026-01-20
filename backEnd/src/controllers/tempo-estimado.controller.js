@@ -2221,6 +2221,64 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
 
     console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);
 
+    // NOVA LÓGICA: Atualizar também o histórico de atribuição (historico_atribuicoes)
+    try {
+      console.log('🔄 Atualizando histórico de atribuição para o agrupador:', agrupador_id);
+
+      // Preparar lista de tarefas para o histórico (flattened)
+      // O formato esperado é um array de objetos { tarefa_id, tempo_estimado_dia }
+      // Como agora temos tarefas por produto, podemos ter a mesma tarefa com tempos diferentes em produtos diferentes?
+      // O histórico parece ser uma visão mais simplificada. Vamos consolidar todas as tarefas únicas.
+
+      const tarefasParaHistorico = [];
+      const tarefasProcessadasHistorico = new Set();
+
+      // Iterar sobre todas as tarefas em todos os produtos
+      for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
+        for (const t of tarefasList) {
+          // Usar uma chave única se quisermos preservar todas as instâncias ou tarefa_id se quisermos únicas
+          // O histórico geralmente lista as tarefas configuradas. Vamos incluir todas que foram salvas.
+          // Se o formato do histórico espera apenas tarefa_id e tempo, e se houver duplicatas (mesma tarefa em produtos diferentes),
+          // vamos adicionar todas, pois o contexto é importante (embora o histórico simplificado possa não mostrar produto)
+
+          // No criarTempoEstimado, 'todasTarefasComTempo' é usado. Ele contém todas as tarefas de todos os produtos.
+
+          tarefasParaHistorico.push({
+            tarefa_id: String(t.tarefa_id).trim(),
+            tempo_estimado_dia: parseInt(t.tempo_estimado_dia || tempo_estimado_dia, 10)
+          });
+        }
+      }
+
+      const historicoUpdate = {
+        updated_at: new Date().toISOString(),
+        produto_ids: produtoIdsArray.map(id => String(id).trim()),
+        tarefas: tarefasParaHistorico,
+        data_inicio: data_inicio,
+        data_fim: data_fim,
+        // Se cliente ou responsável mudou globalmente, atualizar também
+        cliente_id: String(cliente_id).trim(),
+        responsavel_id: String(responsavel_id).trim()
+      };
+
+      const { error: historicoError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('historico_atribuicoes')
+        .update(historicoUpdate)
+        .eq('agrupador_id', agrupador_id);
+
+      if (historicoError) {
+        console.error('⚠️ Erro ao atualizar histórico de atribuição:', historicoError);
+      } else {
+        console.log('✅ Histórico de atribuição atualizado com sucesso');
+      }
+
+    } catch (errorHistorico) {
+      console.error('⚠️ Erro não fatal ao atualizar histórico:', errorHistorico);
+    }
+
+    console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);
+
     // Calcular registros virtuais para retornar no formato esperado pelo frontend
     const dadosInseridos = [];
     for (const regra of regrasInseridas) {
