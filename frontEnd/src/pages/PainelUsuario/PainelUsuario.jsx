@@ -631,9 +631,106 @@ const PainelUsuario = () => {
     }
   }, []);
 
-  // Criar chave única para subtarefas (tarefa_id + cliente_id para diferenciar contextos)
+  // Criar chave única para subtarefas (USAR ID DA INSTÂNCIA para isolamento total por dia/contexto)
   const criarChaveSubtarefas = useCallback((reg) => {
+    // O reg.id é o ID Virtual (Hash de Regra+Data) ou ID único que garante unicidade da instância
+    // Fallback para cliente_tarefa apenas se não tiver ID (não deve ocorrer em tarefas reais)
+    if (reg.id) return String(reg.id).trim();
     return `${String(reg.cliente_id || '').trim()}_${String(reg.tarefa_id).trim()}`;
+  }, []);
+
+  // Buscar status das subtarefas no backend (persistência)
+  const carregarStatusChecklist = useCallback(async (instanciaId) => {
+    if (!instanciaId) return;
+
+    console.log('[Checklist] Carregando status para:', instanciaId);
+
+    // Evitar recarregar se já tiver sido carregado recentemente? 
+    // Por enquanto, sempre carrega ao abrir para garantir sincronia, ou podemos confiar no estado local se já existir
+    // Vamos carregar sempre para garantir (ex: abriu em outra aba)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/checklist/status/${instanciaId}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.concluidas)) {
+          console.log('[Checklist] Resultado para', instanciaId, ':', result.concluidas);
+          // Atualizar o estado local com o que veio do banco
+          const novoSet = new Set(result.concluidas.map(String));
+
+          // ATUALIZAÇÃO SÍNCRONA DO REF para garantir que o renderizador use os dados novos imediatamente
+          setSubtarefasConcluidas(prev => {
+            const novoMap = new Map(prev);
+            novoMap.set(instanciaId, novoSet);
+            // Atualizar ref também dentro do set para garantir consistência
+            subtarefasConcluidasRef.current = novoMap;
+            return novoMap;
+          });
+
+          // Forçar atualização do REF imediatamente antes de retornar (para uso síncrono no await)
+          const mapAtual = new Map(subtarefasConcluidasRef.current);
+          mapAtual.set(instanciaId, novoSet);
+          // ATUALIZAR CONTADOR NA INTERFACE
+          // Procurar elementos que exibem o contador para esta chave
+          const wrapper = document.querySelector(`.painel-usuario-subtarefas-wrapper[data-chave-subtarefas="${instanciaId}"]`);
+          if (wrapper) {
+            const item = wrapper.closest('.painel-usuario-tarefa-item-lista, .painel-usuario-tarefa-card');
+            if (item) {
+              const countElement = item.querySelector(`.painel-usuario-subtarefas-count`);
+              if (countElement) {
+                // Precisamos das subtarefas para contar. Tentar pegar do cache.
+                // Como não temos acesso fácil ao tarefaId aqui, vamos tentar inferir ou deixar para o chamador
+                // Se não conseguirmos atualizar aqui, o renderizador principal atualizará depois
+                // Melhor abordagem: disparar um evento customizado ou forçar atualização se possível
+
+                // Tenta pegar subtarefas do wrapper se já estiver renderizado
+                const totalSubtarefasElements = wrapper.querySelectorAll('.painel-usuario-subtarefa-item').length;
+                if (totalSubtarefasElements > 0) {
+                  const pendentes = totalSubtarefasElements - novoSet.size;
+                  countElement.textContent = `${pendentes} pendente${pendentes !== 1 ? 's' : ''}`;
+                  countElement.style.color = pendentes === 0 ? '#10b981' : '#f59e0b';
+                }
+              }
+            }
+          }
+
+          return novoSet;
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar status do checklist:', error);
+    }
+    return null;
+  }, []);
+
+  // Salvar status no backend
+  const salvarStatusChecklist = useCallback(async (instanciaId, subtarefaId, concluida) => {
+    try {
+      console.log('[Checklist] Salvando:', { instanciaId, subtarefaId, concluida });
+      await fetch(`${API_BASE_URL}/checklist/toggle`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          idInstancia: instanciaId,
+          subtarefaId: subtarefaId,
+          concluida: concluida
+        })
+      });
+    } catch (error) {
+      console.error('Erro ao salvar status do checklist:', error);
+      // Opcional: Reverter estado local em caso de erro (complexo de fazer aqui sem context, mas idealmente faria)
+    }
   }, []);
 
   // Contar subtarefas pendentes
@@ -3210,8 +3307,10 @@ const PainelUsuario = () => {
                 // Alternar apenas esta subtarefa específica
                 if (concluidas.has(subtarefaIdStr)) {
                   concluidas.delete(subtarefaIdStr);
+                  salvarStatusChecklist(chave, subtarefaIdStr, false);
                 } else {
                   concluidas.add(subtarefaIdStr);
+                  salvarStatusChecklist(chave, subtarefaIdStr, true);
                 }
 
                 // Atualizar o estado e o ref simultaneamente
@@ -3345,6 +3444,7 @@ const PainelUsuario = () => {
                   novoExpandidos.delete(chave);
                 } else {
                   novoExpandidos.add(chave);
+                  await carregarStatusChecklist(chave);
                 }
 
                 subtarefasExpandidasRef.current = novoExpandidos;
@@ -3372,8 +3472,10 @@ const PainelUsuario = () => {
                       // Alternar apenas esta subtarefa específica
                       if (concluidas.has(subtarefaIdStr)) {
                         concluidas.delete(subtarefaIdStr);
+                        salvarStatusChecklist(chave, subtarefaIdStr, false);
                       } else {
                         concluidas.add(subtarefaIdStr);
+                        salvarStatusChecklist(chave, subtarefaIdStr, true);
                       }
 
                       // Atualizar o estado e o ref simultaneamente
@@ -3909,8 +4011,10 @@ const PainelUsuario = () => {
                 // Alternar apenas esta subtarefa específica
                 if (concluidas.has(subtarefaIdStr)) {
                   concluidas.delete(subtarefaIdStr);
+                  salvarStatusChecklist(chave, subtarefaIdStr, false);
                 } else {
                   concluidas.add(subtarefaIdStr);
+                  salvarStatusChecklist(chave, subtarefaIdStr, true);
                 }
 
                 // Atualizar o estado e o ref simultaneamente
@@ -4013,6 +4117,7 @@ const PainelUsuario = () => {
                 novoExpandidos.delete(chave);
               } else {
                 novoExpandidos.add(chave);
+                await carregarStatusChecklist(chave);
               }
 
               subtarefasExpandidasRef.current = novoExpandidos;
@@ -4040,8 +4145,10 @@ const PainelUsuario = () => {
                     // Alternar apenas esta subtarefa específica
                     if (concluidas.has(subtarefaIdStr)) {
                       concluidas.delete(subtarefaIdStr);
+                      salvarStatusChecklist(chave, subtarefaIdStr, false);
                     } else {
                       concluidas.add(subtarefaIdStr);
+                      salvarStatusChecklist(chave, subtarefaIdStr, true);
                     }
 
                     // Atualizar o estado e o ref simultaneamente
