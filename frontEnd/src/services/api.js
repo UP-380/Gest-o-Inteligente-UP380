@@ -323,7 +323,7 @@ export const clientesAPI = {
    */
   async getAll(status = null, useCache = true) {
     const cacheKey = `api_cache_clientes_${status || 'all'}`;
-    
+
     if (useCache) {
       const cached = cache.get(cacheKey);
       if (cached) return { success: true, data: cached };
@@ -335,12 +335,12 @@ export const clientesAPI = {
     }
 
     const result = await request(url);
-    
+
     if (result.success && result.data && Array.isArray(result.data)) {
       if (useCache) cache.set(cacheKey, result.data);
       return result;
     }
-    
+
     return result;
   },
 
@@ -350,15 +350,15 @@ export const clientesAPI = {
    */
   async getPaginated({ page = 1, limit = 20, search = null, status = null, incompletos = false }) {
     let url = `${API_BASE_URL}/clientes?page=${page}&limit=${limit}`;
-    
+
     if (search && search.trim() !== '') {
       url += `&search=${encodeURIComponent(search.trim())}`;
     }
-    
+
     if (status && !incompletos) {
       url += `&status=${encodeURIComponent(status)}`;
     }
-    
+
     if (incompletos) {
       url += `&incompletos=true`;
     }
@@ -374,17 +374,17 @@ export const clientesAPI = {
    */
   async getByColaborador(colaboradorId, periodoInicio = null, periodoFim = null) {
     const colaboradorIds = Array.isArray(colaboradorId) ? colaboradorId : [colaboradorId];
-    
+
     const params = [];
     colaboradorIds.forEach(id => {
       params.push(`colaboradorId=${encodeURIComponent(id)}`);
     });
-    
+
     if (periodoInicio && periodoFim) {
       params.push(`periodoInicio=${encodeURIComponent(periodoInicio)}`);
       params.push(`periodoFim=${encodeURIComponent(periodoFim)}`);
     }
-    
+
     const url = `${API_BASE_URL}/clientes-por-colaborador?${params.join('&')}`;
     return await request(url);
   },
@@ -393,33 +393,33 @@ export const clientesAPI = {
    * Busca relatórios de clientes paginados
    * @param {Object} params - { page, limit, status, clienteId, colaboradorId, dataInicio, dataFim }
    */
-  async getRelatorios({ 
-    page = 1, 
-    limit = 20, 
-    status = null, 
-    clienteId = null, 
-    colaboradorId = null, 
-    dataInicio = null, 
-    dataFim = null 
+  async getRelatorios({
+    page = 1,
+    limit = 20,
+    status = null,
+    clienteId = null,
+    colaboradorId = null,
+    dataInicio = null,
+    dataFim = null
   }) {
     let url = `${API_BASE_URL}/relatorios-clientes?page=${page}&limit=${limit}`;
-    
+
     if (status) url += `&status=${encodeURIComponent(status)}`;
-    
+
     if (clienteId) {
       const clienteIds = Array.isArray(clienteId) ? clienteId : [clienteId];
       clienteIds.forEach(id => {
         url += `&clienteId=${encodeURIComponent(id)}`;
       });
     }
-    
+
     if (colaboradorId) {
       const colaboradorIds = Array.isArray(colaboradorId) ? colaboradorId : [colaboradorId];
       colaboradorIds.forEach(id => {
         url += `&colaboradorId=${encodeURIComponent(id)}`;
       });
     }
-    
+
     if (dataInicio) url += `&dataInicio=${encodeURIComponent(dataInicio)}`;
     if (dataFim) url += `&dataFim=${encodeURIComponent(dataFim)}`;
 
@@ -486,25 +486,25 @@ export const colaboradoresAPI = {
    */
   async getAll(useCache = true) {
     const cacheKey = 'api_cache_colaboradores_all';
-    
+
     if (useCache) {
       const cached = cache.get(cacheKey);
       if (cached) return { success: true, data: cached };
     }
 
     const result = await request(`${API_BASE_URL}/membros-id-nome`);
-    
+
     if (result.success && result.data && Array.isArray(result.data)) {
       // Garantir que todos os colaboradores tenham status
       const colaboradoresComStatus = result.data.map(colab => ({
         ...colab,
         status: colab.status || 'ativo'
       }));
-      
+
       if (useCache) cache.set(cacheKey, colaboradoresComStatus);
       return { ...result, data: colaboradoresComStatus };
     }
-    
+
     return result;
   },
 
@@ -514,25 +514,25 @@ export const colaboradoresAPI = {
    */
   async getAllIncludingWithoutUser(useCache = true) {
     const cacheKey = 'api_cache_colaboradores_all_todos';
-    
+
     if (useCache) {
       const cached = cache.get(cacheKey);
       if (cached) return { success: true, data: cached };
     }
 
     const result = await request(`${API_BASE_URL}/membros-id-nome-todos`);
-    
+
     if (result.success && result.data && Array.isArray(result.data)) {
       // Garantir que todos os colaboradores tenham status
       const colaboradoresComStatus = result.data.map(colab => ({
         ...colab,
         status: colab.status || 'ativo'
       }));
-      
+
       if (useCache) cache.set(cacheKey, colaboradoresComStatus);
       return { ...result, data: colaboradoresComStatus };
     }
-    
+
     return result;
   },
 
@@ -544,17 +544,17 @@ export const colaboradoresAPI = {
    */
   async getByCliente(clienteId, periodoInicio = null, periodoFim = null) {
     const clienteIds = Array.isArray(clienteId) ? clienteId : [clienteId];
-    
+
     const params = [];
     clienteIds.forEach(id => {
       params.push(`clienteId=${encodeURIComponent(id)}`);
     });
-    
+
     if (periodoInicio && periodoFim) {
       params.push(`periodoInicio=${encodeURIComponent(periodoInicio)}`);
       params.push(`periodoFim=${encodeURIComponent(periodoFim)}`);
     }
-    
+
     const url = `${API_BASE_URL}/membros-por-cliente?${params.join('&')}`;
     return await request(url);
   },
@@ -565,15 +565,15 @@ export const colaboradoresAPI = {
    */
   async getPaginated({ page = 1, limit = 20, search = null, colaboradorId = null, dtVigencia = null }) {
     const params = [`page=${page}`, `limit=${limit}`];
-    
+
     if (search && search.trim() !== '') {
       params.push(`search=${encodeURIComponent(search.trim())}`);
     }
-    
+
     if (colaboradorId) {
       params.push(`colaboradorId=${encodeURIComponent(colaboradorId)}`);
     }
-    
+
     if (dtVigencia) {
       params.push(`dtVigencia=${encodeURIComponent(dtVigencia)}`);
     }
@@ -628,30 +628,30 @@ export const colaboradoresAPI = {
    * Busca relatórios de colaboradores paginados
    * @param {Object} params - { page, limit, clienteId, colaboradorId, dataInicio, dataFim }
    */
-  async getRelatorios({ 
-    page = 1, 
-    limit = 20, 
-    clienteId = null, 
-    colaboradorId = null, 
-    dataInicio = null, 
-    dataFim = null 
+  async getRelatorios({
+    page = 1,
+    limit = 20,
+    clienteId = null,
+    colaboradorId = null,
+    dataInicio = null,
+    dataFim = null
   }) {
     let url = `${API_BASE_URL}/relatorios-colaboradores?page=${page}&limit=${limit}`;
-    
+
     if (clienteId) {
       const clienteIds = Array.isArray(clienteId) ? clienteId : [clienteId];
       clienteIds.forEach(id => {
         url += `&clienteId=${encodeURIComponent(id)}`;
       });
     }
-    
+
     if (colaboradorId) {
       const colaboradorIds = Array.isArray(colaboradorId) ? colaboradorId : [colaboradorId];
       colaboradorIds.forEach(id => {
         url += `&colaboradorId=${encodeURIComponent(id)}`;
       });
     }
-    
+
     if (dataInicio) url += `&dataInicio=${encodeURIComponent(dataInicio)}`;
     if (dataFim) url += `&dataFim=${encodeURIComponent(dataFim)}`;
 
@@ -671,7 +671,7 @@ export const statusAPI = {
    */
   async getAll(clienteId = null, useCache = true) {
     const cacheKey = `api_cache_status_${clienteId || 'all'}`;
-    
+
     if (useCache) {
       const cached = cache.get(cacheKey);
       if (cached) return { success: true, data: cached };
@@ -683,12 +683,12 @@ export const statusAPI = {
     }
 
     const result = await request(url);
-    
+
     if (result.success && result.data && Array.isArray(result.data)) {
       if (useCache) cache.set(cacheKey, result.data);
       return result;
     }
-    
+
     return result;
   }
 };
@@ -755,6 +755,93 @@ export const contratosAPI = {
 };
 
 // ============================================
+// HISTÓRICO DE ATRIBUIÇÕES
+// ============================================
+
+export const historicoAtribuicoesAPI = {
+  /**
+   * Busca histórico de atribuições com filtros e paginação
+   * @param {Object} params - { page, limit, responsavel_id, usuario_criador_id, data_inicio, data_fim }
+   */
+  async getAll({ page = 1, limit = 20, responsavel_id = null, usuario_criador_id = null, data_inicio = null, data_fim = null } = {}) {
+    const params = [`page=${page}`, `limit=${limit}`];
+
+    if (responsavel_id) params.push(`responsavel_id=${encodeURIComponent(responsavel_id)}`);
+    if (usuario_criador_id) params.push(`usuario_criador_id=${encodeURIComponent(usuario_criador_id)}`);
+    if (data_inicio) params.push(`data_inicio=${encodeURIComponent(data_inicio)}`);
+    if (data_fim) params.push(`data_fim=${encodeURIComponent(data_fim)}`);
+
+    return await request(`${API_BASE_URL}/historico-atribuicoes?${params.join('&')}`);
+  },
+
+  /**
+   * Busca regras órfãs (sem histórico)
+   */
+  async getOrfas() {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/orfas`);
+  },
+
+  /**
+   * Sincroniza regras órfãs criando históricos
+   */
+  async sincronizarOrfas() {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/sincronizar-orfaos`, {
+      method: 'POST'
+    });
+  },
+
+  /**
+   * Deleta um conjunto de regras órfãs por agrupador_id
+   * @param {string} agrupadorId
+   */
+  async deleteOrfa(agrupadorId) {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/orfas/${agrupadorId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * Deleta um histórico de atribuição
+   * @param {string} id
+   */
+  async delete(id) {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * Busca detalhes diários de um histórico
+   * @param {string} id
+   */
+  async getDetalhesDiarios(id) {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/${id}/detalhes-diarios`);
+  },
+
+  /**
+   * Atualiza uma tarefa diária (tempo estimado)
+   * @param {string} id - ID do registro de tempo estimado
+   * @param {Object} data - { tempo_estimado_dia }
+   */
+  async updateDetalheDiario(id, data) {
+    return await request(`${API_BASE_URL}/tempo-estimado/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  /**
+   * Deleta uma tarefa diária
+   * @param {string} id - ID do registro de tempo estimado
+   */
+  async deleteDetalheDiario(id) {
+    return await request(`${API_BASE_URL}/tempo-estimado/${id}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
+// ============================================
 // CUSTO COLABORADOR VIGÊNCIA
 // ============================================
 
@@ -765,19 +852,19 @@ export const custoColaboradorVigenciaAPI = {
    */
   async getAll({ colaboradorId = null, dtVigencia = null } = {}) {
     const params = [];
-    
+
     if (colaboradorId) {
       params.push(`colaboradorId=${encodeURIComponent(colaboradorId)}`);
     }
-    
+
     if (dtVigencia) {
       params.push(`dtVigencia=${encodeURIComponent(dtVigencia)}`);
     }
 
-    const url = params.length > 0 
+    const url = params.length > 0
       ? `${API_BASE_URL}/custo-colaborador-vigencia?${params.join('&')}`
       : `${API_BASE_URL}/custo-colaborador-vigencia`;
-    
+
     return await request(url);
   },
 
