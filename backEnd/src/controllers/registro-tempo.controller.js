@@ -18,7 +18,7 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
       return null;
     }
 
-    console.log('🔍 Buscando tipo_tarefa_id para tarefa_id:', tarefaIdNum, '(tipo:', typeof tarefaIdNum + ')');
+
 
     // Buscar na tabela vinculados onde há vínculo entre tarefa e tipo_tarefa
     // (sem produto, cliente ou subtarefa)
@@ -39,21 +39,18 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
       return null;
     }
 
-    console.log(`📋 Vinculados encontrados: ${vinculados?.length || 0}`);
-    if (vinculados && vinculados.length > 0) {
-      console.log('📋 Dados dos vinculados:', JSON.stringify(vinculados, null, 2));
-      // Pegar o primeiro vinculado encontrado
-      const vinculado = vinculados[0];
-      if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
-        const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number'
-          ? vinculado.tarefa_tipo_id
-          : parseInt(vinculado.tarefa_tipo_id, 10);
-        if (!isNaN(tipoTarefaId)) {
-          console.log('✅ Tipo_tarefa_id encontrado:', tipoTarefaId);
-          return tipoTarefaId;
-        } else {
-          console.warn('⚠️ tipo_tarefa_id não é um número válido:', vinculado.tarefa_tipo_id);
-        }
+
+    // Pegar o primeiro vinculado encontrado
+    const vinculado = vinculados[0];
+    if (vinculado && vinculado.tarefa_tipo_id !== null && vinculado.tarefa_tipo_id !== undefined) {
+      const tipoTarefaId = typeof vinculado.tarefa_tipo_id === 'number'
+        ? vinculado.tarefa_tipo_id
+        : parseInt(vinculado.tarefa_tipo_id, 10);
+      if (!isNaN(tipoTarefaId)) {
+
+        return tipoTarefaId;
+      } else {
+        console.warn('⚠️ tipo_tarefa_id não é um número válido:', vinculado.tarefa_tipo_id);
       }
     }
 
@@ -125,13 +122,13 @@ async function iniciarRegistroTempo(req, res) {
 
     // Se veio no body, logar
     if (produtoId) {
-      console.log('✅ Produto_id recebido do frontend:', produtoId);
+
     }
 
     // Se NÃO veio no body, buscar no banco (Fallback)
     if (!produtoId) {
       try {
-        console.log('🔍 Buscando produto_id da tarefa (fallback):', tarefa_id);
+
         const { data: tarefa, error: tarefaError } = await supabase
           .schema('up_gestaointeligente')
           .from('tarefa')
@@ -142,10 +139,8 @@ async function iniciarRegistroTempo(req, res) {
         if (tarefaError) {
           console.error('❌ Erro ao buscar produto_id da tarefa:', tarefaError);
         } else if (tarefa) {
-          console.log('📋 Dados da tarefa encontrada:', JSON.stringify(tarefa, null, 2));
           if (tarefa.produto_id) {
             produtoId = String(tarefa.produto_id).trim();
-            console.log('✅ Produto_id encontrado na tarefa:', produtoId);
           } else {
             console.warn('⚠️ Tarefa não possui produto_id');
           }
@@ -160,7 +155,7 @@ async function iniciarRegistroTempo(req, res) {
     // Se não encontrou na tabela tarefa, tentar buscar na tabela vinculados
     if (!produtoId) {
       try {
-        console.log('🔍 Buscando produto_id na tabela vinculados para tarefa:', tarefa_id);
+
         // Converter para inteiro pois tarefa_id em vinculados geralmente é int8
         const tarefaIdInt = parseInt(String(tarefa_id).trim(), 10);
 
@@ -177,9 +172,7 @@ async function iniciarRegistroTempo(req, res) {
             console.error('❌ Erro ao buscar produto_id em vinculados:', vinculadoError);
           } else if (vinculados && vinculados.length > 0) {
             produtoId = String(vinculados[0].produto_id).trim();
-            console.log('✅ Produto_id encontrado em vinculados:', produtoId);
-          } else {
-            console.log('⚠️ Nenhum vínculo de produto encontrado para esta tarefa em vinculados');
+
           }
         }
       } catch (error) {
@@ -213,7 +206,7 @@ async function iniciarRegistroTempo(req, res) {
       tipo_tarefa_id: tipoTarefaId || null // Sempre incluir tipo_tarefa_id, mesmo se null
     };
 
-    console.log('📝 Criando registro de tempo:', JSON.stringify(dadosInsert, null, 2));
+
 
     const { data: registroCriado, error: insertError } = await supabase
       .schema('up_gestaointeligente')
@@ -232,7 +225,7 @@ async function iniciarRegistroTempo(req, res) {
       });
     }
 
-    console.log('✅ Registro de tempo criado com sucesso:', registroCriado.id);
+
 
     return res.status(201).json({
       success: true,
@@ -337,11 +330,7 @@ async function finalizarRegistroTempo(req, res) {
       tempo_realizado: tempoRealizado
     };
 
-    console.log('📝 Finalizando registro de tempo:', {
-      id,
-      tempo_realizado_ms: tempoRealizado,
-      tempo_realizado_horas: (tempoRealizado / (1000 * 60 * 60)).toFixed(2)
-    });
+
 
     const { data: registroAtualizado, error: updateError } = await supabase
       .schema('up_gestaointeligente')
@@ -360,7 +349,7 @@ async function finalizarRegistroTempo(req, res) {
       });
     }
 
-    console.log('✅ Registro de tempo finalizado com sucesso:', registroAtualizado.id);
+
 
     return res.json({
       success: true,

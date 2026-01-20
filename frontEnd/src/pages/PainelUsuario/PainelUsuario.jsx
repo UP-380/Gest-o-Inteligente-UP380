@@ -1249,11 +1249,10 @@ const PainelUsuario = () => {
       }
 
       // Log do ID do registro conforme solicitado
-      console.log('▶️ Plug iniciado! ID do registro:', result.data.id);
 
-      // Log do Produto ID
+
       if (reg.produto_id) {
-        console.log('📦 Produto da tarefa:', reg.produto_id, `(${getNomeProduto(reg.produto_id)})`);
+        // console.log('📦 Produto da tarefa:', reg.produto_id, `(${getNomeProduto(reg.produto_id)})`);
       } else {
         console.warn('⚠️ Tarefa sem produto_id no frontend:', reg.tarefa_id);
       }
