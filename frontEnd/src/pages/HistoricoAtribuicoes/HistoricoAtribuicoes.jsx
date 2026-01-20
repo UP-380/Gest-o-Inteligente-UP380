@@ -5,6 +5,7 @@ import CardContainer from '../../components/common/CardContainer';
 import FiltersCard from '../../components/filters/FiltersCard';
 import FilterMembro from '../../components/filters/FilterMembro';
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
+import Pagination from '../../components/common/Pagination';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
 import ConfirmModal from '../../components/common/ConfirmModal';
@@ -27,7 +28,7 @@ const HistoricoAtribuicoes = () => {
   const [historico, setHistorico] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRegistros, setTotalRegistros] = useState(0);
 
@@ -708,8 +709,12 @@ const HistoricoAtribuicoes = () => {
                                   </td>
                                   <td>
                                     <div className="historico-date-time">
-                                      <div className="historico-date">{formatarData(item.created_at?.split('T')[0])}</div>
-                                      <div className="historico-time">{item.created_at?.split('T')[1]?.substring(0, 5)}</div>
+                                      <div className="historico-date">
+                                        {item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-'}
+                                      </div>
+                                      <div className="historico-time">
+                                        {item.created_at ? new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                      </div>
                                     </div>
                                   </td>
                                   <td><div className="historico-cliente">{item.cliente?.nome || `Cliente #${item.cliente_id}`}</div></td>
@@ -808,16 +813,17 @@ const HistoricoAtribuicoes = () => {
                       </table>
                     </div>
 
-                    {totalPages > 1 && (
-                      <div className="pagination">
-                        <button className="pagination-btn" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1 || loading}>
-                          <i className="fas fa-chevron-left"></i> Anterior
-                        </button>
-                        <span className="pagination-info">Página {currentPage} de {totalPages} ({totalRegistros} registros)</span>
-                        <button className="pagination-btn" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || loading}>
-                          Próxima <i className="fas fa-chevron-right"></i>
-                        </button>
-                      </div>
+                    {totalPages > 0 && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={totalRegistros}
+                        itemsPerPage={itemsPerPage}
+                        onPageChange={setCurrentPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                        loading={loading}
+                        itemName="registros"
+                      />
                     )}
                   </>
                 )}

@@ -534,9 +534,25 @@ async function deletarHistoricoAtribuicao(req, res) {
 
     const agrupador_id = historicoAtual.agrupador_id;
 
-    // Deletar todos os registros de tempo_estimado relacionados ao agrupador
     if (agrupador_id) {
-      console.log('🗑️ Deletando registros de tempo_estimado do agrupamento:', agrupador_id);
+      console.log('🗑️ Iniciando deleção em cascata para agrupador:', agrupador_id);
+
+      // 1. Deletar regras de tempo estimado (tempo_estimado_regra)
+      const { error: deleteRegraError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('tempo_estimado_regra')
+        .delete()
+        .eq('agrupador_id', agrupador_id);
+
+      if (deleteRegraError) {
+        console.error('❌ Erro ao deletar regras (tempo_estimado_regra):', deleteRegraError);
+        // Não retornar erro fatal aqui, tentar deletar o resto
+      } else {
+        console.log('✅ Regras deletadas com sucesso');
+      }
+
+      // 2. Deletar registros de tempo diários (tempo_estimado)
+      // NOTA: Esta tabela pode não existir mais em versões recentes que usam apenas regras dinâmicas
       const { error: deleteTempoError } = await supabase
         .schema('up_gestaointeligente')
         .from('tempo_estimado')
@@ -544,16 +560,23 @@ async function deletarHistoricoAtribuicao(req, res) {
         .eq('agrupador_id', agrupador_id);
 
       if (deleteTempoError) {
-        console.error('❌ Erro ao deletar registros de tempo_estimado:', deleteTempoError);
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao deletar registros relacionados',
-          details: deleteTempoError.message
-        });
+        // Ignorar erro se a tabela não existir (código 42P01)
+        if (deleteTempoError.code === '42P01') {
+          console.warn('⚠️ Tabela tempo_estimado não encontrada, pulando deleção de registros diários (OK se usar apenas regras dinâmicas)');
+        } else {
+          console.error('❌ Erro ao deletar registros de tempo_estimado:', deleteTempoError);
+          return res.status(500).json({
+            success: false,
+            error: 'Erro ao deletar registros relacionados (tempo_estimado)',
+            details: deleteTempoError.message
+          });
+        }
+      } else {
+        console.log('✅ Registros diários deletados com sucesso');
       }
     }
 
-    // Deletar o histórico
+    // 3. Deletar o histórico (historico_atribuicoes)
     const { error: deleteError } = await supabase
       .schema('up_gestaointeligente')
       .from('historico_atribuicoes')
