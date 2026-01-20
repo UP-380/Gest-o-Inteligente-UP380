@@ -82,46 +82,40 @@ async function getHistoricoAtribuicoes(req, res) {
       });
     }
 
-    // Buscar dados relacionados (cliente, responsável, usuário criador)
-    console.log('🔍 Buscando dados relacionados...');
-    const historicoCompleto = await Promise.all((data || []).map(async (item) => {
-      try {
-        const [clienteResult, responsavelResult, usuarioCriadorResult] = await Promise.all([
-          supabase
-            .schema('up_gestaointeligente')
-            .from('cp_cliente')
-            .select('id, nome')
-            .eq('id', item.cliente_id)
-            .maybeSingle(),
-          supabase
-            .schema('up_gestaointeligente')
-            .from('membro')
-            .select('id, nome')
-            .eq('id', item.responsavel_id)
-            .maybeSingle(),
-          supabase
-            .schema('up_gestaointeligente')
-            .from('membro')
-            .select('id, nome')
-            .eq('id', item.usuario_criador_id)
-            .maybeSingle()
-        ]);
+    // OTIMIZAÇÃO: Buscar dados relacionados em LOTE (Batch Fetching)
+    // Em vez de fazer uma query por linha (N+1), fazemos apenas 2 queries extras
 
-        return {
-          ...item,
-          cliente: clienteResult.data || null,
-          responsavel: responsavelResult.data || null,
-          usuario_criador: usuarioCriadorResult.data || null
-        };
-      } catch (err) {
-        console.error('❌ Erro ao buscar dados relacionados para item:', item.id, err);
-        return {
-          ...item,
-          cliente: null,
-          responsavel: null,
-          usuario_criador: null
-        };
-      }
+    // 1. Coletar IDs únicos
+    const clienteIds = [...new Set(data.map(i => i.cliente_id).filter(Boolean))];
+    const membroIds = [...new Set([
+      ...data.map(i => i.responsavel_id),
+      ...data.map(i => i.usuario_criador_id)
+    ].filter(Boolean))];
+
+    // 2. Buscar dados em paralelo
+    const [clientesResponse, membrosResponse] = await Promise.all([
+      clienteIds.length > 0 ? supabase
+        .schema('up_gestaointeligente')
+        .from('cp_cliente')
+        .select('id, nome')
+        .in('id', clienteIds) : { data: [] },
+      membroIds.length > 0 ? supabase
+        .schema('up_gestaointeligente')
+        .from('membro')
+        .select('id, nome')
+        .in('id', membroIds) : { data: [] }
+    ]);
+
+    // 3. Criar Mapas para acesso O(1)
+    const clienteMap = new Map((clientesResponse.data || []).map(c => [String(c.id), c]));
+    const membroMap = new Map((membrosResponse.data || []).map(m => [String(m.id), m]));
+
+    // 4. Enriquecer os dados
+    const historicoCompleto = data.map(item => ({
+      ...item,
+      cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
+      responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
+      usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null
     }));
 
     console.log('✅ Dados relacionados carregados com sucesso');
@@ -231,7 +225,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
     console.log('📥 PUT /api/historico-atribuicoes/:id chamado');
     console.log('📦 Params:', req.params);
     console.log('📦 Body:', req.body);
-    
+
     const { id } = req.params;
     const { cliente_id, responsavel_id, produto_ids, tarefas, data_inicio, data_fim } = req.body;
 
@@ -326,13 +320,13 @@ async function atualizarHistoricoAtribuicao(req, res) {
       const inicio = new Date(inicioStr + 'T00:00:00');
       const fim = new Date(fimStr + 'T00:00:00');
       const datas = [];
-      
+
       if (fim < inicio) {
         return [];
       }
-      
+
       const dataAtual = new Date(inicio);
-      
+
       while (dataAtual <= fim) {
         const ano = dataAtual.getFullYear();
         const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
@@ -341,13 +335,13 @@ async function atualizarHistoricoAtribuicao(req, res) {
         datas.push(dataFormatada);
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
-      
+
       return datas;
     };
 
     // Gerar todas as datas do período
     const datasDoPeriodo = gerarDatasDoPeriodo(dataInicioFinal, dataFimFinal);
-    
+
     if (datasDoPeriodo.length === 0) {
       return res.status(400).json({
         success: false,
@@ -382,14 +376,14 @@ async function atualizarHistoricoAtribuicao(req, res) {
     const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
       try {
         if (!tarefaId) return null;
-        
+
         const tarefaIdStr = String(tarefaId).trim();
         const tarefaIdNum = parseInt(tarefaIdStr, 10);
-        
+
         if (isNaN(tarefaIdNum)) {
           return null;
         }
-        
+
         const { data: vinculados, error } = await supabase
           .schema('up_gestaointeligente')
           .from('vinculados')
@@ -398,11 +392,11 @@ async function atualizarHistoricoAtribuicao(req, res) {
           .not('tarefa_tipo_id', 'is', null)
           .limit(1)
           .maybeSingle();
-        
+
         if (error || !vinculados) {
           return null;
         }
-        
+
         return vinculados.tarefa_tipo_id ? String(vinculados.tarefa_tipo_id).trim() : null;
       } catch (error) {
         console.error('Erro ao buscar tipo_tarefa_id:', error);
@@ -412,12 +406,12 @@ async function atualizarHistoricoAtribuicao(req, res) {
 
     // Criar novas regras (agrupando por produto + tarefa + tempo_estimado_dia)
     const regrasParaInserir = [];
-    
+
     for (const produtoId of produtoIdsFinal) {
       for (const tarefa of tarefasFinal) {
         const tarefaId = String(tarefa.tarefa_id).trim();
         const tempoEstimado = tempoPorTarefa.get(tarefaId);
-        
+
         if (!tempoEstimado || tempoEstimado <= 0) {
           console.warn(`⚠️ Tarefa ${tarefaId} não tem tempo estimado válido, pulando...`);
           continue;
@@ -678,7 +672,7 @@ async function getDetalhesDiariosAtribuicao(req, res) {
         historico.data_inicio,
         historico.data_fim
       );
-      
+
       // Adicionar informações adicionais de cada registro virtual
       registrosVirtuais.forEach(reg => {
         registrosTempo.push({
@@ -774,7 +768,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
     const agrupadoresComHistorico = new Set();
     if (regrasPorAgrupador.size > 0) {
       const agrupadorIds = Array.from(regrasPorAgrupador.keys());
-      
+
       // Buscar em lotes (Supabase tem limite de 1000 itens no IN)
       const batchSize = 1000;
       for (let i = 0; i < agrupadorIds.length; i += batchSize) {
@@ -831,7 +825,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
 
       // Pegar dados da primeira regra (todas devem ter os mesmos dados básicos)
       const primeiraRegra = regrasCompletas[0];
-      
+
       // Calcular período mínimo e máximo
       let dataInicioMin = primeiraRegra.data_inicio;
       let dataFimMax = primeiraRegra.data_fim;
@@ -979,7 +973,7 @@ async function getRegrasOrfas(req, res) {
 
     // Buscar regras completas para cada agrupador órfão
     const regrasOrfasFormatadas = [];
-    
+
     for (const agrupadorId of agrupadoresOrfaos) {
       const { data: regrasDoAgrupador } = await supabase
         .schema('up_gestaointeligente')
@@ -991,7 +985,7 @@ async function getRegrasOrfas(req, res) {
       if (!regrasDoAgrupador || regrasDoAgrupador.length === 0) continue;
 
       const primeiraRegra = regrasDoAgrupador[0];
-      
+
       // Calcular período mínimo e máximo
       let dataInicioMin = primeiraRegra.data_inicio;
       let dataFimMax = primeiraRegra.data_fim;

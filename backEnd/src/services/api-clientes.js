@@ -36,7 +36,7 @@ function dataBRparaISO(dataBR) {
   if (!dataBR || typeof dataBR !== 'string') return null;
   const [dia, mes, ano] = dataBR.split('/');
   if (!dia || !mes || !ano) return null;
-  return `${ano.padStart(4,'0')}-${mes.padStart(2,'0')}-${dia.padStart(2,'0')}`;
+  return `${ano.padStart(4, '0')}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
 }
 
 function dataHoraBRparaISO(dataHoraBR) {
@@ -44,7 +44,7 @@ function dataHoraBRparaISO(dataHoraBR) {
   const [data, hora = '00:00'] = dataHoraBR.split(' ');
   const [dia, mes, ano] = (data || '').split('/');
   if (!dia || !mes || !ano) return null;
-  return `${ano.padStart(4,'0')}-${mes.padStart(2,'0')}-${dia.padStart(2,'0')}T${hora}:00`;
+  return `${ano.padStart(4, '0')}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}T${hora}:00`;
 }
 
 function isoParaDataBR(isoDate) {
@@ -93,7 +93,7 @@ async function getAllClientes() {
   if (error) {
     throw error;
   }
-  
+
   // Garantir que todos os clientes tenham status (assumir 'ativo' se não estiver definido)
   return (data || []).map(row => ({
     id: row.id,
@@ -114,7 +114,7 @@ async function getClientesByStatus(status) {
   }
 
   const idsClientes = [...new Set(data.map(row => row.id_cliente).filter(Boolean))];
-  
+
   if (idsClientes.length === 0) {
     return [];
   }
@@ -142,7 +142,7 @@ async function getTodoscp_clientesIdNomeMap() {
   if (error) {
     throw error;
   }
-  
+
   const cp_clientesMap = {};
   (data || []).forEach(m => {
     cp_clientesMap[m.id] = m.nome;
@@ -216,9 +216,9 @@ async function getContratosByClienteId(idCliente) {
   try {
     // Normalizar o ID (pode vir como string ou número)
     const idNormalizado = String(idCliente).trim();
-    
+
     console.log('🔍 [GET-CONTRATOS-CLIENTE-ID] Buscando contratos para id_cliente:', idNormalizado);
-    
+
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('contratos_clientes')
@@ -243,7 +243,7 @@ async function getContratosByClickupNome(nomeClienteClickup) {
   try {
     const nomeNormalizado = String(nomeClienteClickup).trim();
     console.log('🔍 [GET-CONTRATOS-CLICKUP] Buscando cliente por nome:', nomeNormalizado);
-    
+
     // Primeiro, buscar o cliente pelo nome no ClickUp
     const { data: clienteData, error: clienteError } = await supabase
       .schema('up_gestaointeligente')
@@ -267,7 +267,7 @@ async function getContratosByClickupNome(nomeClienteClickup) {
     // Buscar contratos usando o id_cliente
     const contratos = await getContratosByClienteId(clienteData.id);
     console.log(`✅ [GET-CONTRATOS-CLICKUP] Retornando ${contratos.length} contratos`);
-    
+
     return contratos;
   } catch (error) {
     console.error('❌ [GET-CONTRATOS-CLICKUP] Erro em getContratosByClickupNome:', error);
@@ -359,7 +359,7 @@ async function getMembrosIdNome(req, res) {
     // Buscar fotos de perfil dos usuários e resolver avatares customizados
     if (membros.length > 0) {
       const usuarioIds = [...new Set(membros.map(m => m.usuario_id).filter(Boolean))];
-      
+
       if (usuarioIds.length > 0) {
         const { data: usuarios, error: usuariosError } = await supabase
           .schema('up_gestaointeligente')
@@ -460,7 +460,7 @@ async function getMembrosIdNomeTodos(req, res) {
 async function getClientesEndpoint(req, res) {
   try {
     const { status } = req.query;
-    
+
     let clientes;
     if (status) {
       clientes = await getClientesByStatus(status);
@@ -480,7 +480,7 @@ async function getClientesEndpoint(req, res) {
 async function getStatusEndpoint(req, res) {
   try {
     const { clienteId } = req.query;
-    
+
     let statusList;
     if (clienteId) {
       statusList = await getDistinctStatusByCliente(clienteId);
@@ -516,8 +516,8 @@ async function getContratosEndpoint(req, res) {
       details: error.details,
       hint: error.hint
     });
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Erro ao buscar contratos',
       details: error.message || 'Erro desconhecido'
     });
@@ -528,7 +528,7 @@ async function getContratosEndpoint(req, res) {
 async function getContratosClienteEndpoint(req, res) {
   try {
     const { nomeClienteClickup } = req.params;
-    
+
     if (!nomeClienteClickup) {
       return res.status(400).json({
         success: false,
@@ -545,8 +545,8 @@ async function getContratosClienteEndpoint(req, res) {
     res.json({ success: true, data: contratos, count: contratos.length });
   } catch (error) {
     console.error('❌ [CONTRATOS-CLIENTE] Erro ao buscar contratos:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Erro ao buscar contratos',
       details: error.message || 'Erro desconhecido'
     });
@@ -557,7 +557,7 @@ async function getContratosClienteEndpoint(req, res) {
 async function getContratosClienteIdEndpoint(req, res) {
   try {
     const { idCliente } = req.params;
-    
+
     if (!idCliente) {
       return res.status(400).json({
         success: false,
@@ -574,8 +574,8 @@ async function getContratosClienteIdEndpoint(req, res) {
     res.json({ success: true, data: contratos, count: contratos.length });
   } catch (error) {
     console.error('❌ [CONTRATOS-CLIENTE-ID] Erro ao buscar contratos:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Erro ao buscar contratos',
       details: error.message || 'Erro desconhecido'
     });
@@ -632,7 +632,7 @@ async function getRegistrosTempo(req, res) {
 async function getRegistrosTempoSemTarefa(req, res) {
   try {
     console.log('🔍 Buscando registros de tempo sem tarefa_id...');
-    
+
     // Criar função para query builder (para usar paginação automática)
     // Buscar registros onde tarefa_id é null OU string vazia
     const criarQueryBuilderRegistros = () => {
@@ -641,23 +641,23 @@ async function getRegistrosTempoSemTarefa(req, res) {
         .from('registro_tempo')
         .select('*')
         .or('tarefa_id.is.null,tarefa_id.eq.');
-      
+
       console.log('📋 Query criada: registro_tempo WHERE tarefa_id IS NULL OR tarefa_id = ""');
       return query;
     };
 
     // Usar paginação automática para buscar todos os registros
-    const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-      limit: 1000, 
-      logProgress: true 
+    const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+      limit: 1000,
+      logProgress: true
     });
 
     console.log(`✅ Encontrados ${registros.length} registros sem tarefa_id`);
-    
+
     // Buscar nomes dos membros (usuários)
     const usuarioIds = [...new Set(registros.map(r => r.usuario_id).filter(Boolean))];
     let membrosMap = {};
-    
+
     if (usuarioIds.length > 0) {
       console.log(`🔍 Buscando nomes de ${usuarioIds.length} membros...`);
       const membros = await getMembrosPorIds(usuarioIds);
@@ -776,72 +776,72 @@ async function getProdutoPorId(produtoId) {
 }
 
 async function getProdutosPorIds(produtoIds) {
-  // Para colunas do tipo text, buscar um por um é mais confiável
+  // Buscar produtos por IDs (verificando tanto id quanto clickup_id para robustez)
   const produtos = [];
-  
+
   for (const produtoId of produtoIds) {
     try {
-      console.log(`🔍 Buscando produto ID: "${produtoId}" (tipo: ${typeof produtoId})`);
-      
+      console.log(`🔍 Buscando produto input: "${produtoId}" (tipo: ${typeof produtoId})`);
+
       const { data, error } = await supabase
         .schema('up_gestaointeligente')
         .from('cp_produto')
-        .select('id, nome')
-        .eq('id', produtoId)
+        .select('id, clickup_id, nome')
+        .or(`id.eq."${produtoId}",clickup_id.eq."${produtoId}"`)
         .maybeSingle();
-      
+
       if (error) {
         console.error(`❌ Erro ao buscar produto "${produtoId}":`, error);
       } else if (data) {
         console.log(`✅ Produto encontrado: ID="${data.id}", Nome="${data.nome}"`);
         produtos.push(data);
       } else {
-        console.log(`⚠️ Produto não encontrado para ID: "${produtoId}"`);
+        console.log(`⚠️ Produto não encontrado para input: "${produtoId}"`);
       }
     } catch (err) {
       // Continuar para próximo produto se der erro
       console.error(`❌ Exceção ao buscar produto "${produtoId}":`, err);
     }
   }
-  
+
   console.log(`📦 Total de produtos encontrados: ${produtos.length} de ${produtoIds.length}`);
   return produtos;
 }
 
 async function getProdutosPorClickupIds(clickupIds) {
-  // Buscar produtos pela coluna clickup_id (não id)
+  // Buscar produtos por clickup_id (mas também verificando id para robustez misturando legados)
   const produtos = [];
-  
+
   for (const clickupId of clickupIds) {
     try {
-      console.log(`🔍 Buscando produto por clickup_id: "${clickupId}" (tipo: ${typeof clickupId})`);
-      
+      console.log(`🔍 Buscando produto por input (clickup/id): "${clickupId}"`);
+
       const { data, error } = await supabase
         .schema('up_gestaointeligente')
         .from('cp_produto')
         .select('id, clickup_id, nome')
-        .eq('clickup_id', clickupId)
+        .or(`clickup_id.eq."${clickupId}",id.eq."${clickupId}"`)
         .maybeSingle();
-      
+
       if (error) {
-        console.error(`❌ Erro ao buscar produto por clickup_id "${clickupId}":`, error);
+        console.error(`❌ Erro ao buscar produto por input "${clickupId}":`, error);
       } else if (data) {
-        console.log(`✅ Produto encontrado: clickup_id="${data.clickup_id}", Nome="${data.nome}"`);
+        console.log(`✅ Produto encontrado: clickup_id="${data.clickup_id}", id="${data.id}", Nome="${data.nome}"`);
         produtos.push({
           clickup_id: data.clickup_id,
           nome: data.nome,
           id: data.id
         });
       } else {
-        console.log(`⚠️ Produto não encontrado para clickup_id: "${clickupId}"`);
+        console.log(`⚠️ Produto não encontrado para input: "${clickupId}"`);
       }
     } catch (err) {
       // Continuar para próximo produto se der erro
-      console.error(`❌ Exceção ao buscar produto por clickup_id "${clickupId}":`, err);
+      console.error(`❌ Exceção ao buscar produto por input "${clickupId}":`, err);
     }
   }
-  
-  console.log(`📦 Total de produtos encontrados por clickup_id: ${produtos.length} de ${clickupIds.length}`);
+
+  console.log(`📦 Total de produtos encontrados por input: ${produtos.length} de ${clickupIds.length}`);
   return produtos;
 }
 //====================================
@@ -859,7 +859,7 @@ async function getAllMembros() {
   if (error) {
     throw error;
   }
-  
+
   // Garantir que todos os membros tenham status (assumir 'ativo' se não estiver definido)
   return (data || []).map(row => ({
     id: row.id,
@@ -872,14 +872,14 @@ async function getMembrosPorIds(membroIds) {
   if (!membroIds || membroIds.length === 0) {
     return [];
   }
-  
+
   // Normalizar IDs: tentar converter para número quando possível, mas manter string também
   const membroIdsNormalizados = membroIds.map(id => {
     const idStr = String(id).trim();
     const idNum = parseInt(idStr, 10);
     return { original: id, string: idStr, number: isNaN(idNum) ? null : idNum };
   });
-  
+
   // Criar lista única de IDs para buscar (tentar número primeiro, depois string)
   const idsParaBuscar = [];
   membroIdsNormalizados.forEach(({ string, number }) => {
@@ -889,28 +889,28 @@ async function getMembrosPorIds(membroIds) {
       idsParaBuscar.push(string);
     }
   });
-  
+
   if (idsParaBuscar.length === 0) {
     return [];
   }
-  
+
   let membros = [];
-  
+
   try {
     // Tentar com .in() usando números (se todos forem números)
     const todosNumeros = idsParaBuscar.every(id => typeof id === 'number' || !isNaN(parseInt(String(id), 10)));
-    
+
     if (todosNumeros) {
       // Converter todos para números
       const idsNumeros = idsParaBuscar.map(id => typeof id === 'number' ? id : parseInt(String(id), 10)).filter(id => !isNaN(id));
-      
+
       if (idsNumeros.length > 0) {
         const { data, error } = await supabase
           .schema('up_gestaointeligente')
           .from('membro')
           .select('id, nome, status')
           .in('id', idsNumeros);
-        
+
         if (!error && data && data.length > 0) {
           membros = data.map(m => ({
             ...m,
@@ -919,7 +919,7 @@ async function getMembrosPorIds(membroIds) {
         }
       }
     }
-    
+
     // Se não encontrou todos ou não são todos números, buscar também como string
     if (membros.length < idsParaBuscar.length) {
       const idsStrings = idsParaBuscar.map(id => String(id).trim());
@@ -928,7 +928,7 @@ async function getMembrosPorIds(membroIds) {
         .from('membro')
         .select('id, nome, status')
         .in('id', idsStrings);
-      
+
       if (!error && data) {
         // Combinar resultados, evitando duplicatas
         const membrosMap = new Map();
@@ -945,25 +945,25 @@ async function getMembrosPorIds(membroIds) {
         membros = Array.from(membrosMap.values());
       }
     }
-    
+
     // Se ainda faltar membros, buscar individualmente (fallback robusto)
     if (membros.length < idsParaBuscar.length) {
       const membrosEncontrados = new Map();
       membros.forEach(m => membrosEncontrados.set(String(m.id).trim(), m));
-      
+
       const membrosFaltantes = idsParaBuscar.filter(id => {
         const idStr = String(id).trim();
         const idNum = parseInt(idStr, 10);
-        return !membrosEncontrados.has(idStr) && 
-               !membrosEncontrados.has(String(idNum)) &&
-               !Array.from(membrosEncontrados.keys()).some(key => String(key) === idStr || String(key) === String(idNum));
+        return !membrosEncontrados.has(idStr) &&
+          !membrosEncontrados.has(String(idNum)) &&
+          !Array.from(membrosEncontrados.keys()).some(key => String(key) === idStr || String(key) === String(idNum));
       });
-      
+
       if (membrosFaltantes.length > 0) {
         const membrosPromises = membrosFaltantes.map(async (id) => {
           const idStr = String(id).trim();
           const idNum = parseInt(idStr, 10);
-          
+
           // Tentar como número primeiro
           if (!isNaN(idNum)) {
             const { data, error } = await supabase
@@ -979,7 +979,7 @@ async function getMembrosPorIds(membroIds) {
               };
             }
           }
-          
+
           // Tentar como string
           const { data, error } = await supabase
             .schema('up_gestaointeligente')
@@ -993,7 +993,7 @@ async function getMembrosPorIds(membroIds) {
             status: data.status || 'ativo'
           } : null;
         });
-        
+
         const resultados = await Promise.all(membrosPromises);
         resultados.filter(Boolean).forEach(m => {
           const key = String(m.id).trim();
@@ -1001,7 +1001,7 @@ async function getMembrosPorIds(membroIds) {
             membrosEncontrados.set(key, m);
           }
         });
-        
+
         membros = Array.from(membrosEncontrados.values());
       }
     }
@@ -1009,7 +1009,7 @@ async function getMembrosPorIds(membroIds) {
     console.error('Erro ao buscar membros por IDs:', err);
     return [];
   }
-  
+
   // Criar map com múltiplos formatos de ID para matching robusto
   const membrosMap = {};
   membros.forEach(membro => {
@@ -1017,7 +1017,7 @@ async function getMembrosPorIds(membroIds) {
     const membroId = membro.id;
     const membroIdStr = String(membroId).trim();
     const membroIdNum = parseInt(membroIdStr, 10);
-    
+
     // Armazenar em todos os formatos possíveis
     membrosMap[membroId] = membro;
     membrosMap[membroIdStr] = membro;
@@ -1025,19 +1025,19 @@ async function getMembrosPorIds(membroIds) {
       membrosMap[membroIdNum] = membro;
     }
   });
-  
+
   // Retornar membros encontrados na ordem dos IDs solicitados
   const membrosRetornados = membroIds
     .map(id => {
       const idStr = String(id).trim();
       const idNum = parseInt(idStr, 10);
-      
+
       // Tentar todos os formatos possíveis
-      const membro = membrosMap[id] || 
-                     membrosMap[idStr] || 
-                     (isNaN(idNum) ? null : membrosMap[idNum]) ||
-                     null;
-      
+      const membro = membrosMap[id] ||
+        membrosMap[idStr] ||
+        (isNaN(idNum) ? null : membrosMap[idNum]) ||
+        null;
+
       // Garantir que o membro tenha status
       if (membro) {
         return {
@@ -1048,7 +1048,7 @@ async function getMembrosPorIds(membroIds) {
       return null;
     })
     .filter(Boolean);
-  
+
   // Log para debug (apenas se faltar algum membro)
   if (membrosRetornados.length < membroIds.length) {
     const idsNaoEncontrados = membroIds.filter(id => {
@@ -1058,7 +1058,7 @@ async function getMembrosPorIds(membroIds) {
     });
     console.warn(`⚠️ [getMembrosPorIds] Alguns membros não foram encontrados:`, idsNaoEncontrados);
   }
-  
+
   return membrosRetornados;
 }
 
@@ -1079,7 +1079,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
     } else {
       clienteIds = [String(clienteId).trim()];
     }
-    
+
     if (clienteIds.length === 0) {
       return [];
     }
@@ -1102,20 +1102,20 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
       .not('usuario_id', 'is', null)
       .not('cliente_id', 'is', null)
       .limit(10000); // Limite alto para garantir que pegamos todos os registros
-    
+
     // Se houver período, filtrar por ele - MESMA LÓGICA DE getClientesPorColaborador
     if (periodoInicio && periodoFim) {
       const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
       const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
       const inicioStr = inicioISO.toISOString();
       const fimStr = fimISO.toISOString();
-      
+
       const orConditions = [
         `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
         `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`,
         `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`
       ].join(',');
-      
+
       query = query.or(orConditions);
     }
 
@@ -1171,7 +1171,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
             .select('id, nome, status')
             .eq('id', idNum)
             .maybeSingle();
-          
+
           if (!error && data) {
             membros.push({
               id: data.id,
@@ -1181,7 +1181,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
             continue;
           }
         }
-        
+
         // Tentar como string
         const { data, error } = await supabase
           .schema('up_gestaointeligente')
@@ -1189,7 +1189,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
           .select('id, nome, status')
           .eq('id', String(usuarioId).trim())
           .maybeSingle();
-        
+
         if (!error && data) {
           membros.push({
             id: data.id,
@@ -1224,7 +1224,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
     });
 
     console.log(`✅ [GET-MEMBROS-POR-CLIENTE] Retornando ${membros.length} colaboradores`);
-    
+
     return membros || [];
   } catch (error) {
     console.error('❌ [GET-MEMBROS-POR-CLIENTE] Erro ao buscar membros por cliente:', error);
@@ -1250,7 +1250,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
         colaboradorIds = [idNum];
       }
     }
-    
+
     if (colaboradorIds.length === 0) {
       return [];
     }
@@ -1268,7 +1268,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
       .from('v_registro_tempo_vinculado')
       .select('cliente_id')
       .not('cliente_id', 'is', null);
-    
+
     // Aplicar filtro de colaborador(es)
     if (colaboradorIds.length === 1) {
       query = query.eq('usuario_id', colaboradorIds[0]);
@@ -1284,13 +1284,13 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
       const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
       const inicioStr = inicioISO.toISOString();
       const fimStr = fimISO.toISOString();
-      
+
       const orConditions = [
         `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
         `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`,
         `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`
       ].join(',');
-      
+
       query = query.or(orConditions);
     }
 
@@ -1334,7 +1334,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
           .select('id, nome')
           .eq('id', clienteId)
           .maybeSingle();
-        
+
         if (!error && data) {
           clientes.push(data);
         }
@@ -1390,25 +1390,25 @@ async function getProdutos(req, res) {
 // Função para registrar todas as rotas em um app Express
 function registrarRotasAPI(app, requireAuth = null) {
   // Endpoints de ID/Nome (com autenticação se disponível)
-  app.get('/api/cp_clientes-id-nome', requireAuth ? requireAuth : (_req,_res,next)=>next(), getcp_clientesIdNome);
-  app.get('/api/membros-id-nome', requireAuth ? requireAuth : (_req,_res,next)=>next(), getMembrosIdNome);
-  app.get('/api/membros-id-nome-todos', requireAuth ? requireAuth : (_req,_res,next)=>next(), getMembrosIdNomeTodos);
-  
+  app.get('/api/cp_clientes-id-nome', requireAuth ? requireAuth : (_req, _res, next) => next(), getcp_clientesIdNome);
+  app.get('/api/membros-id-nome', requireAuth ? requireAuth : (_req, _res, next) => next(), getMembrosIdNome);
+  app.get('/api/membros-id-nome-todos', requireAuth ? requireAuth : (_req, _res, next) => next(), getMembrosIdNomeTodos);
+
   // Endpoints do Dashboard Clientes (com autenticação se disponível)
   // IMPORTANTE: Estes endpoints são usados pelo Dashboard Clientes React e HTML
   // REMOVIDO: app.get('/api/clientes', ...) - Agora usando o controller completo em clientes.controller.js
   // app.get('/api/clientes', requireAuth ? requireAuth : (_req,_res,next)=>next(), getClientesEndpoint);
-  app.get('/api/status', requireAuth ? requireAuth : (_req,_res,next)=>next(), getStatusEndpoint);
-  app.get('/api/contratos', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosEndpoint);
-  app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteEndpoint);
-  app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req,_res,next)=>next(), getContratosClienteIdEndpoint);
-  app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req,_res,next)=>next(), getTarefasEndpoint);
+  app.get('/api/status', requireAuth ? requireAuth : (_req, _res, next) => next(), getStatusEndpoint);
+  app.get('/api/contratos', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosEndpoint);
+  app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosClienteEndpoint);
+  app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosClienteIdEndpoint);
+  app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req, _res, next) => next(), getTarefasEndpoint);
   // REMOVIDO: /api/registro-tempo - Consolidado no registro-tempo.controller.js
   // REMOVIDO: /api/registro-tempo-sem-tarefa - Movido para /api/registro-tempo/debug/sem-tarefa
-  
+
   // Endpoints outros (com autenticação se disponível)
-  app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req,_res,next)=>next(), getCustoHoraMembro);
-  app.get('/api/faturamento', requireAuth ? requireAuth : (_req,_res,next)=>next(), getFaturamento);
+  app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req, _res, next) => next(), getCustoHoraMembro);
+  app.get('/api/faturamento', requireAuth ? requireAuth : (_req, _res, next) => next(), getFaturamento);
 }
 
 // Auto-registro se app estiver disponível (compatibilidade com node.js principal)

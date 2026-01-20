@@ -69,8 +69,8 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-router.post('/api/auth/upload-avatar', 
-  requireAuth, 
+router.post('/api/auth/upload-avatar',
+  requireAuth,
   authController.upload.single('avatar'),
   handleMulterError,
   authController.uploadAvatar
@@ -86,8 +86,8 @@ router.get('/api/clientes/:id/custom-avatar-path', requireAuth, clientesControll
 router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId);
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
 router.delete('/api/clientes/:id', requireAuth, clientesController.deletarCliente);
-router.post('/api/clientes/:clienteId/upload-foto', 
-  requireAuth, 
+router.post('/api/clientes/:clienteId/upload-foto',
+  requireAuth,
   clientesController.uploadClienteFoto.single('foto'),
   handleMulterError,
   clientesController.uploadClienteFotoPerfil
@@ -98,7 +98,7 @@ router.get('/api/tarefas-incompletas', requireAuth, tarefasController.getTarefas
 router.get('/api/tarefas-por-ids', requireAuth, tarefasController.getTarefasPorIds);
 
 // Rotas de produtos
-router.get('/api/produtos-por-ids', requireAuth, tarefasController.getProdutosPorIdsEndpoint);
+router.get('/api/produtos-por-ids', requireAuth, produtosController.getProdutosPorIds);
 
 // Rotas de dashboard
 router.get('/api/dashboard-clientes', requireAuth, dashboardController.getDashboardClientes);
@@ -326,9 +326,9 @@ router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
     const { clienteId, periodoInicio, periodoFim } = req.query;
 
     if (!clienteId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'ID do cliente é obrigatório' 
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
       });
     }
 
@@ -344,9 +344,9 @@ router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
     }
 
     if (clienteIdsParaBuscar.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'ID do cliente é obrigatório' 
+      return res.status(400).json({
+        success: false,
+        error: 'ID do cliente é obrigatório'
       });
     }
 
@@ -354,16 +354,16 @@ router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
     const clienteIdParam = clienteIdsParaBuscar.length === 1 ? clienteIdsParaBuscar[0] : clienteIdsParaBuscar;
     const membros = await apiClientes.getMembrosPorCliente(clienteIdParam, periodoInicio || null, periodoFim || null);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: membros || [],
       count: (membros || []).length
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar membros por cliente:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Erro interno do servidor' 
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
     });
   }
 });
@@ -373,9 +373,9 @@ router.get('/api/clientes-por-colaborador', requireAuth, async (req, res) => {
     const { colaboradorId, periodoInicio, periodoFim } = req.query;
 
     if (!colaboradorId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'ID do colaborador é obrigatório' 
+      return res.status(400).json({
+        success: false,
+        error: 'ID do colaborador é obrigatório'
       });
     }
 
@@ -394,21 +394,21 @@ router.get('/api/clientes-por-colaborador', requireAuth, async (req, res) => {
 
     // Usar array se múltiplos, ou valor único se apenas um (para compatibilidade com a função)
     const colaboradorIdParam = colaboradorIdsParaBuscar.length === 1 ? colaboradorIdsParaBuscar[0] : colaboradorIdsParaBuscar;
-    
-    
+
+
     const clientes = await apiClientes.getClientesPorColaborador(colaboradorIdParam, periodoInicio || null, periodoFim || null);
 
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: clientes || [],
       count: (clientes || []).length
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar clientes por colaborador:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Erro interno do servidor' 
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
     });
   }
 });

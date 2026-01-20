@@ -630,7 +630,39 @@ const HistoricoAtribuicoes = () => {
 
               {/* Tabela Principal */}
               <div className="historico-table-container with-horizontal-scroll">
-                {loading ? (
+                {/* Loading State Overlay */}
+                {loading && historico.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                    zIndex: 5,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                    paddingTop: '100px',
+                    backdropFilter: 'blur(1px)'
+                  }}>
+                    <div style={{
+                      background: 'white',
+                      padding: '10px 20px',
+                      borderRadius: '20px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <i className="fas fa-spinner fa-spin" style={{ color: '#0e3b6f' }}></i>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>Atualizando...</span>
+                    </div>
+                  </div>
+                )}
+
+                {loading && historico.length === 0 ? (
                   <div className="loading-state">
                     <i className="fas fa-spinner fa-spin"></i>
                     <p>Carregando histórico...</p>
