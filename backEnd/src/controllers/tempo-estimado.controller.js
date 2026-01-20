@@ -1937,7 +1937,7 @@ async function deletarTempoEstimado(req, res) {
 async function atualizarTempoEstimadoPorAgrupador(req, res) {
   try {
     const { agrupador_id } = req.params;
-    const { cliente_id, produto_ids, tarefa_ids, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
 
     if (!agrupador_id) {
       return res.status(400).json({
@@ -1946,25 +1946,11 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
-    // Validações
+    // Validações básicas
     if (!cliente_id) {
       return res.status(400).json({
         success: false,
         error: 'cliente_id é obrigatório'
-      });
-    }
-
-    if (!produto_ids || !Array.isArray(produto_ids) || produto_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'produto_ids deve ser um array não vazio'
-      });
-    }
-
-    if (!tarefa_ids || !Array.isArray(tarefa_ids) || tarefa_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'tarefa_ids deve ser um array não vazio'
       });
     }
 
@@ -1982,18 +1968,69 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
-    if (!tempo_estimado_dia || tempo_estimado_dia <= 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'tempo_estimado_dia é obrigatório e deve ser maior que zero'
-      });
+    if ((!tempo_estimado_dia || tempo_estimado_dia <= 0) && (!produtos_com_tarefas)) {
+      // Se não tem produtos_com_tarefas (que carrega seus próprios tempos), precisa do tempo global
+      // Mas na verdade, produtos_com_tarefas pode ter tempo por tarefa.
+      // Vamos flexibilizar: verificar se temos dados suficientes processando os produtos/tarefas abaixo
     }
 
     if (!responsavel_id) {
+      // Agora responsavel_id pode vir dentro das tarefas em produtos_com_tarefas
+      // Mas o código antigo exigia responsavel_id global. Vamos manter validação se não encontrarmos depois.
+    }
+
+    // Processar estrutura de produtos e tarefas (similar ao criarTempoEstimado)
+    let produtosComTarefasMap = {};
+    let produtoIdsArray = [];
+
+    // Tratamento para produtos_com_tarefas (Novo Formato) ou legacy (produto_ids + tarefa_ids)
+    if (produtos_com_tarefas && typeof produtos_com_tarefas === 'object' && Object.keys(produtos_com_tarefas).length > 0) {
+      produtosComTarefasMap = produtos_com_tarefas;
+      produtoIdsArray = Object.keys(produtos_com_tarefas).map(id => String(id).trim());
+    } else if (produto_ids && Array.isArray(produto_ids) && produto_ids.length > 0) {
+      // Formato Antigo
+      produtoIdsArray = produto_ids.map(id => String(id).trim());
+      let tarefasComTempo = [];
+
+      if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
+        tarefasComTempo = tarefas;
+      } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
+        tarefasComTempo = tarefa_ids.map(tarefaId => ({
+          tarefa_id: String(tarefaId).trim(),
+          tempo_estimado_dia: parseInt(tempo_estimado_dia, 10),
+          responsavel_id: responsavel_id // Propagar responsavel global se não especificado
+        }));
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'É necessário fornecer "produtos_com_tarefas" ou "produto_ids" + "tarefa_ids"/"tarefas"'
+        });
+      }
+
+      // Converter para mapa
+      produtoIdsArray.forEach(produtoId => {
+        produtosComTarefasMap[produtoId] = tarefasComTempo;
+      });
+    } else {
       return res.status(400).json({
         success: false,
-        error: 'responsavel_id é obrigatório'
+        error: 'É necessário fornecer "produtos_com_tarefas" ou "produto_ids"'
       });
+    }
+
+    // Validar se temos responsavel_id (global ou em cada tarefa) e tempo_estimado
+    let temResponsavel = !!responsavel_id;
+    for (const produtoId of Object.keys(produtosComTarefasMap)) {
+      for (const t of produtosComTarefasMap[produtoId]) {
+        if (!t.tempo_estimado_dia && !tempo_estimado_dia) {
+          return res.status(400).json({ success: false, error: 'Tempo estimado dia é obrigatório' });
+        }
+        if (t.responsavel_id) temResponsavel = true;
+      }
+    }
+
+    if (!temResponsavel) {
+      return res.status(400).json({ success: false, error: 'responsavel_id é obrigatório (global ou nas tarefas)' });
     }
 
     // Função para gerar todas as datas entre início e fim (reutilizar a função async)
@@ -2025,35 +2062,27 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       let finaisSemanaPulados = 0;
 
       while (dataAtual <= fim) {
-        // Verificar se é final de semana (sábado = 6, domingo = 0)
-        // Usar getFullYear, getMonth, getDate para garantir que estamos usando a data local correta
         const ano = dataAtual.getFullYear();
         const mes = dataAtual.getMonth();
         const dia = dataAtual.getDate();
-        // Criar uma nova data com UTC para garantir consistência no cálculo do dia da semana
         const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
         const diaDaSemana = dataParaCalcular.getUTCDay();
         const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
 
-        // Verificar se é feriado
         const anoFormatado = String(ano);
         const mesFormatado = String(mes + 1).padStart(2, '0');
         const diaFormatado = String(dia).padStart(2, '0');
         const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
         const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
-        const nomeFeriado = isHolidayDay ? feriadosPorAno[ano][dateKey] : null;
 
-        // Se não deve incluir finais de semana e é final de semana, pular
         if (!incluirFinaisSemana && isWeekend) {
           finaisSemanaPulados++;
           dataAtual.setDate(dataAtual.getDate() + 1);
           continue;
         }
 
-        // Se não deve incluir feriados e é feriado, pular
         if (!incluirFeriados && isHolidayDay) {
           feriadosPulados++;
-          console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Pulando feriado: ${dateKey} - ${nomeFeriado} (incluirFeriados=${incluirFeriados})`);
           dataAtual.setDate(dataAtual.getDate() + 1);
           continue;
         }
@@ -2063,27 +2092,12 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         dataAtual.setDate(dataAtual.getDate() + 1);
       }
 
-      if (feriadosPulados > 0) {
-        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${feriadosPulados} feriado(s) pulado(s)`);
-      }
-      if (finaisSemanaPulados > 0) {
-        console.log(`📅 [TEMPO-ESTIMADO-UPDATE] Total de ${finaisSemanaPulados} final(is) de semana pulado(s)`);
-      }
-
       return datas;
     };
 
     // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
-    // Se incluir_finais_semana não foi enviado, assume true (compatibilidade)
-    // Se foi enviado explicitamente como false, usa false
-    // IMPORTANTE: Se o parâmetro não existir no body, assume true. Se existir (mesmo que false), usa o valor.
-    const incluirFinaisSemana = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
-    const incluirFeriados = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
-    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_finais_semana recebido:', incluir_finais_semana, 'tipo:', typeof incluir_finais_semana);
-    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Parâmetro incluir_feriados recebido:', incluir_feriados, 'tipo:', typeof incluir_feriados);
-    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFinaisSemana:', incluirFinaisSemana);
-    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Valor processado incluirFeriados:', incluirFeriados);
-    console.log('📅 [TEMPO-ESTIMADO-UPDATE] Período:', data_inicio, 'até', data_fim);
+    const incluirFinaisSemanaBool = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+    const incluirFeriadosBool = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
 
     // Validar período
     const dataInicioDate = new Date(data_inicio);
@@ -2144,41 +2158,50 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       }
     };
 
-    // Buscar tipo_tarefa_id para todas as tarefas
-    console.log('🔍 [UPDATE] Buscando tipo_tarefa_id para as tarefas...');
+    // Construir regras a partir do mapa produtosComTarefasMap
+    // Precisamos buscar tipo_tarefa_id para cada tarefa envolvida
+    const todasTarefasIds = new Set();
+    Object.values(produtosComTarefasMap).forEach(lista => {
+      lista.forEach(t => todasTarefasIds.add(String(t.tarefa_id).trim()));
+    });
+
+    // Cache de tipos de tarefa
     const tipoTarefaPorTarefa = new Map();
-    for (const tarefaId of tarefa_ids) {
-      const tipoTarefaId = await buscarTipoTarefaIdPorTarefa(tarefaId);
-      if (tipoTarefaId) {
-        tipoTarefaPorTarefa.set(String(tarefaId).trim(), tipoTarefaId);
-        console.log(`✅ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id = ${tipoTarefaId}`);
-      } else {
-        console.warn(`⚠️ [UPDATE] Tarefa ${tarefaId}: tipo_tarefa_id não encontrado`);
-      }
+    for (const tarefaId of todasTarefasIds) {
+      const tipoId = await buscarTipoTarefaIdPorTarefa(tarefaId);
+      if (tipoId) tipoTarefaPorTarefa.set(tarefaId, tipoId);
     }
 
-    // NOVA LÓGICA: Criar regras atualizadas (uma regra para cada combinação produto x tarefa)
+    // Formar lista de insert
     const regrasParaInserir = [];
 
-    produto_ids.forEach(produtoId => {
-      tarefa_ids.forEach(tarefaId => {
-        const tipoTarefaId = tipoTarefaPorTarefa.get(String(tarefaId).trim()) || null;
+    for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
+      for (const t of tarefasList) {
+        const tId = String(t.tarefa_id).trim();
+        const tipoId = tipoTarefaPorTarefa.get(tId) || null;
+
+        // Preferir o responsavel da tarefa, senão o global
+        const respId = t.responsavel_id || responsavel_id;
+        // Preferir o tempo da tarefa, senão o global
+        const tempoDia = t.tempo_estimado_dia || tempo_estimado_dia;
+
+        if (!respId || !tempoDia) continue; // Deveria ter sido pego na validação
 
         regrasParaInserir.push({
           agrupador_id: agrupador_id,
           cliente_id: String(cliente_id).trim(),
           produto_id: produtoId ? parseInt(produtoId, 10) : null,
-          tarefa_id: parseInt(tarefaId, 10),
-          responsavel_id: parseInt(responsavel_id, 10),
-          tipo_tarefa_id: tipoTarefaId,
+          tarefa_id: parseInt(t.tarefa_id, 10),
+          responsavel_id: parseInt(respId, 10),
+          tipo_tarefa_id: tipoId,
           data_inicio: data_inicio,
           data_fim: data_fim,
-          tempo_estimado_dia: parseInt(tempo_estimado_dia, 10), // em milissegundos
-          incluir_finais_semana: incluirFinaisSemana,
-          incluir_feriados: incluirFeriados
+          tempo_estimado_dia: parseInt(tempoDia, 10),
+          incluir_finais_semana: incluirFinaisSemanaBool,
+          incluir_feriados: incluirFeriadosBool
         });
-      });
-    });
+      }
+    }
 
     // Inserir novas regras
     const { data: regrasInseridas, error: insertError } = await supabase
@@ -2194,6 +2217,64 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         error: 'Erro ao atualizar agrupamento',
         details: insertError.message
       });
+    }
+
+    console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);
+
+    // NOVA LÓGICA: Atualizar também o histórico de atribuição (historico_atribuicoes)
+    try {
+      console.log('🔄 Atualizando histórico de atribuição para o agrupador:', agrupador_id);
+
+      // Preparar lista de tarefas para o histórico (flattened)
+      // O formato esperado é um array de objetos { tarefa_id, tempo_estimado_dia }
+      // Como agora temos tarefas por produto, podemos ter a mesma tarefa com tempos diferentes em produtos diferentes?
+      // O histórico parece ser uma visão mais simplificada. Vamos consolidar todas as tarefas únicas.
+
+      const tarefasParaHistorico = [];
+      const tarefasProcessadasHistorico = new Set();
+
+      // Iterar sobre todas as tarefas em todos os produtos
+      for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
+        for (const t of tarefasList) {
+          // Usar uma chave única se quisermos preservar todas as instâncias ou tarefa_id se quisermos únicas
+          // O histórico geralmente lista as tarefas configuradas. Vamos incluir todas que foram salvas.
+          // Se o formato do histórico espera apenas tarefa_id e tempo, e se houver duplicatas (mesma tarefa em produtos diferentes),
+          // vamos adicionar todas, pois o contexto é importante (embora o histórico simplificado possa não mostrar produto)
+
+          // No criarTempoEstimado, 'todasTarefasComTempo' é usado. Ele contém todas as tarefas de todos os produtos.
+
+          tarefasParaHistorico.push({
+            tarefa_id: String(t.tarefa_id).trim(),
+            tempo_estimado_dia: parseInt(t.tempo_estimado_dia || tempo_estimado_dia, 10)
+          });
+        }
+      }
+
+      const historicoUpdate = {
+        updated_at: new Date().toISOString(),
+        produto_ids: produtoIdsArray.map(id => String(id).trim()),
+        tarefas: tarefasParaHistorico,
+        data_inicio: data_inicio,
+        data_fim: data_fim,
+        // Se cliente ou responsável mudou globalmente, atualizar também
+        cliente_id: String(cliente_id).trim(),
+        responsavel_id: String(responsavel_id).trim()
+      };
+
+      const { error: historicoError } = await supabase
+        .schema('up_gestaointeligente')
+        .from('historico_atribuicoes')
+        .update(historicoUpdate)
+        .eq('agrupador_id', agrupador_id);
+
+      if (historicoError) {
+        console.error('⚠️ Erro ao atualizar histórico de atribuição:', historicoError);
+      } else {
+        console.log('✅ Histórico de atribuição atualizado com sucesso');
+      }
+
+    } catch (errorHistorico) {
+      console.error('⚠️ Erro não fatal ao atualizar histórico:', errorHistorico);
     }
 
     console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);

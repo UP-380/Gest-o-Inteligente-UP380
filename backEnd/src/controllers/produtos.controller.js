@@ -120,7 +120,7 @@ async function getProdutoPorId(req, res) {
 async function getProdutosPorIds(req, res) {
   try {
     const { ids } = req.query;
-    
+
     if (!ids) {
       return res.status(400).json({
         success: false,
@@ -144,12 +144,16 @@ async function getProdutosPorIds(req, res) {
       });
     }
 
-    // Buscar produtos por IDs numéricos
+    // A coluna 'id' é do tipo texto e pode conter tanto UUIDs quanto IDs numéricos antigos (ex: "69", "131")
+    // Portanto, devemos SEMPRE buscar em ambas as colunas (id e clickup_id) para garantir que encontraremos o produto.
+    // IMPORTANTE: Envolver IDs em aspas duplas para o PostgREST tratar como strings e evitar erros de cast
+    const idsFormatados = produtoIds.map(id => `"${id}"`).join(',');
+
     const { data: produtos, error: produtosError } = await supabase
       .schema('up_gestaointeligente')
       .from('cp_produto')
-      .select('id, nome')
-      .in('id', produtoIds);
+      .select('id, clickup_id, nome')
+      .or(`id.in.(${idsFormatados}),clickup_id.in.(${idsFormatados})`);
 
     if (produtosError) {
       console.error('Erro ao buscar produtos por IDs:', produtosError);
@@ -160,10 +164,23 @@ async function getProdutosPorIds(req, res) {
       });
     }
 
-    // Criar mapa de ID -> nome
+    // Criar mapa de ID -> nome (mapeando tanto ID interno quanto ClickUp ID)
     const produtosMap = {};
     (produtos || []).forEach(produto => {
-      produtosMap[String(produto.id)] = produto.nome || null;
+      // Mapear pelo ID interno
+      if (produto.id) {
+        produtosMap[String(produto.id)] = produto.nome || null;
+      }
+      // Mapear pelo ClickUp ID
+      if (produto.clickup_id) {
+        produtosMap[String(produto.clickup_id)] = produto.nome || null;
+
+        // Caso especial: também mapear para a versão sem zeros à esquerda ou spaces se for numérico
+        const clickupClean = String(produto.clickup_id).trim();
+        if (clickupClean !== String(produto.clickup_id)) {
+          produtosMap[clickupClean] = produto.nome || null;
+        }
+      }
     });
 
     res.json({
@@ -299,13 +316,13 @@ async function atualizarProduto(req, res) {
       }
 
       const nomeTrimmed = nome.trim();
-      
+
       // Buscar todos os produtos e fazer comparação case-insensitive
       const { data: todosProdutos, error: errorNome } = await supabase
         .schema('up_gestaointeligente')
         .from('cp_produto')
         .select('id, nome');
-      
+
       if (errorNome) {
         console.error('Erro ao verificar nome:', errorNome);
         return res.status(500).json({
@@ -314,11 +331,11 @@ async function atualizarProduto(req, res) {
           details: errorNome.message
         });
       }
-      
+
       // Verificar se existe outro produto com mesmo nome (case-insensitive)
       const nomeExistente = (todosProdutos || []).find(
-        produto => 
-          produto.id !== id && 
+        produto =>
+          produto.id !== id &&
           produto.nome?.trim().toLowerCase() === nomeTrimmed.toLowerCase()
       );
 

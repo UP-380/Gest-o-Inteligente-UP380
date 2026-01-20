@@ -249,45 +249,7 @@
   margin: 0;
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 20px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
 
-.pagination-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  color: #374151;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  background: #f3f4f6;
-  border-color: #9ca3af;
-}
-
-.pagination-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pagination-info {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-}
 
 .btn-secondary {
   display: flex;
@@ -402,52 +364,6 @@
 /* Container com scroll horizontal para tabela de histórico */
 .historico-table-container.with-horizontal-scroll {
   overflow: visible;
-}
-
-/* Barra de scroll no topo */
-.historico-table-container .table-scroll-top {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: white;
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 0;
-  padding-bottom: 0;
-  overflow-x: scroll !important;
-  overflow-y: hidden;
-  /* Forçar scrollbar sempre visível */
-  scrollbar-gutter: stable;
-  /* Garantir que sempre mostre a scrollbar */
-  -ms-overflow-style: scrollbar;
-}
-
-/* Garantir que a scrollbar esteja sempre visível */
-.historico-table-container .table-scroll-top::-webkit-scrollbar {
-  height: 12px;
-  display: block !important;
-  -webkit-appearance: none;
-  background: #f1f5f9;
-}
-
-.historico-table-container .table-scroll-top::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 6px;
-}
-
-.historico-table-container .table-scroll-top::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 6px;
-  border: 2px solid #f1f5f9;
-}
-
-.historico-table-container .table-scroll-top::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Para Firefox */
-.historico-table-container .table-scroll-top {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
 /* Container da tabela com scroll */
@@ -580,4 +496,3 @@
   font-style: italic;
   padding: 8px 0;
 }
-
