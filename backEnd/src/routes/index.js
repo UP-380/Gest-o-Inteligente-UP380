@@ -12,6 +12,7 @@ const clientesController = require('../controllers/clientes.controller');
 const tarefasController = require('../controllers/tarefas.controller');
 const tarefaController = require('../controllers/tarefa.controller');
 const subtarefaController = require('../controllers/subtarefa.controller');
+const checklistExecucaoController = require('../controllers/checklist-execucao.controller');
 const tipoTarefaController = require('../controllers/tipo-tarefa.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
@@ -257,6 +258,10 @@ router.get('/api/subtarefa/:id', requireAuth, subtarefaController.getSubtarefaPo
 router.post('/api/subtarefa', requireAuth, subtarefaController.criarSubtarefa);
 router.put('/api/subtarefa/:id', requireAuth, subtarefaController.atualizarSubtarefa);
 router.delete('/api/subtarefa/:id', requireAuth, subtarefaController.deletarSubtarefa);
+
+// Rotas de Checklist de Execução (Persistência de Status)
+router.get('/api/checklist/status/:idInstancia', requireAuth, checklistExecucaoController.getChecklistStatus);
+router.post('/api/checklist/toggle', requireAuth, checklistExecucaoController.toggleChecklistItem);
 
 // Rotas de Tipo de Tarefa (cp_tarefa_tipo) (CRUD completo)
 router.get('/api/tipo-tarefa', requireAuth, tipoTarefaController.getTipoTarefas);
