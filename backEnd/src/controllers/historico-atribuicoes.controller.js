@@ -110,13 +110,49 @@ async function getHistoricoAtribuicoes(req, res) {
     const clienteMap = new Map((clientesResponse.data || []).map(c => [String(c.id), c]));
     const membroMap = new Map((membrosResponse.data || []).map(m => [String(m.id), m]));
 
-    // 4. Enriquecer os dados
-    const historicoCompleto = data.map(item => ({
-      ...item,
-      cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
-      responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
-      usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null
-    }));
+    // 4. Buscar contagem de regras para determinar se há dias específicos (segmentação)
+    const agrupadorIds = data.map(i => i.agrupador_id).filter(Boolean);
+    let regrasCountMap = new Map();
+
+    if (agrupadorIds.length > 0) {
+      try {
+        const { data: regrasIds, error: regrasError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado_regra')
+          .select('agrupador_id')
+          .in('agrupador_id', agrupadorIds);
+
+        if (!regrasError && regrasIds) {
+          regrasIds.forEach(r => {
+            const count = regrasCountMap.get(r.agrupador_id) || 0;
+            regrasCountMap.set(r.agrupador_id, count + 1);
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao buscar contagem de regras:', err);
+      }
+    }
+
+    // 5. Enriquecer os dados
+    const historicoCompleto = data.map(item => {
+      // Determinar se tem dias específicos: se o número de regras for maior que o número de tarefas
+      // Isso indica que houve segmentação de regras (múltiplas regras para a mesma tarefa em dias diferentes)
+      const numTarefas = Array.isArray(item.tarefas) ? item.tarefas.length : 1;
+      const numRegras = regrasCountMap.get(item.agrupador_id) || 0;
+
+      // Se numRegras > numTarefas, significa que pelo menos uma tarefa foi quebrada em segmentos (dias específicos)
+      // Nota: isso funciona para novos registros criados com a lógica de segmentos.
+      // Para registros antigos (flat rules), isso será falso (o que é correto pois dados foram perdidos)
+      const temDiasEspecificos = numRegras > numTarefas;
+
+      return {
+        ...item,
+        cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
+        responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
+        usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null,
+        tem_dias_especificos: temDiasEspecificos
+      };
+    });
 
     console.log('✅ Dados relacionados carregados com sucesso');
 

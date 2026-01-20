@@ -731,7 +731,17 @@ const HistoricoAtribuicoes = () => {
                                       ) : <span>-</span>}
                                     </div>
                                   </td>
-                                  <td><div className="historico-periodo">{formatarData(item.data_inicio)} - {formatarData(item.data_fim)}</div></td>
+                                  <td>
+                                    <div className="historico-periodo">
+                                      {formatarData(item.data_inicio)} - {formatarData(item.data_fim)}
+                                      {item.tem_dias_especificos && (
+                                        <div style={{ fontSize: '10px', color: '#b91c1c', fontWeight: 600, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <i className="fas fa-exclamation-circle" style={{ fontSize: '9px' }}></i>
+                                          <span>Dias específicos</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td>
                                     <div className="historico-tarefas">
                                       {item.tarefas && Array.isArray(item.tarefas) && item.tarefas.length > 0 ? (
