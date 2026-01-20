@@ -19,6 +19,7 @@ import {
 } from '../../services/api';
 import '../AtribuicaoCliente/AtribuicaoCliente.css';
 import './HistoricoAtribuicoes.css';
+import CalendarVisualizer from '../../components/common/CalendarVisualizer';
 
 const HistoricoAtribuicoes = () => {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ const HistoricoAtribuicoes = () => {
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [detalhesDiarios, setDetalhesDiarios] = useState({});
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(new Set());
+  const [calendarioVisualizacao, setCalendarioVisualizacao] = useState({ open: false, datas: [] });
 
   // Edição/Exclusão de tarefa diária
   const [modalEdicaoTarefaDiaria, setModalEdicaoTarefaDiaria] = useState(false);
@@ -365,6 +367,42 @@ const HistoricoAtribuicoes = () => {
       novoSet.add(itemId);
     }
     setTarefasExpandidas(novoSet);
+  };
+
+  const handleVisualizarDiasEspecificos = async (e, item) => {
+    e.stopPropagation(); // Evitar expandir linha ao clicar no botão
+
+    // Verificar se já temos detalhes em cache
+    if (detalhesDiarios[item.id]) {
+      const datas = detalhesDiarios[item.id].map(d => d.data);
+      setCalendarioVisualizacao({ open: true, datas });
+      return;
+    }
+
+    // Se não, buscar
+    setCarregandoDetalhes(prev => new Set(prev).add(item.id));
+    try {
+      const response = await historicoAtribuicoesAPI.getDetalhesDiarios(item.id);
+      if (response.success && response.data) {
+        setDetalhesDiarios(prev => ({
+          ...prev,
+          [item.id]: response.data
+        }));
+        const datas = response.data.map(d => d.data);
+        setCalendarioVisualizacao({ open: true, datas });
+      } else {
+        showToast('error', 'Não foi possível carregar os dias.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dias:', error);
+      showToast('error', 'Erro ao carregar detalhes.');
+    } finally {
+      setCarregandoDetalhes(prev => {
+        const novo = new Set(prev);
+        novo.delete(item.id);
+        return novo;
+      });
+    }
   };
 
   // Edição de Atribuição
@@ -750,7 +788,11 @@ const HistoricoAtribuicoes = () => {
                                   <td>
                                     <div className="historico-periodo">
                                       {item.tem_dias_especificos ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div
+                                          style={{ display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}
+                                          onClick={(e) => handleVisualizarDiasEspecificos(e, item)}
+                                          title="Clique para visualizar os dias no calendário"
+                                        >
                                           <div style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -761,9 +803,17 @@ const HistoricoAtribuicoes = () => {
                                             borderRadius: '6px',
                                             fontSize: '11px',
                                             fontWeight: '600',
-                                            border: '1px solid #fecaca'
-                                          }}>
-                                            <i className="fas fa-calendar-alt"></i>
+                                            border: '1px solid #fecaca',
+                                            transition: 'all 0.2s'
+                                          }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                          >
+                                            {carregando ? (
+                                              <i className="fas fa-spinner fa-spin"></i>
+                                            ) : (
+                                              <i className="fas fa-calendar-alt"></i>
+                                            )}
                                             <span>Dias específicos</span>
                                           </div>
                                           <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '2px' }}>
@@ -1013,6 +1063,13 @@ const HistoricoAtribuicoes = () => {
             confirmButtonClass="btn-danger"
             loading={deletandoRegraOrfa}
           />
+
+          {calendarioVisualizacao.open && (
+            <CalendarVisualizer
+              datas={calendarioVisualizacao.datas}
+              onClose={() => setCalendarioVisualizacao({ open: false, datas: [] })}
+            />
+          )}
 
         </main>
       </div>
