@@ -26,7 +26,7 @@ const AtribuicaoCliente = () => {
 
   // Parâmetro de edição (agrupador_id)
   const agrupadorId = searchParams.get('agrupador_id');
-  const editingAgrupamento = agrupadorId ? { agrupador_id: agrupadorId } : null;
+  const editingAgrupamento = useMemo(() => agrupadorId ? { agrupador_id: agrupadorId } : null, [agrupadorId]);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -436,22 +436,26 @@ const AtribuicaoCliente = () => {
     }
   };
 
-  // Carregar dados iniciais
+  // Carregar dados iniciais (apenas na montagem)
   useEffect(() => {
     cacheAPI.remove('api_cache_colaboradores_all');
     loadClientes();
     loadColaboradores();
 
-    // Se estiver editando, carregar dados do agrupamento
+    // Limpar formulário se não houver parâmetros de URL
+    if (!agrupadorId && !clienteId) {
+      resetForm();
+    }
+  }, []);
+
+  // Lidar com mudanças de parâmetros de URL (edição ou cliente pré-selecionado)
+  useEffect(() => {
     if (editingAgrupamento) {
       loadDadosEdicao(editingAgrupamento);
     } else if (clienteId) {
       // Se veio com clienteId na URL, selecionar o cliente
       setClienteSelecionado(clienteId);
       loadProdutosPorCliente(clienteId);
-    } else {
-      // Limpar formulário para nova atribuição
-      resetForm();
     }
   }, [clienteId, editingAgrupamento]);
 
@@ -816,14 +820,17 @@ const AtribuicaoCliente = () => {
   }, [clienteSelecionado, produtosSelecionados, tarefasSelecionadas, tarefasSelecionadasPorProduto, periodosPorTarefa, responsaveisPorTarefa, editingAgrupamento, tarefas]);
 
   useEffect(() => {
-    const verificar = async () => {
+    const timer = setTimeout(async () => {
+      // Verificar se há dados suficientes e se NÃO estamos editando (na edição, permite manter o que já existe ou o usuário decide)
+      // Nota: o debounce evita chamadas excessivas durante a seleção rápida de itens
       if (clienteSelecionado && produtosSelecionados.length > 0 && tarefasSelecionadas.length > 0 && !editingAgrupamento) {
         await verificarDuplicatas();
       } else {
         setErroDuplicata(null);
       }
-    };
-    verificar();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [tarefasSelecionadas, produtosSelecionados, clienteSelecionado, tarefasSelecionadasPorProduto, periodosPorTarefa, responsaveisPorTarefa, editingAgrupamento, verificarDuplicatas]);
 
   const buscarHorasContratadasPorResponsavel = async (responsavelId, dataInicio = null) => {

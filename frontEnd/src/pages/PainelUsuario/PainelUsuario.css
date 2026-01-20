@@ -971,9 +971,10 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-tempo-topainel-usuarioaborador-quadro-tempo {
+.painel-usuario-grupo-tempo-total.painel-usuario-quadro-tempo {
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 2px 4px;
+  gap: 0;
   white-space: nowrap;
   /* Não quebrar linha */
   flex-shrink: 0;
@@ -1063,9 +1064,10 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-tempo-realizpainel-usuarioaborador-quadro-tempo {
+.painel-usuario-grupo-tempo-realizado.painel-usuario-quadro-tempo {
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 2px 4px;
+  gap: 0;
   white-space: nowrap;
   /* Não quebrar linha */
   flex-shrink: 0;
@@ -1099,7 +1101,7 @@
 }
 
 /* Estilos específicos para modo quadro */
-.painel-usuario-grupo-copainel-usuarioaborador-quadro-count {
+.painel-usuario-grupo-count.painel-usuario-quadro-count {
   font-size: 11px;
   padding: 2px 6px;
   white-space: nowrap;

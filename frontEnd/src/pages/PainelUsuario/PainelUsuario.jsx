@@ -3094,7 +3094,7 @@ const PainelUsuario = () => {
             // Se estiver bloqueado ("isBloqueado" = true), deve continuar cinza, como já definido no `btnStyle` original
             let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
             if (isInternaUp && !isBloqueado) {
-              btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+              btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 21px; height: 21px; min-width: 21px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 0;';
             }
 
             const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
@@ -3697,9 +3697,11 @@ const PainelUsuario = () => {
         // Nome do cliente
         const clienteNomeEl = document.createElement('div');
         clienteNomeEl.textContent = clienteNome;
-        clienteNomeEl.style.flexShrink = '0'; // Não encolher o nome
+        clienteNomeEl.style.flex = '1'; // Permitir que o nome ocupe o espaço disponível
+        clienteNomeEl.style.minWidth = '0'; // Necessário para text-overflow funcionar em flex item
         clienteNomeEl.style.whiteSpace = 'nowrap'; // Não quebrar o nome
-        clienteNomeEl.style.overflow = 'visible'; // Permitir que o nome seja visível mesmo se longo
+        clienteNomeEl.style.overflow = 'hidden'; // Truncar com ellipsis
+        clienteNomeEl.style.textOverflow = 'ellipsis';
         colunaHeader.appendChild(clienteNomeEl);
 
         // Container para as informações de tempo (na mesma linha, alinhado à direita)
@@ -3708,7 +3710,7 @@ const PainelUsuario = () => {
         tempoInfoContainer.style.alignItems = 'center';
         tempoInfoContainer.style.gap = '8px';
         tempoInfoContainer.style.flexWrap = 'nowrap'; // Mudar para nowrap para manter tudo na mesma linha
-        tempoInfoContainer.style.marginLeft = 'auto';
+        tempoInfoContainer.style.marginLeft = '8px'; // Margem fixa em relação ao nome
         tempoInfoContainer.style.flexShrink = '0'; // Não encolher o container de tempo
         colunaHeader.appendChild(tempoInfoContainer);
 
@@ -3792,7 +3794,7 @@ const PainelUsuario = () => {
           // Só aplica o verde se for "Interna UP" E não estiver bloqueado
           let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
           if (isInternaUp && !isBloqueado) {
-            btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+            btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 21px; height: 21px; min-width: 21px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 0;';
           }
 
           const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
