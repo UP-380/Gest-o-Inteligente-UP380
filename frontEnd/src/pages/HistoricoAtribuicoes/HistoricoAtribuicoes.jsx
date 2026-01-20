@@ -19,6 +19,7 @@ import {
 } from '../../services/api';
 import '../AtribuicaoCliente/AtribuicaoCliente.css';
 import './HistoricoAtribuicoes.css';
+import CalendarVisualizer from '../../components/common/CalendarVisualizer';
 
 const HistoricoAtribuicoes = () => {
   const navigate = useNavigate();
@@ -54,8 +55,10 @@ const HistoricoAtribuicoes = () => {
 
   // Controle de expansão e detalhes
   const [linhasExpandidas, setLinhasExpandidas] = useState(new Set());
+  const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [detalhesDiarios, setDetalhesDiarios] = useState({});
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(new Set());
+  const [calendarioVisualizacao, setCalendarioVisualizacao] = useState({ open: false, datas: [] });
 
   // Edição/Exclusão de tarefa diária
   const [modalEdicaoTarefaDiaria, setModalEdicaoTarefaDiaria] = useState(false);
@@ -353,6 +356,52 @@ const HistoricoAtribuicoes = () => {
           });
         }
       }
+    }
+  };
+
+  const toggleTarefasExpandidas = (itemId) => {
+    const novoSet = new Set(tarefasExpandidas);
+    if (novoSet.has(itemId)) {
+      novoSet.delete(itemId);
+    } else {
+      novoSet.add(itemId);
+    }
+    setTarefasExpandidas(novoSet);
+  };
+
+  const handleVisualizarDiasEspecificos = async (e, item) => {
+    e.stopPropagation(); // Evitar expandir linha ao clicar no botão
+
+    // Verificar se já temos detalhes em cache
+    if (detalhesDiarios[item.id]) {
+      const datas = detalhesDiarios[item.id].map(d => d.data);
+      setCalendarioVisualizacao({ open: true, datas });
+      return;
+    }
+
+    // Se não, buscar
+    setCarregandoDetalhes(prev => new Set(prev).add(item.id));
+    try {
+      const response = await historicoAtribuicoesAPI.getDetalhesDiarios(item.id);
+      if (response.success && response.data) {
+        setDetalhesDiarios(prev => ({
+          ...prev,
+          [item.id]: response.data
+        }));
+        const datas = response.data.map(d => d.data);
+        setCalendarioVisualizacao({ open: true, datas });
+      } else {
+        showToast('error', 'Não foi possível carregar os dias.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dias:', error);
+      showToast('error', 'Erro ao carregar detalhes.');
+    } finally {
+      setCarregandoDetalhes(prev => {
+        const novo = new Set(prev);
+        novo.delete(item.id);
+        return novo;
+      });
     }
   };
 
@@ -696,6 +745,11 @@ const HistoricoAtribuicoes = () => {
                             const detalhes = detalhesDiarios[item.id] || [];
                             const carregando = carregandoDetalhes.has(item.id);
 
+                            const isTarefasExpandido = tarefasExpandidas.has(item.id);
+                            const tarefasLista = item.tarefas || [];
+                            const temMaisTarefas = tarefasLista.length > 4;
+                            const tarefasVisiveis = isTarefasExpandido ? tarefasLista : tarefasLista.slice(0, 4);
+
                             return (
                               <React.Fragment key={item.id}>
                                 <tr>
@@ -731,12 +785,83 @@ const HistoricoAtribuicoes = () => {
                                       ) : <span>-</span>}
                                     </div>
                                   </td>
-                                  <td><div className="historico-periodo">{formatarData(item.data_inicio)} - {formatarData(item.data_fim)}</div></td>
+                                  <td>
+                                    <div className="historico-periodo">
+                                      {item.tem_dias_especificos ? (
+                                        <div
+                                          style={{ display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}
+                                          onClick={(e) => handleVisualizarDiasEspecificos(e, item)}
+                                          title="Clique para visualizar os dias no calendário"
+                                        >
+                                          <div style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            backgroundColor: '#fef2f2',
+                                            color: '#b91c1c',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: '600',
+                                            border: '1px solid #fecaca',
+                                            transition: 'all 0.2s'
+                                          }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                          >
+                                            {carregando ? (
+                                              <i className="fas fa-spinner fa-spin"></i>
+                                            ) : (
+                                              <i className="fas fa-calendar-alt"></i>
+                                            )}
+                                            <span>Dias específicos</span>
+                                          </div>
+                                          <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '2px' }}>
+                                            {item.total_dias_calculado ? `${item.total_dias_calculado} dias selecionados` : 'Múltiplas datas'}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                          <span style={{ fontWeight: '500', color: '#374151', fontSize: '13px' }}>
+                                            {formatarData(item.data_inicio)} <i className="fas fa-arrow-right" style={{ fontSize: '10px', color: '#9ca3af', margin: '0 4px' }}></i> {formatarData(item.data_fim)}
+                                          </span>
+                                          {item.total_dias_calculado > 0 && (
+                                            <span style={{ fontSize: '11px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                              <i className="fas fa-check-circle" style={{ fontSize: '10px' }}></i>
+                                              {item.total_dias_calculado} dias úteis
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
                                   <td>
                                     <div className="historico-tarefas">
-                                      {item.tarefas && Array.isArray(item.tarefas) && item.tarefas.length > 0 ? (
+                                      {/* Badge de Tempo Total Geral */}
+                                      {item.tempo_total_estimado > 0 && (
+                                        <div style={{
+                                          marginBottom: '8px',
+                                          padding: '6px 10px',
+                                          backgroundColor: '#eff6ff',
+                                          border: '1px solid #bfdbfe',
+                                          borderRadius: '6px',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'space-between',
+                                          gap: '12px'
+                                        }}>
+                                          <span style={{ fontSize: '11px', fontWeight: '600', color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            Total Geral
+                                          </span>
+                                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#1e3a8a' }}>
+                                            {formatarTempo(item.tempo_total_estimado)}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      {tarefasLista.length > 0 ? (
                                         <div className="tarefas-list">
-                                          {item.tarefas.map((tarefa, idx) => (
+                                          {tarefasVisiveis.map((tarefa, idx) => (
                                             <div key={idx} className="tarefa-item">
                                               <span className="tarefa-nome">{nomesTarefas[String(tarefa.tarefa_id)] || `Tarefa #${tarefa.tarefa_id}`}</span>
                                               <div className="tarefa-tempo-card">
@@ -745,6 +870,18 @@ const HistoricoAtribuicoes = () => {
                                               </div>
                                             </div>
                                           ))}
+                                          {temMaisTarefas && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); toggleTarefasExpandidas(item.id); }}
+                                              className="btn-ver-mais-tarefas"
+                                            >
+                                              {isTarefasExpandido ? (
+                                                <><i className="fas fa-chevron-up"></i> Ver menos tarefas</>
+                                              ) : (
+                                                <><i className="fas fa-chevron-down"></i> Ver mais {tarefasLista.length - 4} tarefas</>
+                                              )}
+                                            </button>
+                                          )}
                                         </div>
                                       ) : <span>-</span>}
                                     </div>
@@ -774,31 +911,43 @@ const HistoricoAtribuicoes = () => {
                                               <i className="fas fa-calendar-day" style={{ color: '#0e3b6f' }}></i> Detalhes Diários
                                             </h4>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                              {detalhes.map((dia, idx) => (
-                                                <div key={idx} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '12px 16px' }}>
-                                                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '10px' }}>
-                                                    <i className="fas fa-calendar" style={{ color: '#0e3b6f', fontSize: '12px', marginRight: '6px' }}></i>
-                                                    {formatarData(dia.data)}
-                                                  </div>
-                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '20px' }}>
-                                                    {dia.tarefas && dia.tarefas.length > 0 ? (
-                                                      dia.tarefas.map((tarefa, tarefaIdx) => (
-                                                        <div key={tarefaIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#f9fafb', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
-                                                          <span style={{ fontSize: '12px', color: '#374151', flex: 1 }}>{tarefa.tarefa_nome}</span>
-                                                          <div className="tarefa-tempo-card" style={{ marginLeft: '12px', flexShrink: 0 }}>
-                                                            <div className="tarefa-tempo-label"><i className="fas fa-clock"></i><span>ESTIMADO</span></div>
-                                                            <div className="tarefa-tempo-valor">{formatarTempo(tarefa.tempo_estimado_dia)}</div>
-                                                          </div>
-                                                          <div style={{ display: 'flex', gap: '4px', marginLeft: '8px' }}>
-                                                            <EditButton onClick={() => abrirModalEdicaoTarefaDiaria(tarefa, dia.data, item.id)} title="Editar" />
-                                                            <DeleteButton onClick={() => abrirModalDeletarTarefaDiaria(tarefa, dia.data, item.id)} title="Deletar" />
-                                                          </div>
+                                              {detalhes.map((dia, idx) => {
+                                                // Calcular total do dia
+                                                const totalDia = dia.tarefas ? dia.tarefas.reduce((acc, t) => acc + (t.tempo_estimado_dia || 0), 0) : 0;
+
+                                                return (
+                                                  <div key={idx} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '12px 16px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                                                        <i className="fas fa-calendar" style={{ color: '#0e3b6f', fontSize: '12px', marginRight: '6px' }}></i>
+                                                        {formatarData(dia.data)}
+                                                      </div>
+                                                      {totalDia > 0 && (
+                                                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#059669', backgroundColor: '#ecfdf5', padding: '2px 8px', borderRadius: '12px' }}>
+                                                          Total: {formatarTempo(totalDia)}
                                                         </div>
-                                                      ))
-                                                    ) : <span style={{ fontSize: '12px', color: '#9ca3af' }}>Nenhuma tarefa atribuída</span>}
+                                                      )}
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: '20px' }}>
+                                                      {dia.tarefas && dia.tarefas.length > 0 ? (
+                                                        dia.tarefas.map((tarefa, tarefaIdx) => (
+                                                          <div key={tarefaIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: '#f9fafb', borderRadius: '4px', border: '1px solid #e5e7eb' }}>
+                                                            <span style={{ fontSize: '12px', color: '#374151', flex: 1 }}>{tarefa.tarefa_nome}</span>
+                                                            <div className="tarefa-tempo-card" style={{ marginLeft: '12px', flexShrink: 0 }}>
+                                                              <div className="tarefa-tempo-label"><i className="fas fa-clock"></i><span>ESTIMADO</span></div>
+                                                              <div className="tarefa-tempo-valor">{formatarTempo(tarefa.tempo_estimado_dia)}</div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px', marginLeft: '8px' }}>
+                                                              <EditButton onClick={() => abrirModalEdicaoTarefaDiaria(tarefa, dia.data, item.id)} title="Editar" />
+                                                              <DeleteButton onClick={() => abrirModalDeletarTarefaDiaria(tarefa, dia.data, item.id)} title="Deletar" />
+                                                            </div>
+                                                          </div>
+                                                        ))
+                                                      ) : <span style={{ fontSize: '12px', color: '#9ca3af' }}>Nenhuma tarefa atribuída</span>}
+                                                    </div>
                                                   </div>
-                                                </div>
-                                              ))}
+                                                );
+                                              })}
                                             </div>
                                           </div>
                                         )}
@@ -914,6 +1063,13 @@ const HistoricoAtribuicoes = () => {
             confirmButtonClass="btn-danger"
             loading={deletandoRegraOrfa}
           />
+
+          {calendarioVisualizacao.open && (
+            <CalendarVisualizer
+              datas={calendarioVisualizacao.datas}
+              onClose={() => setCalendarioVisualizacao({ open: false, datas: [] })}
+            />
+          )}
 
         </main>
       </div>

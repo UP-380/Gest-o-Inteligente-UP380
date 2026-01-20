@@ -30,10 +30,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const textoDisplay = (localInicio && localFim)
     ? `${formatarData(localInicio)} - ${formatarData(localFim)}${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
     : localInicio
-    ? `${formatarData(localInicio)} - ...${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
-    : datasIndividuaisLocal.size > 0
-    ? `${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''} selecionado${datasIndividuaisLocal.size > 1 ? 's' : ''}`
-    : 'Selecionar período';
+      ? `${formatarData(localInicio)} - ...${datasIndividuaisLocal.size > 0 ? ` (${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''})` : ''}`
+      : datasIndividuaisLocal.size > 0
+        ? `${datasIndividuaisLocal.size} dia${datasIndividuaisLocal.size > 1 ? 's' : ''} específico${datasIndividuaisLocal.size > 1 ? 's' : ''} selecionado${datasIndividuaisLocal.size > 1 ? 's' : ''}`
+        : 'Selecionar período';
 
   useEffect(() => {
     // Não sincronizar se estamos editando localmente (para evitar conflitos)
@@ -43,6 +43,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     }
     setLocalInicio(dataInicio || '');
     setLocalFim(dataFim || '');
+    // Marcar que estamos sincronizando das props para evitar que o efeito de datas individuais sobrescreva
+    isSyncingFromProps.current = true;
   }, [dataInicio, dataFim]);
 
   // Sincronizar datas individuais com prop do pai
@@ -62,44 +64,53 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const periodoAnteriorRef = useRef({ inicio: localInicio, fim: localFim });
   const processandoPeriodoRef = useRef(false);
   const onDatasIndividuaisChangeRef = useRef(onDatasIndividuaisChange);
-  
+
   // Atualizar ref quando a função mudar (sem causar re-render)
   useEffect(() => {
     onDatasIndividuaisChangeRef.current = onDatasIndividuaisChange;
   }, [onDatasIndividuaisChange]);
-  
+
+  // Ref para controlar se a atualização vem das props
+  const isSyncingFromProps = useRef(false);
+
   useEffect(() => {
     // Evitar processamento simultâneo
     if (processandoPeriodoRef.current) return;
-    
+
+    // Se a atualização veio das props, não sobrescrever datas individuais
+    if (isSyncingFromProps.current) {
+      isSyncingFromProps.current = false;
+      return;
+    }
+
     // Só processar se o período realmente mudou
     if (periodoAnteriorRef.current.inicio === localInicio && periodoAnteriorRef.current.fim === localFim) {
       return; // Período não mudou, não fazer nada
     }
-    
+
     processandoPeriodoRef.current = true;
-    
+
     // Atualizar referência do período anterior
     periodoAnteriorRef.current = { inicio: localInicio, fim: localFim };
-    
+
     // Usar função callback para acessar o estado mais recente sem adicionar nas dependências
     setDatasIndividuaisLocal(prevDatas => {
       if (localInicio && localFim) {
         const inicioDate = new Date(localInicio + 'T00:00:00');
         const fimDate = new Date(localFim + 'T00:00:00');
         const novasDatas = new Set();
-        
+
         prevDatas.forEach(dataStr => {
           const data = new Date(dataStr + 'T00:00:00');
           if (data >= inicioDate && data <= fimDate) {
             novasDatas.add(dataStr);
           }
         });
-        
+
         // Comparar usando tamanho e valores para evitar updates desnecessários
-        const precisaAtualizar = novasDatas.size !== prevDatas.size || 
-                                 ![...prevDatas].every(v => novasDatas.has(v));
-        
+        const precisaAtualizar = novasDatas.size !== prevDatas.size ||
+          ![...prevDatas].every(v => novasDatas.has(v));
+
         if (precisaAtualizar && onDatasIndividuaisChangeRef.current) {
           // Usar setTimeout para evitar chamar durante o render
           setTimeout(() => {
@@ -109,7 +120,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         } else {
           processandoPeriodoRef.current = false;
         }
-        
+
         return precisaAtualizar ? novasDatas : prevDatas;
       } else {
         // Se não há período, limpar todas as datas individuais
@@ -133,12 +144,12 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   // Usar refs para callbacks para evitar loops infinitos
   const onWeekendToggleChangeRef = useRef(onWeekendToggleChange);
   const onHolidayToggleChangeRef = useRef(onHolidayToggleChange);
-  
+
   // Atualizar refs quando as funções mudarem (sem causar re-render)
   useEffect(() => {
     onWeekendToggleChangeRef.current = onWeekendToggleChange;
   }, [onWeekendToggleChange]);
-  
+
   useEffect(() => {
     onHolidayToggleChangeRef.current = onHolidayToggleChange;
   }, [onHolidayToggleChange]);
@@ -230,13 +241,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const handleLimpar = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Limpar estado local
     setLocalInicio('');
     setLocalFim('');
     setDatasIndividuaisLocal(new Set());
     setSelectingStart(true);
-    
+
     // Notificar componente pai
     if (onInicioChange) {
       onInicioChange({ target: { value: '' } });
@@ -272,7 +283,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
     // Verificar se Ctrl (ou Cmd no Mac) está pressionado
     const isCtrlPressed = event && (event.ctrlKey || event.metaKey);
-    
+
     // Verificações de finais de semana e feriados
     if (showWeekendToggle && !habilitarFinaisSemana && isWeekend(date)) {
       return;
@@ -283,12 +294,12 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
     const dateStr = formatDateForInput(date);
     const dateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+
     // Determinar estado atual
     const temPeriodoCompleto = localInicio && localFim;
     const temApenasDatasIndividuais = !temPeriodoCompleto && datasIndividuaisLocal.size > 0;
     const naoTemNada = !temPeriodoCompleto && !temApenasDatasIndividuais;
-    
+
     // CASO 1: Ctrl pressionado - sempre tratar como dia específico
     if (isCtrlPressed) {
       // Se há um período completo definido, verificar se a data está dentro dele
@@ -298,37 +309,37 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         const fimDate = new Date(localFim + 'T00:00:00');
         const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
         const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
-        
+
         // Se a data está fora do período, não permitir seleção como exceção
         if (dateObj < inicioDateObj || dateObj > fimDateObj) {
           return; // Data fora do período, não permitir seleção
         }
       }
-      
+
       // Toggle da data na lista de individuais (exceções ou dias específicos)
       const novasDatas = new Set(datasIndividuaisLocal);
-      
+
       if (novasDatas.has(dateStr)) {
         novasDatas.delete(dateStr);
       } else {
         novasDatas.add(dateStr);
       }
-      
+
       setDatasIndividuaisLocal(novasDatas);
-      
+
       // IMPORTANTE: Não limpar o período completo quando adicionar/remover exceções
       // O período completo permanece, e as datas individuais são exceções
-      
+
       // Notificar o componente pai
       if (onDatasIndividuaisChange) {
         onDatasIndividuaisChange(Array.from(novasDatas));
       }
-      
+
       return; // Não continuar com a lógica normal de seleção de período
     }
 
     // CASO 2: Sem Ctrl - aplicar nova lógica inteligente
-    
+
     // Se tem início mas não tem fim (estado intermediário) - VERIFICAR PRIMEIRO
     // Isso inclui o caso especial de clicar duas vezes no mesmo dia
     if (localInicio && !localFim) {
@@ -338,10 +349,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         setLocalInicio(dateStr);
         setLocalFim(dateStr);
         setSelectingStart(false);
-        
+
         // Limpar datas individuais quando período está completo
         setDatasIndividuaisLocal(new Set());
-        
+
         // Notificar componente pai (importante fazer isso DEPOIS de atualizar o estado local)
         if (onInicioChange) {
           onInicioChange({ target: { value: dateStr } });
@@ -354,45 +365,45 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         }
         return;
       }
-      
+
       // Se clicou em outro dia, definir fim normalmente
       editandoLocalmenteRef.current = true;
       const inicioDate = new Date(localInicio + 'T00:00:00');
       const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
-      
+
       let newInicio = localInicio;
       let newFim = dateStr;
-      
+
       if (dateObj < inicioDateObj) {
         // Se a data selecionada for anterior à de início, trocar
         newFim = localInicio;
         newInicio = dateStr;
       }
-      
+
       setLocalInicio(newInicio);
       setLocalFim(newFim);
       setSelectingStart(false);
-      
+
       if (onInicioChange) {
         onInicioChange({ target: { value: newInicio } });
       }
       if (onFimChange) {
         onFimChange({ target: { value: newFim } });
       }
-      
+
       return;
     }
-    
+
     // Se não tem nada ainda, primeiro clique define início (não adiciona como dia específico)
     if (naoTemNada) {
       editandoLocalmenteRef.current = true;
       setLocalInicio(dateStr);
       setLocalFim('');
       setSelectingStart(false); // Próximo clique será o fim
-      
+
       // Limpar datas individuais
       setDatasIndividuaisLocal(new Set());
-      
+
       if (onInicioChange) {
         onInicioChange({ target: { value: dateStr } });
       }
@@ -402,10 +413,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       if (onDatasIndividuaisChange) {
         onDatasIndividuaisChange([]);
       }
-      
+
       return;
     }
-    
+
     // Se há apenas datas individuais (sem período completo)
     if (temApenasDatasIndividuais) {
       const datasArray = Array.from(datasIndividuaisLocal).sort();
@@ -413,24 +424,24 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       const ultimaData = datasArray[datasArray.length - 1];
       const primeiraDataObj = new Date(primeiraData + 'T00:00:00');
       const dataEstaNasIndividuais = datasIndividuaisLocal.has(dateStr);
-      
+
       // Se clicou em uma data nova (não está nas individuais), converter para período completo
       // Primeira data como início, nova data como fim
       if (!dataEstaNasIndividuais) {
         let newInicio = primeiraData;
         let newFim = dateStr;
-        
+
         // Se a nova data for anterior à primeira, ajustar
         if (dateObj < primeiraDataObj) {
           newInicio = dateStr;
           newFim = ultimaData;
         }
-        
+
         setLocalInicio(newInicio);
         setLocalFim(newFim);
         // Limpar datas individuais (agora é período completo)
         setDatasIndividuaisLocal(new Set());
-        
+
         if (onDatasIndividuaisChange) {
           onDatasIndividuaisChange([]);
         }
@@ -443,7 +454,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         setSelectingStart(false);
         return;
       }
-      
+
       // Se clicou em uma data que já está nas individuais
       // Se é a primeira data, definir como início e aguardar fim
       if (dateStr === primeiraData) {
@@ -453,7 +464,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         const novasDatas = new Set(datasIndividuaisLocal);
         novasDatas.delete(dateStr);
         setDatasIndividuaisLocal(novasDatas);
-        
+
         if (onDatasIndividuaisChange) {
           onDatasIndividuaisChange(Array.from(novasDatas));
         }
@@ -466,22 +477,22 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         setSelectingStart(false); // Próximo clique será o fim
         return;
       }
-      
+
       // Se clicou em outra data que está nas individuais, converter para período completo
       // Usar a primeira como inicio e a clicada como fim
       let newInicio = primeiraData;
       let newFim = dateStr;
-      
+
       if (dateObj < primeiraDataObj) {
         newInicio = dateStr;
         newFim = ultimaData;
       }
-      
+
       setLocalInicio(newInicio);
       setLocalFim(newFim);
       // Limpar datas individuais (agora é período completo)
       setDatasIndividuaisLocal(new Set());
-      
+
       if (onDatasIndividuaisChange) {
         onDatasIndividuaisChange([]);
       }
@@ -494,7 +505,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       setSelectingStart(false);
       return;
     }
-    
+
     // CASO 3: Já tem período completo - comportamento atual (resetar período)
     if (temPeriodoCompleto) {
       // Clique sem Ctrl em um período completo: resetar e começar novo período
@@ -502,13 +513,13 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       setLocalInicio(dateStr);
       setLocalFim('');
       setSelectingStart(true);
-      
+
       // Limpar datas individuais quando redefine período
       setDatasIndividuaisLocal(new Set());
       if (onDatasIndividuaisChange) {
         onDatasIndividuaisChange([]);
       }
-      
+
       if (onInicioChange) {
         onInicioChange({ target: { value: dateStr } });
       }
@@ -527,8 +538,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
   const isDateInRange = (date, start, end) => {
@@ -549,9 +560,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    
-    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
-                      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     const monthYear = `${monthNames[month]} de ${year}`;
 
     const firstDay = new Date(year, month, 1);
@@ -576,12 +587,12 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
       const isDisabledWeekend = showWeekendToggle && !habilitarFinaisSemana && isWeekendDay;
       const isDisabledHoliday = showHolidayToggle && !habilitarFeriados && isHolidayDay;
       const isDisabled = isDisabledWeekend || isDisabledHoliday;
-      
+
       // Adicionar classe para finais de semana desabilitados
       if (isDisabledWeekend) {
         dayClasses += ' weekend-disabled';
       }
-      
+
       // Adicionar classe para feriados
       if (isHolidayDay) {
         dayClasses += ' holiday';
@@ -589,26 +600,26 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           dayClasses += ' holiday-disabled';
         }
       }
-      
+
       // Verificar se é data de início ou fim
       if (localInicio) {
         const inicioDate = new Date(localInicio + 'T00:00:00');
         const inicioDateObj = new Date(inicioDate.getFullYear(), inicioDate.getMonth(), inicioDate.getDate());
         const isStartDate = isSameDay(currentDate, inicioDateObj);
-        
+
         if (isStartDate) {
           dayClasses += ' selected start-date';
         }
-        
+
         if (localFim) {
           const fimDate = new Date(localFim + 'T00:00:00');
           const fimDateObj = new Date(fimDate.getFullYear(), fimDate.getMonth(), fimDate.getDate());
           const isEndDate = isSameDay(currentDate, fimDateObj);
-          
+
           if (isEndDate) {
             dayClasses += ' selected end-date';
           }
-          
+
           // Adicionar classe in-range apenas para datas entre início e fim
           if (!isStartDate && !isEndDate && isDateInRange(currentDate, inicioDateObj, fimDateObj)) {
             dayClasses += ' in-range';
@@ -631,8 +642,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           onMouseEnter={(e) => {
             if (isHolidayDay && holidayName) {
               const rect = e.currentTarget.getBoundingClientRect();
-              setHoveredHoliday({ 
-                date: formatDateForInput(currentDate), 
+              setHoveredHoliday({
+                date: formatDateForInput(currentDate),
                 name: holidayName,
                 x: e.clientX,
                 y: e.clientY
@@ -641,8 +652,8 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           }}
           onMouseMove={(e) => {
             if (isHolidayDay && holidayName && hoveredHoliday) {
-              setHoveredHoliday({ 
-                date: formatDateForInput(currentDate), 
+              setHoveredHoliday({
+                date: formatDateForInput(currentDate),
                 name: holidayName,
                 x: e.clientX,
                 y: e.clientY
@@ -706,14 +717,14 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
         document.body
       )}
       <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${isAtribuicaoMini ? 'variant-atribuicao-mini' : ''}`} ref={containerRef}>
-        <div 
+        <div
           className="periodo-select-field"
           style={{
             position: 'relative',
             display: 'inline-block'
           }}
         >
-          <div 
+          <div
             className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
             onClick={handleOpen}
             style={
@@ -752,25 +763,25 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                     <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: size === 'small' ? '12px' : '14px' }}></i>
                     <span style={{ fontWeight: 600, color: '#111827', fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px') }}>Filtro de período</span>
                   </div>
-                  
+
                   {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
                   {!isAtribuicaoMini && (
                     <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
                       <div style={{ flex: 1 }}>
                         <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
-                        <input 
-                          type="text" 
-                          readOnly 
-                          value={formatarData(localInicio)} 
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatarData(localInicio)}
                           style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
                         />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
-                        <input 
-                          type="text" 
-                          readOnly 
-                          value={formatarData(localFim)} 
+                        <input
+                          type="text"
+                          readOnly
+                          value={formatarData(localFim)}
                           style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
                         />
                       </div>
@@ -876,10 +887,10 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                   )}
 
                   {/* Texto de ajuda para seleção de dias específicos */}
-                  <div style={{ 
-                    fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'), 
-                    color: '#6b7280', 
-                    textAlign: 'center', 
+                  <div style={{
+                    fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'),
+                    color: '#6b7280',
+                    textAlign: 'center',
                     marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
                     marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
                     padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
@@ -916,9 +927,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
                   {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
                   {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'flex-end', 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
                       marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
                       paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
                     }}>

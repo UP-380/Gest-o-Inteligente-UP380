@@ -590,56 +590,117 @@ const AtribuicaoCliente = () => {
 
           setInitialTarefas(initialObj);
 
-          const datas = registros.map(r => r.data).sort();
-          const dataInicioStr = datas[0] ? datas[0].split('T')[0] : null;
-          const dataFimStr = datas[datas.length - 1] ? datas[datas.length - 1].split('T')[0] : null;
-          setDataInicio(dataInicioStr);
-          setDataFim(dataFimStr);
+          // 3. Processar datas e períodos
+          const datasGerais = [...new Set(registros.map(r => r.data ? r.data.split('T')[0] : null).filter(Boolean))].sort();
+          const dataInicioGeral = datasGerais[0];
+          const dataFimGeral = datasGerais[datasGerais.length - 1];
 
-          // Carregar tempos e responsáveis por tarefa (produto + tarefa)
-          const temposPorTarefa = {};
-          const responsaveisPorTarefaCarregado = {};
-          const periodosPorTarefaCarregado = {};
+          // Função auxiliar para detectar se deve ativar modo dias específicos
+          const deveAtivarDiasEspecificos = (datas, incluirFinaisSemana) => {
+            if (!datas || datas.length === 0) return false;
+            const start = new Date(datas[0]);
+            const end = new Date(datas[datas.length - 1]);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+            // Se todas as datas do período estão presentes
+            if (datas.length === diffDays) return false;
+
+            // Se faltam datas, verificar se são apenas finais de semana (e se isso é esperado)
+            const setDatas = new Set(datas);
+            let apenasFdsAusentes = true;
+            const current = new Date(start);
+
+            // Iterar dia a dia para verificar buracos
+            for (let i = 0; i < diffDays; i++) {
+              const dStr = current.toISOString().split('T')[0];
+              if (!setDatas.has(dStr)) {
+                const day = current.getUTCDay();
+                const isWeekend = day === 0 || day === 6; // 0=Dom, 6=Sab
+
+                if (!isWeekend) {
+                  apenasFdsAusentes = false;
+                  break;
+                }
+              }
+              current.setDate(current.getDate() + 1);
+            }
+
+            // Se faltam dias que não são FDS -> Modo dias específicos
+            if (!apenasFdsAusentes) return true;
+
+            // Se faltam apenas FDS, mas FDS deveriam estar inclusos -> Modo dias específicos
+            if (apenasFdsAusentes && incluirFinaisSemana) return true;
+
+            // Se faltam apenas FDS e FDS não devem estar inclusos -> Modo período (Range)
+            return false;
+          };
+
+          let datasIndividuaisGerais = [];
+          if (deveAtivarDiasEspecificos(datasGerais, primeiroRegistro.incluir_finais_semana)) {
+            datasIndividuaisGerais = datasGerais;
+          }
+
+          // Atualizar estado global
+          if (typeof setPeriodoGlobal === 'function') {
+            setPeriodoGlobal(prev => ({
+              ...prev,
+              inicio: dataInicioGeral,
+              fim: dataFimGeral,
+              datasIndividuais: datasIndividuaisGerais,
+              habilitarFinaisSemana: primeiroRegistro.incluir_finais_semana,
+              habilitarFeriados: primeiroRegistro.incluir_feriados
+            }));
+          }
+          if (typeof setDataInicio === 'function') setDataInicio(dataInicioGeral);
+          if (typeof setDataFim === 'function') setDataFim(dataFimGeral);
+
+          // Carregar tempos e responsáveis por tarefa (Agrupando dados primeiro)
+          const dadosPorTarefa = {}; // key -> { tempo, responsavel, datas: Set }
 
           registros.forEach(reg => {
             const produtoId = String(reg.produto_id);
             const tarefaId = String(reg.tarefa_id);
             const key = `${produtoId}_${tarefaId}`;
 
-            // Tempo estimado (usar chave composta se possível, fallback para tarefaId)
-            if (!temposPorTarefa[key]) {
-              temposPorTarefa[key] = reg.tempo_estimado_dia || 0;
+            if (!dadosPorTarefa[key]) {
+              dadosPorTarefa[key] = {
+                tempo: reg.tempo_estimado_dia,
+                responsavel: reg.responsavel_id,
+                datas: new Set()
+              };
             }
-            // Fallback para compatibilidade
-            if (!temposPorTarefa[tarefaId]) {
-              temposPorTarefa[tarefaId] = reg.tempo_estimado_dia || 0;
-            }
+            if (reg.data) dadosPorTarefa[key].datas.add(reg.data.split('T')[0]);
+          });
 
-            // Responsável por tarefa
-            if (reg.responsavel_id) {
-              responsaveisPorTarefaCarregado[key] = String(reg.responsavel_id).trim();
-            }
+          const temposPorTarefa = {};
+          const responsaveisPorTarefaCarregado = {};
+          const periodosPorTarefaCarregado = {};
 
-            // Período por tarefa (extrair da data do registro)
-            if (reg.data) {
-              const dataStr = reg.data.split('T')[0];
-              if (!periodosPorTarefaCarregado[key]) {
-                periodosPorTarefaCarregado[key] = {
-                  inicio: dataStr,
-                  fim: dataStr,
-                  habilitarFinaisSemana: false,
-                  habilitarFeriados: false,
-                  datasIndividuais: []
-                };
-              } else {
-                // Atualizar início e fim se necessário
-                if (dataStr < periodosPorTarefaCarregado[key].inicio) {
-                  periodosPorTarefaCarregado[key].inicio = dataStr;
-                }
-                if (dataStr > periodosPorTarefaCarregado[key].fim) {
-                  periodosPorTarefaCarregado[key].fim = dataStr;
-                }
+          Object.entries(dadosPorTarefa).forEach(([key, dados]) => {
+            const [prodId, tarId] = key.split('_');
+            temposPorTarefa[key] = dados.tempo || 0;
+            temposPorTarefa[tarId] = dados.tempo || 0; // fallback compatibilidade
+
+            if (dados.responsavel) responsaveisPorTarefaCarregado[key] = String(dados.responsavel).trim();
+
+            const datasTarefa = [...dados.datas].sort();
+            if (datasTarefa.length > 0) {
+              const inicio = datasTarefa[0];
+              const fim = datasTarefa[datasTarefa.length - 1];
+              let individuais = [];
+
+              if (deveAtivarDiasEspecificos(datasTarefa, primeiroRegistro.incluir_finais_semana)) {
+                individuais = datasTarefa;
               }
+
+              periodosPorTarefaCarregado[key] = {
+                inicio,
+                fim,
+                habilitarFinaisSemana: primeiroRegistro.incluir_finais_semana,
+                habilitarFeriados: primeiroRegistro.incluir_feriados,
+                datasIndividuais: individuais
+              };
             }
           });
 

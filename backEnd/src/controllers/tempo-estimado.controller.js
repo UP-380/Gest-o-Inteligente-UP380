@@ -431,6 +431,76 @@ async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFi
   }
 }
 
+// Função auxiliar para agrupar datas em segmentos contínuos (considerando flags de exclusão)
+async function agruparDatasEmSegmentos(datas, incluirFinaisSemana = true, incluirFeriados = true) {
+  if (!datas || datas.length === 0) return [];
+
+  // Ordenar datas
+  const datasOrdenadas = [...datas].sort();
+  const segmentos = [];
+  let segmentoAtual = { inicio: datasOrdenadas[0], fim: datasOrdenadas[0] };
+
+  for (let i = 1; i < datasOrdenadas.length; i++) {
+    const dataAnterior = new Date(segmentoAtual.fim.includes('T') ? segmentoAtual.fim : `${segmentoAtual.fim}T00:00:00`);
+    const dataAtual = new Date(datasOrdenadas[i].includes('T') ? datasOrdenadas[i] : `${datasOrdenadas[i]}T00:00:00`);
+
+    // Calcular diferença em dias
+    const diffTime = Math.abs(dataAtual - dataAnterior);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      // Dia seguinte consecutivo: estender segmento
+      segmentoAtual.fim = datasOrdenadas[i];
+    } else {
+      // Gap maior que 1 dia: verificar se os dias no meio são explicáveis pelos flags
+      let gapExpicavel = true;
+
+      // Verificar dias no gap
+      const dataTemp = new Date(dataAnterior);
+      dataTemp.setDate(dataTemp.getDate() + 1);
+
+      while (dataTemp < dataAtual) {
+        const ano = dataTemp.getFullYear();
+        const mes = dataTemp.getMonth();
+        const dia = dataTemp.getDate();
+        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
+        const diaDaSemana = dataParaCalcular.getUTCDay();
+        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
+
+        // Verificar feriado
+        const anoFormatado = String(ano);
+        const mesFormatado = String(mes + 1).padStart(2, '0');
+        const diaFormatado = String(dia).padStart(2, '0');
+        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
+        const isHolidayDay = await isHoliday(`${anoFormatado}-${mesFormatado}-${diaFormatado}`);
+
+        let diaPulavel = false;
+        if (!incluirFinaisSemana && isWeekend) diaPulavel = true;
+        if (!incluirFeriados && isHolidayDay) diaPulavel = true;
+
+        if (!diaPulavel) {
+          gapExpicavel = false;
+          break;
+        }
+
+        dataTemp.setDate(dataTemp.getDate() + 1);
+      }
+
+      if (gapExpicavel) {
+        segmentoAtual.fim = datasOrdenadas[i];
+      } else {
+        // Fechar segmento anterior e iniciar novo
+        segmentos.push(segmentoAtual);
+        segmentoAtual = { inicio: datasOrdenadas[i], fim: datasOrdenadas[i] };
+      }
+    }
+  }
+
+  // Adicionar último segmento
+  segmentos.push(segmentoAtual);
+  return segmentos;
+}
+
 // POST - Criar novo(s) registro(s) de tempo estimado
 async function criarTempoEstimado(req, res) {
   try {
@@ -921,8 +991,15 @@ async function criarTempoEstimado(req, res) {
 
     // NOVA LÓGICA: Criar regras (ao invés de múltiplos registros)
     // Uma regra para cada combinação produto x tarefa
-    // Calcular período (data_inicio e data_fim)
+    // Calcular período (data_inicio e data_fim) ou segmentos
     const datasApenasData = datasDoPeriodo.map(d => d.split('T')[0]).sort();
+
+    // Agrupar datas em segmentos contínuos para respeitar os "gaps"
+    const segmentos = await agruparDatasEmSegmentos(datasApenasData, incluirFinaisSemana, incluirFeriados);
+    console.log(`📅 [TEMPO-ESTIMADO] Datas agrupadas em ${segmentos.length} segmento(s)`);
+    segmentos.forEach((seg, idx) => console.log(`   - Segmento ${idx + 1}: ${seg.inicio} até ${seg.fim}`));
+
+    // Usar período total para log/histórico, mas armazenar regras segmentadas
     const dataInicioRegra = datasApenasData[0];
     const dataFimRegra = datasApenasData[datasApenasData.length - 1];
 
@@ -972,20 +1049,22 @@ async function criarTempoEstimado(req, res) {
           return;
         }
 
-        // Criar uma regra para esta combinação produto x tarefa
-        regrasParaInserir.push({
-          agrupador_id: agrupador_id,
-          cliente_id: String(cliente_id).trim(),
-          produto_id: produtoId ? parseInt(produtoId, 10) : null,
-          tarefa_id: parseInt(tarefaId, 10),
-          responsavel_id: parseInt(responsavelIdParaTarefa, 10),
-          tipo_tarefa_id: tipoTarefaId,
-          data_inicio: dataInicioRegra,
-          data_fim: dataFimRegra,
-          tempo_estimado_dia: tempoEstimado, // em milissegundos
-          incluir_finais_semana: incluirFinaisSemana,
-          incluir_feriados: incluirFeriados,
-          created_by: membroIdCriador
+        // Criar regras para cada segmento desta combinação produto x tarefa
+        segmentos.forEach(segmento => {
+          regrasParaInserir.push({
+            agrupador_id: agrupador_id,
+            cliente_id: String(cliente_id).trim(),
+            produto_id: produtoId ? parseInt(produtoId, 10) : null,
+            tarefa_id: parseInt(tarefaId, 10),
+            responsavel_id: parseInt(responsavelIdParaTarefa, 10),
+            tipo_tarefa_id: tipoTarefaId,
+            data_inicio: segmento.inicio,
+            data_fim: segmento.fim,
+            tempo_estimado_dia: tempoEstimado, // em milissegundos
+            incluir_finais_semana: incluirFinaisSemana,
+            incluir_feriados: incluirFeriados,
+            created_by: membroIdCriador
+          });
         });
       });
     });
@@ -1937,7 +2016,7 @@ async function deletarTempoEstimado(req, res) {
 async function atualizarTempoEstimadoPorAgrupador(req, res) {
   try {
     const { agrupador_id } = req.params;
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true } = req.body;
+    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
 
     if (!agrupador_id) {
       return res.status(400).json({
@@ -1954,17 +2033,14 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       });
     }
 
-    if (!data_inicio) {
-      return res.status(400).json({
-        success: false,
-        error: 'data_inicio é obrigatória'
-      });
-    }
+    // Validar: precisa de período completo OU datas individuais
+    const temPeriodoCompleto = data_inicio && data_fim;
+    const temDatasIndividuais = Array.isArray(datas_individuais) && datas_individuais.length > 0;
 
-    if (!data_fim) {
+    if (!temPeriodoCompleto && !temDatasIndividuais) {
       return res.status(400).json({
         success: false,
-        error: 'data_fim é obrigatória'
+        error: 'É necessário fornecer data_inicio e data_fim OU datas_individuais'
       });
     }
 
@@ -2099,13 +2175,41 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
     const incluirFinaisSemanaBool = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
     const incluirFeriadosBool = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
 
-    // Validar período
-    const dataInicioDate = new Date(data_inicio);
-    const dataFimDate = new Date(data_fim);
-    if (dataFimDate < dataInicioDate) {
+    // Validar período se estiver presente
+    if (temPeriodoCompleto) {
+      const dataInicioDate = new Date(data_inicio);
+      const dataFimDate = new Date(data_fim);
+      if (dataFimDate < dataInicioDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'Período inválido. Data fim deve ser maior ou igual à data início'
+        });
+      }
+    }
+
+    // Gerar datas do período (Lógica unificada com o criar)
+    let datasDoPeriodo = [];
+    if (temDatasIndividuais && !temPeriodoCompleto) {
+      // Caso 1: Apenas datas individuais
+      datasDoPeriodo = await processarDatasIndividuais(datas_individuais, incluirFinaisSemanaBool, incluirFeriadosBool);
+    } else if (temPeriodoCompleto) {
+      // Caso 2: Período completo com filtro opcional
+      const todasDatas = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemanaBool, incluirFeriadosBool);
+      if (temDatasIndividuais) {
+        const datasIndividuaisSet = new Set(datas_individuais);
+        datasDoPeriodo = todasDatas.filter(data => {
+          const dataStr = data.split('T')[0];
+          return datasIndividuaisSet.has(dataStr);
+        });
+      } else {
+        datasDoPeriodo = todasDatas;
+      }
+    }
+
+    if (datasDoPeriodo.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Período inválido. Data fim deve ser maior ou igual à data início'
+        error: 'Nenhuma data válida encontrada para o período ou datas especificadas.'
       });
     }
 
@@ -2172,7 +2276,12 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       if (tipoId) tipoTarefaPorTarefa.set(tarefaId, tipoId);
     }
 
-    // Formar lista de insert
+    // Agrupar datas em segmentos contínuos
+    const datasApenasData = datasDoPeriodo.map(d => d.split('T')[0]).sort();
+    const segmentos = await agruparDatasEmSegmentos(datasApenasData, incluirFinaisSemanaBool, incluirFeriadosBool);
+    console.log(`📅 [UPDATE-TEMPO-ESTIMADO] Datas agrupadas em ${segmentos.length} segmento(s)`);
+
+    // Formar lista de insert (regras)
     const regrasParaInserir = [];
 
     for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
@@ -2187,18 +2296,21 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
 
         if (!respId || !tempoDia) continue; // Deveria ter sido pego na validação
 
-        regrasParaInserir.push({
-          agrupador_id: agrupador_id,
-          cliente_id: String(cliente_id).trim(),
-          produto_id: produtoId ? parseInt(produtoId, 10) : null,
-          tarefa_id: parseInt(t.tarefa_id, 10),
-          responsavel_id: parseInt(respId, 10),
-          tipo_tarefa_id: tipoId,
-          data_inicio: data_inicio,
-          data_fim: data_fim,
-          tempo_estimado_dia: parseInt(tempoDia, 10),
-          incluir_finais_semana: incluirFinaisSemanaBool,
-          incluir_feriados: incluirFeriadosBool
+        // Criar regra(s) segmentada(s) para esta tarefa
+        segmentos.forEach(segmento => {
+          regrasParaInserir.push({
+            agrupador_id: agrupador_id,
+            cliente_id: String(cliente_id).trim(),
+            produto_id: produtoId ? parseInt(produtoId, 10) : null,
+            tarefa_id: parseInt(t.tarefa_id, 10),
+            responsavel_id: parseInt(respId, 10),
+            tipo_tarefa_id: tipoId,
+            data_inicio: segmento.inicio,
+            data_fim: segmento.fim,
+            tempo_estimado_dia: parseInt(tempoDia, 10),
+            incluir_finais_semana: incluirFinaisSemanaBool,
+            incluir_feriados: incluirFeriadosBool
+          });
         });
       }
     }

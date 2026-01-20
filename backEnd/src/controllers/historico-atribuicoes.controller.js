@@ -110,13 +110,82 @@ async function getHistoricoAtribuicoes(req, res) {
     const clienteMap = new Map((clientesResponse.data || []).map(c => [String(c.id), c]));
     const membroMap = new Map((membrosResponse.data || []).map(m => [String(m.id), m]));
 
-    // 4. Enriquecer os dados
-    const historicoCompleto = data.map(item => ({
-      ...item,
-      cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
-      responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
-      usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null
-    }));
+    // 4. Buscar contagem de regras para determinar se há dias específicos (segmentação)
+    const agrupadorIds = data.map(i => i.agrupador_id).filter(Boolean);
+    let regrasCountMap = new Map();
+    let tempoTotalMap = new Map();
+    let diasTotalMap = new Map();
+
+    if (agrupadorIds.length > 0) {
+      try {
+        const { data: regrasDetalhadas, error: regrasError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado_regra')
+          .select('agrupador_id, tempo_estimado_dia, data_inicio, data_fim, incluir_finais_semana, incluir_feriados')
+          .in('agrupador_id', agrupadorIds);
+
+        if (!regrasError && regrasDetalhadas) {
+          // Função simplificada para contar dias úteis
+          const contarDias = (inicioStr, fimStr, incluirFDS) => {
+            const inicio = new Date(inicioStr);
+            const fim = new Date(fimStr);
+            const umDia = 24 * 60 * 60 * 1000;
+            let diasCount = 0;
+            let curr = new Date(inicio);
+
+            while (curr <= fim) {
+              const diaSemana = curr.getUTCDay(); // 0=Dom, 6=Sab
+              const ehFDS = diaSemana === 0 || diaSemana === 6;
+              // Se feriados fossem checados, estariam aqui.
+              if (incluirFDS || !ehFDS) {
+                diasCount++;
+              }
+              curr = new Date(curr.getTime() + umDia);
+            }
+            return diasCount;
+          };
+
+          regrasDetalhadas.forEach(r => {
+            const count = regrasCountMap.get(r.agrupador_id) || 0;
+            regrasCountMap.set(r.agrupador_id, count + 1);
+
+            // Cálculo de Tempo Total e Dias
+            const diasNaRegra = contarDias(r.data_inicio, r.data_fim, r.incluir_finais_semana);
+            const tempoRegra = (r.tempo_estimado_dia || 0) * diasNaRegra;
+
+            const tempoTotalAtual = tempoTotalMap.get(r.agrupador_id) || 0;
+            tempoTotalMap.set(r.agrupador_id, tempoTotalAtual + tempoRegra);
+
+            const diasAtuais = diasTotalMap.get(r.agrupador_id) || 0;
+            diasTotalMap.set(r.agrupador_id, diasAtuais + diasNaRegra);
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao buscar contagem de regras:', err);
+      }
+    }
+
+    // 5. Enriquecer os dados
+    const historicoCompleto = data.map(item => {
+      const numTarefas = Array.isArray(item.tarefas) ? item.tarefas.length : 1;
+      const numRegras = regrasCountMap.get(item.agrupador_id) || 0;
+      const temDiasEspecificos = numRegras > numTarefas;
+
+      const tempoTotal = tempoTotalMap.get(item.agrupador_id) || 0;
+      const somaDiasRegras = diasTotalMap.get(item.agrupador_id) || 0;
+      // Heurística para Dias Totais: Média de dias por tarefa
+      const mediaDias = numTarefas > 0 ? Math.round(somaDiasRegras / numTarefas) : 0;
+
+      return {
+        ...item,
+        cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
+        responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
+        usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null,
+        tem_dias_especificos: temDiasEspecificos,
+        tempo_total_estimado: tempoTotal,
+        total_dias_calculado: mediaDias
+      };
+    });
 
     console.log('✅ Dados relacionados carregados com sucesso');
 

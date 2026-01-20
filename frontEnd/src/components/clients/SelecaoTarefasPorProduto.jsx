@@ -77,21 +77,17 @@ const SelecaoTarefasPorProduto = ({
   // Carregar tarefas dos produtos quando produtos mudarem ou refreshKey mudar
   useEffect(() => {
     // Se foram fornecidas tarefas iniciais, usar elas direto e não buscar na API
-    if (initialTarefas) {
-      console.log('📦 [SelecaoTarefasPorProduto] Usando initialTarefas fornecidas:', initialTarefas);
-      setTarefasPorProduto(initialTarefas);
-      tarefasPorProdutoRef.current = initialTarefas;
-      if (onTarefasChange) {
-        onTarefasChange(initialTarefas);
-      }
-      return;
-    }
+    // Modificado: Mesmo se houver initialTarefas (Edição), DEVEMOS buscar todas as tarefas na API
+    // para mostrar o "menu completo". As initialTarefas serão usadas para determinar quais itens
+    // vêm marcados (checked=true) dentro do loadTarefasPorProdutos via lógica de mesclagem.
 
     if (produtos && produtos.length > 0) {
       loadTarefasPorProdutos();
     } else {
       setTarefasPorProduto({});
     }
+
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(produtos), refreshKey, initialTarefas]);
 
@@ -139,16 +135,38 @@ const SelecaoTarefasPorProduto = ({
           result.data.forEach(item => {
             const produtoId = item.produtoId;
             // A API retorna tarefas com estrutura: { id, nome, tipoTarefa, subtarefas, subtarefasVinculadasCliente, ehExcecao, estaVinculadaAoCliente }
-            // IMPORTANTE: Marcar como selecionada qualquer tarefa que está vinculada ao cliente
-            // Uma tarefa está vinculada se: estaVinculadaAoCliente === true OU tem subtarefas vinculadas ao cliente
+
             novasTarefasPorProduto[produtoId] = (item.tarefas || []).map(tarefa => {
               const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
               const ehExcecao = tarefa.ehExcecao === true;
               const temSubtarefasVinculadas = tarefa.subtarefasVinculadasCliente && tarefa.subtarefasVinculadasCliente.length > 0;
-              // Marcar como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
-              const selecionada = estaVinculadaAoCliente || temSubtarefasVinculadas;
 
-              console.log(`  📋 Tarefa ${tarefa.id} (${tarefa.nome}): estaVinculadaAoCliente=${estaVinculadaAoCliente}, ehExcecao=${ehExcecao}, temSubtarefasVinculadas=${temSubtarefasVinculadas}, selecionada=${selecionada}, subtarefasVinculadasCliente=${tarefa.subtarefasVinculadasCliente?.length || 0}`);
+              let selecionada;
+              let subtarefasSelecionadas = [];
+
+              if (initialTarefas) {
+                // MODO EDIÇÃO: A verdade absoluta é o que veio do initialTarefas (o que está salvo no banco)
+                // Não usar lógica de "estaVinculadaAoCliente" aqui.
+                const tarefasSalvasDoProduto = initialTarefas[produtoId] || initialTarefas[String(produtoId)] || [];
+                const tarefaSalva = tarefasSalvasDoProduto.find(t => String(t.id) === String(tarefa.id));
+
+                if (tarefaSalva) {
+                  selecionada = true;
+                  // Se a tarefa salva tiver informação de subtarefas, usar ela. 
+                  // Caso contrário, assumir que todas vinculadas devem vir (ou vazio, dependendo da implementação do loadDadosEdicao)
+                  // No momento AtribuicaoCliente passa arrays vazios, então talvez devêssemos manter o que vem do banco se possível
+                  // Mas o prompt foca na seleção da TAREFA.
+                  subtarefasSelecionadas = tarefa.subtarefasVinculadasCliente || [];
+                } else {
+                  selecionada = false;
+                  subtarefasSelecionadas = [];
+                }
+              } else {
+                // MODO NOVA ATRIBUIÇÃO (Manter comportamento original)
+                // Marcar como selecionada se está vinculada ao cliente OU tem subtarefas vinculadas
+                selecionada = estaVinculadaAoCliente || temSubtarefasVinculadas;
+                subtarefasSelecionadas = tarefa.subtarefasVinculadasCliente || [];
+              }
 
               return {
                 id: tarefa.id,
@@ -156,7 +174,7 @@ const SelecaoTarefasPorProduto = ({
                 tipoTarefa: tarefa.tipoTarefa || null,
                 subtarefas: tarefa.subtarefas || [],
                 subtarefasVinculadasCliente: tarefa.subtarefasVinculadasCliente || [], // IDs das subtarefas já vinculadas ao cliente
-                subtarefasSelecionadas: tarefa.subtarefasVinculadasCliente || [], // Inicializar subtarefas selecionadas com as vinculadas
+                subtarefasSelecionadas: subtarefasSelecionadas,
                 selecionada: selecionada,
                 ehExcecao: ehExcecao // Marcar se é exceção (já gravada para o cliente)
               };
