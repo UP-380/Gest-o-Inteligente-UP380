@@ -216,11 +216,37 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     if (!isOpen || !triggerRef.current) return;
     const calc = () => {
       const rect = triggerRef.current.getBoundingClientRect();
-      setDropdownPos({
-        top: rect.bottom + 6,
-        left: rect.left,
-        width: rect.width
-      });
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+
+      // Altura estimada do calendário + padding (aproximadamente 380px)
+      const estimatedHeight = 380;
+
+      // Decidir posicionamento
+      // Se espaço abaixo for insuficiente E espaço acima for melhor, inverter para cima
+      let placement = 'bottom';
+      if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
+        placement = 'top';
+      }
+
+      if (placement === 'bottom') {
+        setDropdownPos({
+          top: rect.bottom + 6,
+          left: rect.left,
+          width: rect.width,
+          placement: 'bottom'
+        });
+      } else {
+        // Posicionamento 'top' (dropup)
+        // Usar 'bottom' CSS property para fixar em relação ao topo do trigger
+        setDropdownPos({
+          bottom: viewportHeight - rect.top + 6,
+          left: rect.left,
+          width: rect.width,
+          placement: 'top'
+        });
+      }
     };
     calc();
     window.addEventListener('scroll', calc, true);
@@ -750,11 +776,15 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
               onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'fixed',
-                top: `${dropdownPos.top}px`,
+                top: dropdownPos.placement === 'top' ? 'auto' : `${dropdownPos.top}px`,
+                bottom: dropdownPos.placement === 'top' ? `${dropdownPos.bottom}px` : 'auto',
                 left: `${dropdownPos.left}px`,
                 zIndex: 100000,
                 width: isAtribuicaoMini ? 260 : (size === 'small' ? 320 : Math.max(340, dropdownPos.width)),
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+                boxShadow: dropdownPos.placement === 'top'
+                  ? '0 -8px 24px rgba(0,0,0,0.2)'
+                  : '0 8px 24px rgba(0,0,0,0.2)',
+                // Adicionando transição suave para opacidade se desejado, mas mantendo posicionamento firme
               }}
             >
               <div className="periodo-dropdown-content">
@@ -898,7 +928,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                     borderRadius: '4px',
                     fontStyle: 'italic'
                   }}>
-                    💡 Clique nos dias para selecionar. Use <strong>Ctrl</strong> para manter apenas dias específicos.
+                    💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
                   </div>
 
                   <div className="periodo-calendar-container">

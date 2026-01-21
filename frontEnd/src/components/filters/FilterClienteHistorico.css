@@ -1,0 +1,206 @@
+/* Cliente Historico Filter Styles - Clonado de FilterColaborador.css */
+/* Renomeado classes de .colaborador-* para .cliente-historico-* */
+
+.cliente-historico-filter-container {
+    position: relative;
+    width: 100%;
+}
+
+.cliente-historico-select-field {
+    position: relative;
+    width: 100%;
+}
+
+.cliente-historico-select-display {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+    min-height: 44px;
+}
+
+.cliente-historico-select-display:hover:not(.disabled) {
+    border-color: var(--primary-blue, #0e3b6f);
+    box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
+}
+
+.cliente-historico-select-display.active {
+    border-color: var(--primary-blue, #0e3b6f);
+    box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
+}
+
+.cliente-historico-select-display.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cliente-historico-select-text {
+    font-size: 14px;
+    color: #495057;
+    flex: 1;
+}
+
+.cliente-historico-select-text.has-selection {
+    color: var(--primary-blue, #0e3b6f);
+    font-weight: 500;
+}
+
+.cliente-historico-select-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: #495057;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.cliente-historico-select-input::placeholder {
+    color: #6c757d;
+}
+
+.cliente-historico-select-arrow {
+    font-size: 12px;
+    color: #6c757d;
+    transition: transform 0.2s ease;
+}
+
+.cliente-historico-select-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+.cliente-historico-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.cliente-historico-dropdown-content {
+    display: flex;
+    flex-direction: column;
+    max-height: 300px;
+}
+
+
+.cliente-historico-options-container {
+    overflow-y: auto;
+    max-height: 250px;
+    padding: 4px 0;
+}
+
+.cliente-historico-option {
+    padding: 10px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+    font-size: 14px;
+    color: #495057;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.cliente-historico-option:hover {
+    background-color: #f8f9fa;
+}
+
+.cliente-historico-option.selected {
+    background-color: #e6f0ff;
+    color: var(--primary-blue, #0e3b6f);
+    font-weight: 500;
+    border-left: 3px solid var(--primary-blue, #0e3b6f);
+}
+
+.cliente-historico-option.selected:hover {
+    background-color: #cce0ff;
+}
+
+.cliente-historico-option.inactive.selected {
+    background-color: #fee2e2;
+    color: #ef4444;
+    border-left: 3px solid #ef4444;
+}
+
+.cliente-historico-option.inactive.selected:hover {
+    background-color: #fecaca;
+}
+
+.cliente-historico-option.no-results {
+    color: #6c757d;
+    font-style: italic;
+    cursor: default;
+}
+
+.cliente-historico-option.no-results:hover {
+    background-color: transparent;
+}
+
+.cliente-historico-option-checkbox {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #dee2e6;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.cliente-historico-option.selected .cliente-historico-option-checkbox {
+    background-color: var(--primary-blue, #0e3b6f);
+    border-color: var(--primary-blue, #0e3b6f);
+    color: white;
+}
+
+.cliente-historico-option.inactive.selected .cliente-historico-option-checkbox {
+    background-color: #ef4444;
+    border-color: #ef4444;
+    color: white;
+}
+
+.cliente-historico-option-checkbox i {
+    font-size: 10px;
+}
+
+.cliente-historico-option.inactive {
+    /* Removido background vermelho - apenas fonte vermelha */
+}
+
+.cliente-historico-option.inactive span {
+    color: #ef4444;
+}
+
+.cliente-historico-option-inactive-badge {
+    display: inline-block;
+    background: #fee2e2;
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    text-transform: uppercase;
+}

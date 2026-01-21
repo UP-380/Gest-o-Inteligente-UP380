@@ -2227,29 +2227,30 @@ const AtribuicaoCliente = () => {
       const method = editingAgrupamento ? 'PUT' : 'POST';
 
       let totalLinhas = 0;
-      for (const grupo of grupos) {
-        // Se todas as tarefas do grupo têm o mesmo responsavel_id, podemos usar o campo global
-        // Caso contrário, o responsavel_id já está em cada tarefa
-        const responsavelComum = grupo.responsavel_id;
 
-        const payload = {
-          cliente_id: clienteSelecionado,
+      if (editingAgrupamento) {
+        // MODO EDIÇÃO (PUT): Enviar todos os grupos em uma única requisição para atualização atômica
+        // Isso evita que chamadas sequenciais apaguem dados uns dos outros no backend
+        const gruposPayload = grupos.map(grupo => ({
           produtos_com_tarefas: grupo.produtos_com_tarefas,
           data_inicio: grupo.periodo.inicio,
           data_fim: grupo.periodo.fim,
-          responsavel_id: responsavelComum, // Pode ser usado como fallback se tarefa não tiver responsavel_id
+          responsavel_id: grupo.responsavel_id, // Responsável padrão do grupo
           incluir_finais_semana: grupo.periodo.incluir_finais_semana,
           incluir_feriados: grupo.periodo.incluir_feriados,
           datas_individuais: grupo.periodo.datas_individuais
+        }));
+
+        const payload = {
+          cliente_id: clienteSelecionado,
+          grupos: gruposPayload
         };
 
-        console.log('💾 [ATRIBUICAO] Salvando grupo:', JSON.stringify(payload, null, 2));
+        console.log('💾 [ATRIBUICAO] Salvando atualização em lote (PUT):', JSON.stringify(payload, null, 2));
 
         const response = await fetch(urlBase, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          method: 'PUT', // Já definido, mas reforçando
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(payload),
         });
@@ -2266,7 +2267,51 @@ const AtribuicaoCliente = () => {
           showToast('error', errorMsg);
           return;
         }
-        totalLinhas += (result.count || result.data?.length || 0);
+
+        totalLinhas = result.count || 0;
+
+      } else {
+        // MODO CRIAÇÃO (POST): Manter comportamento de criar múltiplos agrupamentos se houver múltiplos grupos
+        // (Ou futuramente migrar para POST em lote se desejado criar um único agrupador)
+        for (const grupo of grupos) {
+          const responsavelComum = grupo.responsavel_id;
+
+          const payload = {
+            cliente_id: clienteSelecionado,
+            produtos_com_tarefas: grupo.produtos_com_tarefas,
+            data_inicio: grupo.periodo.inicio,
+            data_fim: grupo.periodo.fim,
+            responsavel_id: responsavelComum,
+            incluir_finais_semana: grupo.periodo.incluir_finais_semana,
+            incluir_feriados: grupo.periodo.incluir_feriados,
+            datas_individuais: grupo.periodo.datas_individuais
+          };
+
+          console.log('💾 [ATRIBUICAO] Salvando novo grupo (POST):', JSON.stringify(payload, null, 2));
+
+          const response = await fetch(urlBase, {
+            method: 'POST', // method variable handled logic, but hardcoding here since we split branches
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+
+          if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+
+          const result = await response.json();
+
+          if (!response.ok || !result.success) {
+            const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
+            showToast('error', errorMsg);
+            return;
+          }
+          totalLinhas += (result.count || result.data?.length || 0);
+        }
       }
 
       showToast('success', `Atribuição salva com sucesso! ${totalLinhas} dia(s) atribuídos/atualizados em ${grupos.length} grupo(s) de período.`);
@@ -2952,14 +2997,7 @@ const AtribuicaoCliente = () => {
 
               {/* Footer com botões */}
               <div className="atribuicao-footer">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => navigate('/atribuir-responsaveis')}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
+
                 <button
                   type="button"
                   className="btn-primary"

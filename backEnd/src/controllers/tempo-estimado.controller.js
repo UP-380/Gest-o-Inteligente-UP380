@@ -2016,230 +2016,23 @@ async function deletarTempoEstimado(req, res) {
 async function atualizarTempoEstimadoPorAgrupador(req, res) {
   try {
     const { agrupador_id } = req.params;
-    const { cliente_id, produto_ids, tarefa_ids, tarefas, produtos_com_tarefas, data_inicio, data_fim, tempo_estimado_dia, responsavel_id, incluir_finais_semana = true, incluir_feriados = true, datas_individuais = [] } = req.body;
+    const { cliente_id, grupos } = req.body;
 
     if (!agrupador_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'agrupador_id é obrigatório'
-      });
+      return res.status(400).json({ success: false, error: 'agrupador_id é obrigatório' });
     }
 
-    // Validações básicas
     if (!cliente_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'cliente_id é obrigatório'
-      });
+      return res.status(400).json({ success: false, error: 'cliente_id é obrigatório' });
     }
 
-    // Validar: precisa de período completo OU datas individuais
-    const temPeriodoCompleto = data_inicio && data_fim;
-    const temDatasIndividuais = Array.isArray(datas_individuais) && datas_individuais.length > 0;
-
-    if (!temPeriodoCompleto && !temDatasIndividuais) {
-      return res.status(400).json({
-        success: false,
-        error: 'É necessário fornecer data_inicio e data_fim OU datas_individuais'
-      });
-    }
-
-    if ((!tempo_estimado_dia || tempo_estimado_dia <= 0) && (!produtos_com_tarefas)) {
-      // Se não tem produtos_com_tarefas (que carrega seus próprios tempos), precisa do tempo global
-      // Mas na verdade, produtos_com_tarefas pode ter tempo por tarefa.
-      // Vamos flexibilizar: verificar se temos dados suficientes processando os produtos/tarefas abaixo
-    }
-
-    if (!responsavel_id) {
-      // Agora responsavel_id pode vir dentro das tarefas em produtos_com_tarefas
-      // Mas o código antigo exigia responsavel_id global. Vamos manter validação se não encontrarmos depois.
-    }
-
-    // Processar estrutura de produtos e tarefas (similar ao criarTempoEstimado)
-    let produtosComTarefasMap = {};
-    let produtoIdsArray = [];
-
-    // Tratamento para produtos_com_tarefas (Novo Formato) ou legacy (produto_ids + tarefa_ids)
-    if (produtos_com_tarefas && typeof produtos_com_tarefas === 'object' && Object.keys(produtos_com_tarefas).length > 0) {
-      produtosComTarefasMap = produtos_com_tarefas;
-      produtoIdsArray = Object.keys(produtos_com_tarefas).map(id => String(id).trim());
-    } else if (produto_ids && Array.isArray(produto_ids) && produto_ids.length > 0) {
-      // Formato Antigo
-      produtoIdsArray = produto_ids.map(id => String(id).trim());
-      let tarefasComTempo = [];
-
-      if (tarefas && Array.isArray(tarefas) && tarefas.length > 0) {
-        tarefasComTempo = tarefas;
-      } else if (tarefa_ids && Array.isArray(tarefa_ids) && tarefa_ids.length > 0 && tempo_estimado_dia) {
-        tarefasComTempo = tarefa_ids.map(tarefaId => ({
-          tarefa_id: String(tarefaId).trim(),
-          tempo_estimado_dia: parseInt(tempo_estimado_dia, 10),
-          responsavel_id: responsavel_id // Propagar responsavel global se não especificado
-        }));
-      } else {
-        return res.status(400).json({
-          success: false,
-          error: 'É necessário fornecer "produtos_com_tarefas" ou "produto_ids" + "tarefa_ids"/"tarefas"'
-        });
-      }
-
-      // Converter para mapa
-      produtoIdsArray.forEach(produtoId => {
-        produtosComTarefasMap[produtoId] = tarefasComTempo;
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: 'É necessário fornecer "produtos_com_tarefas" ou "produto_ids"'
-      });
-    }
-
-    // Validar se temos responsavel_id (global ou em cada tarefa) e tempo_estimado
-    let temResponsavel = !!responsavel_id;
-    for (const produtoId of Object.keys(produtosComTarefasMap)) {
-      for (const t of produtosComTarefasMap[produtoId]) {
-        if (!t.tempo_estimado_dia && !tempo_estimado_dia) {
-          return res.status(400).json({ success: false, error: 'Tempo estimado dia é obrigatório' });
-        }
-        if (t.responsavel_id) temResponsavel = true;
-      }
-    }
-
-    if (!temResponsavel) {
-      return res.status(400).json({ success: false, error: 'responsavel_id é obrigatório (global ou nas tarefas)' });
-    }
-
-    // Função para gerar todas as datas entre início e fim (reutilizar a função async)
-    const gerarDatasDoPeriodoUpdate = async (inicioStr, fimStr, incluirFinaisSemana = true, incluirFeriados = true) => {
-      const inicio = new Date(inicioStr + 'T00:00:00');
-      const fim = new Date(fimStr + 'T00:00:00');
-      const datas = [];
-
-      if (fim < inicio) {
-        return [];
-      }
-
-      // Buscar feriados para todos os anos no período
-      const anosNoPeriodo = new Set();
-      const dataAtualTemp = new Date(inicio);
-      while (dataAtualTemp <= fim) {
-        anosNoPeriodo.add(dataAtualTemp.getFullYear());
-        dataAtualTemp.setFullYear(dataAtualTemp.getFullYear() + 1);
-      }
-
-      // Buscar feriados para todos os anos
-      const feriadosPorAno = {};
-      for (const ano of anosNoPeriodo) {
-        feriadosPorAno[ano] = await buscarFeriados(ano);
-      }
-
-      const dataAtual = new Date(inicio);
-      let feriadosPulados = 0;
-      let finaisSemanaPulados = 0;
-
-      while (dataAtual <= fim) {
-        const ano = dataAtual.getFullYear();
-        const mes = dataAtual.getMonth();
-        const dia = dataAtual.getDate();
-        const dataParaCalcular = new Date(Date.UTC(ano, mes, dia));
-        const diaDaSemana = dataParaCalcular.getUTCDay();
-        const isWeekend = diaDaSemana === 0 || diaDaSemana === 6;
-
-        const anoFormatado = String(ano);
-        const mesFormatado = String(mes + 1).padStart(2, '0');
-        const diaFormatado = String(dia).padStart(2, '0');
-        const dateKey = `${anoFormatado}-${mesFormatado}-${diaFormatado}`;
-        const isHolidayDay = feriadosPorAno[ano] && feriadosPorAno[ano][dateKey] !== undefined;
-
-        if (!incluirFinaisSemana && isWeekend) {
-          finaisSemanaPulados++;
-          dataAtual.setDate(dataAtual.getDate() + 1);
-          continue;
-        }
-
-        if (!incluirFeriados && isHolidayDay) {
-          feriadosPulados++;
-          dataAtual.setDate(dataAtual.getDate() + 1);
-          continue;
-        }
-
-        const dataFormatada = `${anoFormatado}-${mesFormatado}-${diaFormatado}T00:00:00`;
-        datas.push(dataFormatada);
-        dataAtual.setDate(dataAtual.getDate() + 1);
-      }
-
-      return datas;
-    };
-
-    // Gerar todas as datas do período (filtrar finais de semana e feriados se necessário)
-    const incluirFinaisSemanaBool = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
-    const incluirFeriadosBool = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
-
-    // Validar período se estiver presente
-    if (temPeriodoCompleto) {
-      const dataInicioDate = new Date(data_inicio);
-      const dataFimDate = new Date(data_fim);
-      if (dataFimDate < dataInicioDate) {
-        return res.status(400).json({
-          success: false,
-          error: 'Período inválido. Data fim deve ser maior ou igual à data início'
-        });
-      }
-    }
-
-    // Gerar datas do período (Lógica unificada com o criar)
-    let datasDoPeriodo = [];
-    if (temDatasIndividuais && !temPeriodoCompleto) {
-      // Caso 1: Apenas datas individuais
-      datasDoPeriodo = await processarDatasIndividuais(datas_individuais, incluirFinaisSemanaBool, incluirFeriadosBool);
-    } else if (temPeriodoCompleto) {
-      // Caso 2: Período completo com filtro opcional
-      const todasDatas = await gerarDatasDoPeriodo(data_inicio, data_fim, incluirFinaisSemanaBool, incluirFeriadosBool);
-      if (temDatasIndividuais) {
-        const datasIndividuaisSet = new Set(datas_individuais);
-        datasDoPeriodo = todasDatas.filter(data => {
-          const dataStr = data.split('T')[0];
-          return datasIndividuaisSet.has(dataStr);
-        });
-      } else {
-        datasDoPeriodo = todasDatas;
-      }
-    }
-
-    if (datasDoPeriodo.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nenhuma data válida encontrada para o período ou datas especificadas.'
-      });
-    }
-
-    // NOVA LÓGICA: Deletar todas as regras antigas do agrupamento
-    const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
-      .from('tempo_estimado_regra')
-      .delete()
-      .eq('agrupador_id', agrupador_id);
-
-    if (deleteError) {
-      console.error('❌ Erro ao deletar regras antigas:', deleteError);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao atualizar agrupamento',
-        details: deleteError.message
-      });
-    }
-
-    // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados
+    // Função auxiliar local para buscar tipo_tarefa_id
     const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
       try {
         if (!tarefaId) return null;
-
         const tarefaIdStr = String(tarefaId).trim();
         const tarefaIdNum = parseInt(tarefaIdStr, 10);
-
-        if (isNaN(tarefaIdNum)) {
-          return null;
-        }
+        if (isNaN(tarefaIdNum)) return null;
 
         const { data: vinculados, error } = await supabase
           .schema('up_gestaointeligente')
@@ -2253,125 +2046,247 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
           .limit(1);
 
         if (error || !vinculados || vinculados.length === 0) return null;
-
-        const tipoTarefaId = vinculados[0].tarefa_tipo_id;
-        return tipoTarefaId ? String(tipoTarefaId) : null;
+        return vinculados[0].tarefa_tipo_id ? String(vinculados[0].tarefa_tipo_id) : null;
       } catch (error) {
         console.error('❌ Erro ao buscar tipo_tarefa_id:', error);
         return null;
       }
     };
 
-    // Construir regras a partir do mapa produtosComTarefasMap
-    // Precisamos buscar tipo_tarefa_id para cada tarefa envolvida
-    const todasTarefasIds = new Set();
-    Object.values(produtosComTarefasMap).forEach(lista => {
-      lista.forEach(t => todasTarefasIds.add(String(t.tarefa_id).trim()));
-    });
+    // Função auxiliar para processar um grupo de regras
+    const processarGrupo = async (grupoDados) => {
+      const {
+        produtos_com_tarefas,
+        data_inicio,
+        data_fim,
+        responsavel_id,
+        incluir_finais_semana = true,
+        incluir_feriados = true,
+        datas_individuais = []
+      } = grupoDados;
 
-    // Cache de tipos de tarefa
-    const tipoTarefaPorTarefa = new Map();
-    for (const tarefaId of todasTarefasIds) {
-      const tipoId = await buscarTipoTarefaIdPorTarefa(tarefaId);
-      if (tipoId) tipoTarefaPorTarefa.set(tarefaId, tipoId);
-    }
+      const temPeriodoCompleto = data_inicio && data_fim;
+      const temDatasIndividuais = Array.isArray(datas_individuais) && datas_individuais.length > 0;
 
-    // Agrupar datas em segmentos contínuos
-    const datasApenasData = datasDoPeriodo.map(d => d.split('T')[0]).sort();
-    const segmentos = await agruparDatasEmSegmentos(datasApenasData, incluirFinaisSemanaBool, incluirFeriadosBool);
-    console.log(`📅 [UPDATE-TEMPO-ESTIMADO] Datas agrupadas em ${segmentos.length} segmento(s)`);
-
-    // Formar lista de insert (regras)
-    const regrasParaInserir = [];
-
-    for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
-      for (const t of tarefasList) {
-        const tId = String(t.tarefa_id).trim();
-        const tipoId = tipoTarefaPorTarefa.get(tId) || null;
-
-        // Preferir o responsavel da tarefa, senão o global
-        const respId = t.responsavel_id || responsavel_id;
-        // Preferir o tempo da tarefa, senão o global
-        const tempoDia = t.tempo_estimado_dia || tempo_estimado_dia;
-
-        if (!respId || !tempoDia) continue; // Deveria ter sido pego na validação
-
-        // Criar regra(s) segmentada(s) para esta tarefa
-        segmentos.forEach(segmento => {
-          regrasParaInserir.push({
-            agrupador_id: agrupador_id,
-            cliente_id: String(cliente_id).trim(),
-            produto_id: produtoId ? parseInt(produtoId, 10) : null,
-            tarefa_id: parseInt(t.tarefa_id, 10),
-            responsavel_id: parseInt(respId, 10),
-            tipo_tarefa_id: tipoId,
-            data_inicio: segmento.inicio,
-            data_fim: segmento.fim,
-            tempo_estimado_dia: parseInt(tempoDia, 10),
-            incluir_finais_semana: incluirFinaisSemanaBool,
-            incluir_feriados: incluirFeriadosBool
-          });
-        });
+      if (!temPeriodoCompleto && !temDatasIndividuais) {
+        throw new Error('Grupo inválido: É necessário fornecer data_inicio e data_fim OU datas_individuais');
       }
-    }
 
-    // Inserir novas regras
-    const { data: regrasInseridas, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
-      .from('tempo_estimado_regra')
-      .insert(regrasParaInserir)
-      .select();
+      if (!produtos_com_tarefas || typeof produtos_com_tarefas !== 'object' || Object.keys(produtos_com_tarefas).length === 0) {
+        throw new Error('Grupo inválido: É necessário fornecer "produtos_com_tarefas"');
+      }
 
-    if (insertError) {
-      console.error('❌ Erro ao criar novas regras:', insertError);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao atualizar agrupamento',
-        details: insertError.message
-      });
-    }
+      let temResponsavelNoGrupo = !!responsavel_id;
+      for (const list of Object.values(produtos_com_tarefas)) {
+        for (const t of list) {
+          if (t.responsavel_id) temResponsavelNoGrupo = true;
+        }
+      }
+      if (!temResponsavelNoGrupo) {
+        throw new Error('Grupo inválido: responsavel_id é obrigatório (global ou nas tarefas)');
+      }
 
-    console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);
+      const incFinaisSemanaBool = incluir_finais_semana === undefined ? true : Boolean(incluir_finais_semana);
+      const incFeriadosBool = incluir_feriados === undefined ? true : Boolean(incluir_feriados);
 
-    // NOVA LÓGICA: Atualizar também o histórico de atribuição (historico_atribuicoes)
-    try {
-      console.log('🔄 Atualizando histórico de atribuição para o agrupador:', agrupador_id);
-
-      // Preparar lista de tarefas para o histórico (flattened)
-      // O formato esperado é um array de objetos { tarefa_id, tempo_estimado_dia }
-      // Como agora temos tarefas por produto, podemos ter a mesma tarefa com tempos diferentes em produtos diferentes?
-      // O histórico parece ser uma visão mais simplificada. Vamos consolidar todas as tarefas únicas.
-
-      const tarefasParaHistorico = [];
-      const tarefasProcessadasHistorico = new Set();
-
-      // Iterar sobre todas as tarefas em todos os produtos
-      for (const [produtoId, tarefasList] of Object.entries(produtosComTarefasMap)) {
-        for (const t of tarefasList) {
-          // Usar uma chave única se quisermos preservar todas as instâncias ou tarefa_id se quisermos únicas
-          // O histórico geralmente lista as tarefas configuradas. Vamos incluir todas que foram salvas.
-          // Se o formato do histórico espera apenas tarefa_id e tempo, e se houver duplicatas (mesma tarefa em produtos diferentes),
-          // vamos adicionar todas, pois o contexto é importante (embora o histórico simplificado possa não mostrar produto)
-
-          // No criarTempoEstimado, 'todasTarefasComTempo' é usado. Ele contém todas as tarefas de todos os produtos.
-
-          tarefasParaHistorico.push({
-            tarefa_id: String(t.tarefa_id).trim(),
-            tempo_estimado_dia: parseInt(t.tempo_estimado_dia || tempo_estimado_dia, 10)
-          });
+      let datasDoPeriodo = [];
+      if (temDatasIndividuais && !temPeriodoCompleto) {
+        datasDoPeriodo = await processarDatasIndividuais(datas_individuais, incFinaisSemanaBool, incFeriadosBool);
+      } else if (temPeriodoCompleto) {
+        const todasDatas = await gerarDatasDoPeriodo(data_inicio, data_fim, incFinaisSemanaBool, incFeriadosBool);
+        if (temDatasIndividuais) {
+          const datasIndividuaisSet = new Set(datas_individuais);
+          datasDoPeriodo = todasDatas.filter(data => datasIndividuaisSet.has(data.split('T')[0]));
+        } else {
+          datasDoPeriodo = todasDatas;
         }
       }
 
+      if (datasDoPeriodo.length === 0) {
+        // Ignorar grupos sem datas válidas mas não falhar tudo? Não, melhor falhar.
+        throw new Error('Nenhuma data válida encontrada para o grupo.');
+      }
+
+      const datasApenasData = datasDoPeriodo.map(d => d.split('T')[0]).sort();
+      const segmentos = await agruparDatasEmSegmentos(datasApenasData, incFinaisSemanaBool, incFeriadosBool);
+
+      const tarefasIdsDoGrupo = new Set();
+      Object.values(produtos_com_tarefas).forEach(l => l.forEach(t => tarefasIdsDoGrupo.add(String(t.tarefa_id).trim())));
+
+      const tipoTarefaMap = new Map();
+      for (const tId of tarefasIdsDoGrupo) {
+        const tipoId = await buscarTipoTarefaIdPorTarefa(tId);
+        if (tipoId) tipoTarefaMap.set(tId, tipoId);
+      }
+
+      const regrasDoGrupo = [];
+      for (const [produtoId, tarefasList] of Object.entries(produtos_com_tarefas)) {
+        for (const t of tarefasList) {
+          const tId = String(t.tarefa_id).trim();
+          const tipoId = tipoTarefaMap.get(tId) || null;
+          const respId = t.responsavel_id || responsavel_id;
+          const tempoDia = t.tempo_estimado_dia;
+
+          if (!respId || !tempoDia) continue;
+
+          for (const seg of segmentos) {
+            regrasDoGrupo.push({
+              agrupador_id,
+              cliente_id: String(cliente_id).trim(),
+              produto_id: String(produtoId).trim(),
+              tarefa_id: parseInt(tId, 10),
+              tipo_tarefa_id: tipoId ? parseInt(tipoId, 10) : null,
+              responsavel_id: String(respId).trim(),
+              data_inicio: seg.inicio,
+              data_fim: seg.fim,
+              tempo_estimado_dia: parseInt(tempoDia, 10),
+              incluir_finais_semana: incFinaisSemanaBool,
+              incluir_feriados: incFeriadosBool,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+      return regrasDoGrupo;
+    };
+
+    let regrasParaInserirTotal = [];
+
+    if (grupos && Array.isArray(grupos) && grupos.length > 0) {
+      console.log(`📦 [UPDATE-AGRUPADOR] Processando ${grupos.length} grupos recebidos.`);
+      for (const g of grupos) {
+        const regras = await processarGrupo(g);
+        regrasParaInserirTotal.push(...regras);
+      }
+    } else {
+      // Modo Legacy
+      const grupoUnico = {
+        produtos_com_tarefas: req.body.produtos_com_tarefas,
+        data_inicio: req.body.data_inicio,
+        data_fim: req.body.data_fim,
+        responsavel_id: req.body.responsavel_id,
+        incluir_finais_semana: req.body.incluir_finais_semana,
+        incluir_feriados: req.body.incluir_feriados,
+        datas_individuais: req.body.datas_individuais
+      };
+
+      // Fallback para req.body direto se produtos_com_tarefas não existir
+      if (!grupoUnico.produtos_com_tarefas && (req.body.produto_ids || req.body.tarefa_ids)) {
+        // Construção manual simplificada para fallback
+        const pMap = {};
+        const pIds = req.body.produto_ids || [];
+        const tList = [];
+
+        const tIds = req.body.tarefa_ids || [];
+        if (tIds.length > 0) {
+          tIds.forEach(tid => tList.push({
+            tarefa_id: tid,
+            tempo_estimado_dia: req.body.tempo_estimado_dia,
+            responsavel_id: req.body.responsavel_id
+          }));
+        } else if (req.body.tarefas) {
+          req.body.tarefas.forEach(t => tList.push(t));
+        }
+
+        if (Array.isArray(pIds)) {
+          pIds.forEach(pid => pMap[pid] = tList);
+        }
+        grupoUnico.produtos_com_tarefas = pMap;
+      }
+
+      if (!grupoUnico.produtos_com_tarefas || Object.keys(grupoUnico.produtos_com_tarefas).length === 0) {
+        // Se ainda assim falhar, lançar erro ou deixar processarGrupo reclamar
+      }
+
+      const regras = await processarGrupo(grupoUnico);
+      regrasParaInserirTotal.push(...regras);
+    }
+
+    // Deletar TODAS as regras antigas deste agrupador (Operação Atômica Lógica)
+    const { error: deleteError } = await supabase
+      .schema('up_gestaointeligente')
+      .from('tempo_estimado_regra')
+      .delete()
+      .eq('agrupador_id', agrupador_id);
+
+    if (deleteError) {
+      return res.status(500).json({ success: false, error: 'Erro ao limpar regras antigas', details: deleteError.message });
+    }
+
+    // Inserir Novas Regras
+    if (regrasParaInserirTotal.length > 0) {
+      const batchSize = 100;
+      for (let i = 0; i < regrasParaInserirTotal.length; i += batchSize) {
+        const lote = regrasParaInserirTotal.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado_regra')
+          .insert(lote);
+
+        if (insertError) {
+          console.error('❌ Erro ao inserir lote de regras:', insertError);
+          return res.status(500).json({ success: false, error: 'Erro ao salvar novas regras', details: insertError.message });
+        }
+      }
+    }
+
+    console.log(`✅ Agrupamento ${agrupador_id} atualizado com ${regrasParaInserirTotal.length} novas regras.`);
+
+    // Atualizar período do histórico e lista de tarefas no JSON
+    try {
+      console.log('🔄 Atualizando tarefas e período no histórico de atribuição:', agrupador_id);
+
+      // Consolidar tarefas para o histórico a partir das regras geradas
+      // O histórico precisa de uma lista de objetos { tarefa_id, tempo_estimado_dia }
+      // Como regrasParaInserirTotal é "expandido" por segmentos de datas, precisamos desduplicar por (tarefa_id, tempo)
+
+      const tarefasMap = new Map(); // Key: tarefa_id -> { tarefa_id, tempo_estimado_dia }
+
+      regrasParaInserirTotal.forEach(regra => {
+        const tId = String(regra.tarefa_id).trim();
+        // Se a tarefa já existe, mas com tempo diferente (e.g. produtos diferentes), 
+        // idealmente o histórico deveria suportar isso, mas é uma lista simples.
+        // Vamos manter a última ocorrência ou a maior.
+        // Para simplificar e garantir visualização, adicionamos se não existir.
+        if (!tarefasMap.has(tId)) {
+          tarefasMap.set(tId, {
+            tarefa_id: tId,
+            tempo_estimado_dia: regra.tempo_estimado_dia
+          });
+        }
+      });
+
+      const tarefasParaHistorico = Array.from(tarefasMap.values());
+
+      // Coletar produtos únicos das regras
+      const produtosIdsUnicos = [...new Set(regrasParaInserirTotal.map(r => String(r.produto_id).trim()))];
+
+      // Atualizar historico_atribuicoes
       const historicoUpdate = {
         updated_at: new Date().toISOString(),
-        produto_ids: produtoIdsArray.map(id => String(id).trim()),
+        produto_ids: produtosIdsUnicos,
         tarefas: tarefasParaHistorico,
-        data_inicio: data_inicio,
-        data_fim: data_fim,
-        // Se cliente ou responsável mudou globalmente, atualizar também
-        cliente_id: String(cliente_id).trim(),
-        responsavel_id: String(responsavel_id).trim()
+        // data_inicio e data_fim serão recalculados pelo recalcularPeriodoHistorico, 
+        // mas podemos já passar algo aproximado aqui se quisermos, 
+        // porém é mais seguro deixar o recalcularPeriodoHistorico (que olha para tempo_estimado, mas aqui estamos inserindo em tempo_estimado_regra...)
+
+        // CORREÇÃO: recalcularPeriodoHistorico olha para 'tempo_estimado' (tabela de registros virtuais expandidos?)
+        // Se a tabela 'tempo_estimado' não for mais usada e só usarmos 'tempo_estimado_regra', o recalcula pode falhar.
+        // No entanto, assumindo que as rotas de leitura expandem as regras, o histórico deve refletir a regra.
+        // Vamos forçar as datas do histórico com base nas regras inseridas, pois é mais preciso agora.
       };
+
+      // Calcular datas min/max das regras
+      if (regrasParaInserirTotal.length > 0) {
+        const datasInicio = regrasParaInserirTotal.map(r => r.data_inicio).sort();
+        const datasFim = regrasParaInserirTotal.map(r => r.data_fim).sort();
+        historicoUpdate.data_inicio = datasInicio[0];
+        historicoUpdate.data_fim = datasFim[datasFim.length - 1];
+      }
+
+      // Se cliente mudou (payload de update tem cliente_id)
+      if (cliente_id) historicoUpdate.cliente_id = String(cliente_id).trim();
 
       const { error: historicoError } = await supabase
         .schema('up_gestaointeligente')
@@ -2382,38 +2297,32 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       if (historicoError) {
         console.error('⚠️ Erro ao atualizar histórico de atribuição:', historicoError);
       } else {
-        console.log('✅ Histórico de atribuição atualizado com sucesso');
+        console.log('✅ Histórico de atribuição atualizado com sucesso (tarefas e período)');
       }
 
-    } catch (errorHistorico) {
-      console.error('⚠️ Erro não fatal ao atualizar histórico:', errorHistorico);
+    } catch (errHistorico) {
+      console.error('⚠️ Erro não fatal ao atualizar histórico:', errHistorico);
     }
 
-    console.log(`✅ Agrupamento ${agrupador_id} atualizado: ${regrasInseridas.length} regra(s) criada(s)`);
-
-    // Calcular registros virtuais para retornar no formato esperado pelo frontend
-    const dadosInseridos = [];
-    for (const regra of regrasInseridas) {
-      const registrosVirtuais = await calcularRegistrosDinamicos(regra);
-      dadosInseridos.push(...registrosVirtuais);
-    }
+    // Podemos manter a chamada, mas ela pode ser redundante se já atualizamos acima. 
+    // Mal não faz, serve de dupla checagem se ela funcionar com regras.
+    // await recalcularPeriodoHistorico(agrupador_id); 
 
     return res.json({
       success: true,
-      data: dadosInseridos,
-      count: dadosInseridos.length,
-      agrupador_id: agrupador_id,
-      message: `${dadosInseridos.length} registro(s) atualizado(s) com sucesso!`
+      message: 'Atribuição atualizada com sucesso',
+      count: regrasParaInserirTotal.length
     });
+
   } catch (error) {
     console.error('Erro inesperado ao atualizar agrupamento:', error);
     return res.status(500).json({
       success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
+      error: error.message || 'Erro interno do servidor'
     });
   }
 }
+
 
 // DELETE - Deletar todas as regras de um agrupamento
 async function deletarTempoEstimadoPorAgrupador(req, res) {
