@@ -417,6 +417,7 @@ async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFi
         // Campos adicionais para compatibilidade
         incluir_finais_semana: incluirFinaisSemana,
         incluir_feriados: incluirFeriados,
+        is_plug_rapido: regra.is_plug_rapido,
         // Metadados da regra (úteis para debug)
         regra_id: regra.id,
         created_at: regra.created_at,

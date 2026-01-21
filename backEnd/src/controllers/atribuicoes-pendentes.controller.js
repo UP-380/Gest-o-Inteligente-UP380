@@ -148,7 +148,7 @@ async function listarMinhasPendentes(req, res) {
         const [clientesRes, produtosRes, tarefasRes] = await Promise.all([
             clienteIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
             produtoIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
-            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('tarefa').select('id, nome').in('id', tarefaIds) : { data: [] }
+            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] }
         ]);
 
         const clientesMap = new Map((clientesRes.data || []).map(c => [String(c.id), c]));
@@ -229,7 +229,7 @@ async function listarPendentesParaAprovacao(req, res) {
         const [clientesRes, produtosRes, tarefasRes, usuariosRes] = await Promise.all([
             clienteIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
             produtoIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
-            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('tarefa').select('id, nome').in('id', tarefaIds) : { data: [] },
+            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] },
             usuarioIds.length > 0 ? supabase.schema('up_gestaointeligente').from('usuarios').select('id, nome_usuario, foto_perfil').in('id', usuarioIds) : { data: [] }
         ]);
 
@@ -261,6 +261,10 @@ async function listarPendentesParaAprovacao(req, res) {
 // === APROVAÇÃO ===
 // ========================================
 
+// ========================================
+// === APROVAÇÃO ===
+// ========================================
+
 /**
  * Aprova uma atribuição pendente.
  * REGRAS RÍGIDAS:
@@ -268,6 +272,11 @@ async function listarPendentesParaAprovacao(req, res) {
  * 2. Cliente, Produto, Tarefa e Estimativa podem ser editados pelo gestor
  * 3. Migração de tempo deve ser normalizada (buscar tipo_tarefa correto)
  * 4. Status vira APROVADA e dados finais são salvos na pendência
+ * 
+ * CORREÇÃO DE FKs (Ticket 500 Error):
+ * - historico_atribuicoes e tempo_estimado_regra usam membro_id (responsavel_id)
+ * - registro_tempo usa usuario_id (usuarios.id)
+ * - Precisamos converter usuario_id -> membro_id para as tabelas de histórico/regra
  */
 async function aprovarAtribuicao(req, res) {
     try {
@@ -279,7 +288,7 @@ async function aprovarAtribuicao(req, res) {
             tempo_estimado_dia // Pode ser alterado pelo gestor
         } = req.body;
 
-        const gestor_id = req.session.usuario.id;
+        const gestor_usuario_id = req.session.usuario.id;
 
         // 1. Buscar a atribuição pendente original
         const { data: pendente, error: erroBusca } = await supabase
@@ -306,23 +315,64 @@ async function aprovarAtribuicao(req, res) {
             tempo_estimado_dia: tempo_estimado_dia || pendente.tempo_estimado_dia,
 
             // IMUTÁVEIS (Regra de Negócio)
-            usuario_id: pendente.usuario_id,
+            usuario_id: pendente.usuario_id, // ID da tabela USUARIOS
             data_inicio: pendente.data_inicio,
             data_fim: pendente.data_fim
         };
 
+        // --- RESOLUÇÃO DE MEMBRO_ID ---
+        // As tabelas historico_atribuicoes e tempo_estimado_regra exigem IDs da tabela MEMBRO,
+        // mas nós temos IDs da tabela USUARIOS. Precisamos fazer a conversão.
+
+        // Buscar Membro ID do Responsável
+        const { data: membroResponsavel, error: errMembroResp } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id')
+            .eq('usuario_id', dadosFinais.usuario_id)
+            .limit(1)
+            .maybeSingle();
+
+        if (errMembroResp || !membroResponsavel) {
+            console.error('Erro ao buscar membro para usuário:', dadosFinais.usuario_id, errMembroResp);
+            return res.status(400).json({
+                success: false,
+                error: 'Usuário responsável não possui cadastro de membro vinculado. Necessário vincular em Colaboradores.'
+            });
+        }
+        const responsavel_membro_id = membroResponsavel.id;
+
+        // Buscar Membro ID do Gestor (para auditoria criador)
+        const { data: membroGestor, error: errMembroGestor } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id')
+            .eq('usuario_id', gestor_usuario_id)
+            .limit(1)
+            .maybeSingle();
+
+        // Se gestor não tiver membro, fallback para o próprio responsável ou null (mas geralmente tem)
+        // historico_atribuicoes exige usuario_criador_id NOT NULL e FK membro
+        if (!membroGestor) {
+            return res.status(400).json({
+                success: false,
+                error: 'Você (Gestor) não possui cadastro de membro vinculado. Contate o administrador.'
+            });
+        }
+        const gestor_membro_id = membroGestor.id;
+
         // 2. Criar Agrupador ID
         const agrupador_id = uuidv4();
 
-        // 3. Criar Historico de Atribuição (Oficial)
+        // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id
         const { error: erroHistorico } = await supabase
             .schema('up_gestaointeligente')
             .from('historico_atribuicoes')
             .insert({
                 agrupador_id,
                 cliente_id: dadosFinais.cliente_id,
-                responsavel_id: dadosFinais.usuario_id,
-                usuario_criador_id: pendente.usuario_id,
+                responsavel_id: responsavel_membro_id, // FK membro
+                usuario_criador_id: gestor_membro_id,  // FK membro (quem aprovou/criou o oficial)
                 produto_ids: [dadosFinais.produto_id],
                 tarefas: [{ tarefa_id: dadosFinais.tarefa_id, tempo_estimado_dia: dadosFinais.tempo_estimado_dia }],
                 data_inicio: dadosFinais.data_inicio,
@@ -330,9 +380,12 @@ async function aprovarAtribuicao(req, res) {
                 created_at: new Date().toISOString()
             });
 
-        if (erroHistorico) throw erroHistorico;
+        if (erroHistorico) {
+            console.error('Erro ao inserir historico:', erroHistorico);
+            throw erroHistorico;
+        }
 
-        // 4. Criar Regra de Tempo Estimado
+        // 4. Criar Regra de Tempo Estimado - Usa membro_id
 
         // Buscar/Descobrir tipo_tarefa_id para a tarefa FINAL
         let tipo_tarefa_id = null;
@@ -351,7 +404,7 @@ async function aprovarAtribuicao(req, res) {
                 // Fallback: tabela tarefa
                 const { data: tarefa } = await supabase
                     .schema('up_gestaointeligente')
-                    .from('tarefa')
+                    .from('cp_tarefa')
                     .select('tipo_tarefa_id')
                     .eq('id', dadosFinais.tarefa_id)
                     .single();
@@ -367,20 +420,25 @@ async function aprovarAtribuicao(req, res) {
                 cliente_id: dadosFinais.cliente_id,
                 produto_id: dadosFinais.produto_id,
                 tarefa_id: dadosFinais.tarefa_id,
-                responsavel_id: dadosFinais.usuario_id,
+                responsavel_id: responsavel_membro_id, // FK membro (assumido pela lógica do sistema)
                 data_inicio: dadosFinais.data_inicio,
                 data_fim: dadosFinais.data_fim,
                 tempo_estimado_dia: dadosFinais.tempo_estimado_dia,
                 tipo_tarefa_id,
                 incluir_finais_semana: true,
                 incluir_feriados: true,
-                created_by: gestor_id
+                is_plug_rapido: true,
+                created_by: gestor_membro_id // membro_id do criador
             });
 
-        if (erroRegra) throw erroRegra;
+        if (erroRegra) {
+            console.error('Erro ao inserir regra:', erroRegra);
+            throw erroRegra;
+        }
 
         // 5. Migrar Registro de Tempo Pendente -> Registro Tempo Oficial
         // NORMALIZAÇÃO: Usar os dados finais aprovados, não o que estava no pendente
+        // NOTA: Tabela registro_tempo usa USUARIO_ID (tabela usuarios), então usamos dadosFinais.usuario_id
         const { data: registrosPendentes } = await supabase
             .schema('up_gestaointeligente')
             .from('registro_tempo_pendente')
@@ -394,25 +452,30 @@ async function aprovarAtribuicao(req, res) {
                 // O sistema oficial suporta data_fim null (em andamento).
 
                 return {
-                    usuario_id: dadosFinais.usuario_id, // Garante que é o dono original
+                    id: uuidv4(), // Gerar ID manualmente pois o banco não tem default
+                    usuario_id: dadosFinais.usuario_id, // Tabela USUARIOS (Correto para registro_tempo)
                     tarefa_id: dadosFinais.tarefa_id,   // Tarefa aprovada
                     cliente_id: dadosFinais.cliente_id, // Cliente aprovado
                     produto_id: dadosFinais.produto_id, // Produto aprovado
-                    tarefa_tipo_id: tipo_tarefa_id,     // Tipo calculado corretamente
+                    tipo_tarefa_id: tipo_tarefa_id,     // Tipo calculado corretamente (campo correto é tipo_tarefa_id)
                     data_inicio: reg.data_inicio,
                     data_fim: reg.data_fim,
-                    tempo_estimado_id: null, // Sem vínculo direto com regra antiga
-                    observacao: 'Origem: Plug Rápido (Aprovado)',
+                    // tempo_estimado_id: null, // Removido pois coluna não existe
                     bloqueado: true // TICKET 2: Bloquear edição/exclusão deste registro
                 };
             });
+
+            console.log('DEBUG: payload insert registro_tempo:', JSON.stringify(registrosParaInserir, null, 2));
 
             const { error: erroMigracao } = await supabase
                 .schema('up_gestaointeligente')
                 .from('registro_tempo')
                 .insert(registrosParaInserir);
 
-            if (erroMigracao) throw erroMigracao;
+            if (erroMigracao) {
+                console.error('Erro registro_tempo insert:', erroMigracao);
+                throw erroMigracao;
+            }
         }
 
         // 6. Atualizar status da pendência e persistir valores FINAIS
@@ -423,7 +486,7 @@ async function aprovarAtribuicao(req, res) {
             .update({
                 status: 'APROVADA',
                 aprovado_em: new Date().toISOString(),
-                aprovado_por: gestor_id,
+                aprovado_por: gestor_usuario_id, // Mantemos ID de usuário aqui para saber login
 
                 // Gravar os dados finais na própria tabela para auditoria fácil
                 cliente_id: dadosFinais.cliente_id,

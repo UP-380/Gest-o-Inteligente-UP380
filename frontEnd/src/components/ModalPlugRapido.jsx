@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import './ModalPlugRapido.css';
-import CustomSelect from './vinculacoes/CustomSelect'; // Usando o componente rico
-import SelecaoTarefasPlugRapido from './vinculacoes/SelecaoTarefasPlugRapido'; // Novo componente
+import CustomSelect from './vinculacoes/CustomSelect';
+import SelecaoTarefasPlugRapido from './vinculacoes/SelecaoTarefasPlugRapido';
+import FilterPeriodo from './filters/FilterPeriodo';
+import TempoEstimadoInput from './common/TempoEstimadoInput';
 
 const API_BASE_URL = '/api';
 
@@ -17,7 +19,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         tarefa_id: '',
         data_inicio: '',
         data_fim: '',
-        tempo_estimado_dia_horas: '08:00',
+        tempo_estimado_ms: 28800000, // 8h em ms
         iniciar_timer: true
     });
 
@@ -35,7 +37,8 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 produto_id: '',
                 tarefa_id: '',
                 data_inicio: `${yyyy}-${mm}-${dd}`,
-                data_fim: `${yyyy}-${mm}-${dd}`
+                data_fim: `${yyyy}-${mm}-${dd}`,
+                tempo_estimado_ms: 28800000
             }));
             setProdutosOptions([]);
             fetchClientes();
@@ -90,8 +93,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const [h, m] = formData.tempo_estimado_dia_horas.split(':').map(Number);
-            const tempoSegundos = (h * 3600) + (m * 60);
+            const tempoSegundos = Math.floor(formData.tempo_estimado_ms / 1000);
 
             const payload = {
                 cliente_id: formData.cliente_id,
@@ -133,7 +135,10 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         formData.tarefa_id &&
         formData.data_inicio &&
         formData.data_fim &&
-        formData.tempo_estimado_dia_horas;
+        formData.tarefa_id &&
+        formData.data_inicio &&
+        formData.data_fim &&
+        formData.tempo_estimado_ms > 0;
 
     return createPortal(
         <div className="modal-plug-rapido-overlay" onClick={onClose}>
@@ -180,20 +185,24 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                         />
                     </div>
 
-                    <div className="form-row-plug">
-                        <div className="form-group-plug">
-                            <label>Período (Início)</label>
-                            <input type="date" className="form-control-plug" value={formData.data_inicio} onChange={e => setFormData(d => ({ ...d, data_inicio: e.target.value }))} required disabled={loading} />
-                        </div>
-                        <div className="form-group-plug">
-                            <label>Período (Fim)</label>
-                            <input type="date" className="form-control-plug" value={formData.data_fim} onChange={e => setFormData(d => ({ ...d, data_fim: e.target.value }))} required disabled={loading} />
-                        </div>
+                    <div className="form-group-plug">
+                        <label>Período</label>
+                        <FilterPeriodo
+                            dataInicio={formData.data_inicio}
+                            dataFim={formData.data_fim}
+                            onInicioChange={(e) => setFormData(d => ({ ...d, data_inicio: e.target.value }))}
+                            onFimChange={(e) => setFormData(d => ({ ...d, data_fim: e.target.value }))}
+                            disabled={loading}
+                        />
                     </div>
 
                     <div className="form-group-plug">
                         <label>Tempo Estimado / Dia</label>
-                        <input type="time" className="form-control-plug" value={formData.tempo_estimado_dia_horas} onChange={e => setFormData(d => ({ ...d, tempo_estimado_dia_horas: e.target.value }))} required disabled={loading} />
+                        <TempoEstimadoInput
+                            value={formData.tempo_estimado_ms}
+                            onChange={(val) => setFormData(d => ({ ...d, tempo_estimado_ms: val }))}
+                            disabled={loading}
+                        />
                     </div>
 
                     <div className="timer-option-plug" onClick={() => setFormData(d => ({ ...d, iniciar_timer: !d.iniciar_timer }))}>
