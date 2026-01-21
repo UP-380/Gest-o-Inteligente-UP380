@@ -33,11 +33,36 @@ const HistoricoAtribuicoes = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRegistros, setTotalRegistros] = useState(0);
 
-  // Filtros
-  const [filtroResponsavel, setFiltroResponsavel] = useState(null);
-  const [filtroUsuarioCriador, setFiltroUsuarioCriador] = useState(null);
-  const [filtroDataInicio, setFiltroDataInicio] = useState('');
-  const [filtroDataFim, setFiltroDataFim] = useState('');
+  // Helper para recuperar filtros salvos
+  const getSavedFilter = (key, defaultValue) => {
+    try {
+      const saved = sessionStorage.getItem('historicoFilters');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed[key] !== undefined ? parsed[key] : defaultValue;
+      }
+    } catch (e) {
+      console.error('Erro ao ler filtros:', e);
+    }
+    return defaultValue;
+  };
+
+  // Filtros (Inicializados do sessionStorage se disponível)
+  const [filtroResponsavel, setFiltroResponsavel] = useState(() => getSavedFilter('filtroResponsavel', null));
+  const [filtroUsuarioCriador, setFiltroUsuarioCriador] = useState(() => getSavedFilter('filtroUsuarioCriador', null));
+  const [filtroDataInicio, setFiltroDataInicio] = useState(() => getSavedFilter('filtroDataInicio', ''));
+  const [filtroDataFim, setFiltroDataFim] = useState(() => getSavedFilter('filtroDataFim', ''));
+
+  // Efeito para salvar filtros sempre que mudarem
+  useEffect(() => {
+    const filters = {
+      filtroResponsavel,
+      filtroUsuarioCriador,
+      filtroDataInicio,
+      filtroDataFim
+    };
+    sessionStorage.setItem('historicoFilters', JSON.stringify(filters));
+  }, [filtroResponsavel, filtroUsuarioCriador, filtroDataInicio, filtroDataFim]);
 
   // Dados auxiliares
   const [todosClientes, setTodosClientes] = useState([]);
