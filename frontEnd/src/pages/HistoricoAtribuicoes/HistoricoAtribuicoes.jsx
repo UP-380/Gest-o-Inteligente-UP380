@@ -4,6 +4,8 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import FiltersCard from '../../components/filters/FiltersCard';
 import FilterMembro from '../../components/filters/FilterMembro';
+import FilterClienteHistorico from '../../components/filters/FilterClienteHistorico';
+
 import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import Pagination from '../../components/common/Pagination';
 import EditButton from '../../components/common/EditButton';
@@ -33,43 +35,6 @@ const HistoricoAtribuicoes = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRegistros, setTotalRegistros] = useState(0);
 
-  // Helper para recuperar filtros salvos
-  const getSavedFilter = (key, defaultValue) => {
-    try {
-      const saved = sessionStorage.getItem('historicoFilters');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed[key] !== undefined ? parsed[key] : defaultValue;
-      }
-    } catch (e) {
-      console.error('Erro ao ler filtros:', e);
-    }
-    return defaultValue;
-  };
-
-  // Filtros (Inicializados do sessionStorage se disponível)
-  const [filtroResponsavel, setFiltroResponsavel] = useState(() => getSavedFilter('filtroResponsavel', null));
-  const [filtroUsuarioCriador, setFiltroUsuarioCriador] = useState(() => getSavedFilter('filtroUsuarioCriador', null));
-  const [filtroDataInicio, setFiltroDataInicio] = useState(() => getSavedFilter('filtroDataInicio', ''));
-  const [filtroDataFim, setFiltroDataFim] = useState(() => getSavedFilter('filtroDataFim', ''));
-
-  // Efeito para salvar filtros sempre que mudarem
-  useEffect(() => {
-    const filters = {
-      filtroResponsavel,
-      filtroUsuarioCriador,
-      filtroDataInicio,
-      filtroDataFim
-    };
-    sessionStorage.setItem('historicoFilters', JSON.stringify(filters));
-  }, [filtroResponsavel, filtroUsuarioCriador, filtroDataInicio, filtroDataFim]);
-
-  // Dados auxiliares
-  const [todosClientes, setTodosClientes] = useState([]);
-  const [todosColaboradores, setTodosColaboradores] = useState([]);
-  const [nomesProdutos, setNomesProdutos] = useState({});
-  const [nomesTarefas, setNomesTarefas] = useState({});
-
   // Estados de Modais e Ações
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [itemParaDeletar, setItemParaDeletar] = useState(null);
@@ -77,6 +42,10 @@ const HistoricoAtribuicoes = () => {
 
   // Estado para clientes no formato CustomSelect
   const [clientes, setClientes] = useState([]);
+  const [todosClientes, setTodosClientes] = useState([]);
+  const [todosColaboradores, setTodosColaboradores] = useState([]);
+  const [nomesProdutos, setNomesProdutos] = useState({});
+  const [nomesTarefas, setNomesTarefas] = useState({});
 
   // Controle de expansão e detalhes
   const [linhasExpandidas, setLinhasExpandidas] = useState(new Set());
@@ -199,14 +168,127 @@ const HistoricoAtribuicoes = () => {
     }
   }, [historico]);
 
+  // Helper para recuperar filtros salvos
+  const getSavedFilter = (key, defaultValue) => {
+    try {
+      const saved = sessionStorage.getItem('historicoFilters');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed[key] !== undefined ? parsed[key] : defaultValue;
+      }
+    } catch (e) {
+      console.error('Erro ao ler filtros:', e);
+    }
+    return defaultValue;
+  };
+
+  // Filtros (Inicializados do sessionStorage se disponível)
+  const [filtroResponsavel, setFiltroResponsavel] = useState(() => getSavedFilter('filtroResponsavel', null));
+  const [filtroCliente, setFiltroCliente] = useState(() => getSavedFilter('filtroCliente', null));
+  const [filtroUsuarioCriador, setFiltroUsuarioCriador] = useState(() => getSavedFilter('filtroUsuarioCriador', null));
+  const [filtroDataInicio, setFiltroDataInicio] = useState(() => getSavedFilter('filtroDataInicio', ''));
+  const [filtroDataFim, setFiltroDataFim] = useState(() => getSavedFilter('filtroDataFim', ''));
+
+  // Efeito para salvar filtros sempre que mudarem
+  useEffect(() => {
+    const filters = {
+      filtroResponsavel,
+      filtroCliente,
+      filtroUsuarioCriador,
+      filtroDataInicio,
+      filtroDataFim
+    };
+    sessionStorage.setItem('historicoFilters', JSON.stringify(filters));
+  }, [filtroResponsavel, filtroCliente, filtroUsuarioCriador, filtroDataInicio, filtroDataFim]);
+
+  // Estados para opções filtradas (Relacionamento Bidirecional)
+  const [opcoesClientes, setOpcoesClientes] = useState([]);
+  const [opcoesColaboradores, setOpcoesColaboradores] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // Efeito para calcular opções disponíveis com base nas seleções
+  useEffect(() => {
+    const calcularOpcoesContextuais = async () => {
+      setLoadingOptions(true);
+      try {
+        let clientesDisponiveis = [...todosClientes];
+        let colaboradoresDisponiveis = [...todosColaboradores];
+
+        // 1. Se houver Responsável selecionado, filtrar Clientes
+        if (filtroResponsavel && filtroResponsavel.length > 0) {
+          // Buscar histórico limitado para encontrar clientes associados a este responsável
+          // Importante: Tratamos array de responsáveis
+          const responsavelIds = Array.isArray(filtroResponsavel) ? filtroResponsavel : [filtroResponsavel];
+
+          // Como a API não suporta OR (array) nativamente no GET simples, 
+          // idealmente pegamos o histórico geral ou iteramos.
+          // Para simplificar e performar, pegamos um lote grande e filtramos no frontend se a API não filtrar array.
+          // Mas a API getAll aceita um único ID. Vamos iterar ou pegar um dump maior?
+          // Vamos pegar um dump recente (limite 1000) e filtrar. É o padrão do "DelegarTarefas".
+
+          // Se a API suportasse array no 'responsavel_id', seria melhor.
+          // Vamos assumir comportamento "OR" no client side após fetch de um set razoável.
+
+          const response = await historicoAtribuicoesAPI.getAll({ limit: 1000 });
+          if (response.success && response.data) {
+            // Filtrar registros que tenham UM DOS responsáveis selecionados
+            const registrosDoResponsavel = response.data.filter(r =>
+              responsavelIds.includes(String(r.responsavel_id))
+            );
+            const clienteIdsVisiveis = new Set(registrosDoResponsavel.map(r => String(r.cliente_id)));
+            clientesDisponiveis = todosClientes.filter(c => clienteIdsVisiveis.has(String(c.id)));
+          }
+        }
+
+        // 2. Se houver Cliente selecionado, filtrar Responsáveis
+        if (filtroCliente && filtroCliente.length > 0) {
+          const clienteIds = Array.isArray(filtroCliente) ? filtroCliente : [filtroCliente];
+
+          const response = await historicoAtribuicoesAPI.getAll({ limit: 1000 });
+          if (response.success && response.data) {
+            const registrosDoCliente = response.data.filter(r =>
+              clienteIds.includes(String(r.cliente_id))
+            );
+            const responsavelIdsVisiveis = new Set(registrosDoCliente.map(r => String(r.responsavel_id)));
+            colaboradoresDisponiveis = todosColaboradores.filter(c => responsavelIdsVisiveis.has(String(c.id)));
+          }
+        }
+
+        setOpcoesClientes(clientesDisponiveis);
+        setOpcoesColaboradores(colaboradoresDisponiveis);
+
+      } catch (error) {
+        console.error("Erro ao calcular opções contextuais", error);
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    if (todosClientes.length > 0 && todosColaboradores.length > 0) {
+      // Se não tiver filtros, reseta para todos
+      if ((!filtroResponsavel || filtroResponsavel.length === 0) && (!filtroCliente || filtroCliente.length === 0)) {
+        setOpcoesClientes(todosClientes);
+        setOpcoesColaboradores(todosColaboradores);
+      } else {
+        calcularOpcoesContextuais();
+      }
+    }
+  }, [filtroResponsavel, filtroCliente, todosClientes, todosColaboradores]);
+
+
   // Carregar histórico principal
   const carregarHistorico = useCallback(async () => {
     setLoading(true);
     try {
+      // API espera parâmetros simples. Se for array, talvez precise de ajuste ou enviar apenas o primeiro ou join.
+      // Assumindo que a API pega apenas um valor se passado array, ou precisamos ajustar a API.
+      // O código anterior passava direto. Vamos manter. Se a API backend espera string unica, vai pegar só exata.
+
       const response = await historicoAtribuicoesAPI.getAll({
         page: currentPage,
         limit: itemsPerPage,
-        responsavel_id: filtroResponsavel,
+        responsavel_id: Array.isArray(filtroResponsavel) ? filtroResponsavel[0] : filtroResponsavel, // Fallback para single se multi não suportado
+        cliente_id: Array.isArray(filtroCliente) ? filtroCliente[0] : filtroCliente,
         usuario_criador_id: filtroUsuarioCriador,
         data_inicio: filtroDataInicio,
         data_fim: filtroDataFim
@@ -225,7 +307,7 @@ const HistoricoAtribuicoes = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, filtroResponsavel, filtroUsuarioCriador, filtroDataInicio, filtroDataFim, showToast]);
+  }, [currentPage, itemsPerPage, filtroResponsavel, filtroCliente, filtroUsuarioCriador, filtroDataInicio, filtroDataFim, showToast]);
 
   // Carregar regras órfãs
   const carregarRegrasOrfas = useCallback(async () => {
@@ -239,7 +321,7 @@ const HistoricoAtribuicoes = () => {
         setRegrasOrfas([]);
       }
     } catch (error) {
-      // Falha silenciosa para não atrapalhar o usuário se for apenas um erro de rede secundário
+      // Falha silenciosa
       setRegrasOrfas([]);
     } finally {
       setCarregandoRegrasOrfas(false);
@@ -301,6 +383,11 @@ const HistoricoAtribuicoes = () => {
     setCurrentPage(1);
   };
 
+  const handleClienteChange = (e) => {
+    setFiltroCliente(e.target.value || null);
+    setCurrentPage(1);
+  };
+
   const handleUsuarioCriadorChange = (e) => {
     setFiltroUsuarioCriador(e.target.value || null);
     setCurrentPage(1);
@@ -318,6 +405,7 @@ const HistoricoAtribuicoes = () => {
 
   const limparFiltros = () => {
     setFiltroResponsavel(null);
+    setFiltroCliente(null);
     setFiltroUsuarioCriador(null);
     setFiltroDataInicio('');
     setFiltroDataFim('');
@@ -325,7 +413,7 @@ const HistoricoAtribuicoes = () => {
   };
 
   const hasPendingChanges = () => {
-    return filtroResponsavel || filtroUsuarioCriador || filtroDataInicio || filtroDataFim;
+    return filtroResponsavel || filtroCliente || filtroUsuarioCriador || filtroDataInicio || filtroDataFim;
   };
 
   const handleApplyFilters = () => {
@@ -586,11 +674,9 @@ const HistoricoAtribuicoes = () => {
 
               {/* Filtros */}
               <FiltersCard
-                onApply={handleApplyFilters}
                 onClear={limparFiltros}
                 showActions={true}
                 loading={loading}
-                hasPendingChanges={hasPendingChanges()}
               >
                 <div className="filter-group">
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
@@ -599,8 +685,20 @@ const HistoricoAtribuicoes = () => {
                   <FilterMembro
                     value={filtroResponsavel}
                     onChange={handleResponsavelChange}
-                    options={todosColaboradores}
-                    disabled={false}
+                    options={opcoesColaboradores}
+                    disabled={loadingOptions}
+                  />
+                </div>
+
+                <div className="filter-group">
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
+                    Cliente
+                  </label>
+                  <FilterClienteHistorico
+                    value={filtroCliente}
+                    onChange={handleClienteChange}
+                    options={opcoesClientes}
+                    disabled={loadingOptions}
                   />
                 </div>
 

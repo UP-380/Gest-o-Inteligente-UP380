@@ -763,9 +763,10 @@ export const historicoAtribuicoesAPI = {
    * Busca histórico de atribuições com filtros e paginação
    * @param {Object} params - { page, limit, responsavel_id, usuario_criador_id, data_inicio, data_fim }
    */
-  async getAll({ page = 1, limit = 20, responsavel_id = null, usuario_criador_id = null, data_inicio = null, data_fim = null } = {}) {
+  async getAll({ page = 1, limit = 20, cliente_id = null, responsavel_id = null, usuario_criador_id = null, data_inicio = null, data_fim = null } = {}) {
     const params = [`page=${page}`, `limit=${limit}`];
 
+    if (cliente_id) params.push(`cliente_id=${encodeURIComponent(cliente_id)}`);
     if (responsavel_id) params.push(`responsavel_id=${encodeURIComponent(responsavel_id)}`);
     if (usuario_criador_id) params.push(`usuario_criador_id=${encodeURIComponent(usuario_criador_id)}`);
     if (data_inicio) params.push(`data_inicio=${encodeURIComponent(data_inicio)}`);

@@ -928,7 +928,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                     borderRadius: '4px',
                     fontStyle: 'italic'
                   }}>
-                    💡 Clique nos dias para selecionar. Use <strong>Ctrl</strong> para manter apenas dias específicos.
+                    💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
                   </div>
 
                   <div className="periodo-calendar-container">
