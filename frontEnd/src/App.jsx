@@ -39,6 +39,7 @@ import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
 
 // Componente para redirecionar rota antiga
 const RedirectToCadastroCliente = () => {
@@ -323,6 +324,14 @@ function App() {
           element={
             <ProtectedRoute>
               <HistoricoAtribuicoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/atribuicoes/pendentes/aprovacao"
+          element={
+            <ProtectedRoute>
+              <AprovacoesPendentes />
             </ProtectedRoute>
           }
         />

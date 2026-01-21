@@ -12,6 +12,10 @@ import DetailSideCard from '../../components/clients/DetailSideCard';
 import { DEFAULT_AVATAR } from '../../utils/avatars';
 import './PainelUsuario.css';
 import '../../pages/ConteudosClientes/ConteudosClientes.css';
+import ModalPlugRapido from '../../components/ModalPlugRapido';
+import '../../components/user/TimerAtivo.css'; // Garantir estilos se necessário
+import TimerButton from '../../components/common/TimerButton';
+import '../../components/ModalPlugRapido.css';
 
 const API_BASE_URL = '/api';
 
@@ -230,8 +234,61 @@ const PainelUsuario = () => {
   const [dataTarefasSelecionada, setDataTarefasSelecionada] = useState(new Date()); // Data selecionada para exibir tarefas (inicia com hoje)
   const carregarMinhasTarefasRef = useRef(null); // Ref para a função de carregar tarefas
 
+  // --- PLUG RÁPIDO & PENDENTES ---
+  const [modalPlugRapidoOpen, setModalPlugRapidoOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('minhas'); // 'minhas' | 'pendentes'
+  const [pendentes, setPendentes] = useState([]);
+
+  const fetchPendentes = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/minhas`);
+      const json = await res.json();
+      if (json.success) {
+        setPendentes(json.data || []);
+      }
+    } catch (e) { console.error('Erro ao buscar pendentes', e); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'pendentes') {
+      fetchPendentes();
+      // Polling simples para atualizar tempo de timers ativos nos pendentes
+      const interval = setInterval(fetchPendentes, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchPendentes]);
+
+  const handleStopTimerPendente = async (pendenteId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/parar-timer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atribuicao_pendente_id: pendenteId })
+      });
+      if (res.ok) {
+        fetchPendentes();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleStartTimerPendente = async (pendenteId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/iniciar-timer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atribuicao_pendente_id: pendenteId })
+      });
+      if (res.ok) {
+        fetchPendentes();
+      }
+    } catch (e) { console.error(e); }
+  };
+  // -------------------------------
+
   // ID fixo para o card de tarefas (não usa mais grid, então só um card)
   const CARD_ID_TAREFAS = 'tarefas-card-1';
+
+
 
   const [modoVisualizacao, setModoVisualizacao] = useState({ [CARD_ID_TAREFAS]: 'quadro' }); // objeto com { cardId: 'quadro' | 'lista' }
   const preferenciaCarregadaRef = useRef(false); // Ref para controlar se a preferência já foi carregada
@@ -5109,7 +5166,29 @@ const PainelUsuario = () => {
                     <i className="fas fa-clipboard-list" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
                   </div>
                   <div>
-                    <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>
+                      <button
+                        className="painel-usuario-btn-plug-rapido"
+                        onClick={() => setModalPlugRapidoOpen(true)}
+                        style={{
+                          backgroundColor: '#f59e0b',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 4px rgba(245, 158, 11, 0.3)'
+                        }}
+                      >
+                        <i className="fas fa-bolt"></i> Plug Rápido
+                      </button>
+                    </div>
                     <p className="painel-usuario-page-subtitle">
                       Visualize suas tarefas atribuídas
                     </p>
@@ -5131,7 +5210,8 @@ const PainelUsuario = () => {
                     height: '27px',
                     position: 'relative',
                     cursor: 'default',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    zIndex: '1'
                   }}>
                     <div className="filter-tooltip">Atividade Interna</div>
                     <div style={{ display: 'flex', alignItems: 'center', paddingRight: '0', borderRight: 'none' }}>
@@ -5178,8 +5258,122 @@ const PainelUsuario = () => {
               </div>
             </div>
 
-            {/* Container das tarefas */}
-            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container"></div>
+            {/* TABS DE NAVEGAÇÃO */}
+            <div className="painel-usuario-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', padding: '0 5px' }}>
+              <button
+                onClick={() => setActiveTab('minhas')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'minhas' ? '#0e3b6f' : '#e5e7eb',
+                  color: activeTab === 'minhas' ? '#fff' : '#4b5563',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Atribuídas
+              </button>
+              <button
+                onClick={() => setActiveTab('pendentes')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'pendentes' ? '#f59e0b' : '#e5e7eb',
+                  color: activeTab === 'pendentes' ? '#fff' : '#4b5563',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                Pendentes {pendentes.length > 0 && <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '1px 6px', borderRadius: '10px' }}>{pendentes.length}</span>}
+              </button>
+            </div>
+
+            {/* Container das tarefas (Lista Principal) */}
+            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container" style={{ display: activeTab === 'minhas' ? 'block' : 'none' }}></div>
+
+            {/* Container das Pendentes */}
+            {activeTab === 'pendentes' && (
+              <div className="painel-usuario-pendentes-lista" style={{ padding: '0 5px' }}>
+                {pendentes.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                    Nenhuma atribuição pendente. Use o "Plug Rápido" para criar uma nova.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {pendentes.map(p => (
+                      <div key={p.id} style={{
+                        backgroundColor: '#fff',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        borderLeft: '4px solid #f59e0b',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '4px' }}>
+                            {p.cliente?.nome} &bull; {p.produto?.nome}
+                          </div>
+                          <div style={{ fontWeight: '600', fontSize: '1rem', color: '#111827', marginBottom: '6px' }}>
+                            {p.tarefa?.nome}
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '0.85rem' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
+                              <i className="far fa-calendar"></i> {formatarData(p.data_inicio)}
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
+                              <i className="far fa-clock"></i> Est: {formatarTempoHMS(p.tempo_estimado_dia * 1000)}/dia
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                          <div style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#fff7ed',
+                            color: '#d97706',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            border: '1px solid #fed7aa'
+                          }}>
+                            AGUARDANDO APROVAÇÃO
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#0e3b6f' }}>
+                              {p.tempo_realizado_formatado || '00:00:00'}
+                            </span>
+
+                            <TimerButton
+                              isActive={p.timer_ativo}
+                              onClick={() => p.timer_ativo ? handleStopTimerPendente(p.id) : handleStartTimerPendente(p.id)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <ModalPlugRapido
+              isOpen={modalPlugRapidoOpen}
+              onClose={() => setModalPlugRapidoOpen(false)}
+              onSuccess={() => {
+                setActiveTab('pendentes');
+                fetchPendentes();
+              }}
+            />
           </div>
         </main>
       </div>

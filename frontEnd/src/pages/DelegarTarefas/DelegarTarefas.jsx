@@ -2976,6 +2976,15 @@ const DelegarTarefas = () => {
                   <i className="fas fa-history" style={{ fontSize: '14px' }}></i>
                   Histórico
                 </button>
+                <button
+                  className="custo-colaborador-btn"
+                  onClick={() => navigate('/atribuicoes/pendentes/aprovacao')}
+                  title="Aprovacoes Pendentes"
+                  style={{ marginRight: '12px' }}
+                >
+                  <i className="fas fa-check-circle" style={{ fontSize: '14px' }}></i>
+                  Aprovações Pendentes
+                </button>
                 <ButtonPrimary
                   onClick={handleNewAtribuicao}
                   icon="fas fa-plus"

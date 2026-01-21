@@ -468,5 +468,14 @@ router.get('/gestao-colaboradores', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 }); // Mantido para compatibilidade
 
+// Rotas de Atribuições Pendentes (Plug Rápido com Aprovação)
+const atribuicoesPendentesController = require('../controllers/atribuicoes-pendentes.controller');
+router.post('/api/atribuicoes-pendentes', requireAuth, atribuicoesPendentesController.criarAtribuicaoPendente);
+router.get('/api/atribuicoes-pendentes/minhas', requireAuth, atribuicoesPendentesController.listarMinhasPendentes);
+router.get('/api/atribuicoes-pendentes/aprovacao', requireAuth, atribuicoesPendentesController.listarPendentesParaAprovacao);
+router.post('/api/atribuicoes-pendentes/:id/aprovar', requireAuth, atribuicoesPendentesController.aprovarAtribuicao);
+router.post('/api/atribuicoes-pendentes/iniciar-timer', requireAuth, atribuicoesPendentesController.iniciarTimerPendente);
+router.post('/api/atribuicoes-pendentes/parar-timer', requireAuth, atribuicoesPendentesController.pararTimerPendente);
+
 module.exports = router;
 

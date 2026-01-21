@@ -1,0 +1,176 @@
+.aprovacoes-container {
+    padding: 24px;
+}
+
+.aprovacoes-header {
+    margin-bottom: 24px;
+}
+
+.aprovacoes-title {
+    font-size: 1.5rem;
+    color: #111827;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.aprovacoes-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+}
+
+.aprovacoes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 24px;
+}
+
+.aprovacao-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s;
+}
+
+.aprovacao-card:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.aprovacao-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.aprovacao-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.aprovacao-user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e5e7eb;
+    object-fit: cover;
+}
+
+.aprovacao-user-name {
+    font-weight: 600;
+    color: #111827;
+    font-size: 0.95rem;
+}
+
+.aprovacao-date {
+    font-size: 0.85rem;
+    color: #9ca3af;
+}
+
+.aprovacao-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.aprovacao-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.aprovacao-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.aprovacao-value {
+    font-size: 0.95rem;
+    color: #374151;
+    font-weight: 500;
+}
+
+.aprovacao-value.highlight {
+    color: #0e3b6f;
+    font-weight: 600;
+}
+
+.aprovacao-time-box {
+    background-color: #f3f4f6;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.aprovacao-time-item {
+    text-align: center;
+}
+
+.aprovacao-time-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 2px;
+}
+
+.aprovacao-time-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.aprovacao-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.btn-aprovacao {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.btn-aprovar {
+    background-color: #10b981;
+    color: #fff;
+    border: none;
+}
+
+.btn-aprovar:hover {
+    background-color: #059669;
+}
+
+.btn-editar {
+    background-color: #fff;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-editar:hover {
+    background-color: #f9fafb;
+}
+
+/* Modal styles overrides for specific needs */
+.aprovacao-modal-section {
+    margin-bottom: 16px;
+}

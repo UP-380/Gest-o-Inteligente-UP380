@@ -540,7 +540,7 @@ async function getTempoRealizado(req, res) {
   }
 }
 
-// GET - Buscar todos os registros ativos de um usuário
+// GET - Buscar todos os registros ativos de um usuário (incluindo pendentes)
 async function getRegistrosAtivos(req, res) {
   try {
     const { usuario_id } = req.query;
@@ -554,7 +554,8 @@ async function getRegistrosAtivos(req, res) {
 
     const usuarioIdInt = parseInt(usuario_id, 10);
 
-    const { data: registrosAtivos, error } = await supabase
+    // 1. Buscar registros normais
+    const { data: registrosNormais, error: errorNormais } = await supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
       .select('*')
@@ -562,18 +563,83 @@ async function getRegistrosAtivos(req, res) {
       .is('data_fim', null)
       .order('data_inicio', { ascending: false });
 
-    if (error) {
-      console.error('[getRegistrosAtivos] Erro ao buscar registros ativos:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar registros ativos',
-        details: error.message
-      });
+    // 2. Buscar registros pendentes (Plug Rápido)
+    // NOTA: Como não há FK rígida, fazemos o join manualmente
+    const { data: registrosPendentesData, error: errorPendentes } = await supabase
+      .schema('up_gestaointeligente')
+      .from('registro_tempo_pendente')
+      .select('*')
+      .eq('usuario_id', usuarioIdInt)
+      .is('data_fim', null);
+
+    if (errorNormais) {
+      console.error('[getRegistrosAtivos] Erro ao buscar registros normais:', errorNormais);
+      throw errorNormais;
     }
+
+    if (errorPendentes) {
+      console.error('[getRegistrosAtivos] Erro ao buscar registros pendentes:', errorPendentes);
+      throw errorPendentes;
+    }
+
+    let registrosPendentes = [];
+
+    // Enriquecer registros pendentes com dados da atribuição (Manual Join)
+    if (registrosPendentesData && registrosPendentesData.length > 0) {
+      const idsAtribuicoes = registrosPendentesData.map(r => r.atribuicao_pendente_id);
+
+      const { data: atribuicoes, error: errAttr } = await supabase
+        .schema('up_gestaointeligente')
+        .from('atribuicoes_pendentes')
+        .select('id, cliente_id, produto_id, tarefa_id')
+        .in('id', idsAtribuicoes);
+
+      if (errAttr) {
+        console.error('[getRegistrosAtivos] Erro ao buscar atribuições pendentes:', errAttr);
+        // Não nãfalha tudo, apenas segue sem dados extras
+      } else {
+        const atribuicoesMap = new Map(atribuicoes.map(a => [a.id, a]));
+
+        registrosPendentes = registrosPendentesData.map(r => {
+          const attr = atribuicoesMap.get(r.atribuicao_pendente_id);
+          return {
+            ...r,
+            atribuicoes_pendentes: attr || null
+          };
+        });
+      }
+    } else {
+      registrosPendentes = [];
+    }
+
+    // 3. Normalizar e combinar (Normalizado para o TimerAtivo.jsx)
+    const normaisMapeados = (registrosNormais || []).map(r => ({
+      ...r,
+      is_pendente: false
+    }));
+
+    const pendentesMapeados = (registrosPendentes || []).map(r => ({
+      id: r.id, // ID do registro de tempo pendente
+      atribuicao_pendente_id: r.atribuicao_pendente_id,
+      usuario_id: r.usuario_id,
+      data_inicio: r.data_inicio,
+      data_fim: null,
+      cliente_id: r.atribuicoes_pendentes?.cliente_id,
+      produto_id: r.atribuicoes_pendentes?.produto_id,
+      tarefa_id: r.tarefa_id || r.atribuicoes_pendentes?.tarefa_id,
+      tempo_realizado: null,
+      is_pendente: true,
+      observacao: 'Plug Rápido (Pendente)'
+    }));
+
+    // Combinar e ordenar por data_inicio decrescente (mais recente primeiro)
+    const todosRegistros = [...normaisMapeados, ...pendentesMapeados].sort((a, b) => {
+      return new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime();
+    });
 
     return res.json({
       success: true,
-      data: registrosAtivos || []
+      data: todosRegistros
     });
   } catch (error) {
     console.error('[getRegistrosAtivos] Erro inesperado:', error);
@@ -804,7 +870,16 @@ async function atualizarRegistroTempo(req, res) {
     if (!registroExistente) {
       return res.status(404).json({
         success: false,
-        error: 'Registro não encontrado'
+        error: 'Registro de tempo não encontrado'
+      });
+    }
+
+    // TICKET 2: Bloqueio de Imutabilidade
+    if (registroExistente.bloqueado) {
+      console.warn(`⚠️ Tentativa de edição em registro bloqueado: ${id}`);
+      return res.status(403).json({
+        success: false,
+        error: 'Este registro foi auditado e aprovado, não pode ser alterado.'
       });
     }
 
@@ -1410,6 +1485,15 @@ async function deletarRegistroTempo(req, res) {
     }
 
     console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
+
+    // TICKET 2: Bloqueio de Delexão
+    if (registroSalvoData && registroSalvoData.bloqueado) {
+      console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
+      return res.status(403).json({
+        success: false,
+        error: 'Este registro foi auditado e aprovado, não pode ser excluído.'
+      });
+    }
 
     // Deletar registro
     const { error: deleteError } = await supabase
