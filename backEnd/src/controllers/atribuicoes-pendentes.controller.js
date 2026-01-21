@@ -323,9 +323,8 @@ async function aprovarAtribuicao(req, res) {
                 cliente_id: dadosFinais.cliente_id,
                 responsavel_id: dadosFinais.usuario_id,
                 usuario_criador_id: pendente.usuario_id,
-                produto_id: dadosFinais.produto_id, // Corrigido de 'produtos' para 'produto_id' conforme schema provavel 
-                // Assumindo campo de texto/json para compatibilidade com sistema legado que às vezes usa ID direto ou array
-                tarefas: [dadosFinais.tarefa_id],
+                produto_ids: [dadosFinais.produto_id],
+                tarefas: [{ tarefa_id: dadosFinais.tarefa_id, tempo_estimado_dia: dadosFinais.tempo_estimado_dia }],
                 data_inicio: dadosFinais.data_inicio,
                 data_fim: dadosFinais.data_fim,
                 created_at: new Date().toISOString()
