@@ -40,6 +40,7 @@ import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
+import MinhasNotificacoes from './pages/Notificacoes/MinhasNotificacoes';
 
 // Componente para redirecionar rota antiga
 const RedirectToCadastroCliente = () => {
@@ -456,6 +457,22 @@ function App() {
           element={
             <ProtectedRoute>
               <PlanilhaHoras />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notificacoes"
+          element={
+            <ProtectedRoute>
+              <MinhasNotificacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/aprovacoes-pendentes"
+          element={
+            <ProtectedRoute>
+              <AprovacoesPendentes />
             </ProtectedRoute>
           }
         />

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CustomSelect from '../../components/vinculacoes/CustomSelect';
 import SelecaoTarefasPlugRapido from '../../components/vinculacoes/SelecaoTarefasPlugRapido';
@@ -13,6 +13,10 @@ const API_BASE_URL = '/api';
 
 const AprovacoesPendentes = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const pendenteIdParam = searchParams.get('id');
+    const hasAutoOpened = useRef(false);
+
     const [pendentes, setPendentes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
@@ -70,7 +74,17 @@ const AprovacoesPendentes = () => {
             const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/aprovacao`);
             const json = await res.json();
             if (json.success) {
-                setPendentes(json.data || []);
+                const data = json.data || [];
+                setPendentes(data);
+
+                // Abrir automaticamente se houver ID na URL
+                if (pendenteIdParam && !hasAutoOpened.current && data.length > 0) {
+                    const target = data.find(p => String(p.id) === String(pendenteIdParam));
+                    if (target) {
+                        handleOpenAprovar(target);
+                        hasAutoOpened.current = true;
+                    }
+                }
             }
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };

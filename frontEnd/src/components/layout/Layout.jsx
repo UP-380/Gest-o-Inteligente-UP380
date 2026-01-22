@@ -2,9 +2,12 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import TimerAtivo from '../user/TimerAtivo';
 import UserProfile from '../user/UserProfile';
+import NotificationBell from './NotificationBell';
+import { useAuth } from '../../contexts/AuthContext';
 import './Layout.css';
 
 const Layout = ({ children }) => {
+  const { usuario } = useAuth();
   return (
     <>
       {/* Sidebar Menu */}
@@ -31,6 +34,7 @@ const Layout = ({ children }) => {
           <div className="header-right">
             <div id="header-extra-content"></div>
             <TimerAtivo />
+            <NotificationBell user={usuario} />
             <div className="header-user-profile">
               <UserProfile />
             </div>

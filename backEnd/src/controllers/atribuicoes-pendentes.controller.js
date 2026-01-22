@@ -12,6 +12,7 @@
 
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
+const notificacoesController = require('./notificacoes.controller');
 
 // ========================================
 // === CRIAÇÃO E GESTÃO ===
@@ -130,6 +131,35 @@ async function criarAtribuicaoPendente(req, res) {
             } else {
                 registroTempo = registro;
             }
+        }
+
+        // --- GERAÇÃO DE NOTIFICAÇÕES (Sistema Inbox) ---
+        try {
+            // Buscar nomes para a mensagem
+            const { data: nomes } = await supabase.schema('up_gestaointeligente')
+                .from('cp_cliente')
+                .select('nome')
+                .eq('id', cliente_id)
+                .single();
+
+            const nomeCliente = nomes ? nomes.nome : 'Cliente';
+            const nomeUsuario = req.session.usuario.nome_usuario;
+
+            await notificacoesController.gerarNotificacaoParaGestores({
+                tipo: 'PLUG_RAPIDO',
+                titulo: 'Novo Plug Rápido',
+                mensagem: `${nomeUsuario} solicitou Plug em ${nomeCliente}`,
+                referencia_id: atribuicao.id,
+                link: `/aprovacoes-pendentes?id=${atribuicao.id}`,
+                metadata: {
+                    usuario_id,
+                    usuario_nome: nomeUsuario,
+                    cliente_id,
+                    cliente_nome: nomeCliente
+                }
+            });
+        } catch (errNotif) {
+            console.error('Erro ao disparar notificações de Plug Rápido:', errNotif);
         }
 
         return res.status(201).json({
@@ -660,10 +690,32 @@ async function pararTimerPendente(req, res) {
 }
 
 
+/**
+ * Conta o total de atribuições pendentes
+ */
+async function contarPendentes(req, res) {
+    try {
+        const { count, error } = await supabase
+            .schema('up_gestaointeligente')
+            .from('atribuicoes_pendentes')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'PENDENTE');
+
+        if (error) throw error;
+
+        return res.json({ success: true, count: count || 0 });
+    } catch (error) {
+        console.error('Erro ao contar pendentes:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao contar pendências.' });
+    }
+}
+
+
 module.exports = {
     criarAtribuicaoPendente,
     listarMinhasPendentes,
     listarPendentesParaAprovacao,
+    contarPendentes,
     aprovarAtribuicao,
     iniciarTimerPendente,
     pararTimerPendente

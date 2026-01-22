@@ -6,7 +6,7 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireGestor } = require('../middleware/auth');
 const authController = require('../controllers/auth.controller');
 const clientesController = require('../controllers/clientes.controller');
 const tarefasController = require('../controllers/tarefas.controller');
@@ -36,6 +36,7 @@ const clienteSubtarefaObservacaoController = require('../controllers/cliente-sub
 const contatoClienteController = require('../controllers/contato-cliente.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
+const notificacoesController = require('../controllers/notificacoes.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -475,10 +476,17 @@ router.get('/gestao-colaboradores', requireAuth, (req, res) => {
 const atribuicoesPendentesController = require('../controllers/atribuicoes-pendentes.controller');
 router.post('/api/atribuicoes-pendentes', requireAuth, atribuicoesPendentesController.criarAtribuicaoPendente);
 router.get('/api/atribuicoes-pendentes/minhas', requireAuth, atribuicoesPendentesController.listarMinhasPendentes);
-router.get('/api/atribuicoes-pendentes/aprovacao', requireAuth, atribuicoesPendentesController.listarPendentesParaAprovacao);
-router.post('/api/atribuicoes-pendentes/:id/aprovar', requireAuth, atribuicoesPendentesController.aprovarAtribuicao);
+router.get('/api/atribuicoes-pendentes/aprovacao', requireGestor, atribuicoesPendentesController.listarPendentesParaAprovacao);
+router.post('/api/atribuicoes-pendentes/:id/aprovar', requireGestor, atribuicoesPendentesController.aprovarAtribuicao);
+router.get('/api/atribuicoes-pendentes/count', requireGestor, atribuicoesPendentesController.contarPendentes);
 router.post('/api/atribuicoes-pendentes/iniciar-timer', requireAuth, atribuicoesPendentesController.iniciarTimerPendente);
 router.post('/api/atribuicoes-pendentes/parar-timer', requireAuth, atribuicoesPendentesController.pararTimerPendente);
+
+// Rotas de Notificações
+router.get('/api/notificacoes', requireAuth, notificacoesController.listarMinhasNotificacoes);
+router.get('/api/notificacoes/count', requireAuth, notificacoesController.contarNaoLidas);
+router.patch('/api/notificacoes/:id/visualizar', requireAuth, notificacoesController.marcarComoVisualizada);
+router.post('/api/notificacoes/visualizar-todas', requireAuth, notificacoesController.marcarTodasComoVisualizadas);
 
 module.exports = router;
 

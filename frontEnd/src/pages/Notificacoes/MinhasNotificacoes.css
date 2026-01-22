@@ -1,0 +1,255 @@
+.notifications-page {
+    padding: 2rem 0;
+}
+
+.notifications-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.notifications-page-header .header-left {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.notifications-page-header .header-icon {
+    width: 64px;
+    height: 64px;
+    background-color: #f3f4f6;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notifications-page-header .header-icon i {
+    font-size: 32px;
+    color: #0e3b6f;
+}
+
+.notifications-page-header h1 {
+    margin: 0;
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.notifications-page-header p {
+    margin: 0;
+    color: #6b7280;
+}
+
+.btn-mark-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background-color: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    color: #374151;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-mark-all:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
+}
+
+.notifications-filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1rem;
+}
+
+.filter-btn {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.filter-btn span {
+    background-color: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 6px;
+}
+
+.filter-btn.active {
+    background-color: #0e3b6f;
+    color: white;
+}
+
+.filter-btn.active span {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.notifications-list-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+.notification-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.notification-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.notification-card.unread {
+    border-left: 4px solid #3b82f6;
+    background-color: #f0f7ff;
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background-color: #eff6ff;
+    color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.card-body {
+    flex: 1;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.card-header-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.type-badge {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6b7280;
+    background-color: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.status-badge.unread {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.status-badge.read {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.date-text {
+    font-size: 0.875rem;
+    color: #9ca3af;
+}
+
+.card-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.card-message {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.btn-mark-read {
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    background-color: #fff;
+    border: 1px solid #d1d5db;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-mark-read:hover {
+    background-color: #ecfdf5;
+    border-color: #10b981;
+    color: #10b981;
+}
+
+.action-arrow {
+    color: #d1d5db;
+}
+
+.loading-state,
+.empty-state {
+    text-align: center;
+    padding: 5rem 2rem;
+    color: #6b7280;
+}
+
+.loading-state i {
+    font-size: 3rem;
+    color: #0e3b6f;
+    margin-bottom: 1rem;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    opacity: 0.2;
+    margin-bottom: 1.5rem;
+}
+
+.empty-state h3 {
+    margin: 0 0 0.5rem 0;
+    color: #374151;
+}
