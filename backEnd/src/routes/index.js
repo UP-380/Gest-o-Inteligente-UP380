@@ -249,6 +249,9 @@ router.delete('/api/sistemas/:id', requireAuth, sistemaController.deletarSistema
 router.get('/api/tarefa', requireAuth, tarefaController.getTarefas);
 router.get('/api/tarefa/:id', requireAuth, tarefaController.getTarefaPorId);
 router.post('/api/tarefa', requireAuth, tarefaController.criarTarefa);
+// Endpoint específico para Plug Rápido (Criação Atômica com Vínculos)
+router.post('/api/tarefa/rapida', requireAuth, tarefaController.criarTarefaRapida);
+router.put('/api/tarefa/rapida/:id', requireAuth, tarefaController.atualizarTarefaRapida);
 router.put('/api/tarefa/:id', requireAuth, tarefaController.atualizarTarefa);
 router.delete('/api/tarefa/:id', requireAuth, tarefaController.deletarTarefa);
 

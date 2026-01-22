@@ -1,26 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useToast } from '../hooks/useToast';
 import './ModalPlugRapido.css';
 import CustomSelect from './vinculacoes/CustomSelect';
 import SelecaoTarefasPlugRapido from './vinculacoes/SelecaoTarefasPlugRapido';
 import FilterPeriodo from './filters/FilterPeriodo';
 import TempoEstimadoInput from './common/TempoEstimadoInput';
+import ModalNovaTarefaRapida from './vinculacoes/ModalNovaTarefaRapida';
 
 const API_BASE_URL = '/api';
 
 const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
+    const showToast = useToast();
     const [loading, setLoading] = useState(false);
     const [clientesOptions, setClientesOptions] = useState([]);
     const [produtosOptions, setProdutosOptions] = useState([]);
-
+    const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+    const [minhasPendentes, setMinhasPendentes] = useState([]);
+    const [tasksRefreshToken, setTasksRefreshToken] = useState(0);
     const [formData, setFormData] = useState({
         cliente_id: '',
         produto_id: '',
         tarefa_id: '',
         data_inicio: '',
         data_fim: '',
-        tempo_estimado_ms: 28800000, // 8h em ms
-        iniciar_timer: true
+        tempo_estimado_ms: 28800000,
+        iniciar_timer: true,
+        nova_tarefa_criada: false
     });
 
     // Reset e fetch inicial
@@ -38,12 +44,27 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 tarefa_id: '',
                 data_inicio: `${yyyy}-${mm}-${dd}`,
                 data_fim: `${yyyy}-${mm}-${dd}`,
-                tempo_estimado_ms: 28800000
+                tempo_estimado_ms: 28800000,
+                nova_tarefa_criada: false
             }));
             setProdutosOptions([]);
             fetchClientes();
+            fetchMinhasPendentes();
+            setTasksRefreshToken(0);
         }
     }, [isOpen]);
+
+    const fetchMinhasPendentes = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/minhas`);
+            const json = await res.json();
+            if (json.success) {
+                setMinhasPendentes(json.data || []);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar minhas pendências', error);
+        }
+    };
 
     const fetchClientes = async () => {
         try {
@@ -88,6 +109,15 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         setFormData(prev => ({ ...prev, produto_id: val, tarefa_id: '' }));
     };
 
+    const handleNewTaskSuccess = (newTaskId) => {
+        setTasksRefreshToken(prev => prev + 1); // Força recarregamento da lista
+        setFormData(prev => ({
+            ...prev,
+            tarefa_id: String(newTaskId),
+            nova_tarefa_criada: true
+        })); // Seleciona automaticamente e marca como nova
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -102,7 +132,8 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 data_inicio: `${formData.data_inicio}T00:00:00`,
                 data_fim: `${formData.data_fim}T23:59:59`,
                 tempo_estimado_dia: tempoSegundos,
-                iniciar_timer: formData.iniciar_timer
+                iniciar_timer: formData.iniciar_timer,
+                nova_tarefa_criada: formData.nova_tarefa_criada
             };
 
             const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes`, {
@@ -114,15 +145,16 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
             const json = await res.json();
 
             if (json.success) {
+                showToast('success', 'Solicitação de atribuição enviada com sucesso!');
                 if (onSuccess) onSuccess();
                 onClose();
             } else {
-                alert('Erro ao criar: ' + (json.error || 'Erro desconhecido'));
+                showToast('error', json.error || 'Erro ao criar solicitação.');
             }
 
         } catch (error) {
             console.error('Erro submit', error);
-            alert('Erro de conexão.');
+            showToast('error', 'Erro de conexão ao servidor.');
         } finally {
             setLoading(false);
         }
@@ -135,10 +167,16 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         formData.tarefa_id &&
         formData.data_inicio &&
         formData.data_fim &&
-        formData.tarefa_id &&
-        formData.data_inicio &&
-        formData.data_fim &&
         formData.tempo_estimado_ms > 0;
+
+    // Verificar se já existe uma pendência idêntica
+    const isDuplicate = minhasPendentes.some(p =>
+        String(p.cliente_id) === String(formData.cliente_id) &&
+        String(p.produto_id) === String(formData.produto_id) &&
+        String(p.tarefa_id) === String(formData.tarefa_id) &&
+        p.data_inicio.split('T')[0] === formData.data_inicio &&
+        p.data_fim.split('T')[0] === formData.data_fim
+    );
 
     return createPortal(
         <div className="modal-plug-rapido-overlay" onClick={onClose}>
@@ -175,9 +213,34 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                     </div>
 
                     <div className="form-group-plug">
-                        <label>Tarefa</label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <label style={{ marginBottom: 0 }}>Tarefa</label>
+                            {formData.cliente_id && formData.produto_id && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewTaskModal(true)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid #f59e0b',
+                                        borderRadius: '4px',
+                                        color: '#f59e0b',
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem',
+                                        padding: '2px 8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    className="btn-add-task-plug"
+                                >
+                                    <i className="fas fa-plus"></i> Nova Tarefa
+                                </button>
+                            )}
+                        </div>
                         {/* Componente especializado para buscar tarefas via Cliente+Produto (Vinculados) */}
                         <SelecaoTarefasPlugRapido
+                            key={tasksRefreshToken}
                             clienteId={formData.cliente_id}
                             produtoId={formData.produto_id}
                             selectedTarefaId={formData.tarefa_id}
@@ -210,21 +273,52 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                         <label>Iniciar cronômetro agora (Criar Plug)</label>
                     </div>
 
+                    {isDuplicate && (
+                        <div className="duplicate-warning-plug" style={{
+                            backgroundColor: '#fee2e2',
+                            color: '#b91c1c',
+                            padding: '10px 12px',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            marginTop: '10px',
+                            border: '1px solid #fecaca'
+                        }}>
+                            <i className="fas fa-exclamation-triangle"></i>
+                            <span>Você já possui uma solicitação idêntica aguardando aprovação para este período.</span>
+                        </div>
+                    )}
+
                 </form>
 
                 <div className="modal-plug-rapido-footer">
                     <button type="button" className="btn-plug-cancel" onClick={onClose} disabled={loading}>Cancelar</button>
                     <button
                         type="submit"
-                        className={`btn-plug-submit ${!isFormValid ? 'disabled' : ''}`}
+                        className={`btn-plug-submit ${(loading || !isFormValid || isDuplicate) ? 'disabled' : ''}`}
                         onClick={handleSubmit}
-                        disabled={loading || !isFormValid}
-                        title={!isFormValid ? "Preencha todos os campos" : "Criar Plug"}
+                        disabled={loading || !isFormValid || isDuplicate}
+                        title={
+                            isDuplicate
+                                ? "Configuração de plug rápido já existente"
+                                : (!isFormValid ? "Preencha todos os campos" : "Criar Plug")
+                        }
                     >
                         {loading ? <div className="loading-spinner-plug"></div> : 'Confirmar e Plugar'}
                     </button>
                 </div>
             </div>
+
+            {/* Modal de Criação Rápida de Tarefa */}
+            <ModalNovaTarefaRapida
+                isOpen={showNewTaskModal}
+                onClose={() => setShowNewTaskModal(false)}
+                onSuccess={handleNewTaskSuccess}
+                clienteId={formData.cliente_id}
+                produtoId={formData.produto_id}
+            />
         </div>,
         document.body
     );

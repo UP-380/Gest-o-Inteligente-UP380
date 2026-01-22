@@ -756,7 +756,7 @@ const VinculacaoForm = ({ vinculadoData, isEditing, onSubmit, submitting, loadin
       }
 
       // 2. Buscar produtos JÁ vinculados a este cliente (para pré-selecionar)
-      const responseCliente = await fetch(`${API_BASE_URL}/vinculados?filtro_cliente=true&limit=1000`, {
+      const responseCliente = await fetch(`${API_BASE_URL}/vinculados?filtro_cliente=${clienteId}&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });

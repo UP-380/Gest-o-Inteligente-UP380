@@ -1444,7 +1444,7 @@ const AtribuicaoCliente = () => {
     setLoading(true);
     try {
       // Buscar apenas produtos vinculados a este cliente
-      const responseCliente = await fetch(`${API_BASE_URL}/vinculados?filtro_cliente=true&limit=1000`, {
+      const responseCliente = await fetch(`${API_BASE_URL}/vinculados?filtro_cliente=${clienteId}&limit=1000`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });

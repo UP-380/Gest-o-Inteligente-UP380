@@ -273,13 +273,13 @@ async function atualizarTarefa(req, res) {
       }
 
       const nomeTrimmed = nome.trim();
-      
+
       // Buscar todas as tarefas e fazer comparação case-insensitive
       const { data: todasTarefas, error: errorNome } = await supabase
         .schema('up_gestaointeligente')
         .from('cp_tarefa')
         .select('id, nome');
-      
+
       if (errorNome) {
         console.error('Erro ao verificar nome:', errorNome);
         return res.status(500).json({
@@ -288,11 +288,11 @@ async function atualizarTarefa(req, res) {
           details: errorNome.message
         });
       }
-      
+
       // Verificar se existe outra tarefa com mesmo nome (case-insensitive)
       const nomeExistente = (todasTarefas || []).find(
-        tarefa => 
-          tarefa.id !== parseInt(id, 10) && 
+        tarefa =>
+          tarefa.id !== parseInt(id, 10) &&
           tarefa.nome?.trim().toLowerCase() === nomeTrimmed.toLowerCase()
       );
 
@@ -453,11 +453,306 @@ async function deletarTarefa(req, res) {
   }
 }
 
+// POST - Criar Tarefa Rápida (Plug Rápido)
+// Cria tarefa e vínculos (atomicamente via rollback manual)
+async function criarTarefaRapida(req, res) {
+  let newTaskId = null;
+
+  try {
+    const {
+      nome,
+      clickup_id,
+      tipo_tarefa_id,
+      cliente_id,
+      produto_id,
+      subtarefas_ids
+    } = req.body;
+
+    // 1. Validações Básicas
+    if (!nome || !String(nome).trim()) {
+      return res.status(400).json({ success: false, error: 'Nome da tarefa é obrigatório' });
+    }
+    if (!tipo_tarefa_id) {
+      return res.status(400).json({ success: false, error: 'Tipo de tarefa é obrigatório' });
+    }
+    if (!cliente_id) {
+      return res.status(400).json({ success: false, error: 'Cliente é obrigatório' });
+    }
+    if (!produto_id) {
+      return res.status(400).json({ success: false, error: 'Produto é obrigatório' });
+    }
+
+    const nomeTrimmed = String(nome).trim();
+    const cleanClickupId = clickup_id ? String(clickup_id).trim() : '';
+    const tipoTarefaIdInt = parseInt(tipo_tarefa_id, 10);
+    const clienteIdStr = String(cliente_id).trim();
+    const produtoIdInt = parseInt(produto_id, 10);
+
+    console.log('⚡ [Plug Rápido] Iniciando criação rápida:', { nome: nomeTrimmed, tipo: tipoTarefaIdInt, cliente: clienteIdStr, produto: produtoIdInt });
+
+    // 1.1 Verificar duplicidade de nome para este cliente/produto (Evitar múltiplos cadastros da mesma tarefa por engano)
+    try {
+      const { data: vinculadas, error: erroVincCheck } = await supabase
+        .schema('up_gestaointeligente')
+        .from('vinculados')
+        .select(`
+                tarefa_id,
+                cp_tarefa!inner ( nome )
+            `)
+        .eq('cliente_id', clienteIdStr)
+        .eq('produto_id', produtoIdInt)
+        .is('subtarefa_id', null); // Apenas tarefas master
+
+      if (!erroVincCheck && vinculadas) {
+        const duplicata = vinculadas.find(v =>
+          v.cp_tarefa && v.cp_tarefa.nome.trim().toLowerCase() === nomeTrimmed.toLowerCase()
+        );
+
+        if (duplicata) {
+          return res.status(400).json({
+            success: false,
+            error: `A tarefa "${nomeTrimmed}" já existe para este cliente e produto. Por favor, selecione-a na lista de tarefas em vez de criar uma nova.`
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso: Falha na verificação de duplicidade de tarefa, prosseguindo...', err);
+    }
+
+    // 2. Criar a Tarefa (Passo 1)
+    const { data: novaTarefa, error: erroTarefa } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa')
+      .insert([{
+        nome: nomeTrimmed,
+        clickup_id: cleanClickupId,
+        descricao: null
+      }])
+      .select()
+      .single();
+
+    if (erroTarefa) {
+      console.error('❌ [Plug Rápido] Erro ao criar tarefa:', erroTarefa);
+      throw new Error(`Erro ao criar tarefa: ${erroTarefa.message}`);
+    }
+
+    if (!novaTarefa) {
+      throw new Error('Tarefa criada mas nenhum dado retornado.');
+    }
+
+    newTaskId = novaTarefa.id;
+    console.log('✅ [Plug Rápido] Tarefa criada com ID:', newTaskId);
+
+    // 3. Preparar Vínculos (Passo 2)
+    const linksParaCriar = [];
+
+    // Helper simples para tipo de relacionamento
+    const getTipoRel = (temTipo, temProd, temCli, temSub) => {
+      if (temCli && temProd && temTipo && temSub) return 'cliente_produto_tarefa_subtarefa';
+      if (temCli && temProd && temTipo && !temSub) return 'cliente_produto_tarefa';
+      if (!temCli && !temProd && temTipo && temSub) return 'tarefa_subtarefa'; // Master link para subtarefa
+      if (!temCli && !temProd && temTipo && !temSub) return 'tipo_tarefa';    // Master link para tarefa
+      return null;
+    };
+
+    console.log(`🔗 [Plug Rápido] Preparando ${linksParaCriar.length} vínculos...`);
+
+    // 3.1 VÍNCULOS "MASTER" (Para aparecer nas seções genéricas do sistema)
+    // Link Tarefa -> Tipo (Master)
+    linksParaCriar.push({
+      tarefa_tipo_id: tipoTarefaIdInt,
+      tarefa_id: newTaskId,
+      produto_id: null,
+      cliente_id: null,
+      subtarefa_id: null,
+      tipo_relacionamento: 'tipo_tarefa_tarefa',
+      eh_excecao: false
+    });
+
+    // Links Tarefa -> Tipo -> Subtarefa (Master) - se houver
+    if (Array.isArray(subtarefas_ids) && subtarefas_ids.length > 0) {
+      subtarefas_ids.forEach(subId => {
+        linksParaCriar.push({
+          tarefa_tipo_id: tipoTarefaIdInt,
+          tarefa_id: newTaskId,
+          produto_id: null,
+          cliente_id: null,
+          subtarefa_id: parseInt(subId, 10),
+          tipo_relacionamento: 'tarefa_subtarefa',
+          eh_excecao: false
+        });
+      });
+    }
+
+    // 3.2 VÍNCULOS ESPECÍFICOS (Cliente x Produto x Tarefa)
+    // Vínculo Tarefa Principal no Cliente/Produto
+    linksParaCriar.push({
+      tarefa_tipo_id: tipoTarefaIdInt,
+      cliente_id: clienteIdStr,
+      produto_id: produtoIdInt,
+      tarefa_id: newTaskId,
+      subtarefa_id: null,
+      tipo_relacionamento: 'cliente_produto_tarefa',
+      eh_excecao: true
+    });
+
+    // Vínculos de Subtarefas no Cliente/Produto (se houver)
+    if (Array.isArray(subtarefas_ids) && subtarefas_ids.length > 0) {
+      subtarefas_ids.forEach(subId => {
+        linksParaCriar.push({
+          tarefa_tipo_id: tipoTarefaIdInt,
+          cliente_id: clienteIdStr,
+          produto_id: produtoIdInt,
+          tarefa_id: newTaskId,
+          subtarefa_id: parseInt(subId, 10),
+          tipo_relacionamento: 'cliente_produto_tarefa_subtarefa',
+          eh_excecao: true
+        });
+      });
+    }
+
+    console.log('🔗 [Plug Rápido] Vínculos que serão inseridos:', JSON.stringify(linksParaCriar, null, 2));
+
+    // 4. Salvar Vínculos
+    const { error: erroVinculos } = await supabase
+      .schema('up_gestaointeligente')
+      .from('vinculados')
+      .insert(linksParaCriar);
+
+    if (erroVinculos) {
+      console.error('❌ [Plug Rápido] Erro ao criar vínculos:', erroVinculos);
+      throw new Error(`Erro ao criar vínculos: ${erroVinculos.message}`);
+    }
+
+    console.log('✅ [Plug Rápido] Vínculos criados com sucesso no banco!');
+
+    // 5. Sucesso
+    return res.status(201).json({
+      success: true,
+      message: 'Tarefa criada e vinculada com sucesso (incluindo vínculos master)',
+      data: novaTarefa
+    });
+
+  } catch (error) {
+    console.error('❌ [Plug Rápido] Falha no fluxo. Iniciando rollback...', error);
+
+    // ROLLBACK MANUAL
+    if (newTaskId) {
+      try {
+        await supabase
+          .schema('up_gestaointeligente')
+          .from('cp_tarefa')
+          .delete()
+          .eq('id', newTaskId);
+        console.log('↩️ [Plug Rápido] Rollback: Tarefa deletada com sucesso.');
+      } catch (rollbackError) {
+        console.error('💀 [Plug Rápido] ERRO NO ROLLBACK (Tarefa órfã pode ter ficado):', rollbackError);
+      }
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erro ao processar criação rápida'
+    });
+  }
+}
+
+/**
+ * Atualiza uma tarefa criada via Plug Rápido (ou qualquer tarefa master)
+ * Além do nome/tipo, sincroniza os vínculos de subtarefa para o cliente/produto específico
+ */
+async function atualizarTarefaRapida(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      nome,
+      tipo_tarefa_id,
+      cliente_id,
+      produto_id,
+      subtarefas_ids
+    } = req.body;
+
+    if (!id) return res.status(400).json({ success: false, error: 'ID da tarefa é obrigatório' });
+
+    console.log(`🔄 [Plug Rápido] Atualizando tarefa ${id}:`, { nome, tipo: tipo_tarefa_id });
+
+    // 1. Atualizar o nome na tarefa base (cp_tarefa não tem tipo_tarefa_id)
+    const { error: errorTarefa } = await supabase
+      .schema('up_gestaointeligente')
+      .from('cp_tarefa')
+      .update({
+        nome: nome.trim(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (errorTarefa) throw errorTarefa;
+
+    // 2. Atualizar o TIPO da tarefa em TODOS os vínculos existentes (Master e Específicos)
+    if (tipo_tarefa_id) {
+      const { error: errorTipoVinc } = await supabase
+        .schema('up_gestaointeligente')
+        .from('vinculados')
+        .update({
+          tarefa_tipo_id: parseInt(tipo_tarefa_id, 10)
+        })
+        .eq('tarefa_id', id);
+
+      if (errorTipoVinc) {
+        console.error('Erro ao atualizar tipo nos vínculos:', errorTipoVinc);
+      }
+    }
+
+    // 3. Se tivermos cliente e produto, sincronizamos as subtarefas vinculadas (exceções)
+    if (cliente_id && produto_id) {
+      // Deletar vínculos de subtarefa antigos para este contexto (exceções)
+      await supabase
+        .schema('up_gestaointeligente')
+        .from('vinculados')
+        .delete()
+        .eq('tarefa_id', id)
+        .eq('cliente_id', cliente_id)
+        .eq('produto_id', produto_id)
+        .not('subtarefa_id', 'is', null);
+
+      // Inserir novos se houver
+      if (subtarefas_ids && subtarefas_ids.length > 0) {
+        const novosVinculos = subtarefas_ids.map(subId => ({
+          tarefa_id: id,
+          cliente_id: cliente_id,
+          produto_id: produto_id,
+          subtarefa_id: parseInt(subId, 10),
+          tarefa_tipo_id: parseInt(tipo_tarefa_id, 10),
+          tipo_relacionamento: 'cliente_produto_tarefa_subtarefa',
+          eh_excecao: true
+        }));
+
+        const { error: errorVinculos } = await supabase
+          .schema('up_gestaointeligente')
+          .from('vinculados')
+          .insert(novosVinculos);
+
+        if (errorVinculos) {
+          console.error('Erro ao atualizar subtarefas vinculadas:', errorVinculos);
+        }
+      }
+    }
+
+    return res.json({ success: true, message: 'Tarefa atualizada com sucesso' });
+
+  } catch (error) {
+    console.error('❌ [Plug Rápido] Fallha na atualização:', error);
+    return res.status(500).json({ success: false, error: 'Erro ao atualizar tarefa' });
+  }
+}
+
 module.exports = {
   getTarefas,
   getTarefaPorId,
   criarTarefa,
   atualizarTarefa,
-  deletarTarefa
+  deletarTarefa,
+  criarTarefaRapida,
+  atualizarTarefaRapida
 };
 

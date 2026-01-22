@@ -748,6 +748,30 @@ async function getVinculados(req, res) {
       temFiltroCliente
     });
 
+    // Filtros de valor específico (para busca precisa)
+    // Se o valor for 'true' ou '1', é um sinalizador de "tem esse campo", não um ID específico
+    const {
+      filtro_tarefa: fTarefaId,
+      filtro_cliente: fClienteId,
+      filtro_produto: fProdutoId
+    } = req.query;
+
+    if (fTarefaId && fTarefaId !== 'true' && fTarefaId !== '1') {
+      query = query.eq('tarefa_id', fTarefaId);
+    }
+
+    if (fClienteId && fClienteId !== 'true' && fClienteId !== '1') {
+      query = query.eq('cliente_id', fClienteId);
+    }
+
+    if (fProdutoId && fProdutoId !== 'true' && fProdutoId !== '1') {
+      // Garantir que seja um número para a coluna integer
+      const prodId = parseInt(fProdutoId, 10);
+      if (!isNaN(prodId)) {
+        query = query.eq('produto_id', prodId);
+      }
+    }
+
     if (temFiltroProduto) {
       query = query.not('produto_id', 'is', null);
       console.log('✅ Filtro produto aplicado: produto_id IS NOT NULL');

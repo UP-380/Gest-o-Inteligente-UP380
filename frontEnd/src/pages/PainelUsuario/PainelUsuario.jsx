@@ -251,29 +251,32 @@ const PainelUsuario = () => {
   }, []);
 
   useEffect(() => {
+    // Buscar sempre para saber se existem pendências e mostrar a tab
+    fetchPendentes();
+
+    let interval;
     if (activeTab === 'pendentes') {
-      fetchPendentes();
-      // Polling simples para atualizar tempo de timers ativos nos pendentes
-      const interval = setInterval(fetchPendentes, 60000);
-
-      // Sincronizar com eventos do Timer Global (TimerAtivo)
-      const handleUpdate = () => {
-        setTimeout(fetchPendentes, 200); // Pequeno delay para garantir consistência do backend
-      };
-
-      window.addEventListener('registro-tempo-finalizado', handleUpdate);
-      window.addEventListener('registro-tempo-iniciado', handleUpdate);
-      window.addEventListener('registro-tempo-atualizado', handleUpdate);
-      window.addEventListener('registro-tempo-deletado', handleUpdate);
-
-      return () => {
-        clearInterval(interval);
-        window.removeEventListener('registro-tempo-finalizado', handleUpdate);
-        window.removeEventListener('registro-tempo-iniciado', handleUpdate);
-        window.removeEventListener('registro-tempo-atualizado', handleUpdate);
-        window.removeEventListener('registro-tempo-deletado', handleUpdate);
-      };
+      // Polling simples para atualizar tempo de timers ativos nos pendentes (apenas quando visível)
+      interval = setInterval(fetchPendentes, 60000);
     }
+
+    // Sincronizar com eventos do Timer Global (TimerAtivo) - Sempre ouvir para manter contador atualizado
+    const handleUpdate = () => {
+      setTimeout(fetchPendentes, 200); // Pequeno delay para garantir consistência do backend
+    };
+
+    window.addEventListener('registro-tempo-finalizado', handleUpdate);
+    window.addEventListener('registro-tempo-iniciado', handleUpdate);
+    window.addEventListener('registro-tempo-atualizado', handleUpdate);
+    window.addEventListener('registro-tempo-deletado', handleUpdate);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      window.removeEventListener('registro-tempo-finalizado', handleUpdate);
+      window.removeEventListener('registro-tempo-iniciado', handleUpdate);
+      window.removeEventListener('registro-tempo-atualizado', handleUpdate);
+      window.removeEventListener('registro-tempo-deletado', handleUpdate);
+    };
   }, [activeTab, fetchPendentes]);
 
   const handleStopTimerPendente = async (pendenteId) => {

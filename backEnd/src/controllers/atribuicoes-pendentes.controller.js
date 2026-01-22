@@ -30,7 +30,8 @@ async function criarAtribuicaoPendente(req, res) {
             data_inicio,
             data_fim,
             tempo_estimado_dia,
-            iniciar_timer // boolean: se true, já cria o registro em registro_tempo_pendente com data_inicio = now
+            iniciar_timer,
+            nova_tarefa_criada // Flag opcional vinda do front
         } = req.body;
 
         const usuario_id = req.session.usuario.id; // Usuário logado é OBRIGATORIAMENTE o criador/responsável
@@ -47,6 +48,32 @@ async function criarAtribuicaoPendente(req, res) {
         if (missingFields.length > 0) {
             console.error('Campos faltando no Plug Rápido:', missingFields, req.body);
             return res.status(400).json({ success: false, error: `Campos obrigatórios faltando: ${missingFields.join(', ')}` });
+        }
+
+        console.log('📝 [Plug Rápido] Criando atribuição pendente:', {
+            tarefa_id,
+            nova_tarefa_criada: !!nova_tarefa_criada
+        });
+
+        // 0. Validação de duplicidade (Evitar múltiplos cliques ou solicitações idênticas)
+        const { data: existente, error: erroCheck } = await supabase
+            .schema('up_gestaointeligente')
+            .from('atribuicoes_pendentes')
+            .select('id')
+            .eq('usuario_id', usuario_id)
+            .eq('cliente_id', cliente_id)
+            .eq('produto_id', produto_id)
+            .eq('tarefa_id', tarefa_id)
+            .eq('data_inicio', data_inicio)
+            .eq('data_fim', data_fim)
+            .eq('status', 'PENDENTE')
+            .maybeSingle();
+
+        if (existente) {
+            return res.status(400).json({
+                success: false,
+                error: 'Você já possui uma solicitação pendente idêntica para esta tarefa e período.'
+            });
         }
 
         // 1. Criar a atribuição pendente (Com auditoria da intenção original)
@@ -69,7 +96,8 @@ async function criarAtribuicaoPendente(req, res) {
                 data_inicio,
                 data_fim,
                 tempo_estimado_dia,
-                status: 'PENDENTE'
+                status: 'PENDENTE',
+                nova_tarefa_criada: nova_tarefa_criada || false
             })
             .select()
             .single();
@@ -238,13 +266,45 @@ async function listarPendentesParaAprovacao(req, res) {
         const tarefasMap = new Map((tarefasRes.data || []).map(t => [String(t.id), t]));
         const usuariosMap = new Map((usuariosRes.data || []).map(u => [String(u.id), u]));
 
-        const dataEnriched = pendentes.map(p => ({
-            ...p,
-            usuario: usuariosMap.get(String(p.usuario_id)) || { nome_usuario: 'Desconhecido' },
-            cliente: clientesMap.get(String(p.cliente_id)) || { nome: 'N/A' },
-            produto: produtosMap.get(String(p.produto_id)) || { nome: 'N/A' },
-            tarefa: tarefasMap.get(String(p.tarefa_id)) || { nome: 'N/A' }
-        }));
+        // Buscar tempos acumulados para TODAS as pendências listadas (Otimizado)
+        const pendentesIds = pendentes.map(p => p.id);
+        const { data: todosTempos } = await supabase
+            .schema('up_gestaointeligente')
+            .from('registro_tempo_pendente')
+            .select('atribuicao_pendente_id, data_inicio, data_fim')
+            .in('atribuicao_pendente_id', pendentesIds);
+
+        // Agrupar tempos por atribuição id
+        const temposMap = new Map();
+        if (todosTempos) {
+            todosTempos.forEach(t => {
+                const id = String(t.atribuicao_pendente_id);
+                const inicio = new Date(t.data_inicio).getTime();
+                const fim = t.data_fim ? new Date(t.data_fim).getTime() : Date.now();
+                const diff = fim - inicio;
+
+                temposMap.set(id, (temposMap.get(id) || 0) + diff);
+            });
+        }
+
+        const dataEnriched = pendentes.map(p => {
+            const totalMs = temposMap.get(String(p.id)) || 0;
+            const totalSegundos = Math.floor(totalMs / 1000);
+            const h = Math.floor(totalSegundos / 3600);
+            const m = Math.floor((totalSegundos % 3600) / 60);
+            const s = totalSegundos % 60;
+            const tempoFmt = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+            return {
+                ...p,
+                usuario: usuariosMap.get(String(p.usuario_id)) || { nome_usuario: 'Desconhecido' },
+                cliente: clientesMap.get(String(p.cliente_id)) || { nome: 'N/A' },
+                produto: produtosMap.get(String(p.produto_id)) || { nome: 'N/A' },
+                tarefa: tarefasMap.get(String(p.tarefa_id)) || { nome: 'N/A' },
+                tempo_realizado_ms: totalMs,
+                tempo_realizado_formatado: tempoFmt
+            };
+        });
 
         return res.json({ success: true, data: dataEnriched });
     } catch (error) {
