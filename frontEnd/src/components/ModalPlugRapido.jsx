@@ -26,7 +26,9 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         data_fim: '',
         tempo_estimado_ms: 28800000,
         iniciar_timer: true,
-        nova_tarefa_criada: false
+        nova_tarefa_criada: false,
+        sem_tarefa_definida: false,
+        comentario_colaborador: ''
     });
 
     // Reset e fetch inicial
@@ -45,7 +47,9 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 data_inicio: `${yyyy}-${mm}-${dd}`,
                 data_fim: `${yyyy}-${mm}-${dd}`,
                 tempo_estimado_ms: 28800000,
-                nova_tarefa_criada: false
+                nova_tarefa_criada: false,
+                sem_tarefa_definida: false,
+                comentario_colaborador: ''
             }));
             setProdutosOptions([]);
             fetchClientes();
@@ -133,7 +137,8 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 data_fim: `${formData.data_fim}T23:59:59`,
                 tempo_estimado_dia: tempoSegundos,
                 iniciar_timer: formData.iniciar_timer,
-                nova_tarefa_criada: formData.nova_tarefa_criada
+                nova_tarefa_criada: formData.nova_tarefa_criada,
+                comentario_colaborador: formData.sem_tarefa_definida ? formData.comentario_colaborador : null
             };
 
             const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes`, {
@@ -162,12 +167,13 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
 
     if (!isOpen) return null;
 
-    const isFormValid = formData.cliente_id &&
-        formData.produto_id &&
-        formData.tarefa_id &&
-        formData.data_inicio &&
+    const isFormValid = formData.data_inicio &&
         formData.data_fim &&
-        formData.tempo_estimado_ms > 0;
+        formData.tempo_estimado_ms > 0 &&
+        (formData.sem_tarefa_definida
+            ? (formData.comentario_colaborador && formData.comentario_colaborador.length >= 5)
+            : (formData.cliente_id && formData.produto_id && formData.tarefa_id)
+        );
 
     // Verificar se já existe uma pendência idêntica
     const isDuplicate = minhasPendentes.some(p =>
@@ -188,65 +194,93 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
 
                 <form onSubmit={handleSubmit} className="modal-plug-rapido-body">
 
-                    <div className="form-group-plug">
-                        <label>Cliente</label>
-                        <CustomSelect
-                            value={formData.cliente_id}
-                            options={clientesOptions}
-                            onChange={(e) => handleClienteChange(e.target.value)}
-                            placeholder="Selecione o Cliente"
-                            enableSearch={true}
-                            disabled={loading}
-                        />
-                    </div>
-
-                    <div className="form-group-plug">
-                        <label>Produto</label>
-                        <CustomSelect
-                            value={formData.produto_id}
-                            options={produtosOptions}
-                            onChange={(e) => handleProdutoChange(e.target.value)}
-                            placeholder="Selecione o Produto"
-                            enableSearch={true}
-                            disabled={!formData.cliente_id || loading}
-                        />
-                    </div>
-
-                    <div className="form-group-plug">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <label style={{ marginBottom: 0 }}>Tarefa</label>
-                            {formData.cliente_id && formData.produto_id && (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowNewTaskModal(true)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px solid #f59e0b',
-                                        borderRadius: '4px',
-                                        color: '#f59e0b',
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem',
-                                        padding: '2px 8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    className="btn-add-task-plug"
-                                >
-                                    <i className="fas fa-plus"></i> Nova Tarefa
-                                </button>
-                            )}
+                    <div className="no-task-toggle-container">
+                        <div className="no-task-toggle" onClick={() => setFormData(d => ({ ...d, sem_tarefa_definida: !d.sem_tarefa_definida }))}>
+                            <input type="checkbox" checked={formData.sem_tarefa_definida} readOnly />
+                            <div className="no-task-label">
+                                <strong>Não sei qual a minha tarefa</strong>
+                                <span>Plugar sem estimativa prévia (o gestor classificará depois)</span>
+                            </div>
                         </div>
-                        {/* Componente especializado para buscar tarefas via Cliente+Produto (Vinculados) */}
-                        <SelecaoTarefasPlugRapido
-                            key={tasksRefreshToken}
-                            clienteId={formData.cliente_id}
-                            produtoId={formData.produto_id}
-                            selectedTarefaId={formData.tarefa_id}
-                            onTarefaSelect={(tid) => setFormData(prev => ({ ...prev, tarefa_id: tid }))}
-                        />
                     </div>
+
+                    {!formData.sem_tarefa_definida ? (
+                        <>
+
+                            <div className="form-group-plug">
+                                <label>Cliente</label>
+                                <CustomSelect
+                                    value={formData.cliente_id}
+                                    options={clientesOptions}
+                                    onChange={(e) => handleClienteChange(e.target.value)}
+                                    placeholder="Selecione o Cliente"
+                                    enableSearch={true}
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="form-group-plug">
+                                <label>Produto</label>
+                                <CustomSelect
+                                    value={formData.produto_id}
+                                    options={produtosOptions}
+                                    onChange={(e) => handleProdutoChange(e.target.value)}
+                                    placeholder="Selecione o Produto"
+                                    enableSearch={true}
+                                    disabled={!formData.cliente_id || loading}
+                                />
+                            </div>
+
+                            <div className="form-group-plug">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <label style={{ marginBottom: 0 }}>Tarefa</label>
+                                    {formData.cliente_id && formData.produto_id && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewTaskModal(true)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: '1px solid #f59e0b',
+                                                borderRadius: '4px',
+                                                color: '#f59e0b',
+                                                cursor: 'pointer',
+                                                fontSize: '0.75rem',
+                                                padding: '2px 8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            className="btn-add-task-plug"
+                                        >
+                                            <i className="fas fa-plus"></i> Nova Tarefa
+                                        </button>
+                                    )}
+                                </div>
+                                {/* Componente especializado para buscar tarefas via Cliente+Produto (Vinculados) */}
+                                <SelecaoTarefasPlugRapido
+                                    key={tasksRefreshToken}
+                                    clienteId={formData.cliente_id}
+                                    produtoId={formData.produto_id}
+                                    selectedTarefaId={formData.tarefa_id}
+                                    onTarefaSelect={(tid) => setFormData(prev => ({ ...prev, tarefa_id: tid }))}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="form-group-plug">
+                            <label>O que você vai fazer? (Obrigatório) <span style={{ color: '#dc2626' }}>*</span></label>
+                            <textarea
+                                className="form-control-plug-textarea"
+                                value={formData.comentario_colaborador}
+                                onChange={(e) => setFormData(d => ({ ...d, comentario_colaborador: e.target.value }))}
+                                placeholder="Descreva brevemente a tarefa para que o gestor saiba como classificá-la depois..."
+                                rows={4}
+                                required
+                            />
+                            <p className="field-hint">Mínimo de 5 caracteres. Seja específico.</p>
+                        </div>
+                    )}
 
                     <div className="form-group-plug">
                         <label>Período</label>

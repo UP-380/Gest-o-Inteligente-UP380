@@ -120,6 +120,12 @@
     font-weight: 600;
 }
 
+.aprovacao-value.missing {
+    color: #ef4444;
+    font-style: italic;
+    font-size: 0.85rem;
+}
+
 .aprovacao-time-box {
     background-color: #f3f4f6;
     border-radius: 8px;

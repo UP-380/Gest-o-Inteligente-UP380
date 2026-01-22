@@ -7,11 +7,13 @@ import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import TempoEstimadoInput from '../../components/common/TempoEstimadoInput';
 import ModalNovaTarefaRapida from '../../components/vinculacoes/ModalNovaTarefaRapida';
 import Avatar from '../../components/user/Avatar';
+import { useToast } from '../../hooks/useToast';
 import './AprovacoesPendentes.css';
 
 const API_BASE_URL = '/api';
 
 const AprovacoesPendentes = () => {
+    const showToast = useToast();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const pendenteIdParam = searchParams.get('id');
@@ -65,7 +67,7 @@ const AprovacoesPendentes = () => {
                 setFeriadosCache(feriadosMap);
             }
         } catch (error) {
-            console.error('Erro ao buscar feriados:', error);
+            /* silent */
         }
     };
 
@@ -86,7 +88,7 @@ const AprovacoesPendentes = () => {
                     }
                 }
             }
-        } catch (e) { console.error(e); } finally { setLoading(false); }
+        } catch (e) { /* silent */ } finally { setLoading(false); }
     };
 
     const fetchClientes = async () => {
@@ -96,7 +98,7 @@ const AprovacoesPendentes = () => {
             if (json.success && json.data) {
                 setClientesOptions(json.data.map(c => ({ value: String(c.id), label: c.nome })));
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { /* silent */ }
     };
 
     const fetchProdutos = async (clienteId) => {
@@ -112,18 +114,16 @@ const AprovacoesPendentes = () => {
             } else {
                 setProdutosOptions([]);
             }
-        } catch (e) { console.error(e); setProdutosOptions([]); }
+        } catch (e) { setProdutosOptions([]); }
     };
 
     // Ao abrir o modal
     const handleOpenAprovar = async (item) => {
         setSelectedItem(item);
-        setMembroId(null); // Resetar para buscar o novo membro_id do usuário selecionado
+        setMembroId(null);
 
-        // Calcular horas/minutos
         const tempoSegundos = item.tempo_estimado_dia || 0;
 
-        // Carregar produtos para o cliente selecionado inicialmente
         await fetchProdutos(item.cliente_id);
 
         setEditForm({
@@ -158,7 +158,6 @@ const AprovacoesPendentes = () => {
         if (!selectedItem?.usuario_id) return;
 
         try {
-            // 0. Buscar membro_id associado ao usuário
             let currentMembroId = membroId;
             if (!currentMembroId) {
                 const resMembro = await fetch(`${API_BASE_URL}/membros-por-usuario/${selectedItem.usuario_id}`);
@@ -167,18 +166,15 @@ const AprovacoesPendentes = () => {
                     currentMembroId = jsonMembro.data[0].id;
                     setMembroId(currentMembroId);
                 } else {
-                    console.warn('Membro não encontrado para o usuário:', selectedItem.usuario_id);
                     setTempoDisponivel(null);
                     return;
                 }
             }
 
-            // 1. Buscar horas contratadas do período (usa membro_id)
             const resContratadas = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?membro_id=${currentMembroId}&data_inicio=${editForm.data_inicio}&data_fim=${editForm.data_fim}`);
             const jsonContratadas = await resContratadas.json();
             const horasContratadasPorDia = (jsonContratadas.success && jsonContratadas.data) ? (jsonContratadas.data.horascontratadasdia || 0) : 0;
 
-            // 2. Buscar tempo estimado total já atribuído (assigned - usa membro_id)
             const params = new URLSearchParams({
                 data_inicio: editForm.data_inicio,
                 data_fim: editForm.data_fim,
@@ -188,7 +184,6 @@ const AprovacoesPendentes = () => {
             const jsonAssigned = await resAssigned.json();
             const tempoAssignedMs = jsonAssigned.success && jsonAssigned.data ? (jsonAssigned.data[currentMembroId] || 0) : 0;
 
-            // 3. Calcular total de dias úteis no período
             const dataInicio = new Date(editForm.data_inicio + 'T12:00:00');
             const dataFim = new Date(editForm.data_fim + 'T12:00:00');
             let diasValidos = 0;
@@ -208,15 +203,12 @@ const AprovacoesPendentes = () => {
                 current.setDate(current.getDate() + 1);
             }
 
-            // Cálculo: Capacidade Total - Tempo Já Atribuído - (Novo Estimado * Dias Válidos)
             const capacidadeTotalMsAtribuida = horasContratadasPorDia * diasValidos * 3600000;
             const novoComprometimentoMs = (editForm.tempo_estimado_ms || 0) * diasValidos;
-
             const disponivelMs = capacidadeTotalMsAtribuida - tempoAssignedMs - novoComprometimentoMs;
 
             setTempoDisponivel(disponivelMs);
         } catch (error) {
-            console.error('Erro ao buscar tempo disponível:', error);
             setTempoDisponivel(null);
         }
     };
@@ -263,15 +255,14 @@ const AprovacoesPendentes = () => {
             });
             const json = await res.json();
             if (json.success) {
-                alert('Aprovado com sucesso!');
+                showToast('success', 'Aprovado com sucesso!');
                 setModalOpen(false);
                 fetchPendentes();
             } else {
-                alert('Erro: ' + (json.error || json.message || 'Erro desconhecido'));
+                showToast('error', 'Erro: ' + (json.error || json.message || 'Erro desconhecido'));
             }
         } catch (e) {
-            console.error(e);
-            alert('Erro ao aprovar.');
+            showToast('error', 'Erro ao aprovar.');
         } finally {
             setSaving(false);
         }
@@ -338,12 +329,40 @@ const AprovacoesPendentes = () => {
                                                 backgroundColor: '#fff7ed', color: '#d97706',
                                                 padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'
                                             }}>PENDENTE</div>
+                                            {(!p.cliente_id || !p.tarefa_id) && (
+                                                <div style={{
+                                                    backgroundColor: '#fee2e2', color: '#dc2626', marginLeft: '8px',
+                                                    padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
+                                                    border: '1px solid #fecaca'
+                                                }}>
+                                                    <i className="fas fa-exclamation-triangle"></i> CLASSIFICAÇÃO REQUERIDA
+                                                </div>
+                                            )}
                                         </div>
+
+                                        {p.comentario_colaborador && (
+                                            <div className="aprovacao-comentario-box" style={{
+                                                backgroundColor: '#f8fafc',
+                                                border: '1px dashed #cbd5e1',
+                                                borderRadius: '8px',
+                                                padding: '12px',
+                                                marginBottom: '1rem',
+                                                fontSize: '0.9rem',
+                                                color: '#475569'
+                                            }}>
+                                                <div style={{ fontWeight: '600', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '4px', color: '#64748b' }}>
+                                                    <i className="fas fa-comment-dots"></i> Comentário do Colaborador:
+                                                </div>
+                                                "{p.comentario_colaborador}"
+                                            </div>
+                                        )}
 
                                         <div className="aprovacao-details">
                                             <div className="aprovacao-field">
                                                 <span className="aprovacao-label">Cliente</span>
-                                                <span className="aprovacao-value highlight">{p.cliente?.nome}</span>
+                                                <span className={`aprovacao-value ${p.cliente?.nome ? 'highlight' : 'missing'}`}>
+                                                    {p.cliente?.nome || 'Não definido'}
+                                                </span>
                                             </div>
                                             <div className="aprovacao-field">
                                                 <span className="aprovacao-label">Produto</span>
@@ -352,7 +371,9 @@ const AprovacoesPendentes = () => {
                                             <div className="aprovacao-field">
                                                 <span className="aprovacao-label">Tarefa</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span className="aprovacao-value">{p.tarefa?.nome}</span>
+                                                    <span className={`aprovacao-value ${p.tarefa?.nome ? '' : 'missing'}`}>
+                                                        {p.tarefa?.nome || 'Não definida'}
+                                                    </span>
                                                     {p.nova_tarefa_criada && (
                                                         <span className="badge-plug-rapido">
                                                             Nova Tarefa (Plug Rápido)
@@ -396,7 +417,6 @@ const AprovacoesPendentes = () => {
                 </main>
             </div>
 
-            {/* Modal de Aprovação Principal */}
             {modalOpen && (
                 <div className="modal-plug-rapido-overlay" onClick={() => setModalOpen(false)}>
                     <div className="modal-plug-rapido-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
@@ -428,7 +448,7 @@ const AprovacoesPendentes = () => {
                                         }}
                                     >
                                         <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                        <span style={{ overflow: 'hidden', text_overflow: 'ellipsis' }}>
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                             {formatarTempoDisponivel(tempoDisponivel)}
                                         </span>
                                     </div>
@@ -439,8 +459,28 @@ const AprovacoesPendentes = () => {
                         <div className="modal-plug-rapido-body">
                             <p className="modal-aprovar-hint" style={{ backgroundColor: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #dbeafe', color: '#1e40af', marginBottom: '10px' }}>
                                 <i className="fas fa-info-circle" style={{ marginRight: '8px' }}></i>
-                                Verifique os dados abaixo. Você pode ajustar o Cliente, Produto ou a própria Tarefa se necessário.
+                                {selectedItem?.comentario_colaborador
+                                    ? "Este colaborador plugou sem tarefa definida. Leia o comentário e escolha a classificação correta."
+                                    : "Verifique os dados abaixo. Você pode ajustar o Cliente, Produto ou a própria Tarefa se necessário."
+                                }
                             </p>
+
+                            {selectedItem?.comentario_colaborador && (
+                                <div className="modal-comentario-destaque" style={{
+                                    backgroundColor: '#fffbeb',
+                                    border: '1px solid #fef3c7',
+                                    borderRadius: '8px',
+                                    padding: '12px',
+                                    marginBottom: '15px'
+                                }}>
+                                    <div style={{ color: '#92400e', fontWeight: '700', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                        <i className="fas fa-comment"></i> Relato do Colaborador:
+                                    </div>
+                                    <div style={{ color: '#78350f', fontStyle: 'italic' }}>
+                                        "{selectedItem.comentario_colaborador}"
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="form-group-plug">
                                 <label>Cliente</label>
@@ -531,7 +571,13 @@ const AprovacoesPendentes = () => {
                         </div>
                         <div className="modal-plug-rapido-footer">
                             <button className="btn-cancel" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</button>
-                            <button className="btn-confirm" onClick={handleConfirmAprovar} disabled={saving} style={{ minWidth: '160px' }}>
+                            <button
+                                className="btn-confirm"
+                                onClick={handleConfirmAprovar}
+                                disabled={saving || !editForm.cliente_id || !editForm.produto_id || !editForm.tarefa_id}
+                                style={{ minWidth: '160px' }}
+                                title={(!editForm.cliente_id || !editForm.produto_id || !editForm.tarefa_id) ? 'Preencha todos os campos para aprovar' : ''}
+                            >
                                 {saving ? (
                                     <><i className="fas fa-spinner fa-spin"></i> Aprovando...</>
                                 ) : (
@@ -543,7 +589,6 @@ const AprovacoesPendentes = () => {
                 </div>
             )}
 
-            {/* Modal de Edição de Tarefa (quando foi criada no plug rápido) */}
             <ModalNovaTarefaRapida
                 isOpen={showNewTaskModal}
                 onClose={() => setShowNewTaskModal(false)}

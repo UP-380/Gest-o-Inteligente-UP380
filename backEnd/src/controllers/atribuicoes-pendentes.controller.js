@@ -32,16 +32,24 @@ async function criarAtribuicaoPendente(req, res) {
             data_fim,
             tempo_estimado_dia,
             iniciar_timer,
-            nova_tarefa_criada // Flag opcional vinda do front
+            nova_tarefa_criada, // Flag opcional vinda do front
+            comentario_colaborador // Novo campo para casos sem tarefa definida
         } = req.body;
 
         const usuario_id = req.session.usuario.id; // Usuário logado é OBRIGATORIAMENTE o criador/responsável
 
         // Validações básicas
         const missingFields = [];
-        if (!cliente_id) missingFields.push('cliente_id');
-        if (!produto_id) missingFields.push('produto_id');
-        if (!tarefa_id) missingFields.push('tarefa_id');
+
+        // Se NÃO houver comentário, os IDs são obrigatórios
+        if (!comentario_colaborador) {
+            if (!cliente_id) missingFields.push('cliente_id');
+            if (!produto_id) missingFields.push('produto_id');
+            if (!tarefa_id) missingFields.push('tarefa_id');
+        } else if (comentario_colaborador.length < 5) {
+            return res.status(400).json({ success: false, error: 'O comentário deve ter pelo menos 5 caracteres.' });
+        }
+
         if (!data_inicio) missingFields.push('data_inicio');
         if (!data_fim) missingFields.push('data_fim');
         if (tempo_estimado_dia === undefined || tempo_estimado_dia === null) missingFields.push('tempo_estimado_dia');
@@ -57,17 +65,20 @@ async function criarAtribuicaoPendente(req, res) {
         });
 
         // 0. Validação de duplicidade (Evitar múltiplos cliques ou solicitações idênticas)
-        const { data: existente, error: erroCheck } = await supabase
+        let query = supabase
             .schema('up_gestaointeligente')
             .from('atribuicoes_pendentes')
             .select('id')
             .eq('usuario_id', usuario_id)
-            .eq('cliente_id', cliente_id)
-            .eq('produto_id', produto_id)
-            .eq('tarefa_id', tarefa_id)
+            .eq('status', 'PENDENTE');
+
+        if (tarefa_id) query = query.eq('tarefa_id', tarefa_id);
+        if (cliente_id) query = query.eq('cliente_id', cliente_id);
+        if (comentario_colaborador) query = query.eq('comentario_colaborador', comentario_colaborador);
+
+        const { data: existente, error: erroCheck } = await query
             .eq('data_inicio', data_inicio)
             .eq('data_fim', data_fim)
-            .eq('status', 'PENDENTE')
             .maybeSingle();
 
         if (existente) {
@@ -78,6 +89,11 @@ async function criarAtribuicaoPendente(req, res) {
         }
 
         // 1. Criar a atribuição pendente (Com auditoria da intenção original)
+        // Sanitização: Converter strings vazias para null para evitar erro de tipo no Postgres (bigint/integer)
+        const db_cliente_id = cliente_id || null;
+        const db_produto_id = produto_id || null;
+        const db_tarefa_id = tarefa_id || null;
+
         const { data: atribuicao, error: erroAtribuicao } = await supabase
             .schema('up_gestaointeligente')
             .from('atribuicoes_pendentes')
@@ -85,20 +101,21 @@ async function criarAtribuicaoPendente(req, res) {
                 usuario_id,
 
                 // Dados atuais (podem ser alterados posteriormente pelo gestor)
-                cliente_id,
-                produto_id,
-                tarefa_id,
+                cliente_id: db_cliente_id,
+                produto_id: db_produto_id,
+                tarefa_id: db_tarefa_id,
 
                 // Dados originais (Auditoria - Nunca devem ser alterados)
-                cliente_id_original: cliente_id,
-                produto_id_original: produto_id,
-                tarefa_id_original: tarefa_id,
+                cliente_id_original: db_cliente_id,
+                produto_id_original: db_produto_id,
+                tarefa_id_original: db_tarefa_id,
 
                 data_inicio,
                 data_fim,
                 tempo_estimado_dia,
                 status: 'PENDENTE',
-                nova_tarefa_criada: nova_tarefa_criada || false
+                nova_tarefa_criada: nova_tarefa_criada || false,
+                comentario_colaborador
             })
             .select()
             .single();
@@ -118,7 +135,7 @@ async function criarAtribuicaoPendente(req, res) {
                 .insert({
                     atribuicao_pendente_id: atribuicao.id,
                     usuario_id,
-                    tarefa_id,
+                    tarefa_id: db_tarefa_id,
                     data_inicio: new Date().toISOString(),
                     status: 'PENDENTE'
                 })
@@ -136,19 +153,23 @@ async function criarAtribuicaoPendente(req, res) {
         // --- GERAÇÃO DE NOTIFICAÇÕES (Sistema Inbox) ---
         try {
             // Buscar nomes para a mensagem
-            const { data: nomes } = await supabase.schema('up_gestaointeligente')
-                .from('cp_cliente')
-                .select('nome')
-                .eq('id', cliente_id)
-                .single();
-
-            const nomeCliente = nomes ? nomes.nome : 'Cliente';
+            let nomeCliente = 'Cliente não definido';
+            if (cliente_id) {
+                const { data: nomes } = await supabase.schema('up_gestaointeligente')
+                    .from('cp_cliente')
+                    .select('nome')
+                    .eq('id', cliente_id)
+                    .single();
+                if (nomes) nomeCliente = nomes.nome;
+            }
             const nomeUsuario = req.session.usuario.nome_usuario;
 
             await notificacoesController.gerarNotificacaoParaGestores({
                 tipo: 'PLUG_RAPIDO',
-                titulo: 'Novo Plug Rápido',
-                mensagem: `${nomeUsuario} solicitou Plug em ${nomeCliente}`,
+                titulo: comentario_colaborador ? 'Plug sem Tarefa Definida' : 'Novo Plug Rápido',
+                mensagem: comentario_colaborador
+                    ? `${nomeUsuario} plugou sem tarefa: "${comentario_colaborador.substring(0, 30)}..."`
+                    : `${nomeUsuario} solicitou Plug em ${nomeCliente}`,
                 referencia_id: atribuicao.id,
                 link: `/aprovacoes-pendentes?id=${atribuicao.id}`,
                 metadata: {
@@ -409,6 +430,14 @@ async function aprovarAtribuicao(req, res) {
             data_inicio: pendente.data_inicio,
             data_fim: pendente.data_fim
         };
+
+        // VALIDAÇÃO CRÍTICA: Se era um plug sem tarefa, agora OBRIGATORIAMENTE precisa ter IDs
+        if (!dadosFinais.cliente_id || !dadosFinais.produto_id || !dadosFinais.tarefa_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Para aprovar, você deve preencher Cliente, Produto e Tarefa.'
+            });
+        }
 
         // --- RESOLUÇÃO DE MEMBRO_ID ---
         // As tabelas historico_atribuicoes e tempo_estimado_regra exigem IDs da tabela MEMBRO,
