@@ -84,6 +84,20 @@ const NotificationBell = ({ user }) => {
         }
     };
 
+    const handleMarkAllAsRead = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/notificacoes/visualizar-todas`, { method: 'POST' });
+            const json = await res.json();
+            if (json.success) {
+                setNotifications([]);
+                setCount(0);
+                setPrevCount(0);
+            }
+        } catch (e) {
+            console.error('Erro ao marcar todas como lidas:', e);
+        }
+    };
+
     const handleNotificationClick = async (notif) => {
         // Marcar como lida primeiro
         if (!notif.visualizada) {
@@ -117,8 +131,16 @@ const NotificationBell = ({ user }) => {
             {/* Drawer */}
             <div className={`notification-drawer ${isOpen ? 'open' : ''}`}>
                 <div className="notification-drawer-header">
-                    <h3>Notificações</h3>
-                    <button className="close-drawer-btn" onClick={() => setIsOpen(false)}>&times;</button>
+                    <div className="notification-drawer-header-top">
+                        <h3>Notificações</h3>
+                        <button className="close-drawer-btn" onClick={() => setIsOpen(false)}>&times;</button>
+                    </div>
+                    {notifications.length > 0 && (
+                        <button className="mark-all-read-btn-header" onClick={handleMarkAllAsRead}>
+                            <i className="fas fa-check-double" style={{ marginRight: '5px' }}></i>
+                            Marcar todas como lidas
+                        </button>
+                    )}
                 </div>
                 <div className="notification-drawer-body">
                     {loading ? (

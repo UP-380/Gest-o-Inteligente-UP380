@@ -591,7 +591,7 @@ async function getRegistrosAtivos(req, res) {
       const { data: atribuicoes, error: errAttr } = await supabase
         .schema('up_gestaointeligente')
         .from('atribuicoes_pendentes')
-        .select('id, cliente_id, produto_id, tarefa_id')
+        .select('id, cliente_id, produto_id, tarefa_id, comentario_colaborador')
         .in('id', idsAtribuicoes);
 
       if (errAttr) {
@@ -629,7 +629,7 @@ async function getRegistrosAtivos(req, res) {
       tarefa_id: r.tarefa_id || r.atribuicoes_pendentes?.tarefa_id,
       tempo_realizado: null,
       is_pendente: true,
-      observacao: 'Plug Rápido (Pendente)'
+      observacao: r.atribuicoes_pendentes?.comentario_colaborador || 'Plug Rápido (Pendente)'
     }));
 
     // Combinar e ordenar por data_inicio decrescente (mais recente primeiro)
@@ -1763,10 +1763,97 @@ async function getTempoRealizadoTotal(req, res) {
       console.log(`   Filtros aplicados: usuario_id=${usuarioId}, período=${dataInicioStr} até ${dataFimStr}, produto_id=${produto_id || 'não especificado'}, tarefa_id=${tarefa_id || 'não especificado'}, cliente_id=${cliente_id || 'não especificado'}`);
     }
 
+    // --- CALCULAR TEMPO PENDENTE (Plug Rápido / Em Andamento) ---
+    let tempoPendenteMs = 0;
+    try {
+      let queryPendentes = supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo_pendente')
+        .select('data_inicio, data_fim, tarefa_id, atribuicao_pendente_id')
+        .eq('usuario_id', usuarioId);
+
+      // Filtro de período (mesma lógica OR)
+      const orConditionsPendentes = [
+        `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
+        `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`,
+        `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`,
+        `and(data_inicio.lte.${fimStr},data_fim.is.null)`
+      ].join(',');
+      queryPendentes = queryPendentes.or(orConditionsPendentes);
+
+      // Filtro de Tarefa
+      if (tarefa_id) {
+        const tIds = Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id];
+        const tIdsClean = tIds.map(id => String(id).trim()).filter(Boolean);
+        if (tIdsClean.length > 0) queryPendentes = queryPendentes.in('tarefa_id', tIdsClean);
+      }
+
+      const { data: pendentes } = await queryPendentes;
+
+      if (pendentes && pendentes.length > 0) {
+        let pendentesFiltrados = pendentes;
+
+        // Se houver filtro de Cliente ou Produto, precisamos checar via atribuicao_pendente_id
+        if (cliente_id || produto_id) {
+          const attrIds = [...new Set(pendentes.map(p => p.atribuicao_pendente_id).filter(Boolean))];
+
+          // Se solicitou filtro mas os pendentes não tem vínculo com atribuição, excluímos?
+          // No Plug Rápido, muitas vezes não tem produto/cliente definido ainda se for tarefa solta, 
+          // MAS se veio de atribuição, TEM id.
+          // Se não tem atribuição_id, não tem como saber cliente/produto -> Excluir se filtro for estrito.
+
+          if (attrIds.length > 0) {
+            const { data: attrs } = await supabase
+              .schema('up_gestaointeligente')
+              .from('atribuicoes_pendentes')
+              .select('id, cliente_id, produto_id')
+              .in('id', attrIds);
+
+            const attrsMap = new Map((attrs || []).map(a => [String(a.id), a]));
+
+            pendentesFiltrados = pendentes.filter(p => {
+              // Se tiver filtro de cliente/produto e p não tiver atribuição, removemos
+              if (!p.atribuicao_pendente_id) return false;
+
+              const attr = attrsMap.get(String(p.atribuicao_pendente_id));
+              if (!attr) return false;
+
+              let pass = true;
+              if (cliente_id) {
+                const cIds = Array.isArray(cliente_id) ? cliente_id.map(String) : [String(cliente_id)];
+                // Converter para string para comparar
+                const attrCId = String(attr.cliente_id || '').trim();
+                if (!cIds.includes(attrCId)) pass = false;
+              }
+              if (produto_id) {
+                const pIds = Array.isArray(produto_id) ? produto_id.map(String) : [String(produto_id)];
+                const attrPId = String(attr.produto_id || '').trim();
+                if (!pIds.includes(attrPId)) pass = false;
+              }
+              return pass;
+            });
+          } else {
+            // Tem pendentes mas nenhum linked a atribuição, e filtro de cliente/produto é exigido -> Zerar
+            pendentesFiltrados = [];
+          }
+        }
+
+        pendentesFiltrados.forEach(p => {
+          const inicio = new Date(p.data_inicio).getTime();
+          const fim = p.data_fim ? new Date(p.data_fim).getTime() : Date.now();
+          tempoPendenteMs += Math.max(0, fim - inicio);
+        });
+      }
+      console.log(`✅ [TEMPO-REALIZADO-TOTAL] Tempo pendente calculado: ${tempoPendenteMs}ms`);
+    } catch (errP) {
+      console.error('Erro ao buscar tempo pendente:', errP);
+    }
+
     return res.json({
       success: true,
       data: {
         tempo_realizado_ms: tempoTotalMs,
+        tempo_pendente_ms: tempoPendenteMs,
         registros_count: registrosFiltrados.length
       }
     });

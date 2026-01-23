@@ -19,6 +19,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const isAtribuicaoMini = uiVariant === 'atribuicao-mini';
   const editandoLocalmenteRef = useRef(false);
+  const [showQuickSelect, setShowQuickSelect] = useState(false);
 
   // Formatar data para exibição
   const formatarData = (dataStr) => {
@@ -583,6 +584,78 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
+  const handleQuickSelect = (tipo) => {
+    const hoje = new Date();
+    // Zerar horas para evitar problemas de fuso/comparação
+    hoje.setHours(0, 0, 0, 0);
+
+    let inicio, fim;
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth();
+    const dia = hoje.getDate();
+    const diaSemana = hoje.getDay(); // 0 = Dom, 1 = Seg, ...
+
+    switch (tipo) {
+      case 'hoje':
+        inicio = new Date(hoje);
+        fim = new Date(hoje);
+        break;
+      case 'ontem':
+        inicio = new Date(hoje);
+        inicio.setDate(dia - 1);
+        fim = new Date(inicio);
+        break;
+      case 'semana_atual':
+        // Segunda a Domingo
+        const distSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
+        inicio = new Date(hoje);
+        inicio.setDate(dia - distSegunda);
+        fim = new Date(inicio);
+        fim.setDate(inicio.getDate() + 6);
+        break;
+      case 'semana_passada':
+        // Segunda a Domingo da semana passada
+        const distSegundaPassada = (diaSemana === 0 ? 6 : diaSemana - 1) + 7;
+        inicio = new Date(hoje);
+        inicio.setDate(dia - distSegundaPassada);
+        fim = new Date(inicio);
+        fim.setDate(inicio.getDate() + 6);
+        break;
+      case 'mes_atual':
+        inicio = new Date(ano, mes, 1);
+        fim = new Date(ano, mes + 1, 0);
+        break;
+      case 'mes_passado':
+        inicio = new Date(ano, mes - 1, 1);
+        fim = new Date(ano, mes, 0);
+        break;
+      case 'proximo_mes':
+        inicio = new Date(ano, mes + 1, 1);
+        fim = new Date(ano, mes + 2, 0);
+        break;
+      default:
+        return;
+    }
+
+    const inicioStr = formatDateForInput(inicio);
+    const fimStr = formatDateForInput(fim);
+
+    setLocalInicio(inicioStr);
+    setLocalFim(fimStr);
+    setDatasIndividuaisLocal(new Set());
+    setSelectingStart(false); // Já definiu o período completo
+
+    // Atualizar calendário para mostrar a data de início
+    setCurrentMonth(new Date(inicio.getFullYear(), inicio.getMonth(), 1));
+
+    if (onInicioChange) onInicioChange({ target: { value: inicioStr } });
+    if (onFimChange) onFimChange({ target: { value: fimStr } });
+    if (onDatasIndividuaisChange) onDatasIndividuaisChange([]);
+
+    // Opcional: fechar o menu rápido após seleção? 
+    // Por enquanto deixamos aberto para o usuário ver o que selecionou.
+  };
+
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -771,7 +844,6 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
           </div>
           {isOpen && !disabled && typeof document !== 'undefined' && createPortal(
             <div
-              className="periodo-dropdown"
               ref={dropdownRef}
               onClick={(e) => e.stopPropagation()}
               style={{
@@ -780,223 +852,310 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
                 bottom: dropdownPos.placement === 'top' ? `${dropdownPos.bottom}px` : 'auto',
                 left: `${dropdownPos.left}px`,
                 zIndex: 100000,
-                width: isAtribuicaoMini ? 260 : (size === 'small' ? 320 : Math.max(340, dropdownPos.width)),
-                boxShadow: dropdownPos.placement === 'top'
-                  ? '0 -8px 24px rgba(0,0,0,0.2)'
-                  : '0 8px 24px rgba(0,0,0,0.2)',
-                // Adicionando transição suave para opacidade se desejado, mas mantendo posicionamento firme
+                display: 'flex',
+                alignItems: dropdownPos.placement === 'top' ? 'flex-end' : 'flex-start',
+                gap: '8px'
               }}
             >
-              <div className="periodo-dropdown-content">
-                <div style={{ padding: isAtribuicaoMini ? '8px' : '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '10px') }}>
-                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: size === 'small' ? '12px' : '14px' }}></i>
-                    <span style={{ fontWeight: 600, color: '#111827', fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px') }}>Filtro de período</span>
-                  </div>
+              <div
+                className="periodo-dropdown"
+                style={{
+                  position: 'relative', // Reset position so it flows in flex
+                  width: isAtribuicaoMini ? 260 : (size === 'small' ? 320 : Math.max(340, dropdownPos.width)),
+                  boxShadow: dropdownPos.placement === 'top'
+                    ? '0 -8px 24px rgba(0,0,0,0.2)'
+                    : '0 8px 24px rgba(0,0,0,0.2)',
+                  backgroundColor: '#fff',
+                  borderRadius: '12px', // Ensure rounded corners from CSS are consistent if missing
+                  overflow: 'hidden'
+                }}
+              >
+                <div className="periodo-dropdown-content">
+                  <div style={{ padding: isAtribuicaoMini ? '8px' : '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '10px') }}>
+                      <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: size === 'small' ? '12px' : '14px' }}></i>
+                      <span style={{ fontWeight: 600, color: '#111827', fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'), flex: 1 }}>Filtro de período</span>
 
-                  {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
-                  {!isAtribuicaoMini && (
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={formatarData(localInicio)}
-                          style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
-                        <input
-                          type="text"
-                          readOnly
-                          value={formatarData(localFim)}
-                          style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
-                  {showWeekendToggle && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
-                      <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
-                        Habilitar finais de semana:
-                      </label>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <input
-                          type="checkbox"
-                          id="toggleFinaisSemana"
-                          checked={habilitarFinaisSemana}
-                          onChange={(e) => {
-                            const novoValor = e.target.checked;
-                            setHabilitarFinaisSemana(novoValor);
-                            if (onWeekendToggleChange) {
-                              onWeekendToggleChange(novoValor);
-                            }
-                          }}
-                          style={{
-                            width: isAtribuicaoMini ? '34px' : '44px',
-                            height: isAtribuicaoMini ? '18px' : '24px',
-                            appearance: 'none',
-                            backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                            borderRadius: isAtribuicaoMini ? '10px' : '12px',
-                            position: 'relative',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s',
-                            outline: 'none',
-                            border: 'none'
-                          }}
-                        />
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: isAtribuicaoMini ? '2px' : '2px',
-                            left: habilitarFinaisSemana ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
-                            width: isAtribuicaoMini ? '14px' : '20px',
-                            height: isAtribuicaoMini ? '14px' : '20px',
-                            borderRadius: '50%',
-                            backgroundColor: '#fff',
-                            transition: 'left 0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                            pointerEvents: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
-                  {showHolidayToggle && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
-                      <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
-                        Habilitar feriados:
-                      </label>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <input
-                          type="checkbox"
-                          id="toggleFeriados"
-                          checked={habilitarFeriados}
-                          onChange={(e) => {
-                            const novoValor = e.target.checked;
-                            setHabilitarFeriados(novoValor);
-                            if (onHolidayToggleChange) {
-                              onHolidayToggleChange(novoValor);
-                            }
-                          }}
-                          style={{
-                            width: isAtribuicaoMini ? '34px' : '44px',
-                            height: isAtribuicaoMini ? '18px' : '24px',
-                            appearance: 'none',
-                            backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
-                            borderRadius: isAtribuicaoMini ? '10px' : '12px',
-                            position: 'relative',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s',
-                            outline: 'none',
-                            border: 'none'
-                          }}
-                        />
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: isAtribuicaoMini ? '2px' : '2px',
-                            left: habilitarFeriados ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
-                            width: isAtribuicaoMini ? '14px' : '20px',
-                            height: isAtribuicaoMini ? '14px' : '20px',
-                            borderRadius: '50%',
-                            backgroundColor: '#fff',
-                            transition: 'left 0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                            pointerEvents: 'none'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Texto de ajuda para seleção de dias específicos */}
-                  <div style={{
-                    fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'),
-                    color: '#6b7280',
-                    textAlign: 'center',
-                    marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
-                    marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
-                    padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '4px',
-                    fontStyle: 'italic'
-                  }}>
-                    💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
-                  </div>
-
-                  <div className="periodo-calendar-container">
-                    <div className="periodo-calendar-header">
-                      <button className="periodo-calendar-nav" type="button" onClick={handlePrevMonth}>
-                        <i className="fas fa-chevron-left"></i>
-                      </button>
-                      <span className="periodo-calendar-month-year">{monthYear}</span>
-                      <button className="periodo-calendar-nav" type="button" onClick={handleNextMonth}>
-                        <i className="fas fa-chevron-right"></i>
-                      </button>
-                    </div>
-                    <div className="periodo-calendar-weekdays">
-                      <div>D</div>
-                      <div>S</div>
-                      <div>T</div>
-                      <div>Q</div>
-                      <div>Q</div>
-                      <div>S</div>
-                      <div>S</div>
-                    </div>
-                    <div className="periodo-calendar-days">
-                      {days}
-                    </div>
-                  </div>
-
-                  {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
-                  {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
-                      paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
-                    }}>
                       <button
                         type="button"
-                        onClick={handleLimpar}
+                        onClick={() => setShowQuickSelect(!showQuickSelect)}
+                        title="Seleção Rápida"
                         style={{
+                          border: 'none',
+                          background: showQuickSelect ? '#eff6ff' : 'transparent',
+                          color: showQuickSelect ? '#2563eb' : '#6b7280',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
-                          padding: isAtribuicaoMini ? '4px 12px' : (size === 'small' ? '6px 14px' : '8px 16px'),
-                          fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'),
-                          fontWeight: 500,
-                          color: '#dc2626',
-                          backgroundColor: '#fef2f2',
-                          border: '1px solid #fecaca',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          fontFamily: 'inherit'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#fee2e2';
-                          e.currentTarget.style.borderColor = '#fca5a5';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#fef2f2';
-                          e.currentTarget.style.borderColor = '#fecaca';
+                          justifyContent: 'center',
+                          transition: 'all 0.2s'
                         }}
                       >
-                        <i className="fas fa-times-circle" style={{ fontSize: isAtribuicaoMini ? '12px' : (size === 'small' ? '13px' : '14px') }}></i>
-                        <span>Limpar</span>
+                        <i className="fas fa-magic" style={{ fontSize: '12px' }}></i>
                       </button>
                     </div>
-                  )}
+
+                    {/* Na variante da Nova Atribuição, o período é mostrado no display (compacto) e não precisa desses inputs */}
+                    {!isAtribuicaoMini && (
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: size === 'small' ? '8px' : '10px', maxWidth: size === 'small' ? '220px' : '240px', marginLeft: 'auto', marginRight: 'auto' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Início</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={formatarData(localInicio)}
+                            style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', fontSize: size === 'small' ? '10px' : '11px', color: '#6c757d', fontWeight: 500, marginBottom: '4px' }}>Vencimento</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={formatarData(localFim)}
+                            style={{ width: '100%', padding: size === 'small' ? '4px 8px' : '6px 10px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: size === 'small' ? '12px' : '14px', fontFamily: 'inherit', background: '#f9fafb', cursor: 'pointer', color: '#495057' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Toggle para habilitar finais de semana - apenas se showWeekendToggle for true */}
+                    {showWeekendToggle && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                        <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                          Habilitar finais de semana:
+                        </label>
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <input
+                            type="checkbox"
+                            id="toggleFinaisSemana"
+                            checked={habilitarFinaisSemana}
+                            onChange={(e) => {
+                              const novoValor = e.target.checked;
+                              setHabilitarFinaisSemana(novoValor);
+                              if (onWeekendToggleChange) {
+                                onWeekendToggleChange(novoValor);
+                              }
+                            }}
+                            style={{
+                              width: isAtribuicaoMini ? '34px' : '44px',
+                              height: isAtribuicaoMini ? '18px' : '24px',
+                              appearance: 'none',
+                              backgroundColor: habilitarFinaisSemana ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                              borderRadius: isAtribuicaoMini ? '10px' : '12px',
+                              position: 'relative',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s',
+                              outline: 'none',
+                              border: 'none'
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: isAtribuicaoMini ? '2px' : '2px',
+                              left: habilitarFinaisSemana ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                              width: isAtribuicaoMini ? '14px' : '20px',
+                              height: isAtribuicaoMini ? '14px' : '20px',
+                              borderRadius: '50%',
+                              backgroundColor: '#fff',
+                              transition: 'left 0.2s',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              pointerEvents: 'none'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Toggle para habilitar feriados - apenas se showHolidayToggle for true */}
+                    {showHolidayToggle && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isAtribuicaoMini ? 'flex-start' : 'center', gap: isAtribuicaoMini ? '6px' : '8px', marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '8px' : '10px') }}>
+                        <label style={{ fontSize: isAtribuicaoMini ? '10px' : (size === 'small' ? '11px' : '12px'), fontWeight: '500', color: '#374151', whiteSpace: 'nowrap' }}>
+                          Habilitar feriados:
+                        </label>
+                        <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <input
+                            type="checkbox"
+                            id="toggleFeriados"
+                            checked={habilitarFeriados}
+                            onChange={(e) => {
+                              const novoValor = e.target.checked;
+                              setHabilitarFeriados(novoValor);
+                              if (onHolidayToggleChange) {
+                                onHolidayToggleChange(novoValor);
+                              }
+                            }}
+                            style={{
+                              width: isAtribuicaoMini ? '34px' : '44px',
+                              height: isAtribuicaoMini ? '18px' : '24px',
+                              appearance: 'none',
+                              backgroundColor: habilitarFeriados ? 'var(--primary-blue, #0e3b6f)' : '#cbd5e1',
+                              borderRadius: isAtribuicaoMini ? '10px' : '12px',
+                              position: 'relative',
+                              cursor: 'pointer',
+                              transition: 'background-color 0.2s',
+                              outline: 'none',
+                              border: 'none'
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: isAtribuicaoMini ? '2px' : '2px',
+                              left: habilitarFeriados ? (isAtribuicaoMini ? '18px' : '22px') : '2px',
+                              width: isAtribuicaoMini ? '14px' : '20px',
+                              height: isAtribuicaoMini ? '14px' : '20px',
+                              borderRadius: '50%',
+                              backgroundColor: '#fff',
+                              transition: 'left 0.2s',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              pointerEvents: 'none'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Texto de ajuda para seleção de dias específicos */}
+                    <div style={{
+                      fontSize: isAtribuicaoMini ? '9px' : (size === 'small' ? '10px' : '11px'),
+                      color: '#6b7280',
+                      textAlign: 'center',
+                      marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                      marginBottom: isAtribuicaoMini ? '4px' : (size === 'small' ? '6px' : '8px'),
+                      padding: isAtribuicaoMini ? '4px 8px' : (size === 'small' ? '6px 10px' : '8px 12px'),
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '4px',
+                      fontStyle: 'italic'
+                    }}>
+                      💡 Clique segurando <strong>Ctrl</strong> para selecionar dias específicos.
+                    </div>
+
+                    <div className="periodo-calendar-container">
+                      <div className="periodo-calendar-header">
+                        <button className="periodo-calendar-nav" type="button" onClick={handlePrevMonth}>
+                          <i className="fas fa-chevron-left"></i>
+                        </button>
+                        <span className="periodo-calendar-month-year">{monthYear}</span>
+                        <button className="periodo-calendar-nav" type="button" onClick={handleNextMonth}>
+                          <i className="fas fa-chevron-right"></i>
+                        </button>
+                      </div>
+                      <div className="periodo-calendar-weekdays">
+                        <div>D</div>
+                        <div>S</div>
+                        <div>T</div>
+                        <div>Q</div>
+                        <div>Q</div>
+                        <div>S</div>
+                        <div>S</div>
+                      </div>
+                      <div className="periodo-calendar-days">
+                        {days}
+                      </div>
+                    </div>
+
+                    {/* Botão Limpar - abaixo do calendário, alinhado à direita */}
+                    {(localInicio || localFim || datasIndividuaisLocal.size > 0) && (
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        marginTop: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px'),
+                        paddingRight: isAtribuicaoMini ? '4px' : (size === 'small' ? '4px' : '6px')
+                      }}>
+                        <button
+                          type="button"
+                          onClick={handleLimpar}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: isAtribuicaoMini ? '4px 12px' : (size === 'small' ? '6px 14px' : '8px 16px'),
+                            fontSize: isAtribuicaoMini ? '11px' : (size === 'small' ? '12px' : '13px'),
+                            fontWeight: 500,
+                            color: '#dc2626',
+                            backgroundColor: '#fef2f2',
+                            border: '1px solid #fecaca',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            fontFamily: 'inherit'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fee2e2';
+                            e.currentTarget.style.borderColor = '#fca5a5';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fef2f2';
+                            e.currentTarget.style.borderColor = '#fecaca';
+                          }}
+                        >
+                          <i className="fas fa-times-circle" style={{ fontSize: isAtribuicaoMini ? '12px' : (size === 'small' ? '13px' : '14px') }}></i>
+                          <span>Limpar</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Card Secundário - Seleção Rápida */}
+              {showQuickSelect && (
+                <div style={{
+                  width: '140px',
+                  backgroundColor: '#fff',
+                  borderRadius: '12px',
+                  boxShadow: dropdownPos.placement === 'top'
+                    ? '0 -8px 24px rgba(0,0,0,0.2)'
+                    : '0 8px 24px rgba(0,0,0,0.2)',
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  maxHeight: '380px', // Altura similar ao calendário
+                  overflowY: 'auto'
+                }}>
+                  <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
+                    Agrupamento
+                  </div>
+                  {[
+                    { label: 'Hoje', id: 'hoje' },
+                    { label: 'Ontem', id: 'ontem' },
+                    { label: 'Semana Atual', id: 'semana_atual' },
+                    { label: 'Semana Passada', id: 'semana_passada' },
+                    { label: 'Mês Atual', id: 'mes_atual' },
+                    { label: 'Mês Passado', id: 'mes_passado' },
+                    { label: 'Próximo Mês', id: 'proximo_mes' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleQuickSelect(opt.id)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: '#374151',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'background-color 0.15s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <i className="far fa-calendar-check" style={{ fontSize: '10px', color: '#9ca3af' }}></i>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>,
             document.body
           )}

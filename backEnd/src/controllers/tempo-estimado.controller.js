@@ -3098,10 +3098,52 @@ async function getTempoRealizadoComFiltros(req, res) {
 
     console.log(`📊 [TEMPO-REALIZADO-FILTROS] Processados ${registrosFiltrados.length} registro(s): ${registrosComTempoRealizado} com tempo_realizado, ${registrosCalculadosDeDatas} calculados de datas`);
 
+    // --- BUSCAR TEMPO PENDENTE (Plug Rápido / Em Andamento) ---
+    // Buscar registros na tabela registro_tempo_pendente que coincidam com o filtro
+    let tempoTotalPendente = 0;
+    try {
+      let queryPendentes = supabase
+        .schema('up_gestaointeligente')
+        .from('registro_tempo_pendente')
+        .select('data_inicio, data_fim, usuario_id, tarefa_id, status');
+
+      // Filtros básicos
+      queryPendentes = queryPendentes.eq('usuario_id', usuarioId);
+
+      // Filtro de período (mesma lógica OR)
+      const orConditionsPendentes = [
+        `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
+        `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`,
+        `and(data_inicio.lte.${inicioStr},data_fim.gte.${fimStr})`,
+        `and(data_inicio.lte.${fimStr},data_fim.is.null)`
+      ].join(',');
+      queryPendentes = queryPendentes.or(orConditionsPendentes);
+
+      if (tarefa_id) {
+        const tIds = Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id];
+        queryPendentes = queryPendentes.in('tarefa_id', tIds.map(String));
+      }
+
+      const { data: pendentes } = await queryPendentes;
+
+      if (pendentes) {
+        pendentes.forEach(p => {
+          const inicio = new Date(p.data_inicio).getTime();
+          const fim = p.data_fim ? new Date(p.data_fim).getTime() : Date.now();
+          tempoTotalPendente += Math.max(0, fim - inicio);
+        });
+        console.log(`📊 [TEMPO-REALIZADO-FILTROS] Tempo pendente encontrado: ${tempoTotalPendente}ms (${pendentes.length} registros)`);
+      }
+    } catch (errPendente) {
+      console.error('❌ Erro ao buscar tempo pendente:', errPendente);
+    }
+
     // Criar chave única para o responsável/período
-    // Usar informações do primeiro registro como referência
+    // Usar informações do primeiro registro MOSTRADO (Realizado) como referência
     const primeiroReg = registrosFiltrados[0];
-    if (!primeiroReg) {
+
+    // Se não tiver realizado nem pendente, retorna vazio
+    if (!primeiroReg && tempoTotalPendente === 0) {
       return res.json({
         success: true,
         data: {},
@@ -3109,37 +3151,62 @@ async function getTempoRealizadoComFiltros(req, res) {
       });
     }
 
-    const responsavelIdDoRegistro = membrosMap.get(primeiroReg.usuario_id);
-    if (!responsavelIdDoRegistro) {
-      console.warn(`⚠️ [TEMPO-REALIZADO-FILTROS] Não encontrado responsavel_id para usuario_id ${primeiroReg.usuario_id}`);
-      return res.json({
-        success: true,
-        data: {},
-        count: 0
-      });
-    }
-
-    const responsavelId = parseInt(String(responsavelIdDoRegistro).trim(), 10);
-    const tarefaId = String(primeiroReg.tarefa_id || '').trim();
-    const clienteId = String(primeiroReg.cliente_id || '').trim();
-    const tempoEstimadoId = String(primeiroReg.tempo_estimado_id || '').trim();
-
-    // Criar chave no formato esperado pelo frontend
     let chave;
-    if (tempoEstimadoId) {
-      chave = `${tarefaId}_${responsavelId}_${clienteId}_${tempoEstimadoId}`;
-    } else {
-      const dataStr = primeiroReg.data_inicio ? new Date(primeiroReg.data_inicio).toISOString().split('T')[0] : null;
-      if (dataStr) {
-        chave = `${tarefaId}_${responsavelId}_${clienteId}_${dataStr}`;
+
+    if (primeiroReg) {
+      const responsavelIdDoRegistro = membrosMap.get(primeiroReg.usuario_id);
+      const rId = responsavelIdDoRegistro ? parseInt(String(responsavelIdDoRegistro).trim(), 10) : parseInt(String(responsavel_id).trim(), 10);
+      const tId = String(primeiroReg.tarefa_id || '').trim();
+      const cId = String(primeiroReg.cliente_id || '').trim();
+      const teId = String(primeiroReg.tempo_estimado_id || '').trim();
+
+      if (teId) {
+        chave = `${tId}_${rId}_${cId}_${teId}`;
       } else {
-        chave = `${responsavelId}_${dataInicioFiltro.toISOString().split('T')[0]}_${dataFimFiltro.toISOString().split('T')[0]}`;
+        const dataStr = primeiroReg.data_inicio ? new Date(primeiroReg.data_inicio).toISOString().split('T')[0] : null;
+        if (dataStr) {
+          // Formato fallback compatível
+          chave = `${tId}_${rId}_${cId}_${dataStr}`;
+        } else {
+          chave = `${rId}_periodo`;
+        }
+      }
+    } else {
+      // Se só tem pendente, precisamos construir a chave baseada nos filtros (Request)
+      // Isso é crítico para o frontend conseguir mapear
+      // O frontend espera chave baseada no tempo_estimado se possível.
+      // Se não, usa tarefa/responsavel/cliente/data.
+
+      // Tentativa de reconstrução da chave
+      const rId = parseInt(String(responsavel_id).trim(), 10);
+      // Se temos tarefa_id no filtro, usamos.
+      const tId = tarefa_id ? (Array.isArray(tarefa_id) ? String(tarefa_id[0]) : String(tarefa_id)) : '';
+      const cId = cliente_id ? (Array.isArray(cliente_id) ? String(cliente_id[0]) : String(cliente_id)) : '';
+
+      // Se não temos tempo_estimado_id (pois é pendente e não realizado vinculado), usamos data?
+      // Vamos usar uma chave que o frontend possa aceitar ou que pelo menos não quebre.
+      // Se o frontend itera pelos estimados e busca no mapa, a chave TEM que bater com o estimado.
+      // Problema: Pendente não tem `tempo_estimado_id`.
+      // Se o usuário está vendo a tabela de tarefas, ele tem Estimativas.
+      // O frontend gera a chave para lookup: `${tarefa.id}_${responsavel.id}_${cliente.id}_${tarefa.tempo_estimado_id}`
+      // Se o pendente pertencer a essa tarefa, devemos somar lá.
+
+      // LIMITAÇÃO: Se houver múltiplas estimativas para a mesma tarefa, não sabemos qual pendente pertence a qual.
+      // Solução parcial: Retornar uma chave simplificada também ou esperar que o frontend busque por tarefa?
+      // Neste endpoint, retornamos um MAP.
+
+      // Se só tem pendente, retornamos com chave de tarefa se possível.
+      if (tId) {
+        chave = `${tId}_${rId}_${cId}_PENDENTE`;
+      } else {
+        chave = `${rId}_PENDENTE`;
       }
     }
 
     const tempoRealizadoMap = new Map();
     tempoRealizadoMap.set(chave, {
       tempo_realizado: tempoTotalRealizado,
+      tempo_pendente: tempoTotalPendente,
       quantidade_registros: registrosFiltrados.length
     });
 
@@ -3147,19 +3214,13 @@ async function getTempoRealizadoComFiltros(req, res) {
     let tempoTotal = 0;
     let chavesComTempo = 0;
     tempoRealizadoMap.forEach((item) => {
-      const tempo = item.tempo_realizado || 0;
+      const tempo = (item.tempo_realizado || 0) + (item.tempo_pendente || 0);
       tempoTotal += tempo;
       if (tempo > 0) {
         chavesComTempo++;
       }
     });
     console.log(`✅ [TEMPO-REALIZADO-FILTROS] Resultado: ${tempoRealizadoMap.size} chave(s), ${chavesComTempo} com tempo > 0, tempo total: ${(tempoTotal / 1000).toFixed(2)}s`);
-    if (Math.abs(tempoTotal - tempoTotalAntesAgrupamento) > 100) {
-      console.warn(`⚠️ [TEMPO-REALIZADO-FILTROS] Diferença detectada! Antes: ${(tempoTotalAntesAgrupamento / 1000).toFixed(2)}s, Depois: ${(tempoTotal / 1000).toFixed(2)}s`);
-    }
-    if (chavesComTempo === 0 && tempoRealizadoMap.size > 0) {
-      console.warn(`⚠️ [TEMPO-REALIZADO-FILTROS] Nenhuma chave tem tempo > 0!`);
-    }
 
     return res.json({
       success: true,

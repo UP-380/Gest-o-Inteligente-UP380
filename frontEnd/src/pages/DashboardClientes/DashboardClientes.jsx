@@ -757,66 +757,28 @@ const RelatoriosClientes = () => {
     let left = '50%';
     let top = '50%';
 
-    // Preparar dados hierárquicos para o DetailSideCard
-    // O DetailSideCard com tipo='clientes' espera: dados.registros = [ { ...cliente, tarefas: [ { ...tarefa, registros: [...] } ] } ]
-
-    const registrosFiltrados = dadosFiltrados.registros || [];
-    const tarefasMap = {};
-
-    registrosFiltrados.forEach(reg => {
-      // Garantir que responsavel_id esteja preenchido
-      // O DetailSideCard depende disso para buscar o tempo realizado
-      if (!reg.responsavel_id) {
-        if (reg.membro && reg.membro.id) {
-          reg.responsavel_id = reg.membro.id;
-        } else if (reg.usuario_id) {
-          // Tentar encontrar o membro correspondente ao usuario_id
-          // todosColaboradores contém a lista completa de membros
-          const colaborador = todosColaboradores.find(c =>
-            String(c.usuario_id) === String(reg.usuario_id) ||
-            String(c.id) === String(reg.usuario_id) // Fallback caso usuario_id seja na vdd o id do membro
-          );
-          if (colaborador) {
-            reg.responsavel_id = colaborador.id;
-          } else {
-            // Último caso: usar usuario_id como responsavel_id (se o backend souber lidar)
-            reg.responsavel_id = reg.usuario_id;
+    // Garantir que todos os registros tenham responsavel_id preenchido
+    // O DetailSideCard depende disso para buscar o tempo realizado
+    if (dadosFiltrados.registros && Array.isArray(dadosFiltrados.registros)) {
+      dadosFiltrados.registros.forEach(reg => {
+        if (!reg.responsavel_id) {
+          if (reg.membro && reg.membro.id) {
+            reg.responsavel_id = reg.membro.id;
+          } else if (reg.usuario_id) {
+            // Tentar encontrar o membro correspondente ao usuario_id
+            const colaborador = todosColaboradores.find(c =>
+              String(c.usuario_id) === String(reg.usuario_id) ||
+              String(c.id) === String(reg.usuario_id)
+            );
+            if (colaborador) {
+              reg.responsavel_id = colaborador.id;
+            } else {
+              reg.responsavel_id = reg.usuario_id;
+            }
           }
         }
-      }
-
-      // Agrupar por tarefa
-      // Usar tarefa_id ou criar um ID virtual se não tiver tarefa
-      if (reg.tarefa || reg.tarefa_id) {
-        const tarefaId = reg.tarefa?.id ? String(reg.tarefa.id).trim() : String(reg.tarefa_id).trim();
-
-        if (!tarefasMap[tarefaId]) {
-          tarefasMap[tarefaId] = {
-            id: tarefaId,
-            // Priorizar dados do objeto tarefa, fallback para dados soltos no registro se existirem
-            nome: reg.tarefa?.nome || reg.tarefa_nome || 'Tarefa sem nome',
-            produto: reg.tarefa?.produto || null,
-            registros: []
-          };
-        }
-        tarefasMap[tarefaId].registros.push(reg);
-      }
-    });
-
-    const listaTarefas = Object.values(tarefasMap);
-
-    // Estrutura que simula uma lista de clientes contendo o cliente atual e suas tarefas populadas
-    const dadosParaModal = {
-      registros: [
-        {
-          ...dadosFiltrados.cliente, // Dados do cliente
-          id: clienteId, // Garantir ID
-          tarefas: listaTarefas, // Tarefas com seus registros
-          contratos: dadosFiltrados.contratos,
-          tempoPorColaborador: dadosFiltrados.tempoPorColaborador
-        }
-      ]
-    };
+      });
+    }
 
     if (event && event.target) {
       const triggerElement = event.target;
@@ -863,11 +825,11 @@ const RelatoriosClientes = () => {
 
     setDetailCardPosition({ top, left });
     setDetailCard({
-      id: clienteId,
-      tipo: 'clientes', // Forçar tipo 'clientes' pois agora estamos passando a estrutura correta para este tipo
-      dados: dadosParaModal
+      clienteId: clienteId,
+      tipo: tipo, // Usar o tipo passado (contratos, tarefas, produtos, etc.)
+      dados: dadosFiltrados // Passar os dados filtrados diretamente
     });
-  }, [filtroCliente]);
+  }, [filtroCliente, todosColaboradores]);
 
   // Fechar card lateral
   const handleCloseDetail = useCallback(() => {

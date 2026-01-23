@@ -51,7 +51,8 @@ const TimerAtivo = () => {
           setRegistroAtivo(registro);
 
           // Buscar informações completas da tarefa e cliente
-          if (registro.tarefa_id) {
+          // (Alterado: Buscar mesmo se não tiver tarefa_id, para pegar nome do cliente e usar observação)
+          if (registro.tarefa_id || registro.cliente_id || registro.is_pendente) {
             buscarInformacoesTarefa(registro);
           }
 
@@ -101,11 +102,20 @@ const TimerAtivo = () => {
               if (tarefaData) {
                 setTarefaNome(tarefaData || 'Tarefa');
               }
+            } else {
+              // Fallback se não encontrar a tarefa pelo ID
+              setTarefaNome('Tarefa não encontrada');
             }
           }
         } catch (error) {
           console.warn('[TimerAtivo] Erro ao buscar nome da tarefa:', error);
+          setTarefaNome('Erro ao buscar tarefa');
         }
+      } else if (registro.is_pendente && registro.observacao) {
+        // Se for pendente e não tiver tarefa, usar a observação (comentário)
+        setTarefaNome(registro.observacao);
+      } else {
+        setTarefaNome('Sem Tarefa Definida');
       }
 
       // Buscar nome do cliente
@@ -1075,7 +1085,9 @@ const TimerAtivo = () => {
               <span className="timer-dropdown-title">Rastreamento de Tempo</span>
             </div>
             <div className="timer-dropdown-tarefa-ativa">
-              <div className="timer-dropdown-tarefa-nome">{tarefaNome || 'Tarefa'}</div>
+              <div className="timer-dropdown-tarefa-nome" title={tarefaNome || 'Tarefa'}>
+                {tarefaNome && tarefaNome.length > 40 ? tarefaNome.substring(0, 40) + '...' : (tarefaNome || 'Tarefa')}
+              </div>
               {clienteNome && (
                 <div className="timer-dropdown-cliente-nome-inline">{clienteNome}</div>
               )}

@@ -22,7 +22,7 @@ const ClienteTempoRealizado = ({
 
   return (
     <span className={className}>
-      <i className="fas fa-stopwatch painel-usuario-realizado-icon-inline" style={{ marginRight: '4px' }}></i>
+      <i className="fas fa-play-circle painel-usuario-realizado-icon-inline"></i>
       {tempoRealizadoFormatado}
       {modoQuadro && <div className="filter-tooltip">Tempo realizado</div>}
     </span>

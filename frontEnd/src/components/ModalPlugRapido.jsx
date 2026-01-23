@@ -151,6 +151,11 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
 
             if (json.success) {
                 showToast('success', 'Solicitação de atribuição enviada com sucesso!');
+
+                if (formData.iniciar_timer) {
+                    window.dispatchEvent(new CustomEvent('registro-tempo-iniciado'));
+                }
+
                 if (onSuccess) onSuccess();
                 onClose();
             } else {

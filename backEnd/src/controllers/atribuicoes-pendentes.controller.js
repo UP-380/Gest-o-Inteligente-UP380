@@ -82,6 +82,53 @@ async function criarAtribuicaoPendente(req, res) {
             .maybeSingle();
 
         if (existente) {
+            // Se já existe e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
+            if (iniciar_timer) {
+                const { data: registroAh, error: erroAh } = await supabase
+                    .schema('up_gestaointeligente')
+                    .from('registro_tempo_pendente')
+                    .select('id')
+                    .eq('atribuicao_pendente_id', existente.id)
+                    .is('data_fim', null)
+                    .maybeSingle();
+
+                if (!registroAh) {
+                    console.log('🔄 [Plug Rápido] Recuperando solicitação existente: Iniciando timer pendente...');
+
+                    // Tentar iniciar o timer para a atribuição existente
+                    const { data: novoTimer, error: erroTimer } = await supabase
+                        .schema('up_gestaointeligente')
+                        .from('registro_tempo_pendente')
+                        .insert({
+                            atribuicao_pendente_id: existente.id,
+                            usuario_id,
+                            tarefa_id: tarefa_id || null, // Importante: null se não definido
+                            data_inicio: new Date().toISOString(),
+                            status: 'PENDENTE'
+                        })
+                        .select()
+                        .single();
+
+                    if (erroTimer) {
+                        console.error('❌ Erro ao recuperar timer:', erroTimer);
+                        // Se falhar (ex: constraint de banco), retorna erro para o usuário saber
+                        return res.status(400).json({
+                            success: false,
+                            error: 'Erro ao iniciar cronômetro. Verifique se a tarefa é obrigatória no banco de dados.'
+                        });
+                    }
+
+                    return res.status(201).json({
+                        success: true,
+                        data: {
+                            atribuicao: existente,
+                            registroTempo: novoTimer
+                        },
+                        message: 'Cronômetro iniciado para a solicitação existente.'
+                    });
+                }
+            }
+
             return res.status(400).json({
                 success: false,
                 error: 'Você já possui uma solicitação pendente idêntica para esta tarefa e período.'

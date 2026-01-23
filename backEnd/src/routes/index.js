@@ -220,6 +220,7 @@ router.post('/api/registro-tempo/realizado-total', requireAuth, registroTempoCon
 router.get('/api/registro-tempo/por-tempo-estimado', requireAuth, registroTempoController.getRegistrosPorTempoEstimado);
 router.get('/api/registro-tempo/historico', requireAuth, registroTempoController.getHistoricoRegistros);
 router.get('/api/registro-tempo/debug/sem-tarefa', requireAuth, registroTempoController.getRegistrosSemTarefa);
+router.get('/api/registro-tempo-sem-tarefa', requireAuth, registroTempoController.getRegistrosSemTarefa); // Rota exigida pelo frontEnd
 // Rota genérica consolidada (deve vir depois das específicas)
 router.get('/api/registro-tempo', requireAuth, registroTempoController.getRegistrosTempo);
 router.put('/api/registro-tempo/:id', requireAuth, registroTempoController.atualizarRegistroTempo);
