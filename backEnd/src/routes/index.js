@@ -40,7 +40,18 @@ const notificacoesController = require('../controllers/notificacoes.controller')
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
-apiClientes.registrarRotasAPI(router, requireAuth);
+// Rotas migradas de api-clientes.js para centralização (Visibilidade e Padronização)
+apiClientes.registrarRotasAPI = null; // Desativar registro automático duplicado se houver
+router.get('/api/cp_clientes-id-nome', requireAuth, apiClientes.getcp_clientesIdNome);
+router.get('/api/membros-id-nome', requireAuth, apiClientes.getMembrosIdNome);
+router.get('/api/membros-id-nome-todos', requireAuth, apiClientes.getMembrosIdNomeTodos);
+router.get('/api/status', requireAuth, apiClientes.getStatusEndpoint);
+router.get('/api/contratos', requireAuth, apiClientes.getContratosEndpoint);
+router.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth, apiClientes.getContratosClienteEndpoint);
+router.get('/api/contratos-cliente-id/:idCliente', requireAuth, apiClientes.getContratosClienteIdEndpoint);
+router.get('/api/tarefas/:clienteId', requireAuth, apiClientes.getTarefasEndpoint);
+router.get('/api/v_custo_hora_membro', requireAuth, apiClientes.getCustoHoraMembro);
+router.get('/api/faturamento', requireAuth, apiClientes.getFaturamento);
 
 // Rotas de autenticação
 router.post('/api/login', authController.login);
@@ -145,6 +156,7 @@ router.delete('/api/atividades/:id', requireAuth, atividadesController.deletarAt
 
 // Rotas de Produtos (CRUD completo)
 router.get('/api/produtos', requireAuth, produtosController.getProdutos);
+// Alias para compatibilidade (mesmo controller inteligente)
 router.get('/api/produtos-por-ids-numericos', requireAuth, produtosController.getProdutosPorIds);
 router.get('/api/produtos/:id', requireAuth, produtosController.getProdutoPorId);
 router.post('/api/produtos', requireAuth, produtosController.criarProduto);
@@ -248,6 +260,7 @@ router.put('/api/sistemas/:id', requireAuth, sistemaController.atualizarSistema)
 router.delete('/api/sistemas/:id', requireAuth, sistemaController.deletarSistema);
 
 // Rotas de Tarefa (cp_tarefa) (CRUD completo)
+router.get('/api/tarefas', requireAuth, tarefaController.getTarefas); // Alias plural (padrão REST)
 router.get('/api/tarefa', requireAuth, tarefaController.getTarefas);
 router.get('/api/tarefa/:id', requireAuth, tarefaController.getTarefaPorId);
 router.post('/api/tarefa', requireAuth, tarefaController.criarTarefa);

@@ -1388,27 +1388,22 @@ async function getProdutos(req, res) {
 
 //===================== REGISTRO DE ROTAS HTTP =====================
 // Função para registrar todas as rotas em um app Express
+// Função para registrar todas as rotas em um app Express
 function registrarRotasAPI(app, requireAuth = null) {
-  // Endpoints de ID/Nome (com autenticação se disponível)
+  console.warn('⚠️ [DEPRECATION] registrarRotasAPI em api-clientes.js foi descontinuado. As rotas agora estão centralizadas em ./routes/index.js');
+  // As rotas abaixo foram migradas para o arquivo principal de rotas
+  /*
   app.get('/api/cp_clientes-id-nome', requireAuth ? requireAuth : (_req, _res, next) => next(), getcp_clientesIdNome);
   app.get('/api/membros-id-nome', requireAuth ? requireAuth : (_req, _res, next) => next(), getMembrosIdNome);
   app.get('/api/membros-id-nome-todos', requireAuth ? requireAuth : (_req, _res, next) => next(), getMembrosIdNomeTodos);
-
-  // Endpoints do Dashboard Clientes (com autenticação se disponível)
-  // IMPORTANTE: Estes endpoints são usados pelo Dashboard Clientes React e HTML
-  // REMOVIDO: app.get('/api/clientes', ...) - Agora usando o controller completo em clientes.controller.js
-  // app.get('/api/clientes', requireAuth ? requireAuth : (_req,_res,next)=>next(), getClientesEndpoint);
   app.get('/api/status', requireAuth ? requireAuth : (_req, _res, next) => next(), getStatusEndpoint);
   app.get('/api/contratos', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosEndpoint);
   app.get('/api/contratos-cliente/:nomeClienteClickup', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosClienteEndpoint);
   app.get('/api/contratos-cliente-id/:idCliente', requireAuth ? requireAuth : (_req, _res, next) => next(), getContratosClienteIdEndpoint);
   app.get('/api/tarefas/:clienteId', requireAuth ? requireAuth : (_req, _res, next) => next(), getTarefasEndpoint);
-  // REMOVIDO: /api/registro-tempo - Consolidado no registro-tempo.controller.js
-  // REMOVIDO: /api/registro-tempo-sem-tarefa - Movido para /api/registro-tempo/debug/sem-tarefa
-
-  // Endpoints outros (com autenticação se disponível)
   app.get('/api/v_custo_hora_membro', requireAuth ? requireAuth : (_req, _res, next) => next(), getCustoHoraMembro);
   app.get('/api/faturamento', requireAuth ? requireAuth : (_req, _res, next) => next(), getFaturamento);
+  */
 }
 
 // Auto-registro se app estiver disponível (compatibilidade com node.js principal)
@@ -1446,6 +1441,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getRegistrosTempo,
     getcp_clientesIdNome,
     getMembrosIdNome,
+    getMembrosIdNomeTodos,
     getCustoHoraMembro,
     getFaturamento,
     // Função de registro
