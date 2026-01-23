@@ -725,10 +725,22 @@ export const produtosAPI = {
    * Busca produtos por IDs
    * @param {string|string[]} ids - ID(s) do(s) produto(s)
    */
+  /**
+   * Busca produtos por IDs
+   * @param {string|string[]} ids - ID(s) do(s) produto(s)
+   */
   async getByIds(ids) {
     const idsArray = Array.isArray(ids) ? ids : [ids];
     const idsParam = idsArray.join(',');
     return await request(`${API_BASE_URL}/produtos-por-ids?ids=${encodeURIComponent(idsParam)}`);
+  },
+
+  /**
+   * Busca um produto por ID
+   * @param {string} id - ID do produto
+   */
+  async getById(id) {
+    return await request(`${API_BASE_URL}/produtos/${id}`);
   }
 };
 

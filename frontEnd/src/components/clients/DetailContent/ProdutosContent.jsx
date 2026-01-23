@@ -30,29 +30,31 @@ const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
         return;
       }
 
-      // Buscar nomes dos produtos usando clickup_id
+      // Buscar nomes dos produtos usando getById individual para garantir compatibilidade
       try {
         const clickupIds = Array.from(clickupIdsSet);
-        const result = await produtosAPI.getByIds(clickupIds);
-        
-        if (result.success && result.data) {
-          // Criar array de produtos com clickup_id e nome
-          const produtosArray = clickupIds.map(clickupId => ({
-            clickup_id: clickupId,
-            nome: result.data[clickupId] || `Produto #${clickupId}`
-          }));
-          setProdutos(produtosArray);
-        } else {
-          // Se não encontrou nomes, usar apenas os IDs
-          const produtosArray = clickupIds.map(clickupId => ({
-            clickup_id: clickupId,
-            nome: `Produto #${clickupId}`
-          }));
-          setProdutos(produtosArray);
-        }
+
+        // Executar buscas em paralelo
+        const responses = await Promise.all(
+          clickupIds.map(id =>
+            produtosAPI.getById(id)
+              .then(res => ({ id, res }))
+              .catch(err => ({ id, err, res: { success: false } }))
+          )
+        );
+
+        const produtosArray = responses.map(({ id, res }) => {
+          let nome = `Produto #${id}`;
+          if (res.success && res.data && res.data.nome) {
+            nome = res.data.nome;
+          }
+          return { clickup_id: id, nome };
+        });
+
+        setProdutos(produtosArray);
       } catch (error) {
         console.error('Erro ao buscar nomes dos produtos:', error);
-        // Em caso de erro, usar apenas os IDs
+        // Em caso de erro crítico, usar apenas os IDs
         const clickupIds = Array.from(clickupIdsSet);
         const produtosArray = clickupIds.map(clickupId => ({
           clickup_id: clickupId,

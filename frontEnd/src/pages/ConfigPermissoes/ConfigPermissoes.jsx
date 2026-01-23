@@ -11,16 +11,28 @@ import './ConfigPermissoes.css';
 const API_BASE_URL = '/api';
 
 // Mapeamento de páginas principais e suas subpáginas relacionadas
+// Mapeamento de páginas principais e suas subpáginas relacionadas
 const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
-  '/cadastro/clientes': ['/cadastro/cliente'],
+  '/cadastro/clientes': ['/cadastro/cliente', '/cadastro/contato-cliente'],
   '/cadastro/produtos': ['/cadastro/produto'],
   '/cadastro/tarefas': ['/cadastro/tarefa'],
+  '/cadastro/subtarefas': ['/cadastro/subtarefa'],
   '/cadastro/tipo-tarefas': ['/cadastro/tipo-tarefa'],
   '/cadastro/bancos': ['/cadastro/banco'],
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
-  '/atribuir-responsaveis': ['/atribuicao/cliente', '/atribuicao/nova'],
-  '/base-conhecimento/conteudos-clientes': ['/base-conhecimento/cliente'],
+  '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
+  '/atribuir-responsaveis': [
+    '/atribuicao/cliente',
+    '/atribuicao/nova',
+    '/atribuir-responsaveis/historico',
+    '/aprovacoes-pendentes',
+    '/atribuicoes/pendentes/aprovacao'
+  ],
+  '/base-conhecimento': [
+    '/base-conhecimento/conteudos-clientes',
+    '/base-conhecimento/cliente'
+  ],
 };
 
 // Mapeamento de ícones para cada categoria
@@ -37,44 +49,46 @@ const ICONES_CATEGORIAS = {
 const TODAS_PAGINAS = [
   // Painéis
   { path: '/painel-colaborador', label: 'Minhas Tarefas', categoria: 'Painéis' },
-  
+  { path: '/notificacoes', label: 'Notificações', categoria: 'Painéis' },
+
   // Relatórios
   { path: '/relatorios-clientes', label: 'Relatórios de Clientes', categoria: 'Relatórios' },
   { path: '/relatorios-colaboradores', label: 'Relatórios de Colaboradores', categoria: 'Relatórios' },
   { path: '/planilha-horas', label: 'Planilha de Horas', categoria: 'Relatórios' },
-  
+
   // Cadastros
-  { path: '/cadastro/clientes', label: 'Cadastro de Clientes', categoria: 'Cadastros' },
-  { path: '/cadastro/colaboradores', label: 'Cadastro de Colaboradores', categoria: 'Cadastros' },
-  { path: '/cadastro/produtos', label: 'Cadastro de Produtos', categoria: 'Cadastros' },
-  { path: '/cadastro/tarefas', label: 'Cadastro de Tarefas', categoria: 'Cadastros' },
-  { path: '/cadastro/tipo-tarefas', label: 'Cadastro de Tipo de Tarefas', categoria: 'Cadastros' },
-  { path: '/cadastro/bancos', label: 'Cadastro de Bancos', categoria: 'Cadastros' },
-  { path: '/cadastro/adquirentes', label: 'Cadastro de Adquirentes', categoria: 'Cadastros' },
-  { path: '/cadastro/sistemas', label: 'Cadastro de Sistemas', categoria: 'Cadastros' },
-  { path: '/cadastro/sistema', label: 'Cadastro Individual de Sistema', categoria: 'Cadastros' },
-  { path: '/cadastro/vinculacoes', label: 'Cadastro de Vinculações', categoria: 'Cadastros' },
-  
+  { path: '/cadastro/clientes', label: 'Clientes', categoria: 'Cadastros' },
+  { path: '/cadastro/produtos', label: 'Produtos', categoria: 'Cadastros' },
+  { path: '/cadastro/tarefas', label: 'Tarefas', categoria: 'Cadastros' },
+  { path: '/cadastro/subtarefas', label: 'Subtarefas', categoria: 'Cadastros' },
+  { path: '/cadastro/tipo-tarefas', label: 'Tipos de Tarefa', categoria: 'Cadastros' },
+  { path: '/cadastro/bancos', label: 'Bancos', categoria: 'Cadastros' },
+  { path: '/cadastro/adquirentes', label: 'Adquirentes', categoria: 'Cadastros' },
+  { path: '/cadastro/sistemas', label: 'Sistemas', categoria: 'Cadastros' },
+  { path: '/cadastro/vinculacoes', label: 'Vinculações', categoria: 'Cadastros' },
+
   // Atribuições
   { path: '/atribuir-responsaveis', label: 'Gestão de Capacidade', categoria: 'Atribuições' },
-  { path: '/atribuicao/cliente', label: 'Atribuição de Cliente', categoria: 'Atribuições' },
-  { path: '/atribuicao/nova', label: 'Nova Atribuição', categoria: 'Atribuições' },
-  
+  { path: '/atribuir-responsaveis/historico', label: 'Histórico de Atribuições', categoria: 'Atribuições' },
+  { path: '/aprovacoes-pendentes', label: 'Aprovações Pendentes', categoria: 'Atribuições' },
+
   // Base de Conhecimento
-  { path: '/base-conhecimento/conteudos-clientes', label: 'Base de Conhecimento - Conteúdos Clientes', categoria: 'Base de Conhecimento' },
-  
+  { path: '/base-conhecimento', label: 'Início', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/conteudos-clientes', label: 'Conteúdos Clientes', categoria: 'Base de Conhecimento' },
+
   // Configurações
+  { path: '/cadastro/colaboradores', label: 'Colaboradores', categoria: 'Configurações' },
   { path: '/cadastro/custo-colaborador', label: 'Custo Colaborador', categoria: 'Configurações' },
-  { path: '/configuracoes/perfil', label: 'Configurações de Perfil', categoria: 'Configurações' },
-  { path: '/documentacao-api', label: 'Documentação API', categoria: 'Configurações' },
-  { path: '/cadastro/vinculacoes', label: 'Vinculações', categoria: 'Configurações' },
   { path: '/gestao/usuarios', label: 'Gestão de Usuários', categoria: 'Configurações' },
+  { path: '/gestao/permissoes', label: 'Permissões', categoria: 'Configurações' },
+  { path: '/configuracoes/perfil', label: 'Perfil', categoria: 'Configurações' },
+  { path: '/documentacao-api', label: 'Documentação API', categoria: 'Configurações' },
 ];
 
 const ConfigPermissoes = () => {
   const showToast = useToast();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [nivelSelecionado, setNivelSelecionado] = useState('gestor');
@@ -93,9 +107,9 @@ const ConfigPermissoes = () => {
   // Normalizar páginas: se uma subpágina estiver selecionada, garantir que a página principal também esteja
   const normalizarPaginas = (paginas) => {
     if (!paginas || paginas === null) return null;
-    
+
     const paginasNormalizadas = [...paginas];
-    
+
     // Para cada página principal, verificar se alguma de suas subpáginas está selecionada
     Object.entries(PAGINAS_PRINCIPAIS_COM_SUBPAGINAS).forEach(([paginaPrincipal, subpaginas]) => {
       const temSubpaginaSelecionada = subpaginas.some(sub => paginas.includes(sub));
@@ -103,7 +117,7 @@ const ConfigPermissoes = () => {
         paginasNormalizadas.push(paginaPrincipal);
       }
     });
-    
+
     return paginasNormalizadas;
   };
 
@@ -146,8 +160,14 @@ const ConfigPermissoes = () => {
           configsData.gestor = { paginas: null }; // null = todas as páginas
         }
         if (!configsData.colaborador) {
-          configsData.colaborador = { 
-            paginas: ['/painel-colaborador', '/base-conhecimento/conteudos-clientes']
+          configsData.colaborador = {
+            paginas: [
+              '/painel-colaborador',
+              '/notificacoes',
+              '/base-conhecimento',
+              '/base-conhecimento/conteudos-clientes',
+              '/configuracoes/perfil'
+            ]
           };
         }
 
@@ -166,7 +186,7 @@ const ConfigPermissoes = () => {
   // Salvar configurações
   const handleSave = async () => {
     if (nivelSelecionado === 'administrador') return; // Administrador não precisa salvar
-    
+
     setSalvando(true);
     try {
       const config = configs[nivelSelecionado];
@@ -178,7 +198,7 @@ const ConfigPermissoes = () => {
         todasSubpaginas.push(...subpaginas);
       });
       const todasPaginasCompletas = [...todasPaginas, ...todasSubpaginas];
-      const todasSelecionadas = config.paginas !== null && 
+      const todasSelecionadas = config.paginas !== null &&
         config.paginas.length === todasPaginasCompletas.length &&
         todasPaginasCompletas.every(p => config.paginas.includes(p));
       const paginas = todasSelecionadas ? null : config.paginas;
@@ -222,7 +242,7 @@ const ConfigPermissoes = () => {
       const config = prev[nivelSelecionado];
       const subpaginas = getSubpaginas(paginaPrincipal);
       const todasPaginasDaPrincipal = [paginaPrincipal.path, ...subpaginas];
-      
+
       // Se paginas é null, significa que tem acesso a todas
       if (config.paginas === null) {
         // Ao desmarcar uma página quando tem acesso total, criar lista com todas exceto essa e suas subpáginas
@@ -244,7 +264,7 @@ const ConfigPermissoes = () => {
 
       const paginas = config.paginas || [];
       const todasSelecionadas = todasPaginasDaPrincipal.every(p => paginas.includes(p));
-      
+
       let novasPaginas;
       if (todasSelecionadas) {
         // Desmarcar página principal e todas suas subpáginas
@@ -267,9 +287,9 @@ const ConfigPermissoes = () => {
   const handleSelectCategoria = (categoria) => {
     setConfigs(prev => {
       const config = prev[nivelSelecionado];
-      
+
       const paginasPrincipaisCategoria = TODAS_PAGINAS.filter(p => p.categoria === categoria);
-      
+
       // Coletar todas as páginas (principais + subpáginas) da categoria
       const todasPaginasCategoria = [];
       paginasPrincipaisCategoria.forEach(pagina => {
@@ -406,10 +426,10 @@ const ConfigPermissoes = () => {
                         todasSubpaginas.push(...subpaginas);
                       });
                       const todasPaginasCompletas = [...todasPaginas, ...todasSubpaginas];
-                      const paginasSelecionadas = (config.paginas === null || nivelSelecionado === 'administrador') 
-                        ? todasPaginasCompletas 
+                      const paginasSelecionadas = (config.paginas === null || nivelSelecionado === 'administrador')
+                        ? todasPaginasCompletas
                         : (config.paginas || []);
-                      
+
                       // Verificar se todas as páginas da categoria estão selecionadas (incluindo subpáginas)
                       const todasPaginasCategoria = [];
                       paginas.forEach(pagina => {
@@ -420,8 +440,8 @@ const ConfigPermissoes = () => {
                       const todasSelecionadas = todasPaginasCategoria.every(p => paginasSelecionadas.includes(p));
 
                       // Verificar estado da checkbox da categoria (todas, nenhuma, ou algumas)
-                      const algumasSelecionadas = todasPaginasCategoria.some(p => paginasSelecionadas.includes(p)) && 
-                                                  !todasSelecionadas;
+                      const algumasSelecionadas = todasPaginasCategoria.some(p => paginasSelecionadas.includes(p)) &&
+                        !todasSelecionadas;
                       const checkboxIndeterminada = algumasSelecionadas;
 
                       // Por padrão, todas as categorias começam fechadas (colapsadas)
@@ -429,7 +449,7 @@ const ConfigPermissoes = () => {
 
                       return (
                         <div key={categoria} className="categoria-group">
-                          <div 
+                          <div
                             className="categoria-header"
                             onClick={() => toggleCategoria(categoria)}
                           >
@@ -498,7 +518,7 @@ const ConfigPermissoes = () => {
                       </ButtonPrimary>
                     </div>
                   )}
-                  
+
                   {nivelSelecionado === 'administrador' && (
                     <div className="info-box">
                       <i className="fas fa-info-circle"></i>

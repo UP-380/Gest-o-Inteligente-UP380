@@ -39,6 +39,8 @@ import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
+import MinhasNotificacoes from './pages/Notificacoes/MinhasNotificacoes';
 
 // Componente para redirecionar rota antiga
 const RedirectToCadastroCliente = () => {
@@ -326,6 +328,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/atribuicoes/pendentes/aprovacao"
+          element={
+            <ProtectedRoute>
+              <AprovacoesPendentes />
+            </ProtectedRoute>
+          }
+        />
         {/* Redirecionamento da rota antiga */}
         <Route
           path="/delegar-tarefas"
@@ -447,6 +457,22 @@ function App() {
           element={
             <ProtectedRoute>
               <PlanilhaHoras />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notificacoes"
+          element={
+            <ProtectedRoute>
+              <MinhasNotificacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/aprovacoes-pendentes"
+          element={
+            <ProtectedRoute>
+              <AprovacoesPendentes />
             </ProtectedRoute>
           }
         />

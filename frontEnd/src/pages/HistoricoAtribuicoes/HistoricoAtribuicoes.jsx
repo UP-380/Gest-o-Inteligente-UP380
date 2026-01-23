@@ -1196,7 +1196,7 @@ const HistoricoAtribuicoes = () => {
 
         </main>
       </div>
-    </Layout>
+    </Layout >
   );
 };
 

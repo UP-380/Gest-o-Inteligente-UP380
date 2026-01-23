@@ -61,11 +61,11 @@ const TarefaCardLista = ({
             </span>
           </span>
           <span className="painel-usuario-badge-realizado">
-            <i className="fas fa-stopwatch painel-usuario-realizado-icon-inline"></i>
+            <i className="fas fa-play-circle painel-usuario-realizado-icon-inline"></i>
             <span className="painel-usuario-realizado-label">Realizado:</span>
-            <span 
-              className="painel-usuario-realizado-pill" 
-              data-tarefa-id={registro.tarefa_id} 
+            <span
+              className="painel-usuario-realizado-pill"
+              data-tarefa-id={registro.tarefa_id}
               data-cliente-id={registro.cliente_id}
             >
               {obterTempoRealizadoFormatado?.(registro) || '0s'}

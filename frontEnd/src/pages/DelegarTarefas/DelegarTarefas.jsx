@@ -2105,12 +2105,15 @@ const DelegarTarefas = () => {
     // Buscar tempo realizado do cache
     // Garantir que responsavelId seja string para consistência com a chave criada no useEffect
     const chaveTempoRealizado = `responsavel_${String(responsavelId)}`;
-    const tempoRealizado = temposRealizadosPorEntidade[chaveTempoRealizado] || 0;
+    const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+    const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
+    const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
 
     return {
       disponivel: tempoDisponivelTotal,
       estimado: tempoEstimado,
       realizado: tempoRealizado,
+      pendente: tempoPendente,
       sobrando: tempoSobrando,
       contratado: tempoContratadoTotal
     };
@@ -2120,7 +2123,7 @@ const DelegarTarefas = () => {
   const buscarTempoRealizadoPorEntidade = useCallback(async (entidadeId, filtroPrincipal, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
     try {
       if (!periodoInicio || !periodoFim) {
-        return 0;
+        return { realizado: 0, pendente: 0 };
       }
 
       // Se o filtro principal é responsavel, usar novo endpoint simplificado
@@ -2143,16 +2146,19 @@ const DelegarTarefas = () => {
           if (response.ok) {
             const result = await response.json();
             if (result.success && result.data) {
-              return result.data.tempo_realizado_ms || 0;
+              return {
+                realizado: result.data.tempo_realizado_ms || 0,
+                pendente: result.data.tempo_pendente_ms || 0
+              };
             }
           } else {
             const errorData = await response.json().catch(() => ({}));
             console.error('Erro ao buscar tempo realizado total:', response.status, errorData);
           }
-          return 0;
+          return { realizado: 0, pendente: 0 };
         } catch (error) {
           console.error('Erro ao buscar tempo realizado total:', error);
-          return 0;
+          return { realizado: 0, pendente: 0 };
         }
       }
 
@@ -2179,11 +2185,10 @@ const DelegarTarefas = () => {
       responsavelIds = [...new Set(agrupamentosFiltrados.map(agr => agr.primeiroRegistro.responsavel_id).filter(Boolean))];
 
       if (responsavelIds.length === 0) {
-        return 0;
+        return { realizado: 0, pendente: 0 };
       }
 
       // Buscar tempo realizado para cada responsável usando novo endpoint e somar
-      let tempoTotal = 0;
       const promises = responsavelIds.map(async (responsavelId) => {
         try {
           const response = await fetch('/api/registro-tempo/realizado-total', {
@@ -2203,28 +2208,33 @@ const DelegarTarefas = () => {
           if (response.ok) {
             const result = await response.json();
             if (result.success && result.data) {
-              return result.data.tempo_realizado_ms || 0;
+              return {
+                realizado: result.data.tempo_realizado_ms || 0,
+                pendente: result.data.tempo_pendente_ms || 0
+              };
             }
           }
-          return 0;
+          return { realizado: 0, pendente: 0 };
         } catch (error) {
           console.error('Erro ao buscar tempo realizado para responsável:', responsavelId, error);
-          return 0;
+          return { realizado: 0, pendente: 0 };
         }
       });
 
       const resultados = await Promise.all(promises);
-      tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+      return resultados.reduce((sum, item) => ({
+        realizado: sum.realizado + (item.realizado || 0),
+        pendente: sum.pendente + (item.pendente || 0)
+      }), { realizado: 0, pendente: 0 });
 
-      return tempoTotal;
     } catch (error) {
       console.error('Erro ao buscar tempo realizado:', error);
-      return 0;
+      return { realizado: 0, pendente: 0 };
     }
   }, [registrosAgrupados]);
 
   // Componente de barra de progresso de tempo
-  const BarraProgressoTempo = ({ disponivel, estimado, realizado, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, pendente = 0, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
     // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
     const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
 
@@ -2239,9 +2249,14 @@ const DelegarTarefas = () => {
     const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
     const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
     const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
+
     // Usar tempo realizado passado como prop
     const tempoRealizadoValor = realizado || 0;
+    const tempoPendenteValor = pendente || 0;
+
+    // Custos
     const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
+    const custoPendente = responsavelId ? calcularCustoPorTempo(tempoPendenteValor, responsavelId) : null;
 
     // Se Contratadas ainda está carregando, não renderizar Estimado ainda (aguardar ambos estarem prontos)
     if (aindaCarregandoContratado) {
@@ -2289,6 +2304,7 @@ const DelegarTarefas = () => {
               </div>
             </div>
           </div>
+
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
@@ -2305,6 +2321,26 @@ const DelegarTarefas = () => {
               </div>
             </div>
           </div>
+
+          {tempoPendenteValor > 0 && (
+            <div className="barra-progresso-tempo-item">
+              <div className="barra-progresso-tempo-item-content">
+                <div className="barra-progresso-tempo-item-header">
+                  <i className="fas fa-stopwatch painel-colaborador-pendente-icon-inline" style={{ color: '#ef4444' }}></i>
+                  <span className="barra-progresso-tempo-label">Pendente</span>
+                </div>
+                <div className="barra-progresso-tempo-badge-wrapper">
+                  <span className="barra-progresso-tempo-badge pendente" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                    <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoPendenteValor, true)}</span>
+                  </span>
+                  <span className={`barra-progresso-tempo-custo pendente ${custoPendente === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                    {custoPendente !== null ? formatarValorMonetario(custoPendente) : '\u00A0'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {mostrarContratadasDisponivel && (
             <>
               <div className="barra-progresso-tempo-item">
@@ -2975,6 +3011,15 @@ const DelegarTarefas = () => {
                 >
                   <i className="fas fa-history" style={{ fontSize: '14px' }}></i>
                   Histórico
+                </button>
+                <button
+                  className="custo-colaborador-btn"
+                  onClick={() => navigate('/atribuicoes/pendentes/aprovacao')}
+                  title="Aprovacoes Pendentes"
+                  style={{ marginRight: '12px' }}
+                >
+                  <i className="fas fa-check-circle" style={{ fontSize: '14px' }}></i>
+                  Aprovações Pendentes
                 </button>
                 <ButtonPrimary
                   onClick={handleNewAtribuicao}
@@ -4197,7 +4242,10 @@ const DelegarTarefas = () => {
                           // Buscar tempo realizado do cache (será preenchido pelo useEffect)
                           // Garantir que entidadeId seja string para consistência com a chave criada no useEffect
                           const chaveTempoRealizado = `${tipoEntidade}_${String(entidadeId)}`;
-                          const tempoRealizado = temposRealizadosPorEntidade[chaveTempoRealizado] || 0;
+                          const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+                          // Compatibilidade com backward se era apenas número
+                          const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
+                          const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
 
                           // Para responsável, calcular disponível e sobrando
                           if (tipoEntidade === 'responsavel') {
@@ -4246,16 +4294,23 @@ const DelegarTarefas = () => {
                               disponivel: tempoDisponivelTotal,
                               estimado: tempoEstimado,
                               realizado: tempoRealizado,
+                              pendente: tempoPendente,
                               sobrando: tempoSobrando,
                               contratado: tempoContratadoTotal
                             };
                           }
 
                           // Para outras entidades, não há conceito de disponível/sobrando
+                          // Mas precisamos extrair pendente também se houver
+                          const tempoRealizadoData2 = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+                          const tempoRealizado2 = typeof tempoRealizadoData2 === 'number' ? tempoRealizadoData2 : (tempoRealizadoData2.realizado || 0);
+                          const tempoPendente2 = typeof tempoRealizadoData2 === 'number' ? 0 : (tempoRealizadoData2.pendente || 0);
+
                           return {
                             disponivel: 0,
                             estimado: tempoEstimado,
-                            realizado: tempoRealizado,
+                            realizado: tempoRealizado2,
+                            pendente: tempoPendente2,
                             sobrando: 0,
                             contratado: 0
                           };
@@ -4980,6 +5035,7 @@ const DelegarTarefas = () => {
                                         disponivel={0}
                                         estimado={0}
                                         realizado={0}
+                                        pendente={0}
                                         sobrando={0}
                                         contratado={0}
                                         responsavelId={responsavelIdParaCusto}
@@ -5359,6 +5415,7 @@ const DelegarTarefas = () => {
                                       disponivel={tempoInfo.disponivel}
                                       estimado={tempoInfo.estimado}
                                       realizado={tempoInfo.realizado}
+                                      pendente={tempoInfo.pendente}
                                       sobrando={tempoInfo.sobrando}
                                       contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
                                       responsavelId={responsavelIdParaCusto}

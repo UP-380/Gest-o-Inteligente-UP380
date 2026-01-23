@@ -12,6 +12,11 @@ import DetailSideCard from '../../components/clients/DetailSideCard';
 import { DEFAULT_AVATAR } from '../../utils/avatars';
 import './PainelUsuario.css';
 import '../../pages/ConteudosClientes/ConteudosClientes.css';
+import ModalPlugRapido from '../../components/ModalPlugRapido';
+import '../../components/user/TimerAtivo.css'; // Garantir estilos se necessário
+import TimerButton from '../../components/common/TimerButton';
+import '../../components/ModalPlugRapido.css';
+import '../../components/common/Tooltip.css';
 
 const API_BASE_URL = '/api';
 
@@ -230,8 +235,81 @@ const PainelUsuario = () => {
   const [dataTarefasSelecionada, setDataTarefasSelecionada] = useState(new Date()); // Data selecionada para exibir tarefas (inicia com hoje)
   const carregarMinhasTarefasRef = useRef(null); // Ref para a função de carregar tarefas
 
+  // --- PLUG RÁPIDO & PENDENTES ---
+  const [modalPlugRapidoOpen, setModalPlugRapidoOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('minhas'); // 'minhas' | 'pendentes'
+  const [pendentes, setPendentes] = useState([]);
+
+  const fetchPendentes = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/minhas`);
+      const json = await res.json();
+      if (json.success) {
+        setPendentes(json.data || []);
+      }
+    } catch (e) { console.error('Erro ao buscar pendentes', e); }
+  }, []);
+
+  useEffect(() => {
+    // Buscar sempre para saber se existem pendências e mostrar a tab
+    fetchPendentes();
+
+    let interval;
+    if (activeTab === 'pendentes') {
+      // Polling simples para atualizar tempo de timers ativos nos pendentes (apenas quando visível)
+      interval = setInterval(fetchPendentes, 60000);
+    }
+
+    // Sincronizar com eventos do Timer Global (TimerAtivo) - Sempre ouvir para manter contador atualizado
+    const handleUpdate = () => {
+      setTimeout(fetchPendentes, 200); // Pequeno delay para garantir consistência do backend
+    };
+
+    window.addEventListener('registro-tempo-finalizado', handleUpdate);
+    window.addEventListener('registro-tempo-iniciado', handleUpdate);
+    window.addEventListener('registro-tempo-atualizado', handleUpdate);
+    window.addEventListener('registro-tempo-deletado', handleUpdate);
+
+    return () => {
+      if (interval) clearInterval(interval);
+      window.removeEventListener('registro-tempo-finalizado', handleUpdate);
+      window.removeEventListener('registro-tempo-iniciado', handleUpdate);
+      window.removeEventListener('registro-tempo-atualizado', handleUpdate);
+      window.removeEventListener('registro-tempo-deletado', handleUpdate);
+    };
+  }, [activeTab, fetchPendentes]);
+
+  const handleStopTimerPendente = async (pendenteId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/parar-timer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atribuicao_pendente_id: pendenteId })
+      });
+      if (res.ok) {
+        fetchPendentes();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleStartTimerPendente = async (pendenteId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/iniciar-timer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atribuicao_pendente_id: pendenteId })
+      });
+      if (res.ok) {
+        fetchPendentes();
+      }
+    } catch (e) { console.error(e); }
+  };
+  // -------------------------------
+
   // ID fixo para o card de tarefas (não usa mais grid, então só um card)
   const CARD_ID_TAREFAS = 'tarefas-card-1';
+
+
 
   const [modoVisualizacao, setModoVisualizacao] = useState({ [CARD_ID_TAREFAS]: 'quadro' }); // objeto com { cardId: 'quadro' | 'lista' }
   const preferenciaCarregadaRef = useRef(false); // Ref para controlar se a preferência já foi carregada
@@ -3202,6 +3280,7 @@ const PainelUsuario = () => {
                     <div class="painel-usuario-tarefa-nome">
                       ${getNomeTarefa(reg.tarefa_id, reg)}
                       ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                      ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
                     </div>
                     ${renderizarBarraProgressoTarefa(reg, 'lista')}
                   </div>
@@ -3775,7 +3854,7 @@ const PainelUsuario = () => {
         const coluna = document.createElement('div');
         coluna.className = 'painel-usuario-coluna';
         coluna.style.minWidth = '240px';
-        coluna.style.maxWidth = '300px'; // Limitar largura máxima para não expandir com descrições
+        coluna.style.maxWidth = 'none'; // Permitir expansão total para caber nome e dados
         coluna.style.flex = '0 0 auto'; // Mudar para auto para permitir expansão baseada no conteúdo
         coluna.style.width = 'auto'; // Permitir largura automática até o máximo
         coluna.style.display = 'flex';
@@ -3799,10 +3878,10 @@ const PainelUsuario = () => {
         const clienteNomeEl = document.createElement('div');
         clienteNomeEl.textContent = clienteNome;
         clienteNomeEl.style.flex = '1'; // Permitir que o nome ocupe o espaço disponível
-        clienteNomeEl.style.minWidth = '0'; // Necessário para text-overflow funcionar em flex item
+        clienteNomeEl.style.minWidth = '0'; // Necessário para flex item
         clienteNomeEl.style.whiteSpace = 'nowrap'; // Não quebrar o nome
-        clienteNomeEl.style.overflow = 'hidden'; // Truncar com ellipsis
-        clienteNomeEl.style.textOverflow = 'ellipsis';
+        // clienteNomeEl.style.overflow = 'hidden'; // Removido para não truncar
+        // clienteNomeEl.style.textOverflow = 'ellipsis'; // Removido para não truncar
         colunaHeader.appendChild(clienteNomeEl);
 
         // Container para as informações de tempo (na mesma linha, alinhado à direita)
@@ -3908,6 +3987,7 @@ const PainelUsuario = () => {
               <div class="painel-usuario-tarefa-nome">
                 ${getNomeTarefa(reg.tarefa_id, reg)}
                 ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
               </div>
               <div style="display: flex; gap: 6px; align-items: center;">
               <button
@@ -4745,6 +4825,56 @@ const PainelUsuario = () => {
         }
       }
 
+      // --- INJECT PENDING TASKS (PLUG RÁPIDO) ---
+      try {
+        const resPendentes = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/minhas`);
+        if (resPendentes.ok) {
+          const jsonPendentes = await resPendentes.json();
+          if (jsonPendentes.success && Array.isArray(jsonPendentes.data)) {
+            // Filter pending tasks for the selected date
+            const pendentesDoDia = jsonPendentes.data.filter(p => {
+              try {
+                if (!p.data_inicio) return false;
+                const d = new Date(p.data_inicio);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const pDateStr = `${yyyy}-${mm}-${dd}`;
+                return pDateStr === dataStr;
+              } catch { return false; }
+            });
+
+            const pendentesMapeados = pendentesDoDia.map(p => ({
+              id: p.id,
+              tempo_estimado_id: p.id,
+              tarefa_id: p.tarefa_id,
+              cliente_id: p.cliente_id,
+              produto_id: p.produto_id,
+              data: p.data_inicio,
+              tempo_estimado_dia: p.tempo_estimado_dia,
+              tempo_estimado_total: p.tempo_estimado_dia, // For consistency
+              tempo_realizado: p.tempo_realizado_ms || 0,
+
+              is_plug_rapido: true,
+              is_pendente: true,
+              status_pendente: 'AGUARDANDO_APROVACAO',
+
+              cliente_nome: p.cliente?.nome,
+              produto_nome: p.produto?.nome,
+              tarefa_nome: p.tarefa?.nome,
+
+              bloqueado: false // Allow counting time
+            }));
+
+            if (pendentesMapeados.length > 0) {
+              registros = [...registros, ...pendentesMapeados];
+            }
+          }
+        }
+      } catch (e) {
+        // Silent fail for pending fetch
+      }
+
       // Filtra em memória APENAS para garantir que temos apenas a data selecionada
       // Isso é uma segurança adicional caso o backend retorne dados de outras datas
       const ehDataSelecionada = (data) => {
@@ -5109,77 +5239,219 @@ const PainelUsuario = () => {
                     <i className="fas fa-clipboard-list" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
                   </div>
                   <div>
-                    <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <h1 className="painel-usuario-page-title">Minhas Tarefas</h1>
+                    </div>
                     <p className="painel-usuario-page-subtitle">
                       Visualize suas tarefas atribuídas
                     </p>
                   </div>
                 </div>
 
-                {shortcutTask && document.getElementById('header-extra-content') && createPortal(
-                  <div className="painel-usuario-header-shortcut has-tooltip" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '15px',
-                    background: '#1f2937', // Dark background matching timer
-                    padding: '6px 3px 6px 15px', // Matching timer-ativo-container
-                    borderRadius: '12px',
-                    border: 'none', // No border matching timer
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                    marginRight: '16px',
-                    height: '27px',
-                    position: 'relative',
-                    cursor: 'default',
-                    boxSizing: 'border-box'
-                  }}>
-                    <div className="filter-tooltip">Atividade Interna</div>
-                    <div style={{ display: 'flex', alignItems: 'center', paddingRight: '0', borderRight: 'none' }}>
-                      <span style={{ fontWeight: 500, color: '#e5e7eb', fontSize: '13px', lineHeight: 1, whiteSpace: 'nowrap' }}>
-                        {getNomeTarefa(shortcutTask.tarefa_id, shortcutTask)}
-                      </span>
+                {document.getElementById('header-extra-content') && createPortal(
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="tooltip-wrapper has-tooltip" style={{ marginRight: '16px' }}>
+                      <button
+                        className="painel-usuario-btn-plug-rapido"
+                        onClick={() => setModalPlugRapidoOpen(true)}
+                        style={{
+                          backgroundColor: '#fd7e14',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 4px rgba(253, 126, 20, 0.3)'
+                        }}
+                      >
+                        <i className="fas fa-bolt"></i> Plug Rápido
+                      </button>
+                      <div className="filter-tooltip tooltip-bottom" style={{ minWidth: '200px', width: '250px' }}>
+                        Atribui rapidamente uma nova tarefa e pluga rapidamente nela. Essa tarefa estará pendente de aprovação enquanto isso.
+                      </div>
                     </div>
-
-                    <button
-                      className={`painel-usuario-btn-reproducao ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'painel-usuario-btn-stop' : 'painel-usuario-btn-play'}`}
-                      onClick={() => {
-                        if (registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim())) {
-                          pararRegistroTempo(shortcutTask);
-                        } else {
-                          if (!isTaskToday(shortcutTask.data)) return;
-                          iniciarRegistroTempo(shortcutTask);
-                        }
-                      }}
-                      disabled={!isTaskToday(shortcutTask.data)}
-                      title=""
-                      style={{
-                        width: '20px',
-                        height: '20px',
-                        minWidth: '20px',
-                        borderRadius: '50%', // Round button
-                        border: 'none',
-                        cursor: !isTaskToday(shortcutTask.data) ? 'not-allowed' : 'pointer',
+                    {shortcutTask && (
+                      <div className="painel-usuario-header-shortcut has-tooltip" style={{
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: 'none',
-                        transition: 'all 0.2s ease',
-                        backgroundColor: !isTaskToday(shortcutTask.data)
-                          ? '#ccc'
-                          : '#28a745', // Always green if enabled, even when stopping
-                        padding: 0
-                      }}
-                    >
-                      <i className={`fas ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'fa-stop' : 'fa-play'}`} style={{ color: '#fff', fontSize: '9px' }}></i>
-                    </button>
+                        justifyContent: 'space-between',
+                        gap: '15px',
+                        background: '#1f2937', // Dark background matching timer
+                        padding: '6px 3px 6px 15px', // Matching timer-ativo-container
+                        borderRadius: '12px',
+                        border: 'none', // No border matching timer
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        marginRight: '16px',
+                        height: '27px',
+                        position: 'relative',
+                        cursor: 'default',
+                        boxSizing: 'border-box',
+                        zIndex: '1'
+                      }}>
+                        <div className="filter-tooltip">Atividade Interna</div>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingRight: '0', borderRight: 'none' }}>
+                          <span style={{ fontWeight: 500, color: '#e5e7eb', fontSize: '13px', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                            {getNomeTarefa(shortcutTask.tarefa_id, shortcutTask)}
+                          </span>
+                        </div>
+
+                        <button
+                          className={`painel-usuario-btn-reproducao ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'painel-usuario-btn-stop' : 'painel-usuario-btn-play'}`}
+                          onClick={() => {
+                            if (registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim())) {
+                              pararRegistroTempo(shortcutTask);
+                            } else {
+                              if (!isTaskToday(shortcutTask.data)) return;
+                              iniciarRegistroTempo(shortcutTask);
+                            }
+                          }}
+                          disabled={!isTaskToday(shortcutTask.data)}
+                          title=""
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            minWidth: '20px',
+                            borderRadius: '50%', // Round button
+                            border: 'none',
+                            cursor: !isTaskToday(shortcutTask.data) ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: 'none',
+                            transition: 'all 0.2s ease',
+                            backgroundColor: !isTaskToday(shortcutTask.data)
+                              ? '#ccc'
+                              : '#28a745', // Always green if enabled, even when stopping
+                            padding: 0
+                          }}
+                        >
+                          <i className={`fas ${registrosAtivos.has(String(shortcutTask.id || shortcutTask.tempo_estimado_id).trim()) ? 'fa-stop' : 'fa-play'}`} style={{ color: '#fff', fontSize: '9px' }}></i>
+                        </button>
+                      </div>
+                    )}
                   </div>,
                   document.getElementById('header-extra-content')
                 )}
               </div>
             </div>
 
-            {/* Container das tarefas */}
-            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container"></div>
+            {/* TABS DE NAVEGAÇÃO - Apenas exibe se houver pendentes */}
+            {pendentes.length > 0 && (
+              <div className="painel-usuario-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', padding: '0 5px' }}>
+                <button
+                  onClick={() => setActiveTab('minhas')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'minhas' ? '#0e3b6f' : '#e5e7eb',
+                    color: activeTab === 'minhas' ? '#fff' : '#4b5563',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Atribuídas
+                </button>
+                <button
+                  onClick={() => setActiveTab('pendentes')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    backgroundColor: activeTab === 'pendentes' ? '#f59e0b' : '#e5e7eb',
+                    color: activeTab === 'pendentes' ? '#fff' : '#4b5563',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  Pendentes {pendentes.length > 0 && <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '1px 6px', borderRadius: '10px' }}>{pendentes.length}</span>}
+                </button>
+              </div>
+            )}
+
+            {/* Container das tarefas (Lista Principal) - Exibe se tab 'minhas' está ativa OU se não há pendentes (fallback) */}
+            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container" style={{ display: (activeTab === 'minhas' || pendentes.length === 0) ? 'block' : 'none' }}></div>
+
+            {/* Container das Pendentes */}
+            {activeTab === 'pendentes' && pendentes.length > 0 && (
+              <div className="painel-usuario-pendentes-lista" style={{ padding: '0 5px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {pendentes.map(p => (
+                    <div key={p.id} style={{
+                      backgroundColor: '#fff',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      borderLeft: '4px solid #f59e0b',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '4px' }}>
+                          {p.cliente?.nome} &bull; {p.produto?.nome}
+                        </div>
+                        <div style={{ fontWeight: '600', fontSize: '1rem', color: '#111827', marginBottom: '6px' }}>
+                          {p.tarefa?.nome}
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '0.85rem' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
+                            <i className="far fa-calendar"></i> {formatarData(p.data_inicio)}
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
+                            <i className="far fa-clock"></i> Est: {formatarTempoHMS(p.tempo_estimado_dia * 1000)}/dia
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                        <div style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#fff7ed',
+                          color: '#d97706',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          border: '1px solid #fed7aa'
+                        }}>
+                          AGUARDANDO APROVAÇÃO
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontWeight: '600', color: '#0e3b6f' }}>
+                            {p.tempo_realizado_formatado || '00:00:00'}
+                          </span>
+
+                          <TimerButton
+                            isActive={p.timer_ativo}
+                            onClick={() => p.timer_ativo ? handleStopTimerPendente(p.id) : handleStartTimerPendente(p.id)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <ModalPlugRapido
+              isOpen={modalPlugRapidoOpen}
+              onClose={() => setModalPlugRapidoOpen(false)}
+              onSuccess={() => {
+                setActiveTab('pendentes');
+                fetchPendentes();
+              }}
+            />
           </div>
         </main>
       </div>

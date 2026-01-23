@@ -79,12 +79,33 @@ async function getProdutoPorId(req, res) {
       });
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .schema('up_gestaointeligente')
       .from('cp_produto')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+      .select('*');
+
+    // Verificação de tipo para evitar erro 500 (invalid input syntax for type bigint)
+    // Se for puramente numérico, pode ser ID (PK) ou clickup_id
+    // Se contiver letras/traços (ex: UUID), SÓ pode ser clickup_id (pois ID é bigint)
+    const isNumeric = /^\d+$/.test(id);
+
+    if (isNumeric) {
+      // Se numérico, busca em ambos (prioridade para ID, mas o OR resolve)
+      // Sintaxe OR do PostgREST: id.eq.valor,clickup_id.eq.valor
+      query = query.or(`id.eq.${id},clickup_id.eq.${id}`).limit(1);
+    } else {
+      // Se não for numérico (ex: UUID), busca SOMENTE no clickup_id
+      query = query.eq('clickup_id', id).maybeSingle();
+    }
+
+    const { data, error } = await query;
+
+    // Se usou .or() com .limit(1), data é array. Se usou .maybeSingle(), data é objeto ou null.
+    // Normalizar para objeto
+    let produtoEncontrado = data;
+    if (Array.isArray(data)) {
+      produtoEncontrado = data.length > 0 ? data[0] : null;
+    }
 
     if (error) {
       console.error('Erro ao buscar produto:', error);
@@ -95,7 +116,7 @@ async function getProdutoPorId(req, res) {
       });
     }
 
-    if (!data) {
+    if (!produtoEncontrado) {
       return res.status(404).json({
         success: false,
         error: 'Produto não encontrado'
@@ -104,7 +125,7 @@ async function getProdutoPorId(req, res) {
 
     return res.json({
       success: true,
-      data: data
+      data: produtoEncontrado
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar produto:', error);
@@ -144,16 +165,64 @@ async function getProdutosPorIds(req, res) {
       });
     }
 
-    // A coluna 'id' é do tipo texto e pode conter tanto UUIDs quanto IDs numéricos antigos (ex: "69", "131")
-    // Portanto, devemos SEMPRE buscar em ambas as colunas (id e clickup_id) para garantir que encontraremos o produto.
-    // IMPORTANTE: Envolver IDs em aspas duplas para o PostgREST tratar como strings e evitar erros de cast
-    const idsFormatados = produtoIds.map(id => `"${id}"`).join(',');
+    // Identificar UUIDs válidos para coluna 'id' (tipo uuid)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validUuids = produtoIds.filter(id => uuidRegex.test(id));
 
-    const { data: produtos, error: produtosError } = await supabase
-      .schema('up_gestaointeligente')
-      .from('cp_produto')
-      .select('id, clickup_id, nome')
-      .or(`id.in.(${idsFormatados}),clickup_id.in.(${idsFormatados})`);
+    // Identificar IDs numéricos para coluna 'clickup_id' (tipo bigint)
+    // Isso evita o erro "invalid input syntax for type bigint" ao tentar buscar UUIDs nesta coluna
+    const numericRegex = /^\d+$/;
+    const validNumericIds = produtoIds.filter(id => numericRegex.test(id));
+
+    // Preparar strings formatadas para o PostgREST
+    const validUuidsList = validUuids.map(id => `"${id}"`).join(',');
+    const validNumericIdsList = validNumericIds.map(id => `"${id}"`).join(',');
+
+    // Construir a query OR dinamicamente
+    let orQueryParts = [];
+
+    // 1. Busca por clickup_id (apenas se houver IDs numéricos válidos)
+    if (validNumericIds.length > 0) {
+      orQueryParts.push(`clickup_id.in.(${validNumericIdsList})`);
+    }
+
+    // 2. Busca por ID (apenas se houver UUIDs válidos)
+    if (validUuids.length > 0) {
+      orQueryParts.push(`id.in.(${validUuidsList})`);
+    }
+
+    // Se por algum motivo não tivermos partes (ex: lista vazia), retornamos vazio
+    if (orQueryParts.length === 0) {
+      return res.json({ success: true, data: {}, count: 0 });
+    }
+
+    // Lógica para evitar conflitos de tipo no PostgREST
+    let query;
+    if (validUuids.length > 0 && validNumericIds.length === 0) {
+      // Apenas UUIDs -> consulta simples na coluna ID
+      query = supabase
+        .schema('up_gestaointeligente')
+        .from('cp_produto')
+        .select('id, clickup_id, nome')
+        .in('id', validUuids);
+    } else if (validNumericIds.length > 0 && validUuids.length === 0) {
+      // Apenas Numéricos -> consulta simples na coluna clickup_id
+      query = supabase
+        .schema('up_gestaointeligente')
+        .from('cp_produto')
+        .select('id, clickup_id, nome')
+        .in('clickup_id', validNumericIds);
+    } else {
+      // Misto -> usa o OR (PostgREST deve lidar com isso se as clauses estiverem corretas, 
+      // mas se falhar, o ideal seria duas queries separadas. Vamos tentar o OR padrão primeiro com as listas limpas)
+      query = supabase
+        .schema('up_gestaointeligente')
+        .from('cp_produto')
+        .select('id, clickup_id, nome')
+        .or(orQueryParts.join(','));
+    }
+
+    const { data: produtos, error: produtosError } = await query;
 
     if (produtosError) {
       console.error('Erro ao buscar produtos por IDs:', produtosError);

@@ -6,7 +6,7 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const router = express.Router();
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireGestor } = require('../middleware/auth');
 const authController = require('../controllers/auth.controller');
 const clientesController = require('../controllers/clientes.controller');
 const tarefasController = require('../controllers/tarefas.controller');
@@ -36,6 +36,7 @@ const clienteSubtarefaObservacaoController = require('../controllers/cliente-sub
 const contatoClienteController = require('../controllers/contato-cliente.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
+const notificacoesController = require('../controllers/notificacoes.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -219,6 +220,7 @@ router.post('/api/registro-tempo/realizado-total', requireAuth, registroTempoCon
 router.get('/api/registro-tempo/por-tempo-estimado', requireAuth, registroTempoController.getRegistrosPorTempoEstimado);
 router.get('/api/registro-tempo/historico', requireAuth, registroTempoController.getHistoricoRegistros);
 router.get('/api/registro-tempo/debug/sem-tarefa', requireAuth, registroTempoController.getRegistrosSemTarefa);
+router.get('/api/registro-tempo-sem-tarefa', requireAuth, registroTempoController.getRegistrosSemTarefa); // Rota exigida pelo frontEnd
 // Rota genérica consolidada (deve vir depois das específicas)
 router.get('/api/registro-tempo', requireAuth, registroTempoController.getRegistrosTempo);
 router.put('/api/registro-tempo/:id', requireAuth, registroTempoController.atualizarRegistroTempo);
@@ -249,6 +251,9 @@ router.delete('/api/sistemas/:id', requireAuth, sistemaController.deletarSistema
 router.get('/api/tarefa', requireAuth, tarefaController.getTarefas);
 router.get('/api/tarefa/:id', requireAuth, tarefaController.getTarefaPorId);
 router.post('/api/tarefa', requireAuth, tarefaController.criarTarefa);
+// Endpoint específico para Plug Rápido (Criação Atômica com Vínculos)
+router.post('/api/tarefa/rapida', requireAuth, tarefaController.criarTarefaRapida);
+router.put('/api/tarefa/rapida/:id', requireAuth, tarefaController.atualizarTarefaRapida);
 router.put('/api/tarefa/:id', requireAuth, tarefaController.atualizarTarefa);
 router.delete('/api/tarefa/:id', requireAuth, tarefaController.deletarTarefa);
 
@@ -467,6 +472,22 @@ router.get('/cadastro-colaboradores', requireAuth, (req, res) => {
 router.get('/gestao-colaboradores', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 }); // Mantido para compatibilidade
+
+// Rotas de Atribuições Pendentes (Plug Rápido com Aprovação)
+const atribuicoesPendentesController = require('../controllers/atribuicoes-pendentes.controller');
+router.post('/api/atribuicoes-pendentes', requireAuth, atribuicoesPendentesController.criarAtribuicaoPendente);
+router.get('/api/atribuicoes-pendentes/minhas', requireAuth, atribuicoesPendentesController.listarMinhasPendentes);
+router.get('/api/atribuicoes-pendentes/aprovacao', requireGestor, atribuicoesPendentesController.listarPendentesParaAprovacao);
+router.post('/api/atribuicoes-pendentes/:id/aprovar', requireGestor, atribuicoesPendentesController.aprovarAtribuicao);
+router.get('/api/atribuicoes-pendentes/count', requireGestor, atribuicoesPendentesController.contarPendentes);
+router.post('/api/atribuicoes-pendentes/iniciar-timer', requireAuth, atribuicoesPendentesController.iniciarTimerPendente);
+router.post('/api/atribuicoes-pendentes/parar-timer', requireAuth, atribuicoesPendentesController.pararTimerPendente);
+
+// Rotas de Notificações
+router.get('/api/notificacoes', requireAuth, notificacoesController.listarMinhasNotificacoes);
+router.get('/api/notificacoes/count', requireAuth, notificacoesController.contarNaoLidas);
+router.patch('/api/notificacoes/:id/visualizar', requireAuth, notificacoesController.marcarComoVisualizada);
+router.post('/api/notificacoes/visualizar-todas', requireAuth, notificacoesController.marcarTodasComoVisualizadas);
 
 module.exports = router;
 

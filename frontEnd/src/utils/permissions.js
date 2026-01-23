@@ -48,14 +48,17 @@ async function fetchPermissoesConfig() {
   } catch (error) {
     console.error('Erro ao buscar configurações de permissões:', error);
   }
-  
+
   // Retornar configurações padrão em caso de erro
   return {
     [PERMISSION_LEVELS.GESTOR]: null,
     [PERMISSION_LEVELS.COLABORADOR]: [
       '/painel-colaborador',
+      '/notificacoes',
+      '/base-conhecimento',
       '/base-conhecimento/conteudos-clientes',
       '/base-conhecimento/cliente',
+      '/configuracoes/perfil',
     ],
   };
 }
@@ -65,7 +68,7 @@ async function fetchPermissoesConfig() {
  */
 async function getPermissoesConfig() {
   const now = Date.now();
-  
+
   // Se o cache é válido, retornar do cache
   if (permissoesConfigCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_DURATION) {
     return permissoesConfigCache;
@@ -74,7 +77,7 @@ async function getPermissoesConfig() {
   // Buscar do servidor
   permissoesConfigCache = await fetchPermissoesConfig();
   cacheTimestamp = now;
-  
+
   return permissoesConfigCache;
 }
 
@@ -94,8 +97,11 @@ let LEVEL_PAGES = {
   [PERMISSION_LEVELS.GESTOR]: null, // null = todas as páginas (padrão)
   [PERMISSION_LEVELS.COLABORADOR]: [
     '/painel-colaborador',
+    '/notificacoes',
+    '/base-conhecimento',
     '/base-conhecimento/conteudos-clientes',
     '/base-conhecimento/cliente',
+    '/configuracoes/perfil',
   ],
 };
 
@@ -110,8 +116,11 @@ export async function initPermissoesConfig() {
       [PERMISSION_LEVELS.GESTOR]: config[PERMISSION_LEVELS.GESTOR] ?? null,
       [PERMISSION_LEVELS.COLABORADOR]: config[PERMISSION_LEVELS.COLABORADOR] ?? [
         '/painel-colaborador',
+        '/notificacoes',
+        '/base-conhecimento',
         '/base-conhecimento/conteudos-clientes',
         '/base-conhecimento/cliente',
+        '/configuracoes/perfil',
       ],
     };
   } catch (error) {
@@ -135,7 +144,7 @@ export const normalizePermissionLevel = (permissoes) => {
     // Se for string, normalizar
     if (typeof permissoes === 'string') {
       const normalized = permissoes.toLowerCase().trim();
-      
+
       // Se for JSON, tentar parsear
       if (normalized.startsWith('[') || normalized.startsWith('{')) {
         try {
@@ -152,14 +161,14 @@ export const normalizePermissionLevel = (permissoes) => {
           // Se não for JSON válido, continuar com a string
         }
       }
-      
+
       // Verificar se é um dos níveis válidos
-      if (normalized === PERMISSION_LEVELS.ADMINISTRADOR || 
-          normalized === PERMISSION_LEVELS.GESTOR || 
-          normalized === PERMISSION_LEVELS.COLABORADOR) {
+      if (normalized === PERMISSION_LEVELS.ADMINISTRADOR ||
+        normalized === PERMISSION_LEVELS.GESTOR ||
+        normalized === PERMISSION_LEVELS.COLABORADOR) {
         return normalized;
       }
-      
+
       // Se não reconhecer, não tem permissão
       return null;
     }
@@ -175,15 +184,26 @@ export const normalizePermissionLevel = (permissoes) => {
 
 // Mapeamento de páginas principais e suas subpáginas relacionadas
 const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
-  '/cadastro/clientes': ['/cadastro/cliente'],
+  '/cadastro/clientes': ['/cadastro/cliente', '/cadastro/contato-cliente'],
   '/cadastro/produtos': ['/cadastro/produto'],
   '/cadastro/tarefas': ['/cadastro/tarefa'],
+  '/cadastro/subtarefas': ['/cadastro/subtarefa'],
   '/cadastro/tipo-tarefas': ['/cadastro/tipo-tarefa'],
   '/cadastro/bancos': ['/cadastro/banco'],
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
-  '/atribuir-responsaveis': ['/atribuicao/cliente', '/atribuicao/nova'],
-  '/base-conhecimento/conteudos-clientes': ['/base-conhecimento/cliente'],
+  '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
+  '/atribuir-responsaveis': [
+    '/atribuicao/cliente',
+    '/atribuicao/nova',
+    '/atribuir-responsaveis/historico',
+    '/aprovacoes-pendentes',
+    '/atribuicoes/pendentes/aprovacao'
+  ],
+  '/base-conhecimento': [
+    '/base-conhecimento/conteudos-clientes',
+    '/base-conhecimento/cliente'
+  ],
 };
 
 /**
@@ -211,12 +231,12 @@ export const hasPermission = async (permissoes, route) => {
     }
 
     const level = normalizePermissionLevel(permissoes);
-    
+
     // Se não tiver nível (null), não tem permissão
     if (!level) {
       return false;
     }
-    
+
     // Se for administrador, sempre permitir
     if (level === PERMISSION_LEVELS.ADMINISTRADOR) {
       return true;
@@ -238,17 +258,17 @@ export const hasPermission = async (permissoes, route) => {
     // Verificar se a rota está nas páginas permitidas
     if (Array.isArray(allowedPages)) {
       for (const allowedPage of allowedPages) {
-        if (normalizedRoute === allowedPage || 
-            normalizedRouteNoTrailing === allowedPage ||
-            normalizedRoute.startsWith(allowedPage) ||
-            normalizedRouteNoTrailing.startsWith(allowedPage)) {
+        if (normalizedRoute === allowedPage ||
+          normalizedRouteNoTrailing === allowedPage ||
+          normalizedRoute.startsWith(allowedPage) ||
+          normalizedRouteNoTrailing.startsWith(allowedPage)) {
           return true;
         }
       }
-      
+
       // Verificar se é subpágina de uma página principal permitida
-      if (isSubpaginaPermitida(normalizedRoute, allowedPages) || 
-          isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
+      if (isSubpaginaPermitida(normalizedRoute, allowedPages) ||
+        isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
         return true;
       }
     }
@@ -271,12 +291,12 @@ export const hasPermissionSync = (permissoes, route) => {
     }
 
     const level = normalizePermissionLevel(permissoes);
-    
+
     // Se não tiver nível (null), não tem permissão
     if (!level) {
       return false;
     }
-    
+
     // Se for administrador, sempre permitir
     if (level === PERMISSION_LEVELS.ADMINISTRADOR) {
       return true;
@@ -294,17 +314,17 @@ export const hasPermissionSync = (permissoes, route) => {
 
     if (Array.isArray(allowedPages)) {
       for (const allowedPage of allowedPages) {
-        if (normalizedRoute === allowedPage || 
-            normalizedRouteNoTrailing === allowedPage ||
-            normalizedRoute.startsWith(allowedPage) ||
-            normalizedRouteNoTrailing.startsWith(allowedPage)) {
+        if (normalizedRoute === allowedPage ||
+          normalizedRouteNoTrailing === allowedPage ||
+          normalizedRoute.startsWith(allowedPage) ||
+          normalizedRouteNoTrailing.startsWith(allowedPage)) {
           return true;
         }
       }
-      
+
       // Verificar se é subpágina de uma página principal permitida
-      if (isSubpaginaPermitida(normalizedRoute, allowedPages) || 
-          isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
+      if (isSubpaginaPermitida(normalizedRoute, allowedPages) ||
+        isSubpaginaPermitida(normalizedRouteNoTrailing, allowedPages)) {
         return true;
       }
     }

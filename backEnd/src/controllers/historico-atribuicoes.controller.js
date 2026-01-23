@@ -408,15 +408,9 @@ async function atualizarHistoricoAtribuicao(req, res) {
       return datas;
     };
 
-    // Gerar todas as datas do período
-    const datasDoPeriodo = gerarDatasDoPeriodo(dataInicioFinal, dataFimFinal);
-
-    if (datasDoPeriodo.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Período inválido. Data fim deve ser maior ou igual à data início'
-      });
-    }
+    // Gerar todas as datas do período (Logic moved to ensure strict future update)
+    // const datasDoPeriodo = gerarDatasDoPeriodo(dataInicioFinal, dataFimFinal);
+    // ... validation moved below ...
 
     // Criar mapa de tempo por tarefa
     const tempoPorTarefa = new Map();
@@ -424,22 +418,44 @@ async function atualizarHistoricoAtribuicao(req, res) {
       tempoPorTarefa.set(String(t.tarefa_id).trim(), parseInt(t.tempo_estimado_dia, 10));
     });
 
-    // Deletar todas as regras antigas do agrupamento
-    console.log('🗑️ Deletando regras antigas do agrupamento:', agrupador_id);
+    // TICKET 3: Proteção de Histórico
+    // Apenas apagar e recriar regras do HOJE para frente. O passado é imutável.
+    const hojeData = new Date();
+    const hojeStr = hojeData.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Deletar APENAS regras futuras ou de hoje
+    console.log(`🗑️ Deletando regras futuras (>= ${hojeStr}) do agrupamento:`, agrupador_id);
     const { error: deleteError } = await supabase
       .schema('up_gestaointeligente')
       .from('tempo_estimado_regra')
       .delete()
-      .eq('agrupador_id', agrupador_id);
+      .eq('agrupador_id', agrupador_id)
+      .gte('data_inicio', hojeStr);
 
     if (deleteError) {
-      console.error('❌ Erro ao deletar regras antigas:', deleteError);
+      console.error('❌ Erro ao deletar regras futuras:', deleteError);
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar atribuição',
         details: deleteError.message
       });
     }
+
+    // ... (buscarTipoTarefaIdPorTarefa mantido)
+
+    // Ajustar datas de geração para INICIAR no máx(dataInicioFinal, hojeStr)
+    // Se dataFimFinal < hojeStr, não gera nada (atribuição passada acabou)
+    let dataGeracaoInicio = dataInicioFinal;
+    if (dataGeracaoInicio < hojeStr) {
+      dataGeracaoInicio = hojeStr;
+    }
+
+    // Gerar datas apenas para o futuro/presente
+    const datasDoPeriodo = gerarDatasDoPeriodo(dataGeracaoInicio, dataFimFinal);
+
+    // Se não sobrar datas (ex: edição de algo que já acabou no passado), tudo bem.
+    // O histórico passado foi preservado pelo DELETE parcial.
+    // Criar mapa de tempo por tarefa ...
 
     // Buscar tipo_tarefa_id para cada tarefa (se necessário)
     const buscarTipoTarefaIdPorTarefa = async (tarefaId) => {
