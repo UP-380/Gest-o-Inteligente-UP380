@@ -191,6 +191,12 @@ async function getProdutosPorIds(req, res) {
       orQueryParts.push(`id.in.(${validUuidsList})`);
     }
 
+    // ADICIONADO: Buscar também por ID numérico
+    // A página PainelUsuario envia IDs internos (numéricos) que precisam ser encontrados na coluna 'id'
+    if (validNumericIds.length > 0) {
+      orQueryParts.push(`id.in.(${validNumericIdsList})`);
+    }
+
     // Se por algum motivo não tivermos partes (ex: lista vazia), retornamos vazio
     if (orQueryParts.length === 0) {
       return res.json({ success: true, data: {}, count: 0 });
@@ -206,15 +212,15 @@ async function getProdutosPorIds(req, res) {
         .select('id, clickup_id, nome')
         .in('id', validUuids);
     } else if (validNumericIds.length > 0 && validUuids.length === 0) {
-      // Apenas Numéricos -> consulta simples na coluna clickup_id
+      // Apenas Numéricos -> consulta OR (clickup_id OU id)
+      // Alterado para incluir busca por ID também
       query = supabase
         .schema('up_gestaointeligente')
         .from('cp_produto')
         .select('id, clickup_id, nome')
-        .in('clickup_id', validNumericIds);
+        .or(`clickup_id.in.(${validNumericIdsList}),id.in.(${validNumericIdsList})`);
     } else {
-      // Misto -> usa o OR (PostgREST deve lidar com isso se as clauses estiverem corretas, 
-      // mas se falhar, o ideal seria duas queries separadas. Vamos tentar o OR padrão primeiro com as listas limpas)
+      // Misto -> usa o OR completo (PostgREST deve lidar com isso se as clauses estiverem corretas)
       query = supabase
         .schema('up_gestaointeligente')
         .from('cp_produto')
