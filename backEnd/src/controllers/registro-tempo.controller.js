@@ -798,7 +798,7 @@ async function getHistoricoRegistros(req, res) {
     const { data: registros, error } = await supabase
       .schema('up_gestaointeligente')
       .from('registro_tempo')
-      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id')
+      .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, bloqueado')
       .eq('usuario_id', usuarioIdInt)
       .not('data_fim', 'is', null) // Apenas registros finalizados
       .not('cliente_id', 'is', null) // Apenas registros com cliente_id
@@ -1487,7 +1487,7 @@ async function deletarRegistroTempo(req, res) {
     console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
 
     // TICKET 2: Bloqueio de Delexão
-    if (registroSalvoData && registroSalvoData.bloqueado) {
+    if (registroExistente && registroExistente.bloqueado) {
       console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
       return res.status(403).json({
         success: false,

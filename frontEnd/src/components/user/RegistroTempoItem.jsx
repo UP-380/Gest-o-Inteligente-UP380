@@ -37,16 +37,20 @@ const RegistroTempoItem = ({
         </div>
         <div className="timer-dropdown-registro-actions">
           <EditButton
-            onClick={(e) => onEditar(e, registro)}
-            title={isEditando ? "Fechar edição" : "Editar registro"}
+            onClick={registro.bloqueado ? null : (e) => onEditar(e, registro)}
+            title={registro.bloqueado ? "Registro auditado/bloqueado - Não pode ser editado" : (isEditando ? "Fechar edição" : "Editar registro")}
+            disabled={registro.bloqueado}
+            style={registro.bloqueado ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
           />
           <DeleteButton
-            onClick={(e) => onDeletar(e, registro)}
-            title={isDeletando ? "Fechar exclusão" : "Excluir registro"}
+            onClick={registro.bloqueado ? null : (e) => onDeletar(e, registro)}
+            title={registro.bloqueado ? "Registro auditado/bloqueado - Não pode ser excluído" : (isDeletando ? "Fechar exclusão" : "Excluir registro")}
+            disabled={registro.bloqueado}
+            style={registro.bloqueado ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
           />
         </div>
       </div>
-      
+
       {/* Campos de Edição */}
       {isEditando && (
         <div className="timer-dropdown-registro-edit-form">
@@ -267,7 +271,7 @@ const RegistroTempoItem = ({
           </div>
         </div>
       )}
-      
+
       {/* Campos de Exclusão */}
       {isDeletando && (
         <div className="timer-dropdown-registro-delete-form">
@@ -275,10 +279,10 @@ const RegistroTempoItem = ({
             <label style={{ color: '#dc2626', fontWeight: 500, fontSize: '11px' }}>
               Atenção: Esta ação não pode ser desfeita!
             </label>
-            <div style={{ 
-              padding: '8px', 
-              background: '#fef2f2', 
-              border: '1px solid #fecaca', 
+            <div style={{
+              padding: '8px',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
               borderRadius: '4px',
               marginTop: '4px',
               fontSize: '12px',
@@ -305,8 +309,8 @@ const RegistroTempoItem = ({
             <button className="btn-secondary" onClick={() => onFecharDelecao(registro.id)}>
               Cancelar
             </button>
-            <button 
-              className="btn-primary" 
+            <button
+              className="btn-primary"
               onClick={() => onConfirmarDelecao(registro)}
               style={{ background: '#ef4444', color: '#ffffff' }}
               onMouseEnter={(e) => e.target.style.background = '#dc2626'}
