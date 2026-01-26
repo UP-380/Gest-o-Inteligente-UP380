@@ -204,6 +204,8 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
     '/base-conhecimento/conteudos-clientes',
     '/base-conhecimento/cliente'
   ],
+  // Adicionando página de edição de cliente explicitamente
+  '/cadastro/cliente': ['/cadastro/cliente'],
 };
 
 /**
