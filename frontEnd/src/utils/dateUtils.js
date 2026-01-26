@@ -417,6 +417,29 @@ export const calcularDiasApenasComDatasIndividuais = (datasIndividuais = [], inc
   }
 };
 
+/**
+ * Formata milissegundos para o formato "Xh Ymin Zs"
+ * @param {number} ms - Milissegundos
+ * @param {boolean} includeSeconds - Se deve incluir segundos
+ * @returns {string} Tempo formatado
+ */
+export const formatTimeDuration = (ms, includeSeconds = false) => {
+  if (!ms || ms === 0) return includeSeconds ? '0s' : '0h';
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}min`);
+  if (includeSeconds && (seconds > 0 || (hours === 0 && minutes === 0))) parts.push(`${seconds}s`);
+
+  return parts.length > 0 ? parts.join(' ') : (includeSeconds ? '0s' : '0h');
+};
+
+
 
 
 

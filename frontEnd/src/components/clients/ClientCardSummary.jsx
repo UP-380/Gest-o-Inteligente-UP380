@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatTimeDuration } from '../../utils/dateUtils';
 import './ClientCardSummary.css';
 
 const API_BASE_URL = '/api';
@@ -18,7 +19,8 @@ const ClientCardSummary = ({ resumo, clienteId, contratos, registros, onOpenDeta
     totalProdutosUnicos,
     totalContratos,
     totalColaboradoresUnicos,
-    tempoTotalGeral
+    tempoTotalGeral,
+    tempoEstimadoGeral
   } = resumo;
 
   const handleDetailClick = (tipo, e) => {
@@ -98,7 +100,7 @@ const ClientCardSummary = ({ resumo, clienteId, contratos, registros, onOpenDeta
       // Se valor < 1 (decimal), está em horas -> converter para ms
       // Se valor >= 1, já está em ms
       let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
-      
+
       const custoHoraStr = custosPorColaborador[String(colaboradorId)];
       if (custoHoraStr) {
         // Converter custo_hora de string (formato "21,22") para número
@@ -205,53 +207,76 @@ const ClientCardSummary = ({ resumo, clienteId, contratos, registros, onOpenDeta
         )}
       </div>
 
-      {/* Tempo total geral - sempre mostra, mesmo se for 0 */}
-      <div className="client-info-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <i className="fas fa-stopwatch"></i>
-        <div
-          style={{
-            background: '#fee2e2',
-            borderRadius: '6px',
-            padding: '6px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '3px',
-            width: 'fit-content'
-          }}
-        >
-          <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
-            Realizadas: <span style={{ fontWeight: 600, color: '#ef4444' }}>
-              {(() => {
-                if (!tempoTotalGeral || tempoTotalGeral === 0) {
-                  return '0h 0min 0s';
-                }
-                const horas = Math.floor(tempoTotalGeral / (1000 * 60 * 60));
-                const minutos = Math.floor((tempoTotalGeral % (1000 * 60 * 60)) / (1000 * 60));
-                const segundos = Math.floor((tempoTotalGeral % (1000 * 60)) / 1000);
-                let tempoFormatado = '';
-                if (horas > 0) tempoFormatado += `${horas}h `;
-                if (minutos > 0 || horas > 0) tempoFormatado += `${minutos}min `;
-                if (segundos > 0 || (horas === 0 && minutos === 0)) tempoFormatado += `${segundos}s`;
-                return tempoFormatado.trim();
-              })()}
-            </span>
+      {/* Tempo total geral (Estimado e Realizado) */}
+      <div className="client-info-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+        <i className="fas fa-stopwatch" style={{ marginTop: '5px' }}></i>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+          {/* Tempo Estimado - ACIMA */}
+          {tempoEstimadoGeral > 0 && (
+            <div
+              style={{
+                background: '#eef2ff',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '3px',
+                width: 'fit-content',
+                border: '1px solid #c7d2fe'
+              }}
+            >
+              <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: 500 }}>
+                Estimado: <span style={{ fontWeight: 600 }}>
+                  {formatTimeDuration(tempoEstimadoGeral)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Tempo Realizado */}
+          <div
+            style={{
+              background: '#fee2e2',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '3px',
+              width: 'fit-content'
+            }}
+          >
+            <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
+              Realizadas: <span style={{ fontWeight: 600 }}>
+                {formatTimeDuration(tempoTotalGeral)}
+              </span>
+              {tempoTotalGeral > tempoEstimadoGeral && tempoEstimadoGeral > 0 && (
+                <span
+                  style={{ fontWeight: 700, marginLeft: '5px' }}
+                  title={`Excedeu ${formatTimeDuration(tempoTotalGeral - tempoEstimadoGeral)} do tempo estimado`}
+                >
+                  (+{formatTimeDuration(tempoTotalGeral - tempoEstimadoGeral)})
+                </span>
+              )}
+            </div>
+            {(() => {
+              const custoRealizadoTotal = calcularCustoRealizadoTotal();
+              if (custoRealizadoTotal !== null) {
+                return (
+                  <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
+                    Custo: <span style={{ fontWeight: 600 }}>{formatarValorMonetario(custoRealizadoTotal)}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
-          {(() => {
-            const custoRealizadoTotal = calcularCustoRealizadoTotal();
-            if (custoRealizadoTotal !== null) {
-              return (
-                <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 500 }}>
-                  Custo: <span style={{ fontWeight: 600, color: '#ef4444' }}>{formatarValorMonetario(custoRealizadoTotal)}</span>
-                </div>
-              );
-            }
-            return null;
-          })()}
         </div>
+
         {tempoTotalGeral > 0 && (
           <i
             className="fas fa-info-circle"
-            style={{ fontSize: '0.75rem', color: 'var(--gray-400)', cursor: 'help' }}
+            style={{ fontSize: '0.75rem', color: 'var(--gray-400)', cursor: 'help', marginTop: '5px' }}
             title={`${formatarTempoDecimal(tempoTotalGeral)} horas`}
           ></i>
         )}

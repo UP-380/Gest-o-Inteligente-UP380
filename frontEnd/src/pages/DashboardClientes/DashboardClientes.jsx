@@ -20,6 +20,8 @@ const RelatoriosClientes = () => {
   const [filtroColaborador, setFiltroColaborador] = useState(null);
   const [mostrarClientesInativos, setMostrarClientesInativos] = useState(false);
   const [mostrarColaboradoresInativos, setMostrarColaboradoresInativos] = useState(false);
+  const [enabledWeekends, setEnabledWeekends] = useState(false);
+  const [enabledHolidays, setEnabledHolidays] = useState(false);
 
   // Estado dos dados
   const [todosClientes, setTodosClientes] = useState([]);
@@ -248,6 +250,10 @@ const RelatoriosClientes = () => {
       // Adicionar flags de inativos
       params.incluirClientesInativos = mostrarClientesInativos;
       params.incluirColaboradoresInativos = mostrarColaboradoresInativos;
+
+      // Adicionar flags de tempo estimado
+      params.considerarFinaisDeSemana = enabledWeekends;
+      params.considerarFeriados = enabledHolidays;
 
       const result = await clientesAPI.getRelatorios(params);
 
@@ -593,7 +599,9 @@ const RelatoriosClientes = () => {
       dataFim: filtroDataFim,
       colaborador: filtroColaborador,
       mostrarClientesInativos: mostrarClientesInativos,
-      mostrarColaboradoresInativos: mostrarColaboradoresInativos
+      mostrarColaboradoresInativos: mostrarColaboradoresInativos,
+      enabledWeekends: enabledWeekends,
+      enabledHolidays: enabledHolidays
     });
     carregarClientesPaginados(filtrosParaEnviar);
   }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarClientesPaginados]);
@@ -608,6 +616,8 @@ const RelatoriosClientes = () => {
     setFiltroDataFim(null);
     setMostrarClientesInativos(false);
     setMostrarColaboradoresInativos(false);
+    setEnabledWeekends(false);
+    setEnabledHolidays(false);
     setFiltrosAplicadosAtuais({});
 
     // Limpar cache para garantir dados atualizados
@@ -1386,6 +1396,10 @@ const RelatoriosClientes = () => {
                       setFiltroDataFim(value && value.trim() !== '' ? value : null);
                     }}
                     disabled={false}
+                    showWeekendToggle={true}
+                    onWeekendToggleChange={setEnabledWeekends}
+                    showHolidayToggle={true}
+                    onHolidayToggleChange={setEnabledHolidays}
                   />
                 </div>
 

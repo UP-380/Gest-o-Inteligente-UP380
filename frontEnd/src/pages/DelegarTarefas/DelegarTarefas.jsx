@@ -1406,6 +1406,10 @@ const DelegarTarefas = () => {
             paramsTotal.append('data_inicio', periodoAUsar.inicio);
             paramsTotal.append('data_fim', periodoAUsar.fim);
 
+            // Adicionar flags de finais de semana e feriados (filtros do dashboard)
+            paramsTotal.append('considerarFinaisDeSemana', habilitarFinaisSemana ? 'true' : 'false');
+            paramsTotal.append('considerarFeriados', habilitarFeriados ? 'true' : 'false');
+
             // Adicionar filtros de valores selecionados
             if (valoresAUsar.produto) {
               const produtoIds = Array.isArray(valoresAUsar.produto)

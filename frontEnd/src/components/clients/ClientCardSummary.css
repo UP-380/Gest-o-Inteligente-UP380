@@ -20,7 +20,8 @@
 .client-info-item i {
     width: 1rem;
     color: var(--gray-400);
-    font-size: 0.875rem; /*Tamanho do ícone*/
+    font-size: 0.875rem;
+    /*Tamanho do ícone*/
     flex-shrink: 0;
     margin-top: 2px;
 }
@@ -70,4 +71,57 @@
     box-shadow: none;
 }
 
+/* Badges de Tempo Estimado / Excedido (Portado de DelegarTarefas.css) */
+.barra-progresso-tempo-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4.2px 7px;
+    border-radius: 3.5px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    background: #ffffff;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+    min-height: 28px;
+    box-sizing: border-box;
+}
 
+.barra-progresso-tempo-badge.estimado {
+    background: #eef2ff;
+    color: #0e3b6f;
+    border: 1px solid #c7d2fe;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.barra-progresso-tempo-badge-tempo {
+    display: block;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.barra-progresso-tempo-excedido {
+    display: block;
+    font-size: 0.75em;
+    font-weight: 700;
+    color: #dc2626;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido .barra-progresso-tempo-excedido {
+    color: #dc2626;
+}
+
+.barra-progresso-tempo-badge.estimado.excedido .barra-progresso-tempo-badge-tempo {
+    color: #991b1b;
+}
