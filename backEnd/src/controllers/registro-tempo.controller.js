@@ -874,7 +874,8 @@ async function atualizarRegistroTempo(req, res) {
       });
     }
 
-    // TICKET 2: Bloqueio de Imutabilidade
+    // TICKET 2: Bloqueio de Imutabilidade - REMOVIDO POR SOLICITAÇÃO DO USUÁRIO
+    /*
     if (registroExistente.bloqueado) {
       console.warn(`⚠️ Tentativa de edição em registro bloqueado: ${id}`);
       return res.status(403).json({
@@ -882,6 +883,7 @@ async function atualizarRegistroTempo(req, res) {
         error: 'Este registro foi auditado e aprovado, não pode ser alterado.'
       });
     }
+    */
 
     // REGRA 1: Apenas registros finalizados podem ser editados
     if (!registroExistente.data_fim) {

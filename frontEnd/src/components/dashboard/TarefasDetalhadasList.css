@@ -148,6 +148,25 @@
   align-items: center;
 }
 
+.tarefa-detalhada-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #f1f5f9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.tarefa-detalhada-tipo-badge i {
+  font-size: 9px;
+  color: #64748b;
+}
+
 .tarefa-detalhada-metrics {
   display: flex;
   align-items: flex-start;
@@ -588,4 +607,3 @@
   font-size: 11px;
   font-weight: 500;
 }
-

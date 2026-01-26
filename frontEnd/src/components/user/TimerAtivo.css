@@ -4,14 +4,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  background: #1f2937; /* Fundo escuro */
-  border-radius: 12px; /* Bordas mais arredondadas para combinar com o botão */
-  padding: 6px 3px 6px 15px; /* Menos padding à direita para botão mais próximo do canto */
+  background: #1f2937;
+  /* Fundo escuro */
+  border-radius: 12px;
+  /* Bordas mais arredondadas para combinar com o botão */
+  padding: 6px 3px 6px 15px;
+  /* Menos padding à direita para botão mais próximo do canto */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   visibility: visible !important;
   opacity: 1 !important;
   z-index: 1;
-  height: 27px; /* Mesma altura do botão Quadro */
+  height: 27px;
+  /* Mesma altura do botão Quadro */
   box-sizing: border-box;
 }
 
@@ -19,7 +23,8 @@
   font-family: 'Courier New', 'Monaco', monospace;
   font-size: 13px;
   font-weight: 500;
-  color: #e5e7eb; /* Texto claro */
+  color: #e5e7eb;
+  /* Texto claro */
   letter-spacing: 0.5px;
   min-width: 55px;
   text-align: left;
@@ -29,10 +34,12 @@
 }
 
 .timer-ativo-stop-btn {
-  background: #ef4444; /* Vermelho */
+  background: #ef4444;
+  /* Vermelho */
   color: #ffffff;
   border: none;
-  border-radius: 4px; /* Bordas arredondadas similares ao botão Quadro */
+  border-radius: 4px;
+  /* Bordas arredondadas similares ao botão Quadro */
   width: 20px;
   height: 20px;
   min-width: 20px;
@@ -43,7 +50,8 @@
   transition: all 0.2s ease;
   flex-shrink: 0;
   padding: 0;
-  margin-left: auto; /* Empurra o botão para a direita */
+  margin-left: auto;
+  /* Empurra o botão para a direita */
 }
 
 .timer-ativo-stop-btn:hover {
@@ -66,7 +74,8 @@
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: 12px; /* Bordas mais arredondadas para combinar */
+  border-radius: 12px;
+  /* Bordas mais arredondadas para combinar */
   padding: 6px 10px;
   height: 27px;
   box-sizing: border-box;
@@ -112,7 +121,7 @@
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-.timer-ativo-dropdown * {
+.timer-ativo-dropdown *:not(i):not([class*="fa-"]) {
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
@@ -831,4 +840,49 @@
 
 .timer-edit-justificativa-input::placeholder {
   color: #9ca3af;
+}
+
+/* Footer do Dropdown com Atalhos */
+.timer-dropdown-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin-top: auto;
+}
+
+.timer-dropdown-footer-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.timer-dropdown-footer-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.timer-dropdown-footer-btn i {
+  color: #64748b;
+  font-size: 14px;
 }

@@ -64,7 +64,7 @@ const FiltrosAdicionaisDropdown = ({
             </label>
           </div>
         )}
-        
+
         {/* Opção Tarefa (se não for o filtro pai) */}
         {filtroPaiAtual !== 'atividade' && (
           <div className="filtro-adicional-option">
@@ -86,7 +86,7 @@ const FiltrosAdicionaisDropdown = ({
             </label>
           </div>
         )}
-        
+
         {/* Opção Produto (se não for o filtro pai) */}
         {filtroPaiAtual !== 'produto' && (
           <div className="filtro-adicional-option">
@@ -108,6 +108,8 @@ const FiltrosAdicionaisDropdown = ({
             </label>
           </div>
         )}
+
+
       </div>
     </div>
   );

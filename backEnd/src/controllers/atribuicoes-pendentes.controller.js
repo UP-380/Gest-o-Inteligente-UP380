@@ -13,6 +13,7 @@
 const supabase = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const notificacoesController = require('./notificacoes.controller');
+const { NOTIFICATION_TYPES } = require('../constants/notificationTypes');
 
 // ========================================
 // === CRIAÇÃO E GESTÃO ===
@@ -211,8 +212,9 @@ async function criarAtribuicaoPendente(req, res) {
             }
             const nomeUsuario = req.session.usuario.nome_usuario;
 
-            await notificacoesController.gerarNotificacaoParaGestores({
-                tipo: 'PLUG_RAPIDO',
+            // Alterado para usar o novo método de distribuição
+            await notificacoesController.distribuirNotificacao({
+                tipo: NOTIFICATION_TYPES.PLUG_RAPIDO,
                 titulo: comentario_colaborador ? 'Plug sem Tarefa Definida' : 'Novo Plug Rápido',
                 mensagem: comentario_colaborador
                     ? `${nomeUsuario} plugou sem tarefa: "${comentario_colaborador.substring(0, 30)}..."`
@@ -627,7 +629,7 @@ async function aprovarAtribuicao(req, res) {
                     data_inicio: reg.data_inicio,
                     data_fim: reg.data_fim,
                     // tempo_estimado_id: null, // Removido pois coluna não existe
-                    bloqueado: true // TICKET 2: Bloquear edição/exclusão deste registro
+                    bloqueado: false // TICKET 2: Bloqueio removido por solicitação do usuário
                 };
             });
 

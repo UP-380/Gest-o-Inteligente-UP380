@@ -82,24 +82,16 @@ async function atualizarPermissoes(req, res) {
       });
     }
 
-    const niveisValidos = ['administrador', 'gestor', 'colaborador'];
-    let permissoesNormalizadas = permissoes;
+    const nivelNormalizado = typeof permissoes === 'string' ? permissoes.toLowerCase().trim() : null;
 
-    if (typeof permissoes === 'string') {
-      const normalized = permissoes.toLowerCase().trim();
-      if (!niveisValidos.includes(normalized)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nível de permissão inválido. Use: administrador, gestor ou colaborador'
-        });
-      }
-      permissoesNormalizadas = normalized;
-    } else {
+    if (!nivelNormalizado) {
       return res.status(400).json({
         success: false,
-        error: 'Permissões devem ser uma string'
+        error: 'Nível de permissão inválido'
       });
     }
+
+    const permissoesNormalizadas = nivelNormalizado;
 
     // Verificar se o usuário existe
     const { data: usuarioExistente, error: checkError } = await supabase
@@ -180,24 +172,16 @@ async function criarUsuario(req, res) {
       });
     }
 
-    const niveisValidos = ['administrador', 'gestor', 'colaborador'];
-    let permissoesNormalizadas = permissoes;
-    
-    if (typeof permissoes === 'string') {
-      const normalized = permissoes.toLowerCase().trim();
-      if (!niveisValidos.includes(normalized)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nível de permissão inválido. Use: administrador, gestor ou colaborador'
-        });
-      }
-      permissoesNormalizadas = normalized;
-    } else {
+    const nivelNormalizado = typeof permissoes === 'string' ? permissoes.toLowerCase().trim() : null;
+
+    if (!nivelNormalizado) {
       return res.status(400).json({
         success: false,
-        error: 'Permissões devem ser uma string'
+        error: 'Nível de permissão inválido'
       });
     }
+
+    const permissoesNormalizadas = nivelNormalizado;
 
     // Verificar se o email já existe
     const { data: usuarioExistente, error: checkError } = await supabase
@@ -371,26 +355,16 @@ async function atualizarUsuario(req, res) {
 
     if (permissoes !== undefined) {
       // Validar nível de permissão (obrigatório)
-      const niveisValidos = ['administrador', 'gestor', 'colaborador'];
-      let permissoesNormalizadas = permissoes;
+      const nivelNormalizado = typeof permissoes === 'string' ? permissoes.toLowerCase().trim() : null;
 
-      if (typeof permissoes === 'string') {
-        const normalized = permissoes.toLowerCase().trim();
-        if (!niveisValidos.includes(normalized)) {
-          return res.status(400).json({
-            success: false,
-            error: 'Nível de permissão inválido. Use: administrador, gestor ou colaborador'
-          });
-        }
-        permissoesNormalizadas = normalized;
-      } else {
+      if (!nivelNormalizado) {
         return res.status(400).json({
           success: false,
-          error: 'Permissões devem ser uma string'
+          error: 'Nível de permissão inválido'
         });
       }
-      
-      dadosUpdate.permissoes = permissoesNormalizadas;
+
+      dadosUpdate.permissoes = nivelNormalizado;
     }
 
     // Atualizar usuário
