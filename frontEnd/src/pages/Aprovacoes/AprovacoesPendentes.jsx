@@ -122,9 +122,16 @@ const AprovacoesPendentes = () => {
         setSelectedItem(item);
         setMembroId(null);
 
-        const tempoSegundos = item.tempo_estimado_dia || 0;
+        const tempoRaw = item.tempo_estimado_dia || 0;
 
         await fetchProdutos(item.cliente_id);
+
+        // Heuristica: Se < 50000 (aprox 13h em segundos, ou 50s em ms), assume que é segundos (legado erro).
+        // 1h = 3600 (sec) vs 3600000 (ms).
+        // 10h = 36000 (sec).
+        // 1min = 60000 (ms).
+        // Threshold de 50000 separa bem segundos típicos de ms típicos.
+        const tempoMs = tempoRaw < 50000 ? tempoRaw * 1000 : tempoRaw;
 
         setEditForm({
             cliente_id: item.cliente_id ? String(item.cliente_id) : '',
@@ -132,7 +139,7 @@ const AprovacoesPendentes = () => {
             tarefa_id: item.tarefa_id ? String(item.tarefa_id) : '',
             data_inicio: item.data_inicio ? item.data_inicio.split('T')[0] : '',
             data_fim: item.data_fim ? item.data_fim.split('T')[0] : '',
-            tempo_estimado_ms: tempoSegundos * 1000,
+            tempo_estimado_ms: tempoMs,
             habilitarFinaisSemana: false,
             habilitarFeriados: false
         });
@@ -235,15 +242,13 @@ const AprovacoesPendentes = () => {
     const handleConfirmAprovar = async () => {
         if (!selectedItem) return;
 
-        const tempoSegundos = Math.floor(editForm.tempo_estimado_ms / 1000);
-
         const payload = {
             cliente_id: editForm.cliente_id,
             produto_id: editForm.produto_id,
             tarefa_id: editForm.tarefa_id,
             data_inicio: `${editForm.data_inicio}T00:00:00`,
             data_fim: `${editForm.data_fim}T23:59:59`,
-            tempo_estimado_dia: tempoSegundos
+            tempo_estimado_dia: editForm.tempo_estimado_ms
         };
 
         setSaving(true);

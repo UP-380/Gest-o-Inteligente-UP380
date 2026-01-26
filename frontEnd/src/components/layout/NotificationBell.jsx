@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { hasPermissionSync } from '../../utils/permissions';
 import './NotificationBell.css';
 
 const API_BASE_URL = '/api';
@@ -15,7 +17,8 @@ const NotificationBell = ({ user }) => {
     const [shouldPulse, setShouldPulse] = useState(false);
 
     // Verificar se o usuário tem permissão para ver o sininho
-    const canSeeBell = user && (user.permissoes === 'administrador' || user.permissoes === 'gestor');
+    // Utiliza o utilitário de permissões para verificar acesso à página de notificações
+    const canSeeBell = user && hasPermissionSync(user.permissoes, '/notificacoes');
 
     const fetchCount = useCallback(async () => {
         if (!canSeeBell) return;

@@ -475,6 +475,8 @@ const DelegarTarefas = () => {
     }
   };
 
+
+
   // Função genérica para buscar opções filtradas de QUALQUER filtro (pai ou adicional)
   // Considera TODOS os filtros já ativos, independente da ordem
   const buscarOpcoesFiltroContextual = async (tipoFiltro) => {
@@ -609,6 +611,8 @@ const DelegarTarefas = () => {
               idsUnicos.add(String(reg.cliente_id));
             } else if (tipoFiltro === 'responsavel' && reg.responsavel_id) {
               idsUnicos.add(String(reg.responsavel_id));
+            } else if (tipoFiltro === 'tipo_tarefa' && reg.tipo_tarefa_id) {
+              idsUnicos.add(String(reg.tipo_tarefa_id));
             }
           });
 
@@ -738,6 +742,8 @@ const DelegarTarefas = () => {
       loadTarefas();
     }
   }, [filtros.atividade]);
+
+
 
   // Buscar opções contextuais quando um filtro pai for selecionado pela primeira vez
   useEffect(() => {
@@ -1220,6 +1226,7 @@ const DelegarTarefas = () => {
           });
         }
       }
+
       if (filtrosAUsar.cliente) {
         params.append('filtro_cliente', 'true');
         // Adicionar IDs de clientes selecionados se houver
@@ -1359,7 +1366,7 @@ const DelegarTarefas = () => {
                     produto_id: regra.produto_id,
                     tarefa_id: regra.tarefa_id,
                     responsavel_id: regra.responsavel_id,
-                    tipo_tarefa_id: regra.tipo_tarefa_id,
+
                     data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
                     tempo_estimado_dia: regra.tempo_estimado_dia,
                     incluir_finais_semana: regra.incluir_finais_semana !== false,
@@ -1399,6 +1406,10 @@ const DelegarTarefas = () => {
             paramsTotal.append('data_inicio', periodoAUsar.inicio);
             paramsTotal.append('data_fim', periodoAUsar.fim);
 
+            // Adicionar flags de finais de semana e feriados (filtros do dashboard)
+            paramsTotal.append('considerarFinaisDeSemana', habilitarFinaisSemana ? 'true' : 'false');
+            paramsTotal.append('considerarFeriados', habilitarFeriados ? 'true' : 'false');
+
             // Adicionar filtros de valores selecionados
             if (valoresAUsar.produto) {
               const produtoIds = Array.isArray(valoresAUsar.produto)
@@ -1415,6 +1426,15 @@ const DelegarTarefas = () => {
                 : [valoresAUsar.tarefa];
               tarefaIds.forEach(id => {
                 if (id) paramsTotal.append('tarefa_id', String(id).trim());
+              });
+            }
+
+            if (valoresAUsar.tipo_tarefa) {
+              const tipoTarefaIds = Array.isArray(valoresAUsar.tipo_tarefa)
+                ? valoresAUsar.tipo_tarefa
+                : [valoresAUsar.tipo_tarefa];
+              tipoTarefaIds.forEach(id => {
+                if (id) paramsTotal.append('tipo_tarefa_id', String(id).trim());
               });
             }
 
@@ -2500,6 +2520,7 @@ const DelegarTarefas = () => {
     setFiltroProdutoSelecionado(null);
     setFiltroTarefaSelecionado(null);
     setFiltroResponsavelSelecionado(null);
+
     setFiltroStatusCliente('ativo'); // Resetar para valor padrão
     // Limpar filtros adicionais
     setMostrarFiltrosAdicionais(false);
@@ -2511,11 +2532,13 @@ const DelegarTarefas = () => {
     setFiltroAdicionalCliente(null);
     setFiltroAdicionalTarefa(null);
     setFiltroAdicionalProduto(null);
+
     // Limpar opções filtradas
     setOpcoesFiltradasTarefas([]);
     setOpcoesFiltradasProdutos([]);
     setOpcoesFiltradasClientes([]);
     setOpcoesFiltradasResponsaveis([]);
+
     setRegistrosAgrupados([]);
     setTotalRegistros(0);
     setTotalPages(1);
@@ -3089,6 +3112,7 @@ const DelegarTarefas = () => {
                   onMouseEnter={() => setFiltroHover('responsavel')}
                   onMouseLeave={() => setFiltroHover(null)}
                 />
+
               </div>
 
               {/* Segunda linha: FilterPeriodo e campos "Definir X" */}
@@ -3191,6 +3215,7 @@ const DelegarTarefas = () => {
                     />
                   </div>
                 )}
+
               </div>
 
               {/* Terceira linha: Botão "Adicionar filtros" e componentes de seleção para filtros adicionais */}
@@ -3300,6 +3325,7 @@ const DelegarTarefas = () => {
                       />
                     </div>
                   )}
+
                 </div>
               )}
             </FiltersCard>

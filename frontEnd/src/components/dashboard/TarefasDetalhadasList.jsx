@@ -31,7 +31,9 @@ const TarefasDetalhadasList = ({
   onToggleTarefa,
   getNomeCliente,
   getNomeColaboradorPorUsuarioId = null,
-  temposRealizadosPorTarefa = {}
+  getNomeTipoTarefa = null,
+  temposRealizadosPorTarefa = {},
+  filtrosAdicionais = {}
 }) => {
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
 
@@ -116,6 +118,11 @@ const TarefasDetalhadasList = ({
               const registrosDaTarefa = registrosIndividuais[tarefa.id];
               if ((!tempoRealizadoMs || tempoRealizadoMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
                 tempoRealizadoMs = registrosDaTarefa.reduce((total, reg) => {
+                  // Se houver filtro de tipo de tarefa, filtrar registros individuais
+                  if (filtrosAdicionais?.tipo_tarefa_id && String(reg.tipo_tarefa_id) !== String(filtrosAdicionais.tipo_tarefa_id)) {
+                    return total;
+                  }
+
                   let tempoReg = Number(reg.tempo_realizado) || 0;
                   if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
                   if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
@@ -145,6 +152,12 @@ const TarefasDetalhadasList = ({
                       <div className="tarefa-detalhada-nome">
                         <i className="fas fa-tasks" style={{ marginRight: '8px' }}></i>
                         {tarefa.nome}
+                        {tarefa.tipoTarefaId && getNomeTipoTarefa && (
+                          <span className="tarefa-detalhada-tipo-badge" title="Tipo de Tarefa">
+                            <i className="fas fa-tags"></i>
+                            {getNomeTipoTarefa(tarefa.tipoTarefaId)}
+                          </span>
+                        )}
                       </div>
                       <div className="tarefa-detalhada-metrics">
                         {/* Card Estimado */}

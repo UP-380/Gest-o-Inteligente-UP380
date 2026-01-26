@@ -364,7 +364,7 @@ function gerarIdVirtual(regraId, data) {
  * @param {string|null} dataFimFiltro - Data fim do filtro (opcional, filtra resultado)
  * @returns {Array} Array de registros virtuais no formato esperado pelo frontend
  */
-async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFimFiltro = null, cacheFeriados = null) {
+async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFimFiltro = null, cacheFeriados = null, overrideFinaisSemana = null, overrideFeriados = null) {
   try {
     if (!regra || !regra.data_inicio || !regra.data_fim) {
       console.warn('⚠️ Regra inválida para cálculo dinâmico:', regra);
@@ -372,8 +372,12 @@ async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFi
     }
 
     // Gerar datas do período da regra
-    const incluirFinaisSemana = regra.incluir_finais_semana !== false; // Default true
-    const incluirFeriados = regra.incluir_feriados !== false; // Default true
+    let incluirFinaisSemana = regra.incluir_finais_semana !== false; // Default true
+    let incluirFeriados = regra.incluir_feriados !== false; // Default true
+
+    // Aplicar overrides do filtro global (se fornecidos como booleanos)
+    if (typeof overrideFinaisSemana === 'boolean') incluirFinaisSemana = overrideFinaisSemana;
+    if (typeof overrideFeriados === 'boolean') incluirFeriados = overrideFeriados;
 
     let datasDoPeriodo = await gerarDatasDoPeriodo(
       regra.data_inicio,
@@ -2628,8 +2632,13 @@ async function getTempoEstimadoTotal(req, res) {
     const {
       data_inicio = null,
       data_fim = null,
-      cliente_status = null
+      cliente_status = null,
+      considerarFinaisDeSemana,
+      considerarFeriados
     } = req.query;
+
+    const overrideFinaisSemana = considerarFinaisDeSemana !== undefined ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true) : undefined;
+    const overrideFeriados = considerarFeriados !== undefined ? (considerarFeriados === 'true' || considerarFeriados === true) : undefined;
 
     // Processar IDs que podem vir como array
     const cliente_id = processarParametroArray(req.query.cliente_id);
@@ -2769,7 +2778,9 @@ async function getTempoEstimadoTotal(req, res) {
           regra,
           periodoInicioFiltro,
           periodoFimFiltro,
-          cacheFeriados
+          cacheFeriados,
+          overrideFinaisSemana,
+          overrideFeriados
         );
         todosRegistros.push(...registrosExpandidos);
       } catch (error) {

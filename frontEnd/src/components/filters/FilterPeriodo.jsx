@@ -19,7 +19,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const isAtribuicaoMini = uiVariant === 'atribuicao-mini';
   const editandoLocalmenteRef = useRef(false);
-  const [showQuickSelect, setShowQuickSelect] = useState(false);
+  const [showQuickSelect, setShowQuickSelect] = useState(true);
 
   // Formatar data para exibição
   const formatarData = (dataStr) => {

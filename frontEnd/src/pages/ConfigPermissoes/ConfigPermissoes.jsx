@@ -7,6 +7,7 @@ import LoadingState from '../../components/common/LoadingState';
 import { useToast } from '../../hooks/useToast';
 import { clearPermissoesConfigCache } from '../../utils/permissions';
 import './ConfigPermissoes.css';
+import { NOTIFICATION_TYPES, NOTIFICATION_DESCRIPTIONS } from '../../constants/notificationTypes';
 
 const API_BASE_URL = '/api';
 
@@ -102,6 +103,10 @@ const ConfigPermissoes = () => {
     gestor: { paginas: null },
     colaborador: { paginas: [] }
   });
+  const [isModalNovoNivelOpen, setIsModalNovoNivelOpen] = useState(false);
+  const [novoNivelNome, setNovoNivelNome] = useState('');
+  const [criandoNivel, setCriandoNivel] = useState(false);
+  const [activeTab, setActiveTab] = useState('paginas'); // 'paginas' ou 'notificacoes'
 
   // Obter subpáginas de uma página principal
   const getSubpaginas = (paginaPrincipal) => {
@@ -147,21 +152,30 @@ const ConfigPermissoes = () => {
       if (result.success) {
         const configsData = {};
         result.data.forEach(item => {
-          if (item.paginas === null) {
-            configsData[item.nivel] = { paginas: null };
-          } else {
-            // Normalizar páginas: garantir que páginas principais estejam incluídas se suas subpáginas estiverem
-            const paginasNormalizadas = normalizarPaginas(Array.isArray(item.paginas) ? item.paginas : []);
-            configsData[item.nivel] = { paginas: paginasNormalizadas };
+          // Normalizar páginas
+          let paginasNormalizadas = null;
+          if (item.paginas !== null) {
+            paginasNormalizadas = normalizarPaginas(Array.isArray(item.paginas) ? item.paginas : []);
           }
+
+          // Normalizar notificações
+          let notificacoes = [];
+          if (item.notificacoes) {
+            notificacoes = Array.isArray(item.notificacoes) ? item.notificacoes : [];
+          }
+
+          configsData[item.nivel] = {
+            paginas: paginasNormalizadas,
+            notificacoes: notificacoes
+          };
         });
 
         // Se não houver configuração, usar padrões
         if (!configsData.administrador) {
-          configsData.administrador = { paginas: null }; // null = todas as páginas
+          configsData.administrador = { paginas: null, notificacoes: [] };
         }
         if (!configsData.gestor) {
-          configsData.gestor = { paginas: null }; // null = todas as páginas
+          configsData.gestor = { paginas: null, notificacoes: [] };
         }
         if (!configsData.colaborador) {
           configsData.colaborador = {
@@ -171,7 +185,8 @@ const ConfigPermissoes = () => {
               '/base-conhecimento',
               '/base-conhecimento/conteudos-clientes',
               '/configuracoes/perfil'
-            ]
+            ],
+            notificacoes: [NOTIFICATION_TYPES.PLUG_RAPIDO]
           };
         }
 
@@ -187,6 +202,64 @@ const ConfigPermissoes = () => {
     }
   };
 
+  // Criar novo nível
+  const handleCriarNovoNivel = async () => {
+    if (!novoNivelNome.trim()) {
+      showToast('error', 'O nome do nível é obrigatório');
+      return;
+    }
+
+    const nomeNormalizado = novoNivelNome.toLowerCase().trim();
+    if (configs[nomeNormalizado] || nomeNormalizado === 'administrador') {
+      showToast('error', 'Este nível já existe');
+      return;
+    }
+
+    setCriandoNivel(true);
+    try {
+      // Salvar o novo nível inicialmente com nenhuma página selecionada
+      // Usamos a mesma API de update, pois o backend cria se não existir
+      const response = await fetch(`${API_BASE_URL}/permissoes-config/${nomeNormalizado}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ paginas: [] }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast('success', `Nível "${novoNivelNome}" criado com sucesso!`);
+
+        // Atualizar estado local
+        setConfigs(prev => ({
+          ...prev,
+          [nomeNormalizado]: { paginas: [] }
+        }));
+
+        // Selecionar o novo nível
+        setNivelSelecionado(nomeNormalizado);
+
+        // Fechar modal e limpar
+        setIsModalNovoNivelOpen(false);
+        setNovoNivelNome('');
+
+        // Recarregar configs para garantir sincronização
+        await loadConfigs();
+      } else {
+        throw new Error(result.error || 'Erro ao criar nível');
+      }
+    } catch (error) {
+      console.error('Erro ao criar nível:', error);
+      showToast('error', error.message || 'Erro ao criar nível. Tente novamente.');
+    } finally {
+      setCriandoNivel(false);
+    }
+  };
+
   // Salvar configurações
   const handleSave = async () => {
     if (nivelSelecionado === 'administrador') return; // Administrador não precisa salvar
@@ -194,6 +267,8 @@ const ConfigPermissoes = () => {
     setSalvando(true);
     try {
       const config = configs[nivelSelecionado];
+      // Preparar notificações
+      const notificacoes = config.notificacoes || [];
       // Se todas as páginas estão selecionadas (incluindo subpáginas), enviar null (acesso total)
       const todasPaginas = TODAS_PAGINAS.map(p => p.path);
       const todasSubpaginas = [];
@@ -214,7 +289,7 @@ const ConfigPermissoes = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ paginas }),
+        body: JSON.stringify({ paginas, notificacoes }),
       });
 
       if (response.status === 401) {
@@ -370,6 +445,26 @@ const ConfigPermissoes = () => {
     }));
   };
 
+  // Toggle Notificação
+  const handleToggleNotificacao = (tipo) => {
+    setConfigs(prev => {
+      const config = prev[nivelSelecionado];
+      const current = config.notificacoes || [];
+      let newNotifs;
+      if (current.includes(tipo)) {
+        newNotifs = current.filter(t => t !== tipo);
+      } else {
+        newNotifs = [...current, tipo];
+      }
+      return {
+        ...prev,
+        [nivelSelecionado]: {
+          ...config,
+          notificacoes: newNotifs
+        }
+      };
+    });
+  };
 
   return (
     <Layout>
@@ -406,110 +501,254 @@ const ConfigPermissoes = () => {
                       <i className="fas fa-shield-alt" style={{ marginRight: '8px', color: '#0e3b6f' }}></i>
                       Nível de Permissão
                     </label>
-                    <select
-                      value={nivelSelecionado}
-                      onChange={(e) => setNivelSelecionado(e.target.value)}
-                      className="nivel-select"
-                      disabled={salvando}
-                    >
-                      <option value="administrador">Administrador</option>
-                      <option value="gestor">Gestor</option>
-                      <option value="colaborador">Colaborador</option>
-                    </select>
+                    <div className="nivel-select-wrapper">
+                      <select
+                        value={nivelSelecionado}
+                        onChange={(e) => setNivelSelecionado(e.target.value)}
+                        className="nivel-select"
+                        disabled={salvando}
+                      >
+                        {Object.keys(configs).map(nivel => (
+                          <option key={nivel} value={nivel}>
+                            {nivel.charAt(0).toUpperCase() + nivel.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn-add-nivel"
+                        onClick={() => setIsModalNovoNivelOpen(true)}
+                        disabled={salvando}
+                        title="Criar novo nível de permissão"
+                      >
+                        <i className="fas fa-plus"></i>
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Abas de Configuração */}
+                  <div className="config-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                    <button
+                      onClick={() => setActiveTab('paginas')}
+                      style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        background: activeTab === 'paginas' ? '#0e3b6f' : 'transparent',
+                        color: activeTab === 'paginas' ? 'white' : '#666',
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'paginas' ? 'bold' : 'normal'
+                      }}
+                    >
+                      <i className="fas fa-columns" style={{ marginRight: '5px' }}></i> Acesso a Páginas
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('notificacoes')}
+                      style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        background: activeTab === 'notificacoes' ? '#0e3b6f' : 'transparent',
+                        color: activeTab === 'notificacoes' ? 'white' : '#666',
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'notificacoes' ? 'bold' : 'normal'
+                      }}
+                    >
+                      <i className="fas fa-bell" style={{ marginRight: '5px' }}></i> Notificações
+                    </button>
+                  </div>
+
+                  {/* Modal de Novo Nível */}
+                  {isModalNovoNivelOpen && (
+                    <div className="modal-novo-nivel-overlay">
+                      <div className="modal-novo-nivel-content">
+                        <div className="modal-novo-nivel-header">
+                          <h3>Novo Nível de Permissão</h3>
+                          <button
+                            className="btn-icon"
+                            onClick={() => {
+                              setIsModalNovoNivelOpen(false);
+                              setNovoNivelNome('');
+                            }}
+                            disabled={criandoNivel}
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
+                        <div className="modal-novo-nivel-body">
+                          <label htmlFor="novo-nivel-nome">Nome da Categoria Customizada</label>
+                          <input
+                            id="novo-nivel-nome"
+                            type="text"
+                            className="modal-novo-nivel-input"
+                            placeholder="Ex: Supervisor, Financeiro, etc..."
+                            value={novoNivelNome}
+                            onChange={(e) => setNovoNivelNome(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleCriarNovoNivel()}
+                            disabled={criandoNivel}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="modal-novo-nivel-footer">
+                          <button
+                            className="btn-secondary"
+                            onClick={() => {
+                              setIsModalNovoNivelOpen(false);
+                              setNovoNivelNome('');
+                            }}
+                            disabled={criandoNivel}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn-primary"
+                            onClick={handleCriarNovoNivel}
+                            disabled={criandoNivel || !novoNivelNome.trim()}
+                          >
+                            {criandoNivel ? 'Criando...' : 'Criar Categoria'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Lista de páginas */}
-                  <div className="paginas-list">
-                    {Object.entries(paginasPorCategoria).map(([categoria, paginas]) => {
-                      const config = configs[nivelSelecionado];
-                      // Se paginas é null ou é administrador, significa acesso total
-                      const todasPaginas = TODAS_PAGINAS.map(p => p.path);
-                      const todasSubpaginas = [];
-                      TODAS_PAGINAS.forEach(p => {
-                        const subpaginas = getSubpaginas(p);
-                        todasSubpaginas.push(...subpaginas);
-                      });
-                      const todasPaginasCompletas = [...todasPaginas, ...todasSubpaginas];
-                      const paginasSelecionadas = (config.paginas === null || nivelSelecionado === 'administrador')
-                        ? todasPaginasCompletas
-                        : (config.paginas || []);
+                  {activeTab === 'paginas' && (
+                    <div className="paginas-list">
+                      {Object.entries(paginasPorCategoria).map(([categoria, paginas]) => {
+                        const config = configs[nivelSelecionado];
+                        // Se paginas é null ou é administrador, significa acesso total
+                        const todasPaginas = TODAS_PAGINAS.map(p => p.path);
+                        const todasSubpaginas = [];
+                        TODAS_PAGINAS.forEach(p => {
+                          const subpaginas = getSubpaginas(p);
+                          todasSubpaginas.push(...subpaginas);
+                        });
+                        const todasPaginasCompletas = [...todasPaginas, ...todasSubpaginas];
+                        const paginasSelecionadas = (config.paginas === null || nivelSelecionado === 'administrador')
+                          ? todasPaginasCompletas
+                          : (config.paginas || []);
 
-                      // Verificar se todas as páginas da categoria estão selecionadas (incluindo subpáginas)
-                      const todasPaginasCategoria = [];
-                      paginas.forEach(pagina => {
-                        todasPaginasCategoria.push(pagina.path);
-                        const subpaginas = getSubpaginas(pagina);
-                        todasPaginasCategoria.push(...subpaginas);
-                      });
-                      const todasSelecionadas = todasPaginasCategoria.every(p => paginasSelecionadas.includes(p));
+                        // Verificar se todas as páginas da categoria estão selecionadas (incluindo subpáginas)
+                        const todasPaginasCategoria = [];
+                        paginas.forEach(pagina => {
+                          todasPaginasCategoria.push(pagina.path);
+                          const subpaginas = getSubpaginas(pagina);
+                          todasPaginasCategoria.push(...subpaginas);
+                        });
+                        const todasSelecionadas = todasPaginasCategoria.every(p => paginasSelecionadas.includes(p));
 
-                      // Verificar estado da checkbox da categoria (todas, nenhuma, ou algumas)
-                      const algumasSelecionadas = todasPaginasCategoria.some(p => paginasSelecionadas.includes(p)) &&
-                        !todasSelecionadas;
-                      const checkboxIndeterminada = algumasSelecionadas;
+                        // Verificar estado da checkbox da categoria (todas, nenhuma, ou algumas)
+                        const algumasSelecionadas = todasPaginasCategoria.some(p => paginasSelecionadas.includes(p)) &&
+                          !todasSelecionadas;
+                        const checkboxIndeterminada = algumasSelecionadas;
 
-                      // Por padrão, todas as categorias começam fechadas (colapsadas)
-                      const isExpanded = categoriasExpandidas[categoria] === true;
+                        // Por padrão, todas as categorias começam fechadas (colapsadas)
+                        const isExpanded = categoriasExpandidas[categoria] === true;
 
-                      return (
-                        <div key={categoria} className="categoria-group">
-                          <div
-                            className="categoria-header"
-                            onClick={() => toggleCategoria(categoria)}
-                          >
-                            <div className="categoria-checkbox-wrapper">
+                        return (
+                          <div key={categoria} className="categoria-group">
+                            <div
+                              className="categoria-header"
+                              onClick={() => toggleCategoria(categoria)}
+                            >
+                              <div className="categoria-checkbox-wrapper">
+                                <input
+                                  type="checkbox"
+                                  checked={todasSelecionadas}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = checkboxIndeterminada;
+                                  }}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectCategoria(categoria);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  disabled={salvando || nivelSelecionado === 'administrador'}
+                                  className="categoria-checkbox"
+                                />
+                                <i className={`fas ${ICONES_CATEGORIAS[categoria] || 'fa-circle'}`} style={{ marginRight: '8px', fontSize: '16px', color: '#0e3b6f' }}></i>
+                                <h4>{categoria}</h4>
+                              </div>
+                              <button
+                                type="button"
+                                className="categoria-expand-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCategoria(categoria);
+                                }}
+                                aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
+                              >
+                                <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}></i>
+                              </button>
+                            </div>
+                            {isExpanded && (
+                              <div className="paginas-grid">
+                                {paginas.map(pagina => {
+                                  const isSelected = isPaginaPrincipalSelecionada(pagina, paginasSelecionadas);
+
+                                  return (
+                                    <label key={pagina.path} className={`pagina-checkbox ${isSelected ? 'selected' : ''}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => handleTogglePagina(pagina)}
+                                        disabled={salvando || nivelSelecionado === 'administrador'}
+                                      />
+                                      <span>{pagina.label}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {activeTab === 'notificacoes' && (
+                    <div className="notificacoes-list fade-in">
+                      <div className="info-box" style={{ marginBottom: '20px' }}>
+                        <i className="fas fa-info-circle"></i>
+                        <div>Selecione quais tipos de notificações os usuários deste cargo devem receber.</div>
+                        {nivelSelecionado === 'administrador' && <div style={{ marginTop: '5px' }}><strong>Nota:</strong> Administradores recebem todas as notificações.</div>}
+                      </div>
+                      <div className="notificacoes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+                        {Object.values(NOTIFICATION_TYPES).map(tipo => {
+                          const desc = NOTIFICATION_DESCRIPTIONS[tipo] || { label: tipo, description: '' };
+                          const config = configs[nivelSelecionado];
+                          const isChecked = nivelSelecionado === 'administrador' || (config.notificacoes && config.notificacoes.includes(tipo));
+
+                          return (
+                            <div key={tipo}
+                              onClick={() => { if (nivelSelecionado !== 'administrador') handleToggleNotificacao(tipo); }}
+                              style={{
+                                border: isChecked ? '1px solid #0e3b6f' : '1px solid #ddd',
+                                borderRadius: '8px',
+                                padding: '15px',
+                                cursor: nivelSelecionado !== 'administrador' ? 'pointer' : 'default',
+                                backgroundColor: isChecked ? '#f0f7ff' : 'white',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px'
+                              }}>
                               <input
                                 type="checkbox"
-                                checked={todasSelecionadas}
-                                ref={(el) => {
-                                  if (el) el.indeterminate = checkboxIndeterminada;
-                                }}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectCategoria(categoria);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                disabled={salvando || nivelSelecionado === 'administrador'}
-                                className="categoria-checkbox"
+                                checked={isChecked}
+                                onChange={() => { }}
+                                disabled={nivelSelecionado === 'administrador'}
+                                style={{ marginTop: '3px' }}
                               />
-                              <i className={`fas ${ICONES_CATEGORIAS[categoria] || 'fa-circle'}`} style={{ marginRight: '8px', fontSize: '16px', color: '#0e3b6f' }}></i>
-                              <h4>{categoria}</h4>
+                              <div>
+                                <strong style={{ display: 'block', color: '#333' }}>{desc.label}</strong>
+                                <span style={{ fontSize: '13px', color: '#666' }}>{desc.description}</span>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              className="categoria-expand-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleCategoria(categoria);
-                              }}
-                              aria-label={isExpanded ? 'Colapsar' : 'Expandir'}
-                            >
-                              <i className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}></i>
-                            </button>
-                          </div>
-                          {isExpanded && (
-                            <div className="paginas-grid">
-                              {paginas.map(pagina => {
-                                const isSelected = isPaginaPrincipalSelecionada(pagina, paginasSelecionadas);
-
-                                return (
-                                  <label key={pagina.path} className={`pagina-checkbox ${isSelected ? 'selected' : ''}`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => handleTogglePagina(pagina)}
-                                      disabled={salvando || nivelSelecionado === 'administrador'}
-                                    />
-                                    <span>{pagina.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Botão de salvar */}
                   {nivelSelecionado !== 'administrador' && (

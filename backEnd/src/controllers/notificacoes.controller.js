@@ -113,35 +113,79 @@ async function marcarTodasComoVisualizadas(req, res) {
 }
 
 /**
- * FUNÇÃO INTERNA (Exportada para outros controllers)
- * Gera notificações para todos os gestores/admins
+ * Distribui notificação para usuários baseados na configuração de permissões
+ * @param {Object} params
+ * @param {string} params.tipo - Tipo da notificação (Enum NOTIFICATION_TYPES)
+ * @param {string} params.titulo - Título
+ * @param {string} params.mensagem - Mensagem
+ * @param {string} params.referencia_id - ID do objeto relacionado
+ * @param {string} params.link - Link para ação
+ * @param {Object} params.metadata - Metadados extras
  */
-async function gerarNotificacaoParaGestores({ tipo, titulo, mensagem, referencia_id, link, metadata }) {
+async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, link, metadata }) {
     try {
-        // 1. Buscar todos os gestores e administradores
-        const { data: gestores, error: errGestores } = await supabase
+        if (!tipo) throw new Error('Tipo de notificação é obrigatório');
+
+        console.log(`🔔 Distribuindo notificação [${tipo}]: ${titulo}`);
+
+        // 1. Identificar quais NÍVEIS permitem este tipo de notificação
+        // Administrador sempre recebe (Hardcoded super user concept)
+        const niveisPermitidos = ['administrador'];
+
+        // Buscar configurações customizadas no banco
+        // Onde 'notificacoes' contém o tipo procurado.
+        // Como 'notificacoes' é TEXT (JSON), precisamos usar operador de texto ou like.
+        // A maneira robusta é buscar tudo e filtrar no código ou usar operador JSONB se fosse JSONB.
+        // Dado que é TEXT, vamos buscar tudo e filtrar no JS para garantir compatibilidade simples.
+        const { data: configs } = await supabase.schema('up_gestaointeligente')
+            .from('permissoes_config')
+            .select('nivel, notificacoes');
+
+        if (configs) {
+            configs.forEach(config => {
+                let allowedTypes = [];
+                try {
+                    allowedTypes = typeof config.notificacoes === 'string'
+                        ? JSON.parse(config.notificacoes)
+                        : config.notificacoes;
+                } catch (e) { allowedTypes = []; }
+
+                if (Array.isArray(allowedTypes) && allowedTypes.includes(tipo)) {
+                    if (!niveisPermitidos.includes(config.nivel)) {
+                        niveisPermitidos.push(config.nivel);
+                    }
+                }
+            });
+        }
+
+        console.log(`   -> Níveis autorizados: ${niveisPermitidos.join(', ')}`);
+
+        // 2. Buscar usuários que possuem esses níveis
+        const { data: destinatarios, error: errDest } = await supabase
             .schema('up_gestaointeligente')
             .from('usuarios')
             .select('id')
-            .in('permissoes', ['administrador', 'gestor']);
+            .in('permissoes', niveisPermitidos);
 
-        if (errGestores || !gestores) {
-            console.error('Erro ao buscar gestores para notificação:', errGestores);
+        if (errDest || !destinatarios || destinatarios.length === 0) {
+            console.log('   -> Nenhum destinatário encontrado.');
             return;
         }
 
-        // 2. Preparar Bulk Insert
-        const notificacoes = gestores.map(g => ({
-            usuario_id: g.id,
+        console.log(`   -> Enviando para ${destinatarios.length} usuários.`);
+
+        // 3. Preparar Bulk Insert
+        const notificacoes = destinatarios.map(u => ({
+            usuario_id: u.id,
             tipo,
             titulo,
             mensagem,
             referencia_id,
             link,
-            metadata
+            metadata: metadata || {}
         }));
 
-        // 3. Inserir no banco
+        // 4. Inserir no banco
         const { error: errInsert } = await supabase
             .schema('up_gestaointeligente')
             .from('notificacoes')
@@ -149,16 +193,27 @@ async function gerarNotificacaoParaGestores({ tipo, titulo, mensagem, referencia
 
         if (errInsert) {
             console.error('Erro ao inserir notificações em lote:', errInsert);
+        } else {
+            console.log('   -> Notificações enviadas com sucesso.');
         }
+
     } catch (error) {
-        console.error('Erro inesperado ao gerar notificações:', error);
+        console.error('Erro inesperado ao distribuir notificações:', error);
     }
 }
+
+// Manter alias para retrocompatibilidade se necessário, mas redirecionar para nova lógica
+const gerarNotificacaoParaGestores = async (params) => {
+    // Força o tipo se não vier (para chamadas legadas)
+    const paramsFinais = { ...params, tipo: params.tipo || 'PLUG_RAPIDO' };
+    return distribuirNotificacao(paramsFinais);
+};
 
 module.exports = {
     listarMinhasNotificacoes,
     contarNaoLidas,
     marcarComoVisualizada,
     marcarTodasComoVisualizadas,
-    gerarNotificacaoParaGestores
+    distribuirNotificacao,
+    gerarNotificacaoParaGestores // Deprecado, mantido para evitar quebra imediata
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import TimerButton from '../../components/common/TimerButton';
@@ -1010,6 +1011,25 @@ const TimerAtivo = () => {
 
   const historicoAgrupadoPorData = agruparHistoricoPorDataETarefa();
 
+  const renderDropdownFooter = () => (
+    <div className="timer-dropdown-footer">
+      <Link
+        to="/planilha-horas"
+        className="timer-dropdown-footer-btn"
+        onClick={() => setIsDropdownOpen(false)}
+      >
+        <i className="fas fa-calendar-alt"></i> Minha planilha de horas
+      </Link>
+      <Link
+        to="/painel-colaborador"
+        className="timer-dropdown-footer-btn"
+        onClick={() => setIsDropdownOpen(false)}
+      >
+        <i className="fas fa-th-large"></i> Painel
+      </Link>
+    </div>
+  );
+
   // Se não houver registro ativo, mostrar apenas botão de histórico
   if (!registroAtivo) {
     return (
@@ -1052,6 +1072,7 @@ const TimerAtivo = () => {
                 justificativaDelecaoPorRegistro={justificativaDelecaoPorRegistro}
               />
             </div>
+            {renderDropdownFooter()}
           </div>
         )}
       </div>
@@ -1133,6 +1154,7 @@ const TimerAtivo = () => {
               justificativaDelecaoPorRegistro={justificativaDelecaoPorRegistro}
             />
           </div>
+          {renderDropdownFooter()}
         </div>
       )}
     </div>

@@ -127,15 +127,13 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
 
         try {
-            const tempoSegundos = Math.floor(formData.tempo_estimado_ms / 1000);
-
             const payload = {
                 cliente_id: formData.cliente_id,
                 produto_id: formData.produto_id,
                 tarefa_id: formData.tarefa_id,
                 data_inicio: `${formData.data_inicio}T00:00:00`,
                 data_fim: `${formData.data_fim}T23:59:59`,
-                tempo_estimado_dia: tempoSegundos,
+                tempo_estimado_dia: formData.tempo_estimado_ms,
                 iniciar_timer: formData.iniciar_timer,
                 nova_tarefa_criada: formData.nova_tarefa_criada,
                 comentario_colaborador: formData.sem_tarefa_definida ? formData.comentario_colaborador : null

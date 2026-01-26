@@ -874,7 +874,8 @@ async function atualizarRegistroTempo(req, res) {
       });
     }
 
-    // TICKET 2: Bloqueio de Imutabilidade
+    // TICKET 2: Bloqueio de Imutabilidade - REMOVIDO POR SOLICITAÇÃO DO USUÁRIO
+    /*
     if (registroExistente.bloqueado) {
       console.warn(`⚠️ Tentativa de edição em registro bloqueado: ${id}`);
       return res.status(403).json({
@@ -882,6 +883,7 @@ async function atualizarRegistroTempo(req, res) {
         error: 'Este registro foi auditado e aprovado, não pode ser alterado.'
       });
     }
+    */
 
     // REGRA 1: Apenas registros finalizados podem ser editados
     if (!registroExistente.data_fim) {
@@ -1486,14 +1488,14 @@ async function deletarRegistroTempo(req, res) {
 
     console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
 
-    // TICKET 2: Bloqueio de Delexão
-    if (registroExistente && registroExistente.bloqueado) {
-      console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
-      return res.status(403).json({
-        success: false,
-        error: 'Este registro foi auditado e aprovado, não pode ser excluído.'
-      });
-    }
+    // TICKET 2: Bloqueio de Delexão - REMOVIDO POR SOLICITAÇÃO DO USUÁRIO
+    // if (registroExistente && registroExistente.bloqueado) {
+    //   console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: 'Este registro foi auditado e aprovado, não pode ser excluído.'
+    //   });
+    // }
 
     // Deletar registro
     const { error: deleteError } = await supabase

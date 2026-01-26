@@ -6,6 +6,7 @@ const supabase = require('../config/database');
 const apiClientes = require('../services/api-clientes');
 const { getMembrosPorIds, getProdutosPorIds } = apiClientes;
 const { buscarTodosComPaginacao } = require('../services/database-utils');
+const { calcularRegistrosDinamicos } = require('./tempo-estimado.controller');
 
 // Função auxiliar para extrair IDs de clientes de uma string que pode conter múltiplos IDs separados por ", "
 function extrairClienteIds(clienteIdString) {
@@ -18,17 +19,17 @@ function extrairClienteIds(clienteIdString) {
 }
 
 async function buscarTodosRegistrosComPaginacao(criarQueryBuilder) {
-  return await buscarTodosComPaginacao(criarQueryBuilder, { 
-    limit: 1000, 
-    logProgress: false 
+  return await buscarTodosComPaginacao(criarQueryBuilder, {
+    limit: 1000,
+    logProgress: false
   });
 }
 
 function converterTempoParaMilissegundos(tempoRealizado) {
   if (!tempoRealizado || tempoRealizado === 0) return 0;
-  
+
   let tempoMs;
-  
+
   // Se o valor for menor que 1, está em horas decimais (ex: 0.5 = 0.5 horas)
   if (tempoRealizado < 1) {
     tempoMs = Math.round(tempoRealizado * 3600000);
@@ -36,12 +37,12 @@ function converterTempoParaMilissegundos(tempoRealizado) {
     // Caso contrário, já está em milissegundos
     tempoMs = tempoRealizado;
   }
-  
+
   // Se o resultado for menor que 1 segundo, arredondar para 1 segundo
   if (tempoMs > 0 && tempoMs < 1000) {
     tempoMs = 1000;
   }
-  
+
   return tempoMs;
 }
 
@@ -50,13 +51,13 @@ function registroPertenceAosClientes(registro, clienteIdsList) {
   if (!registro.cliente_id || !clienteIdsList || clienteIdsList.length === 0) return false;
   const idsDoRegistro = extrairClienteIds(registro.cliente_id);
   const clienteIdsSet = new Set(clienteIdsList.map(id => String(id).trim().toLowerCase()));
-  
+
   // Comparar normalizando para lowercase para garantir match
   const match = idsDoRegistro.some(id => {
     const idNormalizado = String(id).trim().toLowerCase();
     return clienteIdsSet.has(idNormalizado);
   });
-  
+
   return match;
 }
 
@@ -65,20 +66,24 @@ function registroPertenceAosClientes(registro, clienteIdsList) {
 // ========================================
 async function getDashboardClientes(req, res) {
   try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      clienteId, 
-      colaboradorId, 
-      dataInicio, 
+    const {
+      page = 1,
+      limit = 20,
+      clienteId,
+      colaboradorId,
+      dataInicio,
       dataFim,
       incluirClientesInativos = 'false',
-      incluirColaboradoresInativos = 'false'
+      incluirColaboradoresInativos = 'false',
+      considerarFinaisDeSemana = 'false',
+      considerarFeriados = 'false'
     } = req.query;
-    
+
     // Converter strings para boolean
     const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
     const incluirColaboradoresInativosBool = incluirColaboradoresInativos === 'true' || incluirColaboradoresInativos === true;
+    const considerarFinaisDeSemanaBool = considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true;
+    const considerarFeriadosBool = considerarFeriados === 'true' || considerarFeriados === true;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -87,14 +92,14 @@ async function getDashboardClientes(req, res) {
     // Processar colaboradorId - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let colaboradorIdsArray = [];
     const colaboradorIdsFromQuery = req.query.colaboradorId;
-    
+
     if (colaboradorIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       // Se for array (múltiplos parâmetros na query string)
       if (Array.isArray(colaboradorIdsFromQuery)) {
         idsParaProcessar = colaboradorIdsFromQuery;
-      } 
+      }
       // Se for string que contém vírgulas (fallback)
       else if (typeof colaboradorIdsFromQuery === 'string' && colaboradorIdsFromQuery.includes(',')) {
         idsParaProcessar = colaboradorIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
@@ -103,21 +108,21 @@ async function getDashboardClientes(req, res) {
       else {
         idsParaProcessar = [colaboradorIdsFromQuery];
       }
-      
+
       colaboradorIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
     }
 
     // Processar clienteId - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let clienteIdsArray = [];
     const clienteIdsFromQuery = req.query.clienteId;
-    
+
     if (clienteIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       // Se for array (múltiplos parâmetros na query string)
       if (Array.isArray(clienteIdsFromQuery)) {
         idsParaProcessar = clienteIdsFromQuery;
-      } 
+      }
       // Se for string que contém vírgulas (fallback)
       else if (typeof clienteIdsFromQuery === 'string' && clienteIdsFromQuery.includes(',')) {
         idsParaProcessar = clienteIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
@@ -126,7 +131,7 @@ async function getDashboardClientes(req, res) {
       else {
         idsParaProcessar = [clienteIdsFromQuery];
       }
-      
+
       clienteIdsArray = idsParaProcessar.map(id => String(id).trim()).filter(Boolean);
     }
 
@@ -180,12 +185,12 @@ async function getDashboardClientes(req, res) {
         // Usar paginação automática se não há filtro de colaborador (pode ter muitos registros)
         let registros;
         let registrosError = null;
-        
+
         if (colaboradorIdsArray.length === 0) {
           try {
-            registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-              limit: 1000, 
-              logProgress: false 
+            registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+              limit: 1000,
+              logProgress: false
             });
           } catch (error) {
             registrosError = error;
@@ -210,7 +215,7 @@ async function getDashboardClientes(req, res) {
           }
         });
         let clienteIdsComRegistros = [...new Set(todosClienteIdsDosRegistros.filter(Boolean))];
-        
+
         clienteIds = clienteIdsArray.filter(clienteId => {
           const clienteIdStr = String(clienteId).trim();
           return clienteIdsComRegistros.some(id => String(id).trim() === clienteIdStr);
@@ -252,12 +257,12 @@ async function getDashboardClientes(req, res) {
       // Usar paginação automática se não há filtro de colaborador (pode ter muitos registros)
       let registros;
       let registrosError = null;
-      
+
       if (colaboradorIdsArray.length === 0) {
         try {
-          registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-            limit: 1000, 
-            logProgress: false 
+          registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+            limit: 1000,
+            logProgress: false
           });
         } catch (error) {
           registrosError = error;
@@ -287,7 +292,7 @@ async function getDashboardClientes(req, res) {
     // Se não há clientes encontrados, mas há filtros de período e/ou colaborador,
     // ainda buscar registros para retornar totais gerais do dashboard
     const temFiltrosPeriodoOuColaborador = (dataInicio && dataFim) || colaboradorIdsArray.length > 0;
-    
+
     if (clienteIds.length === 0 && !temFiltrosPeriodoOuColaborador) {
       return res.json({
         success: true,
@@ -309,7 +314,7 @@ async function getDashboardClientes(req, res) {
         }
       });
     }
-    
+
     // Se há filtros de colaborador e cliente, mas não há clientes identificados, construir mensagem específica
     if (clienteIds.length === 0 && colaboradorIdsArray.length > 0 && clienteIdsArray.length > 0) {
       // Buscar nomes dos colaboradores
@@ -323,7 +328,7 @@ async function getDashboardClientes(req, res) {
       } catch (error) {
         colaboradorNomes = colaboradorIdsArray.join(', ');
       }
-      
+
       // Buscar nomes dos clientes
       let clienteNomes = '';
       try {
@@ -336,11 +341,11 @@ async function getDashboardClientes(req, res) {
       } catch (error) {
         clienteNomes = clienteIdsArray.join(', ');
       }
-      
+
       const mensagem = clienteNomes && colaboradorNomes
         ? `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`
         : 'Nenhum cliente encontrado com os filtros selecionados.';
-      
+
       return res.json({
         success: true,
         data: [],
@@ -369,7 +374,7 @@ async function getDashboardClientes(req, res) {
 
     // 3. Buscar dados dos clientes da página atual (apenas se houver clientes)
     let clientes = [];
-    
+
     // Se não há clientes para a página atual, mas há filtros de colaborador e cliente, retornar mensagem
     if (clienteIdsPaginated.length === 0 && clienteIds.length === 0 && colaboradorIdsArray.length > 0 && clienteIdsArray.length > 0) {
       // Buscar nomes dos colaboradores
@@ -383,7 +388,7 @@ async function getDashboardClientes(req, res) {
       } catch (error) {
         colaboradorNomes = colaboradorIdsArray.join(', ');
       }
-      
+
       // Buscar nomes dos clientes
       let clienteNomes = '';
       try {
@@ -396,11 +401,11 @@ async function getDashboardClientes(req, res) {
       } catch (error) {
         clienteNomes = clienteIdsArray.join(', ');
       }
-      
+
       const mensagem = clienteNomes && colaboradorNomes
         ? `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`
         : 'Nenhum cliente encontrado com os filtros selecionados.';
-      
+
       return res.json({
         success: true,
         data: [],
@@ -421,21 +426,21 @@ async function getDashboardClientes(req, res) {
         }
       });
     }
-    
+
     if (clienteIdsPaginated.length > 0) {
       let queryClientes = supabase
         .schema('up_gestaointeligente')
         .from('cp_cliente')
         .select('id, nome, status')
         .in('id', clienteIdsPaginated);
-      
+
       // Aplicar filtro de status se necessário
       if (!incluirClientesInativosBool) {
         queryClientes = queryClientes.or('status.is.null,status.eq.ativo');
       }
-      
+
       const { data: clientesData, error: clientesError } = await queryClientes;
-      
+
       // Filtrar clientes inativos após buscar (fallback caso o filtro do Supabase não funcione)
       let clientesFiltrados = clientesData || [];
       if (!incluirClientesInativosBool) {
@@ -450,11 +455,11 @@ async function getDashboardClientes(req, res) {
         return res.status(500).json({ success: false, error: 'Erro ao buscar clientes' });
       }
       clientes = clientesFiltrados;
-      
+
       // Se não encontrou nenhum cliente, construir mensagem específica
       if (clientes.length === 0) {
         let mensagem = 'Nenhum cliente encontrado com os filtros selecionados.';
-        
+
         // Se há filtros de colaborador e/ou cliente, construir mensagem mais específica
         if (colaboradorIdsArray.length > 0 || clienteIds.length > 0) {
           // Buscar nomes dos colaboradores se houver filtro
@@ -470,7 +475,7 @@ async function getDashboardClientes(req, res) {
               colaboradorNomes = colaboradorIdsArray.join(', ');
             }
           }
-          
+
           // Buscar nomes dos clientes se houver filtro
           let clienteNomes = '';
           if (clienteIds.length > 0) {
@@ -485,7 +490,7 @@ async function getDashboardClientes(req, res) {
               clienteNomes = clienteIds.join(', ');
             }
           }
-          
+
           // Construir mensagem específica
           if (colaboradorNomes && clienteNomes) {
             mensagem = `Sem registros do(s) cliente(s) "${clienteNomes}" para o(s) colaborador(es) "${colaboradorNomes}" no período selecionado.`;
@@ -495,7 +500,7 @@ async function getDashboardClientes(req, res) {
             mensagem = `Sem registros do(s) cliente(s) "${clienteNomes}" no período selecionado.`;
           }
         }
-        
+
         return res.json({
           success: true,
           data: [],
@@ -600,7 +605,7 @@ async function getDashboardClientes(req, res) {
       registrosQuery ? registrosQuery : Promise.resolve({ data: [], error: null }),
       todosContratosQuery ? todosContratosQuery : Promise.resolve({ data: [], error: null })
     ]);
-    
+
     let todosRegistrosData = { data: [], error: null };
     if (todosRegistrosQuery) {
       if (colaboradorIdsArray.length === 0) {
@@ -612,16 +617,16 @@ async function getDashboardClientes(req, res) {
               .select('*')
               .not('cliente_id', 'is', null)
               .not('data_inicio', 'is', null);
-            
+
             if (dataInicio && dataFim) {
               query = query
                 .gte('data_inicio', inicioStr)
                 .lte('data_inicio', fimStr);
             }
-            
+
             return query;
           };
-          
+
           const todosRegistros = await buscarTodosRegistrosComPaginacao(criarQueryBuilder);
           todosRegistrosData = { data: todosRegistros, error: null };
         } catch (error) {
@@ -632,7 +637,7 @@ async function getDashboardClientes(req, res) {
         todosRegistrosData = await todosRegistrosQuery;
       }
     }
-    
+
     if (registrosData.error) {
       console.error('Erro na query de registros:', registrosData.error);
     }
@@ -642,10 +647,10 @@ async function getDashboardClientes(req, res) {
 
     const contratosPagina = contratosData.data || [];
     let registrosPaginaRaw = registrosData.data || [];
-    
+
     const todosContratos = todosContratosData.data || [];
     let todosRegistrosRaw = todosRegistrosData.data || [];
-    
+
     // Filtrar clientes inativos se necessário
     if (!incluirClientesInativosBool && clientes.length > 0) {
       const clientesInativosIds = new Set(
@@ -656,7 +661,7 @@ async function getDashboardClientes(req, res) {
           })
           .map(c => String(c.id).trim())
       );
-      
+
       if (clientesInativosIds.size > 0) {
         registrosPaginaRaw = registrosPaginaRaw.filter(r => {
           if (!r.cliente_id) return true;
@@ -670,19 +675,19 @@ async function getDashboardClientes(req, res) {
         });
       }
     }
-    
-    const registrosPagina = clienteIdsPaginated.length > 0 
+
+    const registrosPagina = clienteIdsPaginated.length > 0
       ? registrosPaginaRaw.filter(r => registroPertenceAosClientes(r, clienteIdsPaginated))
       : registrosPaginaRaw;
-    
+
     const todosRegistros = clienteIds.length > 0
       ? todosRegistrosRaw.filter(r => registroPertenceAosClientes(r, clienteIds))
       : todosRegistrosRaw;
 
-    const registrosParaBuscarTarefasEMembros = colaboradorIdsArray.length > 0 
+    const registrosParaBuscarTarefasEMembros = colaboradorIdsArray.length > 0
       ? registrosPaginaRaw
       : todosRegistrosRaw;
-    
+
     const todosTarefaIds = [...new Set([
       ...todosRegistros.map(r => r.tarefa_id).filter(Boolean),
       ...registrosParaBuscarTarefasEMembros.map(r => r.tarefa_id).filter(Boolean)
@@ -693,17 +698,17 @@ async function getDashboardClientes(req, res) {
     ])];
 
     // Buscar membros primeiro para poder usar na validação de interseção
-    let membrosData = colaboradorIdsArray.length > 0 
+    let membrosData = colaboradorIdsArray.length > 0
       ? await getMembrosPorIds(colaboradorIdsArray)
       : (todosUsuarioIds.length > 0 ? await getMembrosPorIds(todosUsuarioIds) : []);
-    
+
     // Filtrar membros inativos se necessário
     if (!incluirColaboradoresInativosBool) {
       membrosData = membrosData.filter(m => {
         const status = m.status || 'ativo';
         return status !== 'inativo';
       });
-      
+
       // Filtrar registros que pertencem a membros inativos
       const membrosInativosIds = new Set(
         (colaboradorIdsArray.length > 0 ? colaboradorIdsArray : todosUsuarioIds)
@@ -712,13 +717,13 @@ async function getDashboardClientes(req, res) {
             return !membro; // Se não está na lista de membros filtrados, é inativo
           })
       );
-      
+
       if (membrosInativosIds.size > 0) {
         registrosPaginaRaw = registrosPaginaRaw.filter(r => !membrosInativosIds.has(r.usuario_id));
         todosRegistrosRaw = todosRegistrosRaw.filter(r => !membrosInativosIds.has(r.usuario_id));
       }
     }
-    
+
     const tarefasData = todosTarefaIds.length > 0 ? (async () => {
       const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
       const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
@@ -729,7 +734,7 @@ async function getDashboardClientes(req, res) {
         .or(orConditions);
       return tarefas || [];
     })() : Promise.resolve([]);
-    
+
     const tarefasDataResolved = await tarefasData;
 
     const todosProdutoIds = [...new Set(tarefasDataResolved.map(t => t.produto_id).filter(Boolean))];
@@ -766,7 +771,7 @@ async function getDashboardClientes(req, res) {
     // IMPORTANTE: Separar registros para exibição (página atual) e para cálculo de resumos (todos os registros)
     // - registrosPagina: apenas da página atual (para exibição)
     // - todosRegistros: todos os registros (para calcular resumos corretamente)
-    
+
     // Validar interseção entre colaborador e cliente quando ambos estão filtrados
     if (colaboradorIdsArray.length > 0 && clienteIds.length > 0) {
       const colaboradorIdsNumericos = colaboradorIdsArray.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
@@ -775,16 +780,16 @@ async function getDashboardClientes(req, res) {
         const pertenceAoColaborador = r.usuario_id && colaboradorIdsNumericos.includes(parseInt(String(r.usuario_id).trim(), 10));
         return pertenceAoCliente && pertenceAoColaborador;
       });
-      
+
       if (registrosComInterseccao.length === 0) {
         const clienteNomes = clientes.map(c => c.nome || c.id).join(', ');
-        const colaboradorNomes = membrosData.length > 0 
+        const colaboradorNomes = membrosData.length > 0
           ? colaboradorIdsArray.map(id => {
-              const membro = membrosData.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
-              return membro ? membro.nome : `Colaborador ${id}`;
-            }).join(', ')
+            const membro = membrosData.find(m => String(m.id).trim() === String(id).trim() || parseInt(String(m.id).trim(), 10) === parseInt(String(id).trim(), 10));
+            return membro ? membro.nome : `Colaborador ${id}`;
+          }).join(', ')
           : colaboradorIdsArray.join(', ');
-        
+
         return res.json({
           success: true,
           data: [],
@@ -806,11 +811,103 @@ async function getDashboardClientes(req, res) {
         });
       }
     }
-    
+
+    // --- CÁLCULO DE TEMPO ESTIMADO ---
+    const tempoEstimadoPorCliente = {}; // map clienteId -> ms
+
+    if (dataInicio && dataFim && clienteIdsPaginated.length > 0) {
+      try {
+        console.log(`🔍 [DASHBOARD] Calculando tempo estimado para ${clienteIdsPaginated.length} clientes no período ${dataInicio} a ${dataFim}`);
+
+        // Normalizar datas para filtro (yyyy-mm-dd)
+        const periodoInicioFiltro = dataInicio.includes('T') ? dataInicio.split('T')[0] : dataInicio;
+        const periodoFimFiltro = dataFim.includes('T') ? dataFim.split('T')[0] : dataFim;
+
+        let queryRegras = supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado_regra')
+          .select('*')
+          .in('cliente_id', clienteIdsPaginated)
+          .lte('data_inicio', periodoFimFiltro)
+          .gte('data_fim', periodoInicioFiltro);
+
+        // --- CORREÇÃO: Filtrar regras pelo responsável se houver filtro de colaborador ---
+        if (colaboradorIdsArray.length > 0) {
+          const { data: membrosParaFiltro } = await supabase
+            .schema('up_gestaointeligente')
+            .from('membro')
+            .select('id')
+            .in('usuario_id', colaboradorIdsArray);
+
+          if (membrosParaFiltro && membrosParaFiltro.length > 0) {
+            const responsavelIds = membrosParaFiltro.map(m => String(m.id));
+            queryRegras = queryRegras.in('responsavel_id', responsavelIds);
+          } else {
+            // Se filtrou por colaborador mas não achou o membro, força resultado vazio
+            queryRegras = queryRegras.eq('responsavel_id', -1);
+          }
+        }
+
+        const { data: regrasEstimadas, error: errorRegras } = await queryRegras;
+
+        if (errorRegras) {
+          console.error('❌ Erro ao buscar regras de tempo estimado:', errorRegras);
+        } else if (regrasEstimadas && regrasEstimadas.length > 0) {
+          console.log(`📊 [DASHBOARD] Encontradas ${regrasEstimadas.length} regras de tempo estimado`);
+          const cacheFeriados = {};
+
+          // Processar regras em paralelo para melhor performance
+          await Promise.all(regrasEstimadas.map(async (regra) => {
+            try {
+              const registros = await calcularRegistrosDinamicos(
+                regra,
+                periodoInicioFiltro,
+                periodoFimFiltro,
+                cacheFeriados,
+                considerarFinaisDeSemanaBool,
+                considerarFeriadosBool
+              );
+
+              if (registros && registros.length > 0) {
+                const clienteId = String(regra.cliente_id).trim();
+
+                // Inicializar se não existir
+                if (tempoEstimadoPorCliente[clienteId] === undefined) {
+                  tempoEstimadoPorCliente[clienteId] = 0;
+                }
+
+                // Somar tempos
+                registros.forEach(reg => {
+                  let tempoDia = Number(reg.tempo_estimado_dia) || 0;
+
+                  // Converter horas para ms se necessário (< 1000 assume horas/decimal)
+                  if (tempoDia > 0 && tempoDia < 1000) {
+                    tempoDia = Math.round(tempoDia * 3600000);
+                  }
+
+                  tempoEstimadoPorCliente[clienteId] += tempoDia;
+                });
+              }
+            } catch (err) {
+              console.error(`❌ Erro ao processar regra ${regra.id}:`, err);
+            }
+          }));
+
+          console.log('✅ [DASHBOARD] Tempos estimados calculados por cliente:',
+            Object.keys(tempoEstimadoPorCliente).map(id => `${id}: ${(tempoEstimadoPorCliente[id] / 3600000).toFixed(1)}h`).join(', ')
+          );
+        } else {
+          console.log('ℹ️ [DASHBOARD] Nenhuma regra de tempo estimado encontrada para os filtros');
+        }
+      } catch (error) {
+        console.error('❌ Erro inesperado ao calcular tempo estimado:', error);
+      }
+    }
+
     const clientesComResumos = (clientes || []).map(cliente => {
       const clienteIdStr = String(cliente.id).trim();
       const contratos = contratosPagina.filter(c => String(c.id_cliente).trim() === clienteIdStr);
-      
+
       // Registros para exibição na página (apenas da página atual)
       const registrosTempoPagina = registrosPagina.filter(r => {
         const pertenceAoCliente = registroPertenceAosClientes(r, [clienteIdStr]);
@@ -822,7 +919,7 @@ async function getDashboardClientes(req, res) {
         }
         return pertenceAoCliente;
       });
-      
+
       // Registros para cálculo de resumos (TODOS os registros do cliente, não apenas da página)
       const registrosTempoResumo = todosRegistros.filter(r => {
         const pertenceAoCliente = registroPertenceAosClientes(r, [clienteIdStr]);
@@ -843,10 +940,10 @@ async function getDashboardClientes(req, res) {
         }
         if (registro.usuario_id) {
           const usuarioId = registro.usuario_id;
-          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
-                                   membrosMapGlobal[String(usuarioId)] || 
-                                   membrosMapGlobal[parseInt(usuarioId)] || 
-                                   null;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] ||
+            membrosMapGlobal[String(usuarioId)] ||
+            membrosMapGlobal[parseInt(usuarioId)] ||
+            null;
         }
         return registroRetorno;
       });
@@ -859,20 +956,20 @@ async function getDashboardClientes(req, res) {
         }
         if (registro.usuario_id) {
           const usuarioId = registro.usuario_id;
-          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
-                                   membrosMapGlobal[String(usuarioId)] || 
-                                   membrosMapGlobal[parseInt(usuarioId)] || 
-                                   null;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] ||
+            membrosMapGlobal[String(usuarioId)] ||
+            membrosMapGlobal[parseInt(usuarioId)] ||
+            null;
         }
         return registroRetorno;
       });
 
       const totalContratos = contratos.length;
-      
+
       // Calcular resumos com base em TODOS os registros do cliente (não apenas da página)
       const tarefasUnicas = new Set(registrosCompletosResumo.map(r => r.tarefa_id).filter(Boolean));
       const totalTarefasUnicas = tarefasUnicas.size;
-      
+
       const produtosUnicos = new Set();
       registrosCompletosResumo.forEach(r => {
         if (r.tarefa && r.tarefa.produto_id) {
@@ -888,14 +985,14 @@ async function getDashboardClientes(req, res) {
       let tempoTotalGeral = 0;
       registrosCompletosResumo.forEach(r => {
         let tempoRealizado = Number(r.tempo_realizado) || 0;
-        
+
         // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim
         if (!tempoRealizado && r.data_inicio && r.data_fim) {
           const inicio = new Date(r.data_inicio);
           const fim = new Date(r.data_fim);
           tempoRealizado = fim.getTime() - inicio.getTime();
         }
-        
+
         // Converter tempo para milissegundos usando a função auxiliar
         const tempoMs = converterTempoParaMilissegundos(tempoRealizado);
         tempoTotalGeral += tempoMs;
@@ -906,7 +1003,7 @@ async function getDashboardClientes(req, res) {
       registrosCompletosResumo.forEach(r => {
         if (r.usuario_id) {
           const colaboradorId = String(r.usuario_id).trim();
-          
+
           // IMPORTANTE: Incluir colaborador mesmo se membro não for encontrado
           // Isso garante que todos os colaboradores com registros apareçam no resumo
           if (!tempoPorColaborador[colaboradorId]) {
@@ -916,16 +1013,16 @@ async function getDashboardClientes(req, res) {
               total: 0
             };
           }
-          
+
           let tempoRealizado = Number(r.tempo_realizado) || 0;
-          
+
           // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim
           if (!tempoRealizado && r.data_inicio && r.data_fim) {
             const inicio = new Date(r.data_inicio);
             const fim = new Date(r.data_fim);
             tempoRealizado = fim.getTime() - inicio.getTime();
           }
-          
+
           // Converter tempo para milissegundos usando a função auxiliar
           const tempoMs = converterTempoParaMilissegundos(tempoRealizado);
           tempoPorColaborador[colaboradorId].total += tempoMs;
@@ -942,6 +1039,8 @@ async function getDashboardClientes(req, res) {
           totalProdutosUnicos,
           totalColaboradoresUnicos,
           tempoTotalGeral,
+          tempoTotalGeral,
+          tempoEstimadoGeral: tempoEstimadoPorCliente[String(cliente.id).trim()] || 0,
           tempoPorColaborador
         }
       };
@@ -949,7 +1048,7 @@ async function getDashboardClientes(req, res) {
 
     const todosTarefaIdsGerais = [...new Set(todosRegistros.map(r => r.tarefa_id).filter(Boolean))];
     const todosUsuarioIdsGerais = [...new Set(todosRegistros.map(r => r.usuario_id).filter(Boolean))];
-    
+
     let todosClienteIdsGerais = [];
     if (clienteIds.length > 0) {
       todosClienteIdsGerais = clienteIds.map(id => String(id).trim());
@@ -966,7 +1065,7 @@ async function getDashboardClientes(req, res) {
       });
       todosClienteIdsGerais = Array.from(clientesUnicosDosRegistros);
     }
-    
+
     res.json({
       success: true,
       data: clientesComResumos,
@@ -1002,20 +1101,24 @@ async function getDashboardClientes(req, res) {
 // ========================================
 async function getDashboardColaboradores(req, res) {
   try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      clienteId, 
-      colaboradorId, 
-      dataInicio, 
+    const {
+      page = 1,
+      limit = 20,
+      clienteId,
+      colaboradorId,
+      dataInicio,
       dataFim,
       incluirClientesInativos = 'false',
-      incluirColaboradoresInativos = 'false'
+      incluirColaboradoresInativos = 'false',
+      considerarFinaisDeSemana = 'false',
+      considerarFeriados = 'false'
     } = req.query;
-    
+
     // Converter strings para boolean
     const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
     const incluirColaboradoresInativosBool = incluirColaboradoresInativos === 'true' || incluirColaboradoresInativos === true;
+    const considerarFinaisDeSemanaBool = considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true;
+    const considerarFeriadosBool = considerarFeriados === 'true' || considerarFeriados === true;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -1024,10 +1127,10 @@ async function getDashboardColaboradores(req, res) {
     // Processar colaboradorId - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let colaboradorIdsArray = [];
     const colaboradorIdsFromQuery = req.query.colaboradorId;
-    
+
     if (colaboradorIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       if (Array.isArray(colaboradorIdsFromQuery)) {
         idsParaProcessar = colaboradorIdsFromQuery;
       } else if (typeof colaboradorIdsFromQuery === 'string' && colaboradorIdsFromQuery.includes(',')) {
@@ -1035,17 +1138,17 @@ async function getDashboardColaboradores(req, res) {
       } else {
         idsParaProcessar = [colaboradorIdsFromQuery];
       }
-      
+
       colaboradorIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
     }
 
     // Processar clienteId - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let clienteIdsArray = [];
     const clienteIdsFromQuery = req.query.clienteId;
-    
+
     if (clienteIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       if (Array.isArray(clienteIdsFromQuery)) {
         idsParaProcessar = clienteIdsFromQuery;
       } else if (typeof clienteIdsFromQuery === 'string' && clienteIdsFromQuery.includes(',')) {
@@ -1053,7 +1156,7 @@ async function getDashboardColaboradores(req, res) {
       } else {
         idsParaProcessar = [clienteIdsFromQuery];
       }
-      
+
       clienteIdsArray = idsParaProcessar.map(id => String(id).trim()).filter(Boolean);
     }
 
@@ -1093,11 +1196,11 @@ async function getDashboardColaboradores(req, res) {
 
       let registros;
       let registrosError = null;
-      
+
       try {
-        registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-          limit: 1000, 
-          logProgress: false 
+        registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+          limit: 1000,
+          logProgress: false
         });
       } catch (error) {
         registrosError = error;
@@ -1140,9 +1243,9 @@ async function getDashboardColaboradores(req, res) {
       };
 
       try {
-        const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-          limit: 1000, 
-          logProgress: false 
+        const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+          limit: 1000,
+          logProgress: false
         });
         colaboradorIds = [...new Set(registros.map(r => String(r.usuario_id).trim()).filter(Boolean))];
       } catch (error) {
@@ -1159,9 +1262,9 @@ async function getDashboardColaboradores(req, res) {
       };
 
       try {
-        const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, { 
-          limit: 1000, 
-          logProgress: false 
+        const registros = await buscarTodosComPaginacao(criarQueryBuilderRegistros, {
+          limit: 1000,
+          logProgress: false
         });
         colaboradorIds = [...new Set(registros.map(r => String(r.usuario_id).trim()).filter(Boolean))];
       } catch (error) {
@@ -1189,26 +1292,28 @@ async function getDashboardColaboradores(req, res) {
 
     // 3. Buscar dados dos colaboradores da página atual
     let colaboradoresData = await getMembrosPorIds(colaboradorIdsPaginated.map(id => parseInt(id, 10)).filter(id => !isNaN(id)));
-    
+
     // Filtrar colaboradores inativos se necessário
     if (!incluirColaboradoresInativosBool) {
       colaboradoresData = colaboradoresData.filter(c => {
         const status = c.status || 'ativo';
         return status !== 'inativo';
       });
-      
+
       // Atualizar colaboradorIdsPaginated para remover inativos
       const colaboradoresAtivosIds = new Set(colaboradoresData.map(c => String(c.id).trim()));
       colaboradorIdsPaginated = colaboradorIdsPaginated.filter(id => colaboradoresAtivosIds.has(String(id).trim()));
-      
+
       // Recalcular total se necessário (mas manter o total original para paginação)
     }
-    
+
     const colaboradoresMap = {};
     colaboradoresData.forEach(colab => {
       const idStr = String(colab.id).trim();
       colaboradoresMap[idStr] = colab;
     });
+
+
 
     // 4. Buscar todos os dados em paralelo
     const dateInicialObj = dataInicio ? new Date(dataInicio) : null;
@@ -1219,7 +1324,7 @@ async function getDashboardColaboradores(req, res) {
     const fimStr = dateFinalObj ? dateFinalObj.toISOString() : null;
 
     const colaboradorIdsPaginatedNumericos = colaboradorIdsPaginated.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-    
+
     let registrosQuery = null;
     if (colaboradorIdsPaginatedNumericos.length > 0) {
       registrosQuery = supabase
@@ -1243,7 +1348,7 @@ async function getDashboardColaboradores(req, res) {
 
     let todosRegistrosData = { data: [], error: null };
     const colaboradorIdsNumericos = colaboradorIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-    
+
     if (colaboradorIdsNumericos.length > 0) {
       // O Supabase tem limite de ~100 valores no .in(), então dividir em chunks se necessário
       const CHUNK_SIZE = 100;
@@ -1272,8 +1377,8 @@ async function getDashboardColaboradores(req, res) {
             return query;
           };
 
-          return buscarTodosComPaginacao(criarQueryBuilderTodosRegistros, { 
-            limit: 1000, 
+          return buscarTodosComPaginacao(criarQueryBuilderTodosRegistros, {
+            limit: 1000,
             logProgress: chunkIndex === 0 // Log apenas no primeiro chunk para não poluir
           });
         });
@@ -1281,7 +1386,7 @@ async function getDashboardColaboradores(req, res) {
         // Executar todas as queries em paralelo e combinar resultados
         const todosRegistrosArrays = await Promise.all(todasQueries);
         const todosRegistros = todosRegistrosArrays.flat();
-        
+
         todosRegistrosData = { data: todosRegistros, error: null };
       } catch (error) {
         console.error('❌ Erro ao buscar todos os registros com paginação:', error);
@@ -1292,7 +1397,7 @@ async function getDashboardColaboradores(req, res) {
     // Filtrar registros por cliente se necessário
     let registrosPagina = registrosData.data || [];
     let todosRegistros = todosRegistrosData.data || [];
-    
+
     // Filtrar registros de clientes inativos se necessário
     if (!incluirClientesInativosBool && clienteIdsArray.length > 0) {
       // Buscar status dos clientes
@@ -1301,7 +1406,7 @@ async function getDashboardColaboradores(req, res) {
         .from('cp_cliente')
         .select('id, status')
         .in('id', clienteIdsArray);
-      
+
       const clientesInativosIds = new Set(
         (clientesData || [])
           .filter(c => {
@@ -1310,14 +1415,14 @@ async function getDashboardColaboradores(req, res) {
           })
           .map(c => String(c.id).trim())
       );
-      
+
       if (clientesInativosIds.size > 0) {
         registrosPagina = registrosPagina.filter(r => {
           if (!r.cliente_id) return true;
           const idsExtraidos = extrairClienteIds(r.cliente_id);
           return !idsExtraidos.some(id => clientesInativosIds.has(String(id).trim()));
         });
-        
+
         todosRegistros = todosRegistros.filter(r => {
           if (!r.cliente_id) return true;
           const idsExtraidos = extrairClienteIds(r.cliente_id);
@@ -1325,20 +1430,20 @@ async function getDashboardColaboradores(req, res) {
         });
       }
     }
-    
+
     if (clienteIdsArray.length > 0) {
       registrosPagina = registrosPagina.filter(r => {
         if (!r.cliente_id) return false;
         const idsExtraidos = extrairClienteIds(r.cliente_id);
         return idsExtraidos.some(id => clienteIdsArray.includes(id));
       });
-      
+
       todosRegistros = todosRegistros.filter(r => {
         if (!r.cliente_id) return false;
         const idsExtraidos = extrairClienteIds(r.cliente_id);
         return idsExtraidos.some(id => clienteIdsArray.includes(id));
       });
-      
+
       // Validar interseção: se há filtro de colaborador E cliente, verificar se há registros
       if (colaboradorIdsArray.length > 0 && todosRegistros.length === 0) {
         const colaboradorNomes = await (async () => {
@@ -1348,7 +1453,7 @@ async function getDashboardColaboradores(req, res) {
             return membro ? membro.nome : `Colaborador ${id}`;
           }).join(', ');
         })();
-        
+
         const clienteNomes = await (async () => {
           const { data: clientes } = await supabase
             .schema('up_gestaointeligente')
@@ -1357,7 +1462,7 @@ async function getDashboardColaboradores(req, res) {
             .in('id', clienteIdsArray);
           return (clientes || []).map(c => c.nome || c.id).join(', ');
         })();
-        
+
         return res.json({
           success: true,
           data: [],
@@ -1398,14 +1503,14 @@ async function getDashboardColaboradores(req, res) {
           .from('cp_cliente')
           .select('id, nome, status')
           .in('id', todosClienteIds);
-        
+
         // Aplicar filtro de status se necessário
         if (!incluirClientesInativosBool) {
           queryClientes = queryClientes.or('status.is.null,status.eq.ativo');
         }
-        
+
         const { data: clientes } = await queryClientes;
-        
+
         // Filtrar clientes inativos após buscar (fallback)
         let clientesFiltrados = clientes || [];
         if (!incluirClientesInativosBool) {
@@ -1414,12 +1519,12 @@ async function getDashboardColaboradores(req, res) {
             return status !== 'inativo';
           });
         }
-        
+
         return clientesFiltrados;
       })() : Promise.resolve([]),
       todosUsuarioIds.length > 0 ? getMembrosPorIds(todosUsuarioIds) : Promise.resolve([])
     ]);
-    
+
     // Filtrar membros inativos se necessário
     let membrosData = membrosDataRaw;
     if (!incluirColaboradoresInativosBool) {
@@ -1427,7 +1532,7 @@ async function getDashboardColaboradores(req, res) {
         const status = m.status || 'ativo';
         return status !== 'inativo';
       });
-      
+
       // Filtrar registros que pertencem a membros inativos
       const membrosInativosIds = new Set(
         todosUsuarioIds
@@ -1436,7 +1541,7 @@ async function getDashboardColaboradores(req, res) {
             return !membro; // Se não está na lista de membros filtrados, é inativo
           })
       );
-      
+
       if (membrosInativosIds.size > 0) {
         registrosPagina = registrosPagina.filter(r => !membrosInativosIds.has(r.usuario_id));
         todosRegistros = todosRegistros.filter(r => !membrosInativosIds.has(r.usuario_id));
@@ -1480,16 +1585,95 @@ async function getDashboardColaboradores(req, res) {
       }
     });
 
+    // --- CÁLCULO DE TEMPO ESTIMADO ---
+    const tempoEstimadoPorColaborador = {}; // map colaboradorId -> ms
+
+    if (dataInicio && dataFim && colaboradorIdsPaginated.length > 0) {
+      try {
+        console.log(`🔍 [DASHBOARD-COLABORADORES] Calculando tempo estimado para ${colaboradorIdsPaginated.length} colaboradores no período ${dataInicio} a ${dataFim}`);
+
+        // Normalizar datas para filtro (yyyy-mm-dd)
+        const periodoInicioFiltro = dataInicio.includes('T') ? dataInicio.split('T')[0] : dataInicio;
+        const periodoFimFiltro = dataFim.includes('T') ? dataFim.split('T')[0] : dataFim;
+
+        // Converter IDs para string para garantir match
+        // colaboradorIdsPaginated são strings (ou números convertidos para string anteriormente)
+        const colaboradorIdsStrings = colaboradorIdsPaginated.map(id => String(id).trim());
+
+        let queryRegras = supabase
+          .schema('up_gestaointeligente')
+          .from('tempo_estimado_regra')
+          .select('*')
+          .in('responsavel_id', colaboradorIdsStrings)
+          .lte('data_inicio', periodoFimFiltro) // Regra começa antes do fim do filtro
+          .gte('data_fim', periodoInicioFiltro); // Regra termina depois do inicio do filtro
+
+        // --- CORREÇÃO: Filtrar regras pelo cliente se houver filtro de cliente ---
+        if (clienteIdsArray.length > 0) {
+          queryRegras = queryRegras.in('cliente_id', clienteIdsArray);
+        }
+
+        const { data: regrasEstimadas, error: errorRegras } = await queryRegras;
+
+        if (errorRegras) {
+          console.error('❌ Erro ao buscar regras de tempo estimado para colaboradores:', errorRegras);
+        } else if (regrasEstimadas && regrasEstimadas.length > 0) {
+          console.log(`📊 [DASHBOARD-COLABORADORES] Encontradas ${regrasEstimadas.length} regras de tempo estimado`);
+          const cacheFeriados = {};
+
+          await Promise.all(regrasEstimadas.map(async (regra) => {
+            try {
+              const registros = await calcularRegistrosDinamicos(
+                regra,
+                periodoInicioFiltro,
+                periodoFimFiltro,
+                cacheFeriados,
+                considerarFinaisDeSemanaBool,
+                considerarFeriadosBool
+              );
+
+              if (registros && registros.length > 0) {
+                const responsavelId = String(regra.responsavel_id).trim();
+
+                if (tempoEstimadoPorColaborador[responsavelId] === undefined) {
+                  tempoEstimadoPorColaborador[responsavelId] = 0;
+                }
+
+                registros.forEach(reg => {
+                  let tempoDia = Number(reg.tempo_estimado_dia) || 0;
+                  // Converter horas para ms se necessário (< 1000 assume horas/decimal)
+                  if (tempoDia > 0 && tempoDia < 1000) {
+                    tempoDia = Math.round(tempoDia * 3600000);
+                  }
+                  tempoEstimadoPorColaborador[responsavelId] += tempoDia;
+                });
+              }
+            } catch (err) {
+              console.error(`❌ Erro ao processar regra ${regra.id}:`, err);
+            }
+          }));
+
+          console.log('✅ [DASHBOARD-COLABORADORES] Tempos estimados calculados por colaborador:',
+            Object.keys(tempoEstimadoPorColaborador).map(id => `${id}: ${(tempoEstimadoPorColaborador[id] / 3600000).toFixed(1)}h`).join(', ')
+          );
+        } else {
+          console.log('ℹ️ [DASHBOARD-COLABORADORES] Nenhuma regra de tempo estimado encontrada para os filtros');
+        }
+      } catch (error) {
+        console.error('❌ Erro inesperado ao calcular tempo estimado de colaboradores:', error);
+      }
+    }
+
     // 5. Agrupar dados por colaborador e calcular resumos
     // IMPORTANTE: 
     // - Para os registros exibidos na página, usar registrosPagina (apenas da página atual)
     // - Para calcular os resumos (H.R., tarefas, produtos, clientes), usar todosRegistros (todos os registros do colaborador)
     const colaboradoresComResumos = colaboradorIdsPaginated.map(colaboradorIdStr => {
       const colaborador = colaboradoresMap[colaboradorIdStr] || { id: colaboradorIdStr, nome: `Colaborador #${colaboradorIdStr}` };
-      
+
       // Registros para exibição na página (apenas da página atual)
       let registrosTempoPagina = registrosPagina.filter(r => String(r.usuario_id).trim() === colaboradorIdStr);
-      
+
       // Registros para cálculo de resumos (TODOS os registros do colaborador, não apenas da página)
       let registrosTempoResumo = todosRegistros.filter(r => String(r.usuario_id).trim() === colaboradorIdStr);
 
@@ -1504,7 +1688,7 @@ async function getDashboardColaboradores(req, res) {
             return clienteIdsNormalizados.includes(idNormalizado);
           });
         });
-        
+
         registrosTempoResumo = registrosTempoResumo.filter(r => {
           if (!r.cliente_id) return false;
           const idsExtraidos = extrairClienteIds(r.cliente_id);
@@ -1523,14 +1707,14 @@ async function getDashboardColaboradores(req, res) {
         }
         if (registro.usuario_id) {
           const usuarioId = registro.usuario_id;
-          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
-                                   membrosMapGlobal[String(usuarioId)] || 
-                                   membrosMapGlobal[parseInt(usuarioId)] || 
-                                   null;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] ||
+            membrosMapGlobal[String(usuarioId)] ||
+            membrosMapGlobal[parseInt(usuarioId)] ||
+            null;
         }
         if (registro.cliente_id) {
           const idsExtraidos = extrairClienteIds(registro.cliente_id);
-          registroRetorno.cliente = idsExtraidos.length > 0 
+          registroRetorno.cliente = idsExtraidos.length > 0
             ? clientesMapGlobal[idsExtraidos[0]] || null
             : null;
         }
@@ -1545,14 +1729,14 @@ async function getDashboardColaboradores(req, res) {
         }
         if (registro.usuario_id) {
           const usuarioId = registro.usuario_id;
-          registroRetorno.membro = membrosMapGlobal[usuarioId] || 
-                                   membrosMapGlobal[String(usuarioId)] || 
-                                   membrosMapGlobal[parseInt(usuarioId)] || 
-                                   null;
+          registroRetorno.membro = membrosMapGlobal[usuarioId] ||
+            membrosMapGlobal[String(usuarioId)] ||
+            membrosMapGlobal[parseInt(usuarioId)] ||
+            null;
         }
         if (registro.cliente_id) {
           const idsExtraidos = extrairClienteIds(registro.cliente_id);
-          registroRetorno.cliente = idsExtraidos.length > 0 
+          registroRetorno.cliente = idsExtraidos.length > 0
             ? clientesMapGlobal[idsExtraidos[0]] || null
             : null;
         }
@@ -1562,7 +1746,7 @@ async function getDashboardColaboradores(req, res) {
       // Calcular resumos com base em TODOS os registros do colaborador (não apenas da página)
       const tarefasUnicas = new Set(registrosCompletosResumo.map(r => r.tarefa_id).filter(Boolean));
       const totalTarefasUnicas = tarefasUnicas.size;
-      
+
       const produtosUnicos = new Set();
       registrosCompletosResumo.forEach(r => {
         if (r.tarefa && r.tarefa.produto_id) {
@@ -1595,14 +1779,14 @@ async function getDashboardColaboradores(req, res) {
       let tempoTotalRealizado = 0;
       registrosCompletosResumo.forEach(r => {
         let tempoRealizado = Number(r.tempo_realizado) || 0;
-        
+
         // Se tempo_realizado não estiver presente ou for 0, calcular a partir de data_inicio e data_fim
         if (!tempoRealizado && r.data_inicio && r.data_fim) {
           const inicio = new Date(r.data_inicio);
           const fim = new Date(r.data_fim);
           tempoRealizado = fim.getTime() - inicio.getTime();
         }
-        
+
         // Converter tempo para milissegundos usando a função auxiliar
         const tempoMs = converterTempoParaMilissegundos(tempoRealizado);
         tempoTotalRealizado += tempoMs;
@@ -1615,7 +1799,11 @@ async function getDashboardColaboradores(req, res) {
           totalTarefasUnicas,
           totalProdutosUnicos,
           totalClientesUnicos,
-          tempoTotalRealizado
+          totalTarefasUnicas: tarefasUnicas.size,
+          totalProdutosUnicos: produtosUnicos.size,
+          totalClientesUnicos: clientesUnicos.size,
+          tempoTotalRealizado,
+          tempoEstimadoGeral: tempoEstimadoPorColaborador[String(colaboradorIdStr).trim()] || 0
         }
       };
     });
@@ -1653,7 +1841,7 @@ async function getDashboardColaboradores(req, res) {
 async function debugTarefa(req, res) {
   try {
     const { tarefaId } = req.params;
-    
+
     if (!tarefaId) {
       return res.status(400).json({
         success: false,
@@ -1692,7 +1880,7 @@ async function debugTarefa(req, res) {
     (registrosView || []).forEach(r => {
       const tempoRealizado = Number(r.tempo_realizado) || 0;
       totalView += tempoRealizado;
-      
+
       // Se não tem tempo_realizado, calcular a partir de datas
       if (!tempoRealizado && r.data_inicio && r.data_fim) {
         const inicio = new Date(r.data_inicio);

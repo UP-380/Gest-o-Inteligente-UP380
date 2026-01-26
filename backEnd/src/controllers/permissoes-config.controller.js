@@ -24,17 +24,17 @@ async function getPermissoesConfig(req, res) {
     // Se a tabela não existir, retornar configurações padrão
     if (error) {
       // Verificar se é erro de tabela não encontrada
-      if (error.code === '42P01' || 
-          error.message?.includes('does not exist') || 
-          error.message?.includes('não existe') ||
-          error.message?.includes('relation') && error.message?.includes('does not exist')) {
+      if (error.code === '42P01' ||
+        error.message?.includes('does not exist') ||
+        error.message?.includes('não existe') ||
+        error.message?.includes('relation') && error.message?.includes('does not exist')) {
         console.log('⚠️ Tabela permissoes_config não existe, retornando configurações padrão');
         return res.json({
           success: true,
           data: getDefaultConfig()
         });
       }
-      
+
       console.error('Erro ao buscar configurações de permissões:', error);
       // Em caso de outro erro, também retornar padrão para não quebrar o sistema
       return res.json({
@@ -54,6 +54,9 @@ async function getPermissoesConfig(req, res) {
     // Processar dados: parsear JSON das páginas
     const processedData = data.map(item => {
       let paginas = null;
+      let notificacoes = []; // Default para vazio
+
+      // Processar Páginas
       if (item.paginas) {
         try {
           paginas = typeof item.paginas === 'string' ? JSON.parse(item.paginas) : item.paginas;
@@ -62,10 +65,21 @@ async function getPermissoesConfig(req, res) {
           paginas = null;
         }
       }
-      
+
+      // Processar Notificações (NOVO)
+      if (item.notificacoes) {
+        try {
+          notificacoes = typeof item.notificacoes === 'string' ? JSON.parse(item.notificacoes) : item.notificacoes;
+        } catch (parseError) {
+          console.error('Erro ao parsear JSON de notificações:', parseError);
+          notificacoes = [];
+        }
+      }
+
       return {
         ...item,
-        paginas: paginas
+        paginas: paginas,
+        notificacoes: notificacoes
       };
     });
 
@@ -87,7 +101,7 @@ async function getPermissoesConfig(req, res) {
 async function atualizarPermissoesConfig(req, res) {
   try {
     const { nivel } = req.params;
-    const { paginas } = req.body;
+    const { paginas, notificacoes } = req.body;
 
     if (!nivel) {
       return res.status(400).json({
@@ -96,24 +110,34 @@ async function atualizarPermissoesConfig(req, res) {
       });
     }
 
-    // Validar nível
-    const niveisValidos = ['gestor', 'colaborador'];
-    if (!niveisValidos.includes(nivel.toLowerCase())) {
+    // Nível administrador é fixo e não pode ser editado via esta API (Regra existente)
+    // MAS podemos permitir editar notificações se desejado?
+    // O texto diz "NÃO remover o conceito de super usuário... regras hardcoded".
+    // Vamos manter Admin intocável para evitar bloqueio acidental.
+    if (nivel.toLowerCase() === 'administrador') {
       return res.status(400).json({
         success: false,
-        error: 'Nível inválido. Use: gestor ou colaborador'
+        error: 'Nível administrador não pode ser modificado'
       });
     }
 
     // Validar que paginas é um array ou null
-    if (paginas !== null && !Array.isArray(paginas)) {
+    if (paginas !== undefined && paginas !== null && !Array.isArray(paginas)) {
       return res.status(400).json({
         success: false,
         error: 'Páginas deve ser um array ou null'
       });
     }
 
-    const nivelNormalizado = nivel.toLowerCase();
+    // Validar notificações
+    if (notificacoes !== undefined && !Array.isArray(notificacoes)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Notificações deve ser um array'
+      });
+    }
+
+    const nivelNormalizado = nivel.toLowerCase().trim();
 
     // Verificar se já existe configuração para este nível
     const { data: existing, error: checkError } = await supabase
@@ -132,7 +156,7 @@ async function atualizarPermissoesConfig(req, res) {
           details: 'A tabela permissoes_config precisa ser criada no banco de dados. Veja o arquivo backEnd/sql/create_permissoes_config.sql'
         });
       }
-      
+
       console.error('Erro ao verificar configuração existente:', checkError);
       return res.status(500).json({
         success: false,
@@ -143,9 +167,12 @@ async function atualizarPermissoesConfig(req, res) {
 
     const dadosUpdate = {
       nivel: nivelNormalizado,
-      paginas: JSON.stringify(paginas),
       updated_at: new Date().toISOString()
     };
+
+    // Atualizar apenas o que foi enviado
+    if (paginas !== undefined) dadosUpdate.paginas = JSON.stringify(paginas);
+    if (notificacoes !== undefined) dadosUpdate.notificacoes = JSON.stringify(notificacoes);
 
     let result;
     if (existing) {
@@ -193,7 +220,8 @@ async function atualizarPermissoesConfig(req, res) {
     // Processar resposta: parsear JSON das páginas
     const processedResult = {
       ...result,
-      paginas: result.paginas ? (typeof result.paginas === 'string' ? JSON.parse(result.paginas) : result.paginas) : []
+      paginas: result.paginas ? (typeof result.paginas === 'string' ? JSON.parse(result.paginas) : result.paginas) : [],
+      notificacoes: result.notificacoes ? (typeof result.notificacoes === 'string' ? JSON.parse(result.notificacoes) : result.notificacoes) : []
     };
 
     console.log(`✅ Configuração de permissões atualizada para nível: ${nivelNormalizado}`);
@@ -226,7 +254,8 @@ function getDefaultConfig() {
         '/painel-colaborador',
         '/base-conhecimento/conteudos-clientes',
         '/base-conhecimento/cliente'
-      ]
+      ],
+      notificacoes: ['PLUG_RAPIDO'] // Default: Colaborador recebe plug rápido
     }
   ];
 }
