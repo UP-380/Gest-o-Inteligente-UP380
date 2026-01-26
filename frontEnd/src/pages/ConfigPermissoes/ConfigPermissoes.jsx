@@ -33,6 +33,8 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
     '/base-conhecimento/conteudos-clientes',
     '/base-conhecimento/cliente'
   ],
+  // Adicionando página de edição de cliente explicitamente para UI
+  '/cadastro/cliente': ['/cadastro/cliente'],
 };
 
 // Mapeamento de ícones para cada categoria
@@ -75,6 +77,8 @@ const TODAS_PAGINAS = [
   // Base de Conhecimento
   { path: '/base-conhecimento', label: 'Início', categoria: 'Base de Conhecimento' },
   { path: '/base-conhecimento/conteudos-clientes', label: 'Conteúdos Clientes', categoria: 'Base de Conhecimento' },
+  // Adicionando explicitamente a página de edição (que redireciona para cadastro, mas é acessada via base conhecimento)
+  { path: '/cadastro/cliente', label: 'Edição de Cliente (Base Conhecimento)', categoria: 'Base de Conhecimento' },
 
   // Configurações
   { path: '/cadastro/colaboradores', label: 'Colaboradores', categoria: 'Configurações' },
