@@ -642,6 +642,22 @@ async function aprovarAtribuicao(req, res) {
                 console.error('Erro registro_tempo insert:', erroMigracao);
                 throw erroMigracao;
             }
+
+            // [FIX] Remover registros da tabela pendente para evitar duplicação em getRegistrosAtivos
+            // Como já foram migrados para a tabela oficial, não precisam mais existir na pendente
+            const idsParaDeletar = registrosPendentes.map(r => r.id);
+            if (idsParaDeletar.length > 0) {
+                const { error: erroDelete } = await supabase
+                    .schema('up_gestaointeligente')
+                    .from('registro_tempo_pendente')
+                    .delete()
+                    .in('id', idsParaDeletar);
+
+                if (erroDelete) {
+                    console.error('Erro ao limpar registro_tempo_pendente:', erroDelete);
+                    // Não lançar erro fatal, pois a migração principal já ocorreu
+                }
+            }
         }
 
         // 6. Atualizar status da pendência e persistir valores FINAIS
