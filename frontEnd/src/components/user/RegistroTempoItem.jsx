@@ -37,16 +37,12 @@ const RegistroTempoItem = ({
         </div>
         <div className="timer-dropdown-registro-actions">
           <EditButton
-            onClick={registro.bloqueado ? null : (e) => onEditar(e, registro)}
-            title={registro.bloqueado ? "Registro auditado/bloqueado - Não pode ser editado" : (isEditando ? "Fechar edição" : "Editar registro")}
-            disabled={registro.bloqueado}
-            style={registro.bloqueado ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            onClick={(e) => onEditar(e, registro)}
+            title={isEditando ? "Fechar edição" : "Editar registro"}
           />
           <DeleteButton
-            onClick={registro.bloqueado ? null : (e) => onDeletar(e, registro)}
-            title={registro.bloqueado ? "Registro auditado/bloqueado - Não pode ser excluído" : (isDeletando ? "Fechar exclusão" : "Excluir registro")}
-            disabled={registro.bloqueado}
-            style={registro.bloqueado ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            onClick={(e) => onDeletar(e, registro)}
+            title={isDeletando ? "Fechar exclusão" : "Excluir registro"}
           />
         </div>
       </div>

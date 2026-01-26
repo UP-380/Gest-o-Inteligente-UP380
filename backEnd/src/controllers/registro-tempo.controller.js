@@ -1486,14 +1486,14 @@ async function deletarRegistroTempo(req, res) {
 
     console.log('✅ Histórico de deleção salvo:', historicoSalvo.id);
 
-    // TICKET 2: Bloqueio de Delexão
-    if (registroExistente && registroExistente.bloqueado) {
-      console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
-      return res.status(403).json({
-        success: false,
-        error: 'Este registro foi auditado e aprovado, não pode ser excluído.'
-      });
-    }
+    // TICKET 2: Bloqueio de Delexão - REMOVIDO POR SOLICITAÇÃO DO USUÁRIO
+    // if (registroExistente && registroExistente.bloqueado) {
+    //   console.warn(`⚠️ Tentativa de exclusão em registro bloqueado: ${id}`);
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: 'Este registro foi auditado e aprovado, não pode ser excluído.'
+    //   });
+    // }
 
     // Deletar registro
     const { error: deleteError } = await supabase
