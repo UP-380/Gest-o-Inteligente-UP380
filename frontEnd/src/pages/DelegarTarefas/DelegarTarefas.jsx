@@ -2356,44 +2356,39 @@ const DelegarTarefas = () => {
         return { realizado: 0, pendente: 0 };
       }
 
-      // Buscar tempo realizado para cada responsável usando novo endpoint e somar
-      const promises = responsavelIds.map(async (responsavelId) => {
-        try {
-          const response = await fetch('/api/registro-tempo/realizado-total', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              responsavel_id: responsavelId,
-              data_inicio: periodoInicio,
-              data_fim: periodoFim,
-              tarefa_id: filtrosAdicionais.tarefa_id || (filtroPrincipal === 'atividade' ? entidadeId : null),
-              cliente_id: filtrosAdicionais.cliente_id || (filtroPrincipal === 'cliente' ? entidadeId : null),
-              produto_id: filtrosAdicionais.produto_id || (filtroPrincipal === 'produto' ? entidadeId : null)
-            })
-          });
+      // Buscar tempo realizado para todos os responsáveis DE UMA SÓ VEZ
+      try {
+        const response = await fetch('/api/registro-tempo/realizado-total', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            responsavel_id: responsavelIds, // Array de IDs
+            data_inicio: periodoInicio,
+            data_fim: periodoFim,
+            tarefa_id: filtrosAdicionais.tarefa_id || (filtroPrincipal === 'atividade' ? entidadeId : null),
+            cliente_id: filtrosAdicionais.cliente_id || (filtroPrincipal === 'cliente' ? entidadeId : null),
+            produto_id: filtrosAdicionais.produto_id || (filtroPrincipal === 'produto' ? entidadeId : null)
+          })
+        });
 
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-              return {
-                realizado: result.data.tempo_realizado_ms || 0,
-                pendente: result.data.tempo_pendente_ms || 0
-              };
-            }
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            return {
+              realizado: result.data.tempo_realizado_ms || 0,
+              pendente: result.data.tempo_pendente_ms || 0
+            };
           }
-          return { realizado: 0, pendente: 0 };
-        } catch (error) {
-          console.error('Erro ao buscar tempo realizado para responsável:', responsavelId, error);
-          return { realizado: 0, pendente: 0 };
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Erro ao buscar tempo realizado total (batch):', response.status, errorData);
         }
-      });
-
-      const resultados = await Promise.all(promises);
-      return resultados.reduce((sum, item) => ({
-        realizado: sum.realizado + (item.realizado || 0),
-        pendente: sum.pendente + (item.pendente || 0)
-      }), { realizado: 0, pendente: 0 });
+        return { realizado: 0, pendente: 0 };
+      } catch (error) {
+        console.error('Erro ao buscar tempo realizado total (batch):', error);
+        return { realizado: 0, pendente: 0 };
+      }
 
     } catch (error) {
       console.error('Erro ao buscar tempo realizado:', error);

@@ -1563,6 +1563,8 @@ async function deletarRegistroTempo(req, res) {
 
 // POST - Buscar tempo realizado total por responsável com período e filtros opcionais
 // Similar ao getTempoRealizado mas aceita responsavel_id e não exige tarefa_id/cliente_id
+// POST - Buscar tempo realizado total por responsável com período e filtros opcionais
+// Similar ao getTempoRealizado mas aceita responsavel_id (único ou array) e não exige tarefa_id/cliente_id
 async function getTempoRealizadoTotal(req, res) {
   try {
     const {
@@ -1574,10 +1576,10 @@ async function getTempoRealizadoTotal(req, res) {
       produto_id
     } = req.body;
 
-    console.log('🔍 [TEMPO-REALIZADO-TOTAL] Busca iniciada:', { responsavel_id, data_inicio, data_fim, tarefa_id, cliente_id, produto_id });
+    // console.log('🔍 [TEMPO-REALIZADO-TOTAL] Busca iniciada:', { responsavel_id, data_inicio, data_fim });
 
     // Validar que responsavel_id e período são obrigatórios
-    if (!responsavel_id) {
+    if (!responsavel_id || (Array.isArray(responsavel_id) && responsavel_id.length === 0)) {
       return res.status(400).json({
         success: false,
         error: 'responsavel_id é obrigatório'
@@ -1591,81 +1593,85 @@ async function getTempoRealizadoTotal(req, res) {
       });
     }
 
-    // Converter responsavel_id (membro.id) para usuario_id via tabela membro
-    const responsavelIdNum = parseInt(String(responsavel_id).trim(), 10);
-    if (isNaN(responsavelIdNum)) {
+    // Converter responsavel_id para array e limpar
+    const responsavelIdsInput = Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id];
+    // Normalizar para inteiros, remover inválidos
+    const responsavelIdsNum = responsavelIdsInput
+      .map(id => parseInt(String(id).trim(), 10))
+      .filter(id => !isNaN(id));
+
+    if (responsavelIdsNum.length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'responsavel_id inválido'
+        error: 'Nenhum responsavel_id válido fornecido'
       });
     }
 
-    const { data: membro, error: errorMembro } = await supabase
-
+    // Buscar usuarios_ids correspondentes aos membros
+    const { data: membros, error: errorMembro } = await supabase
       .from('membro')
       .select('id, usuario_id')
-      .eq('id', responsavelIdNum)
-      .maybeSingle();
+      .in('id', responsavelIdsNum);
 
     if (errorMembro) {
-      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar membro:', errorMembro);
+      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar membros:', errorMembro);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar membro',
+        error: 'Erro ao buscar membros',
         details: errorMembro.message
       });
     }
 
-    if (!membro) {
-      console.error(`❌ [TEMPO-REALIZADO-TOTAL] Membro não encontrado para responsavel_id (membro.id) = ${responsavelIdNum}`);
-      return res.status(404).json({
-        success: false,
-        error: 'Responsável não encontrado'
+    if (!membros || membros.length === 0) {
+      console.error(`❌ [TEMPO-REALIZADO-TOTAL] Nenhum membro encontrado para os IDs fornecidos: ${responsavelIdsNum}`);
+      // Retornar 0 em vez de 404 para não quebrar o fluxo do dashboard
+      return res.json({
+        success: true,
+        data: {
+          tempo_realizado_ms: 0,
+          tempo_pendente_ms: 0,
+          registros_count: 0
+        }
       });
     }
 
-    if (!membro.usuario_id) {
-      console.error(`❌ [TEMPO-REALIZADO-TOTAL] Membro encontrado (id=${membro.id}) mas sem usuario_id associado`);
-      return res.status(404).json({
-        success: false,
-        error: 'Responsável não possui usuario_id associado'
+    // Filtrar membros com usuario_id e obter lista de usuario_ids
+    const dataMembros = membros.filter(m => m.usuario_id);
+    const usuarioIds = [...new Set(dataMembros.map(m => m.usuario_id))];
+
+    if (usuarioIds.length === 0) {
+      // console.warn(`⚠️ [TEMPO-REALIZADO-TOTAL] Membros encontrados mas nenhum possui usuario_id`);
+      return res.json({
+        success: true,
+        data: {
+          tempo_realizado_ms: 0,
+          tempo_pendente_ms: 0,
+          registros_count: 0
+        }
       });
     }
 
-    const usuarioId = membro.usuario_id;
-    console.log(`✅ [TEMPO-REALIZADO-TOTAL] responsavel_id ${responsavelIdNum} → usuario_id ${usuarioId}`);
+    // console.log(`✅ [TEMPO-REALIZADO-TOTAL] ${responsavelIdsNum.length} responsaveis -> ${usuarioIds.length} usuarios`);
 
-    // Preparar filtros de período - SIMPLES como em getTempoRealizado
-    // Normalizar datas para formato YYYY-MM-DD (remover parte de tempo se existir)
+    // Preparar filtros de período
     const dataInicioStr = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
     const dataFimStr = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
 
-    console.log(`📅 [TEMPO-REALIZADO-TOTAL] Período normalizado: ${dataInicioStr} até ${dataFimStr}`);
-
     // Criar datas de início e fim do período (00:00:00 até 23:59:59.999)
-    // Usar timezone local para garantir consistência
     const dataInicioFiltro = new Date(dataInicioStr + 'T00:00:00');
     const dataFimFiltro = new Date(dataFimStr + 'T23:59:59.999');
 
     const inicioStr = dataInicioFiltro.toISOString();
     const fimStr = dataFimFiltro.toISOString();
 
-    console.log(`📅 [TEMPO-REALIZADO-TOTAL] Período ISO: ${inicioStr} até ${fimStr}`);
-
     // Construir query base
-    // Incluir tarefa_id para poder fazer JOIN com tabela tarefa se necessário
+    // Incluir usuario_id para debug se necessário
     let query = supabase
-
       .from('registro_tempo')
-      .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id')
-      .eq('usuario_id', usuarioId);
+      .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, usuario_id')
+      .in('usuario_id', usuarioIds);
 
     // Filtrar registros que se sobrepõem ao período
-    // Usar OR para garantir que encontramos TODOS os registros relevantes:
-    // 1. data_inicio está dentro do período, OU
-    // 2. data_fim está dentro do período, OU
-    // 3. registro cobre todo o período (começa antes e termina depois), OU
-    // 4. registro ativo (data_fim é NULL) que começou no período ou antes
     const orConditions = [
       `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`, // data_inicio dentro do período
       `and(data_fim.gte.${inicioStr},data_fim.lte.${fimStr})`, // data_fim dentro do período
@@ -1674,8 +1680,6 @@ async function getTempoRealizadoTotal(req, res) {
     ].join(',');
 
     query = query.or(orConditions);
-
-    console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Query base: usuario_id=${usuarioId}, período: ${inicioStr} até ${fimStr}`);
 
     // Filtros adicionais opcionais
     if (tarefa_id) {
@@ -1687,7 +1691,6 @@ async function getTempoRealizadoTotal(req, res) {
         } else {
           query = query.in('tarefa_id', tarefaIdsLimpos);
         }
-        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Filtro tarefa_id aplicado:`, tarefaIdsLimpos);
       }
     }
 
@@ -1700,7 +1703,6 @@ async function getTempoRealizadoTotal(req, res) {
         } else {
           query = query.in('cliente_id', clienteIdsLimpos);
         }
-        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Filtro cliente_id aplicado:`, clienteIdsLimpos);
       }
     }
 
@@ -1718,8 +1720,6 @@ async function getTempoRealizadoTotal(req, res) {
       });
     }
 
-    console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registros?.length || 0} registros encontrados na query`);
-
     // Aplicar regra de exclusão: excluir registros onde cliente_id, produto_id E tipo_tarefa_id são TODOS NULL
     // REGRA: Excluir apenas quando TODAS as três colunas são NULL simultaneamente
     let registrosExcluidosPorRegra = 0;
@@ -1732,20 +1732,12 @@ async function getTempoRealizadoTotal(req, res) {
       return true;
     });
 
-    console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registrosFiltrados.length} registros após regra de exclusão (${registrosExcluidosPorRegra} excluídos)`);
-
     // Se há filtro de produto_id, aplicar estritamente com base na coluna produto_id do registro
-    // LÓGICA ATUALIZADA: Não buscar produto_id na tarefa se estiver vazio no registro.
-    // Se produto_id no registro for null, ignorar o registro para este cálculo.
     if (produto_id) {
       const produtoIds = Array.isArray(produto_id) ? produto_id : [produto_id];
-      // Normalizar para strings para comparação segura
       const produtoIdsLimpos = produtoIds.map(id => String(id).trim()).filter(id => id.length > 0 && id !== 'null' && id !== 'undefined');
 
       if (produtoIdsLimpos.length > 0) {
-        console.log(`🔍 [TEMPO-REALIZADO-TOTAL] Aplicando filtro produto_id estrito (sem fallback):`, produtoIdsLimpos);
-
-        const registrosAntesFiltro = registrosFiltrados.length;
         registrosFiltrados = registrosFiltrados.filter(reg => {
           // Se coluna produto_id é nula ou vazia, não considerar
           if (!reg.produto_id) return false;
@@ -1754,8 +1746,6 @@ async function getTempoRealizadoTotal(req, res) {
           const regProdutoId = String(reg.produto_id).trim();
           return produtoIdsLimpos.includes(regProdutoId);
         });
-
-        console.log(`📊 [TEMPO-REALIZADO-TOTAL] ${registrosFiltrados.length} registros após filtro produto_id estrito (${registrosAntesFiltro - registrosFiltrados.length} excluídos por não terem o produto_id correspondente)`);
       }
     }
 
@@ -1779,32 +1769,13 @@ async function getTempoRealizadoTotal(req, res) {
       tempoTotalMs += tempo;
     });
 
-    const tempoTotalSegundos = (tempoTotalMs / 1000).toFixed(2);
-    const tempoTotalMinutos = (tempoTotalMs / 60000).toFixed(2);
-    console.log(`✅ [TEMPO-REALIZADO-TOTAL] Tempo total calculado: ${tempoTotalMs}ms (${tempoTotalSegundos}s / ${tempoTotalMinutos}min) de ${registrosFiltrados.length} registros`);
-
-    // Log detalhado para debug
-    if (registrosFiltrados.length > 0) {
-      console.log(`📋 [TEMPO-REALIZADO-TOTAL] Detalhes dos registros encontrados:`);
-      registrosFiltrados.slice(0, 5).forEach((reg, idx) => {
-        console.log(`  [${idx + 1}] tarefa_id: ${reg.tarefa_id}, produto_id: ${reg.produto_id}, tempo: ${reg.tempo_realizado}ms`);
-      });
-      if (registrosFiltrados.length > 5) {
-        console.log(`  ... e mais ${registrosFiltrados.length - 5} registros`);
-      }
-    } else {
-      console.log(`⚠️ [TEMPO-REALIZADO-TOTAL] Nenhum registro encontrado após todos os filtros`);
-      console.log(`   Filtros aplicados: usuario_id=${usuarioId}, período=${dataInicioStr} até ${dataFimStr}, produto_id=${produto_id || 'não especificado'}, tarefa_id=${tarefa_id || 'não especificado'}, cliente_id=${cliente_id || 'não especificado'}`);
-    }
-
     // --- CALCULAR TEMPO PENDENTE (Plug Rápido / Em Andamento) ---
     let tempoPendenteMs = 0;
     try {
       let queryPendentes = supabase
-
         .from('registro_tempo_pendente')
-        .select('data_inicio, data_fim, tarefa_id, atribuicao_pendente_id')
-        .eq('usuario_id', usuarioId);
+        .select('data_inicio, data_fim, tarefa_id, atribuicao_pendente_id, usuario_id')
+        .in('usuario_id', usuarioIds);
 
       // Filtro de período (mesma lógica OR)
       const orConditionsPendentes = [
@@ -1831,14 +1802,8 @@ async function getTempoRealizadoTotal(req, res) {
         if (cliente_id || produto_id) {
           const attrIds = [...new Set(pendentes.map(p => p.atribuicao_pendente_id).filter(Boolean))];
 
-          // Se solicitou filtro mas os pendentes não tem vínculo com atribuição, excluímos?
-          // No Plug Rápido, muitas vezes não tem produto/cliente definido ainda se for tarefa solta, 
-          // MAS se veio de atribuição, TEM id.
-          // Se não tem atribuição_id, não tem como saber cliente/produto -> Excluir se filtro for estrito.
-
           if (attrIds.length > 0) {
             const { data: attrs } = await supabase
-
               .from('atribuicoes_pendentes')
               .select('id, cliente_id, produto_id')
               .in('id', attrIds);
@@ -1857,7 +1822,9 @@ async function getTempoRealizadoTotal(req, res) {
                 const cIds = Array.isArray(cliente_id) ? cliente_id.map(String) : [String(cliente_id)];
                 // Converter para string para comparar
                 const attrCId = String(attr.cliente_id || '').trim();
-                if (!cIds.includes(attrCId)) pass = false;
+                // Verifica se há interseção entre os IDs
+                const matchCliente = cIds.some(cid => attrCId.includes(cid));
+                if (!matchCliente) pass = false;
               }
               if (produto_id) {
                 const pIds = Array.isArray(produto_id) ? produto_id.map(String) : [String(produto_id)];
@@ -1878,7 +1845,6 @@ async function getTempoRealizadoTotal(req, res) {
           tempoPendenteMs += Math.max(0, fim - inicio);
         });
       }
-      console.log(`✅ [TEMPO-REALIZADO-TOTAL] Tempo pendente calculado: ${tempoPendenteMs}ms`);
     } catch (errP) {
       console.error('Erro ao buscar tempo pendente:', errP);
     }
