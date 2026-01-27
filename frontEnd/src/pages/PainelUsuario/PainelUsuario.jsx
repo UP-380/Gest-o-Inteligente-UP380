@@ -500,7 +500,7 @@ const PainelUsuario = () => {
 
   const [comunicadoDestaque, setComunicadoDestaque] = useState(null);
 
-  const getNomeProduto = (id) => nomesCache.produtos[String(id)] || `Produto #${id}`;
+  const getNomeProduto = (id) => nomesCache.produtos[String(id)] || 'Produto';
   const getNomeTarefa = (id, registro = null) => {
     const idStr = String(id);
     // Primeiro tentar usar o nome do registro se disponível (mais confiável)
@@ -517,7 +517,7 @@ const PainelUsuario = () => {
       return nomesCache.tarefas[idStr];
     }
     // Fallback
-    return `Tarefa #${idStr}`;
+    return 'Tarefa';
   };
 
   // Função para buscar nome do cliente usando o endpoint de base-conhecimento
@@ -594,7 +594,7 @@ const PainelUsuario = () => {
     return nome;
   };
 
-  const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || `Colaborador #${id}`;
+  const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || 'Colaborador';
 
   const formatarTempoComCusto = (tempo, responsavelId) => {
     const valor = Number(tempo) || 0;
@@ -1467,6 +1467,9 @@ const PainelUsuario = () => {
 
       // Disparar evento para atualizar timer no header
       window.dispatchEvent(new CustomEvent('registro-tempo-iniciado'));
+
+      // [NOVO] Sincronizar todos os registros ativos para garantir que apenas um botão mostre "Stop"
+      verificarRegistrosAtivos();
     } catch (error) {
       alert('Erro ao iniciar registro de tempo');
       // Reverter estado do botão em caso de erro
@@ -1550,6 +1553,9 @@ const PainelUsuario = () => {
 
       // Disparar evento para atualizar timer no header
       window.dispatchEvent(new CustomEvent('registro-tempo-finalizado'));
+
+      // [NOVO] Sincronizar todos os registros ativos
+      verificarRegistrosAtivos();
     } catch (error) {
       alert('Erro ao finalizar registro de tempo');
       // Reverter estado do botão em caso de erro
@@ -1723,56 +1729,50 @@ const PainelUsuario = () => {
     }
 
     try {
-      // Buscar registros ativos para todos os tempos estimados
-      // Cada tempo estimado é independente
-      const novosRegistrosAtivos = new Map();
-
-      await Promise.all(
-        tarefasRegistrosRef.current.map(async (reg) => {
-          const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
-          if (!tempoEstimadoId) return;
-
-          try {
-            // Buscar registro ativo por tarefa_id + cliente_id + usuario_id
-            // Como não temos mais tempo_estimado_id no backend, buscamos por esses critérios
-            const params = new URLSearchParams({
-              usuario_id: usuario.id,
-              tarefa_id: reg.tarefa_id,
-              cliente_id: reg.cliente_id
-            });
-
-            const response = await fetch(
-              `/api/registro-tempo/ativo?${params}`,
-              {
-                credentials: 'include',
-                headers: { 'Accept': 'application/json' }
-              }
-            );
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                // Se encontrou um registro ativo para esta tarefa + cliente + usuário,
-                // associar ao tempo_estimado_id do frontend
-                novosRegistrosAtivos.set(String(tempoEstimadoId).trim(), {
-                  registro_id: result.data.id,
-                  data_inicio: result.data.data_inicio
-                });
-              }
-            }
-          } catch (error) {
-            // Erro silencioso - continua verificando outros tempos estimados
-          }
-        })
+      // Otimização: Buscar TODOS os registros ativos do usuário de uma vez só
+      const response = await fetch(
+        `/api/registro-tempo/ativos?usuario_id=${usuario.id}`,
+        {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        }
       );
 
-      registrosAtivosRef.current = novosRegistrosAtivos;
-      setRegistrosAtivos(novosRegistrosAtivos);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          const novosRegistrosAtivos = new Map();
 
-      // Sincronizar todos os botões após verificar registros ativos
-      sincronizarTodosBotoes();
+          // Mapear os registros ativos retornados pelo backend para as tarefas do frontend
+          result.data.forEach(regAtivo => {
+            // Encontrar qual(is) registro(s) de tempo estimado correspondem a esta tarefa+cliente
+            const tarefaIdAtiva = String(regAtivo.tarefa_id).trim();
+            const clienteIdAtivo = String(regAtivo.cliente_id).trim();
+
+            tarefasRegistrosRef.current.forEach(tarefaReg => {
+              if (String(tarefaReg.tarefa_id).trim() === tarefaIdAtiva &&
+                String(tarefaReg.cliente_id).trim() === clienteIdAtivo) {
+
+                const tempoEstimadoId = tarefaReg.id || tarefaReg.tempo_estimado_id;
+                if (tempoEstimadoId) {
+                  novosRegistrosAtivos.set(String(tempoEstimadoId).trim(), {
+                    registro_id: regAtivo.id,
+                    data_inicio: regAtivo.data_inicio
+                  });
+                }
+              }
+            });
+          });
+
+          registrosAtivosRef.current = novosRegistrosAtivos;
+          setRegistrosAtivos(novosRegistrosAtivos);
+
+          // Sincronizar todos os botões após verificar registros ativos
+          sincronizarTodosBotoes();
+        }
+      }
     } catch (error) {
-      // Erro ao verificar registros ativos
+      console.error('Erro ao verificar registros ativos:', error);
     }
   }, [usuario, sincronizarTodosBotoes]);
 

@@ -56,12 +56,12 @@ const HistoTempoRastreado = ({
   const [tarefasExpandidas, setTarefasExpandidas] = useState({});
   const [nomesClientesCache, setNomesClientesCache] = useState({});
   const nomesClientesCacheRef = useRef({});
-  
+
   // Sincronizar ref com estado do cache
   useEffect(() => {
     nomesClientesCacheRef.current = nomesClientesCache;
   }, [nomesClientesCache]);
-  
+
   // Usar hook interno ou props externas
   const {
     historicoAgrupadoPorData: historicoAgrupadoPorDataHook,
@@ -84,20 +84,20 @@ const HistoTempoRastreado = ({
   // Buscar nome do cliente usando o mesmo endpoint e lógica do PainelUsuario
   const buscarNomeCliente = useCallback(async (clienteId) => {
     if (!clienteId) return null;
-    
+
     const idStr = String(clienteId).trim();
-    
+
     // Verificar se já está no cache externo
     if (nomesClientesExternoObj[idStr]) {
       return nomesClientesExternoObj[idStr];
     }
-    
+
     // Verificar se já está no cache interno
     const cacheAtual = nomesClientesCacheRef.current;
     if (cacheAtual[idStr]) {
       return cacheAtual[idStr];
     }
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
         credentials: 'include',
@@ -119,22 +119,22 @@ const HistoTempoRastreado = ({
       if (result.success && result.data && result.data.cliente) {
         const cliente = result.data.cliente;
         // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social (mesma lógica do PainelUsuario)
-        const nome = cliente.nome || 
-                     cliente.nome_amigavel || 
-                     cliente.amigavel ||
-                     cliente.nome_fantasia || 
-                     cliente.fantasia ||
-                     cliente.razao_social || 
-                     cliente.razao ||
-                     null;
-        
+        const nome = cliente.nome ||
+          cliente.nome_amigavel ||
+          cliente.amigavel ||
+          cliente.nome_fantasia ||
+          cliente.fantasia ||
+          cliente.razao_social ||
+          cliente.razao ||
+          null;
+
         if (nome) {
           // Atualizar cache interno
           const novos = { ...nomesClientesCacheRef.current };
           novos[idStr] = nome;
           nomesClientesCacheRef.current = novos;
           setNomesClientesCache(novos);
-          
+
           return nome;
         }
       }
@@ -144,26 +144,26 @@ const HistoTempoRastreado = ({
       return null;
     }
   }, [nomesClientesExternoObj]);
-  
+
   // Função síncrona para obter nome do cliente (retorna do cache ou string vazia)
   const getNomeCliente = useCallback((id) => {
     if (!id) return '';
     const idStr = String(id).trim();
-    
+
     // Primeiro verificar cache externo
     if (nomesClientesExternoObj[idStr]) {
       return nomesClientesExternoObj[idStr];
     }
-    
+
     // Depois verificar cache interno (usar estado para garantir re-render)
     const nome = nomesClientesCache[idStr];
-    
+
     // Se não estiver no cache, disparar busca assíncrona
     if (!nome) {
-      buscarNomeCliente(idStr).catch(() => {});
+      buscarNomeCliente(idStr).catch(() => { });
       return ''; // Retornar string vazia enquanto carrega
     }
-    
+
     return nome;
   }, [nomesClientesExternoObj, nomesClientesCache, buscarNomeCliente]);
 
@@ -182,7 +182,7 @@ const HistoTempoRastreado = ({
             return totalCliente + calcularTotal(tarefa.registros);
           }, 0);
         }, 0);
-        
+
         return (
           <div key={grupoData.data} className="timer-dropdown-data-group">
             {/* Cabeçalho da Data (fixo, não expansível) */}
@@ -194,7 +194,7 @@ const HistoTempoRastreado = ({
                 {formatarTempoHMS(totalData)}
               </span>
             </div>
-            
+
             {/* Clientes dentro desta data */}
             <div className="timer-dropdown-clientes-por-data">
               {Object.entries(grupoData.clientes || {}).map(([clienteId, grupoCliente]) => {
@@ -206,10 +206,10 @@ const HistoTempoRastreado = ({
                 const nomeCliente = getNomeCliente(clienteId);
                 const chaveCliente = `${grupoData.data}_${clienteId}`;
                 const isClienteExpandido = clientesExpandidos[chaveCliente] || false;
-                
+
                 return (
                   <div key={chaveCliente} className={`timer-dropdown-cliente ${isClienteExpandido ? 'expanded' : ''}`}>
-                    <div 
+                    <div
                       className="timer-dropdown-cliente-header"
                       onClick={() => setClientesExpandidos({ ...clientesExpandidos, [chaveCliente]: !isClienteExpandido })}
                       style={{ cursor: 'pointer' }}
@@ -228,13 +228,13 @@ const HistoTempoRastreado = ({
                       <div className="timer-dropdown-tarefas-por-cliente">
                         {Object.entries(grupoCliente.tarefas || {}).map(([tarefaId, grupoTarefa]) => {
                           const totalTarefa = calcularTotal(grupoTarefa.registros);
-                          const nomeTarefa = nomesTarefas[tarefaId] || `Tarefa #${tarefaId}`;
+                          const nomeTarefa = nomesTarefas[tarefaId] || 'Tarefa';
                           const chaveTarefa = `${grupoData.data}_${clienteId}_${tarefaId}`;
                           const isExpandida = tarefasExpandidas[chaveTarefa] || false;
-                          
+
                           return (
                             <div key={chaveTarefa} className={`timer-dropdown-tarefa ${isExpandida ? 'expanded' : ''}`}>
-                              <div 
+                              <div
                                 className="timer-dropdown-tarefa-header"
                                 onClick={() => setTarefasExpandidas({ ...tarefasExpandidas, [chaveTarefa]: !isExpandida })}
                                 style={{ cursor: 'pointer' }}
@@ -256,7 +256,7 @@ const HistoTempoRastreado = ({
                                     const isDeletando = registroDeletandoId === reg.id;
                                     const formData = formDataPorRegistro[reg.id] || {};
                                     const justificativaDelecao = justificativaDelecaoPorRegistro[reg.id] || '';
-                                    
+
                                     return (
                                       <RegistroTempoItem
                                         key={reg.id}

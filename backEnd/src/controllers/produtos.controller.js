@@ -13,7 +13,7 @@ async function getProdutos(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -47,7 +47,6 @@ async function getProdutos(req, res) {
       });
     }
 
-    console.log(`✅ Produtos encontrados: ${data?.length || 0} de ${count || 0} total`);
 
     return res.json({
       success: true,
@@ -80,7 +79,7 @@ async function getProdutoPorId(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .select('*');
 
@@ -207,7 +206,7 @@ async function getProdutosPorIds(req, res) {
     if (validUuids.length > 0 && validNumericIds.length === 0) {
       // Apenas UUIDs -> consulta simples na coluna ID
       query = supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, clickup_id, nome')
         .in('id', validUuids);
@@ -215,14 +214,14 @@ async function getProdutosPorIds(req, res) {
       // Apenas Numéricos -> consulta OR (clickup_id OU id)
       // Alterado para incluir busca por ID também
       query = supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, clickup_id, nome')
         .or(`clickup_id.in.(${validNumericIdsList}),id.in.(${validNumericIdsList})`);
     } else {
       // Misto -> usa o OR completo (PostgREST deve lidar com isso se as clauses estiverem corretas)
       query = supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, clickup_id, nome')
         .or(orQueryParts.join(','));
@@ -303,7 +302,7 @@ async function criarProduto(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .insert([dadosInsert])
       .select()
@@ -357,7 +356,7 @@ async function atualizarProduto(req, res) {
 
     // Verificar se produto existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .select('id, nome')
       .eq('id', id)
@@ -394,7 +393,7 @@ async function atualizarProduto(req, res) {
 
       // Buscar todos os produtos e fazer comparação case-insensitive
       const { data: todosProdutos, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, nome');
 
@@ -439,7 +438,7 @@ async function atualizarProduto(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .update(dadosUpdate)
       .eq('id', id)
@@ -484,7 +483,7 @@ async function deletarProduto(req, res) {
 
     // Verificar se produto existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .select('id, nome')
       .eq('id', id)
@@ -508,7 +507,7 @@ async function deletarProduto(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .delete()
       .eq('id', id);

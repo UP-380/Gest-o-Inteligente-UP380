@@ -21,7 +21,7 @@ async function getAdquirentesCliente(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .select(`
         *,
@@ -80,7 +80,7 @@ async function getAdquirenteClientePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .select(`
         *,
@@ -151,7 +151,7 @@ async function criarAdquirenteCliente(req, res) {
 
     // Verificar se já existe a combinação cliente + adquirente
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .select('id')
       .eq('cliente_id', cliente_id)
@@ -186,7 +186,7 @@ async function criarAdquirenteCliente(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .insert([dadosInsert])
       .select(`
@@ -243,7 +243,7 @@ async function atualizarAdquirenteCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .select('id, cliente_id, adquirente_id')
       .eq('id', id)
@@ -268,7 +268,7 @@ async function atualizarAdquirenteCliente(req, res) {
     // Verificar se já existe outra combinação cliente + adquirente (se adquirente_id foi alterado)
     if (adquirente_id !== undefined && existente.adquirente_id !== parseInt(adquirente_id, 10)) {
       const { data: outroExistente, error: errorOutro } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cliente_adquirente')
         .select('id')
         .eq('cliente_id', existente.cliente_id)
@@ -322,7 +322,7 @@ async function atualizarAdquirenteCliente(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .update(dadosUpdate)
       .eq('id', id)
@@ -373,7 +373,7 @@ async function deletarAdquirenteCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .select('id, cliente_id')
       .eq('id', id)
@@ -397,7 +397,7 @@ async function deletarAdquirenteCliente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_adquirente')
       .delete()
       .eq('id', id);

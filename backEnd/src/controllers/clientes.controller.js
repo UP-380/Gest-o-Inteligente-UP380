@@ -92,39 +92,39 @@ async function getClientesKamino(req, res) {
   try {
     console.log('📡 Endpoint /api/clientes-kamino chamado');
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cliente_kamino')
       .select('id, nome_fantasia')
       .not('nome_fantasia', 'is', null)
       .order('nome_fantasia');
-    
+
     if (error) {
       console.error('Erro ao buscar clientes Kamino:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Erro interno do servidor' 
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
       });
     }
-    
+
     // Retornar dados no formato esperado: array de objetos com id e nome_fantasia
     const clientesData = (data || []).map(row => ({
       id: row.id,
       nome_fantasia: row.nome_fantasia || ''
     })).filter(cliente => cliente.nome_fantasia && cliente.nome_fantasia.trim() !== '');
-    
+
     console.log(`✅ Retornando ${clientesData.length} clientes Kamino`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: clientesData.map(c => c.nome_fantasia), // Para compatibilidade
       clientes: clientesData, // Dados completos: [{id, nome_fantasia}, ...]
-      count: clientesData.length 
+      count: clientesData.length
     });
   } catch (error) {
     console.error('Erro ao buscar clientes Kamino:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Erro interno do servidor' 
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
     });
   }
 }
@@ -137,32 +137,32 @@ async function getClientesIncompletosCount(req, res) {
     // Filtrar clientes onde QUALQUER um dos campos especificados está vazio ou null
     // Campos: razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status, nome_cli_kamino
     const incompletosFilter = `or(razao_social.is.null,razao_social.eq.,nome_fantasia.is.null,nome_fantasia.eq.,nome_amigavel.is.null,nome_amigavel.eq.,cpf_cnpj.is.null,cpf_cnpj.eq.,status.is.null,status.eq.,nome_cli_kamino.is.null,nome_cli_kamino.eq.)`;
-    
+
     const { data, error, count } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id', { count: 'exact', head: true })
       .or(incompletosFilter);
-    
+
     if (error) {
       console.error('Erro ao contar clientes incompletos:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Erro interno do servidor' 
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno do servidor'
       });
     }
-    
+
     console.log('📋 Total de clientes incompletos:', count);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       count: count || 0
     });
   } catch (error) {
     console.error('Erro ao contar clientes incompletos:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Erro interno do servidor' 
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
     });
   }
 }
@@ -183,7 +183,7 @@ async function deletarCliente(req, res) {
 
     // Verificar se o cliente existe
     const { data: clienteExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id, nome, razao_social, nome_fantasia')
       .eq('id', id)
@@ -212,16 +212,16 @@ async function deletarCliente(req, res) {
       { count: countContas },
       { count: countAdquirentes }
     ] = await Promise.all([
-      supabase.schema('up_gestaointeligente').from('contratos_clientes').select('*', { count: 'exact', head: true }).eq('id_cliente', id),
-      supabase.schema('up_gestaointeligente').from('cliente_sistema').select('*', { count: 'exact', head: true }).eq('cliente_id', id),
-      supabase.schema('up_gestaointeligente').from('cliente_conta_bancaria').select('*', { count: 'exact', head: true }).eq('cliente_id', id),
-      supabase.schema('up_gestaointeligente').from('cliente_adquirente').select('*', { count: 'exact', head: true }).eq('cliente_id', id)
+      supabase.from('contratos_clientes').select('*', { count: 'exact', head: true }).eq('id_cliente', id),
+      supabase.from('cliente_sistema').select('*', { count: 'exact', head: true }).eq('cliente_id', id),
+      supabase.from('cliente_conta_bancaria').select('*', { count: 'exact', head: true }).eq('cliente_id', id),
+      supabase.from('cliente_adquirente').select('*', { count: 'exact', head: true }).eq('cliente_id', id)
     ]);
 
-    const temRelacionamentos = (countContratos || 0) > 0 || 
-                                (countSistemas || 0) > 0 || 
-                                (countContas || 0) > 0 || 
-                                (countAdquirentes || 0) > 0;
+    const temRelacionamentos = (countContratos || 0) > 0 ||
+      (countSistemas || 0) > 0 ||
+      (countContas || 0) > 0 ||
+      (countAdquirentes || 0) > 0;
 
     if (temRelacionamentos) {
       return res.status(409).json({
@@ -242,7 +242,7 @@ async function deletarCliente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .delete()
       .eq('id', id);
@@ -287,16 +287,7 @@ async function deletarCliente(req, res) {
 // Ambos usam o mesmo processamento (processarCliente)
 // ========================================
 async function getClientes(req, res) {
-  console.log('\n\n\n');
-  console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-  console.log('🚀 ========== GETCLIENTES CHAMADO ==========');
-  console.log('🚀 URL:', req.url);
-  console.log('🚀 METHOD:', req.method);
-  console.log('🚀 req.params:', JSON.stringify(req.params));
-  console.log('🚀 req.query:', JSON.stringify(req.query));
-  console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-  console.log('\n\n\n');
-  
+
   try {
     const { id } = req.params;
 
@@ -313,7 +304,7 @@ async function getClientes(req, res) {
       console.log('📡 Buscando cliente por ID:', id);
 
       const { data: cliente, error } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_cliente')
         .select(CLIENTE_FIELDS)
         .eq('id', id)
@@ -346,8 +337,7 @@ async function getClientes(req, res) {
           cliente: clienteCompleto
         }
       };
-      
-      console.log('📨 RESPOSTA FINAL (por ID):', resposta);
+
       return res.json(resposta);
     }
 
@@ -356,7 +346,7 @@ async function getClientes(req, res) {
     // ============================================
     console.log('📋 ========== Entrando no caso 2: LISTAGEM ==========');
     console.log('📡 Endpoint /api/clientes chamado - listagem');
-    
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const search = (req.query.search || '').trim();
@@ -367,12 +357,12 @@ async function getClientes(req, res) {
     const offset = (page - 1) * limit;
 
     let baseQuery = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select(CLIENTE_FIELDS);
 
     let countQuery = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id', { count: 'exact', head: true });
 
@@ -406,7 +396,7 @@ async function getClientes(req, res) {
     // Processar todos os clientes usando a mesma função auxiliar
     console.log('🔄 Processando', data.length, 'clientes...');
     console.log('📥 DADOS BRUTOS DO BANCO (primeiro cliente):', data[0]);
-    
+
     const clientesProcessados = await Promise.all((data || []).map(async (cliente) => {
       const processado = await processarCliente(cliente);
       return processado;
@@ -416,7 +406,7 @@ async function getClientes(req, res) {
     console.log('✅ Total de clientes processados:', clientesProcessados.length);
 
     const totalPages = Math.max(1, Math.ceil((count || 0) / limit));
-    
+
     const resposta = {
       success: true,
       data: clientesProcessados,
@@ -426,13 +416,8 @@ async function getClientes(req, res) {
       limit,
       totalPages
     };
-    
-    console.log('📨 RESPOSTA FINAL (estrutura):', {
-      success: resposta.success,
-      dataLength: resposta.data.length,
-      primeiroCliente: resposta.data[0]
-    });
-    
+
+
     return res.json(resposta);
   } catch (e) {
     console.error('Erro no endpoint /api/clientes:', e);
@@ -446,32 +431,32 @@ async function getClientes(req, res) {
 async function atualizarClientePorId(req, res) {
   try {
     const { id } = req.params;
-    const { 
-      razao_social, 
-      nome_fantasia, 
-      nome_amigavel, 
-      cpf_cnpj, 
-      status, 
-      nome_cli_kamino, 
+    const {
+      razao_social,
+      nome_fantasia,
+      nome_amigavel,
+      cpf_cnpj,
+      status,
+      nome_cli_kamino,
       id_cli_kamino,
       foto_perfil
     } = req.body;
-    
+
     const idError = validarId(id);
     if (idError) {
       return res.status(idError.status).json(idError.json);
     }
-    
+
     console.log('📝 Atualizando cliente por ID:', id);
-    
+
     // Verificar se o cliente existe
     const { data: clienteExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id, nome')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (checkError) {
       console.error('❌ Erro ao buscar cliente:', checkError);
       return res.status(500).json({
@@ -479,19 +464,19 @@ async function atualizarClientePorId(req, res) {
         error: 'Erro interno do servidor'
       });
     }
-    
+
     if (!clienteExistente) {
       return res.status(404).json({
         success: false,
         error: `Cliente não encontrado com ID: ${id}`
       });
     }
-    
+
     // Preparar dados para atualização
     const dadosUpdate = {
       updated_at: new Date().toISOString()
     };
-    
+
     if (razao_social !== undefined && razao_social !== null) {
       dadosUpdate.razao_social = razao_social.trim() || null;
     }
@@ -506,16 +491,16 @@ async function atualizarClientePorId(req, res) {
     }
     // Buscar status atual antes de atualizar (para sincronizar com contratos se mudar)
     const { data: clienteStatusAtual, error: statusError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('status')
       .eq('id', id)
       .maybeSingle();
-    
+
     const statusAnterior = clienteStatusAtual?.status;
     const statusNovo = status !== undefined && status !== null ? status.trim() : null;
     const statusMudou = statusNovo && statusAnterior !== statusNovo;
-    
+
     if (status !== undefined && status !== null) {
       dadosUpdate.status = status.trim() || null;
     }
@@ -527,25 +512,25 @@ async function atualizarClientePorId(req, res) {
     }
     // Buscar foto_perfil atual antes de atualizar (para limpar fotos antigas se necessário)
     const { data: clienteAntesUpdate, error: fetchError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('foto_perfil')
       .eq('id', id)
       .maybeSingle();
-    
+
     if (foto_perfil !== undefined && foto_perfil !== null) {
       dadosUpdate.foto_perfil = foto_perfil.trim() || null;
     }
-    
+
     // Atualizar cliente
     const { data: clienteAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .update(dadosUpdate)
       .eq('id', id)
       .select()
       .single();
-    
+
     if (updateError) {
       console.error('❌ Erro ao atualizar cliente:', updateError);
       return res.status(500).json({
@@ -554,18 +539,18 @@ async function atualizarClientePorId(req, res) {
         details: updateError.message
       });
     }
-    
+
     // Nota: Fotos estão no Supabase Storage e são gerenciadas via metadados
     // Se mudou para avatar padrão, o Storage será limpo na próxima atualização de foto
-    
+
     // Retornar cliente atualizado
     const clienteRetorno = { ...clienteAtualizado };
-    
+
     // Se o status mudou, sincronizar com contratos_clientes
     if (statusMudou && statusNovo) {
       try {
         await supabase
-          .schema('up_gestaointeligente')
+
           .from('contratos_clientes')
           .update({ status_cliente: statusNovo })
           .eq('id_cliente', id);
@@ -574,12 +559,12 @@ async function atualizarClientePorId(req, res) {
         console.warn('Falha ao sincronizar status_cliente:', syncErr);
       }
     }
-    
+
     // Limpar cache relacionado
     clearCache('clientes');
-    
+
     console.log('✅ Cliente atualizado com sucesso:', clienteExistente.nome);
-    
+
     res.json({
       success: true,
       message: 'Cliente atualizado com sucesso',
@@ -607,7 +592,7 @@ const getClientePorId = getClientes;
 async function uploadClienteFotoPerfil(req, res) {
   try {
     const clienteId = req.params.clienteId;
-    
+
     if (!clienteId) {
       return res.status(400).json({
         success: false,
@@ -624,7 +609,7 @@ async function uploadClienteFotoPerfil(req, res) {
 
     // Buscar dados do cliente primeiro para validar
     const { data: clienteAtual, error: clienteError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id, nome_fantasia, razao_social, nome_amigavel, foto_perfil')
       .eq('id', clienteId)
@@ -665,9 +650,9 @@ async function uploadClienteFotoPerfil(req, res) {
 
     // Salvar identificador customizado no banco (custom-{id}) ao invés da URL completa
     const customFotoId = `custom-${clienteId}`;
-    
+
     const { error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .update({ foto_perfil: customFotoId })
       .eq('id', clienteId);
@@ -695,7 +680,7 @@ async function uploadClienteFotoPerfil(req, res) {
     });
   } catch (error) {
     console.error('❌ Erro inesperado ao fazer upload de foto de cliente:', error);
-    
+
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',

@@ -18,21 +18,21 @@ async function getTarefasIncompletas(req, res) {
     const [result1, result2, result3] = await Promise.all([
       // Tarefas sem dt_inicio
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('dt_inicio', null),
       
       // Tarefas sem dt_vencimento
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('dt_vencimento', null),
       
       // Tarefas sem cliente_id
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('cliente_id', null)
@@ -58,7 +58,7 @@ async function getTarefasIncompletas(req, res) {
 
     // Buscar todos os clientes para mapear IDs para nomes
     const { data: todosClientes, error: clientesError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_cliente')
       .select('id, nome');
 
@@ -114,7 +114,7 @@ async function getTarefasIncompletas(req, res) {
         
         try {
           const { data: clientesBatch, error: batchError } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('cp_cliente')
             .select('id, nome')
             .in('id', batch);
@@ -262,7 +262,7 @@ async function getTarefasPorIds(req, res) {
 
     // Buscar da tabela cp_tarefa, coluna 'nome'
     const { data: tarefas, error: tarefasError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa')
       .select('id, nome')
       .in('id', tarefaIds);

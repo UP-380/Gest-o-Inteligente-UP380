@@ -13,7 +13,7 @@ async function getConfigCustoColaborador(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .select('id, created_at, updated_at, vigencia, dias_uteis, fgts, ferias, terco_ferias, decimo_terceiro, inss_patronal, vale_transporte, vale_alimentacao', { count: 'exact' });
     
@@ -92,7 +92,7 @@ async function getConfigCustoColaboradorPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .select('*')
       .eq('id', id)
@@ -182,7 +182,7 @@ async function criarConfigCustoColaborador(req, res) {
 
     // Inserir no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .insert([dadosInsert])
       .select()
@@ -237,7 +237,7 @@ async function atualizarConfigCustoColaborador(req, res) {
 
     // Verificar se configuração existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .select('id')
       .eq('id', id)
@@ -304,7 +304,7 @@ async function atualizarConfigCustoColaborador(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .update(dadosUpdate)
       .eq('id', id)
@@ -349,7 +349,7 @@ async function deletarConfigCustoColaborador(req, res) {
 
     // Verificar se configuração existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .select('id')
       .eq('id', id)
@@ -373,7 +373,7 @@ async function deletarConfigCustoColaborador(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .delete()
       .eq('id', id);
@@ -410,7 +410,7 @@ async function getConfigCustoColaboradorMaisRecente(req, res) {
     const { data_vigencia } = req.query; // Data da vigência para buscar a config mais recente até essa data
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('config_custo_membro')
       .select('*')
       .order('vigencia', { ascending: false })

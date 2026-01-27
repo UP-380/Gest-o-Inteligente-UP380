@@ -19,7 +19,7 @@ async function getBaseConhecimentoCliente(req, res) {
     // Buscar dados básicos do cliente - apenas campos necessários para a tela
     // Usar .maybeSingle() para melhor performance em vez de .single()
     const { data: cliente, error: errorCliente } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id, razao_social, nome_fantasia, nome_amigavel, cpf_cnpj, status, nome_cli_kamino, id_cli_kamino, nome, foto_perfil')
       .eq('id', cliente_id)
@@ -45,7 +45,7 @@ async function getBaseConhecimentoCliente(req, res) {
     const [sistemasResult, contasResult, adquirentesResult, vinculadosResult] = await Promise.all([
       // Buscar sistemas do cliente
       supabase
-        .schema('up_gestaointeligente')
+
         .from('cliente_sistema')
         .select(`
           id,
@@ -68,10 +68,10 @@ async function getBaseConhecimentoCliente(req, res) {
           )
         `)
         .eq('cliente_id', cliente_id),
-      
+
       // Buscar contas bancárias do cliente
       supabase
-        .schema('up_gestaointeligente')
+
         .from('cliente_conta_bancaria')
         .select(`
           id,
@@ -98,10 +98,10 @@ async function getBaseConhecimentoCliente(req, res) {
           )
         `)
         .eq('cliente_id', cliente_id),
-      
+
       // Buscar adquirentes do cliente
       supabase
-        .schema('up_gestaointeligente')
+
         .from('cliente_adquirente')
         .select(`
           *,
@@ -111,10 +111,10 @@ async function getBaseConhecimentoCliente(req, res) {
           )
         `)
         .eq('cliente_id', cliente_id),
-      
+
       // Buscar vinculados do cliente
       supabase
-        .schema('up_gestaointeligente')
+
         .from('vinculados')
         .select(`
           id,
@@ -185,22 +185,22 @@ async function getBaseConhecimentoCliente(req, res) {
       // Buscar dados relacionados
       const [tarefasResult, produtosResult, tiposTarefaResult, subtarefasResult] = await Promise.all([
         idsTarefas.length > 0 ? supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_tarefa')
           .select('id, nome, descricao')
           .in('id', idsTarefas) : { data: [], error: null },
         idsProdutos.length > 0 ? supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_produto')
           .select('id, nome')
           .in('id', idsProdutos) : { data: [], error: null },
         idsTipoTarefas.length > 0 ? supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_tarefa_tipo')
           .select('id, nome')
           .in('id', idsTipoTarefas) : { data: [], error: null },
         idsSubtarefas.length > 0 ? supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_subtarefa')
           .select('id, nome, descricao')
           .in('id', idsSubtarefas) : { data: [], error: null }
@@ -208,7 +208,7 @@ async function getBaseConhecimentoCliente(req, res) {
 
       // Buscar observações particulares do cliente para as subtarefas
       const observacoesResult = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cliente_subtarefa_observacao')
         .select('subtarefa_id, observacao')
         .eq('cliente_id', cliente_id);
@@ -227,8 +227,8 @@ async function getBaseConhecimentoCliente(req, res) {
       const subtarefasMap = new Map((subtarefasResult.data || []).map(s => {
         const subtarefaId = s.id;
         const observacaoParticular = observacoesMap.get(subtarefaId) || null;
-        return [subtarefaId, { 
-          nome: s.nome, 
+        return [subtarefaId, {
+          nome: s.nome,
           descricao: s.descricao || null,
           observacaoParticular: observacaoParticular
         }];
@@ -246,9 +246,9 @@ async function getBaseConhecimentoCliente(req, res) {
           produto: produto ? { id: v.produto_id, nome: produto } : null,
           tipoTarefa: tipoTarefa ? { id: v.tarefa_tipo_id, nome: tipoTarefa } : null,
           tarefa: tarefa ? { id: v.tarefa_id, nome: tarefa.nome, descricao: tarefa.descricao } : null,
-          subtarefa: subtarefa ? { 
-            id: v.subtarefa_id, 
-            nome: subtarefa.nome, 
+          subtarefa: subtarefa ? {
+            id: v.subtarefa_id,
+            nome: subtarefa.nome,
             descricao: subtarefa.descricao,
             observacaoParticular: subtarefa.observacaoParticular
           } : null
@@ -279,7 +279,87 @@ async function getBaseConhecimentoCliente(req, res) {
   }
 }
 
+// GET - Buscar resumo simplificado de múltiplos clientes para ícones de validação
+async function getBaseConhecimentoBulkSummary(req, res) {
+  try {
+    const { ids } = req.query;
+
+    if (!ids) {
+      return res.status(400).json({
+        success: false,
+        error: 'IDs dos clientes são obrigatórios'
+      });
+    }
+
+    const clienteIds = String(ids).split(',').map(id => id.trim()).filter(Boolean);
+
+    if (clienteIds.length === 0) {
+      return res.json({
+        success: true,
+        data: {}
+      });
+    }
+
+    // Executar contagens globais para todos os IDs solicitados
+    // Isso é MUITO mais eficiente do que 20 chamadas individuais
+    const [sistemasCounts, contasCounts, adquirentesCounts] = await Promise.all([
+      supabase
+        .from('cliente_sistema')
+        .select('cliente_id')
+        .in('cliente_id', clienteIds),
+      supabase
+        .from('cliente_conta_bancaria')
+        .select('cliente_id')
+        .in('cliente_id', clienteIds),
+      supabase
+        .from('cliente_adquirente')
+        .select('cliente_id')
+        .in('cliente_id', clienteIds)
+    ]);
+
+    // Consolidar resultados por cliente
+    const summary = {};
+    clienteIds.forEach(id => {
+      summary[id] = {
+        hasSistemas: false,
+        hasContas: false,
+        hasAdquirentes: false
+      };
+    });
+
+    // Marcar presença de dados
+    if (sistemasCounts.data) {
+      sistemasCounts.data.forEach(item => {
+        if (summary[item.cliente_id]) summary[item.cliente_id].hasSistemas = true;
+      });
+    }
+    if (contasCounts.data) {
+      contasCounts.data.forEach(item => {
+        if (summary[item.cliente_id]) summary[item.cliente_id].hasContas = true;
+      });
+    }
+    if (adquirentesCounts.data) {
+      adquirentesCounts.data.forEach(item => {
+        if (summary[item.cliente_id]) summary[item.cliente_id].hasAdquirentes = true;
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error('❌ Erro no bulk summary da base de conhecimento:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
-  getBaseConhecimentoCliente
+  getBaseConhecimentoCliente,
+  getBaseConhecimentoBulkSummary
 };
 

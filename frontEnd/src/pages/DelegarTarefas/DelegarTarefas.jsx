@@ -1680,16 +1680,16 @@ const DelegarTarefas = () => {
 
   // Funções auxiliares para obter nomes
   const getNomeProduto = (produtoId) => {
-    return nomesCache.produtos[String(produtoId)] || `Produto #${produtoId}`;
+    return nomesCache.produtos[String(produtoId)] || 'Produto';
   };
 
   const getNomeTarefa = (tarefaId) => {
-    return nomesCache.tarefas[String(tarefaId)] || `Tarefa #${tarefaId}`;
+    return nomesCache.tarefas[String(tarefaId)] || 'Tarefa';
   };
 
   const getClienteLabel = (clienteId) => {
     const cliente = clientes.find(c => String(c.id) === String(clienteId));
-    return cliente ? cliente.nome : clienteId;
+    return cliente ? cliente.nome : 'Cliente';
   };
 
   const getColaboradorLabel = (colaboradorId) => {
@@ -1697,15 +1697,15 @@ const DelegarTarefas = () => {
     if (colaborador) {
       return colaborador.cpf ? `${colaborador.nome} (${colaborador.cpf})` : colaborador.nome;
     }
-    return colaboradorId;
+    return 'Colaborador';
   };
 
   const getNomeCliente = (clienteId) => {
-    return nomesCache.clientes[String(clienteId)] || getClienteLabel(clienteId) || `Cliente #${clienteId}`;
+    return nomesCache.clientes[String(clienteId)] || getClienteLabel(clienteId) || 'Cliente';
   };
 
   const getNomeColaborador = (colabId) => {
-    return nomesCache.colaboradores[String(colabId)] || getColaboradorLabel(colabId) || `Colaborador #${colabId}`;
+    return nomesCache.colaboradores[String(colabId)] || getColaboradorLabel(colabId) || 'Colaborador';
   };
 
   // Formatar data

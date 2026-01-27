@@ -21,7 +21,7 @@ async function getContasBancarias(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .select(`
         id,
@@ -104,7 +104,7 @@ async function getContaBancariaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .select(`
         *,
@@ -306,7 +306,7 @@ async function criarContaBancaria(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .insert([dadosInsert])
       .select(`
@@ -396,7 +396,7 @@ async function atualizarContaBancaria(req, res) {
 
     // Verificar se conta existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .select('id, cliente_id')
       .eq('id', id)
@@ -474,7 +474,7 @@ async function atualizarContaBancaria(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .update(dadosUpdate)
       .eq('id', id)
@@ -526,7 +526,7 @@ async function deletarContaBancaria(req, res) {
 
     // Verificar se conta existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .select('id, cliente_id')
       .eq('id', id)
@@ -550,7 +550,7 @@ async function deletarContaBancaria(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_conta_bancaria')
       .delete()
       .eq('id', id);

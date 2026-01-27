@@ -13,7 +13,7 @@ async function listarMinhasNotificacoes(req, res) {
         const { limit = 50, offset = 0, apenas_nao_lidas = false } = req.query;
 
         let query = supabase
-            .schema('up_gestaointeligente')
+            
             .from('notificacoes')
             .select('*', { count: 'exact' })
             .eq('usuario_id', usuario_id)
@@ -50,7 +50,7 @@ async function contarNaoLidas(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { count, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('notificacoes')
             .select('*', { count: 'exact', head: true })
             .eq('usuario_id', usuario_id)
@@ -74,7 +74,7 @@ async function marcarComoVisualizada(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('notificacoes')
             .update({ visualizada: true })
             .eq('id', id)
@@ -97,7 +97,7 @@ async function marcarTodasComoVisualizadas(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('notificacoes')
             .update({ visualizada: true })
             .eq('usuario_id', usuario_id)
@@ -132,7 +132,7 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
         if (usuario_id) {
             console.log(`🔔 Enviando notificação direta [${tipo}] para usuário ${usuario_id}`);
             const { error: errInsert } = await supabase
-                .schema('up_gestaointeligente')
+                
                 .from('notificacoes')
                 .insert({
                     usuario_id,
@@ -156,7 +156,7 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
         const niveisPermitidos = ['administrador'];
 
         // Buscar configurações customizadas no banco
-        const { data: configs } = await supabase.schema('up_gestaointeligente')
+        const { data: configs } = await supabase
             .from('permissoes_config')
             .select('nivel, notificacoes');
 
@@ -181,7 +181,7 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
 
         // 2. Buscar usuários que possuem esses níveis
         const { data: destinatarios, error: errDest } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('usuarios')
             .select('id')
             .in('permissoes', niveisPermitidos);
@@ -206,7 +206,7 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
 
         // 4. Inserir no banco
         const { error: errInsert } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('notificacoes')
             .insert(notificacoes);
 

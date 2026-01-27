@@ -21,7 +21,7 @@ async function getSistemasCliente(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .select(`
         id,
@@ -93,7 +93,7 @@ async function getSistemaClientePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .select(`
         *,
@@ -170,7 +170,7 @@ async function criarSistemaCliente(req, res) {
 
     // Verificar se já existe a combinação cliente + sistema
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .select('id')
       .eq('cliente_id', cliente_id)
@@ -220,7 +220,7 @@ async function criarSistemaCliente(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .insert([dadosInsert])
       .select(`
@@ -283,7 +283,7 @@ async function atualizarSistemaCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .select('id, cliente_id, sistema_id')
       .eq('id', id)
@@ -308,7 +308,7 @@ async function atualizarSistemaCliente(req, res) {
     // Verificar se já existe outra combinação cliente + sistema (se sistema_id foi alterado)
     if (sistema_id !== undefined && existente.sistema_id !== parseInt(sistema_id, 10)) {
       const { data: outroExistente, error: errorOutro } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cliente_sistema')
         .select('id')
         .eq('cliente_id', existente.cliente_id)
@@ -389,7 +389,7 @@ async function atualizarSistemaCliente(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .update(dadosUpdate)
       .eq('id', id)
@@ -440,7 +440,7 @@ async function deletarSistemaCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .select('id, cliente_id')
       .eq('id', id)
@@ -464,7 +464,7 @@ async function deletarSistemaCliente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_sistema')
       .delete()
       .eq('id', id);

@@ -14,7 +14,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Buscar histórico associado ao agrupador
     const { data: historico, error: historicoError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('id')
       .eq('agrupador_id', agrupador_id)
@@ -27,7 +27,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Buscar todas as tarefas restantes do agrupamento
     const { data: registrosRestantes, error: registrosError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado')
       .select('data')
       .eq('agrupador_id', agrupador_id)
@@ -57,7 +57,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Atualizar histórico com novo período
     const { error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .update({
         data_inicio: dataInicio,
@@ -797,7 +797,7 @@ async function criarTempoEstimado(req, res) {
       for (const produtoId of produtoIdsArray) {
         // Buscar todas as regras existentes para este cliente + produto + responsável
         const { data: regrasExistentes, error: errorBusca } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('tempo_estimado_regra')
           .select('agrupador_id, data_inicio, data_fim, cliente_id, produto_id, tarefa_id, responsavel_id')
           .eq('cliente_id', String(cliente_id).trim())
@@ -911,7 +911,7 @@ async function criarTempoEstimado(req, res) {
           if (!isNaN(produtoIdNum)) {
             // 1. Buscar vínculo específico: produto + tarefa + tipo_tarefa (herança do produto)
             const { data: vinculadoProduto, error: errorProduto } = await supabase
-              .schema('up_gestaointeligente')
+              
               .from('vinculados')
               .select('tarefa_tipo_id')
               .eq('tarefa_id', tarefaIdNum)
@@ -938,7 +938,7 @@ async function criarTempoEstimado(req, res) {
 
         // 2. Se não encontrou com produto, buscar vínculo padrão: tarefa + tipo_tarefa (sem produto, sem cliente)
         const { data: vinculados, error: vinculadoError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('vinculados')
           .select('tarefa_tipo_id')
           .eq('tarefa_id', tarefaIdNum)
@@ -1016,7 +1016,7 @@ async function criarTempoEstimado(req, res) {
       const usuarioId = req.session?.usuario?.id || null;
       if (usuarioId) {
         const { data: membro } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .select('id')
           .eq('usuario_id', String(usuarioId).trim())
@@ -1094,7 +1094,7 @@ async function criarTempoEstimado(req, res) {
 
     // Inserir todas as regras
     const { data: regrasInseridas, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .insert(regrasParaInserir)
       .select();
@@ -1142,7 +1142,7 @@ async function criarTempoEstimado(req, res) {
         };
 
         const { error: historicoError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('historico_atribuicoes')
           .insert([historicoData]);
 
@@ -1243,7 +1243,7 @@ async function getTempoEstimado(req, res) {
       try {
         // Buscar clientes filtrados por status
         let clientesQuery = supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id');
 
@@ -1300,7 +1300,7 @@ async function getTempoEstimado(req, res) {
 
     // NOVA LÓGICA: Buscar regras da tabela tempo_estimado_regra
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('*', { count: 'exact' });
 
@@ -1387,7 +1387,7 @@ async function getTempoEstimado(req, res) {
         const criarQueryBuilder = () => {
           // Reconstruir a query do zero a cada chamada
           let queryBuilder = supabase
-            .schema('up_gestaointeligente')
+            
             .from('tempo_estimado_regra')
             .select('*', { count: 'exact' });
 
@@ -1625,7 +1625,7 @@ async function getTempoEstimado(req, res) {
       if (responsavelIds.length > 0) {
         // Buscar membros por responsavel_id
         const { data: membros, error: membrosError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .select('id, usuario_id')
           .in('id', responsavelIds);
@@ -1641,7 +1641,7 @@ async function getTempoEstimado(req, res) {
           if (usuarioIds.length > 0) {
             // Buscar usuarios por usuario_id
             const { data: usuarios, error: usuariosError } = await supabase
-              .schema('up_gestaointeligente')
+              
               .from('usuarios')
               .select('id, foto_perfil')
               .in('id', usuarioIds);
@@ -1771,7 +1771,7 @@ async function getTempoEstimadoPorId(req, res) {
     console.log(`🔍 [GET-TEMPO-ESTIMADO-POR-ID] Buscando tempo estimado com ID: ${id}`);
 
     const { data: tempoEstimado, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado')
       .select('*')
       .eq('id', id)
@@ -1843,7 +1843,7 @@ async function atualizarTempoEstimado(req, res) {
             if (isNaN(tarefaIdNum)) return null;
 
             const { data: vinculados, error } = await supabase
-              .schema('up_gestaointeligente')
+              
               .from('vinculados')
               .select('tarefa_tipo_id')
               .eq('tarefa_id', tarefaIdNum)
@@ -1897,7 +1897,7 @@ async function atualizarTempoEstimado(req, res) {
     }
 
     const { data: tempoEstimadoAtualizado, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado')
       .update(dadosUpdate)
       .eq('id', id)
@@ -1956,7 +1956,7 @@ async function deletarTempoEstimado(req, res) {
 
     // Buscar o registro antes de deletar para obter o agrupador_id
     const { data: tempoEstimadoAntes, error: buscaError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado')
       .select('agrupador_id')
       .eq('id', id)
@@ -1973,7 +1973,7 @@ async function deletarTempoEstimado(req, res) {
 
     // Deletar o registro
     const { data: tempoEstimadoDeletado, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado')
       .delete()
       .eq('id', id)
@@ -2040,7 +2040,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         if (isNaN(tarefaIdNum)) return null;
 
         const { data: vinculados, error } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('vinculados')
           .select('tarefa_tipo_id')
           .eq('tarefa_id', tarefaIdNum)
@@ -2210,7 +2210,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
 
     // Deletar TODAS as regras antigas deste agrupador (Operação Atômica Lógica)
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);
@@ -2225,7 +2225,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       for (let i = 0; i < regrasParaInserirTotal.length; i += batchSize) {
         const lote = regrasParaInserirTotal.slice(i, i + batchSize);
         const { error: insertError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('tempo_estimado_regra')
           .insert(lote);
 
@@ -2294,7 +2294,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       if (cliente_id) historicoUpdate.cliente_id = String(cliente_id).trim();
 
       const { error: historicoError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('historico_atribuicoes')
         .update(historicoUpdate)
         .eq('agrupador_id', agrupador_id);
@@ -2343,7 +2343,7 @@ async function deletarTempoEstimadoPorAgrupador(req, res) {
 
     // NOVA LÓGICA: Buscar quantas regras serão deletadas
     const { count, error: countError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('*', { count: 'exact', head: true })
       .eq('agrupador_id', agrupador_id);
@@ -2359,7 +2359,7 @@ async function deletarTempoEstimadoPorAgrupador(req, res) {
 
     // Deletar todas as regras do agrupamento
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);
@@ -2404,7 +2404,7 @@ async function getTempoEstimadoPorAgrupador(req, res) {
 
     // NOVA LÓGICA: Buscar regras do agrupador
     const { data: regras, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('*')
       .eq('agrupador_id', agrupador_id)
@@ -2476,7 +2476,7 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
     // IMPORTANTE: Filtrar apenas registros onde cliente_id NÃO é NULL
     // IMPORTANTE: Incluir registros ativos (sem data_fim) para calcular tempo parcial do dia atual
     const { data: registrosTempo, error: errorTempo } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, tempo_estimado_id')
       .in('tempo_estimado_id', tempoEstimadoIds)
@@ -2500,7 +2500,7 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
 
     if (usuarioIds.length > 0) {
       const { data: membros, error: errorMembros } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, usuario_id')
         .in('usuario_id', usuarioIds);
@@ -2667,7 +2667,7 @@ async function getTempoEstimadoTotal(req, res) {
     if (cliente_status && cliente_status !== 'todos' && (cliente_status === 'ativo' || cliente_status === 'inativo')) {
       try {
         let clientesQuery = supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id');
 
@@ -2709,7 +2709,7 @@ async function getTempoEstimadoTotal(req, res) {
     // Buscar TODAS as regras (sem paginação, usando paginação automática)
     const criarQueryBuilder = () => {
       let queryBuilder = supabase
-        .schema('up_gestaointeligente')
+        
         .from('tempo_estimado_regra')
         .select('*');
 
@@ -2902,7 +2902,7 @@ async function getTempoRealizadoComFiltros(req, res) {
     }
 
     const { data: membro, error: errorMembro } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('id, usuario_id')
       .eq('id', responsavelIdNum)
@@ -2953,7 +2953,7 @@ async function getTempoRealizadoComFiltros(req, res) {
 
     // Construir query base com filtros obrigatórios PRIMEIRO
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, tempo_estimado_id');
 
@@ -3058,7 +3058,7 @@ async function getTempoRealizadoComFiltros(req, res) {
 
     if (usuarioIds.length > 0) {
       const { data: membros, error: errorMembros } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, usuario_id')
         .in('usuario_id', usuarioIds);
@@ -3114,7 +3114,7 @@ async function getTempoRealizadoComFiltros(req, res) {
     let tempoTotalPendente = 0;
     try {
       let queryPendentes = supabase
-        .schema('up_gestaointeligente')
+        
         .from('registro_tempo_pendente')
         .select('data_inicio, data_fim, usuario_id, tarefa_id, status');
 

@@ -67,7 +67,7 @@ async function criarAtribuicaoPendente(req, res) {
 
         // 0. Validação de duplicidade (Evitar múltiplos cliques ou solicitações idênticas)
         let query = supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('id')
             .eq('usuario_id', usuario_id)
@@ -86,7 +86,7 @@ async function criarAtribuicaoPendente(req, res) {
             // Se já existe e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
             if (iniciar_timer) {
                 const { data: registroAh, error: erroAh } = await supabase
-                    .schema('up_gestaointeligente')
+
                     .from('registro_tempo_pendente')
                     .select('id')
                     .eq('atribuicao_pendente_id', existente.id)
@@ -98,7 +98,7 @@ async function criarAtribuicaoPendente(req, res) {
 
                     // Tentar iniciar o timer para a atribuição existente
                     const { data: novoTimer, error: erroTimer } = await supabase
-                        .schema('up_gestaointeligente')
+
                         .from('registro_tempo_pendente')
                         .insert({
                             atribuicao_pendente_id: existente.id,
@@ -143,7 +143,7 @@ async function criarAtribuicaoPendente(req, res) {
         const db_tarefa_id = tarefa_id || null;
 
         const { data: atribuicao, error: erroAtribuicao } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .insert({
                 usuario_id,
@@ -177,8 +177,39 @@ async function criarAtribuicaoPendente(req, res) {
 
         // 2. Se solicitado, iniciar o timer
         if (iniciar_timer) {
+            // [NOVO] Finalizar outros registros ativos antes de iniciar
+            try {
+                const agora = new Date().toISOString();
+
+                // Finalizar registros normais
+                const { data: ativosNormais } = await supabase
+                    .from('registro_tempo')
+                    .select('id, data_inicio')
+                    .eq('usuario_id', usuario_id)
+                    .is('data_fim', null);
+
+                if (ativosNormais) {
+                    for (const reg of ativosNormais) {
+                        const tempoRealizado = Math.max(0, new Date(agora).getTime() - new Date(reg.data_inicio).getTime());
+                        await supabase.from('registro_tempo').update({ data_fim: agora, tempo_realizado: tempoRealizado }).eq('id', reg.id);
+                    }
+                }
+
+                // Finalizar outros registros pendentes
+                const { data: ativosPendentes } = await supabase
+                    .from('registro_tempo_pendente')
+                    .select('id')
+                    .eq('usuario_id', usuario_id)
+                    .is('data_fim', null);
+
+                if (ativosPendentes) {
+                    for (const reg of ativosPendentes) {
+                        await supabase.from('registro_tempo_pendente').update({ data_fim: agora }).eq('id', reg.id);
+                    }
+                }
+            } catch (e) { console.error('Erro ao parar timers anteriores:', e); }
+
             const { data: registro, error: erroRegistro } = await supabase
-                .schema('up_gestaointeligente')
                 .from('registro_tempo_pendente')
                 .insert({
                     atribuicao_pendente_id: atribuicao.id,
@@ -203,7 +234,7 @@ async function criarAtribuicaoPendente(req, res) {
             // Buscar nomes para a mensagem
             let nomeCliente = 'Cliente não definido';
             if (cliente_id) {
-                const { data: nomes } = await supabase.schema('up_gestaointeligente')
+                const { data: nomes } = await supabase
                     .from('cp_cliente')
                     .select('nome')
                     .eq('id', cliente_id)
@@ -255,7 +286,7 @@ async function listarMinhasPendentes(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { data: pendentes, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('*')
             .eq('usuario_id', usuario_id)
@@ -274,9 +305,9 @@ async function listarMinhasPendentes(req, res) {
         const tarefaIds = [...new Set(pendentes.map(p => p.tarefa_id).filter(Boolean))];
 
         const [clientesRes, produtosRes, tarefasRes] = await Promise.all([
-            clienteIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
-            produtoIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
-            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] }
+            clienteIds.length > 0 ? supabase.from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
+            produtoIds.length > 0 ? supabase.from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
+            tarefaIds.length > 0 ? supabase.from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] }
         ]);
 
         const clientesMap = new Map((clientesRes.data || []).map(c => [String(c.id), c]));
@@ -286,7 +317,7 @@ async function listarMinhasPendentes(req, res) {
         // Buscar tempo acumulado para cada atribuição
         const atribuicoesComTempo = await Promise.all(pendentes.map(async (attr) => {
             const { data: tempos } = await supabase
-                .schema('up_gestaointeligente')
+
                 .from('registro_tempo_pendente')
                 .select('data_inicio, data_fim')
                 .eq('atribuicao_pendente_id', attr.id);
@@ -337,7 +368,7 @@ async function listarMinhasPendentes(req, res) {
 async function listarPendentesParaAprovacao(req, res) {
     try {
         const { data: pendentes, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('*')
             .eq('status', 'PENDENTE')
@@ -355,10 +386,10 @@ async function listarPendentesParaAprovacao(req, res) {
         const usuarioIds = [...new Set(pendentes.map(p => p.usuario_id).filter(Boolean))];
 
         const [clientesRes, produtosRes, tarefasRes, usuariosRes] = await Promise.all([
-            clienteIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
-            produtoIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
-            tarefaIds.length > 0 ? supabase.schema('up_gestaointeligente').from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] },
-            usuarioIds.length > 0 ? supabase.schema('up_gestaointeligente').from('usuarios').select('id, nome_usuario, foto_perfil').in('id', usuarioIds) : { data: [] }
+            clienteIds.length > 0 ? supabase.from('cp_cliente').select('id, nome').in('id', clienteIds) : { data: [] },
+            produtoIds.length > 0 ? supabase.from('cp_produto').select('id, nome').in('id', produtoIds) : { data: [] },
+            tarefaIds.length > 0 ? supabase.from('cp_tarefa').select('id, nome').in('id', tarefaIds) : { data: [] },
+            usuarioIds.length > 0 ? supabase.from('usuarios').select('id, nome_usuario, foto_perfil').in('id', usuarioIds) : { data: [] }
         ]);
 
         const clientesMap = new Map((clientesRes.data || []).map(c => [String(c.id), c]));
@@ -369,7 +400,7 @@ async function listarPendentesParaAprovacao(req, res) {
         // Buscar tempos acumulados para TODAS as pendências listadas (Otimizado)
         const pendentesIds = pendentes.map(p => p.id);
         const { data: todosTempos } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('registro_tempo_pendente')
             .select('atribuicao_pendente_id, data_inicio, data_fim')
             .in('atribuicao_pendente_id', pendentesIds);
@@ -452,7 +483,7 @@ async function aprovarAtribuicao(req, res) {
 
         // 1. Buscar a atribuição pendente original
         const { data: pendente, error: erroBusca } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('*')
             .eq('id', id)
@@ -494,7 +525,7 @@ async function aprovarAtribuicao(req, res) {
 
         // Buscar Membro ID do Responsável
         const { data: membroResponsavel, error: errMembroResp } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('membro')
             .select('id')
             .eq('usuario_id', dadosFinais.usuario_id)
@@ -512,7 +543,7 @@ async function aprovarAtribuicao(req, res) {
 
         // Buscar Membro ID do Gestor (para auditoria criador)
         const { data: membroGestor, error: errMembroGestor } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('membro')
             .select('id')
             .eq('usuario_id', gestor_usuario_id)
@@ -534,7 +565,7 @@ async function aprovarAtribuicao(req, res) {
 
         // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id
         const { error: erroHistorico } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('historico_atribuicoes')
             .insert({
                 agrupador_id,
@@ -559,7 +590,7 @@ async function aprovarAtribuicao(req, res) {
         let tipo_tarefa_id = null;
         if (dadosFinais.tarefa_id) {
             const { data: vinculo } = await supabase
-                .schema('up_gestaointeligente')
+
                 .from('vinculados') // Tenta buscar em vinculados primeiro
                 .select('tarefa_tipo_id')
                 .eq('tarefa_id', dadosFinais.tarefa_id)
@@ -571,7 +602,7 @@ async function aprovarAtribuicao(req, res) {
             } else {
                 // Fallback: tabela tarefa
                 const { data: tarefa } = await supabase
-                    .schema('up_gestaointeligente')
+
                     .from('cp_tarefa')
                     .select('tipo_tarefa_id')
                     .eq('id', dadosFinais.tarefa_id)
@@ -581,7 +612,7 @@ async function aprovarAtribuicao(req, res) {
         }
 
         const { error: erroRegra } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('tempo_estimado_regra')
             .insert({
                 agrupador_id,
@@ -608,7 +639,7 @@ async function aprovarAtribuicao(req, res) {
         // NORMALIZAÇÃO: Usar os dados finais aprovados, não o que estava no pendente
         // NOTA: Tabela registro_tempo usa USUARIO_ID (tabela usuarios), então usamos dadosFinais.usuario_id
         const { data: registrosPendentes } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('registro_tempo_pendente')
             .select('*')
             .eq('atribuicao_pendente_id', id);
@@ -640,7 +671,7 @@ async function aprovarAtribuicao(req, res) {
             console.log('DEBUG: payload insert registro_tempo:', JSON.stringify(registrosParaInserir, null, 2));
 
             const { error: erroMigracao } = await supabase
-                .schema('up_gestaointeligente')
+
                 .from('registro_tempo')
                 .insert(registrosParaInserir);
 
@@ -654,7 +685,7 @@ async function aprovarAtribuicao(req, res) {
             const idsParaDeletar = registrosPendentes.map(r => r.id);
             if (idsParaDeletar.length > 0) {
                 const { error: erroDelete } = await supabase
-                    .schema('up_gestaointeligente')
+
                     .from('registro_tempo_pendente')
                     .delete()
                     .in('id', idsParaDeletar);
@@ -669,7 +700,7 @@ async function aprovarAtribuicao(req, res) {
         // 6. Atualizar status da pendência e persistir valores FINAIS
         // Isso garante histórico do que foi efetivamente aprovado
         const { error: erroUpdate } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .update({
                 status: 'APROVADA',
@@ -703,23 +734,44 @@ async function iniciarTimerPendente(req, res) {
         const { atribuicao_pendente_id } = req.body;
         const usuario_id = req.session.usuario.id;
 
-        // 1. Verificar se já existe timer ativo
-        const { data: registroAberto } = await supabase
-            .schema('up_gestaointeligente')
-            .from('registro_tempo_pendente')
-            .select('id')
-            .eq('atribuicao_pendente_id', atribuicao_pendente_id)
-            .eq('usuario_id', usuario_id)
-            .is('data_fim', null)
-            .maybeSingle();
+        // 1. Finalizar qualquer timer ativo para este usuário (normal ou pendente)
+        // Isso garante que apenas UM timer esteja ativo por vez.
+        try {
+            const agora = new Date().toISOString();
 
-        if (registroAberto) {
-            return res.status(400).json({ success: false, error: 'Já existe um timer ativo para esta atribuição.' });
+            // Finalizar registros normais
+            const { data: ativosNormais } = await supabase
+                .from('registro_tempo')
+                .select('id, data_inicio')
+                .eq('usuario_id', usuario_id)
+                .is('data_fim', null);
+
+            if (ativosNormais) {
+                for (const reg of ativosNormais) {
+                    const tempoRealizado = Math.max(0, new Date(agora).getTime() - new Date(reg.data_inicio).getTime());
+                    await supabase.from('registro_tempo').update({ data_fim: agora, tempo_realizado: tempoRealizado }).eq('id', reg.id);
+                }
+            }
+
+            // Finalizar outros registros pendentes
+            const { data: ativosPendentes } = await supabase
+                .from('registro_tempo_pendente')
+                .select('id')
+                .eq('usuario_id', usuario_id)
+                .is('data_fim', null);
+
+            if (ativosPendentes) {
+                for (const reg of ativosPendentes) {
+                    await supabase.from('registro_tempo_pendente').update({ data_fim: agora }).eq('id', reg.id);
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao parar timers anteriores:', e);
         }
 
         // 2. Buscar detalhes da atribuição para consistência
         const { data: atribuicao } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('tarefa_id')
             .eq('id', atribuicao_pendente_id)
@@ -731,7 +783,7 @@ async function iniciarTimerPendente(req, res) {
 
         // 3. Iniciar novo timer
         const { data: novoRegistro, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('registro_tempo_pendente')
             .insert({
                 atribuicao_pendente_id: atribuicao_pendente_id,
@@ -759,7 +811,7 @@ async function pararTimerPendente(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { data: registroAberto } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('registro_tempo_pendente')
             .select('id')
             .eq('atribuicao_pendente_id', atribuicao_pendente_id)
@@ -772,7 +824,7 @@ async function pararTimerPendente(req, res) {
         }
 
         const { error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('registro_tempo_pendente')
             .update({ data_fim: new Date().toISOString() })
             .eq('id', registroAberto.id);
@@ -794,7 +846,7 @@ async function pararTimerPendente(req, res) {
 async function contarPendentes(req, res) {
     try {
         const { count, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('atribuicoes_pendentes')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'PENDENTE');

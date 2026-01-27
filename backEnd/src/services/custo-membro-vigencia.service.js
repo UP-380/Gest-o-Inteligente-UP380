@@ -19,7 +19,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  db: { schema: 'up_gestaointeligente' },
+  db: { schema: process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente' },
   global: {
     headers: {
       'Cache-Control': 'no-cache'
@@ -31,7 +31,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 async function buscarVigencias(filters = {}, page = 1, limit = 50) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('*', { count: 'exact' });
 
@@ -63,7 +63,7 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
     if (filters.status) {
       // Primeiro buscar membros com o status
       const { data: membros, error: membrosError } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('membro')
         .select('id')
         .eq('status', filters.status);
@@ -105,7 +105,7 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
 async function buscarVigenciaPorId(id) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('*')
       .eq('id', id)
@@ -125,7 +125,7 @@ async function buscarVigenciaPorId(id) {
 async function buscarVigenciasPorMembro(membroId) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('*')
       .eq('membro_id', membroId)
@@ -145,7 +145,7 @@ async function buscarVigenciasPorMembro(membroId) {
 async function verificarMembroExiste(membroId) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('membro')
       .select('id')
       .eq('id', membroId)
@@ -165,7 +165,7 @@ async function verificarMembroExiste(membroId) {
 async function verificarVigenciaExiste(id) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('*')
       .eq('id', id)
@@ -185,7 +185,7 @@ async function verificarVigenciaExiste(id) {
 async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('horascontratadasdia, dt_vigencia, tipo_contrato')
       .eq('membro_id', membroId);
@@ -216,7 +216,7 @@ async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dat
 async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dataFim) {
   try {
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .select('*')
       .eq('membro_id', membroId);
@@ -246,9 +246,9 @@ async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dat
 async function criarVigencia(dados) {
   try {
     console.log('🔍 [SERVICE] Tentando inserir dados:', JSON.stringify(dados, null, 2));
-    
+
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .insert([dados])
       .select()
@@ -265,7 +265,7 @@ async function criarVigencia(dados) {
 
     console.log('✅ [SERVICE] Vigência criada com sucesso');
     console.log('📊 [SERVICE] Dados retornados:', JSON.stringify(data, null, 2));
-    
+
     return { data, error: null };
   } catch (error) {
     console.error('❌ [SERVICE] Erro inesperado ao criar vigência:', error);
@@ -278,9 +278,9 @@ async function atualizarVigencia(id, dados) {
   try {
     console.log('🔧 [SERVICE] Atualizando vigência ID:', id);
     console.log('🔧 [SERVICE] Dados para update:', JSON.stringify(dados, null, 2));
-    
+
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .update(dados)
       .eq('id', id)
@@ -305,7 +305,7 @@ async function atualizarVigencia(id, dados) {
 async function deletarVigencia(id) {
   try {
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('custo_membro_vigencia')
       .delete()
       .eq('id', id);

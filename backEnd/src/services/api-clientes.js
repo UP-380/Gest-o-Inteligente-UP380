@@ -22,7 +22,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  db: { schema: 'up_gestaointeligente' },
+  db: { schema: process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente' },
   global: {
     headers: {
       'Cache-Control': 'no-cache'
@@ -83,7 +83,7 @@ function isoParaDataHoraBR(isoDateTime) {
 //===================== FUNÇÕES REUTILIZÁVEIS - CLIENTES =====================
 async function getAllClientes() {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('cp_cliente')
     .select('id, nome, status')
     .not('id', 'is', null)
@@ -104,7 +104,7 @@ async function getAllClientes() {
 
 async function getClientesByStatus(status) {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('contratos_clientes')
     .select('id_cliente')
     .eq('status', status);
@@ -120,7 +120,7 @@ async function getClientesByStatus(status) {
   }
 
   const { data: clientesData, error: clientesError } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('cp_cliente')
     .select('id, nome')
     .in('id', idsClientes)
@@ -135,7 +135,7 @@ async function getClientesByStatus(status) {
 
 async function getTodoscp_clientesIdNomeMap() {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('cp_cliente')
     .select('id, nome');
 
@@ -154,7 +154,7 @@ async function getTodoscp_clientesIdNomeMap() {
 //===================== FUNÇÕES REUTILIZÁVEIS - STATUS =====================
 async function getAllDistinctStatus() {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('contratos_clientes')
     .select('status', { distinct: true });
 
@@ -169,7 +169,7 @@ async function getAllDistinctStatus() {
 //===================== FUNÇÕES REUTILIZÁVEIS - STATUS POR CLIENTE =====================
 async function getDistinctStatusByCliente(idCliente) {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('contratos_clientes')
     .select('status', { distinct: true })
     .eq('id_cliente', idCliente);
@@ -185,7 +185,7 @@ async function getDistinctStatusByCliente(idCliente) {
 //===================== FUNÇÕES REUTILIZÁVEIS - CONTRATOS =====================
 async function getContratosByStatusAndCliente(status, idCliente) {
   let query = supabase
-    .schema('up_gestaointeligente')
+
     .from('contratos_clientes')
     .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social');
 
@@ -220,7 +220,7 @@ async function getContratosByClienteId(idCliente) {
     console.log('🔍 [GET-CONTRATOS-CLIENTE-ID] Buscando contratos para id_cliente:', idNormalizado);
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('contratos_clientes')
       .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
       .eq('id_cliente', idNormalizado);
@@ -246,7 +246,7 @@ async function getContratosByClickupNome(nomeClienteClickup) {
 
     // Primeiro, buscar o cliente pelo nome no ClickUp
     const { data: clienteData, error: clienteError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id')
       .eq('nome', nomeNormalizado)
@@ -279,7 +279,7 @@ async function getContratosByClickupNome(nomeClienteClickup) {
 //===================== FUNÇÕES REUTILIZÁVEIS - TAREFAS =====================
 async function getTarefasPorCliente(clienteId) {
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('tarefa')
     .select('*')
     .eq('cliente_id', clienteId);
@@ -295,7 +295,7 @@ async function getTarefasPorCliente(clienteId) {
 async function getcp_clientesIdNome(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_cliente')
       .select('id, nome')
       .not('id', 'is', null)
@@ -333,7 +333,7 @@ async function getcp_clientesIdNome(req, res) {
 async function getMembrosIdNome(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('membro')
       .select('id, nome, status, usuario_id')
       .not('id', 'is', null)
@@ -362,7 +362,7 @@ async function getMembrosIdNome(req, res) {
 
       if (usuarioIds.length > 0) {
         const { data: usuarios, error: usuariosError } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('usuarios')
           .select('id, foto_perfil')
           .in('id', usuarioIds);
@@ -421,7 +421,7 @@ async function getMembrosIdNome(req, res) {
 async function getMembrosIdNomeTodos(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('membro')
       .select('id, nome, status, usuario_id')
       .not('id', 'is', null)
@@ -602,7 +602,7 @@ async function getTarefasEndpoint(req, res) {
 async function getRegistrosTempo(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('v_registro_tempo_vinculado')
       .select('*');
 
@@ -637,7 +637,7 @@ async function getRegistrosTempoSemTarefa(req, res) {
     // Buscar registros onde tarefa_id é null OU string vazia
     const criarQueryBuilderRegistros = () => {
       const query = supabase
-        .schema('up_gestaointeligente')
+
         .from('registro_tempo')
         .select('*')
         .or('tarefa_id.is.null,tarefa_id.eq.');
@@ -702,7 +702,7 @@ async function getRegistrosTempoSemTarefa(req, res) {
 async function getCustoHoraMembro(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('v_custo_hora_membro')
       .select('*');
 
@@ -733,7 +733,7 @@ async function getCustoHoraMembro(req, res) {
 async function getFaturamento(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('faturamento')
       .select('*');
 
@@ -763,7 +763,7 @@ async function getFaturamento(req, res) {
 async function getProdutoPorId(produtoId) {
   // Como a coluna id é tipo text, usar .eq() é mais confiável
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('cp_produto')
     .select('id, nome')
     .eq('id', produtoId)
@@ -784,7 +784,7 @@ async function getProdutosPorIds(produtoIds) {
       console.log(`🔍 Buscando produto input: "${produtoId}" (tipo: ${typeof produtoId})`);
 
       const { data, error } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, clickup_id, nome')
         .or(`id.eq."${produtoId}",clickup_id.eq."${produtoId}"`)
@@ -817,7 +817,7 @@ async function getProdutosPorClickupIds(clickupIds) {
       console.log(`🔍 Buscando produto por input (clickup/id): "${clickupId}"`);
 
       const { data, error } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_produto')
         .select('id, clickup_id, nome')
         .or(`clickup_id.eq."${clickupId}",id.eq."${clickupId}"`)
@@ -850,7 +850,7 @@ async function getProdutosPorClickupIds(clickupIds) {
 async function getAllMembros() {
   // Buscar todos os membros (mesma lógica do getMembrosIdNome)
   const { data, error } = await supabase
-    .schema('up_gestaointeligente')
+
     .from('membro')
     .select('id, nome, status')
     .not('id', 'is', null)
@@ -906,7 +906,7 @@ async function getMembrosPorIds(membroIds) {
 
       if (idsNumeros.length > 0) {
         const { data, error } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('membro')
           .select('id, nome, status')
           .in('id', idsNumeros);
@@ -924,7 +924,7 @@ async function getMembrosPorIds(membroIds) {
     if (membros.length < idsParaBuscar.length) {
       const idsStrings = idsParaBuscar.map(id => String(id).trim());
       const { data, error } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('membro')
         .select('id, nome, status')
         .in('id', idsStrings);
@@ -967,7 +967,7 @@ async function getMembrosPorIds(membroIds) {
           // Tentar como número primeiro
           if (!isNaN(idNum)) {
             const { data, error } = await supabase
-              .schema('up_gestaointeligente')
+
               .from('membro')
               .select('id, nome, status')
               .eq('id', idNum)
@@ -982,7 +982,7 @@ async function getMembrosPorIds(membroIds) {
 
           // Tentar como string
           const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('membro')
             .select('id, nome, status')
             .eq('id', idStr)
@@ -1096,7 +1096,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
     // Vamos buscar todos os registros e filtrar manualmente (igual getClientesPorColaborador faz)
     // IMPORTANTE: Sem limite para garantir que pegamos todos os registros
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('v_registro_tempo_vinculado')
       .select('usuario_id, cliente_id')  // INVERTIDO: buscar usuario_id e cliente_id para filtrar
       .not('usuario_id', 'is', null)
@@ -1166,7 +1166,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
         const idNum = parseInt(usuarioId, 10);
         if (!isNaN(idNum)) {
           const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('membro')
             .select('id, nome, status')
             .eq('id', idNum)
@@ -1184,7 +1184,7 @@ async function getMembrosPorCliente(clienteId, periodoInicio = null, periodoFim 
 
         // Tentar como string
         const { data, error } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('membro')
           .select('id, nome, status')
           .eq('id', String(usuarioId).trim())
@@ -1264,7 +1264,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
 
     // Buscar registros de tempo desses colaboradores
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('v_registro_tempo_vinculado')
       .select('cliente_id')
       .not('cliente_id', 'is', null);
@@ -1329,7 +1329,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
     for (const clienteId of clienteIds) {
       try {
         const { data, error } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_cliente')
           .select('id, nome')
           .eq('id', clienteId)
@@ -1360,7 +1360,7 @@ async function getClientesPorColaborador(colaboradorId, periodoInicio = null, pe
 async function getProdutos(req, res) {
   try {
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_produto')
       .select('*');
 

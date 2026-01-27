@@ -13,7 +13,7 @@ async function getTarefas(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .select('id, nome, clickup_id, descricao, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -47,7 +47,6 @@ async function getTarefas(req, res) {
       });
     }
 
-    console.log(`✅ Tarefas encontradas: ${data?.length || 0} de ${count || 0} total`);
 
     return res.json({
       success: true,
@@ -80,7 +79,7 @@ async function getTarefaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .select('*')
       .eq('id', id)
@@ -166,7 +165,7 @@ async function criarTarefa(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .insert([dadosInsert])
       .select()
@@ -220,7 +219,7 @@ async function atualizarTarefa(req, res) {
 
     // Verificar se tarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .select('id, nome')
       .eq('id', id)
@@ -276,7 +275,7 @@ async function atualizarTarefa(req, res) {
 
       // Buscar todas as tarefas e fazer comparação case-insensitive
       const { data: todasTarefas, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_tarefa')
         .select('id, nome');
 
@@ -346,7 +345,7 @@ async function atualizarTarefa(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .update(dadosUpdate)
       .eq('id', id)
@@ -397,7 +396,7 @@ async function deletarTarefa(req, res) {
 
     // Verificar se tarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .select('id, nome')
       .eq('id', id)
@@ -421,7 +420,7 @@ async function deletarTarefa(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .delete()
       .eq('id', id);
@@ -493,7 +492,7 @@ async function criarTarefaRapida(req, res) {
     // 1.1 Verificar duplicidade de nome para este cliente/produto (Evitar múltiplos cadastros da mesma tarefa por engano)
     try {
       const { data: vinculadas, error: erroVincCheck } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('vinculados')
         .select(`
                 tarefa_id,
@@ -521,7 +520,7 @@ async function criarTarefaRapida(req, res) {
 
     // 2. Criar a Tarefa (Passo 1)
     const { data: novaTarefa, error: erroTarefa } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .insert([{
         nome: nomeTrimmed,
@@ -546,14 +545,6 @@ async function criarTarefaRapida(req, res) {
     // 3. Preparar Vínculos (Passo 2)
     const linksParaCriar = [];
 
-    // Helper simples para tipo de relacionamento
-    const getTipoRel = (temTipo, temProd, temCli, temSub) => {
-      if (temCli && temProd && temTipo && temSub) return 'cliente_produto_tarefa_subtarefa';
-      if (temCli && temProd && temTipo && !temSub) return 'cliente_produto_tarefa';
-      if (!temCli && !temProd && temTipo && temSub) return 'tarefa_subtarefa'; // Master link para subtarefa
-      if (!temCli && !temProd && temTipo && !temSub) return 'tipo_tarefa';    // Master link para tarefa
-      return null;
-    };
 
     console.log(`🔗 [Plug Rápido] Preparando ${linksParaCriar.length} vínculos...`);
 
@@ -615,7 +606,7 @@ async function criarTarefaRapida(req, res) {
 
     // 4. Salvar Vínculos
     const { error: erroVinculos } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('vinculados')
       .insert(linksParaCriar);
 
@@ -640,7 +631,7 @@ async function criarTarefaRapida(req, res) {
     if (newTaskId) {
       try {
         await supabase
-          .schema('up_gestaointeligente')
+
           .from('cp_tarefa')
           .delete()
           .eq('id', newTaskId);
@@ -678,7 +669,7 @@ async function atualizarTarefaRapida(req, res) {
 
     // 1. Atualizar o nome na tarefa base (cp_tarefa não tem tipo_tarefa_id)
     const { error: errorTarefa } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa')
       .update({
         nome: nome.trim(),
@@ -691,7 +682,7 @@ async function atualizarTarefaRapida(req, res) {
     // 2. Atualizar o TIPO da tarefa em TODOS os vínculos existentes (Master e Específicos)
     if (tipo_tarefa_id) {
       const { error: errorTipoVinc } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('vinculados')
         .update({
           tarefa_tipo_id: parseInt(tipo_tarefa_id, 10)
@@ -707,7 +698,7 @@ async function atualizarTarefaRapida(req, res) {
     if (cliente_id && produto_id) {
       // Deletar vínculos de subtarefa antigos para este contexto (exceções)
       await supabase
-        .schema('up_gestaointeligente')
+
         .from('vinculados')
         .delete()
         .eq('tarefa_id', id)
@@ -728,7 +719,7 @@ async function atualizarTarefaRapida(req, res) {
         }));
 
         const { error: errorVinculos } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('vinculados')
           .insert(novosVinculos);
 

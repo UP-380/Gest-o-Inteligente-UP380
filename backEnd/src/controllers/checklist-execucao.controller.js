@@ -14,7 +14,7 @@ async function getChecklistStatus(req, res) {
 
         // Buscar apenas as subtarefas concluídas para esta instância
         const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('checklist_execucao')
             .select('subtarefa_id')
             .eq('id_instancia_tarefa', idInstancia)
@@ -68,7 +68,7 @@ async function toggleChecklistItem(req, res) {
 
         // Usar upsert para criar ou atualizar o registro
         const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('checklist_execucao')
             .upsert({
                 id_instancia_tarefa: idInstancia,

@@ -30,14 +30,14 @@ const upload = multer({
 
 async function login(req, res) {
   try {
-    
-    
+
+
     const { email, senha } = req.body;
-    
-    
-    
+
+
+
     if (!email || !senha) {
-      
+
       return res.status(400).json({
         success: false,
         error: 'Email e senha são obrigatórios'
@@ -47,15 +47,14 @@ async function login(req, res) {
     // Buscar usuário na tabela usuarios do schema up_gestaointeligente
     let usuarios = null;
     let error = null;
-    
+
     try {
       const result = await supabase
-        .schema('up_gestaointeligente')
         .from('usuarios')
         .select('id, email_usuario, senha_login, nome_usuario, foto_perfil, permissoes')
         .eq('email_usuario', email.toLowerCase().trim())
         .limit(1);
-      
+
       usuarios = result.data;
       error = result.error;
     } catch (selectError) {
@@ -63,15 +62,15 @@ async function login(req, res) {
       console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
       try {
         const resultFallback = await supabase
-          .schema('up_gestaointeligente')
+
           .from('usuarios')
           .select('id, email_usuario, senha_login, nome_usuario, foto_perfil')
           .eq('email_usuario', email.toLowerCase().trim())
           .limit(1);
-        
+
         usuarios = resultFallback.data;
         error = resultFallback.error;
-        
+
         // Se conseguiu buscar sem permissoes, adicionar null
         if (usuarios && usuarios.length > 0) {
           usuarios[0].permissoes = null;
@@ -92,7 +91,7 @@ async function login(req, res) {
 
     // Verificar se usuário existe
     if (!usuarios || usuarios.length === 0) {
-      
+
       return res.status(401).json({
         success: false,
         error: 'Login não cadastrado, entre em contato com o desenvolvedor'
@@ -100,8 +99,8 @@ async function login(req, res) {
     }
 
     const usuario = usuarios[0];
-    
-    
+
+
 
     // Verificar senha (comparação simples - em produção usar hash)
     if (usuario.senha_login !== senha) {
@@ -114,14 +113,20 @@ async function login(req, res) {
 
     // Resolver foto_perfil: se for custom-{id}, buscar URL no Storage usando metadados
     let fotoPerfilUrl = usuario.foto_perfil;
-    if (usuario.foto_perfil && usuario.foto_perfil.startsWith('custom-')) {
-      const resolvedUrl = await resolveAvatarUrl(usuario.foto_perfil, 'user');
-      if (resolvedUrl) {
-        fotoPerfilUrl = resolvedUrl;
+    try {
+      if (usuario.foto_perfil && usuario.foto_perfil.startsWith('custom-')) {
+        
+        const resolvedUrl = await resolveAvatarUrl(usuario.foto_perfil, 'user');
+        if (resolvedUrl) {
+          fotoPerfilUrl = resolvedUrl;
+        }
       }
+    } catch (avatarError) {
+      
     }
 
     // Criar sessão do usuário
+    
     req.session.usuario = {
       id: usuario.id,
       email_usuario: usuario.email_usuario,
@@ -171,7 +176,7 @@ function logout(req, res) {
     if (!req.session) {
       return res.json({ success: true });
     }
-    
+
     req.session.destroy((err) => {
       if (err) {
         console.error('Erro ao destruir sessão:', err);
@@ -200,19 +205,19 @@ async function checkAuth(req, res) {
       });
     }
 
-      if (req.session.usuario) {
+    if (req.session.usuario) {
       // Buscar dados atualizados do usuário do banco (incluindo foto_perfil e permissoes)
       let usuarioAtualizado = null;
       let userError = null;
-      
+
       try {
         const result = await supabase
-          .schema('up_gestaointeligente')
+
           .from('usuarios')
           .select('id, email_usuario, nome_usuario, foto_perfil, permissoes')
           .eq('id', req.session.usuario.id)
           .maybeSingle();
-        
+
         usuarioAtualizado = result.data;
         userError = result.error;
       } catch (selectError) {
@@ -220,15 +225,15 @@ async function checkAuth(req, res) {
         console.error('Erro ao buscar usuário com permissoes, tentando sem:', selectError);
         try {
           const resultFallback = await supabase
-            .schema('up_gestaointeligente')
+
             .from('usuarios')
             .select('id, email_usuario, nome_usuario, foto_perfil')
             .eq('id', req.session.usuario.id)
             .maybeSingle();
-          
+
           usuarioAtualizado = resultFallback.data;
           userError = resultFallback.error;
-          
+
           // Se conseguiu buscar sem permissoes, adicionar null
           if (usuarioAtualizado) {
             usuarioAtualizado.permissoes = null;
@@ -282,7 +287,7 @@ async function checkAuth(req, res) {
     console.error('❌ Erro no checkAuth:', error);
     console.error('   Stack:', error.stack);
     console.error('   Message:', error.message);
-    
+
     if (!res.headersSent) {
       return res.status(500).json({
         success: false,
@@ -332,7 +337,7 @@ async function updateProfile(req, res) {
     // Atualizar senha se fornecida
     if (senha_nova !== undefined && senha_nova !== null && senha_nova.trim() !== '') {
       console.log('🔐 Tentativa de alterar senha para usuário ID:', userId);
-      
+
       // Validar que a senha atual foi fornecida
       if (!senha_atual || !senha_atual.trim()) {
         console.log('❌ Senha atual não fornecida');
@@ -353,7 +358,7 @@ async function updateProfile(req, res) {
 
       // Buscar usuário para verificar senha atual
       const { data: usuarioComSenha, error: senhaError } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('usuarios')
         .select('id, senha_login')
         .eq('id', userId)
@@ -378,12 +383,12 @@ async function updateProfile(req, res) {
       // Verificar se a senha atual está correta
       const senhaAtualFornecida = senha_atual.trim();
       const senhaAtualBanco = usuarioComSenha.senha_login;
-      
+
       console.log('🔍 Validando senha atual...');
       console.log('   Senha fornecida:', senhaAtualFornecida ? '***' : '(vazia)');
       console.log('   Senha no banco:', senhaAtualBanco ? '***' : '(vazia)');
       console.log('   Senhas coincidem:', senhaAtualBanco === senhaAtualFornecida);
-      
+
       if (senhaAtualBanco !== senhaAtualFornecida) {
         console.log('❌ Senha atual incorreta!');
         return res.status(401).json({
@@ -407,7 +412,7 @@ async function updateProfile(req, res) {
 
     // Verificar se o usuário existe
     const { data: usuarioExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', userId)
@@ -432,7 +437,7 @@ async function updateProfile(req, res) {
     const dadosUpdateFinal = { ...dadosUpdate };
 
     const { data: usuarioAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .update(dadosUpdateFinal)
       .eq('id', userId)
@@ -489,7 +494,7 @@ async function updateProfile(req, res) {
 async function uploadAvatar(req, res) {
   try {
     console.error('📤 Iniciando upload de avatar...');
-    
+
     // Verificar se o usuário está autenticado
     if (!req.session || !req.session.usuario) {
       console.error('❌ Upload negado: usuário não autenticado');
@@ -514,7 +519,7 @@ async function uploadAvatar(req, res) {
 
     // Buscar dados do usuário primeiro para validar
     const { data: usuarioAtual, error: userError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', userId)
@@ -546,9 +551,9 @@ async function uploadAvatar(req, res) {
 
     // Salvar identificador customizado no banco (custom-{id}) ao invés da URL completa
     const customAvatarId = `custom-${userId}`;
-    
+
     const { error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .update({ foto_perfil: customAvatarId })
       .eq('id', userId);
@@ -579,7 +584,7 @@ async function uploadAvatar(req, res) {
   } catch (error) {
     console.error('❌ Erro inesperado ao fazer upload de avatar:', error);
     console.error('Stack trace:', error.stack);
-    
+
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -637,7 +642,7 @@ async function getPreferenciaViewMode(req, res) {
     const userId = req.session.usuario.id;
 
     const { data: usuario, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .select('view_modelo_painel')
       .eq('id', userId)
@@ -690,7 +695,7 @@ async function updatePreferenciaViewMode(req, res) {
 
     // Atualizar ou inserir a preferência
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('usuarios')
       .update({ view_modelo_painel: modo })
       .eq('id', userId)

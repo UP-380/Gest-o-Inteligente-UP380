@@ -16,7 +16,7 @@ async function getColaboradores(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('id, nome, cpf, usuario_id', { count: 'exact' });
     
@@ -76,7 +76,7 @@ async function getColaboradores(req, res) {
       
       // Buscar todas as vigências dos membros com salário base
       const { data: vigencias, error: errorVigencias } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('custo_membro_vigencia')
         .select('membro_id, salariobase, dt_vigencia, id')
         .in('membro_id', membroIds)
@@ -130,7 +130,7 @@ async function getColaboradores(req, res) {
       if (usuarioIds.length > 0) {
         // Buscar usuarios por usuario_id
         const { data: usuarios, error: usuariosError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('usuarios')
           .select('id, foto_perfil')
           .in('id', usuarioIds);
@@ -214,7 +214,7 @@ async function getColaboradorPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('*')
       .eq('id', id)
@@ -278,7 +278,7 @@ async function criarColaborador(req, res) {
     if (cpf && cpf.trim()) {
       const cpfLimpo = cpf.replace(/\D/g, '');
       const { data: existente, error: errorCheck } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome, cpf')
         .eq('cpf', cpfLimpo)
@@ -313,7 +313,7 @@ async function criarColaborador(req, res) {
 
     // Inserir no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .insert([dadosInsert])
       .select()
@@ -358,7 +358,7 @@ async function atualizarColaborador(req, res) {
 
     // Verificar se colaborador existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('id, nome, cpf')
       .eq('id', id)
@@ -405,7 +405,7 @@ async function atualizarColaborador(req, res) {
 
         // Verificar se CPF já existe em outro colaborador
         const { data: cpfExistente, error: errorCpf } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .select('id, nome')
           .eq('cpf', cpfLimpo)
@@ -453,7 +453,7 @@ async function atualizarColaborador(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .update(dadosUpdate)
       .eq('id', id)
@@ -498,7 +498,7 @@ async function deletarColaborador(req, res) {
 
     // Verificar se colaborador existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('id, nome')
       .eq('id', id)
@@ -523,7 +523,7 @@ async function deletarColaborador(req, res) {
     // Verificar se há registros relacionados (opcional - pode ser ajustado conforme necessidade)
     // Por exemplo, verificar se há registros de tempo vinculados
     const { data: registrosTempo, error: errorRegistros } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('v_registro_tempo_vinculado')
       .select('id')
       .eq('usuario_id', id)
@@ -543,7 +543,7 @@ async function deletarColaborador(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .delete()
       .eq('id', id);
@@ -579,7 +579,7 @@ async function deletarColaborador(req, res) {
 async function getTiposContrato(req, res) {
   try {
     const { data, error } = await supabaseDirect
-      .schema('up_gestaointeligente')
+      
       .from('cp_tipo_contrato_membro')
       .select('id, nome')
       .order('nome', { ascending: true });
