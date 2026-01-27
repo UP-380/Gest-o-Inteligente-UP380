@@ -477,9 +477,8 @@ function App() {
           }
         />
       </Routes>
-    </AuthProvider>
+    </AuthProvider >
   );
 }
 
 export default App;
-

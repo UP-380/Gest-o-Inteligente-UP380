@@ -17,6 +17,7 @@ import '../../components/user/TimerAtivo.css'; // Garantir estilos se necessári
 import TimerButton from '../../components/common/TimerButton';
 import '../../components/ModalPlugRapido.css';
 import '../../components/common/Tooltip.css';
+import { comunicacaoAPI } from '../../services/comunicacao.service';
 
 const API_BASE_URL = '/api';
 
@@ -496,6 +497,8 @@ const PainelUsuario = () => {
     if (!dataInicio || !dataFim) return '—';
     return `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
   };
+
+  const [comunicadoDestaque, setComunicadoDestaque] = useState(null);
 
   const getNomeProduto = (id) => nomesCache.produtos[String(id)] || `Produto #${id}`;
   const getNomeTarefa = (id, registro = null) => {
@@ -1093,13 +1096,21 @@ const PainelUsuario = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && Array.isArray(result.data)) {
-          const registros = result.data.map(r => ({
-            id: r.id,
-            tempo_realizado: r.tempo_realizado || 0,
-            data_inicio: r.data_inicio,
-            data_fim: r.data_fim,
-            created_at: r.created_at
-          }));
+          const registros = result.data.map(r => {
+            let tempo = r.tempo_realizado;
+            if (!tempo && r.data_inicio && r.data_fim) {
+              const inicio = new Date(r.data_inicio).getTime();
+              const fim = new Date(r.data_fim).getTime();
+              tempo = Math.max(0, fim - inicio);
+            }
+            return {
+              id: r.id,
+              tempo_realizado: tempo || 0,
+              data_inicio: r.data_inicio,
+              data_fim: r.data_fim,
+              created_at: r.created_at
+            };
+          });
 
           // Armazenar no cache (tanto no estado quanto na ref)
           const novoMap = new Map(timetracksDataRef.current);
@@ -5226,6 +5237,40 @@ const PainelUsuario = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSelecionadoId]);
 
+  // Carregar comunicado de destaque
+  const fetchDestaque = useCallback(async () => {
+    try {
+      const res = await comunicacaoAPI.buscarComunicadoDestaque();
+      if (res.success && res.data) {
+        setComunicadoDestaque(res.data);
+      } else {
+        setComunicadoDestaque(null);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar destaque:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDestaque();
+
+    // Polling a cada 30 segundos para novos avisos sem precisar recarregar
+    const interval = setInterval(fetchDestaque, 30000);
+    return () => clearInterval(interval);
+  }, [fetchDestaque]);
+
+  const handleVisualizarDestaque = async () => {
+    if (!comunicadoDestaque) return;
+    try {
+      await comunicacaoAPI.marcarMensagemLida(comunicadoDestaque.id);
+      setComunicadoDestaque(null);
+      // Opcional: abrir a central de comunicação no aviso correto
+      // setIsCommOpen(true); setActiveTab('comunicados');
+    } catch (err) {
+      console.error('Erro ao marcar como lido:', err);
+    }
+  };
+
 
   return (
     <Layout>
@@ -5247,6 +5292,61 @@ const PainelUsuario = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Notificação Flutuante de Comunicado - Renderizada no Body para ignorar offsets de scroll/transform */}
+                {comunicadoDestaque && createPortal(
+                  <div className="painel-usuario-aviso-floating" style={{
+                    position: 'fixed',
+                    top: '67px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 2000000,
+                    background: 'rgba(14, 59, 111, 0.98)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    maxWidth: '80vw',
+                    animation: 'slideDownFade 0.3s ease-out'
+                  }}>
+                    <i className="fas fa-bullhorn" style={{ color: '#fbbf24', fontSize: '13px' }}></i>
+                    <div style={{ fontSize: '0.85rem', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontWeight: '800' }}>{comunicadoDestaque.titulo}</span>
+                    </div>
+                    <button
+                      className="view-more-aviso-btn"
+                      title="Ver mais detalhes"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('open-communication-drawer', { detail: { tab: 'comunicados' } }));
+                        // Marcar como lido para sumir o banner após abrir
+                        handleVisualizarDestaque();
+                      }}
+                      style={{
+                        background: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        flexShrink: 0
+                      }}
+                    >
+                      Ver mais <i className="fas fa-external-link-alt" style={{ fontSize: '10px' }}></i>
+                    </button>
+                  </div>,
+                  document.body
+                )}
 
                 {document.getElementById('header-extra-content') && createPortal(
                   <div style={{ display: 'flex', alignItems: 'center' }}>

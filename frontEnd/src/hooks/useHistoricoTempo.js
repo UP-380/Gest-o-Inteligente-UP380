@@ -15,12 +15,12 @@ export const useHistoricoTempo = () => {
   // Formatar tempo em horas/minutos/segundos
   const formatarTempoHMS = useCallback((milissegundos) => {
     if (!milissegundos || milissegundos === 0) return '0s';
-    
+
     const totalSegundos = Math.floor(milissegundos / 1000);
     const horas = Math.floor(totalSegundos / 3600);
     const minutos = Math.floor((totalSegundos % 3600) / 60);
     const segundos = totalSegundos % 60;
-    
+
     if (horas > 0) {
       return `${horas}h ${minutos}min ${segundos}s`;
     } else if (minutos > 0) {
@@ -33,10 +33,10 @@ export const useHistoricoTempo = () => {
   // Formatar período (data início - data fim) sem repetir data se for o mesmo dia
   const formatarPeriodo = useCallback((dataInicio, dataFim) => {
     if (!dataInicio) return '';
-    
+
     const inicio = new Date(dataInicio);
     const fim = dataFim ? new Date(dataFim) : null;
-    
+
     // Formatar data de início
     const dataInicioFormatada = inicio.toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -47,14 +47,14 @@ export const useHistoricoTempo = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-    
+
     if (!fim) {
       return `${dataInicioFormatada}, ${horaInicioFormatada} - Agora`;
     }
-    
+
     // Verificar se é o mesmo dia
     const mesmoDia = inicio.toDateString() === fim.toDateString();
-    
+
     if (mesmoDia) {
       // Mesmo dia: mostrar data uma vez e depois só as horas
       const horaFimFormatada = fim.toLocaleTimeString('pt-BR', {
@@ -81,7 +81,7 @@ export const useHistoricoTempo = () => {
   const formatarDataGrupo = useCallback((dataString) => {
     if (!dataString) return '';
     const data = new Date(dataString);
-    
+
     // Normalizar para comparar apenas a data (sem hora)
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -89,7 +89,7 @@ export const useHistoricoTempo = () => {
     ontem.setDate(ontem.getDate() - 1);
     const dataNormalizada = new Date(data);
     dataNormalizada.setHours(0, 0, 0, 0);
-    
+
     if (dataNormalizada.getTime() === hoje.getTime()) {
       return 'Hoje';
     } else if (dataNormalizada.getTime() === ontem.getTime()) {
@@ -130,12 +130,27 @@ export const useHistoricoTempo = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          const registros = result.data || [];
+          const registrosFromApi = result.data || [];
+
+          // Normalizar registros: se tempo_realizado for nulo mas tiver inicio e fim, calcular localmente
+          // Isso resolve o problema de registros migrados do Plug Rápido sem tempo materializado
+          const registros = registrosFromApi.map(reg => {
+            if ((reg.tempo_realizado === null || reg.tempo_realizado === undefined || reg.tempo_realizado === 0) && reg.data_inicio && reg.data_fim) {
+              const inicio = new Date(reg.data_inicio).getTime();
+              const fim = new Date(reg.data_fim).getTime();
+              return {
+                ...reg,
+                tempo_realizado: Math.max(0, fim - inicio)
+              };
+            }
+            return reg;
+          });
+
           setHistoricoRegistros(registros);
-          
+
           // Buscar nomes das tarefas (otimizado - uma única requisição)
           const tarefasIds = [...new Set(registros.map(r => r.tarefa_id).filter(Boolean))];
-          
+
           if (tarefasIds.length > 0) {
             try {
               const tarefasResponse = await fetch(
@@ -145,7 +160,7 @@ export const useHistoricoTempo = () => {
                   headers: { 'Accept': 'application/json' }
                 }
               );
-              
+
               if (tarefasResponse.ok) {
                 const tarefasResult = await tarefasResponse.json();
                 if (tarefasResult.success && tarefasResult.data) {
@@ -211,14 +226,14 @@ export const useHistoricoTempo = () => {
   // Agrupar histórico por data e depois por tarefa
   const agruparHistoricoPorDataETarefa = useCallback(() => {
     const gruposPorData = {};
-    
+
     historicoRegistros.forEach((registro) => {
       if (!registro.data_inicio) return;
-      
+
       // Usar a data de início para agrupar (apenas a data, sem hora)
       const dataInicio = new Date(registro.data_inicio);
       const chaveData = dataInicio.toISOString().split('T')[0]; // YYYY-MM-DD
-      
+
       if (!gruposPorData[chaveData]) {
         gruposPorData[chaveData] = {
           data: chaveData,
@@ -226,7 +241,7 @@ export const useHistoricoTempo = () => {
           tarefas: {}
         };
       }
-      
+
       // Agrupar por tarefa dentro de cada data
       const tarefaId = registro.tarefa_id || 'sem-tarefa';
       if (!gruposPorData[chaveData].tarefas[tarefaId]) {
@@ -237,7 +252,7 @@ export const useHistoricoTempo = () => {
       }
       gruposPorData[chaveData].tarefas[tarefaId].registros.push(registro);
     });
-    
+
     // Ordenar registros de cada tarefa por hora de início (mais recente primeiro)
     Object.keys(gruposPorData).forEach(chaveData => {
       Object.keys(gruposPorData[chaveData].tarefas).forEach(tarefaId => {
@@ -248,12 +263,12 @@ export const useHistoricoTempo = () => {
         });
       });
     });
-    
+
     // Ordenar as datas (mais recente primeiro)
     const datasOrdenadas = Object.keys(gruposPorData).sort((a, b) => {
       return new Date(b) - new Date(a);
     });
-    
+
     // Retornar como array ordenado
     return datasOrdenadas.map(chaveData => gruposPorData[chaveData]);
   }, [historicoRegistros, formatarDataGrupo]);

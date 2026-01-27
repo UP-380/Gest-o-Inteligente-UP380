@@ -1,0 +1,85 @@
+name: Auto Release
+
+# Este workflow cria automaticamente releases no GitHub quando você faz push de uma tag
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get previous tag
+        id: get_previous_tag
+        run: |
+          PREVIOUS_TAG=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) 2>/dev/null || echo "")
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -n "${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}" ]; then
+            CHANGELOG=$(git log ${{ steps.get_previous_tag.outputs.PREVIOUS_TAG }}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## 🚀 Release v${{ steps.get_version.outputs.VERSION }}
+            
+            ### 📋 Mudanças
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ### 📦 Instalação
+            
+            ```bash
+            git checkout v${{ steps.get_version.outputs.VERSION }}
+            npm install
+            npm run dev
+            ```
+          draft: false
+          prerelease: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd frontEnd
+          npm install
+
+      - name: Build
+        run: |
+          cd frontEnd
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-v${{ steps.get_version.outputs.VERSION }}
+          path: frontEnd/dist/
+          retention-days: 30

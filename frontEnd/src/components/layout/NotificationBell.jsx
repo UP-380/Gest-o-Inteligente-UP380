@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasPermissionSync } from '../../utils/permissions';
 import './NotificationBell.css';
@@ -13,12 +13,38 @@ const NotificationBell = ({ user }) => {
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    const [prevCount, setPrevCount] = useState(0);
+    const [prevCount, setPrevCount] = useState(() => {
+        const stored = localStorage.getItem('last_notified_count');
+        return stored ? parseInt(stored, 10) : 0;
+    });
     const [shouldPulse, setShouldPulse] = useState(false);
 
     // Verificar se o usuário tem permissão para ver o sininho
     // Utiliza o utilitário de permissões para verificar acesso à página de notificações
     const canSeeBell = user && hasPermissionSync(user.permissoes, '/notificacoes');
+
+    const playNotificationSound = useCallback(() => {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // Nota lá (A5)
+            oscillator.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.2); // Desce para A4 rapidamente
+
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (e) {
+            console.error('Erro ao reproduzir som de notificação:', e);
+        }
+    }, []);
 
     const fetchCount = useCallback(async () => {
         if (!canSeeBell) return;
@@ -27,19 +53,25 @@ const NotificationBell = ({ user }) => {
             const json = await res.json();
             if (json.success) {
                 const newCount = json.count;
+
+                // Se o count aumentou em relação ao que já sabíamos (mesmo de sessões anteriores),
+                // então disparamos a animação e o som.
                 if (newCount > prevCount) {
                     setShouldPulse(true);
+                    playNotificationSound(); // Toca o som ao receber nova notificação
                     setTimeout(() => setShouldPulse(false), 2000);
                     // Se o drawer estiver aberto, recarregar a lista
                     if (isOpen) fetchNotifications();
                 }
+
                 setCount(newCount);
                 setPrevCount(newCount);
+                localStorage.setItem('last_notified_count', newCount.toString());
             }
         } catch (e) {
             console.error('Erro ao buscar contagem de notificações:', e);
         }
-    }, [canSeeBell, prevCount, isOpen]);
+    }, [canSeeBell, prevCount, isOpen, playNotificationSound]);
 
     const fetchNotifications = useCallback(async () => {
         setLoading(true);
@@ -114,8 +146,20 @@ const NotificationBell = ({ user }) => {
         }
 
         setIsOpen(false);
+
         if (notif.link) {
-            navigate(notif.link);
+            // Se o link for de comunicação, abrir o drawer em vez de navegar
+            if (notif.link.includes('/comunicacao')) {
+                const url = new URL(notif.link, window.location.origin);
+                const tab = url.searchParams.get('tab') || 'chats';
+                const interlocutorId = url.searchParams.get('interlocutorId');
+
+                window.dispatchEvent(new CustomEvent('open-communication-drawer', {
+                    detail: { tab, interlocutorId }
+                }));
+            } else {
+                navigate(notif.link);
+            }
         }
     };
 

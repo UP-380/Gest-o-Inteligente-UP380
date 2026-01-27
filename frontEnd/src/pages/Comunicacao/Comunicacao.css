@@ -1,0 +1,84 @@
+.comunicacao-container {
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: #f4f6f9;
+}
+
+.comunicacao-header {
+    margin-bottom: 20px;
+}
+
+.comunicacao-header h1 {
+    font-size: 24px;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.comunicacao-tabs {
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: #ff6b00;
+    background-color: rgba(255, 107, 0, 0.05);
+}
+
+.tab-btn.active {
+    color: #ff6b00;
+    border-bottom-color: #ff6b00;
+    font-weight: 600;
+}
+
+.comunicacao-body {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 20px;
+    overflow: hidden;
+}
+
+.comunicacao-tab-content {
+    height: 100%;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    text-align: center;
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 20px;
+    color: #ccc;
+}
+
+.empty-state h3 {
+    font-size: 18px;
+    color: #555;
+    margin-bottom: 10px;
+}

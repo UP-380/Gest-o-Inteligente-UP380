@@ -513,7 +513,16 @@ async function getTempoRealizado(req, res) {
 
     // Calcular soma total em milissegundos
     const tempoTotalMs = (registros || []).reduce((sum, reg) => {
-      return sum + (Number(reg.tempo_realizado) || 0);
+      let tempo = Number(reg.tempo_realizado);
+
+      // Fallback: se não tem tempo_realizado materializado mas tem datas, calcular
+      if (!tempo && reg.data_inicio && reg.data_fim) {
+        const dInicio = new Date(reg.data_inicio);
+        const dFim = new Date(reg.data_fim);
+        tempo = Math.max(0, dFim.getTime() - dInicio.getTime());
+      }
+
+      return sum + (tempo || 0);
     }, 0);
 
     // Coletar IDs únicos de produto e tipo_tarefa dos registros encontrados

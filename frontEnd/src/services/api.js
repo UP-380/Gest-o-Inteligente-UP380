@@ -997,6 +997,28 @@ export const subtarefaAPI = {
   }
 };
 
+// ============================================
+// USUÁRIOS
+// ============================================
+
+export const usuariosAPI = {
+  /**
+   * Busca todos os usuários
+   */
+  async getAll() {
+    return await request(`${API_BASE_URL}/usuarios?limit=1000`);
+  }
+};
+
+// Exportar api genérica
+export const api = {
+  get: (endpoint) => request(`${API_BASE_URL}${endpoint}`),
+  post: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, { method: 'POST', body: JSON.stringify(body) }),
+  put: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: (endpoint) => request(`${API_BASE_URL}${endpoint}`, { method: 'DELETE' }),
+  request // para casos avançados
+};
+
 // Exportar URL base para uso externo se necessário
 export { getApiBaseUrl };
 
