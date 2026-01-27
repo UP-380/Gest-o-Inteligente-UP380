@@ -614,47 +614,6 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
   }
 }
 
-// POST - Buscar dados de vigência em lote (horas contratadas e custo mais recente)
-async function getDadosVigenciaLote(req, res) {
-  try {
-    const { membros_ids, data_inicio, data_fim } = req.body;
-
-    if (!membros_ids || !Array.isArray(membros_ids) || membros_ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Lista de IDs de membros (membros_ids) é obrigatória e deve ser um array não vazio'
-      });
-    }
-
-    const { data, error } = await vigenciaService.buscarDadosVigenciaLote(
-      membros_ids,
-      data_inicio || null,
-      data_fim || null
-    );
-
-    if (error) {
-      console.error('Erro ao buscar dados de vigência em lote:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar dados de vigência em lote',
-        details: error.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: data
-    });
-  } catch (error) {
-    console.error('Erro inesperado ao buscar dados de vigência em lote:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
-  }
-}
-
 // DELETE - Deletar vigência
 async function deletarCustoColaboradorVigencia(req, res) {
   try {
@@ -725,7 +684,5 @@ module.exports = {
   getHorasContratadasPorMembroEPeriodo,
   criarCustoColaboradorVigencia,
   atualizarCustoColaboradorVigencia,
-  atualizarCustoColaboradorVigencia,
-  deletarCustoColaboradorVigencia,
-  getDadosVigenciaLote
+  deletarCustoColaboradorVigencia
 };

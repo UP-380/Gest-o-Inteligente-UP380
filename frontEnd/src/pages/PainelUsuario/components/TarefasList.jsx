@@ -27,10 +27,6 @@ const TarefasList = ({ usuario: usuarioProp }) => {
   const [nomeColaborador, setNomeColaborador] = useState(null);
   const [fotoPerfilColaborador, setFotoPerfilColaborador] = useState(null);
 
-  // Refs para controle de requisições de custo
-  const fetchingCustoRef = React.useRef(new Set());
-  const failedCustoRef = React.useRef(new Set());
-
   const carregarTarefas = useCallback(async () => {
     if (!usuario) {
       setError('Usuário não identificado');
@@ -235,23 +231,11 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
   // Buscar custo do responsável e recalcular custo total
   const buscarCustoERecalcular = async (responsavelId, tarefasArray, tempoTotalMs) => {
-    // Verificar se já está buscando ou se já falhou
-    const idStr = String(responsavelId);
-    if (fetchingCustoRef.current.has(idStr) || failedCustoRef.current.has(idStr)) {
-      return;
-    }
-
     try {
-      fetchingCustoRef.current.add(idStr);
       const response = await fetch(`/api/custo-colaborador-vigencia/mais-recente?membro_id=${responsavelId}`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
-
-      if (response.status === 401 || response.status === 503) {
-        failedCustoRef.current.add(idStr);
-        return;
-      }
 
       if (response.ok) {
         const result = await response.json();
@@ -268,15 +252,9 @@ const TarefasList = ({ usuario: usuarioProp }) => {
             setCustoTotal(custoCalculado);
           }
         }
-      } else {
-        // Se não for OK, marcar como falha para não tentar denovo
-        failedCustoRef.current.add(idStr);
       }
     } catch (err) {
       // Erro silencioso - não é crítico
-      failedCustoRef.current.add(idStr);
-    } finally {
-      fetchingCustoRef.current.delete(idStr);
     }
   };
 

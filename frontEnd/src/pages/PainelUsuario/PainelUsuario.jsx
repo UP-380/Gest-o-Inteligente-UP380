@@ -378,20 +378,6 @@ const PainelUsuario = () => {
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
 
   // Cache de subtarefas vinculadas por tarefa_id
-  const fetchingNamesRef = useRef(new Set()); // IDs de clientes sendo buscados
-  const failedNamesRef = useRef(new Set());   // IDs de clientes que falharam (para não tentar novamente)
-
-  const fetchingTimesRef = useRef(new Set()); // Chaves de tempo sendo buscadas
-
-  // Refs para controle de requisições de subtarefas
-  const fetchingSubtarefasRef = useRef(new Set());
-  const failedSubtarefasRef = useRef(new Set());
-
-  // Refs para controle de nomes relacionados (produtos, tarefas)
-  const fetchingProductsRef = useRef(new Set());
-  const failedProductsRef = useRef(new Set());
-  const fetchingTasksRef = useRef(new Set());
-  const failedTasksRef = useRef(new Set());
 
 
   // --- SHORTCUT INTERNA UP ---
@@ -540,14 +526,13 @@ const PainelUsuario = () => {
 
     const idStr = String(clienteId).trim();
 
-    // Verificar se já está buscando ou se já falhou
-    if (fetchingNamesRef.current.has(idStr) || failedNamesRef.current.has(idStr)) {
-      return null;
+    // Verificar se já está no cache
+    const cacheAtual = nomesCacheRef.current;
+    if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
+      return cacheAtual.clientes[idStr];
     }
 
     try {
-      fetchingNamesRef.current.add(idStr); // Marcar como buscando
-
       const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
         credentials: 'include',
         headers: {
@@ -557,12 +542,10 @@ const PainelUsuario = () => {
       });
 
       if (response.status === 401) {
-        failedNamesRef.current.add(idStr); // Marcar como falha
         return null;
       }
 
       if (!response.ok) {
-        failedNamesRef.current.add(idStr); // Marcar como falha
         return null;
       }
 
@@ -589,13 +572,9 @@ const PainelUsuario = () => {
           return nome;
         }
       }
-      failedNamesRef.current.add(idStr); // Marcar como falha se não achou nome
       return null;
     } catch (error) {
-      failedNamesRef.current.add(idStr); // Marcar como falha
       return null;
-    } finally {
-      fetchingNamesRef.current.delete(idStr); // Desmarcar busca
     }
   }, []);
 
@@ -604,23 +583,15 @@ const PainelUsuario = () => {
     if (!id) return '';
     const idStr = String(id).trim();
     const cacheAtual = nomesCacheRef.current;
+    const nome = cacheAtual.clientes && cacheAtual.clientes[idStr];
 
-    // Se já temos o nome no cache, retornar
-    if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
-      return cacheAtual.clientes[idStr];
-    }
-
-    // Se já falhou anteriormente, retornar "Cliente" para não tentar ficar buscando infinitamente
-    if (failedNamesRef.current.has(idStr)) {
-      return 'Cliente';
-    }
-
-    // Se não estiver no cache e não estiver buscando e não falhou, disparar busca assíncrona
-    if (!fetchingNamesRef.current.has(idStr)) {
+    // Se não estiver no cache, disparar busca assíncrona
+    if (!nome) {
       buscarNomeCliente(idStr).catch(() => { });
+      return ''; // Retornar string vazia enquanto carrega
     }
 
-    return ''; // Retornar string vazia enquanto carrega
+    return nome;
   };
 
   const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || 'Colaborador';
@@ -714,14 +685,7 @@ const PainelUsuario = () => {
       return subtarefasCacheRef.current.get(tarefaIdStr);
     }
 
-    // Verificar se já está buscando ou se já falhou
-    if (fetchingSubtarefasRef.current.has(tarefaIdStr) || failedSubtarefasRef.current.has(tarefaIdStr)) {
-      return [];
-    }
-
     try {
-      fetchingSubtarefasRef.current.add(tarefaIdStr);
-
       const response = await fetch(`${API_BASE_URL}/subtarefas-por-tarefa?tarefaId=${tarefaId}`, {
         credentials: 'include',
         headers: {
@@ -729,11 +693,6 @@ const PainelUsuario = () => {
           'Content-Type': 'application/json',
         },
       });
-
-      if (response.status === 401 || response.status === 503) {
-        failedSubtarefasRef.current.add(tarefaIdStr);
-        return [];
-      }
 
       if (response.ok) {
         const result = await response.json();
@@ -746,16 +705,10 @@ const PainelUsuario = () => {
           return subtarefas;
         }
       }
-
-      // Se falhou (mas não crítico), não marcamos como falha permanente, mas não temos dados
       return [];
     } catch (error) {
-      // Erro crítico, marcar como falha para não tentar novamente
-      failedSubtarefasRef.current.add(tarefaIdStr);
       console.error('Erro ao buscar subtarefas:', error);
       return [];
-    } finally {
-      fetchingSubtarefasRef.current.delete(tarefaIdStr);
     }
   }, []);
 
@@ -1303,30 +1256,16 @@ const PainelUsuario = () => {
   // Função para buscar tempo realizado de uma tarefa específica
   const buscarTempoRealizado = useCallback(async (reg) => {
     if (!usuario?.id) return 0;
-    if (!reg.tarefa_id || !reg.cliente_id) return 0;
-
-    // Criar uma chave única para a requisição de tempo
-    // Usar cliente_id + tarefa_id como identificador base
-    // Incluir data se houver, para diferenciar dias
-    let dataPart = '';
-    if (reg.data) {
-      const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
-      dataPart = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
-    }
-    const requestKey = `${reg.cliente_id}_${reg.tarefa_id}_${dataPart}`;
-
-    // Verificar se já está buscando para evitar duplicidade
-    if (fetchingTimesRef.current.has(requestKey)) {
-      return 0; // Retornar 0 enquanto carrega em outra request
-    }
 
     try {
-      fetchingTimesRef.current.add(requestKey);
+      if (!reg.tarefa_id || !reg.cliente_id) return 0;
 
       // Extrair data do registro
       let dataParam = '';
-      if (dataPart) {
-        dataParam = `&data=${dataPart}`;
+      if (reg.data) {
+        const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
+        const dataStr = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
+        dataParam = `&data=${dataStr}`;
       }
 
       const response = await fetch(
@@ -1346,8 +1285,6 @@ const PainelUsuario = () => {
       return 0;
     } catch (error) {
       return 0;
-    } finally {
-      fetchingTimesRef.current.delete(requestKey);
     }
   }, [usuario]);
 
@@ -4517,17 +4454,9 @@ const PainelUsuario = () => {
     if (tarefasIds.size > 0) {
       try {
         const tarefasIdsArray = Array.from(tarefasIds);
-        // Filtrar tarefas faltando QUE NÃO estão sendo buscadas e NEM falharam antes
-        const tarefasFaltando = tarefasIdsArray.filter(id =>
-          !novos.tarefas[id] &&
-          !fetchingTasksRef.current.has(id) &&
-          !failedTasksRef.current.has(id)
-        );
+        const tarefasFaltando = tarefasIdsArray.filter(id => !novos.tarefas[id]);
 
         if (tarefasFaltando.length > 0) {
-          // Marcar como buscando
-          tarefasFaltando.forEach(id => fetchingTasksRef.current.add(id));
-
           // Usar a rota de múltiplos IDs para buscar todas as tarefas de uma vez
           const idsParam = tarefasFaltando.join(',');
 
@@ -4535,10 +4464,6 @@ const PainelUsuario = () => {
             credentials: 'include',
             headers: { Accept: 'application/json' }
           });
-
-          if (response.status === 401 || response.status === 503) {
-            tarefasFaltando.forEach(id => failedTasksRef.current.add(id));
-          }
 
           if (response.ok) {
             const result = await response.json();
@@ -4557,27 +4482,19 @@ const PainelUsuario = () => {
             }
           }
 
-          // Limpar estado de buscando
-          tarefasFaltando.forEach(id => fetchingTasksRef.current.delete(id));
-
           // Para tarefas que não foram encontradas na busca em lote, usar fallback
-          // Se falhou a requisição, já marcamos no failedTasksRef, então não precisa fallback imediato, ou pode usar fallback
-          // Se deu OK mas não voltou o nome, usa fallback
-          if (response.ok) {
-            tarefasFaltando.forEach(id => {
-              const idStr = String(id);
-              if (!novos.tarefas[idStr]) {
-                novos.tarefas[idStr] = `tarefa #${idStr}`;
-              }
-            });
-          }
+          tarefasFaltando.forEach(id => {
+            const idStr = String(id);
+            if (!novos.tarefas[idStr]) {
+              novos.tarefas[idStr] = `tarefa #${idStr}`;
+            }
+          });
         }
       } catch (err) {
         // Em caso de erro, usar fallback para todas as tarefas faltando
         Array.from(tarefasIds).forEach(id => {
           if (!novos.tarefas[id]) {
-            // Se já tem no cache, ok. Se não, marca falha ou fallback
-            failedTasksRef.current.add(id);
+            novos.tarefas[id] = `tarefa #${id}`;
           }
         });
       }
@@ -4587,27 +4504,15 @@ const PainelUsuario = () => {
     if (produtosIds.size > 0) {
       try {
         const produtosIdsArray = Array.from(produtosIds);
-        // Filtrar produtos faltando QUE NÃO estão sendo buscadas e NEM falharam antes
-        const produtosFaltando = produtosIdsArray.filter(id =>
-          !novos.produtos[id] &&
-          !fetchingProductsRef.current.has(id) &&
-          !failedProductsRef.current.has(id)
-        );
+        const produtosFaltando = produtosIdsArray.filter(id => !novos.produtos[id]);
 
         if (produtosFaltando.length > 0) {
-          // Marcar como buscando
-          produtosFaltando.forEach(id => fetchingProductsRef.current.add(id));
-
           // Usar a rota de múltiplos IDs para buscar todas os produtos de uma vez
           const idsParam = produtosFaltando.join(',');
           const response = await fetch(`/api/produtos-por-ids-numericos?ids=${idsParam}`, {
             credentials: 'include',
             headers: { Accept: 'application/json' }
           });
-
-          if (response.status === 401 || response.status === 503) {
-            produtosFaltando.forEach(id => failedProductsRef.current.add(id));
-          }
 
           if (response.ok) {
             const result = await response.json();
@@ -4623,23 +4528,18 @@ const PainelUsuario = () => {
             }
           }
 
-          // Limpar estado de buscando
-          produtosFaltando.forEach(id => fetchingProductsRef.current.delete(id));
-
           // Para produtos que não foram encontrados na busca em lote, usar fallback
-          if (response.ok) {
-            produtosFaltando.forEach(id => {
-              if (!novos.produtos[id]) {
-                novos.produtos[id] = `produto #${id}`;
-              }
-            });
-          }
+          produtosFaltando.forEach(id => {
+            if (!novos.produtos[id]) {
+              novos.produtos[id] = `produto #${id}`;
+            }
+          });
         }
       } catch (err) {
-        // Em caso de erro
+        // Em caso de erro, usar fallback para todos os produtos faltando
         Array.from(produtosIds).forEach(id => {
           if (!novos.produtos[id]) {
-            failedProductsRef.current.add(id);
+            novos.produtos[id] = `produto #${id}`;
           }
         });
       }
@@ -5133,7 +5033,7 @@ const PainelUsuario = () => {
         // Atualizar tempos realizados totais nos headers dos clientes (modo lista)
         atualizarTemposRealizadosHeaders();
       }
-    }, 30000); // Atualizar a cada 30 segundos (reduzido de 1s para aliviar servidor)
+    }, 1000); // Atualizar a cada 1 segundo
 
     return () => clearInterval(intervalId);
   }, [registrosAtivos, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);

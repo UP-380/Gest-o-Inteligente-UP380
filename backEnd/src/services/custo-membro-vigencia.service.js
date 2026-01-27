@@ -320,46 +320,6 @@ async function deletarVigencia(id) {
   }
 }
 
-// Buscar dados de vigência em lote (horas contratadas e custo mais recente)
-async function buscarDadosVigenciaLote(membroIds, dataInicio, dataFim) {
-  try {
-    if (!membroIds || membroIds.length === 0) {
-      return { data: {}, error: null };
-    }
-
-    // Buscar todas as vigências de todos os membros solicitados que sejam <= dataFim
-    // Se dataFim não fornecida, usa hoje
-    const dataLimite = dataFim || new Date().toISOString().split('T')[0];
-
-    // Consulta para buscar TODAS as vigências dos membros listados até a data limite
-    const { data: vigencias, error } = await supabase
-      .from('custo_membro_vigencia')
-      .select('membro_id, horascontratadasdia, dt_vigencia, tipo_contrato, custo_hora')
-      .in('membro_id', membroIds)
-      .lte('dt_vigencia', dataLimite)
-      .order('dt_vigencia', { ascending: false });
-
-    if (error) {
-      return { data: null, error };
-    }
-
-    // Processar para pegar apenas a vigência MAIS RECENTE de cada membro
-    const ultimasVigencias = {};
-
-    // Como ordenamos por dt_vigencia DESC, o primeiro registro encontrado para cada membro é o mais recente válido
-    vigencias.forEach(vigencia => {
-      const membroIdStr = String(vigencia.membro_id);
-      if (!ultimasVigencias[membroIdStr]) {
-        ultimasVigencias[membroIdStr] = vigencia;
-      }
-    });
-
-    return { data: ultimasVigencias, error: null };
-  } catch (error) {
-    return { data: null, error };
-  }
-}
-
 module.exports = {
   buscarVigencias,
   buscarVigenciaPorId,
@@ -369,9 +329,7 @@ module.exports = {
   criarVigencia,
   atualizarVigencia,
   deletarVigencia,
-  deletarVigencia,
   buscarCustoMaisRecentePorMembroEPeriodo,
-  buscarHorasContratadasPorMembroEPeriodo,
-  buscarDadosVigenciaLote
+  buscarHorasContratadasPorMembroEPeriodo
 };
 

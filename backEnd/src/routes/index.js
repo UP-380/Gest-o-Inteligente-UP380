@@ -63,31 +63,31 @@ router.get('/api/auth/preferencia-view-mode', requireAuth, authController.getPre
 router.put('/api/auth/preferencia-view-mode', requireAuth, authController.updatePreferenciaViewMode);
 // Middleware para tratar erros do multer
 const handleMulterError = (err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        success: false,
-        error: 'Arquivo muito grande. Tamanho máximo: 15MB'
-      });
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                success: false,
+                error: 'Arquivo muito grande. Tamanho máximo: 15MB'
+            });
+        }
+        return res.status(400).json({
+            success: false,
+            error: `Erro no upload: ${err.message}`
+        });
+    } else if (err) {
+        return res.status(400).json({
+            success: false,
+            error: err.message || 'Erro ao processar arquivo'
+        });
     }
-    return res.status(400).json({
-      success: false,
-      error: `Erro no upload: ${err.message}`
-    });
-  } else if (err) {
-    return res.status(400).json({
-      success: false,
-      error: err.message || 'Erro ao processar arquivo'
-    });
-  }
-  next();
+    next();
 };
 
 router.post('/api/auth/upload-avatar',
-  requireAuth,
-  authController.upload.single('avatar'),
-  handleMulterError,
-  authController.uploadAvatar
+    requireAuth,
+    authController.upload.single('avatar'),
+    handleMulterError,
+    authController.uploadAvatar
 );
 router.get('/api/auth/custom-avatar-path', requireAuth, authController.getCustomAvatarPath);
 
@@ -101,10 +101,10 @@ router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId)
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
 router.delete('/api/clientes/:id', requireAuth, clientesController.deletarCliente);
 router.post('/api/clientes/:clienteId/upload-foto',
-  requireAuth,
-  clientesController.uploadClienteFoto.single('foto'),
-  handleMulterError,
-  clientesController.uploadClienteFotoPerfil
+    requireAuth,
+    clientesController.uploadClienteFoto.single('foto'),
+    handleMulterError,
+    clientesController.uploadClienteFotoPerfil
 );
 
 // Rotas de tarefas
@@ -133,8 +133,7 @@ router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.del
 // Rotas de Custo Colaborador Vigência (CRUD completo)
 router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
 router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
-router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo); // Deprecated em favor de /lote
-router.post('/api/custo-colaborador-vigencia/lote', requireAuth, custoColaboradorVigenciaController.getDadosVigenciaLote); // NOVA ROTA: Solução definitiva para batch
+router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
 router.get('/api/custo-colaborador-vigencia/membro/:membro_id', requireAuth, custoColaboradorVigenciaController.getCustosPorMembro);
 router.post('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.criarCustoColaboradorVigencia);
@@ -216,11 +215,11 @@ router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoe
 router.post('/api/historico-atribuicoes/sincronizar-orfaos', requireAuth, historicoAtribuicoesController.sincronizarHistoricosOrfaos);
 router.delete('/api/historico-atribuicoes/orfas/:agrupador_id', requireAuth, historicoAtribuicoesController.deletarRegrasOrfas);
 console.log('✅ Rotas de histórico de atribuições registradas:', {
-  get: '/api/historico-atribuicoes',
-  getById: '/api/historico-atribuicoes/:id',
-  put: '/api/historico-atribuicoes/:id',
-  delete: '/api/historico-atribuicoes/:id',
-  hasController: !!historicoAtribuicoesController.atualizarHistoricoAtribuicao
+    get: '/api/historico-atribuicoes',
+    getById: '/api/historico-atribuicoes/:id',
+    put: '/api/historico-atribuicoes/:id',
+    delete: '/api/historico-atribuicoes/:id',
+    hasController: !!historicoAtribuicoesController.atualizarHistoricoAtribuicao
 });
 
 // Rotas de Registro de Tempo
@@ -348,145 +347,145 @@ router.put('/api/permissoes-config/:nivel', requireAuth, permissoesConfigControl
 
 // Rotas adicionais do dashboard (membros e colaboradores)
 router.get('/api/membros-por-cliente', requireAuth, async (req, res) => {
-  try {
-    const { clienteId, periodoInicio, periodoFim } = req.query;
+    try {
+        const { clienteId, periodoInicio, periodoFim } = req.query;
 
-    if (!clienteId) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do cliente é obrigatório'
-      });
+        if (!clienteId) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID do cliente é obrigatório'
+            });
+        }
+
+        // Processar clienteId - pode vir como array (múltiplos parâmetros) ou valor único
+        let clienteIdsParaBuscar = [];
+        if (Array.isArray(clienteId)) {
+            clienteIdsParaBuscar = clienteId.map(id => String(id).trim()).filter(Boolean);
+        } else if (typeof clienteId === 'string' && clienteId.includes(',')) {
+            // Fallback: se for string com vírgulas
+            clienteIdsParaBuscar = clienteId.split(',').map(id => id.trim()).filter(Boolean);
+        } else {
+            clienteIdsParaBuscar = [String(clienteId).trim()];
+        }
+
+        if (clienteIdsParaBuscar.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID do cliente é obrigatório'
+            });
+        }
+
+        // Usar array se múltiplos, ou valor único se apenas um
+        const clienteIdParam = clienteIdsParaBuscar.length === 1 ? clienteIdsParaBuscar[0] : clienteIdsParaBuscar;
+        const membros = await apiClientes.getMembrosPorCliente(clienteIdParam, periodoInicio || null, periodoFim || null);
+
+        res.json({
+            success: true,
+            data: membros || [],
+            count: (membros || []).length
+        });
+    } catch (error) {
+        console.error('Erro inesperado ao buscar membros por cliente:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erro interno do servidor'
+        });
     }
-
-    // Processar clienteId - pode vir como array (múltiplos parâmetros) ou valor único
-    let clienteIdsParaBuscar = [];
-    if (Array.isArray(clienteId)) {
-      clienteIdsParaBuscar = clienteId.map(id => String(id).trim()).filter(Boolean);
-    } else if (typeof clienteId === 'string' && clienteId.includes(',')) {
-      // Fallback: se for string com vírgulas
-      clienteIdsParaBuscar = clienteId.split(',').map(id => id.trim()).filter(Boolean);
-    } else {
-      clienteIdsParaBuscar = [String(clienteId).trim()];
-    }
-
-    if (clienteIdsParaBuscar.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do cliente é obrigatório'
-      });
-    }
-
-    // Usar array se múltiplos, ou valor único se apenas um
-    const clienteIdParam = clienteIdsParaBuscar.length === 1 ? clienteIdsParaBuscar[0] : clienteIdsParaBuscar;
-    const membros = await apiClientes.getMembrosPorCliente(clienteIdParam, periodoInicio || null, periodoFim || null);
-
-    res.json({
-      success: true,
-      data: membros || [],
-      count: (membros || []).length
-    });
-  } catch (error) {
-    console.error('Erro inesperado ao buscar membros por cliente:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor'
-    });
-  }
 });
 
 router.get('/api/clientes-por-colaborador', requireAuth, async (req, res) => {
-  try {
-    const { colaboradorId, periodoInicio, periodoFim } = req.query;
+    try {
+        const { colaboradorId, periodoInicio, periodoFim } = req.query;
 
-    if (!colaboradorId) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+        if (!colaboradorId) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID do colaborador é obrigatório'
+            });
+        }
+
+        // Processar colaboradorId - pode vir como array (múltiplos parâmetros na query string) ou valor único
+        let colaboradorIdsParaBuscar = [];
+        if (Array.isArray(colaboradorId)) {
+            // Múltiplos colaboradores enviados como parâmetros repetidos
+            colaboradorIdsParaBuscar = colaboradorId;
+        } else if (typeof colaboradorId === 'string' && colaboradorId.includes(',')) {
+            // String separada por vírgulas (fallback)
+            colaboradorIdsParaBuscar = colaboradorId.split(',').map(id => id.trim()).filter(Boolean);
+        } else {
+            // Valor único
+            colaboradorIdsParaBuscar = [colaboradorId];
+        }
+
+        // Usar array se múltiplos, ou valor único se apenas um (para compatibilidade com a função)
+        const colaboradorIdParam = colaboradorIdsParaBuscar.length === 1 ? colaboradorIdsParaBuscar[0] : colaboradorIdsParaBuscar;
+
+
+        const clientes = await apiClientes.getClientesPorColaborador(colaboradorIdParam, periodoInicio || null, periodoFim || null);
+
+
+        res.json({
+            success: true,
+            data: clientes || [],
+            count: (clientes || []).length
+        });
+    } catch (error) {
+        console.error('Erro inesperado ao buscar clientes por colaborador:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Erro interno do servidor'
+        });
     }
-
-    // Processar colaboradorId - pode vir como array (múltiplos parâmetros na query string) ou valor único
-    let colaboradorIdsParaBuscar = [];
-    if (Array.isArray(colaboradorId)) {
-      // Múltiplos colaboradores enviados como parâmetros repetidos
-      colaboradorIdsParaBuscar = colaboradorId;
-    } else if (typeof colaboradorId === 'string' && colaboradorId.includes(',')) {
-      // String separada por vírgulas (fallback)
-      colaboradorIdsParaBuscar = colaboradorId.split(',').map(id => id.trim()).filter(Boolean);
-    } else {
-      // Valor único
-      colaboradorIdsParaBuscar = [colaboradorId];
-    }
-
-    // Usar array se múltiplos, ou valor único se apenas um (para compatibilidade com a função)
-    const colaboradorIdParam = colaboradorIdsParaBuscar.length === 1 ? colaboradorIdsParaBuscar[0] : colaboradorIdsParaBuscar;
-
-
-    const clientes = await apiClientes.getClientesPorColaborador(colaboradorIdParam, periodoInicio || null, periodoFim || null);
-
-
-    res.json({
-      success: true,
-      data: clientes || [],
-      count: (clientes || []).length
-    });
-  } catch (error) {
-    console.error('Erro inesperado ao buscar clientes por colaborador:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor'
-    });
-  }
 });
 
 // Rota para servir a página de login (durante migração)
 router.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../login.html'));
+    res.sendFile(path.join(__dirname, '../../../login.html'));
 });
 
 // Redirecionamentos (durante migração para React)
 router.get('/dashboard.clientes.html', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../dashboard.clientes.html'));
+    res.sendFile(path.join(__dirname, '../../../dashboard.clientes.html'));
 });
 
 router.get('/dashboard.html', requireAuth, (req, res) => {
-  return res.redirect('/painel-colaborador');
+    return res.redirect('/painel-colaborador');
 });
 
 // Bloquear acesso direto à URL antiga
 router.get('/cadastro-cliente.html', (req, res) => {
-  return res.status(404).send('');
+    return res.status(404).send('');
 });
 
 // Rota para a página principal (index) - sem autenticação
 router.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../index.html'));
+    res.sendFile(path.join(__dirname, '../../../index.html'));
 });
 
 // Rota para o painel - redireciona para painel-colaborador
 router.get('/painel', requireAuth, (req, res) => {
-  return res.redirect('/painel-colaborador');
+    return res.redirect('/painel-colaborador');
 });
 
 router.get('/cadastro/clientes', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+    res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 });
 router.get('/cadastro-clientes', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+    res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 }); // Mantido para compatibilidade
 router.get('/gestao-clientes', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
+    res.sendFile(path.join(__dirname, '../../../carteira-clientes.html'));
 }); // Mantido para compatibilidade
 
 // Rota para a página de colaboradores - COM autenticação
 router.get('/cadastro/colaboradores', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+    res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 });
 router.get('/cadastro-colaboradores', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+    res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 }); // Mantido para compatibilidade
 router.get('/gestao-colaboradores', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../../dashboard.html'));
+    res.sendFile(path.join(__dirname, '../../../dashboard.html'));
 }); // Mantido para compatibilidade
 
 // Rotas de Atribuições Pendentes (Plug Rápido com Aprovação)
@@ -518,3 +517,4 @@ router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoCont
 
 
 module.exports = router;
+
