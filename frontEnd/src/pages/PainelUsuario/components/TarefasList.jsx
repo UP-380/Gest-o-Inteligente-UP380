@@ -27,6 +27,10 @@ const TarefasList = ({ usuario: usuarioProp }) => {
   const [nomeColaborador, setNomeColaborador] = useState(null);
   const [fotoPerfilColaborador, setFotoPerfilColaborador] = useState(null);
 
+  // Refs para controle de requisições de custo
+  const fetchingCustoRef = React.useRef(new Set());
+  const failedCustoRef = React.useRef(new Set());
+
   const carregarTarefas = useCallback(async () => {
     if (!usuario) {
       setError('Usuário não identificado');
@@ -41,9 +45,9 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       // Identificar o ID do membro/responsável do usuário
       // O responsavel_id na tabela tempo_estimado corresponde ao membro.id (não ao usuario.id)
       // Precisamos buscar qual membro.id tem usuario_id igual ao usuario.id
-      
+
       let responsavelId = usuario.membro_id;
-      
+
       // Se não temos membro_id explicitamente, buscar o membro que corresponde ao usuario.id
       if (!responsavelId && usuario.id) {
         try {
@@ -94,7 +98,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         // Último fallback
         responsavelId = usuario.id || usuario.colaborador_id;
       }
-      
+
       if (!responsavelId) {
         setError('ID do membro não encontrado no perfil do usuário');
         setLoading(false);
@@ -107,11 +111,11 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         limit: '1000',
         filtro_responsavel: 'true'
       });
-      
+
       params.append('responsavel_id', String(responsavelId).trim());
 
       const url = `/api/tempo-estimado?${params}`;
-      
+
       const response = await fetch(url, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
@@ -125,7 +129,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       const result = await response.json();
 
       if (result.success && result.data && Array.isArray(result.data)) {
-        
+
         // Agrupar tarefas por agrupador_id (mesmo formato da página de atribuir)
         const tarefasMap = new Map();
         let tempoTotalCalculado = 0;
@@ -141,21 +145,21 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
           if (!tarefasMap.has(agrupadorId)) {
             // Tentar obter nome da tarefa de várias formas possíveis
-            const tarefaNome = registro.tarefa_nome 
-              || registro.tarefa?.nome 
+            const tarefaNome = registro.tarefa_nome
+              || registro.tarefa?.nome
               || registro.tarefa?.tarefa_nome
               || registro.nome_tarefa
               || 'Tarefa sem nome';
-            
+
             // Tentar obter nome do cliente
-            const clienteNome = registro.cliente_nome 
-              || registro.cliente?.nome 
+            const clienteNome = registro.cliente_nome
+              || registro.cliente?.nome
               || registro.nome_cliente
               || null;
-            
+
             // Tentar obter nome do produto
-            const produtoNome = registro.produto_nome 
-              || registro.produto?.nome 
+            const produtoNome = registro.produto_nome
+              || registro.produto?.nome
               || registro.nome_produto
               || null;
 
@@ -174,7 +178,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
           const tarefa = tarefasMap.get(agrupadorId);
           tarefa.registros.push(registro);
           tarefa.quantidade = tarefa.registros.length;
-          
+
           // Calcular tempo total: tempo_estimado_dia (em milissegundos) * quantidade
           const tempoEstimadoDia = registro.tempo_estimado_dia || 0;
           tempoTotalCalculado += tempoEstimadoDia; // Já está em milissegundos, cada registro conta 1 vez
@@ -183,7 +187,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
         const tarefasArray = Array.from(tarefasMap.values());
         setTarefas(tarefasArray);
         setTempoTotal(tempoTotalCalculado);
-        
+
         // Buscar nome do colaborador e custo
         if (responsavelId) {
           buscarNomeColaborador(responsavelId);
@@ -231,30 +235,48 @@ const TarefasList = ({ usuario: usuarioProp }) => {
 
   // Buscar custo do responsável e recalcular custo total
   const buscarCustoERecalcular = async (responsavelId, tarefasArray, tempoTotalMs) => {
+    // Verificar se já está buscando ou se já falhou
+    const idStr = String(responsavelId);
+    if (fetchingCustoRef.current.has(idStr) || failedCustoRef.current.has(idStr)) {
+      return;
+    }
+
     try {
+      fetchingCustoRef.current.add(idStr);
       const response = await fetch(`/api/custo-colaborador-vigencia/mais-recente?membro_id=${responsavelId}`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
+
+      if (response.status === 401 || response.status === 503) {
+        failedCustoRef.current.add(idStr);
+        return;
+      }
 
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data && result.data.custo_hora) {
           const custoHoraStr = result.data.custo_hora;
           const custoHoraNum = parseFloat(custoHoraStr.replace(',', '.'));
-          
+
           if (!isNaN(custoHoraNum) && custoHoraNum > 0) {
             setCustoHora(custoHoraNum);
-            
+
             // Calcular custo total: tempo em horas * custo por hora
             const tempoHoras = tempoTotalMs / 3600000; // converter milissegundos para horas
             const custoCalculado = custoHoraNum * tempoHoras;
             setCustoTotal(custoCalculado);
           }
         }
+      } else {
+        // Se não for OK, marcar como falha para não tentar denovo
+        failedCustoRef.current.add(idStr);
       }
     } catch (err) {
       // Erro silencioso - não é crítico
+      failedCustoRef.current.add(idStr);
+    } finally {
+      fetchingCustoRef.current.delete(idStr);
     }
   };
 
@@ -264,7 +286,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
     const totalSegundos = Math.floor(milissegundos / 1000);
     const horas = Math.floor(totalSegundos / 3600);
     const minutos = Math.floor((totalSegundos % 3600) / 60);
-    
+
     if (horas > 0 && minutos > 0) {
       return `${horas}h ${minutos}min`;
     } else if (horas > 0) {
@@ -287,8 +309,8 @@ const TarefasList = ({ usuario: usuarioProp }) => {
   // Obter nome do usuário (verificar vários campos possíveis)
   const getNomeUsuario = () => {
     if (!usuario) return 'Usuário';
-    return usuario.nome_usuario 
-      || usuario.nome 
+    return usuario.nome_usuario
+      || usuario.nome
       || usuario.nome_completo
       || usuario.nome_colaborador
       || 'Usuário';
@@ -317,7 +339,7 @@ const TarefasList = ({ usuario: usuarioProp }) => {
       <div className="tarefas-list-error">
         <i className="fas fa-exclamation-circle"></i>
         <p>{error}</p>
-        <button 
+        <button
           onClick={carregarTarefas}
           style={{
             marginTop: '12px',
