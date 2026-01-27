@@ -7,29 +7,29 @@ const vigenciaService = require('../services/custo-membro-vigencia.service');
 // GET - Listar todas as vigências (com filtros opcionais)
 async function getCustosColaboradorVigencia(req, res) {
   try {
-    const { 
-      page = 1, 
-      limit = 50, 
+    const {
+      page = 1,
+      limit = 50,
       membro_id,
       dt_vigencia_inicio,
       dt_vigencia_fim,
       status
     } = req.query;
-    
+
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
 
     // Processar membro_id - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let membroIdsArray = [];
     const membroIdsFromQuery = req.query.membro_id;
-    
+
     if (membroIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       // Se for array (múltiplos parâmetros na query string)
       if (Array.isArray(membroIdsFromQuery)) {
         idsParaProcessar = membroIdsFromQuery;
-      } 
+      }
       // Se for string que contém vírgulas (fallback)
       else if (typeof membroIdsFromQuery === 'string' && membroIdsFromQuery.includes(',')) {
         idsParaProcessar = membroIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
@@ -38,10 +38,10 @@ async function getCustosColaboradorVigencia(req, res) {
       else {
         idsParaProcessar = [membroIdsFromQuery];
       }
-      
+
       // Converter para números válidos
       membroIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
-      
+
       console.log('🔍 [CONTROLLER] Processamento membro_id:', {
         original: membroIdsFromQuery,
         processado: membroIdsArray,
@@ -174,7 +174,7 @@ async function criarCustoColaboradorVigencia(req, res) {
   try {
     console.log('🚀 [POST] Função criarCustoColaboradorVigencia chamada');
     console.log('📥 [POST] Body recebido:', JSON.stringify(req.body, null, 2));
-    
+
     // Pegar TODOS os campos do body
     // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
@@ -277,7 +277,7 @@ async function criarCustoColaboradorVigencia(req, res) {
     console.log('   - terco_ferias:', terco_ferias, 'tipo:', typeof terco_ferias);
     console.log('   - decimoterceiro:', decimoterceiro, 'tipo:', typeof decimoterceiro);
     console.log('   - fgts:', fgts, 'tipo:', typeof fgts);
-    
+
     if (ferias !== null && ferias !== undefined && ferias !== '') {
       dadosInsert.ferias = toString(ferias);
       console.log('✅ [POST] ferias adicionado:', dadosInsert.ferias);
@@ -326,11 +326,11 @@ async function criarCustoColaboradorVigencia(req, res) {
       });
     }
 
-      return res.status(201).json({
-        success: true,
-        message: 'Custo colaborador vigência criado com sucesso',
-        data: data
-      });
+    return res.status(201).json({
+      success: true,
+      message: 'Custo colaborador vigência criado com sucesso',
+      data: data
+    });
   } catch (error) {
     console.error('❌ [POST] Erro inesperado ao criar custo colaborador vigência:', error);
     console.error('❌ [POST] Stack trace:', error.stack);
@@ -348,7 +348,7 @@ async function criarCustoColaboradorVigencia(req, res) {
 async function atualizarCustoColaboradorVigencia(req, res) {
   try {
     const { id } = req.params;
-    
+
     // Pegar TODOS os campos do body
     // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
@@ -614,6 +614,47 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
   }
 }
 
+// POST - Buscar dados de vigência em lote (horas contratadas e custo mais recente)
+async function getDadosVigenciaLote(req, res) {
+  try {
+    const { membros_ids, data_inicio, data_fim } = req.body;
+
+    if (!membros_ids || !Array.isArray(membros_ids) || membros_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lista de IDs de membros (membros_ids) é obrigatória e deve ser um array não vazio'
+      });
+    }
+
+    const { data, error } = await vigenciaService.buscarDadosVigenciaLote(
+      membros_ids,
+      data_inicio || null,
+      data_fim || null
+    );
+
+    if (error) {
+      console.error('Erro ao buscar dados de vigência em lote:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar dados de vigência em lote',
+        details: error.message
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: data
+    });
+  } catch (error) {
+    console.error('Erro inesperado ao buscar dados de vigência em lote:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 // DELETE - Deletar vigência
 async function deletarCustoColaboradorVigencia(req, res) {
   try {
@@ -684,5 +725,7 @@ module.exports = {
   getHorasContratadasPorMembroEPeriodo,
   criarCustoColaboradorVigencia,
   atualizarCustoColaboradorVigencia,
-  deletarCustoColaboradorVigencia
+  atualizarCustoColaboradorVigencia,
+  deletarCustoColaboradorVigencia,
+  getDadosVigenciaLote
 };
