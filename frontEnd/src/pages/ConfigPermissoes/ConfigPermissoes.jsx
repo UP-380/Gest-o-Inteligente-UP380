@@ -52,6 +52,7 @@ const ICONES_CATEGORIAS = {
 const TODAS_PAGINAS = [
   // Painéis
   { path: '/painel-colaborador', label: 'Minhas Tarefas', categoria: 'Painéis' },
+  { path: '/comunicacao', label: 'Comunicação', categoria: 'Painéis' },
   { path: '/notificacoes', label: 'Notificações', categoria: 'Painéis' },
 
   // Relatórios
@@ -90,6 +91,11 @@ const TODAS_PAGINAS = [
   { path: '/documentacao-api', label: 'Documentação API', categoria: 'Configurações' },
 ];
 
+// Lista de funcionalidades extras (que não são páginas)
+const TODAS_FUNCIONALIDADES = [
+  { action: 'action/criar-avisos', label: 'Criar Avisos/Comunicados', description: 'Permite que o usuário publique novos avisos na central de comunicação.' },
+];
+
 const ConfigPermissoes = () => {
   const showToast = useToast();
   const navigate = useNavigate();
@@ -106,7 +112,6 @@ const ConfigPermissoes = () => {
   const [isModalNovoNivelOpen, setIsModalNovoNivelOpen] = useState(false);
   const [novoNivelNome, setNovoNivelNome] = useState('');
   const [criandoNivel, setCriandoNivel] = useState(false);
-  const [activeTab, setActiveTab] = useState('paginas'); // 'paginas' ou 'notificacoes'
 
   // Obter subpáginas de uma página principal
   const getSubpaginas = (paginaPrincipal) => {
@@ -445,6 +450,35 @@ const ConfigPermissoes = () => {
     }));
   };
 
+  // Toggle Funcionalidade
+  const handleToggleFuncionalidade = (action) => {
+    setConfigs(prev => {
+      const config = prev[nivelSelecionado];
+      const current = config.paginas || [];
+      const todasAsPaginas = TODAS_PAGINAS.map(p => p.path);
+      const asSubpaginas = [];
+      TODAS_PAGINAS.forEach(p => asSubpaginas.push(...getSubpaginas(p)));
+
+      // Se for null (acesso total), primeiro transformar em lista completa
+      let basePaginas = current === null ? [...todasAsPaginas, ...asSubpaginas] : [...current];
+
+      let novasPaginas;
+      if (basePaginas.includes(action)) {
+        novasPaginas = basePaginas.filter(p => p !== action);
+      } else {
+        novasPaginas = [...basePaginas, action];
+      }
+
+      return {
+        ...prev,
+        [nivelSelecionado]: {
+          ...config,
+          paginas: novasPaginas
+        }
+      };
+    });
+  };
+
   // Toggle Notificação
   const handleToggleNotificacao = (tipo) => {
     setConfigs(prev => {
@@ -525,95 +559,70 @@ const ConfigPermissoes = () => {
                     </div>
                   </div>
 
-                  {/* Abas de Configuração */}
-                  <div className="config-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
-                    <button
-                      onClick={() => setActiveTab('paginas')}
-                      style={{
-                        padding: '8px 16px',
-                        border: 'none',
-                        background: activeTab === 'paginas' ? '#0e3b6f' : 'transparent',
-                        color: activeTab === 'paginas' ? 'white' : '#666',
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        fontWeight: activeTab === 'paginas' ? 'bold' : 'normal'
-                      }}
-                    >
-                      <i className="fas fa-columns" style={{ marginRight: '5px' }}></i> Acesso a Páginas
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('notificacoes')}
-                      style={{
-                        padding: '8px 16px',
-                        border: 'none',
-                        background: activeTab === 'notificacoes' ? '#0e3b6f' : 'transparent',
-                        color: activeTab === 'notificacoes' ? 'white' : '#666',
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        fontWeight: activeTab === 'notificacoes' ? 'bold' : 'normal'
-                      }}
-                    >
-                      <i className="fas fa-bell" style={{ marginRight: '5px' }}></i> Notificações
-                    </button>
-                  </div>
+                  {/* Seções de Configuração Unificadas */}
+                  <div className="unified-config-content">
+                    {/* Seção 1: Páginas */}
+                    <div className="config-section-header">
+                      <h3><i className="fas fa-columns"></i> Acesso a Páginas</h3>
+                      <p>Defina quais partes do sistema este nível pode visualizar e acessar.</p>
+                    </div>
 
-                  {/* Modal de Novo Nível */}
-                  {isModalNovoNivelOpen && (
-                    <div className="modal-novo-nivel-overlay">
-                      <div className="modal-novo-nivel-content">
-                        <div className="modal-novo-nivel-header">
-                          <h3>Novo Nível de Permissão</h3>
-                          <button
-                            className="btn-icon"
-                            onClick={() => {
-                              setIsModalNovoNivelOpen(false);
-                              setNovoNivelNome('');
-                            }}
-                            disabled={criandoNivel}
-                          >
-                            <i className="fas fa-times"></i>
-                          </button>
-                        </div>
-                        <div className="modal-novo-nivel-body">
-                          <label htmlFor="novo-nivel-nome">Nome da Categoria Customizada</label>
-                          <input
-                            id="novo-nivel-nome"
-                            type="text"
-                            className="modal-novo-nivel-input"
-                            placeholder="Ex: Supervisor, Financeiro, etc..."
-                            value={novoNivelNome}
-                            onChange={(e) => setNovoNivelNome(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleCriarNovoNivel()}
-                            disabled={criandoNivel}
-                            autoFocus
-                          />
-                        </div>
-                        <div className="modal-novo-nivel-footer">
-                          <button
-                            className="btn-secondary"
-                            onClick={() => {
-                              setIsModalNovoNivelOpen(false);
-                              setNovoNivelNome('');
-                            }}
-                            disabled={criandoNivel}
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            className="btn-primary"
-                            onClick={handleCriarNovoNivel}
-                            disabled={criandoNivel || !novoNivelNome.trim()}
-                          >
-                            {criandoNivel ? 'Criando...' : 'Criar Categoria'}
-                          </button>
+                    {/* Modal de Novo Nível */}
+                    {isModalNovoNivelOpen && (
+                      <div className="modal-novo-nivel-overlay">
+                        <div className="modal-novo-nivel-content">
+                          <div className="modal-novo-nivel-header">
+                            <h3>Novo Nível de Permissão</h3>
+                            <button
+                              className="btn-icon"
+                              onClick={() => {
+                                setIsModalNovoNivelOpen(false);
+                                setNovoNivelNome('');
+                              }}
+                              disabled={criandoNivel}
+                            >
+                              <i className="fas fa-times"></i>
+                            </button>
+                          </div>
+                          <div className="modal-novo-nivel-body">
+                            <label htmlFor="novo-nivel-nome">Nome da Categoria Customizada</label>
+                            <input
+                              id="novo-nivel-nome"
+                              type="text"
+                              className="modal-novo-nivel-input"
+                              placeholder="Ex: Supervisor, Financeiro, etc..."
+                              value={novoNivelNome}
+                              onChange={(e) => setNovoNivelNome(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handleCriarNovoNivel()}
+                              disabled={criandoNivel}
+                              autoFocus
+                            />
+                          </div>
+                          <div className="modal-novo-nivel-footer">
+                            <button
+                              className="btn-secondary"
+                              onClick={() => {
+                                setIsModalNovoNivelOpen(false);
+                                setNovoNivelNome('');
+                              }}
+                              disabled={criandoNivel}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              className="btn-primary"
+                              onClick={handleCriarNovoNivel}
+                              disabled={criandoNivel || !novoNivelNome.trim()}
+                            >
+                              {criandoNivel ? 'Criando...' : 'Criar Categoria'}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Lista de páginas */}
-                  {activeTab === 'paginas' && (
-                    <div className="paginas-list">
+                    {/* Lista de páginas */}
+                    <div className="paginas-list" style={{ marginBottom: '40px' }}>
                       {Object.entries(paginasPorCategoria).map(([categoria, paginas]) => {
                         const config = configs[nivelSelecionado];
                         // Se paginas é null ou é administrador, significa acesso total
@@ -704,15 +713,57 @@ const ConfigPermissoes = () => {
                         );
                       })}
                     </div>
-                  )}
 
-                  {activeTab === 'notificacoes' && (
-                    <div className="notificacoes-list fade-in">
-                      <div className="info-box" style={{ marginBottom: '20px' }}>
-                        <i className="fas fa-info-circle"></i>
-                        <div>Selecione quais tipos de notificações os usuários deste cargo devem receber.</div>
-                        {nivelSelecionado === 'administrador' && <div style={{ marginTop: '5px' }}><strong>Nota:</strong> Administradores recebem todas as notificações.</div>}
+                    {/* Seção 2: Funcionalidades */}
+                    <div className="config-section-header" style={{ marginTop: '30px' }}>
+                      <h3><i className="fas fa-rocket"></i> Funcionalidades Extras</h3>
+                      <p>Habilite ações específicas que este nível pode executar no sistema.</p>
+                    </div>
+
+                    <div className="funcionalidades-list" style={{ marginBottom: '40px' }}>
+                      <div className="notificacoes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+                        {TODAS_FUNCIONALIDADES.map(func => {
+                          const config = configs[nivelSelecionado];
+                          const isChecked = nivelSelecionado === 'administrador' || (config.paginas === null || (config.paginas && config.paginas.includes(func.action)));
+
+                          return (
+                            <div key={func.action}
+                              onClick={() => { if (nivelSelecionado !== 'administrador') handleToggleFuncionalidade(func.action); }}
+                              style={{
+                                border: isChecked ? '1px solid #0e3b6f' : '1px solid #ddd',
+                                borderRadius: '8px',
+                                padding: '15px',
+                                cursor: nivelSelecionado !== 'administrador' ? 'pointer' : 'default',
+                                backgroundColor: isChecked ? '#f0f7ff' : 'white',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                                transition: 'all 0.2s'
+                              }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => { }}
+                                disabled={nivelSelecionado === 'administrador'}
+                                style={{ marginTop: '3px' }}
+                              />
+                              <div>
+                                <strong style={{ display: 'block', color: '#333' }}>{func.label}</strong>
+                                <span style={{ fontSize: '13px', color: '#666' }}>{func.description}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
+                    </div>
+
+                    {/* Seção 3: Notificações */}
+                    <div className="config-section-header">
+                      <h3><i className="fas fa-bell"></i> Notificações</h3>
+                      <p>Selecione quais alertas este nível deve receber no sistema.</p>
+                    </div>
+
+                    <div className="notificacoes-list fade-in" style={{ marginBottom: '40px' }}>
                       <div className="notificacoes-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
                         {Object.values(NOTIFICATION_TYPES).map(tipo => {
                           const desc = NOTIFICATION_DESCRIPTIONS[tipo] || { label: tipo, description: '' };
@@ -730,7 +781,8 @@ const ConfigPermissoes = () => {
                                 backgroundColor: isChecked ? '#f0f7ff' : 'white',
                                 display: 'flex',
                                 alignItems: 'flex-start',
-                                gap: '10px'
+                                gap: '10px',
+                                transition: 'all 0.2s'
                               }}>
                               <input
                                 type="checkbox"
@@ -748,7 +800,7 @@ const ConfigPermissoes = () => {
                         })}
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Botão de salvar */}
                   {nivelSelecionado !== 'administrador' && (

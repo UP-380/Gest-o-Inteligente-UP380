@@ -615,9 +615,13 @@ async function aprovarAtribuicao(req, res) {
 
         if (registrosPendentes && registrosPendentes.length > 0) {
             const registrosParaInserir = registrosPendentes.map(reg => {
-                // Se o registro não tiver data_fim, precisamos fechar agora ou permitir migrar aberto?
-                // Regra geral: Migramos, se estiver aberto, continua aberto no oficial? 
-                // O sistema oficial suporta data_fim null (em andamento).
+                // Calcular tempo_realizado se houver data_fim (materialização do tempo)
+                let tempo_realizado = null;
+                if (reg.data_inicio && reg.data_fim) {
+                    const inicio = new Date(reg.data_inicio).getTime();
+                    const fim = new Date(reg.data_fim).getTime();
+                    tempo_realizado = Math.max(0, fim - inicio);
+                }
 
                 return {
                     id: uuidv4(), // Gerar ID manualmente pois o banco não tem default
@@ -628,7 +632,7 @@ async function aprovarAtribuicao(req, res) {
                     tipo_tarefa_id: tipo_tarefa_id,     // Tipo calculado corretamente (campo correto é tipo_tarefa_id)
                     data_inicio: reg.data_inicio,
                     data_fim: reg.data_fim,
-                    // tempo_estimado_id: null, // Removido pois coluna não existe
+                    tempo_realizado,
                     bloqueado: false // TICKET 2: Bloqueio removido por solicitação do usuário
                 };
             });

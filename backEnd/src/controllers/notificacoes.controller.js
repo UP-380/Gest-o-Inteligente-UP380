@@ -114,6 +114,7 @@ async function marcarTodasComoVisualizadas(req, res) {
 
 /**
  * Distribui notificação para usuários baseados na configuração de permissões
+ * Se usuario_id for informado, envia APENAS para aquele usuário (notificação direta)
  * @param {Object} params
  * @param {string} params.tipo - Tipo da notificação (Enum NOTIFICATION_TYPES)
  * @param {string} params.titulo - Título
@@ -121,11 +122,33 @@ async function marcarTodasComoVisualizadas(req, res) {
  * @param {string} params.referencia_id - ID do objeto relacionado
  * @param {string} params.link - Link para ação
  * @param {Object} params.metadata - Metadados extras
+ * @param {string} params.usuario_id - (Opcional) ID de um usuário alvo específico
  */
-async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, link, metadata }) {
+async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, link, metadata, usuario_id }) {
     try {
         if (!tipo) throw new Error('Tipo de notificação é obrigatório');
 
+        // CASO 1: Notificação Direta (apenas para um usuário)
+        if (usuario_id) {
+            console.log(`🔔 Enviando notificação direta [${tipo}] para usuário ${usuario_id}`);
+            const { error: errInsert } = await supabase
+                .schema('up_gestaointeligente')
+                .from('notificacoes')
+                .insert({
+                    usuario_id,
+                    tipo,
+                    titulo,
+                    mensagem,
+                    referencia_id,
+                    link,
+                    metadata: metadata || {}
+                });
+
+            if (errInsert) throw errInsert;
+            return;
+        }
+
+        // CASO 2: Distribuição por Nível/Permissão
         console.log(`🔔 Distribuindo notificação [${tipo}]: ${titulo}`);
 
         // 1. Identificar quais NÍVEIS permitem este tipo de notificação
@@ -133,10 +156,6 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
         const niveisPermitidos = ['administrador'];
 
         // Buscar configurações customizadas no banco
-        // Onde 'notificacoes' contém o tipo procurado.
-        // Como 'notificacoes' é TEXT (JSON), precisamos usar operador de texto ou like.
-        // A maneira robusta é buscar tudo e filtrar no código ou usar operador JSONB se fosse JSONB.
-        // Dado que é TEXT, vamos buscar tudo e filtrar no JS para garantir compatibilidade simples.
         const { data: configs } = await supabase.schema('up_gestaointeligente')
             .from('permissoes_config')
             .select('nivel, notificacoes');

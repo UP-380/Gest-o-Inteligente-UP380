@@ -1,0 +1,84 @@
+.chamados-view {
+    padding: 20px;
+}
+
+.chamados-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.new-chamado-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.chamado-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    display: flex;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.chamado-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chamado-status-stripe {
+    width: 6px;
+}
+
+.chamado-body {
+    flex: 1;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chamado-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.chamado-title {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.chamado-date {
+    font-size: 12px;
+    color: #888;
+}
+
+.chamado-meta {
+    display: flex;
+    gap: 10px;
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: white;
+    font-weight: 500;
+}
+
+.badge.priority {
+    background-color: #6c757d;
+}
+
+.badge.status {
+    /* Color injected inline */
+}

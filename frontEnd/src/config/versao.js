@@ -1,3 +1,6 @@
 // === CONFIGURAÇÃO DE VERSÃO DO SISTEMA ===
-export const VERSAO_SISTEMA = '1.0';
+// A versão é lida automaticamente do package.json
+import packageJson from '../../package.json';
+
+export const VERSAO_SISTEMA = packageJson.version;
 

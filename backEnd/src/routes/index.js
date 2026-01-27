@@ -37,6 +37,7 @@ const contatoClienteController = require('../controllers/contato-cliente.control
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const notificacoesController = require('../controllers/notificacoes.controller');
+const comunicacaoController = require('../controllers/comunicacao.controller');
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -501,6 +502,18 @@ router.get('/api/notificacoes', requireAuth, notificacoesController.listarMinhas
 router.get('/api/notificacoes/count', requireAuth, notificacoesController.contarNaoLidas);
 router.patch('/api/notificacoes/:id/visualizar', requireAuth, notificacoesController.marcarComoVisualizada);
 router.post('/api/notificacoes/visualizar-todas', requireAuth, notificacoesController.marcarTodasComoVisualizadas);
+
+// Rotas de Comunicação
+router.get('/api/comunicacao/chat', requireAuth, comunicacaoController.listarMensagensChat);
+router.post('/api/comunicacao/mensagem', requireAuth, comunicacaoController.enviarMensagem);
+router.get('/api/comunicacao/conversas-recentes', requireAuth, comunicacaoController.listarConversasRecentes);
+router.get('/api/comunicacao/comunicados', requireAuth, comunicacaoController.listarComunicados);
+router.get('/api/comunicacao/chamados', requireAuth, comunicacaoController.listarChamados);
+router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoController.listarRespostasChamado);
+router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
+router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
+router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+
 
 module.exports = router;
 

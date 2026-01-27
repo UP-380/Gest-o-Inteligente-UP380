@@ -15,7 +15,7 @@ async function getUsuarios(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
-      .select('id, email_usuario, nome_usuario, permissoes', { count: 'exact' })
+      .select('id, email_usuario, nome_usuario, permissoes, foto_perfil', { count: 'exact' })
       .order('nome_usuario', { ascending: true });
 
     // Busca por nome ou email
@@ -97,7 +97,7 @@ async function atualizarPermissoes(req, res) {
     const { data: usuarioExistente, error: checkError } = await supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
-      .select('id, email_usuario, nome_usuario')
+      .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
       .maybeSingle();
 
@@ -123,7 +123,7 @@ async function atualizarPermissoes(req, res) {
       .from('usuarios')
       .update({ permissoes: permissoesNormalizadas })
       .eq('id', id)
-      .select('id, email_usuario, nome_usuario, permissoes')
+      .select('id, email_usuario, nome_usuario, permissoes, foto_perfil')
       .single();
 
     if (updateError) {
@@ -187,7 +187,7 @@ async function criarUsuario(req, res) {
     const { data: usuarioExistente, error: checkError } = await supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
-      .select('id')
+      .select('id, foto_perfil')
       .eq('email_usuario', email_usuario)
       .maybeSingle();
 
@@ -217,7 +217,7 @@ async function criarUsuario(req, res) {
         senha_login,
         permissoes: permissoesNormalizadas
       })
-      .select('id, email_usuario, nome_usuario, permissoes')
+      .select('id, email_usuario, nome_usuario, permissoes, foto_perfil')
       .single();
 
     if (insertError) {
@@ -294,7 +294,7 @@ async function atualizarUsuario(req, res) {
     const { data: usuarioExistente, error: checkError } = await supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
-      .select('id, email_usuario, nome_usuario')
+      .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
       .maybeSingle();
 
@@ -373,7 +373,7 @@ async function atualizarUsuario(req, res) {
       .from('usuarios')
       .update(dadosUpdate)
       .eq('id', id)
-      .select('id, email_usuario, nome_usuario, permissoes')
+      .select('id, email_usuario, nome_usuario, permissoes, foto_perfil')
       .single();
 
     if (updateError) {
@@ -464,7 +464,7 @@ async function deletarUsuario(req, res) {
     const { data: usuarioExistente, error: checkError } = await supabase
       .schema('up_gestaointeligente')
       .from('usuarios')
-      .select('id, email_usuario, nome_usuario')
+      .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
       .maybeSingle();
 

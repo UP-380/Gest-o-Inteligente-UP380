@@ -1,6 +1,10 @@
 export const NOTIFICATION_TYPES = {
     PLUG_RAPIDO: 'PLUG_RAPIDO',
     APROVACAO_PENDENTE: 'APROVACAO_PENDENTE',
+    CHAT_MENSAGEM: 'CHAT_MENSAGEM',
+    COMUNICADO_NOVO: 'COMUNICADO_NOVO',
+    CHAMADO_NOVO: 'CHAMADO_NOVO',
+    CHAMADO_ATUALIZADO: 'CHAMADO_ATUALIZADO',
 };
 
 export const NOTIFICATION_DESCRIPTIONS = {
@@ -11,5 +15,21 @@ export const NOTIFICATION_DESCRIPTIONS = {
     [NOTIFICATION_TYPES.APROVACAO_PENDENTE]: {
         label: 'Aprovações Pendentes',
         description: 'Notificações de atribuições que aguardam aprovação'
+    },
+    [NOTIFICATION_TYPES.CHAT_MENSAGEM]: {
+        label: 'Mensagens de Chat',
+        description: 'Notificações de novas mensagens recebidas no chat'
+    },
+    [NOTIFICATION_TYPES.COMUNICADO_NOVO]: {
+        label: 'Novos Comunicados',
+        description: 'Notificações de novos avisos e comunicados gerais'
+    },
+    [NOTIFICATION_TYPES.CHAMADO_NOVO]: {
+        label: 'Novos Chamados',
+        description: 'Notificações de novos tickets de suporte (Chamados)'
+    },
+    [NOTIFICATION_TYPES.CHAMADO_ATUALIZADO]: {
+        label: 'Atualizações de Chamados',
+        description: 'Notificações de movimentações e respostas em chamados'
     }
 };

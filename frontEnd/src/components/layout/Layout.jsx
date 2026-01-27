@@ -3,6 +3,7 @@ import Sidebar from './Sidebar';
 import TimerAtivo from '../user/TimerAtivo';
 import UserProfile from '../user/UserProfile';
 import NotificationBell from './NotificationBell';
+import CommunicationDrawer from './CommunicationDrawer';
 import { useAuth } from '../../contexts/AuthContext';
 import './Layout.css';
 
@@ -30,10 +31,11 @@ const Layout = ({ children }) => {
             </div>
           </div>
 
-          {/* Timer ativo e perfil de usuário no header (apenas desktop) */}
+          {/* Timer ativo, Central de Comunicação e Perfil de usuário no header (apenas desktop) */}
           <div className="header-right">
             <div id="header-extra-content"></div>
             <TimerAtivo />
+            <CommunicationDrawer user={usuario} />
             <NotificationBell user={usuario} />
             <div className="header-user-profile">
               <UserProfile />
