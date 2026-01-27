@@ -133,7 +133,6 @@ router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.del
 // Rotas de Custo Colaborador Vigência (CRUD completo)
 router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
 router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
-router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo); // Deprecated em favor de /lote
 router.post('/api/custo-colaborador-vigencia/lote', requireAuth, custoColaboradorVigenciaController.getDadosVigenciaLote); // NOVA ROTA: Solução definitiva para batch
 router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
@@ -519,4 +518,3 @@ router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoCont
 
 
 module.exports = router;
-
