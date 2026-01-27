@@ -2367,9 +2367,9 @@ const DelegarTarefas = () => {
               responsavel_id: responsavelId,
               data_inicio: periodoInicio,
               data_fim: periodoFim,
-              tarefa_id: filtrosAdicionais.tarefa_id || null,
-              cliente_id: filtrosAdicionais.cliente_id || null,
-              produto_id: filtrosAdicionais.produto_id || null
+              tarefa_id: filtrosAdicionais.tarefa_id || (filtroPrincipal === 'atividade' ? entidadeId : null),
+              cliente_id: filtrosAdicionais.cliente_id || (filtroPrincipal === 'cliente' ? entidadeId : null),
+              produto_id: filtrosAdicionais.produto_id || (filtroPrincipal === 'produto' ? entidadeId : null)
             })
           });
 
