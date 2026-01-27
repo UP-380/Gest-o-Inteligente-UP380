@@ -5133,7 +5133,7 @@ const PainelUsuario = () => {
         // Atualizar tempos realizados totais nos headers dos clientes (modo lista)
         atualizarTemposRealizadosHeaders();
       }
-    }, 1000); // Atualizar a cada 1 segundo
+    }, 30000); // Atualizar a cada 30 segundos (reduzido de 1s para aliviar servidor)
 
     return () => clearInterval(intervalId);
   }, [registrosAtivos, buscarTempoRealizado, criarChaveTempo, atualizarTemposRealizadosHeaders]);
