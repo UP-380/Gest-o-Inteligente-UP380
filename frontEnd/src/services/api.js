@@ -740,6 +740,7 @@ export const produtosAPI = {
    * @param {string} id - ID do produto
    */
   async getById(id) {
+    if (!id) return Promise.resolve({ success: false });
     return await request(`${API_BASE_URL}/produtos/${id}`);
   }
 };
