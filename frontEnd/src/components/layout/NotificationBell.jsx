@@ -50,6 +50,19 @@ const NotificationBell = ({ user }) => {
         if (!canSeeBell) return;
         try {
             const res = await fetch(`${API_BASE_URL}/notificacoes/count`);
+
+            // Verificar se a resposta é válida
+            if (!res.ok) {
+                // Se for 503 ou 401, não tenta fazer parse do JSON
+                if (res.status === 503 || res.status === 401) return;
+                return;
+            }
+
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                return;
+            }
+
             const json = await res.json();
             if (json.success) {
                 const newCount = json.count;
@@ -69,7 +82,7 @@ const NotificationBell = ({ user }) => {
                 localStorage.setItem('last_notified_count', newCount.toString());
             }
         } catch (e) {
-            console.error('Erro ao buscar contagem de notificações:', e);
+            // Silently fail for notifications to avoid spamming console
         }
     }, [canSeeBell, prevCount, isOpen, playNotificationSound]);
 
@@ -91,7 +104,8 @@ const NotificationBell = ({ user }) => {
     useEffect(() => {
         if (canSeeBell) {
             fetchCount();
-            const interval = setInterval(fetchCount, 15000); // Polling 15s (Tempo Real Adaptativo)
+            fetchCount();
+            const interval = setInterval(fetchCount, 60000); // Polling 60s (Aumentado para reduzir carga)
             return () => clearInterval(interval);
         }
     }, [canSeeBell, fetchCount]);
