@@ -378,6 +378,10 @@ const PainelUsuario = () => {
   const temposRealizadosRef = useRef(new Map()); // Ref para acesso em funções não-hook
 
   // Cache de subtarefas vinculadas por tarefa_id
+  const fetchingNamesRef = useRef(new Set()); // IDs de clientes sendo buscados
+  const failedNamesRef = useRef(new Set());   // IDs de clientes que falharam (para não tentar novamente)
+
+  const fetchingTimesRef = useRef(new Set()); // Chaves de tempo sendo buscadas
 
 
   // --- SHORTCUT INTERNA UP ---
@@ -526,13 +530,14 @@ const PainelUsuario = () => {
 
     const idStr = String(clienteId).trim();
 
-    // Verificar se já está no cache
-    const cacheAtual = nomesCacheRef.current;
-    if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
-      return cacheAtual.clientes[idStr];
+    // Verificar se já está buscando ou se já falhou
+    if (fetchingNamesRef.current.has(idStr) || failedNamesRef.current.has(idStr)) {
+      return null;
     }
 
     try {
+      fetchingNamesRef.current.add(idStr); // Marcar como buscando
+
       const response = await fetch(`${API_BASE_URL}/base-conhecimento/cliente/${idStr}`, {
         credentials: 'include',
         headers: {
@@ -542,10 +547,12 @@ const PainelUsuario = () => {
       });
 
       if (response.status === 401) {
+        failedNamesRef.current.add(idStr); // Marcar como falha
         return null;
       }
 
       if (!response.ok) {
+        failedNamesRef.current.add(idStr); // Marcar como falha
         return null;
       }
 
@@ -572,9 +579,13 @@ const PainelUsuario = () => {
           return nome;
         }
       }
+      failedNamesRef.current.add(idStr); // Marcar como falha se não achou nome
       return null;
     } catch (error) {
+      failedNamesRef.current.add(idStr); // Marcar como falha
       return null;
+    } finally {
+      fetchingNamesRef.current.delete(idStr); // Desmarcar busca
     }
   }, []);
 
@@ -583,15 +594,23 @@ const PainelUsuario = () => {
     if (!id) return '';
     const idStr = String(id).trim();
     const cacheAtual = nomesCacheRef.current;
-    const nome = cacheAtual.clientes && cacheAtual.clientes[idStr];
 
-    // Se não estiver no cache, disparar busca assíncrona
-    if (!nome) {
-      buscarNomeCliente(idStr).catch(() => { });
-      return ''; // Retornar string vazia enquanto carrega
+    // Se já temos o nome no cache, retornar
+    if (cacheAtual.clientes && cacheAtual.clientes[idStr]) {
+      return cacheAtual.clientes[idStr];
     }
 
-    return nome;
+    // Se já falhou anteriormente, retornar "Cliente" para não tentar ficar buscando infinitamente
+    if (failedNamesRef.current.has(idStr)) {
+      return 'Cliente';
+    }
+
+    // Se não estiver no cache e não estiver buscando e não falhou, disparar busca assíncrona
+    if (!fetchingNamesRef.current.has(idStr)) {
+      buscarNomeCliente(idStr).catch(() => { });
+    }
+
+    return ''; // Retornar string vazia enquanto carrega
   };
 
   const getNomeColaborador = (id) => nomesCache.colaboradores[String(id)] || 'Colaborador';
@@ -1256,16 +1275,30 @@ const PainelUsuario = () => {
   // Função para buscar tempo realizado de uma tarefa específica
   const buscarTempoRealizado = useCallback(async (reg) => {
     if (!usuario?.id) return 0;
+    if (!reg.tarefa_id || !reg.cliente_id) return 0;
+
+    // Criar uma chave única para a requisição de tempo
+    // Usar cliente_id + tarefa_id como identificador base
+    // Incluir data se houver, para diferenciar dias
+    let dataPart = '';
+    if (reg.data) {
+      const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
+      dataPart = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
+    }
+    const requestKey = `${reg.cliente_id}_${reg.tarefa_id}_${dataPart}`;
+
+    // Verificar se já está buscando para evitar duplicidade
+    if (fetchingTimesRef.current.has(requestKey)) {
+      return 0; // Retornar 0 enquanto carrega em outra request
+    }
 
     try {
-      if (!reg.tarefa_id || !reg.cliente_id) return 0;
+      fetchingTimesRef.current.add(requestKey);
 
       // Extrair data do registro
       let dataParam = '';
-      if (reg.data) {
-        const dataReg = typeof reg.data === 'string' ? reg.data : reg.data.toISOString();
-        const dataStr = dataReg.includes('T') ? dataReg.split('T')[0] : dataReg;
-        dataParam = `&data=${dataStr}`;
+      if (dataPart) {
+        dataParam = `&data=${dataPart}`;
       }
 
       const response = await fetch(
@@ -1285,6 +1318,8 @@ const PainelUsuario = () => {
       return 0;
     } catch (error) {
       return 0;
+    } finally {
+      fetchingTimesRef.current.delete(requestKey);
     }
   }, [usuario]);
 
