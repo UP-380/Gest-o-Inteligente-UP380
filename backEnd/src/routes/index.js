@@ -311,6 +311,7 @@ router.put('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteContro
 router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteController.deletarAdquirenteCliente);
 
 // Rotas de Base de Conhecimento
+router.get('/api/base-conhecimento/bulk-summary', requireAuth, baseConhecimentoController.getBaseConhecimentoBulkSummary);
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
 
 // Rotas de Observações Particulares de Subtarefas por Cliente

@@ -35,7 +35,7 @@ const TarefaCard = ({
     <div className="painel-usuario-tarefa-card">
       <div className="painel-usuario-tarefa-top">
         <div className="painel-usuario-tarefa-nome">
-          {getNomeTarefa?.(registro.tarefa_id) || `Tarefa #${registro.tarefa_id}`}
+          {getNomeTarefa?.(registro.tarefa_id) || 'Tarefa'}
         </div>
         <TimerButton
           isActive={isAtivo}

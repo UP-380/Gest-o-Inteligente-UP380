@@ -129,7 +129,20 @@ const TimerAtivo = () => {
           if (clienteResponse.ok) {
             const clienteResult = await clienteResponse.json();
             if (clienteResult.success && clienteResult.data) {
-              setClienteNome(clienteResult.data.nome || 'Cliente');
+              // O backend pode retornar { cliente: ... } ou o objeto direto
+              const cliente = clienteResult.data.cliente || clienteResult.data;
+
+              // Priorizar: nome > nome_amigavel > nome_fantasia > razao_social
+              const nome = cliente.nome ||
+                cliente.nome_amigavel ||
+                cliente.amigavel ||
+                cliente.nome_fantasia ||
+                cliente.fantasia ||
+                cliente.razao_social ||
+                cliente.razao ||
+                'Cliente';
+
+              setClienteNome(nome);
             }
           }
         } catch (error) {

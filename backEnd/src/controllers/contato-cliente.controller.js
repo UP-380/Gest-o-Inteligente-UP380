@@ -13,7 +13,7 @@ async function getContatos(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .select('*', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -78,7 +78,7 @@ async function getContatoPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .select(`
         *,
@@ -142,7 +142,7 @@ async function getContatosPorCliente(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_contato')
       .select(`
         id,
@@ -171,7 +171,7 @@ async function getContatosPorCliente(req, res) {
       // Para busca em relacionamento, precisamos fazer de forma diferente
       // Vamos buscar primeiro os contatos que correspondem e depois filtrar
       const { data: contatosEncontrados } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_contato')
         .select('id')
         .or(`nome.ilike.%${search.trim()}%,email.ilike.%${search.trim()}%,telefone.ilike.%${search.trim()}%`);
@@ -262,7 +262,7 @@ async function criarContato(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .insert([dadosInsert])
       .select()
@@ -316,7 +316,7 @@ async function atualizarContato(req, res) {
 
     // Verificar se contato existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .select('id')
       .eq('id', id)
@@ -382,7 +382,7 @@ async function atualizarContato(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .update(dadosUpdate)
       .eq('id', id)
@@ -427,7 +427,7 @@ async function deletarContato(req, res) {
 
     // Verificar se contato existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .select('id')
       .eq('id', id)
@@ -451,7 +451,7 @@ async function deletarContato(req, res) {
 
     // Deletar do banco (CASCADE vai deletar automaticamente os vínculos em cliente_contato)
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .delete()
       .eq('id', id);
@@ -504,7 +504,7 @@ async function vincularContatoCliente(req, res) {
 
     // Verificar se cliente existe
     const { data: clienteExiste, error: errorCliente } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_cliente')
       .select('id')
       .eq('id', String(cliente_id).trim())
@@ -528,7 +528,7 @@ async function vincularContatoCliente(req, res) {
 
     // Verificar se contato existe
     const { data: contatoExiste, error: errorContato } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_contato')
       .select('id')
       .eq('id', contato_id)
@@ -552,7 +552,7 @@ async function vincularContatoCliente(req, res) {
 
     // Verificar se já existe vínculo
     const { data: vinculoExiste, error: errorVinculo } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_contato')
       .select('id')
       .eq('cliente_id', String(cliente_id).trim())
@@ -582,7 +582,7 @@ async function vincularContatoCliente(req, res) {
     };
 
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_contato')
       .insert([dadosInsert])
       .select(`
@@ -639,7 +639,7 @@ async function desvincularContatoCliente(req, res) {
 
     // Verificar se vínculo existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_contato')
       .select('id, cliente_id, contato_id')
       .eq('id', id)
@@ -663,7 +663,7 @@ async function desvincularContatoCliente(req, res) {
 
     // Deletar vínculo
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_contato')
       .delete()
       .eq('id', id);

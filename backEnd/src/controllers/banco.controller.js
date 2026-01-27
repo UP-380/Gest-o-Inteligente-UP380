@@ -13,7 +13,7 @@ async function getBancos(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .select('id, nome, codigo, created_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -81,7 +81,7 @@ async function getBancoPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .select('*')
       .eq('id', id)
@@ -146,7 +146,7 @@ async function criarBanco(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .insert([dadosInsert])
       .select()
@@ -200,7 +200,7 @@ async function atualizarBanco(req, res) {
 
     // Verificar se banco existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .select('id, nome, codigo')
       .eq('id', id)
@@ -237,7 +237,7 @@ async function atualizarBanco(req, res) {
       
       // Buscar todos os bancos e fazer comparação case-insensitive
       const { data: todosBancos, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_banco')
         .select('id, nome');
       
@@ -285,7 +285,7 @@ async function atualizarBanco(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .update(dadosUpdate)
       .eq('id', id)
@@ -330,7 +330,7 @@ async function deletarBanco(req, res) {
 
     // Verificar se banco existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .select('id, nome')
       .eq('id', id)
@@ -354,7 +354,7 @@ async function deletarBanco(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_banco')
       .delete()
       .eq('id', id);

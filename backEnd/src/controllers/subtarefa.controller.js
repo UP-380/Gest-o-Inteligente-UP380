@@ -13,7 +13,7 @@ async function getSubtarefas(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .select('id, nome, descricao, created_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -80,7 +80,7 @@ async function getSubtarefaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .select('*')
       .eq('id', id)
@@ -156,7 +156,7 @@ async function criarSubtarefa(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .insert([dadosInsert])
       .select()
@@ -216,7 +216,7 @@ async function atualizarSubtarefa(req, res) {
 
     // Verificar se subtarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .select('id, nome')
       .eq('id', id)
@@ -263,7 +263,7 @@ async function atualizarSubtarefa(req, res) {
       
       // Verificar se existe outra subtarefa com mesmo nome (case-insensitive)
       const { data: todasSubtarefas, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_subtarefa')
         .select('id, nome');
       
@@ -320,7 +320,7 @@ async function atualizarSubtarefa(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .update(dadosUpdate)
       .eq('id', id)
@@ -371,7 +371,7 @@ async function deletarSubtarefa(req, res) {
 
     // Verificar se subtarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .select('id, nome')
       .eq('id', id)
@@ -395,7 +395,7 @@ async function deletarSubtarefa(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_subtarefa')
       .delete()
       .eq('id', id);

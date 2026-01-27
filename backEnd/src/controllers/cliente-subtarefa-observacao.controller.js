@@ -17,7 +17,7 @@ async function getObservacao(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_subtarefa_observacao')
       .select('*')
       .eq('cliente_id', cliente_id)
@@ -60,7 +60,7 @@ async function getObservacoesPorCliente(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_subtarefa_observacao')
       .select('*')
       .eq('cliente_id', cliente_id);
@@ -109,7 +109,7 @@ async function salvarObservacao(req, res) {
 
     // Verificar se já existe
     const { data: existente, error: errorExistente } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_subtarefa_observacao')
       .select('id')
       .eq('cliente_id', cliente_id)
@@ -136,7 +136,7 @@ async function salvarObservacao(req, res) {
     if (existente) {
       // Atualizar
       const { data, error } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cliente_subtarefa_observacao')
         .update(dadosObservacao)
         .eq('id', existente.id)
@@ -157,7 +157,7 @@ async function salvarObservacao(req, res) {
       // Criar
       dadosObservacao.created_at = new Date().toISOString();
       const { data, error } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cliente_subtarefa_observacao')
         .insert([dadosObservacao])
         .select()
@@ -203,7 +203,7 @@ async function deletarObservacao(req, res) {
     }
 
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cliente_subtarefa_observacao')
       .delete()
       .eq('cliente_id', cliente_id)

@@ -13,7 +13,7 @@ async function getUsuarios(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, permissoes, foto_perfil', { count: 'exact' })
       .order('nome_usuario', { ascending: true });
@@ -95,7 +95,7 @@ async function atualizarPermissoes(req, res) {
 
     // Verificar se o usuário existe
     const { data: usuarioExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
@@ -119,7 +119,7 @@ async function atualizarPermissoes(req, res) {
 
     // Atualizar permissões
     const { data: usuarioAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .update({ permissoes: permissoesNormalizadas })
       .eq('id', id)
@@ -185,7 +185,7 @@ async function criarUsuario(req, res) {
 
     // Verificar se o email já existe
     const { data: usuarioExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .select('id, foto_perfil')
       .eq('email_usuario', email_usuario)
@@ -209,7 +209,7 @@ async function criarUsuario(req, res) {
 
     // Criar usuário
     const { data: novoUsuario, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .insert({
         email_usuario,
@@ -233,7 +233,7 @@ async function criarUsuario(req, res) {
     if (membro_id) {
       // Verificar se o membro existe
       const { data: membroExistente, error: checkMembroError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, usuario_id')
         .eq('id', membro_id)
@@ -246,7 +246,7 @@ async function criarUsuario(req, res) {
       } else {
         // Atualizar o membro com o ID do usuário criado
         const { error: updateMembroError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .update({ usuario_id: novoUsuario.id })
           .eq('id', membro_id);
@@ -292,7 +292,7 @@ async function atualizarUsuario(req, res) {
 
     // Verificar se o usuário existe
     const { data: usuarioExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
@@ -321,7 +321,7 @@ async function atualizarUsuario(req, res) {
       // Verificar se o novo email já existe (se for diferente do atual)
       if (email_usuario !== usuarioExistente.email_usuario) {
         const { data: emailExistente, error: emailError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('usuarios')
           .select('id')
           .eq('email_usuario', email_usuario)
@@ -369,7 +369,7 @@ async function atualizarUsuario(req, res) {
 
     // Atualizar usuário
     const { data: usuarioAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .update(dadosUpdate)
       .eq('id', id)
@@ -389,7 +389,7 @@ async function atualizarUsuario(req, res) {
     // Sempre processar o vínculo, mesmo se membro_id for undefined (para garantir desvinculação)
     // Primeiro, desvincular qualquer membro que esteja vinculado a este usuário
     const { error: desvincularError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .update({ usuario_id: null })
       .eq('usuario_id', id);
@@ -402,7 +402,7 @@ async function atualizarUsuario(req, res) {
     if (membro_id && membro_id !== '' && membro_id !== null) {
       // Verificar se o membro existe
       const { data: membroExistente, error: checkMembroError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, usuario_id')
         .eq('id', membro_id)
@@ -415,7 +415,7 @@ async function atualizarUsuario(req, res) {
       } else {
         // Atualizar o membro com o ID do usuário sendo editado
         const { error: vincularError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .update({ usuario_id: id })
           .eq('id', membro_id);
@@ -462,7 +462,7 @@ async function deletarUsuario(req, res) {
 
     // Verificar se o usuário existe
     const { data: usuarioExistente, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .select('id, email_usuario, nome_usuario, foto_perfil')
       .eq('id', id)
@@ -486,7 +486,7 @@ async function deletarUsuario(req, res) {
 
     // Deletar usuário
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('usuarios')
       .delete()
       .eq('id', id);
@@ -529,7 +529,7 @@ async function getMembrosPorUsuario(req, res) {
     }
 
     const { data: membros, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('membro')
       .select('id, nome, cpf, status')
       .eq('usuario_id', usuarioId);

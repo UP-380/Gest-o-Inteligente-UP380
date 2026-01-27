@@ -23,7 +23,7 @@ async function buscarTipoTarefaIdPorTarefa(tarefaId) {
     // Buscar na tabela vinculados onde há vínculo entre tarefa e tipo_tarefa
     // (sem produto, cliente ou subtarefa)
     const { data: vinculados, error: vinculadoError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('vinculados')
       .select('tarefa_tipo_id, tarefa_id, produto_id, cliente_id, subtarefa_id')
       .eq('tarefa_id', tarefaIdNum)
@@ -89,32 +89,55 @@ async function iniciarRegistroTempo(req, res) {
       });
     }
 
-    // Verificar se já existe um registro ativo (sem data_fim) para este usuário, tarefa E cliente
-    const { data: registroAtivo, error: errorAtivo } = await supabase
-      .schema('up_gestaointeligente')
-      .from('registro_tempo')
-      .select('*')
-      .eq('usuario_id', parseInt(usuario_id, 10))
-      .eq('tarefa_id', String(tarefa_id).trim())
-      .eq('cliente_id', String(cliente_id).trim())
-      .is('data_fim', null)
-      .maybeSingle();
+    // [NOVO] Antes de iniciar um novo registro, devemos garantir que não existam outros registros ativos para este usuário.
+    // Isso evita o erro de "atividades simultâneas" e garante que o cronômetro do front se comporte corretamente.
+    const usuarioIdInt = parseInt(usuario_id, 10);
 
-    if (errorAtivo) {
-      console.error('Erro ao verificar registro ativo:', errorAtivo);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar registro ativo',
-        details: errorAtivo.message
-      });
-    }
+    try {
+      // 1. Finalizar registros normais ativos (registro_tempo)
+      const { data: ativosNormais } = await supabase
+        .from('registro_tempo')
+        .select('id, data_inicio')
+        .eq('usuario_id', usuarioIdInt)
+        .is('data_fim', null);
 
-    if (registroAtivo) {
-      return res.status(400).json({
-        success: false,
-        error: 'Já existe um registro de tempo ativo para esta tarefa neste cliente. Finalize o registro anterior antes de iniciar um novo.',
-        registro_id: registroAtivo.id
-      });
+      if (ativosNormais && ativosNormais.length > 0) {
+        const agora = new Date().toISOString();
+        const agoraMs = new Date(agora).getTime();
+
+        for (const reg of ativosNormais) {
+          const inicioMs = new Date(reg.data_inicio).getTime();
+          const tempoRealizado = Math.max(0, agoraMs - inicioMs);
+
+          await supabase
+            .from('registro_tempo')
+            .update({
+              data_fim: agora,
+              tempo_realizado: tempoRealizado
+            })
+            .eq('id', reg.id);
+        }
+      }
+
+      // 2. Finalizar registros pendentes ativos (registro_tempo_pendente - Plug Rápido)
+      const { data: ativosPendentes } = await supabase
+        .from('registro_tempo_pendente')
+        .select('id')
+        .eq('usuario_id', usuarioIdInt)
+        .is('data_fim', null);
+
+      if (ativosPendentes && ativosPendentes.length > 0) {
+        const agora = new Date().toISOString();
+        for (const reg of ativosPendentes) {
+          await supabase
+            .from('registro_tempo_pendente')
+            .update({ data_fim: agora })
+            .eq('id', reg.id);
+        }
+      }
+    } catch (errAutoStop) {
+      console.error('Erro ao finalizar registros anteriores automaticamente:', errAutoStop);
+      // Se falhar o stop automático, não bloqueamos o início do novo, mas logamos
     }
 
     // Definir produtoId (Prioridade: Body > Tarefa > Vinculados)
@@ -130,7 +153,7 @@ async function iniciarRegistroTempo(req, res) {
       try {
 
         const { data: tarefa, error: tarefaError } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('tarefa')
           .select('produto_id, id')
           .eq('id', String(tarefa_id).trim())
@@ -161,7 +184,7 @@ async function iniciarRegistroTempo(req, res) {
 
         if (!isNaN(tarefaIdInt)) {
           const { data: vinculados, error: vinculadoError } = await supabase
-            .schema('up_gestaointeligente')
+
             .from('vinculados')
             .select('produto_id')
             .eq('tarefa_id', tarefaIdInt)
@@ -209,7 +232,7 @@ async function iniciarRegistroTempo(req, res) {
 
 
     const { data: registroCriado, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .insert([dadosInsert])
       .select()
@@ -257,7 +280,7 @@ async function finalizarRegistroTempo(req, res) {
 
     // Buscar o registro atual (ID é UUID, não inteiro)
     const { data: registroAtual, error: errorBusca } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*')
       .eq('id', String(id).trim())
@@ -333,7 +356,7 @@ async function finalizarRegistroTempo(req, res) {
 
 
     const { data: registroAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .update(dadosUpdate)
       .eq('id', String(id).trim())
@@ -393,7 +416,7 @@ async function getRegistroAtivo(req, res) {
     }
 
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*')
       .eq('usuario_id', parseInt(usuario_id, 10))
@@ -465,7 +488,7 @@ async function getTempoRealizado(req, res) {
 
     // Construir query para buscar registros de tempo
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('tempo_realizado, produto_id, tipo_tarefa_id') // Incluir produto_id e tipo_tarefa_id
       .eq('usuario_id', parseInt(usuario_id, 10))
@@ -565,7 +588,7 @@ async function getRegistrosAtivos(req, res) {
 
     // 1. Buscar registros normais
     const { data: registrosNormais, error: errorNormais } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*')
       .eq('usuario_id', usuarioIdInt)
@@ -575,7 +598,7 @@ async function getRegistrosAtivos(req, res) {
     // 2. Buscar registros pendentes (Plug Rápido)
     // NOTA: Como não há FK rígida, fazemos o join manualmente
     const { data: registrosPendentesData, error: errorPendentes } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo_pendente')
       .select('*')
       .eq('usuario_id', usuarioIdInt)
@@ -598,7 +621,7 @@ async function getRegistrosAtivos(req, res) {
       const idsAtribuicoes = registrosPendentesData.map(r => r.atribuicao_pendente_id);
 
       const { data: atribuicoes, error: errAttr } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('atribuicoes_pendentes')
         .select('id, cliente_id, produto_id, tarefa_id, comentario_colaborador')
         .in('id', idsAtribuicoes);
@@ -678,7 +701,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
       const responsavelIdNum = parseInt(String(responsavel_id).trim(), 10);
 
       const { data: membro, error: errorMembro } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('membro')
         .select('id, usuario_id')
         .eq('id', responsavelIdNum)
@@ -699,7 +722,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
 
 
       let query = supabase
-        .schema('up_gestaointeligente')
+
         .from('registro_tempo')
         .select('*') // Selecionar tudo para debug
         .eq('usuario_id', usuarioIdParaBusca)
@@ -738,7 +761,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
       const dataFim = `${dataFormatada}T23:59:59`;
 
       let query = supabase
-        .schema('up_gestaointeligente')
+
         .from('registro_tempo')
         .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id');
 
@@ -805,7 +828,7 @@ async function getHistoricoRegistros(req, res) {
 
     // Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
     const { data: registros, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, bloqueado')
       .eq('usuario_id', usuarioIdInt)
@@ -861,7 +884,7 @@ async function atualizarRegistroTempo(req, res) {
 
     // Buscar registro existente
     const { data: registroExistente, error: errorBusca } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*')
       .eq('id', id)
@@ -926,7 +949,7 @@ async function atualizarRegistroTempo(req, res) {
       if (tarefaIdParaBuscar) {
         console.log('🔍 [atualizarRegistroTempo] Tentando buscar produto_id da tarefa:', tarefaIdParaBuscar);
         const { data: tarefa, error: tarefaError } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('tarefa')
           .select('produto_id, id')
           .eq('id', String(tarefaIdParaBuscar).trim())
@@ -1027,7 +1050,7 @@ async function atualizarRegistroTempo(req, res) {
 
     // REGRA 5: Validar sobreposição com outros registros do mesmo usuário
     const { data: registrosUsuario, error: errorRegistros } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('id, data_inicio, data_fim')
       .eq('usuario_id', registroExistente.usuario_id)
@@ -1082,7 +1105,7 @@ async function atualizarRegistroTempo(req, res) {
 
     // Buscar histórico anterior (se existir)
     const { data: historicoAnterior, error: errorHistorico } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo_edicoes')
       .select('*')
       .eq('registro_tempo_id', id)
@@ -1123,7 +1146,7 @@ async function atualizarRegistroTempo(req, res) {
 
     // Salvar histórico
     const { data: historicoSalvo, error: errorSalvarHistorico } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo_edicoes')
       .insert([dadosHistorico])
       .select()
@@ -1142,7 +1165,7 @@ async function atualizarRegistroTempo(req, res) {
 
     // Atualizar registro principal
     const { data: registroAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .update(dadosUpdate)
       .eq('id', id)
@@ -1200,7 +1223,7 @@ async function getRegistrosTempo(req, res) {
 
     // Construir query base
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*', { count: 'exact' });
 
@@ -1301,7 +1324,7 @@ async function getRegistrosSemTarefa(req, res) {
 
     // Buscar registros onde tarefa_id é null OU string vazia
     const { data: registros, count, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*', { count: 'exact' })
       .or('tarefa_id.is.null,tarefa_id.eq.')
@@ -1364,7 +1387,7 @@ async function deletarRegistroTempo(req, res) {
 
     // Buscar registro completo antes de deletar
     const { data: registroExistente, error: errorBusca } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('*')
       .eq('id', id)
@@ -1400,7 +1423,7 @@ async function deletarRegistroTempo(req, res) {
 
     // Buscar histórico anterior (se existir)
     const { data: historicoAnterior, error: errorHistorico } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo_edicoes')
       .select('*')
       .eq('registro_tempo_id', id)
@@ -1443,7 +1466,7 @@ async function deletarRegistroTempo(req, res) {
     // Salvar histórico ANTES de deletar
     let historicoSalvo = null;
     const { data: historicoSalvoData, error: errorSalvarHistorico } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo_edicoes')
       .insert([dadosHistorico])
       .select()
@@ -1464,7 +1487,7 @@ async function deletarRegistroTempo(req, res) {
         delete dadosHistoricoSemDeletado.deletado;
 
         const { data: historicoSalvo2, error: errorSalvarHistorico2 } = await supabase
-          .schema('up_gestaointeligente')
+
           .from('registro_tempo_edicoes')
           .insert([dadosHistoricoSemDeletado])
           .select()
@@ -1508,7 +1531,7 @@ async function deletarRegistroTempo(req, res) {
 
     // Deletar registro
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .delete()
       .eq('id', id);
@@ -1578,7 +1601,7 @@ async function getTempoRealizadoTotal(req, res) {
     }
 
     const { data: membro, error: errorMembro } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('membro')
       .select('id, usuario_id')
       .eq('id', responsavelIdNum)
@@ -1632,7 +1655,7 @@ async function getTempoRealizadoTotal(req, res) {
     // Construir query base
     // Incluir tarefa_id para poder fazer JOIN com tabela tarefa se necessário
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('registro_tempo')
       .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id')
       .eq('usuario_id', usuarioId);
@@ -1778,7 +1801,7 @@ async function getTempoRealizadoTotal(req, res) {
     let tempoPendenteMs = 0;
     try {
       let queryPendentes = supabase
-        .schema('up_gestaointeligente')
+
         .from('registro_tempo_pendente')
         .select('data_inicio, data_fim, tarefa_id, atribuicao_pendente_id')
         .eq('usuario_id', usuarioId);
@@ -1815,7 +1838,7 @@ async function getTempoRealizadoTotal(req, res) {
 
           if (attrIds.length > 0) {
             const { data: attrs } = await supabase
-              .schema('up_gestaointeligente')
+
               .from('atribuicoes_pendentes')
               .select('id, cliente_id, produto_id')
               .in('id', attrIds);

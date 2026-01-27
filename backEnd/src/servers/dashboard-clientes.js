@@ -69,7 +69,7 @@ app.get('/api/registro-tempo-periodo', async (req, res) => {
     
     // Construir query base
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('registro_tempo')
       .select('*')
       .not('data_inicio', 'is', null)
@@ -121,7 +121,7 @@ app.get('/api/registro-tempo-periodo', async (req, res) => {
 
     // Buscar tarefas em paralelo
     const { data: tarefas, error: tarefasError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tarefa')
       .select('*')
       .in('id', tarefaIds);

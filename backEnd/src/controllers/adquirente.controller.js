@@ -13,7 +13,7 @@ async function getAdquirentes(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .select('id, nome, created_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -80,7 +80,7 @@ async function getAdquirentePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .select('*')
       .eq('id', id)
@@ -144,7 +144,7 @@ async function criarAdquirente(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .insert([dadosInsert])
       .select()
@@ -198,7 +198,7 @@ async function atualizarAdquirente(req, res) {
 
     // Verificar se adquirente existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .select('id, nome')
       .eq('id', id)
@@ -235,7 +235,7 @@ async function atualizarAdquirente(req, res) {
       
       // Buscar todos os adquirentes e fazer comparação case-insensitive
       const { data: todosAdquirentes, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_adquirente')
         .select('id, nome');
       
@@ -279,7 +279,7 @@ async function atualizarAdquirente(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .update(dadosUpdate)
       .eq('id', id)
@@ -324,7 +324,7 @@ async function deletarAdquirente(req, res) {
 
     // Verificar se adquirente existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .select('id, nome')
       .eq('id', id)
@@ -348,7 +348,7 @@ async function deletarAdquirente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_adquirente')
       .delete()
       .eq('id', id);

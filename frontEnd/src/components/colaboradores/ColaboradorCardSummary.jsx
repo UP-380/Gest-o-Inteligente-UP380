@@ -15,6 +15,7 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
   const [custoHora, setCustoHora] = useState(null);
   const {
     totalTarefasUnicas,
+    totalProdutosUnicos,
     totalClientesUnicos,
     tempoTotalRealizado,
     tempoEstimadoGeral

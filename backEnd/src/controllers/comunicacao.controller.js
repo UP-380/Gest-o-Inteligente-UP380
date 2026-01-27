@@ -20,7 +20,7 @@ async function enviarMensagem(req, res) {
 
         // 1. Inserir Mensagem
         const { data: mensagem, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .insert({
                 tipo,
@@ -41,7 +41,7 @@ async function enviarMensagem(req, res) {
         if (tipo === 'CHAT' && destinatario_id) {
             // Inserir leitura para o destinatário
             await supabase
-                .schema('up_gestaointeligente')
+                
                 .from('comunicacao_leituras')
                 .insert({ mensagem_id: mensagem.id, usuario_id: destinatario_id, lida: false });
 
@@ -57,12 +57,12 @@ async function enviarMensagem(req, res) {
 
         } else if (tipo === 'COMUNICADO') {
             // Lógica para comunicados: envia para todos os usuários
-            const { data: usuarios } = await supabase.schema('up_gestaointeligente').from('usuarios').select('id');
+            const { data: usuarios } = await supabase.from('usuarios').select('id');
             if (usuarios && usuarios.length > 0) {
                 const leituras = usuarios.map(u => ({ mensagem_id: mensagem.id, usuario_id: u.id, lida: false }));
 
                 // Batch insert leituras
-                await supabase.schema('up_gestaointeligente').from('comunicacao_leituras').insert(leituras);
+                await supabase.from('comunicacao_leituras').insert(leituras);
 
                 // Notificar por broadcast (padrão do distribuirNotificacao sem usuario_id)
                 await distribuirNotificacao({
@@ -88,7 +88,7 @@ async function enviarMensagem(req, res) {
             } else {
                 // É uma resposta. Notificar dono original e gestores.
                 const { data: pai } = await supabase
-                    .schema('up_gestaointeligente')
+                    
                     .from('comunicacao_mensagens')
                     .select('criador_id')
                     .eq('id', mensagem_pai_id)
@@ -135,7 +135,7 @@ async function listarMensagensChat(req, res) {
         if (!com_usuario) return res.status(400).json({ success: false, error: 'Usuário alvo não informado.' });
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select('*')
             .eq('tipo', 'CHAT')
@@ -162,7 +162,7 @@ async function listarConversasRecentes(req, res) {
 
         // Buscar todas as mensagens de chat onde sou criador ou destinatário
         const { data: mensagens, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select(`
                 id,
@@ -221,7 +221,7 @@ async function listarComunicados(req, res) {
         // Por simplificação MVP: buscar todos os comunicados.
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -252,7 +252,7 @@ async function listarChamados(req, res) {
         const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor'; // Simplificado
 
         let query = supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -288,7 +288,7 @@ async function listarRespostasChamado(req, res) {
         const { id } = req.params;
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -316,7 +316,7 @@ async function atualizarStatusChamado(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { data: chamado, error: errorBusca } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select('*')
             .eq('id', id)
@@ -325,7 +325,7 @@ async function atualizarStatusChamado(req, res) {
         if (errorBusca || !chamado) return res.status(404).json({ success: false, error: 'Chamado não encontrado.' });
 
         const { error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .update({ status_chamado: status })
             .eq('id', id);
@@ -360,7 +360,7 @@ async function marcarMensagemLida(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_leituras')
             .update({ lida: true, data_leitura: new Date().toISOString() })
             .eq('mensagem_id', id)
@@ -384,7 +384,7 @@ async function listarComunicadoDestaque(req, res) {
 
         // 1. Buscar o ID do último comunicado marcado como destacado
         const { data: mensagem, error } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_mensagens')
             .select('*, criador:criador_id(nome_usuario)')
             .eq('tipo', 'COMUNICADO')
@@ -398,7 +398,7 @@ async function listarComunicadoDestaque(req, res) {
 
         // 2. Verificar se o usuário já leu este comunicado
         const { data: leitura } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('comunicacao_leituras')
             .select('lida')
             .eq('mensagem_id', mensagem.id)

@@ -10,7 +10,7 @@ async function getPermissoesConfig(req, res) {
     const { nivel } = req.query;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('permissoes_config')
       .select('*')
       .order('nivel', { ascending: true });
@@ -141,7 +141,7 @@ async function atualizarPermissoesConfig(req, res) {
 
     // Verificar se já existe configuração para este nível
     const { data: existing, error: checkError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('permissoes_config')
       .select('id')
       .eq('nivel', nivelNormalizado)
@@ -178,7 +178,7 @@ async function atualizarPermissoesConfig(req, res) {
     if (existing) {
       // Atualizar existente
       const { data, error: updateError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('permissoes_config')
         .update(dadosUpdate)
         .eq('id', existing.id)
@@ -197,7 +197,7 @@ async function atualizarPermissoesConfig(req, res) {
     } else {
       // Criar novo
       const { data, error: insertError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('permissoes_config')
         .insert({
           ...dadosUpdate,

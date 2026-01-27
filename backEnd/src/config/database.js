@@ -17,8 +17,10 @@ if (!supabaseUrl || !supabaseServiceKey) {
   process.exit(1);
 }
 
+
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  db: { schema: 'up_gestaointeligente' },
+  db: { schema: process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente' },
   global: {
     headers: {
       'Cache-Control': 'no-cache'

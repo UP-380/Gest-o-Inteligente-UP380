@@ -13,7 +13,7 @@ async function getTipoTarefas(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -47,7 +47,6 @@ async function getTipoTarefas(req, res) {
       });
     }
 
-    console.log(`✅ Tipos de tarefa encontrados: ${data?.length || 0} de ${count || 0} total`);
 
     return res.json({
       success: true,
@@ -80,7 +79,7 @@ async function getTipoTarefaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .select('*')
       .eq('id', id)
@@ -146,7 +145,7 @@ async function criarTipoTarefa(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .insert([dadosInsert])
       .select()
@@ -200,7 +199,7 @@ async function atualizarTipoTarefa(req, res) {
 
     // Verificar se tipo de tarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
@@ -234,13 +233,13 @@ async function atualizarTipoTarefa(req, res) {
       }
 
       const nomeTrimmed = nome.trim();
-      
+
       // Buscar todos os tipos de tarefa e fazer comparação case-insensitive
       const { data: todosTipos, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+
         .from('cp_tarefa_tipo')
         .select('id, nome');
-      
+
       if (errorNome) {
         console.error('Erro ao verificar nome:', errorNome);
         return res.status(500).json({
@@ -249,11 +248,11 @@ async function atualizarTipoTarefa(req, res) {
           details: errorNome.message
         });
       }
-      
+
       // Verificar se existe outro tipo com mesmo nome (case-insensitive)
       const nomeExistente = (todosTipos || []).find(
-        tipo => 
-          tipo.id !== id && 
+        tipo =>
+          tipo.id !== id &&
           tipo.nome?.trim().toLowerCase() === nomeTrimmed.toLowerCase()
       );
 
@@ -282,7 +281,7 @@ async function atualizarTipoTarefa(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .update(dadosUpdate)
       .eq('id', id)
@@ -327,7 +326,7 @@ async function deletarTipoTarefa(req, res) {
 
     // Verificar se tipo de tarefa existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
@@ -351,7 +350,7 @@ async function deletarTipoTarefa(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+
       .from('cp_tarefa_tipo')
       .delete()
       .eq('id', id);

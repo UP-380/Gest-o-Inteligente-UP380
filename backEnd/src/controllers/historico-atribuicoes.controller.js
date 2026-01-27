@@ -14,7 +14,7 @@ async function getHistoricoAtribuicoes(req, res) {
 
     // Construir query base
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false });
@@ -95,12 +95,12 @@ async function getHistoricoAtribuicoes(req, res) {
     // 2. Buscar dados em paralelo
     const [clientesResponse, membrosResponse] = await Promise.all([
       clienteIds.length > 0 ? supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_cliente')
         .select('id, nome')
         .in('id', clienteIds) : { data: [] },
       membroIds.length > 0 ? supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome')
         .in('id', membroIds) : { data: [] }
@@ -119,7 +119,7 @@ async function getHistoricoAtribuicoes(req, res) {
     if (agrupadorIds.length > 0) {
       try {
         const { data: regrasDetalhadas, error: regrasError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('tempo_estimado_regra')
           .select('agrupador_id, tempo_estimado_dia, data_inicio, data_fim, incluir_finais_semana, incluir_feriados')
           .in('agrupador_id', agrupadorIds);
@@ -223,7 +223,7 @@ async function getHistoricoAtribuicaoPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('*')
       .eq('id', id)
@@ -248,19 +248,19 @@ async function getHistoricoAtribuicaoPorId(req, res) {
     // Buscar dados relacionados
     const [clienteData, responsavelData, usuarioCriadorData] = await Promise.all([
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_cliente')
         .select('id, nome')
         .eq('id', data.cliente_id)
         .maybeSingle(),
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome')
         .eq('id', data.responsavel_id)
         .maybeSingle(),
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome')
         .eq('id', data.usuario_criador_id)
@@ -310,7 +310,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
 
     // Buscar histórico atual
     const { data: historicoAtual, error: historicoError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('*')
       .eq('id', id)
@@ -352,7 +352,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
 
     // Atualizar histórico
     const { data: historicoAtualizado, error: updateError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .update(dadosAtualizacao)
       .eq('id', id)
@@ -426,7 +426,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
     // Deletar APENAS regras futuras ou de hoje
     console.log(`🗑️ Deletando regras futuras (>= ${hojeStr}) do agrupamento:`, agrupador_id);
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id)
@@ -470,7 +470,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
         }
 
         const { data: vinculados, error } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('vinculados')
           .select('tarefa_tipo_id')
           .eq('tarefa_id', tarefaIdNum)
@@ -527,7 +527,7 @@ async function atualizarHistoricoAtribuicao(req, res) {
 
     // Inserir novas regras
     const { data: regrasInseridas, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .insert(regrasParaInserir)
       .select();
@@ -546,19 +546,19 @@ async function atualizarHistoricoAtribuicao(req, res) {
     // Buscar histórico atualizado com dados relacionados
     const [clienteData, responsavelData, usuarioCriadorData] = await Promise.all([
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_cliente')
         .select('id, nome')
         .eq('id', historicoAtualizado.cliente_id)
         .maybeSingle(),
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome')
         .eq('id', historicoAtualizado.responsavel_id)
         .maybeSingle(),
       supabase
-        .schema('up_gestaointeligente')
+        
         .from('membro')
         .select('id, nome')
         .eq('id', historicoAtualizado.usuario_criador_id)
@@ -603,7 +603,7 @@ async function deletarHistoricoAtribuicao(req, res) {
 
     // Buscar histórico atual para obter o agrupador_id
     const { data: historicoAtual, error: historicoError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('agrupador_id')
       .eq('id', id)
@@ -624,7 +624,7 @@ async function deletarHistoricoAtribuicao(req, res) {
 
       // 1. Deletar regras de tempo estimado (tempo_estimado_regra)
       const { error: deleteRegraError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('tempo_estimado_regra')
         .delete()
         .eq('agrupador_id', agrupador_id);
@@ -639,7 +639,7 @@ async function deletarHistoricoAtribuicao(req, res) {
       // 2. Deletar registros de tempo diários (tempo_estimado)
       // NOTA: Esta tabela pode não existir mais em versões recentes que usam apenas regras dinâmicas
       const { error: deleteTempoError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('tempo_estimado')
         .delete()
         .eq('agrupador_id', agrupador_id);
@@ -663,7 +663,7 @@ async function deletarHistoricoAtribuicao(req, res) {
 
     // 3. Deletar o histórico (historico_atribuicoes)
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .delete()
       .eq('id', id);
@@ -706,7 +706,7 @@ async function getDetalhesDiariosAtribuicao(req, res) {
 
     // Buscar histórico para obter o agrupador_id
     const { data: historico, error: historicoError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('agrupador_id, data_inicio, data_fim')
       .eq('id', id)
@@ -728,7 +728,7 @@ async function getDetalhesDiariosAtribuicao(req, res) {
 
     // Buscar todas as regras de tempo_estimado_regra para este agrupador
     const { data: regrasTempo, error: tempoError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('*')
       .eq('agrupador_id', historico.agrupador_id)
@@ -759,7 +759,7 @@ async function getDetalhesDiariosAtribuicao(req, res) {
     const nomesTarefas = {};
     if (tarefaIds.size > 0) {
       const { data: tarefas, error: tarefasError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_tarefa')
         .select('id, nome')
         .in('id', Array.from(tarefaIds));
@@ -840,7 +840,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
 
     // Buscar todos os agrupador_id únicos de regras que não têm histórico
     const { data: regrasSemHistorico, error: regrasError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('agrupador_id, cliente_id, responsavel_id, produto_id, tarefa_id, data_inicio, data_fim, created_by')
       .not('agrupador_id', 'is', null);
@@ -882,7 +882,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
       for (let i = 0; i < agrupadorIds.length; i += batchSize) {
         const batch = agrupadorIds.slice(i, i + batchSize);
         const { data: historicos, error: historicoError } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('historico_atribuicoes')
           .select('agrupador_id')
           .in('agrupador_id', batch);
@@ -921,7 +921,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
     for (const agrupadorId of agrupadoresOrfaos) {
       // Buscar todas as regras completas do agrupador
       const { data: regrasCompletas, error: regrasError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('tempo_estimado_regra')
         .select('*')
         .eq('agrupador_id', agrupadorId);
@@ -984,7 +984,7 @@ async function sincronizarHistoricosOrfaos(req, res) {
     for (let i = 0; i < historicosParaCriar.length; i += batchSize) {
       const batch = historicosParaCriar.slice(i, i + batchSize);
       const { error: insertError } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('historico_atribuicoes')
         .insert(batch);
 
@@ -1021,7 +1021,7 @@ async function getRegrasOrfas(req, res) {
 
     // Buscar todos os agrupador_id únicos de regras
     const { data: todasRegras, error: regrasError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .select('agrupador_id')
       .not('agrupador_id', 'is', null);
@@ -1052,7 +1052,7 @@ async function getRegrasOrfas(req, res) {
     for (let i = 0; i < agrupadorIds.length; i += batchSize) {
       const batch = agrupadorIds.slice(i, i + batchSize);
       const { data: historicos } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('historico_atribuicoes')
         .select('agrupador_id')
         .in('agrupador_id', batch);
@@ -1084,7 +1084,7 @@ async function getRegrasOrfas(req, res) {
 
     for (const agrupadorId of agrupadoresOrfaos) {
       const { data: regrasDoAgrupador } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('tempo_estimado_regra')
         .select('*')
         .eq('agrupador_id', agrupadorId)
@@ -1120,13 +1120,13 @@ async function getRegrasOrfas(req, res) {
       // Buscar nomes relacionados
       const [clienteData, responsavelData] = await Promise.all([
         supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id, nome')
           .eq('id', primeiraRegra.cliente_id)
           .maybeSingle(),
         supabase
-          .schema('up_gestaointeligente')
+          
           .from('membro')
           .select('id, nome')
           .eq('id', primeiraRegra.responsavel_id)
@@ -1138,7 +1138,7 @@ async function getRegrasOrfas(req, res) {
       const nomesProdutos = {};
       if (produtoIdsArray.length > 0) {
         const { data: produtos } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_produto')
           .select('id, nome')
           .in('id', produtoIdsArray);
@@ -1155,7 +1155,7 @@ async function getRegrasOrfas(req, res) {
       const nomesTarefas = {};
       if (tarefaIdsArray.length > 0) {
         const { data: tarefas } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_tarefa')
           .select('id, nome')
           .in('id', tarefaIdsArray.map(id => parseInt(id, 10)));
@@ -1223,7 +1223,7 @@ async function deletarRegrasOrfas(req, res) {
 
     // Verificar se existe histórico associado (não deveria, mas vamos garantir)
     const { data: historicoExistente } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('historico_atribuicoes')
       .select('id')
       .eq('agrupador_id', agrupador_id)
@@ -1238,7 +1238,7 @@ async function deletarRegrasOrfas(req, res) {
 
     // Deletar todas as regras do agrupador
     const { error: deleteError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);

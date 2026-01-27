@@ -13,7 +13,7 @@ async function getSistemas(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .select('id, nome, created_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -80,7 +80,7 @@ async function getSistemaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .select('*')
       .eq('id', id)
@@ -144,7 +144,7 @@ async function criarSistema(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .insert([dadosInsert])
       .select()
@@ -198,7 +198,7 @@ async function atualizarSistema(req, res) {
 
     // Verificar se sistema existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .select('id, nome')
       .eq('id', id)
@@ -235,7 +235,7 @@ async function atualizarSistema(req, res) {
       
       // Buscar todos os sistemas e fazer comparação case-insensitive
       const { data: todosSistemas, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_sistema')
         .select('id, nome');
       
@@ -279,7 +279,7 @@ async function atualizarSistema(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .update(dadosUpdate)
       .eq('id', id)
@@ -324,7 +324,7 @@ async function deletarSistema(req, res) {
 
     // Verificar se sistema existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .select('id, nome')
       .eq('id', id)
@@ -348,7 +348,7 @@ async function deletarSistema(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_sistema')
       .delete()
       .eq('id', id);

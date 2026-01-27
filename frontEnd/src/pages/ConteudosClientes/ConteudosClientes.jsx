@@ -20,7 +20,7 @@ const API_BASE_URL = '/api';
 const ConteudosClientes = () => {
   const navigate = useNavigate();
   const showToast = useToast();
-  
+
   // Estados principais
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,16 +29,16 @@ const ConteudosClientes = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalClientes, setTotalClientes] = useState(0);
   const [viewMode, setViewMode] = useState('cards'); // 'list' ou 'cards'
-  
+
   // Estados do filtro de clientes
   const [filtroClienteId, setFiltroClienteId] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('ativo'); // 'todos', 'ativo', 'inativo'
   const [clientesParaFiltro, setClientesParaFiltro] = useState([]);
-  
+
   // Estados do DetailSideCard
   const [detailCard, setDetailCard] = useState(null); // { clienteId, tipo, dados }
   const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
-  
+
   // Estados para validação de ícones (quais clientes têm dados)
   const [clientesComContas, setClientesComContas] = useState(new Set()); // IDs de clientes que têm contas bancárias
   const [clientesComSistemas, setClientesComSistemas] = useState(new Set()); // IDs de clientes que têm sistemas
@@ -100,17 +100,17 @@ const ConteudosClientes = () => {
     try {
       // Verificar se há filtro de cliente
       const temFiltroCliente = filtroClienteId && Array.isArray(filtroClienteId) && filtroClienteId.length > 0;
-      
+
       // Quando há filtro, buscar todos os clientes (até 10000) para filtrar no frontend
       // Quando não há filtro, usar paginação normal no backend
       const limitParaBusca = temFiltroCliente ? 10000 : itemsPerPage;
       const pageParaBusca = temFiltroCliente ? 1 : currentPage;
-      
+
       const params = new URLSearchParams({
         page: pageParaBusca.toString(),
         limit: limitParaBusca.toString()
       });
-      
+
       // Adicionar filtro de status se não for 'todos'
       if (filtroStatus !== 'todos') {
         params.append('status', filtroStatus);
@@ -137,21 +137,21 @@ const ConteudosClientes = () => {
 
       if (result.success) {
         let clientesData = result.data || [];
-        
+
         console.log('📋 DADOS DO GETCLIENTES (primeiro cliente):', clientesData[0]);
-        
+
         // Aplicar filtro de cliente no frontend se houver
         if (temFiltroCliente) {
           const filtroIds = filtroClienteId.map(id => String(id).trim());
           // Filtrar todos os clientes que correspondem aos IDs selecionados
-          const clientesFiltrados = clientesData.filter(cliente => 
+          const clientesFiltrados = clientesData.filter(cliente =>
             filtroIds.includes(String(cliente.id).trim())
           );
-          
+
           // Aplicar paginação no frontend após filtrar
           const offset = (currentPage - 1) * itemsPerPage;
           clientesData = clientesFiltrados.slice(offset, offset + itemsPerPage);
-          
+
           // Total é o número de clientes filtrados
           const totalFiltrados = clientesFiltrados.length;
           setTotalClientes(totalFiltrados);
@@ -161,11 +161,11 @@ const ConteudosClientes = () => {
           setTotalClientes(total);
           setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
         }
-        
+
         // USAR DADOS DIRETAMENTE DO GETCLIENTES (sem buscar individualmente)
         console.log('📦 Usando dados do getClientes:', clientesData);
         setClientes(clientesData);
-        
+
         // Validar quais clientes têm dados (contas, sistemas, adquirentes)
         validarDadosClientes(clientesData);
       } else {
@@ -220,38 +220,52 @@ const ConteudosClientes = () => {
   // Validar quais clientes têm dados (contas, sistemas, adquirentes)
   const validarDadosClientes = useCallback(async (clientesList) => {
     if (!clientesList || clientesList.length === 0) return;
-    
-    const contasSet = new Set();
-    const sistemasSet = new Set();
-    const adquirentesSet = new Set();
-    
-    // Validar em paralelo para todos os clientes
-    const validacoes = clientesList.map(async (cliente) => {
-      try {
-        // Usar loadDadosParaCard com qualquer tipo (todos retornam os mesmos dados completos)
-        const dados = await loadDadosParaCard(cliente.id, 'contas-bancarias');
-        if (dados) {
-          if (dados.contasBancarias && dados.contasBancarias.length > 0) {
-            contasSet.add(cliente.id);
-          }
-          if (dados.sistemas && dados.sistemas.length > 0) {
-            sistemasSet.add(cliente.id);
-          }
-          if (dados.adquirentes && dados.adquirentes.length > 0) {
-            adquirentesSet.add(cliente.id);
-          }
-        }
-      } catch (error) {
-        console.error(`Erro ao validar dados do cliente ${cliente.id}:`, error);
+
+    try {
+      // Coletar IDs dos clientes carregados na página atual
+      const ids = clientesList.map(c => c.id).join(',');
+
+      // Chamar o novo endpoint de resumo em lote (muito mais leve e uma única requisição)
+      const response = await fetch(`${API_BASE_URL}/base-conhecimento/bulk-summary?ids=${ids}`, {
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    });
-    
-    await Promise.all(validacoes);
-    
-    setClientesComContas(contasSet);
-    setClientesComSistemas(sistemasSet);
-    setClientesComAdquirentes(adquirentesSet);
-  }, [loadDadosParaCard]);
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const contasSet = new Set();
+        const sistemasSet = new Set();
+        const adquirentesSet = new Set();
+
+        // Mapear resultados para os sets de controle de ícones
+        Object.entries(result.data).forEach(([clienteId, summary]) => {
+          // Os IDs no Set devem ser do mesmo tipo que no objeto de cliente (id)
+          // Mas como o Set é usado para comparação, o tipo deve ser verificado
+          // O backend retorna os IDs como chaves do objeto (strings)
+          const id = isNaN(clienteId) ? clienteId : parseInt(clienteId, 10);
+
+          if (summary.hasContas) contasSet.add(id);
+          if (summary.hasSistemas) sistemasSet.add(id);
+          if (summary.hasAdquirentes) adquirentesSet.add(id);
+        });
+
+        setClientesComContas(contasSet);
+        setClientesComSistemas(sistemasSet);
+        setClientesComAdquirentes(adquirentesSet);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao validar dados dos clientes (lote):', error);
+      // Fallback: manter ícones desabilitados em caso de erro no resumo
+    }
+  }, []);
 
   // Abrir DetailSideCard
   const handleOpenContas = async (cliente, e) => {
@@ -260,11 +274,11 @@ const ConteudosClientes = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       // Posição no documento (considerando scroll)
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardPosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -287,11 +301,11 @@ const ConteudosClientes = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       // Posição no documento (considerando scroll)
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardPosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -314,11 +328,11 @@ const ConteudosClientes = () => {
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
       const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      
+
       // Posição no documento (considerando scroll)
       const documentLeft = rect.left + scrollLeft;
       const documentTop = rect.top + scrollTop;
-      
+
       setDetailCardPosition({
         left: documentLeft + rect.width + 20,
         top: documentTop
@@ -365,17 +379,17 @@ const ConteudosClientes = () => {
     const titleColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconColor = isAtivo ? '#0e3b6f' : '#ff9800';
     const iconHoverColor = isAtivo ? '#144577' : '#f97316';
-    
+
     // Validar se cliente tem dados para habilitar/desabilitar ícones
     const temContas = clientesComContas.has(cliente.id);
     const temSistemas = clientesComSistemas.has(cliente.id);
     const temAdquirentes = clientesComAdquirentes.has(cliente.id);
-    
+
     // Cores dos ícones (desabilitado = cinza)
     const contaIconColor = temContas ? iconColor : '#d1d5db';
     const sistemaIconColor = temSistemas ? iconColor : '#d1d5db';
     const adquirenteIconColor = temAdquirentes ? iconColor : '#d1d5db';
-    
+
     // Botões desabilitados se não houver dados
     const contaDisabled = !temContas;
     const sistemaDisabled = !temSistemas;
@@ -396,7 +410,7 @@ const ConteudosClientes = () => {
               entityType="cliente"
               entityId={cliente.id}
             />
-            <h3 
+            <h3
               className="cliente-knowledge-card-title"
               style={{ color: titleColor, flex: 1 }}
             >
@@ -475,10 +489,10 @@ const ConteudosClientes = () => {
   // Handler para mudança no filtro de clientes
   const handleFiltroClienteChange = useCallback((e) => {
     const selectedIds = e.target.value;
-    const idsArray = selectedIds 
-      ? (Array.isArray(selectedIds) 
-          ? selectedIds.map(id => String(id)) 
-          : [String(selectedIds)])
+    const idsArray = selectedIds
+      ? (Array.isArray(selectedIds)
+        ? selectedIds.map(id => String(id))
+        : [String(selectedIds)])
       : null;
     setFiltroClienteId(idsArray);
     setCurrentPage(1);
@@ -640,7 +654,7 @@ const ConteudosClientes = () => {
                     <option value="inativo">Inativo</option>
                   </select>
                 </div>
-                
+
                 {/* Cliente depois (filtrado pelo status) */}
                 <div className="filter-group" style={{ flex: '1', minWidth: '300px' }}>
                   <FilterClientes
@@ -653,7 +667,7 @@ const ConteudosClientes = () => {
               </FiltersCard>
 
               {/* Controles de visualização */}
-              <div style={{ 
+              <div style={{
                 marginBottom: '24px',
                 display: 'flex',
                 justifyContent: 'flex-end',
@@ -734,7 +748,7 @@ const ConteudosClientes = () => {
                     Template Único de Base de Conhecimento
                   </p>
                   <p style={{ fontSize: '13px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
-                    Esta página exibe um template único que consome automaticamente os dados já cadastrados do cliente, 
+                    Esta página exibe um template único que consome automaticamente os dados já cadastrados do cliente,
                     incluindo dados básicos, acessos de sistema, contas bancárias e adquirentes.
                   </p>
                 </div>
@@ -757,7 +771,7 @@ const ConteudosClientes = () => {
                   <div className="clientes-knowledge-grid">
                     {clientes.map(cliente => renderClientCard(cliente))}
                   </div>
-                  
+
                   {totalClientes > 0 && (
                     <Pagination
                       currentPage={currentPage}

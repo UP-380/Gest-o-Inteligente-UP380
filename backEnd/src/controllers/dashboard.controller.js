@@ -162,7 +162,7 @@ async function getDashboardClientes(req, res) {
         // Criar função para query builder (para usar paginação automática se necessário)
         const criarQueryBuilderRegistros = () => {
           let query = supabase
-            .schema('up_gestaointeligente')
+            
             .from('v_registro_tempo_vinculado')
             .select('cliente_id')
             .not('cliente_id', 'is', null)
@@ -235,7 +235,7 @@ async function getDashboardClientes(req, res) {
       // Criar função para query builder (para usar paginação automática se necessário)
       const criarQueryBuilderRegistros = () => {
         let query = supabase
-          .schema('up_gestaointeligente')
+          
           .from('v_registro_tempo_vinculado')
           .select('cliente_id')
           .not('cliente_id', 'is', null)
@@ -333,7 +333,7 @@ async function getDashboardClientes(req, res) {
       let clienteNomes = '';
       try {
         const { data: clientesFiltro } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id, nome')
           .in('id', clienteIdsArray);
@@ -393,7 +393,7 @@ async function getDashboardClientes(req, res) {
       let clienteNomes = '';
       try {
         const { data: clientesFiltro } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id, nome')
           .in('id', clienteIdsArray);
@@ -429,7 +429,7 @@ async function getDashboardClientes(req, res) {
 
     if (clienteIdsPaginated.length > 0) {
       let queryClientes = supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_cliente')
         .select('id, nome, status')
         .in('id', clienteIdsPaginated);
@@ -481,7 +481,7 @@ async function getDashboardClientes(req, res) {
           if (clienteIds.length > 0) {
             try {
               const { data: clientesFiltro } = await supabase
-                .schema('up_gestaointeligente')
+                
                 .from('cp_cliente')
                 .select('id, nome')
                 .in('id', clienteIds);
@@ -533,7 +533,7 @@ async function getDashboardClientes(req, res) {
 
     // Buscar contratos e registros APENAS dos clientes da página atual (para exibição)
     let contratosQuery = supabase
-      .schema('up_gestaointeligente')
+      
       .from('contratos_clientes')
       .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
       .in('id_cliente', clienteIdsPaginated);
@@ -542,7 +542,7 @@ async function getDashboardClientes(req, res) {
     let registrosQuery = null;
     if (clienteIdsPaginated.length > 0 || temFiltrosPeriodoOuColaborador) {
       registrosQuery = supabase
-        .schema('up_gestaointeligente')
+        
         .from('v_registro_tempo_vinculado')
         .select('*', { count: 'exact' }) // Adicionar count para verificar se há mais registros
         .not('cliente_id', 'is', null)
@@ -568,7 +568,7 @@ async function getDashboardClientes(req, res) {
     let todosContratosQuery = null;
     if (clienteIds.length > 0) {
       todosContratosQuery = supabase
-        .schema('up_gestaointeligente')
+        
         .from('contratos_clientes')
         .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
         .in('id_cliente', clienteIds); // TODOS os clientes, não apenas da página
@@ -578,7 +578,7 @@ async function getDashboardClientes(req, res) {
     let todosRegistrosQuery = null;
     if (clienteIds.length > 0 || temFiltrosPeriodoOuColaborador) {
       todosRegistrosQuery = supabase
-        .schema('up_gestaointeligente')
+        
         .from('v_registro_tempo_vinculado')
         .select('*')
         .not('cliente_id', 'is', null)
@@ -612,7 +612,7 @@ async function getDashboardClientes(req, res) {
         try {
           const criarQueryBuilder = () => {
             let query = supabase
-              .schema('up_gestaointeligente')
+              
               .from('v_registro_tempo_vinculado')
               .select('*')
               .not('cliente_id', 'is', null)
@@ -728,7 +728,7 @@ async function getDashboardClientes(req, res) {
       const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
       const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
       const { data: tarefas } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('tarefa')
         .select('*')
         .or(orConditions);
@@ -824,7 +824,7 @@ async function getDashboardClientes(req, res) {
         const periodoFimFiltro = dataFim.includes('T') ? dataFim.split('T')[0] : dataFim;
 
         let queryRegras = supabase
-          .schema('up_gestaointeligente')
+          
           .from('tempo_estimado_regra')
           .select('*')
           .in('cliente_id', clienteIdsPaginated)
@@ -834,7 +834,7 @@ async function getDashboardClientes(req, res) {
         // --- CORREÇÃO: Filtrar regras pelo responsável se houver filtro de colaborador ---
         if (colaboradorIdsArray.length > 0) {
           const { data: membrosParaFiltro } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('membro')
             .select('id')
             .in('usuario_id', colaboradorIdsArray);
@@ -1178,7 +1178,7 @@ async function getDashboardColaboradores(req, res) {
 
       const criarQueryBuilderRegistros = () => {
         let query = supabase
-          .schema('up_gestaointeligente')
+          
           .from('v_registro_tempo_vinculado')
           .select('usuario_id, cliente_id')
           .not('usuario_id', 'is', null)
@@ -1233,7 +1233,7 @@ async function getDashboardColaboradores(req, res) {
 
       const criarQueryBuilderRegistros = () => {
         return supabase
-          .schema('up_gestaointeligente')
+          
           .from('v_registro_tempo_vinculado')
           .select('usuario_id')
           .not('usuario_id', 'is', null)
@@ -1255,7 +1255,7 @@ async function getDashboardColaboradores(req, res) {
     } else {
       const criarQueryBuilderRegistros = () => {
         return supabase
-          .schema('up_gestaointeligente')
+          
           .from('v_registro_tempo_vinculado')
           .select('usuario_id')
           .not('usuario_id', 'is', null);
@@ -1328,7 +1328,7 @@ async function getDashboardColaboradores(req, res) {
     let registrosQuery = null;
     if (colaboradorIdsPaginatedNumericos.length > 0) {
       registrosQuery = supabase
-        .schema('up_gestaointeligente')
+        
         .from('v_registro_tempo_vinculado')
         .select('*')
         .not('usuario_id', 'is', null)
@@ -1361,7 +1361,7 @@ async function getDashboardColaboradores(req, res) {
         const todasQueries = chunks.map((chunk, chunkIndex) => {
           const criarQueryBuilderTodosRegistros = () => {
             let query = supabase
-              .schema('up_gestaointeligente')
+              
               .from('v_registro_tempo_vinculado')
               .select('*')
               .not('usuario_id', 'is', null)
@@ -1402,7 +1402,7 @@ async function getDashboardColaboradores(req, res) {
     if (!incluirClientesInativosBool && clienteIdsArray.length > 0) {
       // Buscar status dos clientes
       const { data: clientesData } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_cliente')
         .select('id, status')
         .in('id', clienteIdsArray);
@@ -1456,7 +1456,7 @@ async function getDashboardColaboradores(req, res) {
 
         const clienteNomes = await (async () => {
           const { data: clientes } = await supabase
-            .schema('up_gestaointeligente')
+            
             .from('cp_cliente')
             .select('id, nome')
             .in('id', clienteIdsArray);
@@ -1491,7 +1491,7 @@ async function getDashboardColaboradores(req, res) {
         const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
         const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
         const { data: tarefas } = await supabase
-          .schema('up_gestaointeligente')
+          
           .from('tarefa')
           .select('*')
           .or(orConditions);
@@ -1499,7 +1499,7 @@ async function getDashboardColaboradores(req, res) {
       })() : Promise.resolve([]),
       todosClienteIds.length > 0 ? (async () => {
         let queryClientes = supabase
-          .schema('up_gestaointeligente')
+          
           .from('cp_cliente')
           .select('id, nome, status')
           .in('id', todosClienteIds);
@@ -1601,7 +1601,7 @@ async function getDashboardColaboradores(req, res) {
         const colaboradorIdsStrings = colaboradorIdsPaginated.map(id => String(id).trim());
 
         let queryRegras = supabase
-          .schema('up_gestaointeligente')
+          
           .from('tempo_estimado_regra')
           .select('*')
           .in('responsavel_id', colaboradorIdsStrings)
@@ -1852,7 +1852,7 @@ async function debugTarefa(req, res) {
 
     // 1. Buscar registros na VIEW v_registro_tempo_vinculado
     const { data: registrosView, error: errorView } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('v_registro_tempo_vinculado')
       .select('*')
       .eq('tarefa_id', tarefaId);
@@ -1863,7 +1863,7 @@ async function debugTarefa(req, res) {
 
     // 2. Buscar registros na TABELA registro_tempo
     const { data: registrosTabela, error: errorTabela } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('registro_tempo')
       .select('*')
       .eq('tarefa_id', tarefaId);

@@ -13,7 +13,7 @@ async function getTipoAtividades(req, res) {
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .select('id, nome, clickup_id, created_at, updated_at', { count: 'exact' })
       .order('nome', { ascending: true });
@@ -80,7 +80,7 @@ async function getTipoAtividadePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .select('*')
       .eq('id', id)
@@ -129,7 +129,7 @@ async function getTipoAtividadePorClickupId(req, res) {
     }
 
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .select('id, nome, clickup_id')
       .eq('clickup_id', clickup_id)
@@ -195,7 +195,7 @@ async function criarTipoAtividade(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .insert([dadosInsert])
       .select()
@@ -249,7 +249,7 @@ async function atualizarTipoAtividade(req, res) {
 
     // Verificar se tipo de atividade existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
@@ -286,7 +286,7 @@ async function atualizarTipoAtividade(req, res) {
       
       // Buscar todos os tipos de atividade e fazer comparação case-insensitive
       const { data: todosTipos, error: errorNome } = await supabase
-        .schema('up_gestaointeligente')
+        
         .from('cp_tarefa_tipo')
         .select('id, nome');
       
@@ -331,7 +331,7 @@ async function atualizarTipoAtividade(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .update(dadosUpdate)
       .eq('id', id)
@@ -376,7 +376,7 @@ async function deletarTipoAtividade(req, res) {
 
     // Verificar se tipo de atividade existe
     const { data: existente, error: errorCheck } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .select('id, nome')
       .eq('id', id)
@@ -400,7 +400,7 @@ async function deletarTipoAtividade(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      .schema('up_gestaointeligente')
+      
       .from('cp_tarefa_tipo')
       .delete()
       .eq('id', id);

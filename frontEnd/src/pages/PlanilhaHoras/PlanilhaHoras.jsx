@@ -261,8 +261,8 @@ const PlanilhaHoras = () => {
     if (registrosDia.length === 0) return;
 
     setCelulaSelecionada({
-      clienteNome: grupo.clienteId !== 'sem-cliente' ? (nomesClientes[grupo.clienteId] || `Cliente #${grupo.clienteId}`) : 'Sem Cliente',
-      tarefaNome: grupo.tarefaId !== 'sem-tarefa' ? (nomesTarefas[grupo.tarefaId] || `Tarefa #${grupo.tarefaId}`) : 'Sem Tarefa',
+      clienteNome: grupo.clienteId !== 'sem-cliente' ? (nomesClientes[grupo.clienteId] || 'Cliente') : 'Sem Cliente',
+      tarefaNome: grupo.tarefaId !== 'sem-tarefa' ? (nomesTarefas[grupo.tarefaId] || 'Tarefa') : 'Sem Tarefa',
       data: dataChave,
       registros: registrosDia
     });
@@ -604,10 +604,10 @@ const PlanilhaHoras = () => {
                   <tbody>
                     {Object.values(grupos).map((grupo, index) => {
                       const clienteNome = grupo.clienteId !== 'sem-cliente'
-                        ? (nomesClientes[grupo.clienteId] || `Cliente #${grupo.clienteId}`)
+                        ? (nomesClientes[grupo.clienteId] || 'Cliente')
                         : 'Sem Cliente';
                       const tarefaNome = grupo.tarefaId !== 'sem-tarefa'
-                        ? (nomesTarefas[grupo.tarefaId] || `Tarefa #${grupo.tarefaId}`)
+                        ? (nomesTarefas[grupo.tarefaId] || 'Tarefa')
                         : 'Sem Tarefa';
 
                       const totalLinha = Object.values(grupo.dias).reduce((acc, tempo) => acc + tempo, 0);
