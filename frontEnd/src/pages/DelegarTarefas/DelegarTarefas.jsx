@@ -3050,22 +3050,86 @@ const DelegarTarefas = () => {
       };
 
       // Buscar tempo realizado para cada entidade
-      const promises = Array.from(entidadesUnicas.values()).map(async ({ tipo, id }) => {
-        const chave = `${tipo}_${id}`;
-        const tempoRealizado = await buscarTempoRealizadoPorEntidade(
-          id,
-          tipo,
-          periodoAplicadoInicio,
-          periodoAplicadoFim,
-          filtrosAdicionais
-        );
-        return { chave, tempoRealizado };
-      });
+      // OTIMIZAÇÃO: Se for filtro por RESPONSÁVEL, buscar em lote real (agrupado pelo backend)
+      if (filtroPrincipal === 'responsavel') {
+        const responsavelIds = [];
+        const mapChaveParaId = new Map();
 
-      const resultados = await Promise.all(promises);
-      resultados.forEach(({ chave, tempoRealizado }) => {
-        novosTempos[chave] = tempoRealizado;
-      });
+        entidadesUnicas.forEach((valor, chave) => {
+          if (valor.tipo === 'responsavel') {
+            responsavelIds.push(valor.id);
+            mapChaveParaId.set(valor.id, chave);
+          }
+        });
+
+        if (responsavelIds.length > 0) {
+          try {
+            console.log('📦 [TEMPO-REALIZADO-BATCH] Buscando dados agrupados para', responsavelIds.length, 'responsáveis');
+            const response = await fetch('/api/registro-tempo/realizado-total', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                responsavel_id: responsavelIds, // Array de IDs
+                data_inicio: periodoAplicadoInicio,
+                data_fim: periodoAplicadoFim,
+                tarefa_id: filtrosAdicionais.tarefa_id,
+                cliente_id: filtrosAdicionais.cliente_id,
+                produto_id: filtrosAdicionais.produto_id,
+                agrupar_por_responsavel: true // Solicitar agrupamento pelo backend
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                // Mapear resultados agrupados de volta para as chaves do frontend
+                Object.entries(result.data).forEach(([responsavelId, dados]) => {
+                  const chave = mapChaveParaId.get(String(responsavelId));
+                  if (chave) {
+                    novosTempos[chave] = {
+                      realizado: dados.realizado || 0,
+                      pendente: dados.pendente || 0
+                    };
+                  }
+                });
+
+                // Preencher zerados para quem não retornou nada
+                responsavelIds.forEach(id => {
+                  const chave = mapChaveParaId.get(String(id));
+                  if (chave && !novosTempos[chave]) {
+                    novosTempos[chave] = { realizado: 0, pendente: 0 };
+                  }
+                });
+              }
+            } else {
+              console.error('Erro no batch de tempo realizado:', response.status);
+            }
+          } catch (error) {
+            console.error('Erro no batch de tempo realizado:', error);
+          }
+        }
+      } else {
+        // Fallback para outros tipos (cliente, produto, tarefa) -> Mantém lógica de promises individuais por enquanto
+        // ou usa lógica de buscarTempoRealizadoPorEntidade que já tenta ser eficiente
+        const promises = Array.from(entidadesUnicas.values()).map(async ({ tipo, id }) => {
+          const chave = `${tipo}_${id}`;
+          // Se já foi preenchido pelo batch (caso misto?), pular. Mas aqui é else principal.
+          const tempoRealizado = await buscarTempoRealizadoPorEntidade(
+            id,
+            tipo,
+            periodoAplicadoInicio,
+            periodoAplicadoFim,
+            filtrosAdicionais
+          );
+          return { chave, tempoRealizado };
+        });
+
+        const resultados = await Promise.all(promises);
+        resultados.forEach(({ chave, tempoRealizado }) => {
+          novosTempos[chave] = tempoRealizado;
+        });
+      }
 
       setTemposRealizadosPorEntidade(novosTempos);
     };
