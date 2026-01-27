@@ -7,7 +7,7 @@
  * @param {number} concurrencyLimit - Limite de requisições simultâneas (padrão: 5)
  * @returns {Promise<Array>} Array com os resultados na mesma ordem dos itens
  */
-export async function processBatch(items, asyncFn, concurrencyLimit = 5) {
+export async function processBatch(items, asyncFn, concurrencyLimit = 5, delayMs = 50) {
   if (!Array.isArray(items) || items.length === 0) {
     return [];
   }
@@ -26,14 +26,19 @@ export async function processBatch(items, asyncFn, concurrencyLimit = 5) {
   // Processar em chunks
   for (let i = 0; i < itemsArray.length; i += concurrencyLimit) {
     const chunk = itemsArray.slice(i, i + concurrencyLimit);
-    
+
     // Processar chunk atual em paralelo
-    const chunkPromises = chunk.map((item, chunkIndex) => 
+    const chunkPromises = chunk.map((item, chunkIndex) =>
       asyncFn(item, i + chunkIndex, itemsArray)
     );
-    
+
     const chunkResults = await Promise.all(chunkPromises);
     results.push(...chunkResults);
+
+    // Adicionar delay entre batches se não for o último e se tiver delay configurado
+    if (i + concurrencyLimit < itemsArray.length && delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
 
   return results;
