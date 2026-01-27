@@ -141,6 +141,16 @@ const DelegarTarefas = () => {
   // Estado para controlar expansão dos dashboards
   const [dashboardsExpandidos, setDashboardsExpandidos] = useState(false);
 
+  // Refs para controle de requisições duplicadas (Deduplicação / Circuit Breaker)
+  const fetchingCustosRef = useRef(new Set());
+  const failedCustosRef = useRef(new Set());
+  const fetchingHorasRef = useRef(new Set());
+  const failedHorasRef = useRef(new Set());
+  const fetchingProductsRef = useRef(new Set());
+  const failedProductsRef = useRef(new Set());
+  const fetchingTasksRef = useRef(new Set());
+  const failedTasksRef = useRef(new Set());
+
   // Estados do DetailSideCard (EXATAMENTE como na referência Contas Bancárias)
   const [detailCard, setDetailCard] = useState(null); // { entidadeId, tipo, dados }
   const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
@@ -940,7 +950,17 @@ const DelegarTarefas = () => {
 
   // Buscar horas contratadas por responsável
   const buscarHorasContratadasPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
+    // Chave única para a requisição (incluir datas para diferenciar períodos)
+    const requestKey = `${responsavelId}_${dataInicio}_${dataFim}`;
+
+    // Verificar se já está buscando ou se já falhou
+    if (fetchingHorasRef.current.has(requestKey) || failedHorasRef.current.has(requestKey)) {
+      return null;
+    }
+
     try {
+      fetchingHorasRef.current.add(requestKey);
+
       const params = new URLSearchParams({
         membro_id: responsavelId
       });
@@ -952,6 +972,11 @@ const DelegarTarefas = () => {
         headers: { 'Accept': 'application/json' }
       });
 
+      if (response.status === 401 || response.status === 503) {
+        failedHorasRef.current.add(requestKey);
+        return null;
+      }
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -960,11 +985,17 @@ const DelegarTarefas = () => {
             tipo_contrato: result.data.tipo_contrato || null
           };
         }
+      } else {
+        // Se falhou com outro erro, marcar como falha para não insistir
+        failedHorasRef.current.add(requestKey);
       }
       return null;
     } catch (error) {
       console.error('Erro ao buscar horas contratadas por responsável:', error);
+      failedHorasRef.current.add(requestKey);
       return null;
+    } finally {
+      fetchingHorasRef.current.delete(requestKey);
     }
   };
 
@@ -1603,79 +1634,155 @@ const DelegarTarefas = () => {
       if (reg.responsavel_id) colaboradoresIds.add(String(reg.responsavel_id));
     });
 
-    const novosNomes = { ...nomesCache };
+    // Clone atual do cache não é confiável pois pode estar desatualizado no closure
+    // Vamos coletar apenas o que VIER DE NOVO e atualizar com setNomesCache(prev => ...)
+    const novosNomes = {
+      produtos: {},
+      tarefas: {},
+      clientes: {},
+      colaboradores: {}
+    };
+    let houveMudancas = false;
 
-    // Carregar nomes de produtos
+    // --- PRODUTOS ---
     if (produtosIds.size > 0) {
-      try {
-        const produtosArray = Array.from(produtosIds);
-        for (const produtoId of produtosArray) {
-          if (!novosNomes.produtos[produtoId]) {
-            const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
-              credentials: 'include',
-              headers: { 'Accept': 'application/json' }
-            });
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                novosNomes.produtos[produtoId] = result.data.nome || `Produto #${produtoId}`;
-              }
+      // Filtrar o que precisa buscar: não está no cache E não está buscando E não falhou
+      const produtosParaBuscar = Array.from(produtosIds).filter(id =>
+        !nomesCache.produtos[id] &&
+        !fetchingProductsRef.current.has(id) &&
+        !failedProductsRef.current.has(id)
+      );
+
+      if (produtosParaBuscar.length > 0) {
+        // Marcar como fetching
+        produtosParaBuscar.forEach(id => fetchingProductsRef.current.add(id));
+
+        try {
+          const idsParam = produtosParaBuscar.join(',');
+          const response = await fetch(`${API_BASE_URL}/produtos-por-ids-numericos?ids=${idsParam}`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          if (response.status === 401 || response.status === 503) {
+            produtosParaBuscar.forEach(id => failedProductsRef.current.add(id));
+          } else if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              Object.entries(result.data).forEach(([id, nome]) => {
+                novosNomes.produtos[String(id)] = nome;
+                houveMudancas = true;
+              });
             }
+            // Para as que não vieram (ids pedidos mas não retornados), marcar como falha para não buscar de novo
+            // ou definir um nome padrão. Vamos definir padrão para evitar loop ses a API retornar sucesso mas sem o dado.
+            produtosParaBuscar.forEach(id => {
+              if (!result.data || !result.data[id]) {
+                novosNomes.produtos[id] = `Produto #${id}`;
+                houveMudancas = true;
+              }
+            });
+          } else {
+            produtosParaBuscar.forEach(id => failedProductsRef.current.add(id));
           }
+        } catch (error) {
+          console.error('Erro ao buscar produtos em lote:', error);
+          produtosParaBuscar.forEach(id => failedProductsRef.current.add(id));
+        } finally {
+          produtosParaBuscar.forEach(id => fetchingProductsRef.current.delete(id));
         }
-      } catch (error) {
-        console.error('Erro ao carregar nomes de produtos:', error);
       }
     }
 
-    // Carregar nomes de tarefas
+    // --- TAREFAS ---
     if (tarefasIds.size > 0) {
-      try {
-        const tarefasArray = Array.from(tarefasIds);
-        for (const tarefaId of tarefasArray) {
-          if (!novosNomes.tarefas[tarefaId]) {
-            const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
-              credentials: 'include',
-              headers: { 'Accept': 'application/json' }
-            });
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                novosNomes.tarefas[tarefaId] = result.data.nome || `Tarefa #${tarefaId}`;
-              }
+      const tarefasParaBuscar = Array.from(tarefasIds).filter(id =>
+        !nomesCache.tarefas[id] &&
+        !fetchingTasksRef.current.has(id) &&
+        !failedTasksRef.current.has(id)
+      );
+
+      if (tarefasParaBuscar.length > 0) {
+        // Marcar como fetching
+        tarefasParaBuscar.forEach(id => fetchingTasksRef.current.add(id));
+
+        try {
+          const idsParam = tarefasParaBuscar.join(',');
+          const response = await fetch(`${API_BASE_URL}/tarefas-por-ids?ids=${idsParam}`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          if (response.status === 401 || response.status === 503) {
+            tarefasParaBuscar.forEach(id => failedTasksRef.current.add(id));
+          } else if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              Object.entries(result.data).forEach(([id, nome]) => {
+                novosNomes.tarefas[String(id)] = nome;
+                houveMudancas = true;
+              });
             }
+            // Fallback
+            tarefasParaBuscar.forEach(id => {
+              if (!result.data || !result.data[id]) {
+                novosNomes.tarefas[id] = `Tarefa #${id}`;
+                houveMudancas = true;
+              }
+            });
+          } else {
+            tarefasParaBuscar.forEach(id => failedTasksRef.current.add(id));
           }
+        } catch (error) {
+          console.error('Erro ao buscar tarefas em lote:', error);
+          tarefasParaBuscar.forEach(id => failedTasksRef.current.add(id));
+        } finally {
+          tarefasParaBuscar.forEach(id => fetchingTasksRef.current.delete(id));
         }
-      } catch (error) {
-        console.error('Erro ao carregar nomes de tarefas:', error);
       }
     }
 
-    // Carregar nomes de clientes (já temos no estado clientes)
+    // --- CLIENTES e COLABORADORES (Local) ---
     if (clientesIds.size > 0) {
       clientesIds.forEach(clienteId => {
-        if (!novosNomes.clientes[clienteId]) {
+        if (!nomesCache.clientes[clienteId]) {
           const cliente = clientes.find(c => String(c.id) === String(clienteId));
           if (cliente) {
             novosNomes.clientes[clienteId] = cliente.nome;
+            houveMudancas = true;
           }
         }
       });
     }
 
-    // Carregar nomes de colaboradores (já temos no estado colaboradores)
     if (colaboradoresIds.size > 0) {
       colaboradoresIds.forEach(colabId => {
-        if (!novosNomes.colaboradores[colabId]) {
+        if (!nomesCache.colaboradores[colabId]) {
           const colab = colaboradores.find(c => String(c.id) === String(colabId));
           if (colab) {
             novosNomes.colaboradores[colabId] = colab.cpf ? `${colab.nome} (${colab.cpf})` : colab.nome;
+            houveMudancas = true;
+          } else {
+            // Tentar encontrar em 'membros' se disponível
+            const membro = membros.find(m => String(m.id) === String(colabId));
+            if (membro) {
+              novosNomes.colaboradores[colabId] = membro.nome;
+              houveMudancas = true;
+            }
           }
         }
       });
     }
 
-    setNomesCache(novosNomes);
+    if (houveMudancas) {
+      setNomesCache(prev => ({
+        ...prev,
+        produtos: { ...prev.produtos, ...novosNomes.produtos },
+        tarefas: { ...prev.tarefas, ...novosNomes.tarefas },
+        clientes: { ...prev.clientes, ...novosNomes.clientes },
+        colaboradores: { ...prev.colaboradores, ...novosNomes.colaboradores }
+      }));
+    }
   };
 
   // Funções auxiliares para obter nomes
@@ -1833,7 +1940,16 @@ const DelegarTarefas = () => {
 
   // Buscar custo mais recente por responsável
   const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
+    // Chave única para a requisição
+    const requestKey = `${responsavelId}_${dataInicio}_${dataFim}`;
+
+    if (fetchingCustosRef.current.has(requestKey) || failedCustosRef.current.has(requestKey)) {
+      return null;
+    }
+
     try {
+      fetchingCustosRef.current.add(requestKey);
+
       const params = new URLSearchParams({
         membro_id: responsavelId
       });
@@ -1845,16 +1961,26 @@ const DelegarTarefas = () => {
         headers: { 'Accept': 'application/json' }
       });
 
+      if (response.status === 401 || response.status === 503) {
+        failedCustosRef.current.add(requestKey);
+        return null;
+      }
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
           return result.data.custo_hora || null;
         }
+      } else {
+        failedCustosRef.current.add(requestKey);
       }
       return null;
     } catch (error) {
       console.error('Erro ao buscar custo por responsável:', error);
+      failedCustosRef.current.add(requestKey);
       return null;
+    } finally {
+      fetchingCustosRef.current.delete(requestKey);
     }
   };
 
