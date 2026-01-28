@@ -1291,9 +1291,9 @@ const DelegarTarefas = () => {
 
     console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Função chamada');
     setLoading(true);
-    // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
-    // Isso garante que os dashboards não sejam exibidos com dados parciais
-    setDadosAuxiliaresCarregados(false);
+    // NÃO marcar dados auxiliares como não carregados incondicionalmente
+    // Deixar a lógica incremental decidir ou os filtros críticos limparem o cache
+    // setDadosAuxiliaresCarregados(false);
 
     // Resetar grupos expandidos quando recarregar os dados
     setGruposExpandidos(new Set());
@@ -3000,17 +3000,23 @@ const DelegarTarefas = () => {
         fim: periodoFim
       };
 
-      // Limpar caches quando filtros detalhados mudarem para garantir consistência
-      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
-      console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
+      // Limpar caches APENAS se houver mudança de período ou filtros críticos que invalidam o cache
+      // Para mudanças de filtro de RESPONSÁVEL, o cache incremental lidará com isso sem limpar tudo
 
-      // NÃO limpar horas contratadas aqui, pois agora usamos cache inteligente
-      // setHorasContratadasPorResponsavel({});
-      // setTipoContratoPorResponsavel({});
+      const periodoMudou = configuracaoPeriodo.inicio !== filtrosUltimosAplicados?.periodoInicio ||
+        configuracaoPeriodo.fim !== filtrosUltimosAplicados?.periodoFim;
 
-      setTempoEstimadoTotalPorResponsavel({});
-      // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
-      setDadosAuxiliaresCarregados(false);
+      const filtrosCriticosMudaram = JSON.stringify(valoresSelecionados.cliente) !== JSON.stringify(filtrosUltimosAplicados?.filtroClienteSelecionado) ||
+        JSON.stringify(valoresSelecionados.produto) !== JSON.stringify(filtrosUltimosAplicados?.filtroProdutoSelecionado);
+
+      if (periodoMudou || filtrosCriticosMudaram) {
+        console.log('🔄 [FILTROS-DETALHADOS] Filtros críticos mudaram, limpando caches parciais');
+        setTempoEstimadoTotalPorResponsavel({});
+        // setDadosAuxiliaresCarregados(false); // Manter carregados para evitar piscar, a função load vai atualizar
+      } else {
+        console.log('⚡ [FILTROS-DETALHADOS] Apenas responsáveis mudaram, mantendo cache e buscando incremental');
+        // NÃO limpar caches aqui
+      }
 
       // Recarregar registros com os novos valores selecionados e filtros adicionais
       loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
