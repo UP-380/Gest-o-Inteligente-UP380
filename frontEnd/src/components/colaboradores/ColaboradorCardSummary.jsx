@@ -48,9 +48,11 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
           headers: { 'Accept': 'application/json' }
         });
 
-        // Regra 5: Tratar 503 como fallback silencioso
         if (response.status === 503) {
           console.warn(`[ColaboradorCardSummary] Servidor sobrecarregado (503) ao buscar custo do colaborador ${colaboradorId}.`);
+          if (typeof window.setBackendOverloaded === 'function') {
+            window.setBackendOverloaded(true);
+          }
           return;
         }
 

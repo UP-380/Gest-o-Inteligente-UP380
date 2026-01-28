@@ -168,17 +168,37 @@ const RelatoriosColaboradores = () => {
 
   // Gerenciamento de sinalização global para controle de carga e intervalos
   useEffect(() => {
-    // Suspender intervalos globais (como do TimerAtivo) durante carregamento ou aplicação de filtros
-    window.suspendTimerIntervals = !!loading;
+    // Inicializar função global para disparar status de sobrecarga
+    if (typeof window.setBackendOverloaded !== 'function') {
+      window.setBackendOverloaded = (value) => {
+        if (value && !window.backendOverloaded) {
+          console.warn('[Circuit Breaker] Backend reportou 503. Ativando modo de contenção (30s).');
+          window.backendOverloaded = true;
+          // Forçar remontagem ou re-renderização de sinalizações se necessário
+          // Aqui usamos apenas a mutação global, mas os componentes que dependem
+          // das flags globais em seus efeitos já estarão observando.
+
+          // Limpar automaticamente após 30 segundos
+          setTimeout(() => {
+            console.log('[Circuit Breaker] Desativando modo de contenção após período de cooldown.');
+            window.backendOverloaded = false;
+          }, 30000);
+        } else if (!value) {
+          window.backendOverloaded = false;
+        }
+      };
+    }
+
+    // Suspender intervalos globais (como do TimerAtivo) durante carregamento ou se o backend estiver sobrecarregado
+    window.suspendTimerIntervals = !!loading || !!window.backendOverloaded;
 
     // Bloqueio de buscas detalhadas pesadas (custos/estimados) se o filtro de colaborador estiver ativo
-    // mas nenhum colaborador específico tiver sido selecionado.
-    // Isso evita o efeito N+1 em listas grandes sem contexto específico.
-    const isRelatorioResponsavel = true; // Esta página é um relatório de responsabilidade
+    // mas nenhum colaborador específico tiver sido selecionado, ou se o backend já estiver sobrecarregado.
+    const isRelatorioResponsavel = true;
     const hasResponsavelSelecionado = filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true);
 
-    // Bloquear chamadas detalhadas se filtros já foram aplicados e não há responsável selecionado
-    window.blockDetailedFetches = isRelatorioResponsavel && !hasResponsavelSelecionado && !!filtrosAplicados;
+    // Bloquear chamadas detalhadas se filtros já foram aplicados e não há responsável selecionado OU backend sobrecarregado
+    window.blockDetailedFetches = (isRelatorioResponsavel && !hasResponsavelSelecionado && !!filtrosAplicados) || !!window.backendOverloaded;
 
     return () => {
       window.suspendTimerIntervals = false;

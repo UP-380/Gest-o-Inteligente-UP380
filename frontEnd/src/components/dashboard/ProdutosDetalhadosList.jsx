@@ -140,6 +140,9 @@ const ProdutosDetalhadosList = ({
                 // Regra 5: Tratar 503 como fallback silencioso e abortar
                 if (response.status === 503) {
                   console.warn(`[ProdutosDetalhadosList] Servidor sobrecarregado (503) para tarefa ${tarefa.id}. Abortando.`);
+                  if (typeof window.setBackendOverloaded === 'function') {
+                    window.setBackendOverloaded(true);
+                  }
                   abortadoPorErro = true;
                   return 0;
                 }

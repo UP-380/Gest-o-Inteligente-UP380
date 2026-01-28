@@ -108,6 +108,9 @@ const TarefasContent = ({ registros }) => {
                 // Regra 5: Tratar 503 como fallback silencioso e abortar
                 if (response.status === 503) {
                   console.warn(`[TarefasContent] Servidor sobrecarregado (503) para colaborador ${colaboradorId}. Abortando.`);
+                  if (typeof window.setBackendOverloaded === 'function') {
+                    window.setBackendOverloaded(true);
+                  }
                   abortadoPorErro = true;
                   return null;
                 }

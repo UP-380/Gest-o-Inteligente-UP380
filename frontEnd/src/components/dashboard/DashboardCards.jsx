@@ -266,6 +266,9 @@ const DashboardCards = ({
                 // Regra 5: Tratar 503 como fallback silencioso e abortar ciclo
                 if (response.status === 503) {
                   console.warn(`[DashboardCards] Servidor sobrecarregado (503) ao buscar custo do colaborador ${colaboradorId}. Abortando ciclo.`);
+                  if (typeof window.setBackendOverloaded === 'function') {
+                    window.setBackendOverloaded(true);
+                  }
                   abortadoPorErro = true;
                   return null;
                 }
