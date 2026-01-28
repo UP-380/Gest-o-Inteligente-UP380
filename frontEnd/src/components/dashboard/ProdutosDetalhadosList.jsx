@@ -83,8 +83,8 @@ const ProdutosDetalhadosList = ({
 
     // Buscar tempos realizados diretamente (EXATAMENTE igual ao TarefasDetalhadasList)
     const buscarTemposRealizados = async () => {
-      // Regra 1: Bloqueio imediato se solicitado globalmente
-      if (window.blockDetailedFetches) {
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
+      if (window.blockDetailedFetches || window.backendOverloaded === true) {
         return;
       }
 

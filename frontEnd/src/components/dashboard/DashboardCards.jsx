@@ -225,8 +225,8 @@ const DashboardCards = ({
   // Carregar custos para todos os colaboradores únicos dos registros
   useEffect(() => {
     const carregarCustos = async () => {
-      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável)
-      if (window.blockDetailedFetches) {
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
+      if (window.blockDetailedFetches || window.backendOverloaded === true) {
         return;
       }
 

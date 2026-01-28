@@ -29,7 +29,7 @@ const TimerAtivo = () => {
 
   // Buscar registro ativo
   const buscarRegistroAtivo = async () => {
-    if (!usuario || !usuario.id) {
+    if (!usuario || !usuario.id || window.backendOverloaded === true) {
       return;
     }
 
@@ -77,6 +77,11 @@ const TimerAtivo = () => {
         } else {
           window.location.href = '/login';
         }
+      } else if (response.status === 503) {
+        console.warn('[TimerAtivo] Servidor sobrecarregado (503). Ativando Circuit Breaker.');
+        if (typeof window.setBackendOverloaded === 'function') {
+          window.setBackendOverloaded(true);
+        }
       } else {
         const errorText = await response.text();
         console.error('[TimerAtivo] Erro na resposta:', response.status, errorText);
@@ -88,6 +93,7 @@ const TimerAtivo = () => {
 
   // Buscar informações da tarefa (nome e cliente)
   const buscarInformacoesTarefa = async (registro) => {
+    if (window.backendOverloaded === true) return;
     try {
       // Buscar nome da tarefa
       if (registro.tarefa_id) {

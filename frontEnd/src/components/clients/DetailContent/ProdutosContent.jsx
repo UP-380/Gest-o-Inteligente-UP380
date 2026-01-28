@@ -7,6 +7,12 @@ const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
 
   useEffect(() => {
     const carregarProdutos = async () => {
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
+      if (window.blockDetailedFetches || window.backendOverloaded === true) {
+        setLoading(false);
+        return;
+      }
+
       if (!registros || registros.length === 0) {
         setProdutos([]);
         setLoading(false);

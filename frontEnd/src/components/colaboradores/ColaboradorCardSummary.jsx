@@ -33,8 +33,8 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
     const buscarCusto = async () => {
       if (!colaboradorId) return;
 
-      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável)
-      if (window.blockDetailedFetches) {
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
+      if (window.blockDetailedFetches || window.backendOverloaded === true) {
         return;
       }
 

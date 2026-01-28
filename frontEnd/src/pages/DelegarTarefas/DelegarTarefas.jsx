@@ -398,6 +398,42 @@ const DelegarTarefas = () => {
     setDashboardsExpandidos(false);
   }, [filtrosAplicados]);
 
+  // Gerenciamento de sinalização global para controle de carga e intervalos (Circuit Breaker)
+  useEffect(() => {
+    // Inicializar função global para disparar status de sobrecarga se não existir
+    if (typeof window.setBackendOverloaded !== 'function') {
+      window.setBackendOverloaded = (value) => {
+        if (value && !window.backendOverloaded) {
+          console.warn('[Circuit Breaker] Backend reportou 503 detectado em DelegarTarefas. Ativando modo de contenção (30s).');
+          window.backendOverloaded = true;
+
+          // Limpar automaticamente após 30 segundos
+          setTimeout(() => {
+            console.log('[Circuit Breaker] Desativando modo de contenção após período de cooldown.');
+            window.backendOverloaded = false;
+          }, 30000);
+        } else if (!value === false) { // Se explicitamente false
+          window.backendOverloaded = false;
+        }
+      };
+    }
+
+    // Suspender intervalos globais (como do TimerAtivo) durante carregamento ou se o backend estiver sobrecarregado
+    window.suspendTimerIntervals = !!loading || !!window.backendOverloaded;
+
+    // Bloqueio de buscas detalhadas pesadas (custos/estimados) se o filtro de colaborador estiver ativo
+    // mas nenhum colaborador específico tiver sido selecionado, ou se o backend já estiver sobrecarregado.
+    const isRelatorioResponsavel = filtros.responsavel;
+    const hasResponsavelSelecionado = filtroResponsavelSelecionado && (Array.isArray(filtroResponsavelSelecionado) ? filtroResponsavelSelecionado.length > 0 : true);
+
+    // Bloquear chamadas detalhadas se filtros já foram aplicados e não há responsável selecionado OU backend sobrecarregado
+    window.blockDetailedFetches = (isRelatorioResponsavel && !hasResponsavelSelecionado && !!filtrosAplicados) || !!window.backendOverloaded;
+
+    return () => {
+      window.suspendTimerIntervals = false;
+    };
+  }, [loading, filtros.responsavel, filtroResponsavelSelecionado, filtrosAplicados]);
+
   // Carregar produtos e tarefas quando necessário
   const loadProdutos = async () => {
     try {
@@ -940,6 +976,7 @@ const DelegarTarefas = () => {
 
   // Buscar horas contratadas por responsável
   const buscarHorasContratadasPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
+    if (window.backendOverloaded === true) return null;
     try {
       const params = new URLSearchParams({
         membro_id: responsavelId
@@ -997,6 +1034,7 @@ const DelegarTarefas = () => {
 
   // Carregar horas contratadas APENAS para responsáveis dos resultados filtrados
   const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
+    if (window.backendOverloaded === true) return;
     const responsaveisIds = new Set();
 
     // Adicionar APENAS responsáveis dos registros agrupados (resultados filtrados)
@@ -1148,6 +1186,24 @@ const DelegarTarefas = () => {
 
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
+    // Regra 1: Bloqueio imediato se o backend estiver sobrecarregado
+    if (window.backendOverloaded === true) {
+      console.warn('🔴 [BLOQUEIO-CIRCUIT-BREAKER] Backend sobrecarregado. Abortando loadRegistrosTempoEstimado.');
+      return;
+    }
+
+    // Identificar filtros e valores a usar para validação preventiva
+    const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
+    const valoresAUsar = valoresSelecionados || {
+      responsavel: filtroResponsavelSelecionado
+    };
+
+    // Regra 2: Bloqueio preventivo se o filtro de responsável está ativo mas nenhum selecionado (busca muito pesada)
+    if (filtrosAUsar.responsavel === true && (!valoresAUsar.responsavel || (Array.isArray(valoresAUsar.responsavel) && valoresAUsar.responsavel.length === 0))) {
+      console.warn('🟠 [BLOQUEIO-PREVENTIVO] Filtro de responsável ativo sem seleção. Abortando chamada para proteger o backend.');
+      return;
+    }
+
     console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Função chamada');
     setLoading(true);
     // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
@@ -1317,6 +1373,15 @@ const DelegarTarefas = () => {
 
       if (response.status === 401) {
         window.location.href = '/login';
+        return;
+      }
+
+      if (response.status === 503) {
+        console.warn('🔴 [LOAD-REGISTROS-TEMPO-ESTIMADO] Servidor sobrecarregado (503). Ativando Circuit Breaker.');
+        if (typeof window.setBackendOverloaded === 'function') {
+          window.setBackendOverloaded(true);
+        }
+        setLoading(false);
         return;
       }
 
@@ -1503,6 +1568,15 @@ const DelegarTarefas = () => {
 
               if (responseTotal.status === 401) {
                 window.location.href = '/login';
+                return;
+              }
+
+              if (responseTotal.status === 503) {
+                console.warn('🔴 [LOAD-REGISTROS-TEMPO-ESTIMADO-TOTAL] Servidor sobrecarregado (503). Ativando Circuit Breaker.');
+                if (typeof window.setBackendOverloaded === 'function') {
+                  window.setBackendOverloaded(true);
+                }
+                setTempoEstimadoTotalPorResponsavel({});
                 return;
               }
 
@@ -1833,6 +1907,7 @@ const DelegarTarefas = () => {
 
   // Buscar custo mais recente por responsável
   const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
+    if (window.backendOverloaded === true) return null;
     try {
       const params = new URLSearchParams({
         membro_id: responsavelId
@@ -2141,6 +2216,7 @@ const DelegarTarefas = () => {
 
   // Função para buscar tempo realizado total de uma entidade (responsável, produto, tarefa, cliente)
   const buscarTempoRealizadoPorEntidade = useCallback(async (entidadeId, filtroPrincipal, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
+    if (window.backendOverloaded === true) return { realizado: 0, pendente: 0 };
     try {
       if (!periodoInicio || !periodoFim) {
         return { realizado: 0, pendente: 0 };
