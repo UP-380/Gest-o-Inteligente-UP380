@@ -157,6 +157,9 @@ const DelegarTarefas = () => {
   // Ref para armazenar valores selecionados anteriores (para deteção de mudanças incrementais)
   const prevValoresSelecionadosRef = useRef({});
 
+  // Ref para armazenar o último hash de contexto global (período + cliente + produto)
+  const lastGlobalContextHashRef = useRef('');
+
   // Controle de concorrência para requisições de Tempo Realizado Total
   const tempoRealizadoRequestControllerRef = useRef(null);
   const tempoRealizadoDebounceRef = useRef(null);
@@ -1735,39 +1738,41 @@ const DelegarTarefas = () => {
             if (responsaveisAtuais.length > 0 && idsParaBuscar.size === 0) {
               console.log('✅ [CACHE-ESTIMADO] Todos os tempos estimados recuperados do cache.');
             } else {
-              // Buscar do backend SOMENTE se necessário com CONTROLE DE CONCORRÊNCIA
+              // CAMADA DE PROTEÇÃO CONTRA SOBRECARGA (HASH CONTEXT)
+              // O Tempo Realizado Total/Estimado Total Global depende de Período, Cliente e Produto.
+              // Mudanças puramente de seleção de responsáveis NÃO devem disparar recálculo global pesado se o contexto não mudou.
 
-              // CLONE os parâmetros para não afetar outras lógicas
-              const paramsParaBusca = new URLSearchParams(paramsTotal.toString());
+              const currentGlobalContextHash = `${periodoAUsar.inicio}_${periodoAUsar.fim}_${JSON.stringify(valoresAUsar.cliente)}_${JSON.stringify(valoresAUsar.produto)}`;
+              const contextChanged = currentGlobalContextHash !== lastGlobalContextHashRef.current;
 
-              // Se estamos filtrando por responsável, substituir a lista completa APENAS pelos que faltam
-              if (responsaveisAtuais.length > 0 && idsParaBuscar.size > 0) {
-                paramsParaBusca.delete('responsavel_id'); // Remove a lista completa
-                idsParaBuscar.forEach(id => paramsParaBusca.append('responsavel_id', id));
-                console.log(`🔄 [CACHE-ESTIMADO] Buscando delta para ${idsParaBuscar.size} responsáveis (Debounced)`);
-              } else if (responsaveisAtuais.length === 0) {
-                // Busca global (sem filtro de responsável)
-                console.log(`🔄 [CACHE-ESTIMADO] Buscando totais globais (Debounced)`);
-              }
+              if (contextChanged) {
+                console.log('🔄 [CONTEXT-CHANGE] Contexto global mudou. Permitindo busca de totais.');
+                lastGlobalContextHashRef.current = currentGlobalContextHash;
 
-              // Disparar busca controlada
-              buscarTempoRealizadoTotalDebounced(paramsParaBusca, (novosDadosFunc) => {
-                setTempoEstimadoTotalPorResponsavel(prev => {
-                  const novosDados = typeof novosDadosFunc === 'function' ? novosDadosFunc(prev) : novosDadosFunc;
+                // Se o contexto mudou, buscamos tudo
+                const paramsParaBusca = new URLSearchParams(paramsTotal.toString());
 
-                  // Atualizar cache persistente também
-                  if (novosDados) {
-                    Object.entries(novosDados).forEach(([id, tempo]) => {
-                      // Filtrar apenas o que veio novo para não invalidar todo o cache
-                      // Simplificação: Atualiza se veio na resposta
+                buscarTempoRealizadoTotalDebounced(paramsParaBusca, (novosDadosFunc) => {
+                  setTempoEstimadoTotalPorResponsavel(prev => {
+                    const novosDados = typeof novosDadosFunc === 'function' ? novosDadosFunc(prev) : novosDadosFunc;
+                    if (novosDados) {
                       const periodoKeyInScope = `${periodoAUsar.inicio}_${periodoAUsar.fim}`;
-                      if (!tempoEstimadoCacheRef.current[id]) tempoEstimadoCacheRef.current[id] = {};
-                      tempoEstimadoCacheRef.current[id][periodoKeyInScope] = tempo;
-                    });
-                  }
-                  return novosDados;
+                      Object.entries(novosDados).forEach(([id, tempo]) => {
+                        if (!tempoEstimadoCacheRef.current[id]) tempoEstimadoCacheRef.current[id] = {};
+                        tempoEstimadoCacheRef.current[id][periodoKeyInScope] = tempo;
+                      });
+                    }
+                    return novosDados;
+                  });
                 });
-              });
+              } else {
+                // Se contexto global inalterado, bloqueamos a busca pesada
+                // Apenas logamos que foi evitada
+                console.log('🛡️ [PROTECAO-SOBRECARGA] Contexto global inalterado (apenas responsáveis). Bloqueando busca pesada.');
+
+                // Se precisar mesmo buscar o delta incremental (apenas 1 responsável), 
+                // deveria ser um endpoint leve separado, mas para resolver o 503 agora, bloqueamos.
+              }
             }
           }
         } else {
