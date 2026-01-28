@@ -20,3 +20,8 @@
   }
 }
 
+@media (max-width: 480px) {
+  .card-container {
+    padding: 0;
+  }
+}

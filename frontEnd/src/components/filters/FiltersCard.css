@@ -172,4 +172,46 @@
   border-color: #545b62;
 }
 
+/* Responsividade */
+@media (max-width: 768px) {
+  .exposed-filters-section {
+    padding: 16px;
+  }
+
+  .filters-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .filter-group {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .apply-filters-btn,
+  .clear-filters-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .exposed-filters-section {
+    padding: 12px;
+  }
+
+  .filter-info-message {
+    font-size: 13px;
+  }
+
+  .filters-row {
+    gap: 12px;
+  }
+}
+
 

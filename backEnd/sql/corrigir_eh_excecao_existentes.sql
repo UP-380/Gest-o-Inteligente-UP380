@@ -92,3 +92,8 @@ WHERE v1.cliente_id IS NOT NULL
   AND v1.tarefa_id IS NOT NULL
 LIMIT 20;
 
+
+
+
+
+

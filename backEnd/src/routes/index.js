@@ -13,6 +13,7 @@ const tarefasController = require('../controllers/tarefas.controller');
 const tarefaController = require('../controllers/tarefa.controller');
 const subtarefaController = require('../controllers/subtarefa.controller');
 const tipoTarefaController = require('../controllers/tipo-tarefa.controller');
+const tipoContratoMembroController = require('../controllers/tipo-contrato-membro.controller');
 const dashboardController = require('../controllers/dashboard.controller');
 const colaboradoresController = require('../controllers/colaboradores.controller');
 const custoColaboradorVigenciaController = require('../controllers/custo-membro-vigencia.controller');
@@ -106,9 +107,17 @@ router.get('/api/dashboard-colaboradores', requireAuth, dashboardController.getD
 router.get('/api/relatorios-colaboradores', requireAuth, dashboardController.getDashboardColaboradores);
 router.get('/api/debug-tarefa/:tarefaId', requireAuth, dashboardController.debugTarefa);
 
-// Rotas de Colaboradores (CRUD completo)
+// Rotas de Tipos de Contrato (CRUD completo)
 // IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
+router.get('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.getTiposContrato);
+router.get('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.getTipoContratoPorId);
+router.post('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.criarTipoContrato);
+router.put('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.atualizarTipoContrato);
+router.delete('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.deletarTipoContrato);
+// Rota antiga mantida para compatibilidade (retorna apenas id e nome)
 router.get('/api/tipos-contrato', requireAuth, colaboradoresController.getTiposContrato);
+
+// Rotas de Colaboradores (CRUD completo)
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
 router.post('/api/colaboradores', requireAuth, colaboradoresController.criarColaborador);
@@ -119,6 +128,7 @@ router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.del
 router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
 router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
+router.get('/api/custo-colaborador-vigencia/relatorio', requireAuth, custoColaboradorVigenciaController.getColaboradoresComUltimaVigencia);
 router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
 router.get('/api/custo-colaborador-vigencia/membro/:membro_id', requireAuth, custoColaboradorVigenciaController.getCustosPorMembro);
 router.post('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.criarCustoColaboradorVigencia);
@@ -258,6 +268,13 @@ router.get('/api/tipo-tarefa/:id', requireAuth, tipoTarefaController.getTipoTare
 router.post('/api/tipo-tarefa', requireAuth, tipoTarefaController.criarTipoTarefa);
 router.put('/api/tipo-tarefa/:id', requireAuth, tipoTarefaController.atualizarTipoTarefa);
 router.delete('/api/tipo-tarefa/:id', requireAuth, tipoTarefaController.deletarTipoTarefa);
+
+// Rotas de Tipo de Contrato Membro (cp_tipo_contrato_membro) (CRUD completo)
+router.get('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.getTiposContrato);
+router.get('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.getTipoContratoPorId);
+router.post('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.criarTipoContrato);
+router.put('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.atualizarTipoContrato);
+router.delete('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.deletarTipoContrato);
 
 // Rotas de Cliente Conta Bancária (CRUD completo)
 router.get('/api/clientes/:cliente_id/contas-bancarias', requireAuth, clienteContaBancariaController.getContasBancarias);

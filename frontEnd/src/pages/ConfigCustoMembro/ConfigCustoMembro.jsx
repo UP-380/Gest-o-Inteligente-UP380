@@ -1,24 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
 import CardContainer from '../../components/common/CardContainer';
 import { useToast } from '../../hooks/useToast';
-import DatePicker from '../../components/vigencia/DatePicker';
 import './ConfigCustoMembro.css';
 
 const API_BASE_URL = '/api';
 
 const ConfigCustoMembro = () => {
+  const navigate = useNavigate();
   const showToast = useToast();
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [formErrors, setFormErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [tiposContrato, setTiposContrato] = useState([]);
 
   // Carregar configurações
   const carregarConfigs = async () => {
@@ -57,181 +54,15 @@ const ConfigCustoMembro = () => {
     }
   };
 
-  useEffect(() => {
-    carregarConfigs();
-  }, []);
-
-  // Abrir formulário para criar novo
-  const abrirFormNovo = () => {
-    setEditingId(null);
-    // Inicializar com valores vazios para todos os campos
-    const initialData = {};
-    campos.forEach(campo => {
-      initialData[campo.key] = campo.type === 'number' ? '' : '';
-    });
-    setFormData(initialData);
-    setFormErrors({});
-    setShowForm(true);
-  };
-
-  // Abrir formulário para editar
-  const abrirFormEditar = (item) => {
-    setEditingId(item.id);
-    // Criar objeto com todos os campos do item, exceto id, created_at, updated_at
-    const { id, created_at, updated_at, ...rest } = item;
-    // Formatar data de vigência para o input
-    const formData = { ...rest };
-    
-    // Compatibilidade: se inss_patronal não existir mas insspatronal existir, usar insspatronal
-    if (formData.inss_patronal === null || formData.inss_patronal === undefined) {
-      if (item.insspatronal !== null && item.insspatronal !== undefined) {
-        formData.inss_patronal = item.insspatronal;
-      }
-    }
-    
-    if (formData.vigencia) {
-      // Converter data ISO para formato YYYY-MM-DD (formato do input type="date")
-      let dateOnly = formData.vigencia;
-      if (dateOnly.includes('T')) {
-        dateOnly = dateOnly.split('T')[0];
-      }
-      formData.vigencia = dateOnly;
-    }
-    // Formatar valores numéricos para exibição
-    campos.forEach(campo => {
-      if (campo.key !== 'vigencia') {
-        if (formData[campo.key] !== null && formData[campo.key] !== undefined && formData[campo.key] !== '') {
-          const valor = parseFloat(formData[campo.key]);
-          if (!isNaN(valor)) {
-            // Para números inteiros (dias_uteis), não adicionar casas decimais
-            if (campo.type === 'number') {
-              formData[campo.key] = Math.round(valor).toString();
-            } else if (campo.type === 'percent') {
-              // Exibir porcentagem com 2 casas decimais e %
-              formData[campo.key] = valor.toFixed(2).replace('.', ',') + '%';
-            } else {
-              // Exibir com 2 casas decimais (valor monetário)
-              formData[campo.key] = valor.toFixed(2).replace('.', ',');
-            }
-          } else {
-            formData[campo.key] = '';
-          }
-        } else {
-          // Se for null, undefined ou vazio, inicializar como string vazia
-          formData[campo.key] = '';
-        }
-      }
-    });
-    setFormData(formData);
-    setFormErrors({});
-    setShowForm(true);
-  };
-
-  // Fechar formulário
-  const fecharForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setFormData({});
-    setFormErrors({});
-  };
-
-  // Salvar (criar ou atualizar)
-  const handleSalvar = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setFormErrors({});
-
-    // Validações
-    const errors = {};
-    if (!formData.vigencia) {
-      errors.vigencia = 'Vigência é obrigatória';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      setSubmitting(false);
-      return;
-    }
-
+  // Carregar tipos de contrato
+  const carregarTiposContrato = async () => {
     try {
-      const url = editingId
-        ? `${API_BASE_URL}/config-custo-colaborador/${editingId}`
-        : `${API_BASE_URL}/config-custo-colaborador`;
-
-      const method = editingId ? 'PUT' : 'POST';
-
-      // Preparar dados para envio (converter porcentagens para números)
-      const dadosParaEnvio = { ...formData };
-      const novosErros = {};
-      
-      campos.forEach(campo => {
-        if (campo.key !== 'vigencia') {
-          // Converter vírgula para ponto e validar
-          let valorLimpo = '';
-          const valorOriginal = dadosParaEnvio[campo.key];
-          
-          // Verificar se o valor existe e não é vazio
-          if (valorOriginal !== null && valorOriginal !== undefined && valorOriginal !== '') {
-            // Remover % se for campo percentual
-            if (campo.type === 'percent') {
-              valorLimpo = String(valorOriginal).replace(/%/g, '').trim().replace(',', '.');
-            } else {
-              valorLimpo = String(valorOriginal).replace(',', '.');
-            }
-          }
-          
-          // Se o valor estiver vazio, definir como null
-          if (valorLimpo === '' || valorLimpo === null || valorLimpo === undefined) {
-            dadosParaEnvio[campo.key] = null;
-          } else {
-            const valorNumerico = parseFloat(valorLimpo);
-            if (isNaN(valorNumerico) || valorNumerico < 0) {
-              // Validação diferente para porcentagem vs valor monetário vs número
-              if (campo.type === 'percent') {
-                if (valorNumerico > 100) {
-                  novosErros[campo.key] = 'Porcentagem deve estar entre 0 e 100';
-                } else {
-                  novosErros[campo.key] = 'Valor inválido';
-                }
-              } else {
-                novosErros[campo.key] = 'Valor deve ser maior ou igual a zero';
-              }
-            } else {
-              // Validação específica para porcentagens
-              if (campo.type === 'percent' && valorNumerico > 100) {
-                novosErros[campo.key] = 'Porcentagem deve estar entre 0 e 100';
-              } else if (campo.type === 'number') {
-                // Para números inteiros, arredondar e garantir que seja inteiro
-                const valorInteiro = Math.round(valorNumerico);
-                if (valorInteiro < 0) {
-                  novosErros[campo.key] = 'Valor deve ser maior ou igual a zero';
-                } else {
-                  // Garantir que o valor seja enviado como número, mesmo se for 0
-                  dadosParaEnvio[campo.key] = valorInteiro;
-                }
-              } else {
-                dadosParaEnvio[campo.key] = valorNumerico;
-              }
-            }
-          }
-        }
-      });
-      
-      // Se houver erros de validação, não enviar
-      if (Object.keys(novosErros).length > 0) {
-        setFormErrors(novosErros);
-        setSubmitting(false);
-        return;
-      }
-
-      const response = await fetch(url, {
-        method,
+      const response = await fetch(`${API_BASE_URL}/tipo-contrato-membro?limit=1000`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(dadosParaEnvio)
+        }
       });
 
       if (response.status === 401) {
@@ -239,30 +70,32 @@ const ConfigCustoMembro = () => {
         return;
       }
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        if (result.error) {
-          setFormErrors({ geral: result.error });
-        } else {
-          setFormErrors({ geral: 'Erro ao salvar configuração' });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data && Array.isArray(result.data)) {
+          setTiposContrato(result.data);
         }
-        return;
-      }
-
-      if (result.success) {
-        showToast('success', editingId ? 'Configuração atualizada com sucesso!' : 'Configuração criada com sucesso!');
-        fecharForm();
-        carregarConfigs();
       }
     } catch (error) {
-      console.error('Erro ao salvar configuração:', error);
-      showToast('error', 'Erro ao salvar configuração. Tente novamente.');
-      setFormErrors({ geral: 'Erro ao salvar configuração. Tente novamente.' });
-    } finally {
-      setSubmitting(false);
+      console.error('Erro ao carregar tipos de contrato:', error);
     }
   };
+
+  useEffect(() => {
+    carregarConfigs();
+    carregarTiposContrato();
+  }, []);
+
+  // Navegar para criar nova configuração
+  const abrirFormNovo = () => {
+    navigate('/cadastro/config-custo');
+  };
+
+  // Navegar para editar configuração
+  const abrirFormEditar = (item) => {
+    navigate(`/cadastro/config-custo?id=${item.id}`);
+  };
+
 
   // Abrir modal de confirmação de exclusão
   const abrirModalExcluir = (item) => {
@@ -313,6 +146,13 @@ const ConfigCustoMembro = () => {
     }
   };
 
+  // Função para obter nome do tipo de contrato
+  const getTipoContratoNome = (tipoContratoId) => {
+    if (!tipoContratoId) return '-';
+    const tipo = tiposContrato.find(t => t.id === tipoContratoId || String(t.id) === String(tipoContratoId));
+    return tipo ? tipo.nome : '-';
+  };
+
   // Campos da tabela config_custo_membro (exceto id, created_at, updated_at que são automáticos)
   // IMPORTANTE: Estes são PARÂMETROS DE CÁLCULO (porcentagens), não valores absolutos
   const campos = [
@@ -322,6 +162,13 @@ const ConfigCustoMembro = () => {
       type: 'date', 
       required: true,
       description: 'Data a partir da qual esta configuração é válida'
+    },
+    { 
+      key: 'tipo_contrato', 
+      label: 'Tipo de Contrato', 
+      type: 'tipo_contrato', 
+      required: true,
+      description: 'Tipo de contrato da configuração'
     },
     { 
       key: 'dias_uteis', 
@@ -378,6 +225,13 @@ const ConfigCustoMembro = () => {
       type: 'currency', 
       required: false,
       description: 'Valor do vale refeição por dia (em reais)'
+    },
+    { 
+      key: 'horas_variaveis', 
+      label: 'Horas Variáveis', 
+      type: 'boolean', 
+      required: false,
+      description: 'Indica se as horas são variáveis (sim/não)'
     }
   ];
 
@@ -468,6 +322,18 @@ const ConfigCustoMembro = () => {
                                 // Para inss_patronal, verificar também insspatronal (sem underscore)
                                 if (campo.key === 'inss_patronal' && (valor === null || valor === undefined)) {
                                   valor = item.insspatronal;
+                                }
+                                
+                                // Tratar tipo_contrato (exibir nome ao invés de ID)
+                                if (campo.type === 'tipo_contrato') {
+                                  return getTipoContratoNome(valor);
+                                }
+                                
+                                // Tratar campos booleanos (exibir Sim/Não)
+                                if (campo.type === 'boolean') {
+                                  if (valor === null || valor === undefined) return '-';
+                                  const isTrue = valor === true || valor === 'true' || valor === 1 || valor === '1';
+                                  return isTrue ? 'Sim' : 'Não';
                                 }
                                 
                                 if (campo.type === 'date' && valor) {
@@ -567,197 +433,6 @@ const ConfigCustoMembro = () => {
               </div>
             )}
           </CardContainer>
-
-          {/* Modal de Formulário */}
-          {showForm && (
-            <div className="modal-overlay" onClick={fecharForm}>
-              <div className="modal-content" style={{ maxWidth: '900px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h3 style={{ fontSize: '16px' }}>
-                    {editingId ? 'Editar Configuração de Custo Colaborador' : 'Nova Configuração de Custo Colaborador'}
-                  </h3>
-                  <button className="btn-icon" onClick={fecharForm}>
-                    <i className="fas fa-times"></i>
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <form onSubmit={handleSalvar}>
-                    {formErrors.geral && (
-                      <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#dc2626', borderRadius: '6px', marginBottom: '1rem' }}>
-                        {formErrors.geral}
-                      </div>
-                    )}
-
-                    <div style={{ marginBottom: '20px' }}>
-                      <div className="form-row-vigencia">
-                        <div className="form-group">
-                          <label className="form-label-small">
-                            Vigência <span className="required">*</span>
-                          </label>
-                          <DatePicker
-                            value={formData.vigencia || ''}
-                            onChange={(e) => {
-                              setFormData({ ...formData, vigencia: e.target.value });
-                              if (formErrors.vigencia) {
-                                setFormErrors({ ...formErrors, vigencia: '' });
-                              }
-                            }}
-                            disabled={submitting}
-                            error={!!formErrors.vigencia}
-                          />
-                          {formErrors.vigencia && (
-                            <span className="error-message">{formErrors.vigencia}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Seção de Parâmetros de Cálculo */}
-                    <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-                      <h4 className="form-section-title" style={{ marginBottom: '12px', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                        Parâmetros de Cálculo
-                      </h4>
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px', fontStyle: 'italic' }}>
-                        Configure os parâmetros que serão usados para calcular automaticamente os benefícios e encargos nas vigências de colaboradores.
-                        <br />• Porcentagens (FGTS, Férias, etc.): valores em % sobre o salário base (ex: 8 para 8%)
-                        <br />• Vale Transporte e Vale Refeição: valores em R$ por dia (ex: 10,50 para R$ 10,50 por dia)
-                      </p>
-                      
-                      <div className="form-row-vigencia">
-                        {campos.filter(c => c.key !== 'vigencia').map((campo) => (
-                          <div key={campo.key} className="form-group">
-                            <label className="form-label-small" title={campo.description}>
-                              {campo.label}
-                              {campo.required && <span className="required">*</span>}
-                            </label>
-                            <input
-                              type={campo.type === 'number' ? 'number' : 'text'}
-                              className={`form-input-small ${formErrors[campo.key] ? 'error' : ''}`}
-                              value={formData[campo.key] || ''}
-                              min={campo.type === 'number' ? '0' : undefined}
-                              step={campo.type === 'number' ? '1' : undefined}
-                              onChange={(e) => {
-                                if (campo.type === 'number') {
-                                  // Para números inteiros, permitir apenas números
-                                  let valor = e.target.value.replace(/\D/g, '');
-                                  // Se estiver vazio, permitir campo vazio
-                                  if (valor === '') {
-                                    setFormData({ ...formData, [campo.key]: '' });
-                                  } else {
-                                    // Garantir que seja um número inteiro positivo
-                                    const num = parseInt(valor, 10);
-                                    if (!isNaN(num) && num >= 0) {
-                                      setFormData({ ...formData, [campo.key]: num.toString() });
-                                    } else {
-                                      setFormData({ ...formData, [campo.key]: '' });
-                                    }
-                                  }
-                                } else if (campo.type === 'percent') {
-                                  // Máscara de porcentagem: permite números, vírgula/ponto e %
-                                  let valor = e.target.value;
-                                  // Remover % do final se existir
-                                  valor = valor.replace(/%/g, '').trim();
-                                  // Permitir apenas números e vírgula/ponto
-                                  valor = valor.replace(/[^\d,.]/g, '').replace(',', '.');
-                                  
-                                  // Limitar a 2 casas decimais
-                                  const partes = valor.split('.');
-                                  if (partes.length > 1) {
-                                    valor = partes[0] + '.' + partes[1].substring(0, 2);
-                                  }
-                                  
-                                  // Permitir valores vazios ou números válidos
-                                  if (valor === '' || valor === '.') {
-                                    setFormData({ ...formData, [campo.key]: '' });
-                                  } else {
-                                    const num = parseFloat(valor);
-                                    if (!isNaN(num)) {
-                                      // Converter ponto para vírgula e adicionar %
-                                      const valorFormatado = valor.replace('.', ',') + '%';
-                                      setFormData({ ...formData, [campo.key]: valorFormatado });
-                                    } else if (valor === '') {
-                                      setFormData({ ...formData, [campo.key]: '' });
-                                    }
-                                  }
-                                } else {
-                                  // Para currency: permitir apenas números e vírgula/ponto para decimais
-                                  let valor = e.target.value.replace(/[^\d,.]/g, '').replace(',', '.');
-                                  
-                                  // Limitar a 2 casas decimais
-                                  const partes = valor.split('.');
-                                  if (partes.length > 1) {
-                                    valor = partes[0] + '.' + partes[1].substring(0, 2);
-                                  }
-                                  
-                                  // Permitir valores vazios ou números válidos
-                                  if (valor === '' || valor === '.') {
-                                    setFormData({ ...formData, [campo.key]: '' });
-                                  } else {
-                                    const num = parseFloat(valor);
-                                    // Permitir digitação livre, validar apenas no submit
-                                    if (!isNaN(num)) {
-                                      // Converter ponto para vírgula para exibição
-                                      setFormData({ ...formData, [campo.key]: valor.replace('.', ',') });
-                                    } else if (valor === '') {
-                                      setFormData({ ...formData, [campo.key]: '' });
-                                    }
-                                  }
-                                }
-                                
-                                if (formErrors[campo.key]) {
-                                  setFormErrors({ ...formErrors, [campo.key]: '' });
-                                }
-                              }}
-                              placeholder={campo.type === 'number' ? 'Ex: 22' : campo.type === 'currency' ? '0,00' : campo.type === 'percent' ? '0,00%' : '0,00'}
-                              disabled={submitting}
-                              required={campo.required}
-                              title={campo.description}
-                            />
-                            {campo.description && (
-                              <span style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px', display: 'block' }}>
-                                {campo.description}
-                              </span>
-                            )}
-                            {formErrors[campo.key] && (
-                              <span className="error-message">{formErrors[campo.key]}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="modal-footer">
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={fecharForm}
-                        disabled={submitting}
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="submit"
-                        className="btn-primary"
-                        disabled={submitting}
-                      >
-                        {submitting ? (
-                          <>
-                            <i className="fas fa-spinner fa-spin"></i>
-                            Salvando...
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-save"></i>
-                            {editingId ? 'Salvar Alterações' : 'Salvar Configuração'}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Modal de Confirmação de Exclusão */}
           {showDeleteModal && itemToDelete && (

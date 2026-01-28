@@ -67,7 +67,8 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
     }
 
     // Filtro por status (buscar membros com status específico)
-    if (filters.status) {
+    // IMPORTANTE: Quando status for 'todos' ou não informado, NÃO aplicar filtro (mostrar TODOS)
+    if (filters.status && filters.status !== 'todos') {
       // Primeiro buscar membros com o status
       const { data: membros, error: membrosError } = await supabase
         .schema('up_gestaointeligente')
@@ -87,6 +88,7 @@ async function buscarVigencias(filters = {}, page = 1, limit = 50) {
         return { data: [], count: 0, error: null };
       }
     }
+    // Se status for 'todos' ou não informado, não aplicar filtro (mostrar TODAS as vigências)
 
     // Ordenar por data de vigência (mais recente primeiro)
     query = query.order('dt_vigencia', { ascending: false });
@@ -384,6 +386,174 @@ async function deletarVigencia(id) {
   }
 }
 
+// Função auxiliar para converter string formatada (ex: "1.234,56") para número
+function removerFormatacaoMoeda(valor) {
+  if (!valor || valor === '' || valor === null || valor === undefined) return 0;
+  if (typeof valor === 'number') return valor;
+  // Remove pontos (separadores de milhar) e substitui vírgula por ponto
+  const valorLimpo = valor.toString().replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(valorLimpo);
+  return isNaN(num) ? 0 : num;
+}
+
+// Função auxiliar para buscar dias úteis da configuração
+async function buscarDiasUteisConfig(dataVigencia, tipoContrato) {
+  try {
+    if (!dataVigencia) return 22; // Valor padrão
+
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('config_custo_membro')
+      .select('dias_uteis')
+      .lte('vigencia', dataVigencia);
+
+    if (tipoContrato !== null && tipoContrato !== undefined) {
+      query = query.eq('tipo_contrato', tipoContrato);
+    }
+
+    const { data, error } = await query
+      .order('vigencia', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.warn('Erro ao buscar dias úteis da configuração:', error);
+      return 22; // Valor padrão
+    }
+
+    return data && data.dias_uteis ? data.dias_uteis : 22;
+  } catch (error) {
+    console.warn('Erro ao buscar dias úteis da configuração:', error);
+    return 22; // Valor padrão
+  }
+}
+
+// Função auxiliar para calcular custos da vigência
+async function calcularCustosVigencia(vigencia) {
+  if (!vigencia) return null;
+
+  try {
+    // Converter valores de string formatada para número
+    const salarioBaseMensal = removerFormatacaoMoeda(vigencia.salariobase);
+    const feriasDiaria = removerFormatacaoMoeda(vigencia.ferias);
+    const tercoFeriasDiaria = removerFormatacaoMoeda(vigencia.um_terco_ferias);
+    const decimoTerceiroDiaria = removerFormatacaoMoeda(vigencia.decimoterceiro);
+    const fgtsDiaria = removerFormatacaoMoeda(vigencia.fgts);
+    const valeTransporteDiaria = removerFormatacaoMoeda(vigencia.valetransporte);
+    const valeRefeicaoDiaria = removerFormatacaoMoeda(vigencia.vale_refeicao);
+    const ajudaCustoDiaria = removerFormatacaoMoeda(vigencia.ajudacusto);
+
+    // Buscar dias úteis da configuração
+    const diasUteis = await buscarDiasUteisConfig(vigencia.dt_vigencia, vigencia.tipo_contrato);
+
+    // Calcular salário base diário
+    const salarioBaseDiario = diasUteis > 0 ? salarioBaseMensal / diasUteis : 0;
+
+    // Calcular custo diário total
+    const custoDiarioTotal = salarioBaseDiario +
+                             feriasDiaria +
+                             tercoFeriasDiaria +
+                             decimoTerceiroDiaria +
+                             fgtsDiaria +
+                             valeTransporteDiaria +
+                             valeRefeicaoDiaria +
+                             ajudaCustoDiaria;
+
+    // Calcular custo total mensal
+    const custoTotalMensal = custoDiarioTotal * diasUteis;
+
+    // Calcular custo hora
+    const horasContratadasDia = parseFloat(vigencia.horascontratadasdia) || 0;
+    let custoHora = 0;
+    if (horasContratadasDia > 0 && diasUteis > 0) {
+      const jornadaMensalHoras = horasContratadasDia * diasUteis;
+      if (jornadaMensalHoras > 0) {
+        custoHora = custoTotalMensal / jornadaMensalHoras;
+      }
+    }
+
+    // Retornar vigência com os custos calculados
+    // Formatar valores como strings no formato brasileiro (1.234,56)
+    const formatarMoedaBR = (valor) => {
+      return valor.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    };
+
+    return {
+      ...vigencia,
+      custo_diario_total: formatarMoedaBR(custoDiarioTotal),
+      custo_total_mensal: formatarMoedaBR(custoTotalMensal),
+      custo_hora: formatarMoedaBR(custoHora)
+    };
+  } catch (error) {
+    console.error('Erro ao calcular custos da vigência:', error);
+    return vigencia; // Retornar vigência original em caso de erro
+  }
+}
+
+// Buscar todos os colaboradores com suas últimas vigências
+async function buscarColaboradoresComUltimaVigencia() {
+  try {
+    // Buscar todos os colaboradores (ativos e inativos)
+    const { data: colaboradores, error: errorColaboradores } = await supabase
+      .schema('up_gestaointeligente')
+      .from('membro')
+      .select('id, nome, cpf, status')
+      .order('nome', { ascending: true });
+
+    if (errorColaboradores) {
+      return { data: null, error: errorColaboradores };
+    }
+
+    if (!colaboradores || colaboradores.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Para cada colaborador, buscar a última vigência e calcular custos
+    const colaboradoresComVigencias = await Promise.all(
+      colaboradores.map(async (colaborador) => {
+        // Buscar a vigência mais recente deste colaborador
+        const { data: vigencia, error: errorVigencia } = await supabase
+          .schema('up_gestaointeligente')
+          .from('custo_membro_vigencia')
+          .select('*')
+          .eq('membro_id', colaborador.id)
+          .order('dt_vigencia', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (errorVigencia && errorVigencia.code !== 'PGRST116') {
+          // PGRST116 = nenhum resultado encontrado (normal se não tiver vigência)
+          console.error(`Erro ao buscar vigência para colaborador ${colaborador.id}:`, errorVigencia);
+        }
+
+        // Se houver vigência, calcular os custos
+        let vigenciaComCalculos = null;
+        if (vigencia) {
+          vigenciaComCalculos = await calcularCustosVigencia(vigencia);
+        }
+
+        return {
+          colaborador: {
+            id: colaborador.id,
+            nome: colaborador.nome,
+            cpf: colaborador.cpf,
+            status: colaborador.status
+          },
+          vigencia: vigenciaComCalculos
+        };
+      })
+    );
+
+    return { data: colaboradoresComVigencias, error: null };
+  } catch (error) {
+    console.error('Erro ao buscar colaboradores com últimas vigências:', error);
+    return { data: null, error };
+  }
+}
+
 module.exports = {
   buscarVigencias,
   buscarVigenciaPorId,
@@ -395,6 +565,7 @@ module.exports = {
   atualizarVigencia,
   deletarVigencia,
   buscarCustoMaisRecentePorMembroEPeriodo,
-  buscarHorasContratadasPorMembroEPeriodo
+  buscarHorasContratadasPorMembroEPeriodo,
+  buscarColaboradoresComUltimaVigencia
 };
 

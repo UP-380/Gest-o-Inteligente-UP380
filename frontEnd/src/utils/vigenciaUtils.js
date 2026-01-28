@@ -52,8 +52,26 @@ export const formatarData = (data) => {
 // Função para formatar valor monetário para exibição no input
 export const formatarValorParaInput = (valor) => {
   if (!valor && valor !== 0) return '0';
-  const num = typeof valor === 'number' ? valor : parseFloat(valor);
-  if (isNaN(num)) return '0';
+  
+  // Se o valor já vem como string formatada (ex: "9,00" ou "9.00"), 
+  // primeiro converter para número antes de formatar novamente
+  let num;
+  if (typeof valor === 'number') {
+    num = valor;
+  } else if (typeof valor === 'string') {
+    // Se for string, pode vir formatada (com vírgula) ou como número puro
+    // Remover formatação primeiro (pontos e vírgulas)
+    const valorLimpo = valor.replace(/\./g, '').replace(',', '.');
+    num = parseFloat(valorLimpo);
+  } else {
+    num = parseFloat(valor);
+  }
+  
+  if (isNaN(num)) {
+    console.warn('⚠️ [formatarValorParaInput] Valor inválido:', valor, 'tipo:', typeof valor);
+    return '0';
+  }
+  
   return num.toLocaleString('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2

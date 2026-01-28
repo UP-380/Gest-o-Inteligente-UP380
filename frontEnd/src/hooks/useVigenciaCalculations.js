@@ -10,6 +10,7 @@ import { calcularVigencia } from '../utils/calcularVigencia';
  * @param {Function} removerFormatacaoMoeda - Função para remover formatação de moeda
  * @param {Number} debounceMs - Tempo de debounce em milissegundos (padrão: 300)
  * @param {Array} tiposContrato - Lista de tipos de contrato (opcional, para verificar ESTAGIO)
+ * @param {Boolean} isEditMode - Se está em modo de edição (não recalcular automaticamente)
  */
 export const useVigenciaCalculations = (
   formData,
@@ -17,9 +18,17 @@ export const useVigenciaCalculations = (
   formatarValorParaInput,
   removerFormatacaoMoeda,
   debounceMs = 300,
-  tiposContrato = []
+  tiposContrato = [],
+  isEditMode = false
 ) => {
   useEffect(() => {
+    // IMPORTANTE: Em modo de edição, NÃO recalcular automaticamente
+    // Os valores já vêm do banco e não devem ser sobrescritos
+    if (isEditMode) {
+      console.log('⏸️ [useVigenciaCalculations] Modo de edição detectado - cálculos automáticos desabilitados');
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       // Verificar se é PJ (tipo_contrato === '2')
       const isPJ = formData.tipo_contrato === '2';
@@ -44,10 +53,11 @@ export const useVigenciaCalculations = (
             const dataVigencia = formData.dt_vigencia || null;
             const diasUteisVigencia = formData.diasuteis ? parseFloat(formData.diasuteis) : null;
             const horasContratadasDia = formData.horascontratadasdia ? parseFloat(formData.horascontratadasdia) : null;
+            const tipoContrato = formData.tipo_contrato || null;
             
-            console.log('🔄 Calculando benefícios para salário:', formData.salariobase, 'data:', dataVigencia, 'dias úteis vigência:', diasUteisVigencia);
+            console.log('🔄 Calculando benefícios para salário:', formData.salariobase, 'data:', dataVigencia, 'dias úteis vigência:', diasUteisVigencia, 'tipo contrato:', tipoContrato);
             
-            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia);
+            const beneficios = await calcularVigencia(formData.salariobase, dataVigencia, diasUteisVigencia, horasContratadasDia, tipoContrato);
             
             console.log('✅ Benefícios calculados:', beneficios);
             
@@ -87,6 +97,6 @@ export const useVigenciaCalculations = (
     }, debounceMs);
 
     return () => clearTimeout(timeoutId);
-  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato, formatarValorParaInput, removerFormatacaoMoeda, setFormData, tiposContrato]);
+  }, [formData.salariobase, formData.dt_vigencia, formData.diasuteis, formData.horascontratadasdia, formData.tipo_contrato, formatarValorParaInput, removerFormatacaoMoeda, setFormData, tiposContrato, isEditMode]);
 };
 

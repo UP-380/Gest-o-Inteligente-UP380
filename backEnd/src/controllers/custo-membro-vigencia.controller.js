@@ -144,7 +144,6 @@ async function criarCustoColaboradorVigencia(req, res) {
       decimoterceiro,
       fgts,
       custo_hora,
-      insspatronal,
       insscolaborador,
       ajudacusto,
       valetransporte,
@@ -152,6 +151,7 @@ async function criarCustoColaboradorVigencia(req, res) {
       descricao
       // descricao_beneficios - removido pois a coluna não existe na tabela
       // diasuteis - removido pois a coluna não existe na tabela
+      // insspatronal - removido pois o campo não existe mais
     } = req.body;
 
     // Validações obrigatórias
@@ -281,7 +281,6 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       decimoterceiro,
       fgts,
       custo_hora,
-      insspatronal,
       insscolaborador,
       ajudacusto,
       valetransporte,
@@ -290,6 +289,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       // descricao_beneficios - removido pois a coluna não existe na tabela
       // diasuteis - removido pois a coluna não existe na tabela
       // custo_total_mensal - não existe na tabela, é calculado
+      // insspatronal - removido pois o campo não existe mais
     } = req.body;
 
     if (!id) {
@@ -389,9 +389,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     if (valetransporte !== undefined) dadosUpdate.valetransporte = toString(valetransporte) || '0';
     if (vale_refeicao !== undefined) dadosUpdate.vale_refeicao = toString(vale_refeicao) || '0';
     // Campos numéricos - verificar se as colunas existem antes de enviar
-    // Se as colunas insspatronal e insscolaborador não existirem, não enviar
-    // (comentado temporariamente até confirmar se as colunas existem)
-    // if (insspatronal !== undefined) dadosUpdate.insspatronal = toNumber(insspatronal);
+    // insspatronal REMOVIDO - campo não existe mais
     // if (insscolaborador !== undefined) dadosUpdate.insscolaborador = toNumber(insscolaborador);
     if (descricao !== undefined) dadosUpdate.descricao = descricao || null;
     // descricao_beneficios - removido pois a coluna não existe na tabela
@@ -480,6 +478,23 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
   }
 }
 
+// GET - Buscar todos os colaboradores com suas últimas vigências (para relatório)
+async function getColaboradoresComUltimaVigencia(req, res) {
+  try {
+    const { data, error } = await vigenciaService.buscarColaboradoresComUltimaVigencia();
+
+    if (error) {
+      console.error('Erro ao buscar colaboradores com últimas vigências:', error);
+      return sendError(res, 500, 'Erro ao buscar colaboradores com últimas vigências', error.message);
+    }
+
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    console.error('Erro inesperado ao buscar colaboradores com últimas vigências:', error);
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
+  }
+}
+
 // DELETE - Deletar vigência
 async function deletarCustoColaboradorVigencia(req, res) {
   try {
@@ -526,6 +541,7 @@ module.exports = {
   getCustosPorMembro,
   getCustoMaisRecentePorMembroEPeriodo,
   getHorasContratadasPorMembroEPeriodo,
+  getColaboradoresComUltimaVigencia,
   criarCustoColaboradorVigencia,
   atualizarCustoColaboradorVigencia,
   deletarCustoColaboradorVigencia

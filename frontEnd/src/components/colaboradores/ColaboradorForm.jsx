@@ -1,5 +1,4 @@
 import React from 'react';
-import VigenciaFormFields from '../vigencia/VigenciaFormFields';
 
 /**
  * Componente de formulário de colaborador (usado no modal de criar/editar)
@@ -10,17 +9,10 @@ const ColaboradorForm = ({
   formErrors,
   setFormErrors,
   submitting,
-  tiposContrato,
-  loadingTiposContrato,
-  formatarValorParaInput,
-  removerFormatacaoMoeda,
-  aplicarMascaraCpf,
-  editingId = false,
-  vigenciaAberta = false,
-  setVigenciaAberta
+  aplicarMascaraCpf
 }) => {
   return (
-    <form className="colaborador-form">
+    <div className="colaborador-form">
       <div className="form-row">
         <div className="form-group">
           <label className="form-label-small">
@@ -67,52 +59,7 @@ const ColaboradorForm = ({
           )}
         </div>
       </div>
-
-      {/* Campos de Vigência - apenas para criação de novo colaborador */}
-      {!editingId && (
-        <>
-          <div className="form-section" style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-            <div 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-                marginBottom: vigenciaAberta ? '12px' : '0'
-              }}
-              onClick={() => setVigenciaAberta(!vigenciaAberta)}
-            >
-              <h4 className="form-section-title" style={{ fontSize: '14px', fontWeight: '600', color: '#374151', margin: 0 }}>Dados de Vigência</h4>
-              <i 
-                className={`fas fa-chevron-${vigenciaAberta ? 'down' : 'right'}`}
-                style={{ 
-                  fontSize: '12px', 
-                  color: '#64748b',
-                  transition: 'transform 0.2s',
-                  marginLeft: '8px'
-                }}
-              ></i>
-            </div>
-            
-            {vigenciaAberta && (
-              <div style={{ marginTop: '12px' }}>
-                <VigenciaFormFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  formErrors={formErrors}
-                  setFormErrors={setFormErrors}
-                  tiposContrato={tiposContrato}
-                  loadingTiposContrato={loadingTiposContrato}
-                  submitting={submitting}
-                  formatarValorParaInput={formatarValorParaInput}
-                  removerFormatacaoMoeda={removerFormatacaoMoeda}
-                />
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </form>
+    </div>
   );
 };
 

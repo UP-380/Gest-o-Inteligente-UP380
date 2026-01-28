@@ -55,3 +55,8 @@ WHERE eh_excecao IS NOT NULL
 GROUP BY eh_excecao, tipo_relacionamento
 ORDER BY eh_excecao, tipo_relacionamento;
 
+
+
+
+
+

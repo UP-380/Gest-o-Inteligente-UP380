@@ -37,7 +37,7 @@ const ColaboradorVigenciasList = ({ colaboradorId, colaboradorNome }) => {
   // Carregar tipos de contrato
   const loadTiposContrato = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/tipos-contrato-membro?limit=1000`, {
+      const response = await fetch(`${API_BASE_URL}/tipo-contrato-membro?limit=1000`, {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
@@ -206,8 +206,28 @@ const ColaboradorVigenciasList = ({ colaboradorId, colaboradorNome }) => {
 
   // Obter nome do tipo de contrato
   const getTipoContratoNome = (tipoContratoId) => {
-    if (!tipoContratoId) return '-';
-    const tipo = tiposContrato.find(t => t.id === tipoContratoId);
+    if (!tipoContratoId && tipoContratoId !== 0) return '-';
+    
+    // Se tipos de contrato ainda não foram carregados, retornar '-'
+    if (!tiposContrato || tiposContrato.length === 0) return '-';
+    
+    // Converter para número se necessário (pode vir como string do backend)
+    const idNum = typeof tipoContratoId === 'string' ? parseInt(tipoContratoId, 10) : tipoContratoId;
+    if (isNaN(idNum)) {
+      console.warn('Tipo de contrato inválido:', tipoContratoId);
+      return '-';
+    }
+    
+    const tipo = tiposContrato.find(t => {
+      // Comparar tanto como número quanto como string para garantir compatibilidade
+      const tipoId = typeof t.id === 'string' ? parseInt(t.id, 10) : t.id;
+      return tipoId === idNum || t.id === idNum || String(t.id) === String(idNum);
+    });
+    
+    if (!tipo) {
+      console.warn('Tipo de contrato não encontrado para ID:', tipoContratoId, 'Tipos disponíveis:', tiposContrato.map(t => ({ id: t.id, nome: t.nome })));
+    }
+    
     return tipo ? tipo.nome : '-';
   };
 
@@ -215,13 +235,13 @@ const ColaboradorVigenciasList = ({ colaboradorId, colaboradorNome }) => {
   const tableColumns = [
     { 
       key: 'dt_vigencia', 
-      label: 'Data Vigência',
+      label: 'Data de Vigência',
       render: (item) => formatarData(item.dt_vigencia)
     },
     { 
-      key: 'salariobase', 
-      label: 'Salário Base',
-      render: (item) => formatarMoeda(item.salariobase)
+      key: 'tipo_contrato', 
+      label: 'Tipo de Contrato',
+      render: (item) => getTipoContratoNome(item.tipo_contrato)
     },
     { 
       key: 'horascontratadasdia', 
@@ -229,14 +249,78 @@ const ColaboradorVigenciasList = ({ colaboradorId, colaboradorNome }) => {
       render: (item) => item.horascontratadasdia || '-'
     },
     { 
-      key: 'tipo_contrato', 
-      label: 'Tipo Contrato',
-      render: (item) => getTipoContratoNome(item.tipo_contrato)
+      key: 'salariobase', 
+      label: 'Salário Base',
+      render: (item) => formatarMoeda(item.salariobase)
     },
     { 
-      key: 'custo_hora', 
-      label: 'Custo Hora',
-      render: (item) => formatarMoeda(item.custo_hora)
+      key: 'custo_total_mensal', 
+      label: 'Custo Total Mensal',
+      render: (item) => {
+        // Calcular custo total mensal se não existir no banco
+        if (item.custo_total_mensal) {
+          return formatarMoeda(item.custo_total_mensal);
+        }
+        // Se não existir, calcular baseado nos valores disponíveis
+        const salarioBase = parseFloat(item.salariobase) || 0;
+        const ferias = parseFloat(item.ferias) || 0;
+        const tercoFerias = parseFloat(item.um_terco_ferias) || 0;
+        const decimoTerceiro = parseFloat(item.decimoterceiro) || 0;
+        const fgts = parseFloat(item.fgts) || 0;
+        const valeTransporte = parseFloat(item.valetransporte) || 0;
+        const valeRefeicao = parseFloat(item.vale_refeicao) || 0;
+        const ajudaCusto = parseFloat(item.ajudacusto) || 0;
+        
+        // Assumir 22 dias úteis como padrão
+        const diasUteis = 22;
+        
+        // Converter valores diários para mensais
+        const feriasMensal = ferias * diasUteis;
+        const tercoFeriasMensal = tercoFerias * diasUteis;
+        const decimoTerceiroMensal = decimoTerceiro * diasUteis;
+        const fgtsMensal = fgts * diasUteis;
+        const valeTransporteMensal = valeTransporte * diasUteis;
+        const valeRefeicaoMensal = valeRefeicao * diasUteis;
+        const ajudaCustoMensal = ajudaCusto * diasUteis;
+        
+        const custoTotal = salarioBase + feriasMensal + tercoFeriasMensal + 
+                          decimoTerceiroMensal + fgtsMensal + valeTransporteMensal + 
+                          valeRefeicaoMensal + ajudaCustoMensal;
+        
+        return formatarMoeda(custoTotal);
+      }
+    },
+    { 
+      key: 'custo_diario_total', 
+      label: 'Custo Diário Total',
+      render: (item) => {
+        // Calcular custo diário total se não existir no banco
+        if (item.custo_diario_total) {
+          return formatarMoeda(item.custo_diario_total);
+        }
+        // Se não existir, calcular baseado nos valores disponíveis
+        const salarioBase = parseFloat(item.salariobase) || 0;
+        const ferias = parseFloat(item.ferias) || 0;
+        const tercoFerias = parseFloat(item.um_terco_ferias) || 0;
+        const decimoTerceiro = parseFloat(item.decimoterceiro) || 0;
+        const fgts = parseFloat(item.fgts) || 0;
+        const valeTransporte = parseFloat(item.valetransporte) || 0;
+        const valeRefeicao = parseFloat(item.vale_refeicao) || 0;
+        const ajudaCusto = parseFloat(item.ajudacusto) || 0;
+        
+        // Assumir 22 dias úteis como padrão
+        const diasUteis = 22;
+        
+        // Calcular salário base diário
+        const salarioBaseDiario = diasUteis > 0 ? salarioBase / diasUteis : 0;
+        
+        // Somar todos os valores diários
+        const custoDiarioTotal = salarioBaseDiario + ferias + tercoFerias + 
+                                decimoTerceiro + fgts + valeTransporte + 
+                                valeRefeicao + ajudaCusto;
+        
+        return formatarMoeda(custoDiarioTotal);
+      }
     }
   ];
 

@@ -88,3 +88,8 @@ A partir de agora, ao criar vínculos:
 - O script SQL popula os dados existentes baseado na lógica atual
 - Novos vínculos terão `eh_excecao` definido automaticamente
 
+
+
+
+
+

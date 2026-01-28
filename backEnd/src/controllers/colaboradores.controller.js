@@ -11,7 +11,7 @@ const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValid
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
   try {
-    const { page = 1, limit = 50, search = '', status } = req.query;
+    const { page = 1, limit = 50, search = '', status, ids } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
@@ -19,38 +19,42 @@ async function getColaboradores(req, res) {
     let query = supabase
       .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome, cpf, usuario_id', { count: 'exact' });
+      .select('id, nome, usuario_id', { count: 'exact' });
     
-    // Se status for 'inativo', filtrar apenas inativos
-    // Caso contrário, mostrar apenas ativos (comportamento padrão)
-    if (status === 'inativo') {
-      query = query.eq('status', 'inativo');
-    } else {
-      query = query.or('status.is.null,status.eq.ativo');
+    // Filtro por IDs (quando fornecido como array de query params)
+    if (ids) {
+      const idsArray = Array.isArray(ids) ? ids : [ids];
+      const idsNumericos = idsArray.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      if (idsNumericos.length > 0) {
+        query = query.in('id', idsNumericos);
+      }
     }
+    
+    // Filtro de status: 'todos' (ou não informado) = todos, 'ativo' = apenas ativos, 'inativo' = apenas inativos
+    // IMPORTANTE: Quando status for 'todos' ou não informado, NÃO aplicar nenhum filtro de status
+    // Isso permite mostrar TODOS os colaboradores (ativos e inativos)
+    if (status && status !== 'todos') {
+      if (status === 'inativo') {
+        query = query.eq('status', 'inativo');
+      } else if (status === 'ativo') {
+        query = query.or('status.is.null,status.eq.ativo');
+      }
+    }
+    // Se status for 'todos', undefined, null ou vazio, não aplicar filtro (mostrar TODOS - ativos e inativos)
     
     query = query.order('nome', { ascending: true });
 
-    // Busca por nome ou CPF
-    if (search && search.trim()) {
+    // Busca por nome ou CPF (apenas se não houver filtro por IDs)
+    if (!ids && search && search.trim()) {
       const searchTerm = search.trim();
       const ilikePattern = `%${searchTerm}%`;
       
-      // Remover caracteres não numéricos do termo de busca para CPF
-      const cpfSearch = searchTerm.replace(/\D/g, '');
-      
-      if (cpfSearch.length >= 3) {
-        // Se o termo de busca contém números suficientes, buscar por nome OU CPF
-        const cpfPattern = `%${cpfSearch}%`;
-        query = query.or(`nome.ilike.${ilikePattern},cpf.ilike.${cpfPattern}`);
-      } else {
-        // Se não tem números suficientes, buscar apenas por nome
-        query = query.ilike('nome', ilikePattern);
-      }
+      // Buscar apenas por nome
+      query = query.ilike('nome', ilikePattern);
     }
 
-    // Aplicar paginação
-    if (limitNum > 0) {
+    // Aplicar paginação (apenas se não houver filtro por IDs)
+    if (limitNum > 0 && !ids) {
       query = query.range(offset, offset + limitNum - 1);
     }
 
@@ -61,54 +65,6 @@ async function getColaboradores(req, res) {
       return sendError(res, 500, 'Erro ao buscar colaboradores', error.message);
     }
 
-    // Buscar salário base mais recente de cada colaborador
-    if (data && data.length > 0) {
-      const membroIds = data.map(m => m.id);
-      
-      // Buscar todas as vigências dos membros com salário base
-      const { data: vigencias, error: errorVigencias } = await supabase
-        .schema('up_gestaointeligente')
-        .from('custo_membro_vigencia')
-        .select('membro_id, salariobase, dt_vigencia, id')
-        .in('membro_id', membroIds)
-        .not('salariobase', 'is', null);
-
-      if (!errorVigencias && vigencias && vigencias.length > 0) {
-        // Ordenar vigências por dt_vigencia (mais recente primeiro) e depois por id (desempate)
-        vigencias.sort((a, b) => {
-          // Comparar por data de vigência (mais recente primeiro)
-          const dataA = new Date(a.dt_vigencia);
-          const dataB = new Date(b.dt_vigencia);
-          if (dataB.getTime() !== dataA.getTime()) {
-            return dataB.getTime() - dataA.getTime(); // Descendente
-          }
-          // Se as datas forem iguais, usar id como critério de desempate (maior id = mais recente)
-          return (b.id || 0) - (a.id || 0);
-        });
-
-        // Criar um mapa com o salário base mais recente de cada membro
-        // Como o array está ordenado por dt_vigencia descendente, a primeira ocorrência
-        // de cada membro_id será a mais recente
-        const salarioPorMembro = new Map();
-        vigencias.forEach(v => {
-          // Só adiciona se ainda não tiver um registro para este membro_id
-          // Isso garante que pegamos apenas o primeiro (mais recente) de cada membro
-          if (!salarioPorMembro.has(v.membro_id)) {
-            salarioPorMembro.set(v.membro_id, v.salariobase);
-          }
-        });
-
-        // Adicionar salário base a cada colaborador
-        data.forEach(colaborador => {
-          colaborador.salariobase = salarioPorMembro.get(colaborador.id) || null;
-        });
-      } else {
-        // Se não houver vigências ou houver erro, definir salariobase como null para todos
-        data.forEach(colaborador => {
-          colaborador.salariobase = null;
-        });
-      }
-    }
 
     // Buscar foto_perfil dos usuários vinculados aos membros
     if (data && data.length > 0) {

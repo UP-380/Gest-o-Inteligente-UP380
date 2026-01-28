@@ -4,15 +4,13 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import LoadingState from '../../components/common/LoadingState';
 import ColaboradorForm from '../../components/colaboradores/ColaboradorForm';
-import ColaboradorVigenciasList from '../../components/colaboradores-vigencia/ColaboradorVigenciasList';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
+import Avatar from '../../components/user/Avatar';
 import { useToast } from '../../hooks/useToast';
-import {
-  aplicarMascaraCpf,
-  removerFormatacaoMoeda,
-  formatarValorParaInput
-} from '../../utils/vigenciaUtils';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { aplicarMascaraCpf } from '../../utils/vigenciaUtils';
 import './CadastroColaborador.css';
+import '../CadastroCliente/CadastroCliente.css';
 
 const API_BASE_URL = '/api';
 
@@ -30,55 +28,31 @@ const CadastroColaborador = () => {
   // Estados do formulário
   const [formData, setFormData] = useState({
     nome: '',
-    cpf: ''
+    cpf: '',
+    foto_perfil: null
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Estados para tipos de contrato
-  const [tiposContrato, setTiposContrato] = useState([]);
-  const [loadingTiposContrato, setLoadingTiposContrato] = useState(false);
+  // Estado para foto de perfil
+  const [fotoPerfil, setFotoPerfil] = useState(null);
 
-  // Estado para seção de vigência (apenas para novo colaborador)
-  const [vigenciaAberta, setVigenciaAberta] = useState(false);
+  // Estado para controlar se acabou de criar um colaborador (para mostrar opção de criar vigência)
+  const [justCreated, setJustCreated] = useState(false);
 
-  // Estado para modal de vigências
-  const [showModalVigencias, setShowModalVigencias] = useState(false);
+  // Estado inicial do formulário para detectar mudanças
+  const [initialFormData, setInitialFormData] = useState(null);
+  
+  // Detectar se há mudanças não salvas
+  const hasUnsavedChanges = initialFormData && (
+    formData.nome !== initialFormData.nome ||
+    formData.cpf !== initialFormData.cpf ||
+    formData.foto_perfil !== initialFormData.foto_perfil
+  );
 
-  // Carregar tipos de contrato
-  const loadTiposContrato = useCallback(async () => {
-    setLoadingTiposContrato(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/tipos-contrato-membro?limit=1000`, {
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
+  // Aviso ao sair com dados não salvos
+  useUnsavedChanges(hasUnsavedChanges && !submitting);
 
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`Erro ao carregar tipos de contrato: ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (result.success) {
-        setTiposContrato(result.data || []);
-      } else {
-        throw new Error(result.error || 'Erro ao carregar tipos de contrato');
-      }
-    } catch (error) {
-      console.error('Erro ao carregar tipos de contrato:', error);
-      setTiposContrato([]);
-    } finally {
-      setLoadingTiposContrato(false);
-    }
-  }, []);
 
   // Carregar dados do colaborador
   const loadColaborador = useCallback(async () => {
@@ -86,7 +60,8 @@ const CadastroColaborador = () => {
       // Se não tem colaboradorId, é um novo cadastro
       setLoading(false);
       setColaborador(null);
-      setVigenciaAberta(true); // Abrir seção de vigência por padrão para novo colaborador
+      setInitialFormData({ nome: '', cpf: '', foto_perfil: null });
+      setJustCreated(false);
       return;
     }
 
@@ -114,10 +89,14 @@ const CadastroColaborador = () => {
       if (result.success && result.data) {
         const colaboradorData = result.data;
         setColaborador(colaboradorData);
-        setFormData({
+        const formDataInicial = {
           nome: colaboradorData.nome || '',
-          cpf: colaboradorData.cpf ? aplicarMascaraCpf(colaboradorData.cpf) : ''
-        });
+          cpf: colaboradorData.cpf ? aplicarMascaraCpf(colaboradorData.cpf) : '',
+          foto_perfil: colaboradorData.foto_perfil || null
+        };
+        setFormData(formDataInicial);
+        setInitialFormData(formDataInicial);
+        setFotoPerfil(colaboradorData.foto_perfil || null);
       } else {
         throw new Error(result.error || 'Colaborador não encontrado');
       }
@@ -184,6 +163,8 @@ const CadastroColaborador = () => {
       }
 
       if (result.success) {
+        const wasNewColaborador = !colaboradorId;
+        
         showToast(
           'success',
           colaboradorId 
@@ -191,12 +172,21 @@ const CadastroColaborador = () => {
             : 'Colaborador criado com sucesso!'
         );
         
-        // Se for criação, navegar para a página de edição
-        if (!colaboradorId && result.data && result.data.id) {
+        // Atualizar estado inicial para remover aviso de mudanças não salvas
+        setInitialFormData({
+          nome: formData.nome,
+          cpf: formData.cpf,
+          foto_perfil: formData.foto_perfil
+        });
+        
+        // Se for criação, navegar para a página de edição e marcar como recém-criado
+        if (wasNewColaborador && result.data && result.data.id) {
+          setJustCreated(true);
           navigate(`/cadastro/colaborador?id=${result.data.id}`);
         } else {
           // Recarregar dados
           await loadColaborador();
+          setJustCreated(false);
         }
       } else {
         const errorMsg = result.error || result.details || 'Erro ao salvar colaborador';
@@ -213,17 +203,27 @@ const CadastroColaborador = () => {
 
   // Efeitos
   useEffect(() => {
-    loadTiposContrato();
-  }, [loadTiposContrato]);
-
-  useEffect(() => {
     loadColaborador();
   }, [loadColaborador]);
+
+  // Resetar justCreated quando mudar de colaborador (não quando recarregar o mesmo)
+  useEffect(() => {
+    if (colaboradorId && !justCreated) {
+      // Se mudou o colaboradorId e não acabou de criar, resetar
+      setJustCreated(false);
+    }
+  }, [colaboradorId]);
 
   if (loading) {
     return (
       <Layout>
-        <LoadingState message="Carregando colaborador..." />
+        <div className="container">
+          <main className="main-content">
+            <CardContainer>
+              <LoadingState />
+            </CardContainer>
+          </main>
+        </div>
       </Layout>
     );
   }
@@ -232,135 +232,178 @@ const CadastroColaborador = () => {
 
   return (
     <Layout>
-      <div style={{ padding: '20px' }}>
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '24px', fontWeight: '600', margin: 0 }}>
-              {isEdit ? 'Editar Colaborador' : 'Novo Colaborador'}
-            </h1>
-            <p style={{ fontSize: '14px', color: '#666', margin: '4px 0 0 0' }}>
-              {isEdit ? 'Edite as informações do colaborador' : 'Preencha os dados para criar um novo colaborador'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => navigate('/cadastro/colaboradores')}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            <i className="fas fa-arrow-left"></i>
-            Voltar
-          </button>
-        </div>
-
-        <CardContainer>
-          <form onSubmit={handleSubmit}>
-            <div style={{ padding: '20px' }}>
-              <ColaboradorForm
-                formData={formData}
-                setFormData={setFormData}
-                formErrors={formErrors}
-                setFormErrors={setFormErrors}
-                submitting={submitting}
-                tiposContrato={tiposContrato}
-                loadingTiposContrato={loadingTiposContrato}
-                formatarValorParaInput={formatarValorParaInput}
-                removerFormatacaoMoeda={removerFormatacaoMoeda}
-                aplicarMascaraCpf={aplicarMascaraCpf}
-                editingId={isEdit ? colaboradorId : false}
-                vigenciaAberta={vigenciaAberta}
-                setVigenciaAberta={setVigenciaAberta}
-              />
-
-              {isEdit && (
-                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
-                      Vigências do Colaborador
-                    </h3>
+      <div className="container">
+        <main className="main-content">
+          <CardContainer>
+            <div className="editar-cliente-container">
+              {/* Header */}
+              <div className="cadastro-cliente-header">
+                <div className="cadastro-cliente-header-content">
+                  <div className="cadastro-cliente-header-left">
+                    <div className="cadastro-cliente-header-icon-container">
+                      <div className="cadastro-cliente-header-icon">
+                        <Avatar
+                          avatarId={fotoPerfil || formData.foto_perfil || colaborador?.foto_perfil}
+                          nomeUsuario={formData.nome || colaborador?.nome || 'Colaborador'}
+                          size="large"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <h2 className="cadastro-cliente-title">
+                        {isEdit ? (formData.nome || colaborador?.nome || 'Editar Colaborador') : 'Novo Colaborador'}
+                      </h2>
+                      <p className="cadastro-cliente-subtitle">
+                        {isEdit ? 'Edite as informações do colaborador' : 'Preencha os dados para criar um novo colaborador'}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setShowModalVigencias(true)}
-                      disabled={submitting}
-                      style={{
-                        padding: '10px 20px',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
+                      className="btn-secondary cadastro-cliente-back-btn"
+                      onClick={() => {
+                        if (hasUnsavedChanges) {
+                          if (window.confirm('Você tem alterações não salvas. Tem certeza que deseja sair?')) {
+                            navigate('/cadastro/colaboradores');
+                          }
+                        } else {
+                          navigate('/cadastro/colaboradores');
+                        }
                       }}
-                      title="Gerenciar Vigências"
                     >
-                      <i className="fas fa-calendar-alt"></i>
-                      Ver Vigências
+                      <i className="fas fa-arrow-left"></i>
+                      Voltar
                     </button>
+                    <ButtonPrimary
+                      type="submit"
+                      form="colaborador-form"
+                      disabled={submitting}
+                      icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                    >
+                      {submitting ? 'Salvando...' : (isEdit ? 'Salvar' : 'Salvar Colaborador')}
+                    </ButtonPrimary>
                   </div>
                 </div>
-              )}
-
-              <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => navigate('/cadastro/colaboradores')}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </button>
-                <ButtonPrimary
-                  type="submit"
-                  disabled={submitting}
-                  icon={submitting ? 'fa-spinner fa-spin' : 'fa-save'}
-                >
-                  {submitting ? 'Salvando...' : (isEdit ? 'Salvar Alterações' : 'Salvar Colaborador')}
-                </ButtonPrimary>
               </div>
 
-              {formErrors.submit && (
-                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px', color: '#c33' }}>
-                  {formErrors.submit}
+              {/* Formulário */}
+              <form id="colaborador-form" onSubmit={handleSubmit}>
+                {/* Seção de Dados Básicos */}
+                <div className="editar-cliente-form-section">
+                  <div className="section-header">
+                    <div className="section-icon" style={{ backgroundColor: '#3b82f615', color: '#3b82f6' }}>
+                      <i className="fas fa-user"></i>
+                    </div>
+                    <h2 className="section-title">Dados Básicos</h2>
+                  </div>
+                  <div className="section-content">
+                    <ColaboradorForm
+                      formData={formData}
+                      setFormData={setFormData}
+                      formErrors={formErrors}
+                      setFormErrors={setFormErrors}
+                      submitting={submitting}
+                      aplicarMascaraCpf={aplicarMascaraCpf}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
-          </form>
-        </CardContainer>
-      </div>
 
-      {/* Modal de Vigências */}
-      {showModalVigencias && colaboradorId && (
-        <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={() => {
-          setShowModalVigencias(false);
-        }}>
-          <div className="modal-content" style={{ maxWidth: '1200px', width: '95%', maxHeight: '90vh' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>
-                <i className="fas fa-calendar-alt" style={{ marginRight: '8px', color: 'var(--primary-color, #3498db)' }}></i>
-                Vigências - {colaborador?.nome || 'Colaborador'}
-              </h3>
-              <button
-                className="btn-icon"
-                onClick={() => setShowModalVigencias(false)}
-                title="Fechar"
-              >
-                <i className="fas fa-times"></i>
-              </button>
+                {/* Card de sucesso após criar colaborador */}
+                {justCreated && isEdit && (
+                  <div style={{
+                    marginTop: '24px',
+                    padding: '20px',
+                    backgroundColor: '#f0f9ff',
+                    border: '2px solid #3b82f6',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px'
+                  }}>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1e40af' }}>
+                        <i className="fas fa-check-circle" style={{ marginRight: '8px', color: '#10b981' }}></i>
+                        Colaborador criado com sucesso!
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '14px', color: '#475569' }}>
+                        Agora você pode criar a primeira vigência para este colaborador.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setJustCreated(false);
+                          navigate(`/cadastro/colaborador/vigencias?colaboradorId=${colaboradorId}`);
+                        }}
+                        style={{
+                          padding: '10px 20px',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <i className="fas fa-list"></i>
+                        Ver Vigências
+                      </button>
+                      <ButtonPrimary
+                        onClick={() => {
+                          setJustCreated(false);
+                          navigate(`/cadastro/vigencia?membroId=${colaboradorId}`);
+                        }}
+                        icon="fas fa-plus"
+                      >
+                        Criar Vigência
+                      </ButtonPrimary>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botões de ação */}
+                {isEdit && !justCreated && (
+                  <div className="editar-cliente-actions">
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => navigate(`/cadastro/colaborador/vigencias?colaboradorId=${colaboradorId}`)}
+                        disabled={submitting || !colaboradorId}
+                        style={{
+                          padding: '10px 20px',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        title="Gerenciar Vigências"
+                      >
+                        <i className="fas fa-calendar-alt"></i>
+                        Vigências
+                      </button>
+                      <ButtonPrimary
+                        onClick={() => navigate(`/cadastro/vigencia?membroId=${colaboradorId}`)}
+                        disabled={submitting || !colaboradorId}
+                        icon="fas fa-plus"
+                      >
+                        Nova Vigência
+                      </ButtonPrimary>
+                    </div>
+                  </div>
+                )}
+
+                {formErrors.submit && (
+                  <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px', color: '#c33' }}>
+                    {formErrors.submit}
+                  </div>
+                )}
+              </form>
             </div>
-            <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ColaboradorVigenciasList 
-                colaboradorId={colaboradorId} 
-                colaboradorNome={colaborador?.nome || ''}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+          </CardContainer>
+        </main>
+      </div>
     </Layout>
   );
 };

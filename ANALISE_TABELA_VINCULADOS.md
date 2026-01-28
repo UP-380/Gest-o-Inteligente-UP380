@@ -267,3 +267,8 @@ ADD COLUMN tipo_relacionamento VARCHAR(20)
 5. Criar views especializadas para cada seção
 6. Adicionar índices otimizados
 
+
+
+
+
+
