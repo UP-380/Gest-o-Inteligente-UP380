@@ -33,6 +33,11 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
     const buscarCusto = async () => {
       if (!colaboradorId) return;
 
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável)
+      if (window.blockDetailedFetches) {
+        return;
+      }
+
       try {
         const params = new URLSearchParams({
           membro_id: colaboradorId
@@ -42,6 +47,12 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
           credentials: 'include',
           headers: { 'Accept': 'application/json' }
         });
+
+        // Regra 5: Tratar 503 como fallback silencioso
+        if (response.status === 503) {
+          console.warn(`[ColaboradorCardSummary] Servidor sobrecarregado (503) ao buscar custo do colaborador ${colaboradorId}.`);
+          return;
+        }
 
         if (response.ok) {
           const result = await response.json();

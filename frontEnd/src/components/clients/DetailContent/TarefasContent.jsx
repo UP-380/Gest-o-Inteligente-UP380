@@ -67,6 +67,11 @@ const TarefasContent = ({ registros }) => {
   // Carregar custos para todos os colaboradores únicos dos registros
   useEffect(() => {
     const carregarCustos = async () => {
+      // Regra 1: Bloqueio imediato se solicitado globalmente
+      if (window.blockDetailedFetches) {
+        return;
+      }
+
       if (!registros || registros.length === 0) return;
 
       const colaboradoresIds = new Set();
@@ -77,28 +82,62 @@ const TarefasContent = ({ registros }) => {
         }
       });
 
-      setCustosPorColaborador(prevCustos => {
-        const novosCustos = { ...prevCustos };
-        const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !novosCustos[id]);
+      const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !custosPorColaborador[id]);
+      if (idsParaBuscar.length === 0) return;
 
-        if (idsParaBuscar.length === 0) return prevCustos;
+      // Regra 2: Batching de busca de custos (lotes de 3)
+      const batchSize = 3;
+      const novosCustosMap = {};
+      let abortadoPorErro = false;
 
-        // Buscar custos em paralelo
-        Promise.all(
-          idsParaBuscar.map(async (colaboradorId) => {
-            const custoHora = await buscarCustoPorColaborador(colaboradorId);
-            return { colaboradorId, custoHora };
-          })
-        ).then(resultados => {
-          const custosAtualizados = { ...novosCustos };
-          resultados.forEach(({ colaboradorId, custoHora }) => {
-            custosAtualizados[colaboradorId] = custoHora;
+      for (let i = 0; i < idsParaBuscar.length; i += batchSize) {
+        if (abortadoPorErro) break;
+
+        const batch = idsParaBuscar.slice(i, i + batchSize);
+
+        try {
+          const resultados = await Promise.all(
+            batch.map(async (colaboradorId) => {
+              try {
+                const params = new URLSearchParams({ membro_id: colaboradorId });
+                const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+                  credentials: 'include',
+                  headers: { 'Accept': 'application/json' }
+                });
+
+                // Regra 5: Tratar 503 como fallback silencioso e abortar
+                if (response.status === 503) {
+                  console.warn(`[TarefasContent] Servidor sobrecarregado (503) para colaborador ${colaboradorId}. Abortando.`);
+                  abortadoPorErro = true;
+                  return null;
+                }
+
+                if (response.ok) {
+                  const result = await response.json();
+                  return { colaboradorId, custoHora: result.success && result.data ? result.data.custo_hora : null };
+                }
+                return { colaboradorId, custoHora: null };
+              } catch (err) {
+                console.error(`[TarefasContent] Erro ao buscar custo do colaborador ${colaboradorId}:`, err);
+                return { colaboradorId, custoHora: null };
+              }
+            })
+          );
+
+          resultados.forEach(res => {
+            if (res) {
+              novosCustosMap[res.colaboradorId] = res.custoHora;
+            }
           });
-          setCustosPorColaborador(custosAtualizados);
-        });
+        } catch (e) {
+          console.error('[TarefasContent] Erro no lote de busca de custos:', e);
+        }
+      }
 
-        return prevCustos;
-      });
+      // Atualizar estado com todos os novos custos
+      if (Object.keys(novosCustosMap).length > 0) {
+        setCustosPorColaborador(prev => ({ ...prev, ...novosCustosMap }));
+      }
     };
 
     carregarCustos();
@@ -107,7 +146,7 @@ const TarefasContent = ({ registros }) => {
   // Calcular custo realizado por tempo
   const calcularCustoRealizado = (tempoMilissegundos, colaboradorId) => {
     if (!tempoMilissegundos || !colaboradorId) return null;
-    
+
     const custoHoraStr = custosPorColaborador[String(colaboradorId)];
     if (!custoHoraStr) return null;
 
@@ -117,7 +156,7 @@ const TarefasContent = ({ registros }) => {
 
     // Converter tempo de milissegundos para horas
     const tempoHoras = tempoMilissegundos / 3600000;
-    
+
     // Custo = custo por hora * tempo em horas
     const custo = custoHora * tempoHoras;
     return custo;
@@ -179,20 +218,20 @@ const TarefasContent = ({ registros }) => {
   const tarefasMap = new Map();
   registros.forEach(registro => {
     if (!registro.tarefa_id) return;
-    
+
     const tarefaId = String(registro.tarefa_id).trim();
-    const nomeTarefa = registro.tarefa?.nome || 
-                      registro.tarefa?.tarefa_nome ||
-                      registro.tarefa?.titulo || 
-                      registro.tarefa?.descricao || 
-                      `Tarefa #${tarefaId}`;
+    const nomeTarefa = registro.tarefa?.nome ||
+      registro.tarefa?.tarefa_nome ||
+      registro.tarefa?.titulo ||
+      registro.tarefa?.descricao ||
+      `Tarefa #${tarefaId}`;
     const urlTarefa = registro.tarefa?.url || null;
     const dtInicio = registro.tarefa?.dt_inicio || registro.tarefa?.data_inicio || null;
     const dtVencimento = registro.tarefa?.dt_vencimento || registro.tarefa?.data_vencimento || null;
     const tempoEstimado = registro.tarefa?.tempo_estimado || 0;
     const tipoTarefaId = registro.tarefa?.tipoatividade_id || null;
     const tipoTarefaNome = tipoTarefaId ? tiposTarefaMap.get(String(tipoTarefaId).trim()) : null;
-    
+
     if (!tarefasMap.has(tarefaId)) {
       tarefasMap.set(tarefaId, {
         nome: nomeTarefa,
@@ -207,10 +246,10 @@ const TarefasContent = ({ registros }) => {
         colaboradores: new Map()
       });
     }
-    
+
     const tarefa = tarefasMap.get(tarefaId);
     tarefa.registros.push(registro);
-    
+
     const tempoRealizado = Number(registro.tempo_realizado) || 0;
     // Se valor < 1 (decimal), está em horas -> converter para ms
     // Se valor >= 1, já está em ms
@@ -218,11 +257,11 @@ const TarefasContent = ({ registros }) => {
     let tempoMs = tempoRealizado < 1 ? Math.round(tempoRealizado * 3600000) : tempoRealizado;
     if (tempoMs > 0 && tempoMs < 1000) tempoMs = 1000;
     tarefa.tempoTotal += tempoMs;
-    
+
     const colaboradorId = registro.usuario_id || registro.membro?.id || 'desconhecido';
     const colaboradorNome = registro.membro?.nome || `Colaborador ${colaboradorId}`;
     const colaboradorStatus = registro.membro?.status || 'ativo';
-    
+
     if (!tarefa.colaboradores.has(colaboradorId)) {
       tarefa.colaboradores.set(colaboradorId, {
         nome: colaboradorNome,
@@ -231,7 +270,7 @@ const TarefasContent = ({ registros }) => {
         tempoTotal: 0
       });
     }
-    
+
     const colaborador = tarefa.colaboradores.get(colaboradorId);
     colaborador.registros.push(registro);
     colaborador.tempoTotal += tempoMs;
@@ -269,11 +308,11 @@ const TarefasContent = ({ registros }) => {
         const ini = tarefa.dtInicio ? formatDate(tarefa.dtInicio) : 'Sem Início';
         const ven = tarefa.dtVencimento ? formatDate(tarefa.dtVencimento) : 'Sem vencimento';
         const range = `${ini} - ${ven}`;
-        
+
         const estVal = parseFloat(tarefa.tempoEstimado) || 0;
         const estMs = estVal > 1000 ? estVal : Math.round(estVal * 3600000);
         const estText = fmtMs(estMs);
-        
+
         const rastText = fmtMs(tarefa.tempoTotal);
         const rastDecimal = (tarefa.tempoTotal / 3600000).toFixed(2);
         const isExpanded = expandedTarefas.has(tarefaId);
@@ -320,10 +359,10 @@ const TarefasContent = ({ registros }) => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#374151', fontSize: '12px' }}>
               <span>{range}</span>
               {tarefa.tipoTarefaNome && (
-                <span style={{ 
-                  background: '#f3f4f6', 
-                  color: '#6b7280', 
-                  padding: '2px 8px', 
+                <span style={{
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                  padding: '2px 8px',
                   borderRadius: '6px',
                   fontSize: '11px',
                   fontWeight: 500
@@ -539,12 +578,12 @@ const TarefasContent = ({ registros }) => {
 
                             const dataFormatada = dataRegistro
                               ? dataRegistro.toLocaleString('pt-BR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
                               : '';
 
                             return (

@@ -26,15 +26,15 @@ const API_BASE_URL = '/api';
  * @param {boolean} showColaboradores - Se deve exibir o card de colaboradores
  * @param {string|Array|null} filtroCliente - IDs de clientes filtrados (apenas para contexto, não filtra novamente)
  */
-const DashboardCards = ({ 
-  contratos = [], 
-  registrosTempo = [], 
+const DashboardCards = ({
+  contratos = [],
+  registrosTempo = [],
   clientesExibidos = [],
-  onShowTarefas, 
-  onShowColaboradores, 
-  onShowClientes, 
-  showColaboradores = true, 
-  filtroCliente = null 
+  onShowTarefas,
+  onShowColaboradores,
+  onShowClientes,
+  showColaboradores = true,
+  filtroCliente = null
 }) => {
   const [custosPorColaborador, setCustosPorColaborador] = useState({});
 
@@ -75,17 +75,17 @@ const DashboardCards = ({
     if (registros.length > 0) {
       registros.forEach(registro => {
         let tempo = Number(registro.tempo_realizado) || 0;
-        
+
         // Converter horas decimais para milissegundos se necessário
         if (tempo > 0 && tempo < 1) {
           tempo = Math.round(tempo * 3600000); // Converter horas decimais para milissegundos
         }
-        
+
         // Se resultado < 1 segundo, arredondar para 1 segundo (mínimo)
         if (tempo > 0 && tempo < 1000) {
           tempo = 1000;
         }
-        
+
         totalHrs += tempo;
       });
     }
@@ -140,7 +140,7 @@ const DashboardCards = ({
               .split(',')
               .map(id => id.trim())
               .filter(id => id.length > 0);
-            
+
             ids.forEach(id => {
               if (id) {
                 clientesUnicos.add(id);
@@ -225,6 +225,11 @@ const DashboardCards = ({
   // Carregar custos para todos os colaboradores únicos dos registros
   useEffect(() => {
     const carregarCustos = async () => {
+      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável)
+      if (window.blockDetailedFetches) {
+        return;
+      }
+
       if (!registros || registros.length === 0) return;
 
       const colaboradoresIds = new Set();
@@ -235,28 +240,62 @@ const DashboardCards = ({
         }
       });
 
-      setCustosPorColaborador(prevCustos => {
-        const novosCustos = { ...prevCustos };
-        const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !novosCustos[id]);
+      const idsParaBuscar = Array.from(colaboradoresIds).filter(id => !custosPorColaborador[id]);
+      if (idsParaBuscar.length === 0) return;
 
-        if (idsParaBuscar.length === 0) return prevCustos;
+      // Regra 2: Controle de concorrência usando batching (3 por vez)
+      const batchSize = 3;
+      const novosCustosMap = {};
+      let abortadoPorErro = false;
 
-        // Buscar custos em paralelo
-        Promise.all(
-          idsParaBuscar.map(async (colaboradorId) => {
-            const custoHora = await buscarCustoPorColaborador(colaboradorId);
-            return { colaboradorId, custoHora };
-          })
-        ).then(resultados => {
-          const custosAtualizados = { ...novosCustos };
-          resultados.forEach(({ colaboradorId, custoHora }) => {
-            custosAtualizados[colaboradorId] = custoHora;
+      for (let i = 0; i < idsParaBuscar.length; i += batchSize) {
+        if (abortadoPorErro) break;
+
+        const batch = idsParaBuscar.slice(i, i + batchSize);
+
+        try {
+          const resultados = await Promise.all(
+            batch.map(async (colaboradorId) => {
+              try {
+                const params = new URLSearchParams({ membro_id: colaboradorId });
+                const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+                  credentials: 'include',
+                  headers: { 'Accept': 'application/json' }
+                });
+
+                // Regra 5: Tratar 503 como fallback silencioso e abortar ciclo
+                if (response.status === 503) {
+                  console.warn(`[DashboardCards] Servidor sobrecarregado (503) ao buscar custo do colaborador ${colaboradorId}. Abortando ciclo.`);
+                  abortadoPorErro = true;
+                  return null;
+                }
+
+                if (response.ok) {
+                  const result = await response.json();
+                  return { colaboradorId, custoHora: result.success && result.data ? result.data.custo_hora : null };
+                }
+                return { colaboradorId, custoHora: null };
+              } catch (err) {
+                console.error(`[DashboardCards] Erro ao buscar custo do colaborador ${colaboradorId}:`, err);
+                return { colaboradorId, custoHora: null };
+              }
+            })
+          );
+
+          resultados.forEach(res => {
+            if (res) {
+              novosCustosMap[res.colaboradorId] = res.custoHora;
+            }
           });
-          setCustosPorColaborador(custosAtualizados);
-        });
+        } catch (e) {
+          console.error('[DashboardCards] Erro no lote de busca de custos:', e);
+        }
+      }
 
-        return prevCustos;
-      });
+      // Atualizar estado com todos os novos custos encontrados
+      if (Object.keys(novosCustosMap).length > 0) {
+        setCustosPorColaborador(prev => ({ ...prev, ...novosCustosMap }));
+      }
     };
 
     carregarCustos();
@@ -274,12 +313,12 @@ const DashboardCards = ({
       if (!colaboradorId) return;
 
       let tempo = Number(registro.tempo_realizado) || 0;
-      
+
       // Converter horas decimais para milissegundos se necessário
       if (tempo > 0 && tempo < 1) {
         tempo = Math.round(tempo * 3600000);
       }
-      
+
       // Se resultado < 1 segundo, arredondar para 1 segundo
       if (tempo > 0 && tempo < 1000) {
         tempo = 1000;
@@ -365,10 +404,10 @@ const DashboardCards = ({
             {tempoDecimal} hrs decimais
           </div>
           {calcularCustoRealizadoTotal !== null && (
-            <div style={{ 
-              marginTop: '8px', 
-              fontSize: '14px', 
-              fontWeight: 600, 
+            <div style={{
+              marginTop: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
               color: '#ef4444',
               display: 'flex',
               alignItems: 'center',

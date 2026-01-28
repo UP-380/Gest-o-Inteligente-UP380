@@ -30,26 +30,31 @@ const ProdutosContent = ({ clienteId, colaboradorId, registros }) => {
         return;
       }
 
-      // Buscar nomes dos produtos usando getById individual para garantir compatibilidade
+      // Buscar nomes dos produtos usando getById com controle de concorrência
       try {
         const clickupIds = Array.from(clickupIdsSet);
+        const produtosArray = [];
+        const batchSize = 5;
 
-        // Executar buscas em paralelo
-        const responses = await Promise.all(
-          clickupIds.map(id =>
-            produtosAPI.getById(id)
-              .then(res => ({ id, res }))
-              .catch(err => ({ id, err, res: { success: false } }))
-          )
-        );
-
-        const produtosArray = responses.map(({ id, res }) => {
-          let nome = `Produto #${id}`;
-          if (res.success && res.data && res.data.nome) {
-            nome = res.data.nome;
-          }
-          return { clickup_id: id, nome };
-        });
+        for (let i = 0; i < clickupIds.length; i += batchSize) {
+          const batch = clickupIds.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(async (id) => {
+              try {
+                const res = await produtosAPI.getById(id);
+                let nome = `Produto #${id}`;
+                if (res.success && res.data && res.data.nome) {
+                  nome = res.data.nome;
+                }
+                return { clickup_id: id, nome };
+              } catch (err) {
+                console.error(`Erro ao buscar produto ${id}:`, err);
+                return { clickup_id: id, nome: `Produto #${id}` };
+              }
+            })
+          );
+          produtosArray.push(...results);
+        }
 
         setProdutos(produtosArray);
       } catch (error) {

@@ -165,6 +165,26 @@ const RelatoriosColaboradores = () => {
       carregarDadosIniciais();
     }
   }, [carregarColaboradores, carregarClientes, usuario]);
+
+  // Gerenciamento de sinalização global para controle de carga e intervalos
+  useEffect(() => {
+    // Suspender intervalos globais (como do TimerAtivo) durante carregamento ou aplicação de filtros
+    window.suspendTimerIntervals = !!loading;
+
+    // Bloqueio de buscas detalhadas pesadas (custos/estimados) se o filtro de colaborador estiver ativo
+    // mas nenhum colaborador específico tiver sido selecionado.
+    // Isso evita o efeito N+1 em listas grandes sem contexto específico.
+    const isRelatorioResponsavel = true; // Esta página é um relatório de responsabilidade
+    const hasResponsavelSelecionado = filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true);
+
+    // Bloquear chamadas detalhadas se filtros já foram aplicados e não há responsável selecionado
+    window.blockDetailedFetches = isRelatorioResponsavel && !hasResponsavelSelecionado && !!filtrosAplicados;
+
+    return () => {
+      window.suspendTimerIntervals = false;
+    };
+  }, [loading, filtroColaborador, filtrosAplicados]);
+
   // Função helper para verificar se um colaborador está inativo
   const isColaboradorInativo = useCallback((colaboradorId, registro = null) => {
     if (mostrarColaboradoresInativos) return false; // Se inativos estão habilitados, não filtrar

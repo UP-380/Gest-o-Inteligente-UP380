@@ -83,64 +83,84 @@ const ProdutosDetalhadosList = ({
 
     // Buscar tempos realizados diretamente (EXATAMENTE igual ao TarefasDetalhadasList)
     const buscarTemposRealizados = async () => {
+      // Regra 1: Bloqueio imediato se solicitado globalmente
+      if (window.blockDetailedFetches) {
+        return;
+      }
+
       const novosTempos = {};
+      let abortadoPorErro = false;
 
-      const promises = todasTarefas.map(async ({ tarefa, cliente, produto }) => {
-        // Coletar responsáveis únicos desta tarefa (igual ao tipo 'tarefas' linha ~139-146)
-        const responsaveisUnicos = new Set();
-        if (tarefa.registros && Array.isArray(tarefa.registros)) {
-          tarefa.registros.forEach(reg => {
-            if (reg.responsavel_id) {
-              responsaveisUnicos.add(reg.responsavel_id);
-            }
-          });
-        }
+      // Regra 2: Batching de tarefas (lotes de 2 para reduzir carga massiva)
+      const batchSizeTarefas = 2;
+      for (let i = 0; i < todasTarefas.length; i += batchSizeTarefas) {
+        if (abortadoPorErro) break;
 
-        if (responsaveisUnicos.size === 0) {
-          return { tarefaId: tarefa.id, tempoRealizado: 0 };
-        }
+        const batchTarefas = todasTarefas.slice(i, i + batchSizeTarefas);
 
-        // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
-        let tempoTotal = 0;
-        const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
-          try {
-            const response = await fetch('/api/registro-tempo/realizado-total', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                responsavel_id: responsavelId,
-                data_inicio: periodoInicio,
-                data_fim: periodoFim,
-                tarefa_id: tarefa.id,
-                cliente_id: cliente.id || null,
-                produto_id: produto.id || null
-              })
+        await Promise.all(batchTarefas.map(async ({ tarefa, cliente, produto }) => {
+          // Coletar responsáveis únicos desta tarefa
+          const responsaveisUnicos = new Set();
+          if (tarefa.registros && Array.isArray(tarefa.registros)) {
+            tarefa.registros.forEach(reg => {
+              if (reg.responsavel_id) responsaveisUnicos.add(reg.responsavel_id);
             });
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                return result.data.tempo_realizado_ms || 0;
-              }
-            }
-            return 0;
-          } catch (error) {
-            console.error('Erro ao buscar tempo realizado da tarefa:', error);
-            return 0;
           }
-        });
 
-        const resultados = await Promise.all(promisesResponsaveis);
-        tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
+          if (responsaveisUnicos.size === 0) {
+            novosTempos[tarefa.id] = 0;
+            return;
+          }
 
-        return { tarefaId: tarefa.id, tempoRealizado: tempoTotal };
-      });
+          // Regra 2: Batching de responsáveis dentro da tarefa
+          let tempoTotal = 0;
+          const responsaveisIds = Array.from(responsaveisUnicos);
+          const batchSizeResponsaveis = 2;
 
-      const resultados = await Promise.all(promises);
-      resultados.forEach(({ tarefaId, tempoRealizado }) => {
-        novosTempos[tarefaId] = tempoRealizado;
-      });
+          for (let j = 0; j < responsaveisIds.length; j += batchSizeResponsaveis) {
+            if (abortadoPorErro) break;
+            const batchRes = responsaveisIds.slice(j, j + batchSizeResponsaveis);
+
+            const resultados = await Promise.all(batchRes.map(async (responsavelId) => {
+              try {
+                const response = await fetch('/api/registro-tempo/realizado-total', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavelId,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    tarefa_id: tarefa.id,
+                    cliente_id: cliente.id || null,
+                    produto_id: produto.id || null
+                  })
+                });
+
+                // Regra 5: Tratar 503 como fallback silencioso e abortar
+                if (response.status === 503) {
+                  console.warn(`[ProdutosDetalhadosList] Servidor sobrecarregado (503) para tarefa ${tarefa.id}. Abortando.`);
+                  abortadoPorErro = true;
+                  return 0;
+                }
+
+                if (response.ok) {
+                  const result = await response.json();
+                  return result.success && result.data ? result.data.tempo_realizado_ms || 0 : 0;
+                }
+                return 0;
+              } catch (error) {
+                console.error('Erro ao buscar tempo realizado da tarefa:', error);
+                return 0;
+              }
+            }));
+
+            tempoTotal += resultados.reduce((sum, v) => sum + v, 0);
+          }
+
+          novosTempos[tarefa.id] = tempoTotal;
+        }));
+      }
 
       setTemposRealizadosPorTarefa(novosTempos);
     };

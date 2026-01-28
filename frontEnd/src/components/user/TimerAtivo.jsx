@@ -372,6 +372,7 @@ const TimerAtivo = () => {
 
     // Buscar novamente a cada 3 segundos (mais frequente para detectar mudanças)
     const interval = setInterval(() => {
+      if (window.suspendTimerIntervals) return; // Suspender chamadas se sinalizado
       buscarRegistroAtivo();
     }, 3000);
 
