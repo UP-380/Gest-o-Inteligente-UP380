@@ -10,9 +10,13 @@ import DetailSideCard from '../../components/colaboradores/DetailSideCard';
 import MiniCardLista from '../../components/dashboard/MiniCardLista';
 import SemResultadosFiltros from '../../components/common/SemResultadosFiltros';
 import { clientesAPI, colaboradoresAPI, tarefasAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import './DashboardColaboradores.css';
 
 const RelatoriosColaboradores = () => {
+  const { usuario } = useAuth();
+  const { isAdmin, isGestor } = usePermissions();
   // Estado dos filtros
   const [filtroCliente, setFiltroCliente] = useState(null);
   const [filtroDataInicio, setFiltroDataInicio] = useState(null);
@@ -83,40 +87,84 @@ const RelatoriosColaboradores = () => {
     }
   }, [todosColaboradores, filtroColaborador]);
 
-  // Carregar clientes - sempre carrega todas as opções
-  const carregarClientes = useCallback(async () => {
-    try {
-      // Desabilitar cache para garantir dados atualizados com status
-      const result = await clientesAPI.getAll(null, false);
-      if (result.success && result.data && Array.isArray(result.data)) {
-        // Garantir que todos os clientes tenham status
-        const clientesComStatus = result.data.map(cliente => ({
-          ...cliente,
-          status: cliente.status || 'ativo'
-        }));
-        setTodosClientes(clientesComStatus);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar clientes:', error);
-    }
-  }, []);
-
   // Carregar colaboradores - sempre carrega todas as opções
   // Nas telas de relatórios, buscar TODOS os membros (incluindo os sem usuário vinculado)
   const carregarColaboradores = useCallback(async () => {
     try {
       const result = await colaboradoresAPI.getAllIncludingWithoutUser();
       if (result.success && result.data && Array.isArray(result.data)) {
-        setTodosColaboradores(result.data);
+        let listaColaboradores = result.data;
+
+        // Se NÃO for admin/gestor, filtrar para mostrar apenas o próprio usuário
+        if (!isAdmin && !isGestor && usuario) {
+          listaColaboradores = listaColaboradores.filter(c => String(c.usuario_id) === String(usuario.id));
+        }
+
+        setTodosColaboradores(listaColaboradores);
+        return listaColaboradores; // Retornar para uso em encadeamento (ex: carregarClientes)
       }
+      return [];
     } catch (error) {
       console.error('Erro ao carregar colaboradores:', error);
+      return [];
     }
-  }, []);
+  }, [isAdmin, isGestor, usuario]);
 
-  // Funções removidas: carregarColaboradoresPorCliente e carregarClientesPorColaborador
-  // Agora cada filtro sempre mostra todas as opções disponíveis, sem relações entre eles
+  // Carregar clientes
+  const carregarClientes = useCallback(async (colaboradoresCarregados = []) => {
+    try {
+      // Se for admin ou gestor, carrega todos os clientes
+      if (isAdmin || isGestor) {
+        const result = await clientesAPI.getAll(null, false);
+        if (result.success && result.data && Array.isArray(result.data)) {
+          const clientesComStatus = result.data.map(cliente => ({
+            ...cliente,
+            status: cliente.status || 'ativo'
+          }));
+          setTodosClientes(clientesComStatus);
+        }
+      } else {
+        // Se for usuário comum, buscar apenas clientes vinculados ao colaborador
+        // Primeiro, encontrar o colaborador vinculado ao usuário logado
+        // Usar a lista passada ou buscar no estado se não passada
+        const listaParaBusca = colaboradoresCarregados.length > 0 ? colaboradoresCarregados : todosColaboradores;
+        const meuColaborador = listaParaBusca.find(c => String(c.usuario_id) === String(usuario?.id));
 
+        if (meuColaborador) {
+          const result = await clientesAPI.getByColaborador(meuColaborador.id);
+          if (result.success && result.data && Array.isArray(result.data)) {
+            const clientesComStatus = result.data.map(cliente => ({
+              ...cliente,
+              status: cliente.status || 'ativo'
+            }));
+            setTodosClientes(clientesComStatus);
+          } else {
+            setTodosClientes([]); // Fallback seguro
+          }
+        } else {
+          // Se não encontrar vínculo de colaborador, não mostra nenhum cliente
+          setTodosClientes([]);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar clientes:', error);
+      if (!isAdmin && !isGestor) {
+        setTodosClientes([]); // Fallback seguro em erro para não admins
+      }
+    }
+  }, [isAdmin, isGestor, usuario, todosColaboradores]);
+
+  // Efeito inicial para carregar dados
+  useEffect(() => {
+    const carregarDadosIniciais = async () => {
+      const colaboradores = await carregarColaboradores();
+      await carregarClientes(colaboradores);
+    };
+
+    if (usuario) {
+      carregarDadosIniciais();
+    }
+  }, [carregarColaboradores, carregarClientes, usuario]);
   // Função helper para verificar se um colaborador está inativo
   const isColaboradorInativo = useCallback((colaboradorId, registro = null) => {
     if (mostrarColaboradoresInativos) return false; // Se inativos estão habilitados, não filtrar
