@@ -145,6 +145,25 @@ const DelegarTarefas = () => {
   const [detailCard, setDetailCard] = useState(null); // { entidadeId, tipo, dados }
   const [detailCardPosition, setDetailCardPosition] = useState(null); // { left, top }
 
+  // Cache persistente para horas contratadas e tipo de contrato
+  // Estrutura: { [responsavelId]: { [periodoKey]: { horas, tipo } } }
+  // Onde periodoKey = `${dataInicio}_${dataFim}`
+  const cacheHorasContratadasRef = useRef({});
+
+  // Limpar cache quando houver ação explícita de limpeza de filtros ou recarregamento total
+  const limparCacheHorasContratadas = useCallback(() => {
+    cacheHorasContratadasRef.current = {};
+    console.log('🧹 [CACHE] Cache de horas contratadas limpo');
+  }, []);
+
+  // Limpar cache quando o período mudar bruscamente (opcional, já que a chave inclui o período)
+  useEffect(() => {
+    if (periodoInicio && periodoFim) {
+      // Não precisamos limpar tudo, apenas garantir que novas chaves serão criadas
+      // Mas se quiser economizar memória, pode limpar chaves muito antigas aqui
+    }
+  }, [periodoInicio, periodoFim]);
+
   // Função auxiliar para normalizar tempo realizado (usada em buscarDetalhesPorTipo)
   const normalizarTempoRealizado = (tempo) => {
     if (tempo === null || tempo === undefined) return 0;
@@ -1035,7 +1054,15 @@ const DelegarTarefas = () => {
   // Carregar horas contratadas APENAS para responsáveis dos resultados filtrados
   const carregarHorasContratadasPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
     if (window.backendOverloaded === true) return;
+
+    // Validar período antes de prosseguir
+    if (!dataInicio || !dataFim) {
+      console.warn('[HORAS-CONTRATADAS] Período inválido para busca de vigência');
+      return;
+    }
+
     const responsaveisIds = new Set();
+    const periodoKey = `${dataInicio}_${dataFim}`;
 
     // Adicionar APENAS responsáveis dos registros agrupados (resultados filtrados)
     agrupamentos.forEach(agrupamento => {
@@ -1045,50 +1072,99 @@ const DelegarTarefas = () => {
       }
     });
 
-    // REMOVIDO: Não adicionar todos os membros do sistema
-    // Isso causava busca de horas para responsáveis não filtrados, gerando inconsistências
+    console.log(`📊 [HORAS-CONTRATADAS] Processando ${responsaveisIds.size} responsável(is) para o período ${periodoKey}`);
 
-    console.log(`📊 [HORAS-CONTRATADAS] Buscando horas contratadas para ${responsaveisIds.size} responsável(is) filtrado(s):`, Array.from(responsaveisIds));
+    // Separar IDs que já estão no cache daqueles que precisam de fetch
+    const idsParaBuscar = [];
+    const dadosEmCache = {};
 
-    // Limpar cache inicialmente para garantir consistência
-    setHorasContratadasPorResponsavel({});
-    setTipoContratoPorResponsavel({});
+    responsaveisIds.forEach(id => {
+      if (cacheHorasContratadasRef.current[id] && cacheHorasContratadasRef.current[id][periodoKey]) {
+        // Já temos no cache para este período!
+        const cachedData = cacheHorasContratadasRef.current[id][periodoKey];
+        dadosEmCache[id] = cachedData;
+        console.log(`  ⚡ [CACHE] Usando dados em cache para responsável ${id}`);
+      } else {
+        idsParaBuscar.push(id);
+      }
+    });
 
-    // Criar array de promises para requisições paralelas
-    // Cada requisição atualiza o estado incrementalmente assim que completa
-    const promises = Array.from(responsaveisIds).map(async (responsavelId) => {
+    // Atualizar estado imediatamente com dados do cache (não limpa o estado anterior, faz merge)
+    if (Object.keys(dadosEmCache).length > 0) {
+      setHorasContratadasPorResponsavel(prev => {
+        const newState = { ...prev };
+        Object.keys(dadosEmCache).forEach(id => {
+          newState[id] = dadosEmCache[id].horas;
+        });
+        return newState;
+      });
+
+      setTipoContratoPorResponsavel(prev => {
+        const newState = { ...prev };
+        Object.keys(dadosEmCache).forEach(id => {
+          newState[id] = dadosEmCache[id].tipo;
+        });
+        return newState;
+      });
+    }
+
+    // Se não há novos IDs para buscar, encerramos por aqui
+    if (idsParaBuscar.length === 0) {
+      console.log('✅ [HORAS-CONTRATADAS] Todos os dados recuperados do cache. Nenhuma requisição necessária.');
+      return;
+    }
+
+    console.log(`🔄 [HORAS-CONTRATADAS] Buscando dados novos para ${idsParaBuscar.length} responsável(is)...`);
+
+    // Criar array de promises para requisições paralelas APENAS dos novos
+    const promises = idsParaBuscar.map(async (responsavelId) => {
       try {
         console.log(`  🔍 Buscando horas contratadas para responsável ${responsavelId} no período ${dataInicio} - ${dataFim}`);
         const resultado = await buscarHorasContratadasPorResponsavel(responsavelId, dataInicio, dataFim);
 
-        // Atualizar estado incrementalmente assim que cada requisição completa
+        // Estrutura para salvar no cache e no estado
+        const dadosVigencia = {
+          horas: resultado ? (resultado.horascontratadasdia || null) : null,
+          tipo: resultado ? (resultado.tipo_contrato || null) : null
+        };
+
+        // Salvar no cache
+        if (!cacheHorasContratadasRef.current[responsavelId]) {
+          cacheHorasContratadasRef.current[responsavelId] = {};
+        }
+        cacheHorasContratadasRef.current[responsavelId][periodoKey] = dadosVigencia;
+
+        // Atualizar estado incrementalmente
+        setHorasContratadasPorResponsavel(prev => ({
+          ...prev,
+          [responsavelId]: dadosVigencia.horas
+        }));
+        setTipoContratoPorResponsavel(prev => ({
+          ...prev,
+          [responsavelId]: dadosVigencia.tipo
+        }));
+
         if (resultado) {
-          setHorasContratadasPorResponsavel(prev => ({
-            ...prev,
-            [responsavelId]: resultado.horascontratadasdia || null
-          }));
-          setTipoContratoPorResponsavel(prev => ({
-            ...prev,
-            [responsavelId]: resultado.tipo_contrato || null
-          }));
-          console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'})`);
+          console.log(`  ✅ Responsável ${responsavelId}: ${resultado.horascontratadasdia || 0}h/dia (tipo: ${resultado.tipo_contrato || 'N/A'}) - Cache atualizado`);
         } else {
-          setHorasContratadasPorResponsavel(prev => ({
-            ...prev,
-            [responsavelId]: null
-          }));
-          setTipoContratoPorResponsavel(prev => ({
-            ...prev,
-            [responsavelId]: null
-          }));
-          console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada`);
+          console.log(`  ⚠️ Responsável ${responsavelId}: Nenhuma vigência encontrada - Cache atualizado com null`);
         }
 
         return resultado;
       } catch (error) {
-        // Tratamento de erro individual para cada requisição
         console.error(`  ❌ Erro ao buscar horas contratadas para responsável ${responsavelId}:`, error);
-        // Atualizar estado com null em caso de erro
+
+        // Em caso de erro, também salvamos no cache para evitar retry loop infinito no mesmo período
+        // Mas talvez valha a pena tentar de novo depois? Por enquanto, evita spam de erro.
+        // Se for erro de rede (503), talvez não devêssemos cachear null... mas para proteger o backend, vamos cachear.
+
+        const dadosErro = { horas: null, tipo: null };
+
+        if (!cacheHorasContratadasRef.current[responsavelId]) {
+          cacheHorasContratadasRef.current[responsavelId] = {};
+        }
+        cacheHorasContratadasRef.current[responsavelId][periodoKey] = dadosErro;
+
         setHorasContratadasPorResponsavel(prev => ({
           ...prev,
           [responsavelId]: null
@@ -1097,13 +1173,14 @@ const DelegarTarefas = () => {
           ...prev,
           [responsavelId]: null
         }));
+
         return null;
       }
     });
 
     // Aguardar todas as requisições paralelas completarem
     await Promise.all(promises);
-    console.log(`✅ [HORAS-CONTRATADAS] Todas as requisições completadas para ${responsaveisIds.size} responsável(is)`);
+    console.log(`✅ [HORAS-CONTRATADAS] Processo finalizado.`);
   };
 
   // Função para obter todos os registros atualmente visíveis (dos agrupamentos)
@@ -2879,8 +2956,11 @@ const DelegarTarefas = () => {
       // Limpar caches quando filtros detalhados mudarem para garantir consistência
       console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
       console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
-      setHorasContratadasPorResponsavel({});
-      setTipoContratoPorResponsavel({});
+
+      // NÃO limpar horas contratadas aqui, pois agora usamos cache inteligente
+      // setHorasContratadasPorResponsavel({});
+      // setTipoContratoPorResponsavel({});
+
       setTempoEstimadoTotalPorResponsavel({});
       // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
       setDadosAuxiliaresCarregados(false);
