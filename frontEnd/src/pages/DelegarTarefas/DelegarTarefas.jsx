@@ -157,6 +157,10 @@ const DelegarTarefas = () => {
   // Ref para armazenar valores selecionados anteriores (para deteção de mudanças incrementais)
   const prevValoresSelecionadosRef = useRef({});
 
+  // Controle de concorrência para requisições de Tempo Realizado Total
+  const tempoRealizadoRequestControllerRef = useRef(null);
+  const tempoRealizadoDebounceRef = useRef(null);
+
   // Limpar cache quando houver ação explícita de limpeza de filtros ou recarregamento total
   const limparCacheHorasContratadas = useCallback(() => {
     cacheHorasContratadasRef.current = {};
@@ -1299,6 +1303,56 @@ const DelegarTarefas = () => {
     setGruposExpandidos(new Set());
     setTarefasExpandidas(new Set());
     setAgrupamentosTarefasExpandidas(new Set());
+
+    // Função para buscar Tempo Realizado Total com controle de concorrência
+    const buscarTempoRealizadoTotalDebounced = (paramsTotalParams, setFunction) => {
+      // Cancelar debounce anterior
+      if (tempoRealizadoDebounceRef.current) {
+        clearTimeout(tempoRealizadoDebounceRef.current);
+      }
+
+      // Cancelar requisição anterior se ainda estiver rodando
+      if (tempoRealizadoRequestControllerRef.current) {
+        tempoRealizadoRequestControllerRef.current.abort();
+      }
+
+      tempoRealizadoDebounceRef.current = setTimeout(async () => {
+        const controller = new AbortController();
+        tempoRealizadoRequestControllerRef.current = controller;
+
+        const urlTotal = `${API_BASE_URL}/tempo-estimado/total?${paramsTotalParams}`;
+
+        try {
+          console.log(`🔵 [LOAD-TEMPO-REALIZADO-TOTAL] Buscando tempo realizado total (Debounced): ${urlTotal}`);
+          const responseTotal = await fetch(urlTotal, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+          });
+
+          if (responseTotal.ok) {
+            const resultTotal = await responseTotal.json();
+            if (resultTotal.success && resultTotal.data) {
+              const novosTempos = resultTotal.data || {};
+              // Atualizar cache incrementalmente
+              setFunction(prev => ({
+                ...prev,
+                ...novosTempos
+              }));
+            }
+          }
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            console.error('Erro ao buscar tempo realizado total:', error);
+          }
+        } finally {
+          if (tempoRealizadoRequestControllerRef.current === controller) {
+            tempoRealizadoRequestControllerRef.current = null;
+          }
+        }
+      }, 300); // 300ms de debounce
+    };
+
     try {
       const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
       const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : {
@@ -1676,22 +1730,12 @@ const DelegarTarefas = () => {
               // Para simplificar, quando não há filtro específico, não usamos o cache granular complexo
             }
 
-            // 2. Se temos dados em cache, atualizar estado imediatamente
-            if (Object.keys(dadosEmCache).length > 0) {
-              console.log(`⚡ [CACHE-ESTIMADO] Reutilizando dados para ${Object.keys(dadosEmCache).length} responsáveis`);
-              setTempoEstimadoTotalPorResponsavel(prev => ({
-                ...prev,
-                ...dadosEmCache
-              }));
-            }
-
             // 3. Se TODOS os dados estão em cache, pular requisição
             // EXCEÇÃO: Se não há filtro de responsável, precisamos buscar o total geral
             if (responsaveisAtuais.length > 0 && idsParaBuscar.size === 0) {
               console.log('✅ [CACHE-ESTIMADO] Todos os tempos estimados recuperados do cache.');
             } else {
-              // Buscar do backend SOMENTE se necessário
-              // Filtrar paramsTotal para pedir apenas os IDs que faltam (se houver filtro de responsável)
+              // Buscar do backend SOMENTE se necessário com CONTROLE DE CONCORRÊNCIA
 
               // CLONE os parâmetros para não afetar outras lógicas
               const paramsParaBusca = new URLSearchParams(paramsTotal.toString());
@@ -1700,36 +1744,30 @@ const DelegarTarefas = () => {
               if (responsaveisAtuais.length > 0 && idsParaBuscar.size > 0) {
                 paramsParaBusca.delete('responsavel_id'); // Remove a lista completa
                 idsParaBuscar.forEach(id => paramsParaBusca.append('responsavel_id', id));
-                console.log(`🔄 [CACHE-ESTIMADO] Buscando delta para ${idsParaBuscar.size} responsáveis:`, Array.from(idsParaBuscar));
+                console.log(`🔄 [CACHE-ESTIMADO] Buscando delta para ${idsParaBuscar.size} responsáveis (Debounced)`);
+              } else if (responsaveisAtuais.length === 0) {
+                // Busca global (sem filtro de responsável)
+                console.log(`🔄 [CACHE-ESTIMADO] Buscando totais globais (Debounced)`);
               }
 
-              const urlTotal = `${API_BASE_URL}/tempo-estimado/total?${paramsParaBusca}`;
+              // Disparar busca controlada
+              buscarTempoRealizadoTotalDebounced(paramsParaBusca, (novosDadosFunc) => {
+                setTempoEstimadoTotalPorResponsavel(prev => {
+                  const novosDados = typeof novosDadosFunc === 'function' ? novosDadosFunc(prev) : novosDadosFunc;
 
-              try {
-                // ... (restante da lógica de fetch, mas atualizando o cache no final)
-                const responseTotal = await fetch(urlTotal, { credentials: 'include', headers: { 'Accept': 'application/json' } });
-
-                if (responseTotal.ok) {
-                  const resultTotal = await responseTotal.json();
-                  if (resultTotal.success && resultTotal.data) {
-                    const novosTempos = resultTotal.data || {};
-
-                    // Atualizar cache
-                    Object.entries(novosTempos).forEach(([id, tempo]) => {
+                  // Atualizar cache persistente também
+                  if (novosDados) {
+                    Object.entries(novosDados).forEach(([id, tempo]) => {
+                      // Filtrar apenas o que veio novo para não invalidar todo o cache
+                      // Simplificação: Atualiza se veio na resposta
+                      const periodoKeyInScope = `${periodoAUsar.inicio}_${periodoAUsar.fim}`;
                       if (!tempoEstimadoCacheRef.current[id]) tempoEstimadoCacheRef.current[id] = {};
-                      tempoEstimadoCacheRef.current[id][periodoKey] = tempo;
+                      tempoEstimadoCacheRef.current[id][periodoKeyInScope] = tempo;
                     });
-
-                    setTempoEstimadoTotalPorResponsavel(prev => ({
-                      ...prev,
-                      ...novosTempos
-                    }));
                   }
-                }
-              } catch (err) {
-                console.error('Erro buscar tempo estimado:', err);
-                setTempoEstimadoTotalPorResponsavel({});
-              }
+                  return novosDados;
+                });
+              });
             }
           }
         } else {
