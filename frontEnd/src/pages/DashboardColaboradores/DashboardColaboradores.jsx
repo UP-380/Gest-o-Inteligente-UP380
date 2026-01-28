@@ -64,6 +64,10 @@ const RelatoriosColaboradores = () => {
   // Cache de dados dos colaboradores para os cards laterais
   const colaboradorDataCacheRef = useRef({});
 
+  // Estado para controlar carregamento do REALIZADO (On Demand)
+  // Iniciado como true para adiar o carregamento
+  const [skipRealized, setSkipRealized] = useState(true);
+
   // Limpar seleção de colaborador se ele não estiver mais na lista de colaboradores disponíveis
   useEffect(() => {
     if (filtroColaborador && todosColaboradores.length > 0) {
@@ -281,13 +285,13 @@ const RelatoriosColaboradores = () => {
         ...filtros,
         resumoOnly: true,
         limit: 1, // Não precisamos de dados da lista aqui
-        incluirClientesInativos: mostrarClientesInativos,
         incluirColaboradoresInativos: mostrarColaboradoresInativos,
         considerarFinaisDeSemana: enabledWeekends,
         considerarFeriados: enabledHolidays,
+        skipRealized: filtros.skipRealized !== undefined ? filtros.skipRealized : true // Padrão: Pular realizado se não especificado
       };
 
-      const response = await colaboradoresAPI.getRelatorios(params);
+      const response = await clientesAPI.getRelatorios(params);
 
       if (response && response.success && response.totaisGerais) {
         setTotaisGerais(response.totaisGerais);
@@ -669,10 +673,13 @@ const RelatoriosColaboradores = () => {
         dataFim: filtroDataFim,
         clienteId: filtroCliente, // Opcional
         // IMPORTANTE: Garantir que filtros de responsável NÃO sejam enviados aqui
-        colaboradorId: null
+        colaboradorId: null,
+        skipRealized: true // Sempre pular realizado no carregamento automático de contexto
       };
 
-      // Carregar apenas os totais
+      // Carregar apenas os totais (sem realizado)
+      // Resetar skipRealized para true pois mudou o filtro
+      setSkipRealized(true);
       carregarResumoDashboard(filtrosGlobais);
     }, 500); // 500ms de debounce
 
@@ -685,8 +692,25 @@ const RelatoriosColaboradores = () => {
     mostrarColaboradoresInativos,
     enabledWeekends,
     enabledHolidays,
-    carregarResumoDashboard
+    carregarResumoDashboard,
+    skipRealized
   ]);
+
+  // Handler para carregar realizado sob demanda
+  const handleFetchRealized = useCallback(() => {
+    if (!filtroDataInicio || !filtroDataFim) return;
+
+    const filtrosGlobais = {
+      dataInicio: filtroDataInicio,
+      dataFim: filtroDataFim,
+      clienteId: filtroCliente,
+      colaboradorId: null,
+      skipRealized: false // Forçar carregamento do realizado
+    };
+
+    setSkipRealized(false); // Atualiza estado visual
+    carregarResumoDashboard(filtrosGlobais);
+  }, [filtroDataInicio, filtroDataFim, filtroCliente, carregarResumoDashboard]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -1223,6 +1247,8 @@ const RelatoriosColaboradores = () => {
               totaisDiretos={totaisGerais}
               showColaboradores={true}
               filtroCliente={filtroCliente}
+              skipRealized={skipRealized}
+              onFetchRealized={handleFetchRealized}
             />
           )}
 

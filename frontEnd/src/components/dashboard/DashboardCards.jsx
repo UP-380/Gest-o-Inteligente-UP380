@@ -35,7 +35,9 @@ const DashboardCards = ({
   onShowClientes,
   showColaboradores = true,
   filtroCliente = null,
-  totaisDiretos = null // Novos totais vindos diretamente do backend (resumoOnly)
+  totaisDiretos = null, // Novos totais vindos diretamente do backend (resumoOnly)
+  onFetchRealized, // Função para carregar realizado sob demanda
+  skipRealized = false // Se true, não exibe o realizado automaticamente
 }) => {
   const [custosPorColaborador, setCustosPorColaborador] = useState({});
   const [carregarCustosSolicitado, setCarregarCustosSolicitado] = useState(false);
@@ -50,9 +52,12 @@ const DashboardCards = ({
     if (totaisDiretos) {
       return {
         totalTarefas: totaisDiretos.totalTarefas || 0,
-        totalHrs: totaisDiretos.totalTempo || 0,
+        totalHrs: totaisDiretos.totalTempo, // Pode ser null/undefined se skipRealized=true
         totalColaboradores: totaisDiretos.totalColaboradores || 0,
-        totalClientes: totaisDiretos.totalClientes || 0
+        totalClientes: totaisDiretos.totalClientes || 0,
+        totalProdutos: totaisDiretos.totalProdutos || 0,
+        totalEstimado: totaisDiretos.totalEstimado || 0,
+        totalContratado: totaisDiretos.totalContratado || 0
       };
     }
 
@@ -179,11 +184,21 @@ const DashboardCards = ({
 
     return {
       totalTarefas,
-      totalHrs,
+      totalHrs: skipRealized ? null : totalHrs, // Se skipRealized, força null no calculo local
       totalColaboradores,
-      totalClientes
+      totalClientes,
+      totalProdutos: 0, // Fallback local
+      totalEstimado: 0, // Fallback local (não calculado aqui)
+      totalContratado: 0 // Fallback local (não calculado aqui)
     };
-  }, [registros, contratosArray, clientesExibidos, totaisDiretos]);
+  }, [registros, contratosArray, clientesExibidos, totaisDiretos, skipRealized]);
+
+  // Calcular Disponível (Frontend Rule)
+  const totalDisponivel = useMemo(() => {
+    const contratado = Number(totais.totalContratado) || 0;
+    const estimado = Number(totais.totalEstimado) || 0;
+    return contratado - estimado;
+  }, [totais.totalContratado, totais.totalEstimado]);
 
   // Formatar horas em h min s (com segundos para dashboard)
   const formatarHrsHM = (milissegundos) => {
@@ -238,7 +253,13 @@ const DashboardCards = ({
   useEffect(() => {
     const carregarCustos = async () => {
       // Regra 1: Bloqueio imediato se solicitado globalmente
-      if (window.blockDetailedFetches || window.backendOverloaded === true || !carregarCustosSolicitado) {
+      // Agora só carrega se EXPLICITAMENTE solicitado
+      if (window.blockDetailedFetches || window.backendOverloaded === true) {
+        return;
+      }
+
+      // Se não foi solicitado, NÃO faz nada (evita carga automática)
+      if (!carregarCustosSolicitado) {
         return;
       }
 
@@ -412,13 +433,39 @@ const DashboardCards = ({
         </div>
         <div className="dashboard-card-content">
           <div className="dashboard-card-label">Hrs Realizadas</div>
-          <div className="dashboard-card-value dashboard-card-value-full">
-            {tempoHM}
-          </div>
-          <div className="dashboard-card-decimal">
-            {tempoDecimal} hrs decimais
-          </div>
-          {calcularCustoRealizadoTotal !== null && (
+
+          {(skipRealized && (totais.totalHrs === null || totais.totalHrs === undefined)) ? (
+            <div style={{ marginTop: '5px' }}>
+              <button
+                className="btn-carregar-realizado"
+                onClick={onFetchRealized}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '12px',
+                  background: '#ff9800',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                <i className="fas fa-sync-alt" style={{ marginRight: '5px' }}></i>
+                Carregar Realizado
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="dashboard-card-value dashboard-card-value-full">
+                {formatarHrsHM(totais.totalHrs || 0)}
+              </div>
+              <div className="dashboard-card-decimal">
+                {formatarHrsDecimal(totais.totalHrs || 0)} hrs decimais
+              </div>
+            </>
+          )}
+
+          {(!skipRealized && calcularCustoRealizadoTotal !== null) && (
             <div style={{
               marginTop: '8px',
               fontSize: '14px',
@@ -444,7 +491,7 @@ const DashboardCards = ({
               </span>
             </div>
           )}
-          {!carregarCustosSolicitado && registros.length > 0 && calcularCustoRealizadoTotal === null && (
+          {(!skipRealized && !carregarCustosSolicitado && registros.length > 0 && calcularCustoRealizadoTotal === null) && (
             <div style={{ marginTop: '8px' }}>
               <button
                 className="btn-ver-custo-dashboard"
@@ -465,6 +512,63 @@ const DashboardCards = ({
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Card de Horas Estimadas */}
+      <div className="dashboard-card">
+        <div className="dashboard-card-icon" style={{ background: '#e0f2fe', color: '#0ea5e9' }}>
+          <i className="fas fa-clock"></i>
+        </div>
+        <div className="dashboard-card-content">
+          <div className="dashboard-card-label">Hrs Estimadas</div>
+          <div className="dashboard-card-value dashboard-card-value-full">
+            {formatarHrsHM(totais.totalEstimado || 0)}
+          </div>
+          <div className="dashboard-card-decimal">
+            {formatarHrsDecimal(totais.totalEstimado || 0)} hrs decimais
+          </div>
+        </div>
+      </div>
+
+      {/* Card de Horas Contratadas */}
+      <div className="dashboard-card">
+        <div className="dashboard-card-icon" style={{ background: '#dcfce7', color: '#22c55e' }}>
+          <i className="fas fa-file-contract"></i>
+        </div>
+        <div className="dashboard-card-content">
+          <div className="dashboard-card-label">Hrs Contratadas</div>
+          <div className="dashboard-card-value dashboard-card-value-full">
+            {/* Contratadas geralmente vem em horas decimais? Assumindo que sim ou convertendo se necessario.
+                Se vier do backend como horas, usar direto. Se vier ms, formatar.
+                Para evitar confusao, vamos assumir que o backend manda em horas e exibir como tal, ou implementar formatacao se for ms.
+                Por padrao o sistema usa MS internamente. Vamos assumir MS. */}
+            {formatarHrsHM(totais.totalContratado ? totais.totalContratado * 3600000 : 0)}
+            {/* OBS: Se totalContratado vier em HORAS (ex: 100), multiplicar por 3600000. Se vier em MS, usar direto. 
+                Vou assumir que o backend vai mandar em HORAS (numero simples) pois eh contrato. */}
+          </div>
+          <div className="dashboard-card-decimal">
+            {Number(totais.totalContratado || 0).toFixed(2)} hrs totais
+          </div>
+        </div>
+      </div>
+
+      {/* Card de Horas Disponíveis */}
+      <div className="dashboard-card">
+        <div className="dashboard-card-icon" style={{ background: totalDisponivel >= 0 ? '#dcfce7' : '#fee2e2', color: totalDisponivel >= 0 ? '#22c55e' : '#ef4444' }}>
+          <i className="fas fa-balance-scale"></i>
+        </div>
+        <div className="dashboard-card-content">
+          <div className="dashboard-card-label">Disponível</div>
+          <div className="dashboard-card-value dashboard-card-value-full" style={{ color: totalDisponivel >= 0 ? 'inherit' : '#ef4444' }}>
+            {/* Disponivel = Contratado (horas) - Estimado (ms -> horas) */}
+            {/* Espera: contratado em horas. estimado em ms. */}
+            {/* Vamos converter tudo para horas para exibir */}
+            {(Number(totais.totalContratado || 0) - (Number(totais.totalEstimado || 0) / 3600000)).toFixed(2)} hrs
+          </div>
+          <div className="dashboard-card-decimal" style={{ fontSize: '11px', color: '#6b7280' }}>
+            (Contratado - Estimado)
+          </div>
         </div>
       </div>
 
@@ -532,6 +636,19 @@ const DashboardCards = ({
                 &gt;
               </span>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Card de Produtos */}
+      <div className="dashboard-card">
+        <div className="dashboard-card-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}>
+          <i className="fas fa-box-open"></i>
+        </div>
+        <div className="dashboard-card-content">
+          <div className="dashboard-card-label">Produtos</div>
+          <div className="dashboard-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{totais.totalProdutos}</span>
           </div>
         </div>
       </div>

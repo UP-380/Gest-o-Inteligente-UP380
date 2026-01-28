@@ -77,10 +77,12 @@ async function getDashboardClientes(req, res) {
       incluirColaboradoresInativos = 'false',
       considerarFinaisDeSemana = 'false',
       considerarFeriados = 'false',
-      resumoOnly = 'false'
+      resumoOnly = 'false',
+      skipRealized = 'false'
     } = req.query;
 
     const resumoOnlyBool = resumoOnly === 'true' || resumoOnly === true;
+    const skipRealizedBool = skipRealized === 'true' || skipRealized === true;
 
     // Converter strings para boolean
     const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
@@ -538,7 +540,7 @@ async function getDashboardClientes(req, res) {
     let contratosQuery = supabase
 
       .from('contratos_clientes')
-      .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
+      .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social, horas_mensais')
       .in('id_cliente', clienteIdsPaginated);
 
     // Buscar registros da página atual (cliente_id pode conter múltiplos IDs, filtrar manualmente)
@@ -573,7 +575,7 @@ async function getDashboardClientes(req, res) {
       todosContratosQuery = supabase
 
         .from('contratos_clientes')
-        .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
+        .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social, horas_mensais')
         .in('id_cliente', clienteIds); // TODOS os clientes, não apenas da página
     }
 
@@ -583,7 +585,11 @@ async function getDashboardClientes(req, res) {
       todosRegistrosQuery = supabase
 
         .from('v_registro_tempo_vinculado')
-        .select(resumoOnlyBool ? 'usuario_id, cliente_id, tarefa_id, tempo_realizado, data_inicio, data_fim' : '*')
+        .select(
+          skipRealizedBool
+            ? 'usuario_id, cliente_id, tarefa_id' // Se pular realizado, pegar apenas IDs para contagens
+            : (resumoOnlyBool ? 'usuario_id, cliente_id, tarefa_id, tempo_realizado, data_inicio, data_fim' : '*')
+        )
         .not('cliente_id', 'is', null)
         .not('data_inicio', 'is', null);
 
@@ -830,7 +836,7 @@ async function getDashboardClientes(req, res) {
 
           .from('tempo_estimado_regra')
           .select('*')
-          .in('cliente_id', clienteIdsPaginated)
+          .in('cliente_id', clienteIds) // Usar TODOS os clientes filtrados para total global
           .lte('data_inicio', periodoFimFiltro)
           .gte('data_fim', periodoInicioFiltro);
 
@@ -1069,7 +1075,24 @@ async function getDashboardClientes(req, res) {
       todosClienteIdsGerais = Array.from(clientesUnicosDosRegistros);
     }
 
-    // Se resumoOnly, retornar apenas os totais agora e pular processamento pesado
+    // Calcular totais globais
+    const totalEstimadoGlobal = Object.values(tempoEstimadoPorCliente).reduce((sum, val) => sum + val, 0);
+    const totalContratadoGlobal = todosContratos.reduce((sum, c) => sum + (Number(c.horas_mensais) || 0), 0);
+
+    // Totais gerais para o dashboard (de todas as páginas)
+    const totaisGeraisObj = {
+      totalTarefas: todosTarefaIdsGerais.length,
+      totalRegistros: todosRegistros.length,
+      totalColaboradores: todosUsuarioIdsGerais.length,
+      totalClientes: todosClienteIdsGerais.length,
+      totalProdutos: todosProdutoIds.length,
+      totalTempo: skipRealizedBool ? null : todosRegistros.reduce((sum, r) => sum + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0),
+      totalEstimado: totalEstimadoGlobal, // Em milissegundos
+      totalContratado: totalContratadoGlobal, // Em horas (conforme banco)
+      todosRegistros: todosRegistros, // Mantido se skipRealized=false ou apenas IDs se true
+      todosContratos: todosContratos
+    };
+
     if (resumoOnlyBool) {
       return res.json({
         success: true,
@@ -1079,13 +1102,7 @@ async function getDashboardClientes(req, res) {
         page: pageNum,
         limit: limitNum,
         totalPages: totalPages,
-        totaisGerais: {
-          totalTarefas: todosTarefaIdsGerais.length,
-          totalRegistros: todosRegistros.length,
-          totalColaboradores: todosUsuarioIdsGerais.length,
-          totalClientes: todosClienteIdsGerais.length,
-          totalTempo: todosRegistros.reduce((sum, r) => sum + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0)
-        }
+        totaisGerais: totaisGeraisObj
       });
     }
 
@@ -1097,16 +1114,7 @@ async function getDashboardClientes(req, res) {
       page: pageNum,
       limit: limitNum,
       totalPages: totalPages,
-      // Totais gerais para o dashboard (de todas as páginas)
-      totaisGerais: {
-        totalTarefas: todosTarefaIdsGerais.length,
-        totalRegistros: todosRegistros.length,
-        totalColaboradores: todosUsuarioIdsGerais.length,
-        totalClientes: todosClienteIdsGerais.length,
-        totalTempo: todosRegistros.reduce((sum, r) => sum + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0),
-        todosRegistros: todosRegistros,
-        todosContratos: todosContratos
-      }
+      totaisGerais: totaisGeraisObj
     });
 
   } catch (error) {

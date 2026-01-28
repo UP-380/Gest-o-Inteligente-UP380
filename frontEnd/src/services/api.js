@@ -401,12 +401,14 @@ export const clientesAPI = {
     colaboradorId = null,
     dataInicio = null,
     dataFim = null,
-    resumoOnly = false
+    resumoOnly = false,
+    skipRealized = false
   }) {
     let url = `${API_BASE_URL}/relatorios-clientes?page=${page}&limit=${limit}`;
 
     if (status) url += `&status=${encodeURIComponent(status)}`;
     if (resumoOnly) url += `&resumoOnly=true`;
+    if (skipRealized) url += `&skipRealized=true`;
 
     if (clienteId) {
       const clienteIds = Array.isArray(clienteId) ? clienteId : [clienteId];
@@ -637,7 +639,8 @@ export const colaboradoresAPI = {
     colaboradorId = null,
     dataInicio = null,
     dataFim = null,
-    resumoOnly = false
+    resumoOnly = false,
+    skipRealized = false
   }) {
     let url = `${API_BASE_URL}/relatorios-colaboradores?page=${page}&limit=${limit}`;
 
@@ -658,6 +661,7 @@ export const colaboradoresAPI = {
     if (dataInicio) url += `&dataInicio=${encodeURIComponent(dataInicio)}`;
     if (dataFim) url += `&dataFim=${encodeURIComponent(dataFim)}`;
     if (resumoOnly) url += `&resumoOnly=true`;
+    if (skipRealized) url += `&skipRealized=true`;
 
     return await request(url);
   }
