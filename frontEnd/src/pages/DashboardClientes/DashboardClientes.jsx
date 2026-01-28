@@ -81,6 +81,8 @@ const RelatoriosClientes = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
   // Estado para armazenar os valores dos filtros que foram aplicados por último (para comparação)
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null);
+  const [totaisGerais, setTotaisGerais] = useState(null); // Novos totais vindos do backend
+  const [carregandoTotais, setCarregandoTotais] = useState(false);
   const [emptyMessage, setEmptyMessage] = useState(null);
 
   // Estado do card lateral
@@ -212,6 +214,35 @@ const RelatoriosClientes = () => {
 
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
+
+  // Carregar apenas os totais do resumo (Rápido e leve)
+  const carregarResumoDashboard = useCallback(async (filtros = {}) => {
+    setCarregandoTotais(true);
+    try {
+      const params = {
+        ...filtros,
+        resumoOnly: true,
+        limit: 1, // Não precisamos de dados da lista aqui
+        incluirClientesInativos: mostrarClientesInativos,
+        incluirColaboradoresInativos: mostrarColaboradoresInativos,
+        considerarFinaisDeSemana: enabledWeekends,
+        considerarFeriados: enabledHolidays,
+      };
+
+      const response = await clientesAPI.getRelatorios(params);
+
+      if (response && response.success && response.totaisGerais) {
+        setTotaisGerais(response.totaisGerais);
+      } else {
+        setTotaisGerais(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar resumo do dashboard:', error);
+      setTotaisGerais(null);
+    } finally {
+      setCarregandoTotais(false);
+    }
+  }, [mostrarClientesInativos, mostrarColaboradoresInativos, enabledWeekends, enabledHolidays]);
 
   // Carregar clientes paginados - recebe os filtros como parâmetros
   const carregarClientesPaginados = useCallback(async (filtrosAplicados = {}) => {
@@ -504,8 +535,13 @@ const RelatoriosClientes = () => {
         .filter(item => item !== null); // Remover clientes inativos marcados
 
       setClientes(clientesComResumosFiltrados);
-      setTotalClients(result.total || 0);
+      setTotalClients(result.total || result.count || 0);
       setTotalPages(result.totalPages || 1);
+
+      // Atualizar totais gerais se eles vierem na resposta (fallback)
+      if (result.totaisGerais && (!totaisGerais || !filtrosAplicados)) {
+        setTotaisGerais(result.totaisGerais);
+      }
 
       // Marcar dados como completos apenas quando tudo estiver carregado
       setDadosCompletos(true);
@@ -603,8 +639,12 @@ const RelatoriosClientes = () => {
       enabledWeekends: enabledWeekends,
       enabledHolidays: enabledHolidays
     });
+    // Carregar resumo rápido primeiro
+    carregarResumoDashboard(filtrosParaEnviar);
+
+    // Carregar lista paginada
     carregarClientesPaginados(filtrosParaEnviar);
-  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarClientesPaginados]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarClientesPaginados, carregarResumoDashboard, enabledWeekends, enabledHolidays]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -1372,16 +1412,14 @@ const RelatoriosClientes = () => {
             </div>
           </div>
 
-          {/* Seção de Filtros Expostos - Oculto quando mostrarIncompletas */}
-          {!mostrarIncompletas && (
+          {!mostrarIncompletas ? (
             <>
               <FiltersCard
                 onApply={aplicarFiltros}
                 onClear={limparFiltros}
-                loading={loading}
+                loading={loading || carregandoTotais}
                 hasPendingChanges={hasPendingChanges()}
               >
-                {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
                 <div className="filter-group">
                   <label className="filter-label">Período</label>
                   <FilterPeriodo
@@ -1403,10 +1441,8 @@ const RelatoriosClientes = () => {
                   />
                 </div>
 
-                {/* Verificar se período está preenchido */}
                 {(() => {
                   const periodoPreenchido = filtroDataInicio && filtroDataFim;
-
                   return (
                     <>
                       <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
@@ -1418,11 +1454,7 @@ const RelatoriosClientes = () => {
                           showInactiveToggle={true}
                           onInactiveToggleChange={(value) => setMostrarClientesInativos(value)}
                         />
-                        {!periodoPreenchido && (
-                          <div className="filter-tooltip">
-                            Selecione período TimeTrack
-                          </div>
-                        )}
+                        {!periodoPreenchido && <div className="filter-tooltip">Selecione período TimeTrack</div>}
                       </div>
 
                       <div className={`filter-group filter-group-disabled-wrapper ${!periodoPreenchido ? 'has-tooltip' : ''}`} style={{ position: 'relative' }}>
@@ -1434,34 +1466,100 @@ const RelatoriosClientes = () => {
                           showInactiveToggle={true}
                           onInactiveToggleChange={(value) => setMostrarColaboradoresInativos(value)}
                         />
-                        {!periodoPreenchido && (
-                          <div className="filter-tooltip">
-                            Selecione período TimeTrack
-                          </div>
-                        )}
+                        {!periodoPreenchido && <div className="filter-tooltip">Selecione período TimeTrack</div>}
                       </div>
                     </>
                   );
                 })()}
               </FiltersCard>
 
-              {/* Cards de Dashboard - Só exibir quando dados estiverem completamente carregados */}
-              {filtrosAplicados && dadosCompletos && !loading && (allContratos.length > 0 || allRegistrosTempo.length > 0) && (
+              {filtrosAplicados && !carregandoTotais && totaisGerais && (
                 <DashboardCards
-                  filtroCliente={filtroCliente}
                   contratos={allContratos}
                   registrosTempo={allRegistrosTempo}
-                  clientesExibidos={null}
+                  clientesExibidos={clientes}
                   onShowTarefas={handleShowTarefas}
                   onShowColaboradores={handleShowColaboradores}
                   onShowClientes={handleShowClientes}
+                  totaisDiretos={totaisGerais}
+                  showColaboradores={true}
+                  filtroCliente={filtrosUltimosAplicados?.cliente}
                 />
               )}
-            </>
-          )}
 
-          {/* Tabela de Registros de Tempo sem Tarefa */}
-          {mostrarIncompletas && (
+              <div className="results-container" style={{ marginTop: '30px' }}>
+                {!filtrosAplicados ? (
+                  <div className="empty-state" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '240px', color: '#555', fontSize: '16px', fontWeight: 500, textAlign: 'center' }}>
+                    Selecione os filtros e clique em "Aplicar Filtros" para ver os resultados
+                  </div>
+                ) : loading || !dadosCompletos ? (
+                  <div className="loading">
+                    <i className="fas fa-spinner"></i>
+                    <p>Carregando resultados...</p>
+                  </div>
+                ) : clientes.length > 0 ? (
+                  <div className="clientes-grid">
+                    {clientes.map((item) => (
+                      <ClientCard
+                        key={item.cliente.id}
+                        cliente={item.cliente}
+                        resumo={item.resumo}
+                        contratos={item.contratos || []}
+                        registros={item.registros || []}
+                        onOpenDetail={handleOpenDetail}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <SemResultadosFiltros mensagem={emptyMessage} filtrosAplicados={filtrosAplicados} />
+                )}
+              </div>
+
+              {!mostrarIncompletas && totalClients > 0 && (
+                <div className="pagination-container" style={{ display: 'flex', marginTop: '30px' }}>
+                  <div className="pagination-limit-selector">
+                    <label htmlFor="paginationLimit">Exibir:</label>
+                    <select
+                      id="paginationLimit"
+                      className="pagination-limit-select"
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(parseInt(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value="10">10 itens</option>
+                      <option value="20">20 itens</option>
+                      <option value="30">30 itens</option>
+                    </select>
+                  </div>
+
+                  <div className="pagination-info">
+                    <span>
+                      Mostrando {totalClients === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} a{' '}
+                      {Math.min(currentPage * itemsPerPage, totalClients)} de {totalClients} clientes
+                    </span>
+                  </div>
+
+                  <div className="pagination-controls">
+                    <button className="pagination-btn" title="Primeira página" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>
+                      <i className="fas fa-angle-double-left"></i>
+                    </button>
+                    <button className="pagination-btn" title="Página anterior" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
+                      <i className="fas fa-angle-left"></i>
+                    </button>
+                    <span className="pagination-current">Página <span>{currentPage}</span> de <span>{totalPages}</span></span>
+                    <button className="pagination-btn" title="Próxima página" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(currentPage + 1)}>
+                      <i className="fas fa-angle-right"></i>
+                    </button>
+                    <button className="pagination-btn" title="Última página" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(totalPages)}>
+                      <i className="fas fa-angle-double-right"></i>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
             <div className="incomplete-tasks-container" style={{ marginTop: '30px' }}>
               <div className="incomplete-tasks-card">
                 <p style={{ marginBottom: '20px', color: '#666', fontSize: '14px', fontWeight: 400 }}>
@@ -1494,170 +1592,34 @@ const RelatoriosClientes = () => {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="empty-state" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '240px',
-                    color: '#555',
-                    fontSize: '16px',
-                    fontWeight: 500,
-                    textAlign: 'center'
-                  }}>
+                  <div className="empty-state" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '240px', color: '#555', fontSize: '16px', fontWeight: 500, textAlign: 'center' }}>
                     Nenhum registro sem tarefa encontrado
                   </div>
                 )}
               </div>
             </div>
           )}
-
-          {/* Resultados */}
-          {!mostrarIncompletas && (
-            <div className="results-container" style={{ marginTop: '30px' }}>
-              <div id="resultsContent">
-                {!filtrosAplicados ? (
-                  <div className="empty-state" style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '240px',
-                    color: '#555',
-                    fontSize: '16px',
-                    fontWeight: 500,
-                    textAlign: 'center'
-                  }}>
-                    Selecione os filtros e clique em "Aplicar Filtros" para ver os resultados
-                  </div>
-                ) : loading || !dadosCompletos ? (
-                  <div className="loading">
-                    <i className="fas fa-spinner"></i>
-                    <p>Carregando resultados...</p>
-                  </div>
-                ) : clientes.length > 0 ? (
-                  <div className="clientes-grid">
-                    {clientes.map((item) => (
-                      <ClientCard
-                        key={item.cliente.id}
-                        cliente={item.cliente}
-                        resumo={item.resumo}
-                        contratos={item.contratos || []}
-                        registros={(() => {
-                          // Filtrar registros de colaboradores inativos se mostrarColaboradoresInativos estiver desativado
-                          let registros = item.registros || [];
-                          if (!mostrarColaboradoresInativos && registros.length > 0) {
-                            registros = registros.filter(reg => {
-                              if (!reg.usuario_id) return false;
-                              return !isColaboradorInativo(reg.usuario_id, reg);
-                            });
-                          }
-                          return registros;
-                        })()}
-                        onOpenDetail={handleOpenDetail}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <SemResultadosFiltros
-                    mensagem={emptyMessage}
-                    filtrosAplicados={filtrosAplicados}
-                  />
-                )}
-              </div>
-
-              {/* Controles de Paginação */}
-              {!mostrarIncompletas && totalClients > 0 && (
-                <div className="pagination-container" style={{ display: 'flex' }}>
-                  <div className="pagination-limit-selector">
-                    <label htmlFor="paginationLimit">Exibir:</label>
-                    <select
-                      id="paginationLimit"
-                      className="pagination-limit-select"
-                      value={itemsPerPage}
-                      onChange={(e) => {
-                        setItemsPerPage(parseInt(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <option value="10">10 itens</option>
-                      <option value="20">20 itens</option>
-                      <option value="30">30 itens</option>
-                    </select>
-                  </div>
-
-                  <div className="pagination-info">
-                    <span>
-                      Mostrando {totalClients === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} a{' '}
-                      {Math.min(currentPage * itemsPerPage, totalClients)} de {totalClients} clientes
-                    </span>
-                  </div>
-
-                  <div className="pagination-controls">
-                    <button
-                      className="pagination-btn"
-                      title="Primeira página"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(1)}
-                    >
-                      <i className="fas fa-angle-double-left"></i>
-                    </button>
-                    <button
-                      className="pagination-btn"
-                      title="Página anterior"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                    >
-                      <i className="fas fa-angle-left"></i>
-                    </button>
-
-                    <span className="pagination-current">
-                      Página <span>{currentPage}</span> de <span>{totalPages}</span>
-                    </span>
-
-                    <button
-                      className="pagination-btn"
-                      title="Próxima página"
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                    >
-                      <i className="fas fa-angle-right"></i>
-                    </button>
-                    <button
-                      className="pagination-btn"
-                      title="Última página"
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      onClick={() => setCurrentPage(totalPages)}
-                    >
-                      <i className="fas fa-angle-double-right"></i>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
         </main>
-
-        {/* Card Lateral de Detalhes - Renderizado usando portal para posicionamento correto */}
-        {detailCard && (
-          <DetailSideCard
-            clienteId={detailCard.clienteId}
-            tipo={detailCard.tipo}
-            dados={detailCard.dados}
-            onClose={handleCloseDetail}
-            position={detailCardPosition}
-          />
-        )}
-
-        {/* Mini Card de Lista (Tarefas, Colaboradores, Clientes) */}
-        {miniCardLista && (
-          <MiniCardLista
-            titulo={miniCardLista.titulo}
-            itens={miniCardLista.itens}
-            onClose={handleCloseMiniCard}
-            position={miniCardPosition}
-          />
-        )}
       </div>
+
+      {detailCard && (
+        <DetailSideCard
+          clienteId={detailCard.clienteId}
+          tipo={detailCard.tipo}
+          dados={detailCard.dados}
+          onClose={handleCloseDetail}
+          position={detailCardPosition}
+        />
+      )}
+
+      {miniCardLista && (
+        <MiniCardLista
+          titulo={miniCardLista.titulo}
+          itens={miniCardLista.itens}
+          onClose={handleCloseMiniCard}
+          position={miniCardPosition}
+        />
+      )}
     </Layout>
   );
 };

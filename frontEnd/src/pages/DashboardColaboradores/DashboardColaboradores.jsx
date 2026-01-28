@@ -47,6 +47,8 @@ const RelatoriosColaboradores = () => {
   const [filtrosAplicados, setFiltrosAplicados] = useState(false);
   // Estado para armazenar os filtros que foram aplicados (para usar na paginação)
   const [filtrosAplicadosAtuais, setFiltrosAplicadosAtuais] = useState({});
+  const [totaisGerais, setTotaisGerais] = useState(null); // Novos totais vindos do backend
+  const [carregandoTotais, setCarregandoTotais] = useState(false);
   // Estado para armazenar os valores dos filtros que foram aplicados por último (para comparação)
   const [filtrosUltimosAplicados, setFiltrosUltimosAplicados] = useState(null);
   const [emptyMessage, setEmptyMessage] = useState(null);
@@ -270,6 +272,35 @@ const RelatoriosColaboradores = () => {
     return false;
   }, [mostrarClientesInativos, todosClientes]);
 
+  // Carregar apenas os totais do resumo (Rápido e leve)
+  const carregarResumoDashboard = useCallback(async (filtros = {}) => {
+    setCarregandoTotais(true);
+    try {
+      const params = {
+        ...filtros,
+        resumoOnly: true,
+        limit: 1, // Não precisamos de dados da lista aqui
+        incluirClientesInativos: mostrarClientesInativos,
+        incluirColaboradoresInativos: mostrarColaboradoresInativos,
+        considerarFinaisDeSemana: enabledWeekends,
+        considerarFeriados: enabledHolidays,
+      };
+
+      const response = await colaboradoresAPI.getRelatorios(params);
+
+      if (response && response.success && response.totaisGerais) {
+        setTotaisGerais(response.totaisGerais);
+      } else {
+        setTotaisGerais(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar resumo do dashboard:', error);
+      setTotaisGerais(null);
+    } finally {
+      setCarregandoTotais(false);
+    }
+  }, [mostrarClientesInativos, mostrarColaboradoresInativos, enabledWeekends, enabledHolidays]);
+
   // Carregar colaboradores paginados - recebe os filtros como parâmetros
   const carregarColaboradoresPaginados = useCallback(async (filtrosAplicados = {}) => {
     setLoading(true);
@@ -451,7 +482,8 @@ const RelatoriosColaboradores = () => {
           registros: registrosFiltrados,
           tarefasUnicas: item.resumo.totalTarefasUnicas,
           produtosUnicos: item.resumo.totalProdutosUnicos,
-          clientesUnicos: item.resumo.totalClientesUnicos
+          clientesUnicos: item.resumo.totalClientesUnicos,
+          resumo: item.resumo // Guardar resumo completo
         };
       });
 
@@ -523,8 +555,13 @@ const RelatoriosColaboradores = () => {
         .filter(item => item !== null); // Remover colaboradores inativos marcados
 
       setColaboradores(colaboradoresComResumosFiltrados);
-      setTotalColaboradores(result.total || 0);
+      setTotalColaboradores(result.total || result.count || 0);
       setTotalPages(result.totalPages || 1);
+
+      // Atualizar totais gerais se eles vierem na resposta (fallback)
+      if (result.totaisGerais && (!totaisGerais || !filtrosAplicados)) {
+        setTotaisGerais(result.totaisGerais);
+      }
 
       // Marcar dados como completos apenas quando tudo estiver carregado
       setDadosCompletos(true);
@@ -535,7 +572,7 @@ const RelatoriosColaboradores = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, mostrarColaboradoresInativos, mostrarClientesInativos, isColaboradorInativo, isClienteInativo]);
+  }, [currentPage, itemsPerPage, mostrarColaboradoresInativos, mostrarClientesInativos, isColaboradorInativo, isClienteInativo, totaisGerais, filtrosAplicados, enabledWeekends, enabledHolidays]);
 
   // Aplicar filtros - só executa quando o botão for clicado
   const aplicarFiltros = useCallback(() => {
@@ -607,8 +644,13 @@ const RelatoriosColaboradores = () => {
       enabledWeekends: enabledWeekends,
       enabledHolidays: enabledHolidays
     });
+
+    // Carregar resumo rápido primeiro
+    carregarResumoDashboard(filtrosParaEnviar);
+
+    // Carregar lista paginada
     carregarColaboradoresPaginados(filtrosParaEnviar);
-  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarColaboradoresPaginados]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarColaboradoresPaginados, carregarResumoDashboard, enabledWeekends, enabledHolidays]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -641,6 +683,7 @@ const RelatoriosColaboradores = () => {
     setFiltrosAplicados(false);
     setFiltrosAplicadosAtuais({});
     setFiltrosUltimosAplicados(null);
+    setTotaisGerais(null); // Limpar totais gerais
   }, [carregarClientes, carregarColaboradores]);
 
   // Função para comparar arrays (considerando ordem)
@@ -1038,6 +1081,8 @@ const RelatoriosColaboradores = () => {
   useEffect(() => {
     if (filtrosAplicados && Object.keys(filtrosAplicadosAtuais).length > 0) {
       carregarColaboradoresPaginados(filtrosAplicadosAtuais);
+      // Não recarregar resumo aqui, pois ele já foi carregado no aplicarFiltros
+      // ou será atualizado como fallback pelo carregarColaboradoresPaginados se necessário.
     }
   }, [currentPage, itemsPerPage, filtrosAplicados, filtrosAplicadosAtuais, carregarColaboradoresPaginados]);
 
@@ -1064,7 +1109,7 @@ const RelatoriosColaboradores = () => {
           <FiltersCard
             onApply={aplicarFiltros}
             onClear={limparFiltros}
-            loading={loading}
+            loading={loading || carregandoTotais}
             hasPendingChanges={hasPendingChanges()}
           >
             {/* Período TimeTrack - PRIMEIRO e sempre habilitado */}
@@ -1132,13 +1177,14 @@ const RelatoriosColaboradores = () => {
           </FiltersCard>
 
           {/* Cards de Dashboard - Só exibir quando dados estiverem completamente carregados */}
-          {filtrosAplicados && dadosCompletos && !loading && allRegistrosTempo.length > 0 && (
+          {filtrosAplicados && !carregandoTotais && totaisGerais && (
             <DashboardCards
-              registrosTempo={allRegistrosTempo}
+              registrosTempo={allRegistrosTempo} // allRegistrosTempo ainda é usado para os detalhes da lista
               clientesExibidos={[]}
               onShowTarefas={handleShowTarefas}
               onShowColaboradores={handleShowColaboradores}
               onShowClientes={handleShowClientes}
+              totaisDiretos={totaisGerais}
               showColaboradores={true}
               filtroCliente={filtroCliente}
             />

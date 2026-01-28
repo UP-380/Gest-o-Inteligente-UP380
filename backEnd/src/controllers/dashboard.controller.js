@@ -76,8 +76,11 @@ async function getDashboardClientes(req, res) {
       incluirClientesInativos = 'false',
       incluirColaboradoresInativos = 'false',
       considerarFinaisDeSemana = 'false',
-      considerarFeriados = 'false'
+      considerarFeriados = 'false',
+      resumoOnly = 'false'
     } = req.query;
+
+    const resumoOnlyBool = resumoOnly === 'true' || resumoOnly === true;
 
     // Converter strings para boolean
     const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
@@ -162,7 +165,7 @@ async function getDashboardClientes(req, res) {
         // Criar função para query builder (para usar paginação automática se necessário)
         const criarQueryBuilderRegistros = () => {
           let query = supabase
-            
+
             .from('v_registro_tempo_vinculado')
             .select('cliente_id')
             .not('cliente_id', 'is', null)
@@ -235,7 +238,7 @@ async function getDashboardClientes(req, res) {
       // Criar função para query builder (para usar paginação automática se necessário)
       const criarQueryBuilderRegistros = () => {
         let query = supabase
-          
+
           .from('v_registro_tempo_vinculado')
           .select('cliente_id')
           .not('cliente_id', 'is', null)
@@ -333,7 +336,7 @@ async function getDashboardClientes(req, res) {
       let clienteNomes = '';
       try {
         const { data: clientesFiltro } = await supabase
-          
+
           .from('cp_cliente')
           .select('id, nome')
           .in('id', clienteIdsArray);
@@ -393,7 +396,7 @@ async function getDashboardClientes(req, res) {
       let clienteNomes = '';
       try {
         const { data: clientesFiltro } = await supabase
-          
+
           .from('cp_cliente')
           .select('id, nome')
           .in('id', clienteIdsArray);
@@ -429,7 +432,7 @@ async function getDashboardClientes(req, res) {
 
     if (clienteIdsPaginated.length > 0) {
       let queryClientes = supabase
-        
+
         .from('cp_cliente')
         .select('id, nome, status')
         .in('id', clienteIdsPaginated);
@@ -481,7 +484,7 @@ async function getDashboardClientes(req, res) {
           if (clienteIds.length > 0) {
             try {
               const { data: clientesFiltro } = await supabase
-                
+
                 .from('cp_cliente')
                 .select('id, nome')
                 .in('id', clienteIds);
@@ -533,16 +536,16 @@ async function getDashboardClientes(req, res) {
 
     // Buscar contratos e registros APENAS dos clientes da página atual (para exibição)
     let contratosQuery = supabase
-      
+
       .from('contratos_clientes')
       .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
       .in('id_cliente', clienteIdsPaginated);
 
     // Buscar registros da página atual (cliente_id pode conter múltiplos IDs, filtrar manualmente)
     let registrosQuery = null;
-    if (clienteIdsPaginated.length > 0 || temFiltrosPeriodoOuColaborador) {
+    if ((clienteIdsPaginated.length > 0 || temFiltrosPeriodoOuColaborador) && !resumoOnlyBool) {
       registrosQuery = supabase
-        
+
         .from('v_registro_tempo_vinculado')
         .select('*', { count: 'exact' }) // Adicionar count para verificar se há mais registros
         .not('cliente_id', 'is', null)
@@ -568,7 +571,7 @@ async function getDashboardClientes(req, res) {
     let todosContratosQuery = null;
     if (clienteIds.length > 0) {
       todosContratosQuery = supabase
-        
+
         .from('contratos_clientes')
         .select('id_cliente, status, cpf_cnpj, url_atividade, dt_inicio, proxima_renovacao, ultima_renovacao, nome_contrato, razao_social')
         .in('id_cliente', clienteIds); // TODOS os clientes, não apenas da página
@@ -578,9 +581,9 @@ async function getDashboardClientes(req, res) {
     let todosRegistrosQuery = null;
     if (clienteIds.length > 0 || temFiltrosPeriodoOuColaborador) {
       todosRegistrosQuery = supabase
-        
+
         .from('v_registro_tempo_vinculado')
-        .select('*')
+        .select(resumoOnlyBool ? 'usuario_id, cliente_id, tarefa_id, tempo_realizado, data_inicio, data_fim' : '*')
         .not('cliente_id', 'is', null)
         .not('data_inicio', 'is', null);
 
@@ -612,7 +615,7 @@ async function getDashboardClientes(req, res) {
         try {
           const criarQueryBuilder = () => {
             let query = supabase
-              
+
               .from('v_registro_tempo_vinculado')
               .select('*')
               .not('cliente_id', 'is', null)
@@ -728,7 +731,7 @@ async function getDashboardClientes(req, res) {
       const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
       const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
       const { data: tarefas } = await supabase
-        
+
         .from('tarefa')
         .select('*')
         .or(orConditions);
@@ -824,7 +827,7 @@ async function getDashboardClientes(req, res) {
         const periodoFimFiltro = dataFim.includes('T') ? dataFim.split('T')[0] : dataFim;
 
         let queryRegras = supabase
-          
+
           .from('tempo_estimado_regra')
           .select('*')
           .in('cliente_id', clienteIdsPaginated)
@@ -834,7 +837,7 @@ async function getDashboardClientes(req, res) {
         // --- CORREÇÃO: Filtrar regras pelo responsável se houver filtro de colaborador ---
         if (colaboradorIdsArray.length > 0) {
           const { data: membrosParaFiltro } = await supabase
-            
+
             .from('membro')
             .select('id')
             .in('usuario_id', colaboradorIdsArray);
@@ -1066,6 +1069,26 @@ async function getDashboardClientes(req, res) {
       todosClienteIdsGerais = Array.from(clientesUnicosDosRegistros);
     }
 
+    // Se resumoOnly, retornar apenas os totais agora e pular processamento pesado
+    if (resumoOnlyBool) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        total: totalClientes,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: totalPages,
+        totaisGerais: {
+          totalTarefas: todosTarefaIdsGerais.length,
+          totalRegistros: todosRegistros.length,
+          totalColaboradores: todosUsuarioIdsGerais.length,
+          totalClientes: todosClienteIdsGerais.length,
+          totalTempo: todosRegistros.reduce((sum, r) => sum + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0)
+        }
+      });
+    }
+
     res.json({
       success: true,
       data: clientesComResumos,
@@ -1080,7 +1103,7 @@ async function getDashboardClientes(req, res) {
         totalRegistros: todosRegistros.length,
         totalColaboradores: todosUsuarioIdsGerais.length,
         totalClientes: todosClienteIdsGerais.length,
-        totalTempo: todosRegistros.reduce((sum, r) => sum + (Number(r.tempo_realizado) || 0), 0),
+        totalTempo: todosRegistros.reduce((sum, r) => sum + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0),
         todosRegistros: todosRegistros,
         todosContratos: todosContratos
       }
@@ -1111,8 +1134,11 @@ async function getDashboardColaboradores(req, res) {
       incluirClientesInativos = 'false',
       incluirColaboradoresInativos = 'false',
       considerarFinaisDeSemana = 'false',
-      considerarFeriados = 'false'
+      considerarFeriados = 'false',
+      resumoOnly = 'false'
     } = req.query;
+
+    const resumoOnlyBool = resumoOnly === 'true' || resumoOnly === true;
 
     // Converter strings para boolean
     const incluirClientesInativosBool = incluirClientesInativos === 'true' || incluirClientesInativos === true;
@@ -1178,7 +1204,7 @@ async function getDashboardColaboradores(req, res) {
 
       const criarQueryBuilderRegistros = () => {
         let query = supabase
-          
+
           .from('v_registro_tempo_vinculado')
           .select('usuario_id, cliente_id')
           .not('usuario_id', 'is', null)
@@ -1233,7 +1259,7 @@ async function getDashboardColaboradores(req, res) {
 
       const criarQueryBuilderRegistros = () => {
         return supabase
-          
+
           .from('v_registro_tempo_vinculado')
           .select('usuario_id')
           .not('usuario_id', 'is', null)
@@ -1255,7 +1281,7 @@ async function getDashboardColaboradores(req, res) {
     } else {
       const criarQueryBuilderRegistros = () => {
         return supabase
-          
+
           .from('v_registro_tempo_vinculado')
           .select('usuario_id')
           .not('usuario_id', 'is', null);
@@ -1326,9 +1352,9 @@ async function getDashboardColaboradores(req, res) {
     const colaboradorIdsPaginatedNumericos = colaboradorIdsPaginated.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
 
     let registrosQuery = null;
-    if (colaboradorIdsPaginatedNumericos.length > 0) {
+    if (colaboradorIdsPaginatedNumericos.length > 0 && !resumoOnlyBool) {
       registrosQuery = supabase
-        
+
         .from('v_registro_tempo_vinculado')
         .select('*')
         .not('usuario_id', 'is', null)
@@ -1361,9 +1387,9 @@ async function getDashboardColaboradores(req, res) {
         const todasQueries = chunks.map((chunk, chunkIndex) => {
           const criarQueryBuilderTodosRegistros = () => {
             let query = supabase
-              
+
               .from('v_registro_tempo_vinculado')
-              .select('*')
+              .select(resumoOnlyBool ? 'usuario_id, cliente_id, tarefa_id, tempo_realizado, data_inicio, data_fim' : '*')
               .not('usuario_id', 'is', null)
               .not('cliente_id', 'is', null)
               .in('usuario_id', chunk);
@@ -1402,7 +1428,7 @@ async function getDashboardColaboradores(req, res) {
     if (!incluirClientesInativosBool && clienteIdsArray.length > 0) {
       // Buscar status dos clientes
       const { data: clientesData } = await supabase
-        
+
         .from('cp_cliente')
         .select('id, status')
         .in('id', clienteIdsArray);
@@ -1456,7 +1482,7 @@ async function getDashboardColaboradores(req, res) {
 
         const clienteNomes = await (async () => {
           const { data: clientes } = await supabase
-            
+
             .from('cp_cliente')
             .select('id, nome')
             .in('id', clienteIdsArray);
@@ -1491,7 +1517,7 @@ async function getDashboardColaboradores(req, res) {
         const tarefaIdsStrings = todosTarefaIds.map(id => String(id).trim());
         const orConditions = tarefaIdsStrings.map(id => `id.eq.${id}`).join(',');
         const { data: tarefas } = await supabase
-          
+
           .from('tarefa')
           .select('*')
           .or(orConditions);
@@ -1499,7 +1525,7 @@ async function getDashboardColaboradores(req, res) {
       })() : Promise.resolve([]),
       todosClienteIds.length > 0 ? (async () => {
         let queryClientes = supabase
-          
+
           .from('cp_cliente')
           .select('id, nome, status')
           .in('id', todosClienteIds);
@@ -1601,7 +1627,7 @@ async function getDashboardColaboradores(req, res) {
         const colaboradorIdsStrings = colaboradorIdsPaginated.map(id => String(id).trim());
 
         let queryRegras = supabase
-          
+
           .from('tempo_estimado_regra')
           .select('*')
           .in('responsavel_id', colaboradorIdsStrings)
@@ -1808,6 +1834,27 @@ async function getDashboardColaboradores(req, res) {
       };
     });
 
+    // Se resumoOnly, retornar apenas os totais agora e pular processamento pesado
+    if (resumoOnlyBool) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0,
+        total: totalColaboradores,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: totalPages,
+        totaisGerais: {
+          totalTarefas: todosTarefaIds.length,
+          totalRegistros: todosRegistros.length,
+          totalClientes: todosClienteIds.length,
+          totalUsuarios: todosUsuarioIds.length,
+          totalProdutos: todosProdutoIds.length,
+          tempoTotalRealizado: todosRegistros.reduce((acc, r) => acc + converterTempoParaMilissegundos(Number(r.tempo_realizado) || 0), 0)
+        }
+      });
+    }
+
     res.json({
       success: true,
       data: colaboradoresComResumos,
@@ -1820,7 +1867,7 @@ async function getDashboardColaboradores(req, res) {
       totaisGerais: {
         totalTarefas: todosTarefaIds.length,
         totalRegistros: todosRegistros.length,
-        todosRegistros: todosRegistros
+        todosRegistros: todosRegistros // Só retorna o array completo se não for resumoOnly
       }
     });
 
@@ -1852,7 +1899,7 @@ async function debugTarefa(req, res) {
 
     // 1. Buscar registros na VIEW v_registro_tempo_vinculado
     const { data: registrosView, error: errorView } = await supabase
-      
+
       .from('v_registro_tempo_vinculado')
       .select('*')
       .eq('tarefa_id', tarefaId);
@@ -1863,7 +1910,7 @@ async function debugTarefa(req, res) {
 
     // 2. Buscar registros na TABELA registro_tempo
     const { data: registrosTabela, error: errorTabela } = await supabase
-      
+
       .from('registro_tempo')
       .select('*')
       .eq('tarefa_id', tarefaId);

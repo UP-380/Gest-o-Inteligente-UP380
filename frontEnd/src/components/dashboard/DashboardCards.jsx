@@ -34,9 +34,11 @@ const DashboardCards = ({
   onShowColaboradores,
   onShowClientes,
   showColaboradores = true,
-  filtroCliente = null
+  filtroCliente = null,
+  totaisDiretos = null // Novos totais vindos diretamente do backend (resumoOnly)
 }) => {
   const [custosPorColaborador, setCustosPorColaborador] = useState({});
+  const [carregarCustosSolicitado, setCarregarCustosSolicitado] = useState(false);
 
   // Normalizar arrays para garantir que são arrays válidos
   const registros = Array.isArray(registrosTempo) ? registrosTempo : [];
@@ -44,6 +46,16 @@ const DashboardCards = ({
 
   // Calcular totais usando useMemo para otimização
   const totais = useMemo(() => {
+    // Se temos totais diretos do backend, USAR ELES (mais rápido e econômico)
+    if (totaisDiretos) {
+      return {
+        totalTarefas: totaisDiretos.totalTarefas || 0,
+        totalHrs: totaisDiretos.totalTempo || 0,
+        totalColaboradores: totaisDiretos.totalColaboradores || 0,
+        totalClientes: totaisDiretos.totalClientes || 0
+      };
+    }
+
     let totalTarefas = 0;
     let totalHrs = 0;
     let totalColaboradores = 0;
@@ -171,7 +183,7 @@ const DashboardCards = ({
       totalColaboradores,
       totalClientes
     };
-  }, [registros, contratosArray, clientesExibidos]);
+  }, [registros, contratosArray, clientesExibidos, totaisDiretos]);
 
   // Formatar horas em h min s (com segundos para dashboard)
   const formatarHrsHM = (milissegundos) => {
@@ -225,8 +237,8 @@ const DashboardCards = ({
   // Carregar custos para todos os colaboradores únicos dos registros
   useEffect(() => {
     const carregarCustos = async () => {
-      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
-      if (window.blockDetailedFetches || window.backendOverloaded === true) {
+      // Regra 1: Bloqueio imediato se solicitado globalmente
+      if (window.blockDetailedFetches || window.backendOverloaded === true || !carregarCustosSolicitado) {
         return;
       }
 
@@ -302,7 +314,7 @@ const DashboardCards = ({
     };
 
     carregarCustos();
-  }, [registros]);
+  }, [registros, carregarCustosSolicitado]);
 
   // Calcular custo realizado total
   const calcularCustoRealizadoTotal = useMemo(() => {
@@ -423,11 +435,34 @@ const DashboardCards = ({
                   padding: '2px 8px',
                   borderRadius: '999px',
                   fontSize: '12px',
-                  fontWeight: 600
+                  fontWeight: 600,
+                  cursor: carregarCustosSolicitado ? 'default' : 'pointer'
+                }}
+                onClick={() => !carregarCustosSolicitado && setCarregarCustosSolicitado(true)}
+              >
+                {carregarCustosSolicitado ? formatarValorMonetario(calcularCustoRealizadoTotal) : 'Clique para ver custo'}
+              </span>
+            </div>
+          )}
+          {!carregarCustosSolicitado && registros.length > 0 && calcularCustoRealizadoTotal === null && (
+            <div style={{ marginTop: '8px' }}>
+              <button
+                className="btn-ver-custo-dashboard"
+                onClick={() => setCarregarCustosSolicitado(true)}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #ef4444',
+                  color: '#ef4444',
+                  padding: '4px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
                 }}
               >
-                {formatarValorMonetario(calcularCustoRealizadoTotal)}
-              </span>
+                <i className="fas fa-coins" style={{ marginRight: '6px' }}></i>
+                Ver Custo Realizado
+              </button>
             </div>
           )}
         </div>

@@ -28,12 +28,14 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
     }
   };
 
+  const [carregarCustoSolicitado, setCarregarCustoSolicitado] = useState(false);
+
   // Buscar custo/hora do colaborador
   useEffect(() => {
     const buscarCusto = async () => {
-      if (!colaboradorId) return;
+      if (!colaboradorId || !carregarCustoSolicitado) return;
 
-      // Regra 1: Bloqueio imediato se solicitado globalmente (ex: filtro sem responsável ou backend sobrecarregado)
+      // Regra 1: Bloqueio imediato se solicitado globalmente
       if (window.blockDetailedFetches || window.backendOverloaded === true) {
         return;
       }
@@ -68,7 +70,7 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
     };
 
     buscarCusto();
-  }, [colaboradorId]);
+  }, [colaboradorId, carregarCustoSolicitado]);
 
   // Calcular custo realizado total
   const calcularCustoRealizado = () => {
@@ -215,7 +217,22 @@ const ColaboradorCardSummary = ({ resumo, colaboradorId, registros, onOpenDetail
                   </div>
                 );
               }
-              return null;
+              if (!carregarCustoSolicitado) {
+                return (
+                  <div
+                    style={{ fontSize: '10px', color: '#ef4444', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCarregarCustoSolicitado(true);
+                    }}
+                  >
+                    Ver custo
+                  </div>
+                );
+              }
+              return (
+                <div style={{ fontSize: '10px', color: '#6b7280' }}>Carregando...</div>
+              );
             })()}
           </div>
         </div>
