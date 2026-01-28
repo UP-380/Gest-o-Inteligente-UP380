@@ -1630,11 +1630,19 @@ const DelegarTarefas = () => {
           // OTIMIZAÇÃO: Marcar como carregado para exibir cards (com tempo estimado já calculado)
           setDadosAuxiliaresCarregados(true);
 
-          // OTIMIZAÇÃO: Carregamento de dados auxiliares (custos, horas) movido para useEffect sob demanda.
-          // Apenas carregar nomes que são leves e necessários para a lista.
+          // Carregar TODOS os dados auxiliares em paralelo (Nomes, Custos e Horas Contratadas)
+          // Isso garante que o resumo do responsável (estimado, realizado, contratado, disponível) apareça logo de cara.
           const promisesAuxiliares = [
             carregarNomesRelacionados(registrosCalculados)
           ];
+
+          // Adicionar carregamento de custos e horas contratadas em paralelo
+          if (agrupamentosArray.length > 0) {
+            promisesAuxiliares.push(
+              carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar custos:', err)),
+              carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar horas contratadas:', err))
+            );
+          }
 
           Promise.all(promisesAuxiliares).catch(err => console.error('Erro ao carregar dados auxiliares:', err));
         } else {
@@ -2895,10 +2903,9 @@ const DelegarTarefas = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
 
-  // Buscar tempos realizados quando os dados são carregados - APENAS SOB DEMANDA (Dashboards Expandidos)
+  // Buscar tempos realizados quando os dados são carregados - Automático para garantir resumo do responsável
   useEffect(() => {
-    // REGRA DE OURO: Somente buscar dados detalhados se o dashboard estiver expandido (Interação Explícita)
-    if (!dashboardsExpandidos || !filtrosAplicados || !filtrosUltimosAplicados || !periodoInicio || !periodoFim || !filtroPrincipal) {
+    if (!filtrosAplicados || !filtrosUltimosAplicados || !periodoInicio || !periodoFim || !filtroPrincipal) {
       setTemposRealizadosPorEntidade({});
       return;
     }
@@ -2997,29 +3004,7 @@ const DelegarTarefas = () => {
     };
 
     buscarTemposRealizados();
-  }, [dashboardsExpandidos, filtrosAplicados, filtrosUltimosAplicados, periodoInicio, periodoFim, registrosAgrupados, filtroPrincipal, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, buscarTempoRealizadoPorEntidade, membros, filtroResponsavelSelecionado]);
-
-  // Carregar dados de custos e horas contratadas - APENAS SOB DEMANDA (Dashboards Expandidos)
-  useEffect(() => {
-    if (!dashboardsExpandidos || registrosAgrupados.length === 0 || !periodoInicio || !periodoFim) {
-      return;
-    }
-
-    const carregarDadosLazy = async () => {
-      console.log('🔄 [LAZY-LOAD] Dashboards expandidos, carregando custos e horas contratadas...');
-      try {
-        await Promise.all([
-          carregarCustosPorResponsaveis(registrosAgrupados, periodoInicio, periodoFim),
-          carregarHorasContratadasPorResponsaveis(registrosAgrupados, periodoInicio, periodoFim)
-        ]);
-        setDadosAuxiliaresCarregados(true);
-      } catch (error) {
-        console.error('Erro ao carregar dados lazy:', error);
-      }
-    };
-
-    carregarDadosLazy();
-  }, [dashboardsExpandidos, registrosAgrupados, periodoInicio, periodoFim, carregarCustosPorResponsaveis, carregarHorasContratadasPorResponsaveis]);
+  }, [filtrosAplicados, filtrosUltimosAplicados, periodoInicio, periodoFim, registrosAgrupados, filtroPrincipal, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, buscarTempoRealizadoPorEntidade, membros, filtroResponsavelSelecionado]);
 
   // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
   useEffect(() => {
