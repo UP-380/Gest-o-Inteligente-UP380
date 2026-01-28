@@ -200,6 +200,7 @@ const RelatoriosColaboradores = () => {
     const hasResponsavelSelecionado = filtroColaborador && (Array.isArray(filtroColaborador) ? filtroColaborador.length > 0 : true);
 
     // Bloquear chamadas detalhadas se filtros já foram aplicados e não há responsável selecionado OU backend sobrecarregado
+    // OBS: Isso NÃO deve afetar o carregamento dos DADOS GLOBAIS (carregarResumoDashboard), apenas os detalhes.
     window.blockDetailedFetches = (isRelatorioResponsavel && !hasResponsavelSelecionado && !!filtrosAplicados) || !!window.backendOverloaded;
 
     return () => {
@@ -558,10 +559,13 @@ const RelatoriosColaboradores = () => {
       setTotalColaboradores(result.total || result.count || 0);
       setTotalPages(result.totalPages || 1);
 
-      // Atualizar totais gerais se eles vierem na resposta (fallback)
+      // NÃO atualizar totais gerais aqui. 
+      // O contexto global (carregarResumoDashboard) é responsável por manter os totais corretos e independentes dos filtros de colaboradores.
+      /* 
       if (result.totaisGerais && (!totaisGerais || !filtrosAplicados)) {
         setTotaisGerais(result.totaisGerais);
       }
+      */
 
       // Marcar dados como completos apenas quando tudo estiver carregado
       setDadosCompletos(true);
@@ -645,12 +649,44 @@ const RelatoriosColaboradores = () => {
       enabledHolidays: enabledHolidays
     });
 
-    // Carregar resumo rápido primeiro
-    carregarResumoDashboard(filtrosParaEnviar);
-
     // Carregar lista paginada
     carregarColaboradoresPaginados(filtrosParaEnviar);
-  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarColaboradoresPaginados, carregarResumoDashboard, enabledWeekends, enabledHolidays]);
+  }, [filtroCliente, filtroDataInicio, filtroDataFim, filtroColaborador, mostrarClientesInativos, mostrarColaboradoresInativos, carregarColaboradoresPaginados, enabledWeekends, enabledHolidays]);
+
+  // Efeito para carregar DADOS GLOBAIS automaticamente (Contexto Global)
+  // Independente dos cards e do botão "Aplicar Filtros"
+  useEffect(() => {
+    // Validar se tem o mínimo necessário (Período)
+    if (!filtroDataInicio || !filtroDataFim) {
+      return;
+    }
+
+    // Debounce para evitar chamadas excessivas durante a digitação/seleção
+    const timer = setTimeout(() => {
+      // Preparar filtros globais (SEM Colaborador)
+      const filtrosGlobais = {
+        dataInicio: filtroDataInicio,
+        dataFim: filtroDataFim,
+        clienteId: filtroCliente, // Opcional
+        // IMPORTANTE: Garantir que filtros de responsável NÃO sejam enviados aqui
+        colaboradorId: null
+      };
+
+      // Carregar apenas os totais
+      carregarResumoDashboard(filtrosGlobais);
+    }, 500); // 500ms de debounce
+
+    return () => clearTimeout(timer);
+  }, [
+    filtroDataInicio,
+    filtroDataFim,
+    filtroCliente,
+    mostrarClientesInativos,
+    mostrarColaboradoresInativos,
+    enabledWeekends,
+    enabledHolidays,
+    carregarResumoDashboard
+  ]);
 
   // Limpar filtros
   const limparFiltros = useCallback(async () => {
@@ -1176,8 +1212,8 @@ const RelatoriosColaboradores = () => {
             })()}
           </FiltersCard>
 
-          {/* Cards de Dashboard - Só exibir quando dados estiverem completamente carregados */}
-          {filtrosAplicados && !carregandoTotais && totaisGerais && (
+          {/* Cards de Dashboard - Exibir se totais gerais estiverem carregados (independente de filtrosAplicados para os cards) */}
+          {(!carregandoTotais && totaisGerais) && (
             <DashboardCards
               registrosTempo={allRegistrosTempo} // allRegistrosTempo ainda é usado para os detalhes da lista
               clientesExibidos={[]}
