@@ -1470,6 +1470,8 @@ const DelegarTarefas = () => {
         return;
       }
 
+      let registrosCalculados = [];
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -1485,9 +1487,10 @@ const DelegarTarefas = () => {
             console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Regras do Luiz Marcelo (75397340197): ${regrasLuizMarcelo.length}`);
           }
 
-          // Gerar registros apenas para a listagem (não para cards)
-          const registrosCalculados = [];
-          if (periodoAUsar.inicio && periodoAUsar.fim) {
+          if (!temPeriodo) {
+            // Sem filtro de período (apenas paginação simples), usar regras diretas
+            registrosCalculados = regras;
+          } else {
             regras.forEach(regra => {
               const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : periodoAUsar.inicio;
               const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : periodoAUsar.fim;
@@ -1516,6 +1519,8 @@ const DelegarTarefas = () => {
                     produto_id: regra.produto_id,
                     tarefa_id: regra.tarefa_id,
                     responsavel_id: regra.responsavel_id,
+                    tipo_tarefa_id: regra.tipo_tarefa_id,
+                    nome: regra.nome,
 
                     data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
                     tempo_estimado_dia: regra.tempo_estimado_dia,
@@ -1523,6 +1528,10 @@ const DelegarTarefas = () => {
                     incluir_feriados: regra.incluir_feriados !== false,
                     regra_id: regra.id,
                     responsavel_foto_perfil: regra.responsavel_foto_perfil,
+                    responsavel_nome: regra.responsavel_nome,
+                    cliente_nome: regra.cliente_nome,
+                    produto_nome: regra.produto_nome,
+                    tarefa_nome: regra.tarefa_nome,
                     created_at: regra.created_at,
                     updated_at: regra.updated_at
                   });
@@ -1768,1755 +1777,1613 @@ const DelegarTarefas = () => {
         // Se não há dados, marca como carregado mesmo assim
         setDadosAuxiliaresCarregados(true);
       }
-    } else {
-      // Se não há resposta ok, marca como carregado para não travar a interface
+    } catch (error) {
+      console.error('Erro ao carregar registros:', error);
+      showToast('error', 'Erro ao carregar registros de tempo estimado');
+      // Em caso de erro, marca como carregado para não travar a interface
       setDadosAuxiliaresCarregados(true);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Erro ao carregar registros:', error);
-    showToast('error', 'Erro ao carregar registros de tempo estimado');
-    // Em caso de erro, marca como carregado para não travar a interface
-    setDadosAuxiliaresCarregados(true);
-  } finally {
-    setLoading(false);
-  }
-}, [currentPage, itemsPerPage, filtros, periodoInicio, periodoFim]);
+  }, [currentPage, itemsPerPage, filtros, periodoInicio, periodoFim]);
 
-// Carregar nomes de produtos, tarefas, clientes e colaboradores
-const carregarNomesRelacionados = async (registros) => {
-  const produtosIds = new Set();
-  const tarefasIds = new Set();
-  const clientesIds = new Set();
-  const colaboradoresIds = new Set();
+  // Carregar nomes de produtos, tarefas, clientes e colaboradores
+  const carregarNomesRelacionados = async (registros) => {
+    const produtosIds = new Set();
+    const tarefasIds = new Set();
+    const clientesIds = new Set();
+    const colaboradoresIds = new Set();
 
-  registros.forEach(reg => {
-    if (reg.produto_id) produtosIds.add(String(reg.produto_id));
-    if (reg.tarefa_id) tarefasIds.add(String(reg.tarefa_id));
-    if (reg.cliente_id) clientesIds.add(String(reg.cliente_id));
-    if (reg.responsavel_id) colaboradoresIds.add(String(reg.responsavel_id));
-  });
+    registros.forEach(reg => {
+      if (reg.produto_id) produtosIds.add(String(reg.produto_id));
+      if (reg.tarefa_id) tarefasIds.add(String(reg.tarefa_id));
+      if (reg.cliente_id) clientesIds.add(String(reg.cliente_id));
+      if (reg.responsavel_id) colaboradoresIds.add(String(reg.responsavel_id));
+    });
 
-  const novosNomes = { ...nomesCache };
+    const novosNomes = { ...nomesCache };
 
-  // Carregar nomes de produtos
-  if (produtosIds.size > 0) {
-    try {
-      const produtosArray = Array.from(produtosIds);
-      for (const produtoId of produtosArray) {
-        if (!novosNomes.produtos[produtoId]) {
-          const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-          });
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-              novosNomes.produtos[produtoId] = result.data.nome || `Produto #${produtoId}`;
+    // Carregar nomes de produtos
+    if (produtosIds.size > 0) {
+      try {
+        const produtosArray = Array.from(produtosIds);
+        for (const produtoId of produtosArray) {
+          if (!novosNomes.produtos[produtoId]) {
+            const response = await fetch(`${API_BASE_URL}/produtos/${produtoId}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                novosNomes.produtos[produtoId] = result.data.nome || `Produto #${produtoId}`;
+              }
             }
           }
         }
+      } catch (error) {
+        console.error('Erro ao carregar nomes de produtos:', error);
       }
-    } catch (error) {
-      console.error('Erro ao carregar nomes de produtos:', error);
     }
-  }
 
-  // Carregar nomes de tarefas
-  if (tarefasIds.size > 0) {
-    try {
-      const tarefasArray = Array.from(tarefasIds);
-      for (const tarefaId of tarefasArray) {
-        if (!novosNomes.tarefas[tarefaId]) {
-          const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-          });
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-              novosNomes.tarefas[tarefaId] = result.data.nome || `Tarefa #${tarefaId}`;
+    // Carregar nomes de tarefas
+    if (tarefasIds.size > 0) {
+      try {
+        const tarefasArray = Array.from(tarefasIds);
+        for (const tarefaId of tarefasArray) {
+          if (!novosNomes.tarefas[tarefaId]) {
+            const response = await fetch(`${API_BASE_URL}/atividades/${tarefaId}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                novosNomes.tarefas[tarefaId] = result.data.nome || `Tarefa #${tarefaId}`;
+              }
             }
           }
         }
+      } catch (error) {
+        console.error('Erro ao carregar nomes de tarefas:', error);
       }
-    } catch (error) {
-      console.error('Erro ao carregar nomes de tarefas:', error);
     }
-  }
 
-  // Carregar nomes de clientes (já temos no estado clientes)
-  if (clientesIds.size > 0) {
-    clientesIds.forEach(clienteId => {
-      if (!novosNomes.clientes[clienteId]) {
-        const cliente = clientes.find(c => String(c.id) === String(clienteId));
-        if (cliente) {
-          novosNomes.clientes[clienteId] = cliente.nome;
+    // Carregar nomes de clientes (já temos no estado clientes)
+    if (clientesIds.size > 0) {
+      clientesIds.forEach(clienteId => {
+        if (!novosNomes.clientes[clienteId]) {
+          const cliente = clientes.find(c => String(c.id) === String(clienteId));
+          if (cliente) {
+            novosNomes.clientes[clienteId] = cliente.nome;
+          }
         }
-      }
-    });
-  }
+      });
+    }
 
-  // Carregar nomes de colaboradores (já temos no estado colaboradores)
-  if (colaboradoresIds.size > 0) {
-    colaboradoresIds.forEach(colabId => {
-      if (!novosNomes.colaboradores[colabId]) {
-        const colab = colaboradores.find(c => String(c.id) === String(colabId));
-        if (colab) {
-          novosNomes.colaboradores[colabId] = colab.cpf ? `${colab.nome} (${colab.cpf})` : colab.nome;
+    // Carregar nomes de colaboradores (já temos no estado colaboradores)
+    if (colaboradoresIds.size > 0) {
+      colaboradoresIds.forEach(colabId => {
+        if (!novosNomes.colaboradores[colabId]) {
+          const colab = colaboradores.find(c => String(c.id) === String(colabId));
+          if (colab) {
+            novosNomes.colaboradores[colabId] = colab.cpf ? `${colab.nome} (${colab.cpf})` : colab.nome;
+          }
         }
+      });
+    }
+
+    setNomesCache(novosNomes);
+  };
+
+  // Funções auxiliares para obter nomes
+  const getNomeProduto = (produtoId) => {
+    return nomesCache.produtos[String(produtoId)] || 'Produto';
+  };
+
+  const getNomeTarefa = (tarefaId) => {
+    return nomesCache.tarefas[String(tarefaId)] || 'Tarefa';
+  };
+
+  const getClienteLabel = (clienteId) => {
+    const cliente = clientes.find(c => String(c.id) === String(clienteId));
+    return cliente ? cliente.nome : 'Cliente';
+  };
+
+  const getColaboradorLabel = (colaboradorId) => {
+    const colaborador = colaboradores.find(c => String(c.id) === String(colaboradorId));
+    if (colaborador) {
+      return colaborador.cpf ? `${colaborador.nome} (${colaborador.cpf})` : colaborador.nome;
+    }
+    return 'Colaborador';
+  };
+
+  const getNomeCliente = (clienteId) => {
+    return nomesCache.clientes[String(clienteId)] || getClienteLabel(clienteId) || 'Cliente';
+  };
+
+  const getNomeColaborador = (colabId) => {
+    return nomesCache.colaboradores[String(colabId)] || getColaboradorLabel(colabId) || 'Colaborador';
+  };
+
+  // Formatar data
+  const formatarData = (dataInput) => {
+    if (!dataInput) return '—';
+    try {
+      let date;
+
+      // Se for um objeto Date, usar diretamente
+      if (dataInput instanceof Date) {
+        date = dataInput;
+      } else if (typeof dataInput === 'string') {
+        // Se for string ISO, extrair apenas a parte da data
+        const dataStr = dataInput.split('T')[0];
+        const [ano, mes, dia] = dataStr.split('-');
+        date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      } else {
+        date = new Date(dataInput);
       }
-    });
-  }
 
-  setNomesCache(novosNomes);
-};
+      if (isNaN(date.getTime())) return '—';
 
-// Funções auxiliares para obter nomes
-const getNomeProduto = (produtoId) => {
-  return nomesCache.produtos[String(produtoId)] || 'Produto';
-};
+      // Usar métodos locais para garantir a data correta
+      const dia = String(date.getDate()).padStart(2, '0');
+      const mes = String(date.getMonth() + 1).padStart(2, '0');
+      const ano = date.getFullYear();
 
-const getNomeTarefa = (tarefaId) => {
-  return nomesCache.tarefas[String(tarefaId)] || 'Tarefa';
-};
-
-const getClienteLabel = (clienteId) => {
-  const cliente = clientes.find(c => String(c.id) === String(clienteId));
-  return cliente ? cliente.nome : 'Cliente';
-};
-
-const getColaboradorLabel = (colaboradorId) => {
-  const colaborador = colaboradores.find(c => String(c.id) === String(colaboradorId));
-  if (colaborador) {
-    return colaborador.cpf ? `${colaborador.nome} (${colaborador.cpf})` : colaborador.nome;
-  }
-  return 'Colaborador';
-};
-
-const getNomeCliente = (clienteId) => {
-  return nomesCache.clientes[String(clienteId)] || getClienteLabel(clienteId) || 'Cliente';
-};
-
-const getNomeColaborador = (colabId) => {
-  return nomesCache.colaboradores[String(colabId)] || getColaboradorLabel(colabId) || 'Colaborador';
-};
-
-// Formatar data
-const formatarData = (dataInput) => {
-  if (!dataInput) return '—';
-  try {
-    let date;
-
-    // Se for um objeto Date, usar diretamente
-    if (dataInput instanceof Date) {
-      date = dataInput;
-    } else if (typeof dataInput === 'string') {
-      // Se for string ISO, extrair apenas a parte da data
-      const dataStr = dataInput.split('T')[0];
-      const [ano, mes, dia] = dataStr.split('-');
-      date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-    } else {
-      date = new Date(dataInput);
+      return `${dia}/${mes}/${ano}`;
+    } catch (e) {
+      return '—';
     }
+  };
 
-    if (isNaN(date.getTime())) return '—';
+  // Formatar período
+  const formatarPeriodo = (dataInicio, dataFim) => {
+    if (!dataInicio || !dataFim) return '—';
+    return `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
+  };
 
-    // Usar métodos locais para garantir a data correta
-    const dia = String(date.getDate()).padStart(2, '0');
-    const mes = String(date.getMonth() + 1).padStart(2, '0');
-    const ano = date.getFullYear();
+  // Verificar se uma data está dentro do período filtrado
+  const dataEstaNoPeriodo = (dataRegistro) => {
+    if (!periodoInicio || !periodoFim || !dataRegistro) return true; // Se não há filtro de período, mostrar tudo
 
-    return `${dia}/${mes}/${ano}`;
-  } catch (e) {
-    return '—';
-  }
-};
+    try {
+      // Converter data do registro para Date
+      let dataReg;
+      if (dataRegistro instanceof Date) {
+        dataReg = new Date(dataRegistro);
+      } else if (typeof dataRegistro === 'string') {
+        const dataStr = dataRegistro.split('T')[0];
+        const [ano, mes, dia] = dataStr.split('-');
+        dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+      } else {
+        dataReg = new Date(dataRegistro);
+      }
 
-// Formatar período
-const formatarPeriodo = (dataInicio, dataFim) => {
-  if (!dataInicio || !dataFim) return '—';
-  return `${formatarData(dataInicio)} até ${formatarData(dataFim)}`;
-};
+      // Converter período filtrado para Date
+      let inicio, fim;
 
-// Verificar se uma data está dentro do período filtrado
-const dataEstaNoPeriodo = (dataRegistro) => {
-  if (!periodoInicio || !periodoFim || !dataRegistro) return true; // Se não há filtro de período, mostrar tudo
+      // Se periodoInicio/periodoFim são strings no formato "YYYY-MM-DD", parsear manualmente
+      if (typeof periodoInicio === 'string' && periodoInicio.includes('-')) {
+        const [anoInicio, mesInicio, diaInicio] = periodoInicio.split('-');
+        inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+      } else {
+        inicio = new Date(periodoInicio);
+      }
 
-  try {
-    // Converter data do registro para Date
-    let dataReg;
-    if (dataRegistro instanceof Date) {
-      dataReg = new Date(dataRegistro);
-    } else if (typeof dataRegistro === 'string') {
-      const dataStr = dataRegistro.split('T')[0];
-      const [ano, mes, dia] = dataStr.split('-');
-      dataReg = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-    } else {
-      dataReg = new Date(dataRegistro);
+      if (typeof periodoFim === 'string' && periodoFim.includes('-')) {
+        const [anoFim, mesFim, diaFim] = periodoFim.split('-');
+        fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+      } else {
+        fim = new Date(periodoFim);
+      }
+
+      // Normalizar para comparar apenas datas (sem hora)
+      dataReg.setHours(0, 0, 0, 0);
+      inicio.setHours(0, 0, 0, 0);
+      fim.setHours(23, 59, 59, 999); // Colocar no final do dia para incluir a data final
+
+      return dataReg >= inicio && dataReg <= fim;
+    } catch (e) {
+      console.error('Erro ao verificar data no período:', e);
+      return true; // Em caso de erro, mostrar o registro
     }
+  };
 
-    // Converter período filtrado para Date
-    let inicio, fim;
 
-    // Se periodoInicio/periodoFim são strings no formato "YYYY-MM-DD", parsear manualmente
-    if (typeof periodoInicio === 'string' && periodoInicio.includes('-')) {
-      const [anoInicio, mesInicio, diaInicio] = periodoInicio.split('-');
-      inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
-    } else {
-      inicio = new Date(periodoInicio);
+  // Formatar tempo estimado (de milissegundos para horas, minutos e segundos)
+  const formatarTempoEstimado = (milissegundos, incluirSegundos = false) => {
+    if (!milissegundos || milissegundos === 0) {
+      // Se incluirSegundos for true, retornar "0s" em vez de "—"
+      return incluirSegundos ? '0s' : '—';
     }
+    const totalSegundos = Math.floor(milissegundos / 1000);
+    const horas = Math.floor(totalSegundos / 3600);
+    const minutos = Math.floor((totalSegundos % 3600) / 60);
+    const segundos = totalSegundos % 60;
 
-    if (typeof periodoFim === 'string' && periodoFim.includes('-')) {
-      const [anoFim, mesFim, diaFim] = periodoFim.split('-');
-      fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+    if (incluirSegundos) {
+      if (horas > 0 && minutos > 0 && segundos > 0) {
+        return `${horas}h ${minutos}min ${segundos}s`;
+      } else if (horas > 0 && minutos > 0) {
+        return `${horas}h ${minutos}min`;
+      } else if (horas > 0) {
+        return `${horas}h`;
+      } else if (minutos > 0 && segundos > 0) {
+        return `${minutos}min ${segundos}s`;
+      } else if (minutos > 0) {
+        return `${minutos}min`;
+      } else if (segundos > 0) {
+        return `${segundos}s`;
+      }
     } else {
-      fim = new Date(periodoFim);
+      if (horas > 0 && minutos > 0) {
+        return `${horas}h ${minutos}min`;
+      } else if (horas > 0) {
+        return `${horas}h`;
+      } else if (minutos > 0) {
+        return `${minutos}min`;
+      }
     }
-
-    // Normalizar para comparar apenas datas (sem hora)
-    dataReg.setHours(0, 0, 0, 0);
-    inicio.setHours(0, 0, 0, 0);
-    fim.setHours(23, 59, 59, 999); // Colocar no final do dia para incluir a data final
-
-    return dataReg >= inicio && dataReg <= fim;
-  } catch (e) {
-    console.error('Erro ao verificar data no período:', e);
-    return true; // Em caso de erro, mostrar o registro
-  }
-};
-
-
-// Formatar tempo estimado (de milissegundos para horas, minutos e segundos)
-const formatarTempoEstimado = (milissegundos, incluirSegundos = false) => {
-  if (!milissegundos || milissegundos === 0) {
-    // Se incluirSegundos for true, retornar "0s" em vez de "—"
+    // Se chegou aqui e incluirSegundos é true, retornar "0s" em vez de "—"
     return incluirSegundos ? '0s' : '—';
-  }
-  const totalSegundos = Math.floor(milissegundos / 1000);
-  const horas = Math.floor(totalSegundos / 3600);
-  const minutos = Math.floor((totalSegundos % 3600) / 60);
-  const segundos = totalSegundos % 60;
+  };
 
-  if (incluirSegundos) {
-    if (horas > 0 && minutos > 0 && segundos > 0) {
-      return `${horas}h ${minutos}min ${segundos}s`;
-    } else if (horas > 0 && minutos > 0) {
-      return `${horas}h ${minutos}min`;
-    } else if (horas > 0) {
-      return `${horas}h`;
-    } else if (minutos > 0 && segundos > 0) {
-      return `${minutos}min ${segundos}s`;
-    } else if (minutos > 0) {
-      return `${minutos}min`;
-    } else if (segundos > 0) {
-      return `${segundos}s`;
-    }
-  } else {
-    if (horas > 0 && minutos > 0) {
-      return `${horas}h ${minutos}min`;
-    } else if (horas > 0) {
-      return `${horas}h`;
-    } else if (minutos > 0) {
-      return `${minutos}min`;
-    }
-  }
-  // Se chegou aqui e incluirSegundos é true, retornar "0s" em vez de "—"
-  return incluirSegundos ? '0s' : '—';
-};
+  // Buscar custo mais recente por responsável
+  const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
+    if (window.backendOverloaded === true) return null;
+    try {
+      const params = new URLSearchParams({
+        membro_id: responsavelId
+      });
+      if (dataInicio) params.append('data_inicio', dataInicio);
+      if (dataFim) params.append('data_fim', dataFim);
 
-// Buscar custo mais recente por responsável
-const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
-  if (window.backendOverloaded === true) return null;
-  try {
-    const params = new URLSearchParams({
-      membro_id: responsavelId
-    });
-    if (dataInicio) params.append('data_inicio', dataInicio);
-    if (dataFim) params.append('data_fim', dataFim);
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
 
-    const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${params}`, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' }
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data) {
-        return result.data.custo_hora || null;
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data.custo_hora || null;
+        }
       }
+      return null;
+    } catch (error) {
+      console.error('Erro ao buscar custo por responsável:', error);
+      return null;
     }
-    return null;
-  } catch (error) {
-    console.error('Erro ao buscar custo por responsável:', error);
-    return null;
-  }
-};
+  };
 
-// Carregar custos para todos os responsáveis de um grupo
-const carregarCustosPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
-  const responsaveisIds = new Set();
-  agrupamentos.forEach(agrupamento => {
-    const primeiroRegistro = agrupamento.primeiroRegistro;
-    if (primeiroRegistro.responsavel_id) {
-      responsaveisIds.add(String(primeiroRegistro.responsavel_id));
-    }
-  });
+  // Carregar custos para todos os responsáveis de um grupo
+  const carregarCustosPorResponsaveis = async (agrupamentos, dataInicio, dataFim) => {
+    const responsaveisIds = new Set();
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      if (primeiroRegistro.responsavel_id) {
+        responsaveisIds.add(String(primeiroRegistro.responsavel_id));
+      }
+    });
 
-  const novosCustos = { ...custosPorResponsavel };
+    const novosCustos = { ...custosPorResponsavel };
 
-  // Filtrar apenas responsáveis que ainda não têm custo no cache
-  const responsaveisParaBuscar = Array.from(responsaveisIds).filter(id => !novosCustos[id]);
+    // Filtrar apenas responsáveis que ainda não têm custo no cache
+    const responsaveisParaBuscar = Array.from(responsaveisIds).filter(id => !novosCustos[id]);
 
-  // Usar batches para limitar requisições simultâneas e evitar ERR_INSUFFICIENT_RESOURCES
-  await processBatch(responsaveisParaBuscar, async (responsavelId) => {
-    const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
-    novosCustos[responsavelId] = custoHora;
-  }, 4); // Limite de 4 requisições simultâneas
+    // Usar batches para limitar requisições simultâneas e evitar ERR_INSUFFICIENT_RESOURCES
+    await processBatch(responsaveisParaBuscar, async (responsavelId) => {
+      const custoHora = await buscarCustoPorResponsavel(responsavelId, dataInicio, dataFim);
+      novosCustos[responsavelId] = custoHora;
+    }, 4); // Limite de 4 requisições simultâneas
 
-  setCustosPorResponsavel(novosCustos);
-};
+    setCustosPorResponsavel(novosCustos);
+  };
 
-// Calcular custo estimado total para um grupo (funciona para qualquer filtro principal)
-const calcularCustoEstimadoTotal = (agrupamentos) => {
-  // Coletar todos os responsáveis únicos e seus tempos
-  const temposPorResponsavel = {};
+  // Calcular custo estimado total para um grupo (funciona para qualquer filtro principal)
+  const calcularCustoEstimadoTotal = (agrupamentos) => {
+    // Coletar todos os responsáveis únicos e seus tempos
+    const temposPorResponsavel = {};
 
-  agrupamentos.forEach(agrupamento => {
-    const primeiroRegistro = agrupamento.primeiroRegistro;
-    const responsavelId = primeiroRegistro.responsavel_id;
+    agrupamentos.forEach(agrupamento => {
+      const primeiroRegistro = agrupamento.primeiroRegistro;
+      const responsavelId = primeiroRegistro.responsavel_id;
 
-    if (!responsavelId) return;
+      if (!responsavelId) return;
+
+      const custoHoraStr = custosPorResponsavel[String(responsavelId)];
+      if (!custoHoraStr) return;
+
+      // Converter custo_hora de string (formato "21,22") para número
+      const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
+      if (isNaN(custoHora) || custoHora <= 0) return;
+
+      // Calcular tempo total deste agrupamento em horas
+      const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
+      const tempoHorasPorDia = tempoEstimadoDia / 3600000;
+      const quantidadeDias = agrupamento.quantidade || 0;
+      const tempoTotalHoras = tempoHorasPorDia * quantidadeDias;
+
+      // Acumular tempo por responsável
+      if (!temposPorResponsavel[String(responsavelId)]) {
+        temposPorResponsavel[String(responsavelId)] = {
+          custoHora,
+          tempoTotalHoras: 0
+        };
+      }
+      temposPorResponsavel[String(responsavelId)].tempoTotalHoras += tempoTotalHoras;
+    });
+
+    // Somar todos os custos
+    let custoTotal = 0;
+    Object.values(temposPorResponsavel).forEach(({ custoHora, tempoTotalHoras }) => {
+      custoTotal += custoHora * tempoTotalHoras;
+    });
+
+    return custoTotal > 0 ? custoTotal : null;
+  };
+
+  // Formatar valor monetário
+  const formatarValorMonetario = (valor) => {
+    if (!valor || isNaN(valor)) return '—';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
+
+  // Calcular custo para um tempo específico e responsável
+  const calcularCustoPorTempo = (tempoMilissegundos, responsavelId) => {
+    if (!tempoMilissegundos || !responsavelId) return null;
 
     const custoHoraStr = custosPorResponsavel[String(responsavelId)];
-    if (!custoHoraStr) return;
+    if (!custoHoraStr) return null;
 
     // Converter custo_hora de string (formato "21,22") para número
     const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
-    if (isNaN(custoHora) || custoHora <= 0) return;
+    if (isNaN(custoHora) || custoHora <= 0) return null;
 
-    // Calcular tempo total deste agrupamento em horas
-    const tempoEstimadoDia = primeiroRegistro.tempo_estimado_dia || 0;
-    const tempoHorasPorDia = tempoEstimadoDia / 3600000;
-    const quantidadeDias = agrupamento.quantidade || 0;
-    const tempoTotalHoras = tempoHorasPorDia * quantidadeDias;
+    // Converter tempo de milissegundos para horas
+    const tempoHoras = tempoMilissegundos / 3600000;
 
-    // Acumular tempo por responsável
-    if (!temposPorResponsavel[String(responsavelId)]) {
-      temposPorResponsavel[String(responsavelId)] = {
-        custoHora,
-        tempoTotalHoras: 0
-      };
+    // Custo = custo por hora * tempo em horas
+    const custo = custoHora * tempoHoras;
+    return custo;
+  };
+
+  // Formatar tempo com custo (se disponível)
+  const formatarTempoComCusto = (tempoMilissegundos, responsavelId, incluirSegundos = false) => {
+    const tempoFormatado = formatarTempoEstimado(tempoMilissegundos, incluirSegundos);
+    const custo = calcularCustoPorTempo(tempoMilissegundos, responsavelId);
+
+    if (custo !== null) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span>{tempoFormatado}</span>
+          <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>
+            {formatarValorMonetario(custo)}
+          </span>
+        </div>
+      );
     }
-    temposPorResponsavel[String(responsavelId)].tempoTotalHoras += tempoTotalHoras;
-  });
 
-  // Somar todos os custos
-  let custoTotal = 0;
-  Object.values(temposPorResponsavel).forEach(({ custoHora, tempoTotalHoras }) => {
-    custoTotal += custoHora * tempoTotalHoras;
-  });
+    return tempoFormatado;
+  };
 
-  return custoTotal > 0 ? custoTotal : null;
-};
+  // Formatar tempo estimado e realizado juntos
+  const formatarTempoEstimadoERealizado = (registro, incluirSegundos = false) => {
+    const tempoEstimado = registro.tempo_estimado_dia || 0;
+    // Tempo realizado sempre 0 (lógica removida)
+    const tempoRealizadoValor = 0;
+    const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimado, incluirSegundos);
+    const tempoRealizadoFormatado = '0s';
+    const custoEstimado = calcularCustoPorTempo(tempoEstimado, registro.responsavel_id);
+    const custoRealizado = null;
 
-// Formatar valor monetário
-const formatarValorMonetario = (valor) => {
-  if (!valor || isNaN(valor)) return '—';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(valor);
-};
-
-// Calcular custo para um tempo específico e responsável
-const calcularCustoPorTempo = (tempoMilissegundos, responsavelId) => {
-  if (!tempoMilissegundos || !responsavelId) return null;
-
-  const custoHoraStr = custosPorResponsavel[String(responsavelId)];
-  if (!custoHoraStr) return null;
-
-  // Converter custo_hora de string (formato "21,22") para número
-  const custoHora = parseFloat(custoHoraStr.replace(',', '.'));
-  if (isNaN(custoHora) || custoHora <= 0) return null;
-
-  // Converter tempo de milissegundos para horas
-  const tempoHoras = tempoMilissegundos / 3600000;
-
-  // Custo = custo por hora * tempo em horas
-  const custo = custoHora * tempoHoras;
-  return custo;
-};
-
-// Formatar tempo com custo (se disponível)
-const formatarTempoComCusto = (tempoMilissegundos, responsavelId, incluirSegundos = false) => {
-  const tempoFormatado = formatarTempoEstimado(tempoMilissegundos, incluirSegundos);
-  const custo = calcularCustoPorTempo(tempoMilissegundos, responsavelId);
-
-  if (custo !== null) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <span>{tempoFormatado}</span>
-        <span style={{ fontSize: '10px', color: '#059669', fontWeight: 600 }}>
-          {formatarValorMonetario(custo)}
-        </span>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+        {/* Quadrado Estimado */}
+        <div style={{
+          background: '#fef3c7',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3px',
+          width: 'fit-content'
+        }}>
+          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            Estimado: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{tempoEstimadoFormatado}</span>
+          </div>
+          {custoEstimado !== null && (
+            <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              Custo: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatarValorMonetario(custoEstimado)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quadrado Realizado */}
+        <div style={{
+          background: '#f3f4f6',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '3px',
+          width: 'fit-content'
+        }}>
+          <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            Realizado: <span style={{ fontWeight: 600, color: '#9ca3af' }}>0s</span>
+          </div>
+        </div>
       </div>
     );
-  }
+  };
 
-  return tempoFormatado;
-};
+  // Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
+  const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
+    // Usar valores aplicados do período (ou null se não foram aplicados)
+    const periodoAplicadoInicio = filtrosUltimosAplicados?.periodoInicio;
+    const periodoAplicadoFim = filtrosUltimosAplicados?.periodoFim;
+    if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
 
-// Formatar tempo estimado e realizado juntos
-const formatarTempoEstimadoERealizado = (registro, incluirSegundos = false) => {
-  const tempoEstimado = registro.tempo_estimado_dia || 0;
-  // Tempo realizado sempre 0 (lógica removida)
-  const tempoRealizadoValor = 0;
-  const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimado, incluirSegundos);
-  const tempoRealizadoFormatado = '0s';
-  const custoEstimado = calcularCustoPorTempo(tempoEstimado, registro.responsavel_id);
-  const custoRealizado = null;
+    // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
+    const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
+    const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
+    const datasIndividuaisAplicado = filtrosUltimosAplicados?.datasIndividuais ?? [];
 
-  return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-      {/* Quadrado Estimado */}
-      <div style={{
-        background: '#fef3c7',
-        borderRadius: '6px',
-        padding: '6px 12px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '3px',
-        width: 'fit-content'
-      }}>
-        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
-          Estimado: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{tempoEstimadoFormatado}</span>
-        </div>
-        {custoEstimado !== null && (
-          <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 500, whiteSpace: 'nowrap' }}>
-            Custo: <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatarValorMonetario(custoEstimado)}</span>
-          </div>
-        )}
-      </div>
+    // Obter conjunto de datas válidas (considerando opções e datas individuais)
+    const datasValidas = obterDatasValidasNoPeriodo(
+      periodoAplicadoInicio,
+      periodoAplicadoFim,
+      habilitarFinaisSemanaAplicado,
+      habilitarFeriadosAplicado,
+      datasIndividuaisAplicado
+    );
 
-      {/* Quadrado Realizado */}
-      <div style={{
-        background: '#f3f4f6',
-        borderRadius: '6px',
-        padding: '6px 12px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '3px',
-        width: 'fit-content'
-      }}>
-        <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: 500, whiteSpace: 'nowrap' }}>
-          Realizado: <span style={{ fontWeight: 600, color: '#9ca3af' }}>0s</span>
-        </div>
-      </div>
-    </div>
-  );
-};
+    // Calcular dias considerando as opções de incluir finais de semana, feriados e datas individuais
+    const diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado, datasIndividuaisAplicado);
 
-// Calcular tempo disponível, estimado, realizado e sobrando para um responsável (usando os agrupamentos já filtrados)
-const calcularTempoDisponivelRealizadoSobrando = (responsavelId, agrupamentos) => {
-  // Usar valores aplicados do período (ou null se não foram aplicados)
-  const periodoAplicadoInicio = filtrosUltimosAplicados?.periodoInicio;
-  const periodoAplicadoFim = filtrosUltimosAplicados?.periodoFim;
-  if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
+    // Função auxiliar para verificar se uma data está nas datas válidas
+    const dataEstaNoPeriodoAplicado = (dataRegistro) => {
+      if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
+      if (datasValidas.size === 0) return false; // Se não há datas válidas, não incluir nada
 
-  // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
-  const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
-  const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
-  const datasIndividuaisAplicado = filtrosUltimosAplicados?.datasIndividuais ?? [];
+      try {
+        let dataStr;
+        if (typeof dataRegistro === 'string') {
+          // Extrair apenas a parte da data (YYYY-MM-DD) ignorando timezone
+          dataStr = dataRegistro.split('T')[0];
+        } else if (dataRegistro instanceof Date) {
+          // Para Date, usar métodos do timezone local para garantir consistência
+          const year = dataRegistro.getFullYear();
+          const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
+          const day = String(dataRegistro.getDate()).padStart(2, '0');
+          dataStr = `${year}-${month}-${day}`;
+        } else {
+          // Para outros tipos, criar Date e depois normalizar
+          const dataReg = new Date(dataRegistro);
+          const year = dataReg.getFullYear();
+          const month = String(dataReg.getMonth() + 1).padStart(2, '0');
+          const day = String(dataReg.getDate()).padStart(2, '0');
+          dataStr = `${year}-${month}-${day}`;
+        }
 
-  // Obter conjunto de datas válidas (considerando opções e datas individuais)
-  const datasValidas = obterDatasValidasNoPeriodo(
-    periodoAplicadoInicio,
-    periodoAplicadoFim,
-    habilitarFinaisSemanaAplicado,
-    habilitarFeriadosAplicado,
-    datasIndividuaisAplicado
-  );
+        // Garantir formato correto (YYYY-MM-DD)
+        if (!dataStr || !dataStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+          console.warn('Formato de data inválido:', dataRegistro, '->', dataStr);
+          return false;
+        }
 
-  // Calcular dias considerando as opções de incluir finais de semana, feriados e datas individuais
-  const diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado, datasIndividuaisAplicado);
-
-  // Função auxiliar para verificar se uma data está nas datas válidas
-  const dataEstaNoPeriodoAplicado = (dataRegistro) => {
-    if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
-    if (datasValidas.size === 0) return false; // Se não há datas válidas, não incluir nada
-
-    try {
-      let dataStr;
-      if (typeof dataRegistro === 'string') {
-        // Extrair apenas a parte da data (YYYY-MM-DD) ignorando timezone
-        dataStr = dataRegistro.split('T')[0];
-      } else if (dataRegistro instanceof Date) {
-        // Para Date, usar métodos do timezone local para garantir consistência
-        const year = dataRegistro.getFullYear();
-        const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
-        const day = String(dataRegistro.getDate()).padStart(2, '0');
-        dataStr = `${year}-${month}-${day}`;
-      } else {
-        // Para outros tipos, criar Date e depois normalizar
-        const dataReg = new Date(dataRegistro);
-        const year = dataReg.getFullYear();
-        const month = String(dataReg.getMonth() + 1).padStart(2, '0');
-        const day = String(dataReg.getDate()).padStart(2, '0');
-        dataStr = `${year}-${month}-${day}`;
-      }
-
-      // Garantir formato correto (YYYY-MM-DD)
-      if (!dataStr || !dataStr.match(/^\d{4}-\d{2}-\d{2}/)) {
-        console.warn('Formato de data inválido:', dataRegistro, '->', dataStr);
+        return datasValidas.has(dataStr);
+      } catch (error) {
+        console.error('Erro ao verificar se data está no período aplicado:', error, 'dataRegistro:', dataRegistro);
         return false;
       }
+    };
 
-      return datasValidas.has(dataStr);
+    // Tempo estimado: usar o valor já calculado corretamente em loadRegistrosTempoEstimado
+    // Este valor já considera:
+    // - Período filtrado corretamente
+    // - Interseção entre período da regra e período filtrado
+    // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
+    // - Evita duplicação de datas usando Map de datas únicas
+    const tempoEstimado = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
+
+    // Verificar se é PJ (tipo_contrato === 2)
+    const tipoContrato = tipoContratoPorResponsavel[String(responsavelId)];
+    // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
+    const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
+      tipoContrato === 2 ||
+      tipoContrato === '2' ||
+      Number(tipoContrato) === 2 ||
+      String(tipoContrato).trim() === '2'
+    );
+
+    // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
+    const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
+    const horasContratadasDiaValor = horasContratadasDia || 0;
+
+    // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
+    const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
+
+    // Calcular tempo contratado total (horas contratadas por dia × dias no período)
+    // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
+    const tempoContratadoTotal = isPJ
+      ? tempoEstimado
+      : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
+
+    // Calcular tempo disponível: contratadas - estimado
+    const tempoDisponivelTotal = isPJ
+      ? tempoEstimado
+      : Math.max(0, tempoContratadoTotal - tempoEstimado);
+
+    const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
+
+    // Buscar tempo realizado do cache
+    // Garantir que responsavelId seja string para consistência com a chave criada no useEffect
+    const chaveTempoRealizado = `responsavel_${String(responsavelId)}`;
+    const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+    const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
+    const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
+
+    return {
+      disponivel: tempoDisponivelTotal,
+      estimado: tempoEstimado,
+      realizado: tempoRealizado,
+      pendente: tempoPendente,
+      sobrando: tempoSobrando,
+      contratado: tempoContratadoTotal
+    };
+  };
+
+  // Função para buscar tempo realizado total de uma entidade (responsável, produto, tarefa, cliente)
+  const buscarTempoRealizadoPorEntidade = useCallback(async (entidadeId, filtroPrincipal, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
+    if (window.backendOverloaded === true) return { realizado: 0, pendente: 0 };
+    try {
+      if (!periodoInicio || !periodoFim) {
+        return { realizado: 0, pendente: 0 };
+      }
+
+      // Se o filtro principal é responsavel, usar novo endpoint simplificado
+      if (filtroPrincipal === 'responsavel') {
+        try {
+          const response = await fetch('/api/registro-tempo/realizado-total', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              responsavel_id: entidadeId,
+              data_inicio: periodoInicio,
+              data_fim: periodoFim,
+              tarefa_id: filtrosAdicionais.tarefa_id || null,
+              cliente_id: filtrosAdicionais.cliente_id || null,
+              produto_id: filtrosAdicionais.produto_id || null
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              return {
+                realizado: result.data.tempo_realizado_ms || 0,
+                pendente: result.data.tempo_pendente_ms || 0
+              };
+            }
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Erro ao buscar tempo realizado total:', response.status, errorData);
+          }
+          return { realizado: 0, pendente: 0 };
+        } catch (error) {
+          console.error('Erro ao buscar tempo realizado total:', error);
+          return { realizado: 0, pendente: 0 };
+        }
+      }
+
+      // Para outros filtros principais, usar lógica existente
+      // O endpoint requer responsavel_id e período obrigatórios
+      // Precisamos buscar todos os responsáveis relacionados aos registros agrupados
+      let responsavelIds = [];
+
+      // Para outros filtros, buscar responsáveis relacionados aos registros agrupados
+      const agrupamentosFiltrados = registrosAgrupados.filter(agr => {
+        const primeiroRegistro = agr.primeiroRegistro;
+        if (filtroPrincipal === 'cliente') {
+          const clienteIds = String(primeiroRegistro.cliente_id || '').split(',').map(id => id.trim());
+          return clienteIds.includes(String(entidadeId));
+        } else if (filtroPrincipal === 'produto') {
+          return String(primeiroRegistro.produto_id) === String(entidadeId);
+        } else if (filtroPrincipal === 'atividade') {
+          return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+        }
+        return false;
+      });
+
+      // Extrair responsáveis únicos
+      responsavelIds = [...new Set(agrupamentosFiltrados.map(agr => agr.primeiroRegistro.responsavel_id).filter(Boolean))];
+
+      if (responsavelIds.length === 0) {
+        return { realizado: 0, pendente: 0 };
+      }
+
+      // Buscar tempo realizado para cada responsável usando novo endpoint e somar
+      const promises = responsavelIds.map(async (responsavelId) => {
+        try {
+          const response = await fetch('/api/registro-tempo/realizado-total', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              responsavel_id: responsavelId,
+              data_inicio: periodoInicio,
+              data_fim: periodoFim,
+              tarefa_id: filtrosAdicionais.tarefa_id || null,
+              cliente_id: filtrosAdicionais.cliente_id || null,
+              produto_id: filtrosAdicionais.produto_id || null
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              return {
+                realizado: result.data.tempo_realizado_ms || 0,
+                pendente: result.data.tempo_pendente_ms || 0
+              };
+            }
+          }
+          return { realizado: 0, pendente: 0 };
+        } catch (error) {
+          console.error('Erro ao buscar tempo realizado para responsável:', responsavelId, error);
+          return { realizado: 0, pendente: 0 };
+        }
+      });
+
+      const resultados = await Promise.all(promises);
+      return resultados.reduce((sum, item) => ({
+        realizado: sum.realizado + (item.realizado || 0),
+        pendente: sum.pendente + (item.pendente || 0)
+      }), { realizado: 0, pendente: 0 });
+
     } catch (error) {
-      console.error('Erro ao verificar se data está no período aplicado:', error, 'dataRegistro:', dataRegistro);
-      return false;
-    }
-  };
-
-  // Tempo estimado: usar o valor já calculado corretamente em loadRegistrosTempoEstimado
-  // Este valor já considera:
-  // - Período filtrado corretamente
-  // - Interseção entre período da regra e período filtrado
-  // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
-  // - Evita duplicação de datas usando Map de datas únicas
-  const tempoEstimado = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
-
-  // Verificar se é PJ (tipo_contrato === 2)
-  const tipoContrato = tipoContratoPorResponsavel[String(responsavelId)];
-  // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
-  const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
-    tipoContrato === 2 ||
-    tipoContrato === '2' ||
-    Number(tipoContrato) === 2 ||
-    String(tipoContrato).trim() === '2'
-  );
-
-  // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
-  const horasContratadasDia = horasContratadasPorResponsavel[String(responsavelId)];
-  const horasContratadasDiaValor = horasContratadasDia || 0;
-
-  // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
-  const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(responsavelId)] || 0;
-
-  // Calcular tempo contratado total (horas contratadas por dia × dias no período)
-  // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
-  const tempoContratadoTotal = isPJ
-    ? tempoEstimado
-    : horasContratadasDiaValor * diasNoPeriodo * 3600000; // converter horas para milissegundos
-
-  // Calcular tempo disponível: contratadas - estimado
-  const tempoDisponivelTotal = isPJ
-    ? tempoEstimado
-    : Math.max(0, tempoContratadoTotal - tempoEstimado);
-
-  const tempoSobrando = Math.max(0, tempoDisponivelTotal - tempoEstimado);
-
-  // Buscar tempo realizado do cache
-  // Garantir que responsavelId seja string para consistência com a chave criada no useEffect
-  const chaveTempoRealizado = `responsavel_${String(responsavelId)}`;
-  const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
-  const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
-  const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
-
-  return {
-    disponivel: tempoDisponivelTotal,
-    estimado: tempoEstimado,
-    realizado: tempoRealizado,
-    pendente: tempoPendente,
-    sobrando: tempoSobrando,
-    contratado: tempoContratadoTotal
-  };
-};
-
-// Função para buscar tempo realizado total de uma entidade (responsável, produto, tarefa, cliente)
-const buscarTempoRealizadoPorEntidade = useCallback(async (entidadeId, filtroPrincipal, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
-  if (window.backendOverloaded === true) return { realizado: 0, pendente: 0 };
-  try {
-    if (!periodoInicio || !periodoFim) {
+      console.error('Erro ao buscar tempo realizado:', error);
       return { realizado: 0, pendente: 0 };
     }
+  }, [registrosAgrupados]);
 
-    // Se o filtro principal é responsavel, usar novo endpoint simplificado
-    if (filtroPrincipal === 'responsavel') {
-      try {
-        const response = await fetch('/api/registro-tempo/realizado-total', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            responsavel_id: entidadeId,
-            data_inicio: periodoInicio,
-            data_fim: periodoFim,
-            tarefa_id: filtrosAdicionais.tarefa_id || null,
-            cliente_id: filtrosAdicionais.cliente_id || null,
-            produto_id: filtrosAdicionais.produto_id || null
-          })
-        });
+  // Componente de barra de progresso de tempo
+  const BarraProgressoTempo = ({ disponivel, estimado, realizado, pendente = 0, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
+    // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
+    const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            return {
-              realizado: result.data.tempo_realizado_ms || 0,
-              pendente: result.data.tempo_pendente_ms || 0
-            };
-          }
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          console.error('Erro ao buscar tempo realizado total:', response.status, errorData);
-        }
-        return { realizado: 0, pendente: 0 };
-      } catch (error) {
-        console.error('Erro ao buscar tempo realizado total:', error);
-        return { realizado: 0, pendente: 0 };
-      }
+    // Permitir exibir mesmo quando disponivel for 0 (sem vigência)
+    const disponivelValor = disponivel || 0;
+    const contratadoValor = contratado !== null && contratado !== undefined ? contratado : 0;
+
+    // Calcular tempo excedido (quando estimado > contratado)
+    const tempoExcedido = mostrarContratadasDisponivel && !aindaCarregandoContratado && estimado > contratadoValor ? estimado - contratadoValor : 0;
+
+    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
+    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
+    const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
+    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
+
+    // Usar tempo realizado passado como prop
+    const tempoRealizadoValor = realizado || 0;
+    const tempoPendenteValor = pendente || 0;
+
+    // Custos
+    const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
+    const custoPendente = responsavelId ? calcularCustoPorTempo(tempoPendenteValor, responsavelId) : null;
+
+    // Se Contratadas ainda está carregando, não renderizar Estimado ainda (aguardar ambos estarem prontos)
+    if (aindaCarregandoContratado) {
+      return (
+        <div className="barra-progresso-tempo">
+          <div className="barra-progresso-tempo-range"></div>
+          <div className="barra-progresso-tempo-legenda">
+            <div className="barra-progresso-tempo-item">
+              <div className="barra-progresso-tempo-item-content">
+                <span className="barra-progresso-tempo-label">Carregando...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
 
-    // Para outros filtros principais, usar lógica existente
-    // O endpoint requer responsavel_id e período obrigatórios
-    // Precisamos buscar todos os responsáveis relacionados aos registros agrupados
-    let responsavelIds = [];
-
-    // Para outros filtros, buscar responsáveis relacionados aos registros agrupados
-    const agrupamentosFiltrados = registrosAgrupados.filter(agr => {
-      const primeiroRegistro = agr.primeiroRegistro;
-      if (filtroPrincipal === 'cliente') {
-        const clienteIds = String(primeiroRegistro.cliente_id || '').split(',').map(id => id.trim());
-        return clienteIds.includes(String(entidadeId));
-      } else if (filtroPrincipal === 'produto') {
-        return String(primeiroRegistro.produto_id) === String(entidadeId);
-      } else if (filtroPrincipal === 'atividade') {
-        return String(primeiroRegistro.tarefa_id) === String(entidadeId);
-      }
-      return false;
-    });
-
-    // Extrair responsáveis únicos
-    responsavelIds = [...new Set(agrupamentosFiltrados.map(agr => agr.primeiroRegistro.responsavel_id).filter(Boolean))];
-
-    if (responsavelIds.length === 0) {
-      return { realizado: 0, pendente: 0 };
-    }
-
-    // Buscar tempo realizado para cada responsável usando novo endpoint e somar
-    const promises = responsavelIds.map(async (responsavelId) => {
-      try {
-        const response = await fetch('/api/registro-tempo/realizado-total', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            responsavel_id: responsavelId,
-            data_inicio: periodoInicio,
-            data_fim: periodoFim,
-            tarefa_id: filtrosAdicionais.tarefa_id || null,
-            cliente_id: filtrosAdicionais.cliente_id || null,
-            produto_id: filtrosAdicionais.produto_id || null
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data) {
-            return {
-              realizado: result.data.tempo_realizado_ms || 0,
-              pendente: result.data.tempo_pendente_ms || 0
-            };
-          }
-        }
-        return { realizado: 0, pendente: 0 };
-      } catch (error) {
-        console.error('Erro ao buscar tempo realizado para responsável:', responsavelId, error);
-        return { realizado: 0, pendente: 0 };
-      }
-    });
-
-    const resultados = await Promise.all(promises);
-    return resultados.reduce((sum, item) => ({
-      realizado: sum.realizado + (item.realizado || 0),
-      pendente: sum.pendente + (item.pendente || 0)
-    }), { realizado: 0, pendente: 0 });
-
-  } catch (error) {
-    console.error('Erro ao buscar tempo realizado:', error);
-    return { realizado: 0, pendente: 0 };
-  }
-}, [registrosAgrupados]);
-
-// Componente de barra de progresso de tempo
-const BarraProgressoTempo = ({ disponivel, estimado, realizado, pendente = 0, sobrando, responsavelId, mostrarContratadasDisponivel = true, contratado = 0 }) => {
-  // Verificar se Contratadas ainda está carregando (null ou undefined = ainda não carregado)
-  const aindaCarregandoContratado = mostrarContratadasDisponivel && (contratado === null || contratado === undefined);
-
-  // Permitir exibir mesmo quando disponivel for 0 (sem vigência)
-  const disponivelValor = disponivel || 0;
-  const contratadoValor = contratado !== null && contratado !== undefined ? contratado : 0;
-
-  // Calcular tempo excedido (quando estimado > contratado)
-  const tempoExcedido = mostrarContratadasDisponivel && !aindaCarregandoContratado && estimado > contratadoValor ? estimado - contratadoValor : 0;
-
-  // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
-  const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
-  const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
-  const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
-
-  // Usar tempo realizado passado como prop
-  const tempoRealizadoValor = realizado || 0;
-  const tempoPendenteValor = pendente || 0;
-
-  // Custos
-  const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
-  const custoPendente = responsavelId ? calcularCustoPorTempo(tempoPendenteValor, responsavelId) : null;
-
-  // Se Contratadas ainda está carregando, não renderizar Estimado ainda (aguardar ambos estarem prontos)
-  if (aindaCarregandoContratado) {
     return (
       <div className="barra-progresso-tempo">
-        <div className="barra-progresso-tempo-range"></div>
+        <div className="barra-progresso-tempo-range">
+          <div
+            className="barra-progresso-tempo-fill estimado"
+            style={{ width: `${Math.min(100, percentualEstimado)}%` }}
+          ></div>
+        </div>
         <div className="barra-progresso-tempo-legenda">
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
-              <span className="barra-progresso-tempo-label">Carregando...</span>
+              <div className="barra-progresso-tempo-item-header">
+                <i className="fas fa-clock painel-colaborador-estimado-icon-inline"></i>
+                <span className="barra-progresso-tempo-label">Estimado</span>
+              </div>
+              <div className="barra-progresso-tempo-badge-wrapper">
+                <span className={`barra-progresso-tempo-badge estimado ${tempoExcedido > 0 ? 'excedido' : ''}`}>
+                  <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(estimado, true)}</span>
+                  {tempoExcedido > 0 && (
+                    <span className="barra-progresso-tempo-excedido" title={`Excedeu ${formatarTempoEstimado(tempoExcedido, true)} do tempo contratado`}>
+                      (+{formatarTempoEstimado(tempoExcedido, true)})
+                    </span>
+                  )}
+                </span>
+                <span className={`barra-progresso-tempo-custo estimado ${custoEstimado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                  {custoEstimado !== null ? formatarValorMonetario(custoEstimado) : '\u00A0'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="barra-progresso-tempo">
-      <div className="barra-progresso-tempo-range">
-        <div
-          className="barra-progresso-tempo-fill estimado"
-          style={{ width: `${Math.min(100, percentualEstimado)}%` }}
-        ></div>
-      </div>
-      <div className="barra-progresso-tempo-legenda">
-        <div className="barra-progresso-tempo-item">
-          <div className="barra-progresso-tempo-item-content">
-            <div className="barra-progresso-tempo-item-header">
-              <i className="fas fa-clock painel-colaborador-estimado-icon-inline"></i>
-              <span className="barra-progresso-tempo-label">Estimado</span>
-            </div>
-            <div className="barra-progresso-tempo-badge-wrapper">
-              <span className={`barra-progresso-tempo-badge estimado ${tempoExcedido > 0 ? 'excedido' : ''}`}>
-                <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(estimado, true)}</span>
-                {tempoExcedido > 0 && (
-                  <span className="barra-progresso-tempo-excedido" title={`Excedeu ${formatarTempoEstimado(tempoExcedido, true)} do tempo contratado`}>
-                    (+{formatarTempoEstimado(tempoExcedido, true)})
-                  </span>
-                )}
-              </span>
-              <span className={`barra-progresso-tempo-custo estimado ${custoEstimado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
-                {custoEstimado !== null ? formatarValorMonetario(custoEstimado) : '\u00A0'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="barra-progresso-tempo-item">
-          <div className="barra-progresso-tempo-item-content">
-            <div className="barra-progresso-tempo-item-header">
-              <i className="fas fa-play-circle painel-colaborador-realizado-icon-inline"></i>
-              <span className="barra-progresso-tempo-label">Realizado</span>
-            </div>
-            <div className="barra-progresso-tempo-badge-wrapper">
-              <span className="barra-progresso-tempo-badge realizado">
-                <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoRealizadoValor, true)}</span>
-              </span>
-              <span className={`barra-progresso-tempo-custo realizado ${custoRealizado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
-                {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {tempoPendenteValor > 0 && (
           <div className="barra-progresso-tempo-item">
             <div className="barra-progresso-tempo-item-content">
               <div className="barra-progresso-tempo-item-header">
-                <i className="fas fa-stopwatch painel-colaborador-pendente-icon-inline" style={{ color: '#ef4444' }}></i>
-                <span className="barra-progresso-tempo-label">Pendente</span>
+                <i className="fas fa-play-circle painel-colaborador-realizado-icon-inline"></i>
+                <span className="barra-progresso-tempo-label">Realizado</span>
               </div>
               <div className="barra-progresso-tempo-badge-wrapper">
-                <span className="barra-progresso-tempo-badge pendente" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
-                  <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoPendenteValor, true)}</span>
+                <span className="barra-progresso-tempo-badge realizado">
+                  <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoRealizadoValor, true)}</span>
                 </span>
-                <span className={`barra-progresso-tempo-custo pendente ${custoPendente === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
-                  {custoPendente !== null ? formatarValorMonetario(custoPendente) : '\u00A0'}
+                <span className={`barra-progresso-tempo-custo realizado ${custoRealizado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                  {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
                 </span>
               </div>
             </div>
           </div>
-        )}
 
-        {mostrarContratadasDisponivel && (
-          <>
-            <div className="barra-progresso-tempo-item">
-              <div className="barra-progresso-tempo-item-content">
-                <span className="barra-progresso-tempo-label">Contratadas</span>
-                <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(contratadoValor, true)}</span>
-              </div>
-            </div>
+          {tempoPendenteValor > 0 && (
             <div className="barra-progresso-tempo-item">
               <div className="barra-progresso-tempo-item-content">
                 <div className="barra-progresso-tempo-item-header">
-                  <span className="barra-progresso-tempo-indicador sobrando"></span>
-                  <span className="barra-progresso-tempo-label">Disponível</span>
+                  <i className="fas fa-stopwatch painel-colaborador-pendente-icon-inline" style={{ color: '#ef4444' }}></i>
+                  <span className="barra-progresso-tempo-label">Pendente</span>
                 </div>
-                <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(disponivelValor, true)}</span>
+                <div className="barra-progresso-tempo-badge-wrapper">
+                  <span className="barra-progresso-tempo-badge pendente" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                    <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoPendenteValor, true)}</span>
+                  </span>
+                  <span className={`barra-progresso-tempo-custo pendente ${custoPendente === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
+                    {custoPendente !== null ? formatarValorMonetario(custoPendente) : '\u00A0'}
+                  </span>
+                </div>
               </div>
             </div>
-          </>
-        )}
+          )}
+
+          {mostrarContratadasDisponivel && (
+            <>
+              <div className="barra-progresso-tempo-item">
+                <div className="barra-progresso-tempo-item-content">
+                  <span className="barra-progresso-tempo-label">Contratadas</span>
+                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(contratadoValor, true)}</span>
+                </div>
+              </div>
+              <div className="barra-progresso-tempo-item">
+                <div className="barra-progresso-tempo-item-content">
+                  <div className="barra-progresso-tempo-item-header">
+                    <span className="barra-progresso-tempo-indicador sobrando"></span>
+                    <span className="barra-progresso-tempo-label">Disponível</span>
+                  </div>
+                  <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(disponivelValor, true)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
-
-// Soma o tempo estimado real de um agrupamento (usando todos os registros)
-const calcularTempoEstimadoTotalAgrupamento = (agrupamento) => {
-  if (!agrupamento || !agrupamento.registros) return 0;
-  const registrosFiltrados =
-    periodoInicio && periodoFim
-      ? agrupamento.registros.filter((registro) => dataEstaNoPeriodo(registro.data))
-      : agrupamento.registros;
-  return registrosFiltrados.reduce(
-    (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
-    0
-  );
-};
-
-
-// Calcular tempo total estimado de um grupo (para cabeçalho/legenda)
-const calcularTempoTotalGrupo = (agrupamentos) => {
-  return agrupamentos.reduce(
-    (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
-    0
-  );
-};
-
-// Calcular tempo total filtrado de um grupo (apenas registros dentro do período)
-const calcularTempoTotalGrupoFiltrado = (agrupamentos) => {
-  if (!periodoInicio || !periodoFim) {
-    return calcularTempoTotalGrupo(agrupamentos);
-  }
-  return agrupamentos.reduce(
-    (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
-    0
-  );
-};
-
-
-// Toggle grupo expandido
-const toggleGrupo = (grupoKey) => {
-  setGruposExpandidos(prev => {
-    const novo = new Set(prev);
-    if (novo.has(grupoKey)) {
-      novo.delete(grupoKey);
-    } else {
-      novo.add(grupoKey);
-    }
-    return novo;
-  });
-};
-
-// Toggle tarefa expandida
-const toggleTarefa = (agrupadorId, tarefaId) => {
-  const tarefaKey = `${agrupadorId}_${tarefaId}`;
-  setTarefasExpandidas(prev => {
-    const novo = new Set(prev);
-    if (novo.has(tarefaKey)) {
-      novo.delete(tarefaKey);
-    } else {
-      novo.add(tarefaKey);
-    }
-    return novo;
-  });
-};
-
-// Toggle para expandir tarefas quando filtro pai é "atividade"
-const toggleAgrupamentoTarefas = (agrupadorId) => {
-  setAgrupamentosTarefasExpandidas(prev => {
-    const novo = new Set(prev);
-    if (novo.has(agrupadorId)) {
-      novo.delete(agrupadorId);
-    } else {
-      novo.add(agrupadorId);
-    }
-    return novo;
-  });
-};
-
-// Deletar agrupamento
-const handleDelete = async () => {
-  if (!agrupamentoParaDeletar) return;
-
-  setDeleteLoading(true);
-  try {
-    const response = await fetch(`${API_BASE_URL}/tempo-estimado/agrupador/${agrupamentoParaDeletar.agrupador_id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-
-    if (response.status === 401) {
-      window.location.href = '/login';
-      return;
-    }
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      const errorMsg = result.error || result.details || result.message || `Erro HTTP ${response.status}`;
-      showToast('error', errorMsg);
-      return;
-    }
-
-    if (result.success) {
-      const count = result.count || agrupamentoParaDeletar.quantidade || 0;
-      showToast('success', `Atribuição removida com sucesso! ${count} dia(s) removido(s).`);
-      setShowDeleteConfirmModal(false);
-      setAgrupamentoParaDeletar(null);
-      // Recarregar lista
-      if (filtrosAplicados) {
-        loadRegistrosTempoEstimado(filtros);
-      }
-    }
-  } catch (error) {
-    console.error('Erro ao deletar agrupamento:', error);
-    showToast('error', 'Erro ao deletar agrupamento');
-  } finally {
-    setDeleteLoading(false);
-  }
-};
-
-// Limpar filtros
-const limparFiltros = () => {
-  const filtrosLimpos = {
-    produto: false,
-    atividade: false,
-    cliente: false,
-    responsavel: false
+    );
   };
-  setFiltros(filtrosLimpos);
-  setFiltroPrincipal(null);
-  setOrdemFiltros([]);
-  setFiltrosAplicados(false);
-  setFiltrosUltimosAplicados(null);
-  setPeriodoInicio(null);
-  setPeriodoFim(null);
-  setFiltroClienteSelecionado(null);
-  setFiltroProdutoSelecionado(null);
-  setFiltroTarefaSelecionado(null);
-  setFiltroResponsavelSelecionado(null);
 
-  setFiltroStatusCliente('ativo'); // Resetar para valor padrão
-  // Limpar filtros adicionais
-  setMostrarFiltrosAdicionais(false);
-  setFiltrosAdicionaisAtivos({
-    cliente: false,
-    tarefa: false,
-    produto: false
-  });
-  setFiltroAdicionalCliente(null);
-  setFiltroAdicionalTarefa(null);
-  setFiltroAdicionalProduto(null);
+  // Soma o tempo estimado real de um agrupamento (usando todos os registros)
+  const calcularTempoEstimadoTotalAgrupamento = (agrupamento) => {
+    if (!agrupamento || !agrupamento.registros) return 0;
+    const registrosFiltrados =
+      periodoInicio && periodoFim
+        ? agrupamento.registros.filter((registro) => dataEstaNoPeriodo(registro.data))
+        : agrupamento.registros;
+    return registrosFiltrados.reduce(
+      (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
+      0
+    );
+  };
 
-  // Limpar opções filtradas
-  setOpcoesFiltradasTarefas([]);
-  setOpcoesFiltradasProdutos([]);
-  setOpcoesFiltradasClientes([]);
-  setOpcoesFiltradasResponsaveis([]);
 
-  setRegistrosAgrupados([]);
-  setTotalRegistros(0);
-  setTotalPages(1);
-  setCurrentPage(1);
-};
+  // Calcular tempo total estimado de um grupo (para cabeçalho/legenda)
+  const calcularTempoTotalGrupo = (agrupamentos) => {
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
+  };
 
-// Verificar se há mudanças pendentes nos filtros
-const hasPendingChanges = () => {
-  if (!filtrosAplicados || !filtrosUltimosAplicados) {
-    // Se não há filtros aplicados, verificar se há algum filtro selecionado
-    // Período não conta como mudança pendente se não estiver completo
-    // Valores selecionados (filtros "Definir") não contam como mudança pendente
-    // pois eles só fazem sentido quando há filtros aplicados
-    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
-    const temPeriodoCompleto = periodoInicio && periodoFim;
-    return temFiltroAtivo || temPeriodoCompleto;
-  }
+  // Calcular tempo total filtrado de um grupo (apenas registros dentro do período)
+  const calcularTempoTotalGrupoFiltrado = (agrupamentos) => {
+    if (!periodoInicio || !periodoFim) {
+      return calcularTempoTotalGrupo(agrupamentos);
+    }
+    return agrupamentos.reduce(
+      (acc, agrupamento) => acc + calcularTempoEstimadoTotalAgrupamento(agrupamento),
+      0
+    );
+  };
 
-  const filtrosMudaram = (
-    filtros.produto !== filtrosUltimosAplicados.produto ||
-    filtros.atividade !== filtrosUltimosAplicados.atividade ||
-    filtros.cliente !== filtrosUltimosAplicados.cliente ||
-    filtros.responsavel !== filtrosUltimosAplicados.responsavel
-  );
 
-  const periodoMudou = (
-    periodoInicio !== filtrosUltimosAplicados.periodoInicio ||
-    periodoFim !== filtrosUltimosAplicados.periodoFim
-  );
+  // Toggle grupo expandido
+  const toggleGrupo = (grupoKey) => {
+    setGruposExpandidos(prev => {
+      const novo = new Set(prev);
+      if (novo.has(grupoKey)) {
+        novo.delete(grupoKey);
+      } else {
+        novo.add(grupoKey);
+      }
+      return novo;
+    });
+  };
 
-  // Verificar se o filtro de status de cliente mudou (apenas quando filtro cliente está ativo)
-  const statusClienteMudou = filtros.cliente && (
-    filtroStatusCliente !== filtrosUltimosAplicados.filtroStatusCliente
-  );
+  // Toggle tarefa expandida
+  const toggleTarefa = (agrupadorId, tarefaId) => {
+    const tarefaKey = `${agrupadorId}_${tarefaId}`;
+    setTarefasExpandidas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(tarefaKey)) {
+        novo.delete(tarefaKey);
+      } else {
+        novo.add(tarefaKey);
+      }
+      return novo;
+    });
+  };
 
-  // Valores selecionados (filtros "Definir") não contam como mudança pendente
-  // pois eles já atualizam automaticamente os resultados
-  // const valoresMudaram = (
-  //   JSON.stringify(filtroClienteSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroClienteSelecionado) ||
-  //   JSON.stringify(filtroProdutoSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroProdutoSelecionado) ||
-  //   JSON.stringify(filtroTarefaSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroTarefaSelecionado) ||
-  //   JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
-  // );
+  // Toggle para expandir tarefas quando filtro pai é "atividade"
+  const toggleAgrupamentoTarefas = (agrupadorId) => {
+    setAgrupamentosTarefasExpandidas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(agrupadorId)) {
+        novo.delete(agrupadorId);
+      } else {
+        novo.add(agrupadorId);
+      }
+      return novo;
+    });
+  };
 
-  // Apenas filtros principais, período ou status de cliente mudando ativam o botão "Aplicar Filtros"
-  return filtrosMudaram || periodoMudou || statusClienteMudou;
-};
+  // Deletar agrupamento
+  const handleDelete = async () => {
+    if (!agrupamentoParaDeletar) return;
 
-// Handler para mudança de filtro (apenas um filtro por vez nesta página)
-const handleFilterChange = (filtroKey, checked) => {
-  if (checked) {
-    // Se está marcando um filtro, desmarcar todos os outros
-    const novoFiltros = {
+    setDeleteLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/agrupador/${agrupamentoParaDeletar.agrupador_id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = result.error || result.details || result.message || `Erro HTTP ${response.status}`;
+        showToast('error', errorMsg);
+        return;
+      }
+
+      if (result.success) {
+        const count = result.count || agrupamentoParaDeletar.quantidade || 0;
+        showToast('success', `Atribuição removida com sucesso! ${count} dia(s) removido(s).`);
+        setShowDeleteConfirmModal(false);
+        setAgrupamentoParaDeletar(null);
+        // Recarregar lista
+        if (filtrosAplicados) {
+          loadRegistrosTempoEstimado(filtros);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao deletar agrupamento:', error);
+      showToast('error', 'Erro ao deletar agrupamento');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Limpar filtros
+  const limparFiltros = () => {
+    const filtrosLimpos = {
       produto: false,
       atividade: false,
       cliente: false,
-      responsavel: false,
-      [filtroKey]: true
+      responsavel: false
     };
-    setFiltros(novoFiltros);
-    setOrdemFiltros([filtroKey]);
-  } else {
-    // Se está desmarcando, apenas desmarcar esse filtro
-    const novoFiltros = { ...filtros, [filtroKey]: false };
-    setFiltros(novoFiltros);
-    setOrdemFiltros(prev => prev.filter(f => f !== filtroKey));
-  }
-};
+    setFiltros(filtrosLimpos);
+    setFiltroPrincipal(null);
+    setOrdemFiltros([]);
+    setFiltrosAplicados(false);
+    setFiltrosUltimosAplicados(null);
+    setPeriodoInicio(null);
+    setPeriodoFim(null);
+    setFiltroClienteSelecionado(null);
+    setFiltroProdutoSelecionado(null);
+    setFiltroTarefaSelecionado(null);
+    setFiltroResponsavelSelecionado(null);
 
-// Aplicar filtros
-const handleApplyFilters = () => {
-  // Validar período (obrigatório) - seguindo a lógica do timetrack
-  if (!periodoInicio || !periodoFim) {
-    showToast('warning', 'Selecione o período TimeTrack');
-    return;
-  }
+    setFiltroStatusCliente('ativo'); // Resetar para valor padrão
+    // Limpar filtros adicionais
+    setMostrarFiltrosAdicionais(false);
+    setFiltrosAdicionaisAtivos({
+      cliente: false,
+      tarefa: false,
+      produto: false
+    });
+    setFiltroAdicionalCliente(null);
+    setFiltroAdicionalTarefa(null);
+    setFiltroAdicionalProduto(null);
 
-  // Validar se a data de início é anterior ou igual à data de fim
-  if (new Date(periodoInicio) > new Date(periodoFim)) {
-    showToast('warning', 'A data de início deve ser anterior ou igual à data de fim');
-    return;
-  }
+    // Limpar opções filtradas
+    setOpcoesFiltradasTarefas([]);
+    setOpcoesFiltradasProdutos([]);
+    setOpcoesFiltradasClientes([]);
+    setOpcoesFiltradasResponsaveis([]);
 
-  const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
-
-  if (!temFiltroAtivo) {
-    showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
-    return;
-  }
-
-  // Limpar caches para garantir dados consistentes com os novos filtros
-  console.log('🔄 [APLICAR-FILTROS] Limpando caches de horas contratadas e tempo estimado');
-  console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - APLICAR-FILTROS');
-  setHorasContratadasPorResponsavel({});
-  setTipoContratoPorResponsavel({});
-  setTempoEstimadoTotalPorResponsavel({});
-  // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
-  setDadosAuxiliaresCarregados(false);
-
-  // Os filtros detalhados (valores selecionados) não são obrigatórios
-  // Se um filtro pai está selecionado mas não há valores selecionados, 
-  // o sistema vai trazer todos os registros daquele tipo
-
-  const novoFiltroPrincipal = ordemFiltros.length > 0 ? ordemFiltros[0] : null;
-  setFiltroPrincipal(novoFiltroPrincipal);
-  setFiltrosAplicados(true);
-  setFiltrosUltimosAplicados({
-    ...filtros,
-    periodoInicio,
-    periodoFim,
-    habilitarFinaisSemana,
-    habilitarFeriados,
-    datasIndividuais,
-    filtroClienteSelecionado,
-    filtroProdutoSelecionado,
-    filtroTarefaSelecionado,
-    filtroResponsavelSelecionado,
-    filtroStatusCliente,
-    filtrosAdicionais: {
-      cliente: filtroAdicionalCliente,
-      tarefa: filtroAdicionalTarefa,
-      produto: filtroAdicionalProduto
-    }
-  });
-
-  setCurrentPage(1);
-
-  // Resetar grupos expandidos quando aplicar novos filtros
-  setGruposExpandidos(new Set());
-  setTarefasExpandidas(new Set());
-  setAgrupamentosTarefasExpandidas(new Set());
-
-  // Passar os valores selecionados diretamente para garantir que sejam usados
-  const valoresSelecionados = {
-    cliente: filtroClienteSelecionado,
-    produto: filtroProdutoSelecionado,
-    tarefa: filtroTarefaSelecionado,
-    responsavel: filtroResponsavelSelecionado
-  };
-
-  // Passar os filtros adicionais
-  const filtrosAdicionais = {
-    cliente: filtroAdicionalCliente,
-    tarefa: filtroAdicionalTarefa,
-    produto: filtroAdicionalProduto
-  };
-
-  // Passar configuração de período
-  const configuracaoPeriodo = {
-    inicio: periodoInicio,
-    fim: periodoFim
-  };
-
-  loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
-};
-
-// Obter nome do filtro para o tooltip
-const getFiltroNome = (filtroKey) => {
-  switch (filtroKey) {
-    case 'produto':
-      return 'PRODUTO';
-    case 'atividade':
-      return 'TAREFA';
-    case 'cliente':
-      return 'CLIENTE';
-    case 'responsavel':
-      return 'RESPONSÁVEL';
-    default:
-      return '';
-  }
-};
-
-// Obter o filtro pai atual
-const getFiltroPaiAtual = () => {
-  if (filtrosAplicados && filtroPrincipal) {
-    return filtroPrincipal;
-  }
-  if (ordemFiltros.length > 0) {
-    return ordemFiltros[0];
-  }
-  return null;
-};
-
-// Verificar se um filtro deve ter o contorno laranja
-const isFiltroPai = (filtroKey) => {
-  const filtroPaiAtual = getFiltroPaiAtual();
-  if (filtroPaiAtual) {
-    return filtroPaiAtual === filtroKey;
-  }
-  if (filtroHover === filtroKey) {
-    return true;
-  }
-  return false;
-};
-
-// Recarregar dados quando página ou itens por página mudarem (apenas se filtros já foram aplicados)
-useEffect(() => {
-  if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
-    // Preparar valores selecionados para passar para a função
-    const valoresSelecionados = {
-      cliente: filtroClienteSelecionado,
-      produto: filtroProdutoSelecionado,
-      tarefa: filtroTarefaSelecionado,
-      responsavel: filtroResponsavelSelecionado
-    };
-
-    // Preparar filtros adicionais
-    const filtrosAdicionais = {
-      cliente: filtroAdicionalCliente,
-      tarefa: filtroAdicionalTarefa,
-      produto: filtroAdicionalProduto
-    };
-
-    // Preparar configuração de período
-    const configuracaoPeriodo = {
-      inicio: periodoInicio,
-      fim: periodoFim
-    };
-
-    // Recarregar com todos os parâmetros corretos
-    console.log('🔄 [PAGINAÇÃO] Recarregando dados com filtros aplicados (página:', currentPage, ', itens:', itemsPerPage, ')');
-    loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [currentPage, itemsPerPage]);
-
-// Resetar estado quando filtros forem desaplicados
-useEffect(() => {
-  if (!filtrosAplicados) {
     setRegistrosAgrupados([]);
     setTotalRegistros(0);
     setTotalPages(1);
-    setGruposExpandidos(new Set());
-  }
-}, [filtrosAplicados]);
+    setCurrentPage(1);
+  };
 
-// Atualizar automaticamente a listagem quando os filtros "Definir" mudarem
-useEffect(() => {
-  // Só atualizar se houver filtros aplicados e período definido
-  if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
-    // Preparar valores selecionados para passar para a função
-    const valoresSelecionados = {
-      cliente: filtroClienteSelecionado,
-      produto: filtroProdutoSelecionado,
-      tarefa: filtroTarefaSelecionado,
-      responsavel: filtroResponsavelSelecionado
-    };
+  // Verificar se há mudanças pendentes nos filtros
+  const hasPendingChanges = () => {
+    if (!filtrosAplicados || !filtrosUltimosAplicados) {
+      // Se não há filtros aplicados, verificar se há algum filtro selecionado
+      // Período não conta como mudança pendente se não estiver completo
+      // Valores selecionados (filtros "Definir") não contam como mudança pendente
+      // pois eles só fazem sentido quando há filtros aplicados
+      const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+      const temPeriodoCompleto = periodoInicio && periodoFim;
+      return temFiltroAtivo || temPeriodoCompleto;
+    }
 
-    // Preparar filtros adicionais
-    const filtrosAdicionais = {
-      cliente: filtroAdicionalCliente,
-      tarefa: filtroAdicionalTarefa,
-      produto: filtroAdicionalProduto
-    };
+    const filtrosMudaram = (
+      filtros.produto !== filtrosUltimosAplicados.produto ||
+      filtros.atividade !== filtrosUltimosAplicados.atividade ||
+      filtros.cliente !== filtrosUltimosAplicados.cliente ||
+      filtros.responsavel !== filtrosUltimosAplicados.responsavel
+    );
 
-    // Preparar configuração de período
-    const configuracaoPeriodo = {
-      inicio: periodoInicio,
-      fim: periodoFim
-    };
+    const periodoMudou = (
+      periodoInicio !== filtrosUltimosAplicados.periodoInicio ||
+      periodoFim !== filtrosUltimosAplicados.periodoFim
+    );
 
-    // Limpar caches quando filtros detalhados mudarem para garantir consistência
-    console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
-    console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
+    // Verificar se o filtro de status de cliente mudou (apenas quando filtro cliente está ativo)
+    const statusClienteMudou = filtros.cliente && (
+      filtroStatusCliente !== filtrosUltimosAplicados.filtroStatusCliente
+    );
 
-    // NÃO limpar horas contratadas aqui, pois agora usamos cache inteligente
-    // setHorasContratadasPorResponsavel({});
-    // setTipoContratoPorResponsavel({});
+    // Valores selecionados (filtros "Definir") não contam como mudança pendente
+    // pois eles já atualizam automaticamente os resultados
+    // const valoresMudaram = (
+    //   JSON.stringify(filtroClienteSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroClienteSelecionado) ||
+    //   JSON.stringify(filtroProdutoSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroProdutoSelecionado) ||
+    //   JSON.stringify(filtroTarefaSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroTarefaSelecionado) ||
+    //   JSON.stringify(filtroResponsavelSelecionado) !== JSON.stringify(filtrosUltimosAplicados.filtroResponsavelSelecionado)
+    // );
 
+    // Apenas filtros principais, período ou status de cliente mudando ativam o botão "Aplicar Filtros"
+    return filtrosMudaram || periodoMudou || statusClienteMudou;
+  };
+
+  // Handler para mudança de filtro (apenas um filtro por vez nesta página)
+  const handleFilterChange = (filtroKey, checked) => {
+    if (checked) {
+      // Se está marcando um filtro, desmarcar todos os outros
+      const novoFiltros = {
+        produto: false,
+        atividade: false,
+        cliente: false,
+        responsavel: false,
+        [filtroKey]: true
+      };
+      setFiltros(novoFiltros);
+      setOrdemFiltros([filtroKey]);
+    } else {
+      // Se está desmarcando, apenas desmarcar esse filtro
+      const novoFiltros = { ...filtros, [filtroKey]: false };
+      setFiltros(novoFiltros);
+      setOrdemFiltros(prev => prev.filter(f => f !== filtroKey));
+    }
+  };
+
+  // Aplicar filtros
+  const handleApplyFilters = () => {
+    // Validar período (obrigatório) - seguindo a lógica do timetrack
+    if (!periodoInicio || !periodoFim) {
+      showToast('warning', 'Selecione o período TimeTrack');
+      return;
+    }
+
+    // Validar se a data de início é anterior ou igual à data de fim
+    if (new Date(periodoInicio) > new Date(periodoFim)) {
+      showToast('warning', 'A data de início deve ser anterior ou igual à data de fim');
+      return;
+    }
+
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+
+    if (!temFiltroAtivo) {
+      showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
+      return;
+    }
+
+    // Limpar caches para garantir dados consistentes com os novos filtros
+    console.log('🔄 [APLICAR-FILTROS] Limpando caches de horas contratadas e tempo estimado');
+    console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - APLICAR-FILTROS');
+    setHorasContratadasPorResponsavel({});
+    setTipoContratoPorResponsavel({});
     setTempoEstimadoTotalPorResponsavel({});
     // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
     setDadosAuxiliaresCarregados(false);
 
-    // Recarregar registros com os novos valores selecionados e filtros adicionais
-    loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+    // Os filtros detalhados (valores selecionados) não são obrigatórios
+    // Se um filtro pai está selecionado mas não há valores selecionados, 
+    // o sistema vai trazer todos os registros daquele tipo
 
-    // Atualizar filtrosUltimosAplicados para refletir os novos valores selecionados
-    // (sem ativar o botão "Aplicar Filtros")
+    const novoFiltroPrincipal = ordemFiltros.length > 0 ? ordemFiltros[0] : null;
+    setFiltroPrincipal(novoFiltroPrincipal);
+    setFiltrosAplicados(true);
     setFiltrosUltimosAplicados({
-      ...filtrosUltimosAplicados,
+      ...filtros,
+      periodoInicio,
+      periodoFim,
+      habilitarFinaisSemana,
+      habilitarFeriados,
+      datasIndividuais,
       filtroClienteSelecionado,
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
       filtroResponsavelSelecionado,
       filtroStatusCliente,
-      filtrosAdicionais
-    });
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
-
-// Buscar tempos realizados quando os dados são carregados - Automático para garantir resumo do responsável
-useEffect(() => {
-  if (!filtrosAplicados || !filtrosUltimosAplicados || !periodoInicio || !periodoFim || !filtroPrincipal) {
-    setTemposRealizadosPorEntidade({});
-    return;
-  }
-
-  // Para filtro responsavel, precisamos de membros carregados
-  if (filtroPrincipal === 'responsavel' && (!membros || membros.length === 0)) {
-    setTemposRealizadosPorEntidade({});
-    return;
-  }
-
-  // Para outros filtros, precisamos de registros agrupados
-  if (filtroPrincipal !== 'responsavel' && registrosAgrupados.length === 0) {
-    setTemposRealizadosPorEntidade({});
-    return;
-  }
-
-  const buscarTemposRealizados = async () => {
-    const novosTempos = {};
-    const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
-    const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
-
-    // Função auxiliar para verificar se um ID está nos filtros selecionados
-    const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
-      if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
-      const idStr = String(id);
-      if (Array.isArray(filtroSelecionado)) {
-        return filtroSelecionado.some(f => String(f) === idStr);
+      filtrosAdicionais: {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
       }
-      return String(filtroSelecionado) === idStr;
+    });
+
+    setCurrentPage(1);
+
+    // Resetar grupos expandidos quando aplicar novos filtros
+    setGruposExpandidos(new Set());
+    setTarefasExpandidas(new Set());
+    setAgrupamentosTarefasExpandidas(new Set());
+
+    // Passar os valores selecionados diretamente para garantir que sejam usados
+    const valoresSelecionados = {
+      cliente: filtroClienteSelecionado,
+      produto: filtroProdutoSelecionado,
+      tarefa: filtroTarefaSelecionado,
+      responsavel: filtroResponsavelSelecionado
     };
 
-    // Coletar todas as entidades únicas baseadas no filtro principal
-    const entidadesUnicas = new Map();
-
-    // Se filtro principal é responsavel, incluir TODOS os membros que aparecem nos cards
-    if (filtroPrincipal === 'responsavel') {
-      membros.forEach(membro => {
-        // Aplicar mesmos filtros usados na renderização dos cards
-        if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
-          return; // Pular este membro se não estiver nos filtros
-        }
-
-        const membroId = String(membro.id);
-        entidadesUnicas.set(`responsavel_${membroId}`, { tipo: 'responsavel', id: membroId });
-      });
-    } else {
-      // Para outros filtros, usar lógica existente baseada em registrosAgrupados
-      registrosAgrupados.forEach(agr => {
-        const primeiroRegistro = agr.primeiroRegistro;
-
-        let entidadeId = null;
-        if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-          const clienteIds = String(primeiroRegistro.cliente_id || '').split(',').map(id => id.trim());
-          clienteIds.forEach(id => {
-            if (id) entidadesUnicas.set(`cliente_${id}`, { tipo: 'cliente', id: id });
-          });
-          return;
-        } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
-          entidadeId = primeiroRegistro.produto_id;
-        } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
-          entidadeId = primeiroRegistro.tarefa_id;
-        }
-
-        if (entidadeId) {
-          entidadesUnicas.set(`${filtroPrincipal}_${entidadeId}`, { tipo: filtroPrincipal, id: entidadeId });
-        }
-      });
-    }
-
-    // Preparar filtros adicionais
+    // Passar os filtros adicionais
     const filtrosAdicionais = {
-      tarefa_id: filtroAdicionalTarefa || null,
-      cliente_id: filtroAdicionalCliente || null,
-      produto_id: filtroAdicionalProduto || null
+      cliente: filtroAdicionalCliente,
+      tarefa: filtroAdicionalTarefa,
+      produto: filtroAdicionalProduto
     };
 
-    // Buscar tempo realizado para cada entidade
-    const promises = Array.from(entidadesUnicas.values()).map(async ({ tipo, id }) => {
-      const chave = `${tipo}_${id}`;
-      const tempoRealizado = await buscarTempoRealizadoPorEntidade(
-        id,
-        tipo,
-        periodoAplicadoInicio,
-        periodoAplicadoFim,
-        filtrosAdicionais
-      );
-      return { chave, tempoRealizado };
-    });
+    // Passar configuração de período
+    const configuracaoPeriodo = {
+      inicio: periodoInicio,
+      fim: periodoFim
+    };
 
-    const resultados = await Promise.all(promises);
-    resultados.forEach(({ chave, tempoRealizado }) => {
-      novosTempos[chave] = tempoRealizado;
-    });
-
-    setTemposRealizadosPorEntidade(novosTempos);
+    loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
   };
 
-  buscarTemposRealizados();
-}, [filtrosAplicados, filtrosUltimosAplicados, periodoInicio, periodoFim, registrosAgrupados, filtroPrincipal, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, buscarTempoRealizadoPorEntidade, membros, filtroResponsavelSelecionado]);
+  // Obter nome do filtro para o tooltip
+  const getFiltroNome = (filtroKey) => {
+    switch (filtroKey) {
+      case 'produto':
+        return 'PRODUTO';
+      case 'atividade':
+        return 'TAREFA';
+      case 'cliente':
+        return 'CLIENTE';
+      case 'responsavel':
+        return 'RESPONSÁVEL';
+      default:
+        return '';
+    }
+  };
 
-// Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
-useEffect(() => {
-  if (periodoInicio && periodoFim) {
-    // Recarregar opções filtradas para TODOS os filtros ativos (pai e adicionais)
-    const recarregarOpcoes = async () => {
-      // Recarregar filtros adicionais
-      if (filtrosAdicionaisAtivos.tarefa) {
-        const opcoes = await buscarOpcoesFiltroContextual('tarefa');
-        setOpcoesFiltradasTarefas(opcoes);
-      }
-      if (filtrosAdicionaisAtivos.produto) {
-        const opcoes = await buscarOpcoesFiltroContextual('produto');
-        setOpcoesFiltradasProdutos(opcoes);
-      }
-      if (filtrosAdicionaisAtivos.cliente) {
-        const opcoes = await buscarOpcoesFiltroContextual('cliente');
-        setOpcoesFiltradasClientes(opcoes);
+  // Obter o filtro pai atual
+  const getFiltroPaiAtual = () => {
+    if (filtrosAplicados && filtroPrincipal) {
+      return filtroPrincipal;
+    }
+    if (ordemFiltros.length > 0) {
+      return ordemFiltros[0];
+    }
+    return null;
+  };
+
+  // Verificar se um filtro deve ter o contorno laranja
+  const isFiltroPai = (filtroKey) => {
+    const filtroPaiAtual = getFiltroPaiAtual();
+    if (filtroPaiAtual) {
+      return filtroPaiAtual === filtroKey;
+    }
+    if (filtroHover === filtroKey) {
+      return true;
+    }
+    return false;
+  };
+
+  // Recarregar dados quando página ou itens por página mudarem (apenas se filtros já foram aplicados)
+  useEffect(() => {
+    if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
+      // Preparar valores selecionados para passar para a função
+      const valoresSelecionados = {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      };
+
+      // Preparar configuração de período
+      const configuracaoPeriodo = {
+        inicio: periodoInicio,
+        fim: periodoFim
+      };
+
+      // Recarregar com todos os parâmetros corretos
+      console.log('🔄 [PAGINAÇÃO] Recarregando dados com filtros aplicados (página:', currentPage, ', itens:', itemsPerPage, ')');
+      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, itemsPerPage]);
+
+  // Resetar estado quando filtros forem desaplicados
+  useEffect(() => {
+    if (!filtrosAplicados) {
+      setRegistrosAgrupados([]);
+      setTotalRegistros(0);
+      setTotalPages(1);
+      setGruposExpandidos(new Set());
+    }
+  }, [filtrosAplicados]);
+
+  // Atualizar automaticamente a listagem quando os filtros "Definir" mudarem
+  useEffect(() => {
+    // Só atualizar se houver filtros aplicados e período definido
+    if (filtrosAplicados && periodoInicio && periodoFim && filtrosUltimosAplicados) {
+      // Preparar valores selecionados para passar para a função
+      const valoresSelecionados = {
+        cliente: filtroClienteSelecionado,
+        produto: filtroProdutoSelecionado,
+        tarefa: filtroTarefaSelecionado,
+        responsavel: filtroResponsavelSelecionado
+      };
+
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        cliente: filtroAdicionalCliente,
+        tarefa: filtroAdicionalTarefa,
+        produto: filtroAdicionalProduto
+      };
+
+      // Preparar configuração de período
+      const configuracaoPeriodo = {
+        inicio: periodoInicio,
+        fim: periodoFim
+      };
+
+      // Limpar caches quando filtros detalhados mudarem para garantir consistência
+      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
+      console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
+
+      // NÃO limpar horas contratadas aqui, pois agora usamos cache inteligente
+      // setHorasContratadasPorResponsavel({});
+      // setTipoContratoPorResponsavel({});
+
+      setTempoEstimadoTotalPorResponsavel({});
+      // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
+      setDadosAuxiliaresCarregados(false);
+
+      // Recarregar registros com os novos valores selecionados e filtros adicionais
+      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+
+      // Atualizar filtrosUltimosAplicados para refletir os novos valores selecionados
+      // (sem ativar o botão "Aplicar Filtros")
+      setFiltrosUltimosAplicados({
+        ...filtrosUltimosAplicados,
+        filtroClienteSelecionado,
+        filtroProdutoSelecionado,
+        filtroTarefaSelecionado,
+        filtroResponsavelSelecionado,
+        filtroStatusCliente,
+        filtrosAdicionais
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
+
+  // Buscar tempos realizados quando os dados são carregados - Automático para garantir resumo do responsável
+  useEffect(() => {
+    if (!filtrosAplicados || !filtrosUltimosAplicados || !periodoInicio || !periodoFim || !filtroPrincipal) {
+      setTemposRealizadosPorEntidade({});
+      return;
+    }
+
+    // Para filtro responsavel, precisamos de membros carregados
+    if (filtroPrincipal === 'responsavel' && (!membros || membros.length === 0)) {
+      setTemposRealizadosPorEntidade({});
+      return;
+    }
+
+    // Para outros filtros, precisamos de registros agrupados
+    if (filtroPrincipal !== 'responsavel' && registrosAgrupados.length === 0) {
+      setTemposRealizadosPorEntidade({});
+      return;
+    }
+
+    const buscarTemposRealizados = async () => {
+      const novosTempos = {};
+      const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
+      const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
+
+      // Função auxiliar para verificar se um ID está nos filtros selecionados
+      const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
+        if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
+        const idStr = String(id);
+        if (Array.isArray(filtroSelecionado)) {
+          return filtroSelecionado.some(f => String(f) === idStr);
+        }
+        return String(filtroSelecionado) === idStr;
+      };
+
+      // Coletar todas as entidades únicas baseadas no filtro principal
+      const entidadesUnicas = new Map();
+
+      // Se filtro principal é responsavel, incluir TODOS os membros que aparecem nos cards
+      if (filtroPrincipal === 'responsavel') {
+        membros.forEach(membro => {
+          // Aplicar mesmos filtros usados na renderização dos cards
+          if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
+            return; // Pular este membro se não estiver nos filtros
+          }
+
+          const membroId = String(membro.id);
+          entidadesUnicas.set(`responsavel_${membroId}`, { tipo: 'responsavel', id: membroId });
+        });
+      } else {
+        // Para outros filtros, usar lógica existente baseada em registrosAgrupados
+        registrosAgrupados.forEach(agr => {
+          const primeiroRegistro = agr.primeiroRegistro;
+
+          let entidadeId = null;
+          if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+            const clienteIds = String(primeiroRegistro.cliente_id || '').split(',').map(id => id.trim());
+            clienteIds.forEach(id => {
+              if (id) entidadesUnicas.set(`cliente_${id}`, { tipo: 'cliente', id: id });
+            });
+            return;
+          } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+            entidadeId = primeiroRegistro.produto_id;
+          } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+            entidadeId = primeiroRegistro.tarefa_id;
+          }
+
+          if (entidadeId) {
+            entidadesUnicas.set(`${filtroPrincipal}_${entidadeId}`, { tipo: filtroPrincipal, id: entidadeId });
+          }
+        });
       }
 
-      // Recarregar filtros pai se houver filtros adicionais ativos
-      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
-      const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
+      // Preparar filtros adicionais
+      const filtrosAdicionais = {
+        tarefa_id: filtroAdicionalTarefa || null,
+        cliente_id: filtroAdicionalCliente || null,
+        produto_id: filtroAdicionalProduto || null
+      };
 
-      if (temFiltrosAdicionais && filtroPaiAtual) {
-        if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
-          const opcoes = await buscarOpcoesFiltroContextual('responsavel');
-          setOpcoesFiltradasResponsaveis(opcoes);
-        }
-        if (filtroPaiAtual === 'cliente' || filtros.cliente) {
-          const opcoes = await buscarOpcoesFiltroContextual('cliente');
-          setOpcoesFiltradasClientes(opcoes);
-        }
-        if (filtroPaiAtual === 'produto' || filtros.produto) {
-          const opcoes = await buscarOpcoesFiltroContextual('produto');
-          setOpcoesFiltradasProdutos(opcoes);
-        }
-        if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+      // Buscar tempo realizado para cada entidade
+      const promises = Array.from(entidadesUnicas.values()).map(async ({ tipo, id }) => {
+        const chave = `${tipo}_${id}`;
+        const tempoRealizado = await buscarTempoRealizadoPorEntidade(
+          id,
+          tipo,
+          periodoAplicadoInicio,
+          periodoAplicadoFim,
+          filtrosAdicionais
+        );
+        return { chave, tempoRealizado };
+      });
+
+      const resultados = await Promise.all(promises);
+      resultados.forEach(({ chave, tempoRealizado }) => {
+        novosTempos[chave] = tempoRealizado;
+      });
+
+      setTemposRealizadosPorEntidade(novosTempos);
+    };
+
+    buscarTemposRealizados();
+  }, [filtrosAplicados, filtrosUltimosAplicados, periodoInicio, periodoFim, registrosAgrupados, filtroPrincipal, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, buscarTempoRealizadoPorEntidade, membros, filtroResponsavelSelecionado]);
+
+  // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
+  useEffect(() => {
+    if (periodoInicio && periodoFim) {
+      // Recarregar opções filtradas para TODOS os filtros ativos (pai e adicionais)
+      const recarregarOpcoes = async () => {
+        // Recarregar filtros adicionais
+        if (filtrosAdicionaisAtivos.tarefa) {
           const opcoes = await buscarOpcoesFiltroContextual('tarefa');
           setOpcoesFiltradasTarefas(opcoes);
         }
-      } else if (!temFiltrosAdicionais) {
-        // Se não há filtros adicionais, limpar opções filtradas dos filtros pai
-        setOpcoesFiltradasResponsaveis([]);
-        setOpcoesFiltradasClientes([]);
-        setOpcoesFiltradasProdutos([]);
-        setOpcoesFiltradasTarefas([]);
-      }
-    };
-    recarregarOpcoes();
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [
-  periodoInicio,
-  periodoFim,
-  filtroPrincipal,
-  ordemFiltros,
-  filtroClienteSelecionado,
-  filtroProdutoSelecionado,
-  filtroTarefaSelecionado,
-  filtroResponsavelSelecionado,
-  filtrosAdicionaisAtivos,
-  filtroAdicionalCliente,
-  filtroAdicionalTarefa,
-  filtroAdicionalProduto
-]);
+        if (filtrosAdicionaisAtivos.produto) {
+          const opcoes = await buscarOpcoesFiltroContextual('produto');
+          setOpcoesFiltradasProdutos(opcoes);
+        }
+        if (filtrosAdicionaisAtivos.cliente) {
+          const opcoes = await buscarOpcoesFiltroContextual('cliente');
+          setOpcoesFiltradasClientes(opcoes);
+        }
 
-// Resetar grupos expandidos quando os registros são recarregados
-// Isso é feito diretamente na função loadRegistrosTempoEstimado e handleApplyFilters
+        // Recarregar filtros pai se houver filtros adicionais ativos
+        const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+        const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
 
-// Calcular range de itens exibidos
-const startItem = totalRegistros === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-const endItem = Math.min(startItem + Math.min(itemsPerPage, registrosAgrupados.length) - 1, totalRegistros);
+        if (temFiltrosAdicionais && filtroPaiAtual) {
+          if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+            const opcoes = await buscarOpcoesFiltroContextual('responsavel');
+            setOpcoesFiltradasResponsaveis(opcoes);
+          }
+          if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+            const opcoes = await buscarOpcoesFiltroContextual('cliente');
+            setOpcoesFiltradasClientes(opcoes);
+          }
+          if (filtroPaiAtual === 'produto' || filtros.produto) {
+            const opcoes = await buscarOpcoesFiltroContextual('produto');
+            setOpcoesFiltradasProdutos(opcoes);
+          }
+          if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+            const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+            setOpcoesFiltradasTarefas(opcoes);
+          }
+        } else if (!temFiltrosAdicionais) {
+          // Se não há filtros adicionais, limpar opções filtradas dos filtros pai
+          setOpcoesFiltradasResponsaveis([]);
+          setOpcoesFiltradasClientes([]);
+          setOpcoesFiltradasProdutos([]);
+          setOpcoesFiltradasTarefas([]);
+        }
+      };
+      recarregarOpcoes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    periodoInicio,
+    periodoFim,
+    filtroPrincipal,
+    ordemFiltros,
+    filtroClienteSelecionado,
+    filtroProdutoSelecionado,
+    filtroTarefaSelecionado,
+    filtroResponsavelSelecionado,
+    filtrosAdicionaisAtivos,
+    filtroAdicionalCliente,
+    filtroAdicionalTarefa,
+    filtroAdicionalProduto
+  ]);
 
-return (
-  <Layout>
-    <div className="container">
-      <main className="main-content">
-        <div className="vinculacoes-listing-section">
-          <div className="gestao-capacidade-page-header">
-            <div className="gestao-capacidade-header-content">
-              <div className="gestao-capacidade-header-left">
-                <div className="gestao-capacidade-header-icon">
-                  <i className="fas fa-user-check" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
-                </div>
-                <div>
-                  <h1 className="gestao-capacidade-page-title">Gestão de Capacidade</h1>
-                  <p className="gestao-capacidade-page-subtitle">
-                    Defina quais colaboradores serão responsáveis por quais tarefas, em quais períodos e com qual tempo estimado diário.
-                  </p>
+  // Resetar grupos expandidos quando os registros são recarregados
+  // Isso é feito diretamente na função loadRegistrosTempoEstimado e handleApplyFilters
+
+  // Calcular range de itens exibidos
+  const startItem = totalRegistros === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
+  const endItem = Math.min(startItem + Math.min(itemsPerPage, registrosAgrupados.length) - 1, totalRegistros);
+
+  return (
+    <Layout>
+      <div className="container">
+        <main className="main-content">
+          <div className="vinculacoes-listing-section">
+            <div className="gestao-capacidade-page-header">
+              <div className="gestao-capacidade-header-content">
+                <div className="gestao-capacidade-header-left">
+                  <div className="gestao-capacidade-header-icon">
+                    <i className="fas fa-user-check" style={{ fontSize: '32px', color: '#0e3b6f' }}></i>
+                  </div>
+                  <div>
+                    <h1 className="gestao-capacidade-page-title">Gestão de Capacidade</h1>
+                    <p className="gestao-capacidade-page-subtitle">
+                      Defina quais colaboradores serão responsáveis por quais tarefas, em quais períodos e com qual tempo estimado diário.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="listing-controls">
-            <div className="listing-controls-right">
-              <button
-                className="custo-colaborador-btn"
-                onClick={() => navigate('/atribuir-responsaveis/historico')}
-                title="Ver histórico de atribuições"
-                style={{ marginRight: '12px' }}
-              >
-                <i className="fas fa-history" style={{ fontSize: '14px' }}></i>
-                Histórico
-              </button>
-              <button
-                className="custo-colaborador-btn"
-                onClick={() => navigate('/atribuicoes/pendentes/aprovacao')}
-                title="Aprovacoes Pendentes"
-                style={{ marginRight: '12px' }}
-              >
-                <i className="fas fa-check-circle" style={{ fontSize: '14px' }}></i>
-                Aprovações Pendentes
-              </button>
-              <ButtonPrimary
-                onClick={handleNewAtribuicao}
-                icon="fas fa-plus"
-              >
-                Nova Atribuição
-              </ButtonPrimary>
-            </div>
-          </div>
-
-          {/* Filtros usando FiltersCard */}
-          <FiltersCard
-            onApply={handleApplyFilters}
-            onClear={limparFiltros}
-            showActions={true}
-            loading={loading}
-            hasPendingChanges={hasPendingChanges()}
-            showInfoMessage={true}
-          >
-            {/* Primeira linha: Apenas os filtros FilterVinculacao */}
-            <div className="filtros-vinculacao-row">
-              <FilterVinculacao
-                filtroKey="produto"
-                checked={filtros.produto}
-                onChange={handleFilterChange}
-                isFiltroPai={isFiltroPai('produto')}
-                title="Produto"
-                subtitle="Filtrar por"
-                icon="fas fa-box"
-                filtroNome={getFiltroNome('produto')}
-                onMouseEnter={() => setFiltroHover('produto')}
-                onMouseLeave={() => setFiltroHover(null)}
-              />
-              <FilterVinculacao
-                filtroKey="atividade"
-                checked={filtros.atividade}
-                onChange={handleFilterChange}
-                isFiltroPai={isFiltroPai('atividade')}
-                title="Tarefa"
-                subtitle="Filtrar por"
-                icon="fas fa-list"
-                filtroNome={getFiltroNome('atividade')}
-                onMouseEnter={() => setFiltroHover('atividade')}
-                onMouseLeave={() => setFiltroHover(null)}
-              />
-              <FilterVinculacao
-                filtroKey="cliente"
-                checked={filtros.cliente}
-                onChange={handleFilterChange}
-                isFiltroPai={isFiltroPai('cliente')}
-                title="Cliente"
-                subtitle="Filtrar por"
-                icon="fas fa-briefcase"
-                filtroNome={getFiltroNome('cliente')}
-                onMouseEnter={() => setFiltroHover('cliente')}
-                onMouseLeave={() => setFiltroHover(null)}
-              />
-              <FilterVinculacao
-                filtroKey="responsavel"
-                checked={filtros.responsavel}
-                onChange={handleFilterChange}
-                isFiltroPai={isFiltroPai('responsavel')}
-                title="Responsável"
-                subtitle="Filtrar por"
-                icon="fas fa-user-tie"
-                filtroNome={getFiltroNome('responsavel')}
-                onMouseEnter={() => setFiltroHover('responsavel')}
-                onMouseLeave={() => setFiltroHover(null)}
-              />
-
+            <div className="listing-controls">
+              <div className="listing-controls-right">
+                <button
+                  className="custo-colaborador-btn"
+                  onClick={() => navigate('/atribuir-responsaveis/historico')}
+                  title="Ver histórico de atribuições"
+                  style={{ marginRight: '12px' }}
+                >
+                  <i className="fas fa-history" style={{ fontSize: '14px' }}></i>
+                  Histórico
+                </button>
+                <button
+                  className="custo-colaborador-btn"
+                  onClick={() => navigate('/atribuicoes/pendentes/aprovacao')}
+                  title="Aprovacoes Pendentes"
+                  style={{ marginRight: '12px' }}
+                >
+                  <i className="fas fa-check-circle" style={{ fontSize: '14px' }}></i>
+                  Aprovações Pendentes
+                </button>
+                <ButtonPrimary
+                  onClick={handleNewAtribuicao}
+                  icon="fas fa-plus"
+                >
+                  Nova Atribuição
+                </ButtonPrimary>
+              </div>
             </div>
 
-            {/* Segunda linha: FilterPeriodo e campos "Definir X" */}
-            <div className="filtros-detalhados-row">
-              <div className="filtro-periodo-wrapper">
-                <label className="filtro-pai-label">Definir Período:</label>
-                <FilterPeriodo
-                  dataInicio={periodoInicio}
-                  dataFim={periodoFim}
-                  onInicioChange={(e) => setPeriodoInicio(e.target.value || null)}
-                  onFimChange={(e) => setPeriodoFim(e.target.value || null)}
-                  disabled={loading}
-                  showWeekendToggle={true}
-                  onWeekendToggleChange={setHabilitarFinaisSemana}
-                  showHolidayToggle={true}
-                  onHolidayToggleChange={setHabilitarFeriados}
-                  datasIndividuais={datasIndividuais}
-                  onDatasIndividuaisChange={setDatasIndividuais}
+            {/* Filtros usando FiltersCard */}
+            <FiltersCard
+              onApply={handleApplyFilters}
+              onClear={limparFiltros}
+              showActions={true}
+              loading={loading}
+              hasPendingChanges={hasPendingChanges()}
+              showInfoMessage={true}
+            >
+              {/* Primeira linha: Apenas os filtros FilterVinculacao */}
+              <div className="filtros-vinculacao-row">
+                <FilterVinculacao
+                  filtroKey="produto"
+                  checked={filtros.produto}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('produto')}
+                  title="Produto"
+                  subtitle="Filtrar por"
+                  icon="fas fa-box"
+                  filtroNome={getFiltroNome('produto')}
+                  onMouseEnter={() => setFiltroHover('produto')}
+                  onMouseLeave={() => setFiltroHover(null)}
                 />
+                <FilterVinculacao
+                  filtroKey="atividade"
+                  checked={filtros.atividade}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('atividade')}
+                  title="Tarefa"
+                  subtitle="Filtrar por"
+                  icon="fas fa-list"
+                  filtroNome={getFiltroNome('atividade')}
+                  onMouseEnter={() => setFiltroHover('atividade')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="cliente"
+                  checked={filtros.cliente}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('cliente')}
+                  title="Cliente"
+                  subtitle="Filtrar por"
+                  icon="fas fa-briefcase"
+                  filtroNome={getFiltroNome('cliente')}
+                  onMouseEnter={() => setFiltroHover('cliente')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
+                  filtroKey="responsavel"
+                  checked={filtros.responsavel}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('responsavel')}
+                  title="Responsável"
+                  subtitle="Filtrar por"
+                  icon="fas fa-user-tie"
+                  filtroNome={getFiltroNome('responsavel')}
+                  onMouseEnter={() => setFiltroHover('responsavel')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+
               </div>
 
-              {/* Componentes de seleção para filtros pai */}
-              {filtros.cliente && (
-                <>
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Clientes:</label>
-                    <FilterClientes
-                      value={filtroClienteSelecionado}
-                      onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
-                      options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
-                      disabled={loading || carregandoOpcoesFiltradas.cliente}
-                    />
-                  </div>
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Status:</label>
-                    <select
-                      value={filtroStatusCliente}
-                      onChange={(e) => setFiltroStatusCliente(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        fontSize: '14px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        backgroundColor: '#fff',
-                        color: '#374151',
-                        cursor: 'pointer',
-                        outline: 'none',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = '#0e3b6f'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                      disabled={loading}
-                    >
-                      <option value="todos">Todos</option>
-                      <option value="ativo">Ativo</option>
-                      <option value="inativo">Inativo</option>
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {filtros.produto && (
-                <div className="filtro-pai-select-wrapper">
-                  <label className="filtro-pai-label">Definir Produtos:</label>
-                  <FilterGeneric
-                    value={filtroProdutoSelecionado}
-                    onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
-                    options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos.map(p => ({ id: p.id, nome: p.nome }))}
-                    disabled={loading || carregandoOpcoesFiltradas.produto || (opcoesFiltradasProdutos.length === 0 && produtos.length === 0)}
-                    placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
-                  />
-                </div>
-              )}
-
-              {filtros.atividade && (
-                <div className="filtro-pai-select-wrapper">
-                  <label className="filtro-pai-label">Definir Tarefas:</label>
-                  <FilterGeneric
-                    value={filtroTarefaSelecionado}
-                    onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
-                    options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
-                    disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
-                    placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
-                  />
-                </div>
-              )}
-
-              {filtros.responsavel && (
-                <div className="filtro-pai-select-wrapper">
-                  <label className="filtro-pai-label">Definir Responsáveis:</label>
-                  <FilterMembro
-                    value={filtroResponsavelSelecionado}
-                    onChange={(e) => {
-                      const newValue = e.target.value || null;
-                      setFiltroResponsavelSelecionado(newValue);
-                    }}
-                    options={opcoesFiltradasResponsaveis.length > 0 ? opcoesFiltradasResponsaveis : membros}
-                    disabled={loading || carregandoOpcoesFiltradas.responsavel || (opcoesFiltradasResponsaveis.length === 0 && membros.length === 0)}
-                  />
-                </div>
-              )}
-
-            </div>
-
-            {/* Terceira linha: Botão "Adicionar filtros" e componentes de seleção para filtros adicionais */}
-            {(filtroPrincipal || ordemFiltros.length > 0) && (
-              <div className="filtros-adicionais-row">
-                <div className="filtro-adicionar-wrapper">
-                  <label className="filtro-pai-label">Adicionar filtros:</label>
-                  <button
-                    type="button"
-                    className="btn-adicionar-filtros"
-                    onClick={() => setMostrarFiltrosAdicionais(!mostrarFiltrosAdicionais)}
+              {/* Segunda linha: FilterPeriodo e campos "Definir X" */}
+              <div className="filtros-detalhados-row">
+                <div className="filtro-periodo-wrapper">
+                  <label className="filtro-pai-label">Definir Período:</label>
+                  <FilterPeriodo
+                    dataInicio={periodoInicio}
+                    dataFim={periodoFim}
+                    onInicioChange={(e) => setPeriodoInicio(e.target.value || null)}
+                    onFimChange={(e) => setPeriodoFim(e.target.value || null)}
                     disabled={loading}
-                  >
-                    <i className="fas fa-plus"></i>
-                    Adicionar filtros
-                    <i className={`fas fa-chevron-${mostrarFiltrosAdicionais ? 'up' : 'down'}`} style={{ marginLeft: '8px' }}></i>
-                  </button>
-
-                  <FiltrosAdicionaisDropdown
-                    isOpen={mostrarFiltrosAdicionais}
-                    onClose={() => setMostrarFiltrosAdicionais(false)}
-                    filtroPrincipal={filtroPrincipal}
-                    ordemFiltros={ordemFiltros}
-                    filtrosAdicionaisAtivos={filtrosAdicionaisAtivos}
-                    onToggleFiltro={async (tipoFiltro, checked) => {
-                      if (tipoFiltro === 'cliente') {
-                        setFiltrosAdicionaisAtivos(prev => ({
-                          ...prev,
-                          cliente: checked
-                        }));
-                        if (!checked) {
-                          setFiltroAdicionalCliente(null);
-                          setOpcoesFiltradasClientes([]);
-                        }
-                      } else if (tipoFiltro === 'tarefa') {
-                        setFiltrosAdicionaisAtivos(prev => ({
-                          ...prev,
-                          tarefa: checked
-                        }));
-                        if (!checked) {
-                          setFiltroAdicionalTarefa(null);
-                          setOpcoesFiltradasTarefas([]);
-                        }
-                      } else if (tipoFiltro === 'produto') {
-                        setFiltrosAdicionaisAtivos(prev => ({
-                          ...prev,
-                          produto: checked
-                        }));
-                        if (!checked) {
-                          setFiltroAdicionalProduto(null);
-                          setOpcoesFiltradasProdutos([]);
-                        }
-                      }
-                    }}
-                    periodoInicio={periodoInicio}
-                    periodoFim={periodoFim}
-                    onBuscarOpcoes={async (tipoFiltro) => {
-                      const opcoes = await buscarOpcoesFiltroContextual(tipoFiltro);
-                      if (tipoFiltro === 'cliente') {
-                        setOpcoesFiltradasClientes(opcoes);
-                      } else if (tipoFiltro === 'tarefa') {
-                        setOpcoesFiltradasTarefas(opcoes);
-                      } else if (tipoFiltro === 'produto') {
-                        setOpcoesFiltradasProdutos(opcoes);
-                      }
-                      return opcoes;
-                    }}
-                    loading={loading}
+                    showWeekendToggle={true}
+                    onWeekendToggleChange={setHabilitarFinaisSemana}
+                    showHolidayToggle={true}
+                    onHolidayToggleChange={setHabilitarFeriados}
+                    datasIndividuais={datasIndividuais}
+                    onDatasIndividuaisChange={setDatasIndividuais}
                   />
                 </div>
 
-                {/* Componentes de seleção para filtros adicionais (ao lado do botão) */}
-                {filtrosAdicionaisAtivos.cliente && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Clientes:</label>
-                    <FilterClientes
-                      value={filtroAdicionalCliente}
-                      onChange={(e) => setFiltroAdicionalCliente(e.target.value || null)}
-                      options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
-                      disabled={loading || carregandoOpcoesFiltradas.cliente}
-                    />
-                  </div>
+                {/* Componentes de seleção para filtros pai */}
+                {filtros.cliente && (
+                  <>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Clientes:</label>
+                      <FilterClientes
+                        value={filtroClienteSelecionado}
+                        onChange={(e) => setFiltroClienteSelecionado(e.target.value || null)}
+                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                        disabled={loading || carregandoOpcoesFiltradas.cliente}
+                      />
+                    </div>
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Status:</label>
+                      <select
+                        value={filtroStatusCliente}
+                        onChange={(e) => setFiltroStatusCliente(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          fontSize: '14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          backgroundColor: '#fff',
+                          color: '#374151',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          transition: 'border-color 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#0e3b6f'}
+                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                        disabled={loading}
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="ativo">Ativo</option>
+                        <option value="inativo">Inativo</option>
+                      </select>
+                    </div>
+                  </>
                 )}
 
-                {filtrosAdicionaisAtivos.tarefa && (
-                  <div className="filtro-pai-select-wrapper">
-                    <label className="filtro-pai-label">Definir Tarefas:</label>
-                    <FilterGeneric
-                      value={filtroAdicionalTarefa}
-                      onChange={(e) => setFiltroAdicionalTarefa(e.target.value || null)}
-                      options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
-                      disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
-                      placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
-                    />
-                  </div>
-                )}
-
-                {filtrosAdicionaisAtivos.produto && (
+                {filtros.produto && (
                   <div className="filtro-pai-select-wrapper">
                     <label className="filtro-pai-label">Definir Produtos:</label>
                     <FilterGeneric
-                      value={filtroAdicionalProduto}
-                      onChange={(e) => setFiltroAdicionalProduto(e.target.value || null)}
+                      value={filtroProdutoSelecionado}
+                      onChange={(e) => setFiltroProdutoSelecionado(e.target.value || null)}
                       options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos.map(p => ({ id: p.id, nome: p.nome }))}
                       disabled={loading || carregandoOpcoesFiltradas.produto || (opcoesFiltradasProdutos.length === 0 && produtos.length === 0)}
                       placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
@@ -3524,689 +3391,635 @@ return (
                   </div>
                 )}
 
+                {filtros.atividade && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Tarefas:</label>
+                    <FilterGeneric
+                      value={filtroTarefaSelecionado}
+                      onChange={(e) => setFiltroTarefaSelecionado(e.target.value || null)}
+                      options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
+                      disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
+                      placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
+                    />
+                  </div>
+                )}
+
+                {filtros.responsavel && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Responsáveis:</label>
+                    <FilterMembro
+                      value={filtroResponsavelSelecionado}
+                      onChange={(e) => {
+                        const newValue = e.target.value || null;
+                        setFiltroResponsavelSelecionado(newValue);
+                      }}
+                      options={opcoesFiltradasResponsaveis.length > 0 ? opcoesFiltradasResponsaveis : membros}
+                      disabled={loading || carregandoOpcoesFiltradas.responsavel || (opcoesFiltradasResponsaveis.length === 0 && membros.length === 0)}
+                    />
+                  </div>
+                )}
+
               </div>
-            )}
-          </FiltersCard>
 
-          {/* Lista de atribuições */}
-          {!filtrosAplicados ? (
-            <SemResultadosFiltros
-              filtrosAplicados={false}
-            />
-          ) : loading ? (
-            <div className="loading-container">
-              <i className="fas fa-spinner fa-spin"></i>
-              <span>Carregando atribuições...</span>
-            </div>
-          ) : registrosAgrupados.length === 0 ? (
-            <SemResultadosFiltros
-              mensagem="Nenhuma atribuição encontrada com os filtros selecionados."
-              filtrosAplicados={true}
-            />
-          ) : (
-            <div className="atribuicoes-list-container">
-              {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
-              {/* IMPORTANTE: Só exibir dashboards quando dados auxiliares (horas contratadas, tempo estimado total) estiverem 100% carregados */}
-              {/* Isso previne exibição de valores parciais (ex: 40h em vez de 100h) */}
-              {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && dadosAuxiliaresCarregados && (
-                <div className="tempo-disponivel-section">
-                  <h3 className="tempo-disponivel-title">
-                    <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
-                    {filtroPrincipal === 'responsavel'
-                      ? `Tempo Disponível vs Estimado por Responsável`
-                      : `Tempo Estimado vs Realizado por ${filtroPrincipal === 'cliente' ? 'Cliente' : filtroPrincipal === 'produto' ? 'Produto' : 'Atividade'}`
-                    }
-                  </h3>
-                  <div className="tempo-disponivel-grid">
-                    {(() => {
-                      // Usar os valores aplicados do período, não os valores atuais do estado
-                      const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
-                      const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
+              {/* Terceira linha: Botão "Adicionar filtros" e componentes de seleção para filtros adicionais */}
+              {(filtroPrincipal || ordemFiltros.length > 0) && (
+                <div className="filtros-adicionais-row">
+                  <div className="filtro-adicionar-wrapper">
+                    <label className="filtro-pai-label">Adicionar filtros:</label>
+                    <button
+                      type="button"
+                      className="btn-adicionar-filtros"
+                      onClick={() => setMostrarFiltrosAdicionais(!mostrarFiltrosAdicionais)}
+                      disabled={loading}
+                    >
+                      <i className="fas fa-plus"></i>
+                      Adicionar filtros
+                      <i className={`fas fa-chevron-${mostrarFiltrosAdicionais ? 'up' : 'down'}`} style={{ marginLeft: '8px' }}></i>
+                    </button>
 
-                      // Obter filtros adicionais aplicados
-                      const filtrosAdicionaisAplicados = filtrosUltimosAplicados.filtrosAdicionais || {};
-                      const filtroAdicionalClienteAplicado = filtrosAdicionaisAplicados.cliente || filtroAdicionalCliente;
-                      const filtroAdicionalTarefaAplicado = filtrosAdicionaisAplicados.tarefa || filtroAdicionalTarefa;
-                      const filtroAdicionalProdutoAplicado = filtrosAdicionaisAplicados.produto || filtroAdicionalProduto;
-
-                      // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
-                      const habilitarFinaisSemanaAplicadoJSX = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
-                      const habilitarFeriadosAplicadoJSX = filtrosUltimosAplicados?.habilitarFeriados ?? false;
-                      const datasIndividuaisAplicadoJSX = filtrosUltimosAplicados?.datasIndividuais ?? [];
-
-                      // Obter conjunto de datas válidas (considerando opções e datas individuais)
-                      const datasValidasJSX = obterDatasValidasNoPeriodo(
-                        periodoAplicadoInicio,
-                        periodoAplicadoFim,
-                        habilitarFinaisSemanaAplicadoJSX,
-                        habilitarFeriadosAplicadoJSX,
-                        datasIndividuaisAplicadoJSX
-                      );
-
-                      // Função auxiliar para verificar se uma data está nas datas válidas
-                      const dataEstaNoPeriodoAplicado = (dataRegistro) => {
-                        if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
-                        if (datasValidasJSX.size === 0) return false; // Se não há datas válidas, não incluir nada
-
-                        try {
-                          let dataStr;
-                          if (dataRegistro instanceof Date) {
-                            const year = dataRegistro.getFullYear();
-                            const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
-                            const day = String(dataRegistro.getDate()).padStart(2, '0');
-                            dataStr = `${year}-${month}-${day}`;
-                          } else if (typeof dataRegistro === 'string') {
-                            dataStr = dataRegistro.split('T')[0];
-                          } else {
-                            const dataReg = new Date(dataRegistro);
-                            const year = dataReg.getFullYear();
-                            const month = String(dataReg.getMonth() + 1).padStart(2, '0');
-                            const day = String(dataReg.getDate()).padStart(2, '0');
-                            dataStr = `${year}-${month}-${day}`;
+                    <FiltrosAdicionaisDropdown
+                      isOpen={mostrarFiltrosAdicionais}
+                      onClose={() => setMostrarFiltrosAdicionais(false)}
+                      filtroPrincipal={filtroPrincipal}
+                      ordemFiltros={ordemFiltros}
+                      filtrosAdicionaisAtivos={filtrosAdicionaisAtivos}
+                      onToggleFiltro={async (tipoFiltro, checked) => {
+                        if (tipoFiltro === 'cliente') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            cliente: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalCliente(null);
+                            setOpcoesFiltradasClientes([]);
                           }
-
-                          return datasValidasJSX.has(dataStr);
-                        } catch (error) {
-                          console.error('Erro ao verificar se data está no período aplicado:', error);
-                          return false;
+                        } else if (tipoFiltro === 'tarefa') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            tarefa: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalTarefa(null);
+                            setOpcoesFiltradasTarefas([]);
+                          }
+                        } else if (tipoFiltro === 'produto') {
+                          setFiltrosAdicionaisAtivos(prev => ({
+                            ...prev,
+                            produto: checked
+                          }));
+                          if (!checked) {
+                            setFiltroAdicionalProduto(null);
+                            setOpcoesFiltradasProdutos([]);
+                          }
                         }
-                      };
+                      }}
+                      periodoInicio={periodoInicio}
+                      periodoFim={periodoFim}
+                      onBuscarOpcoes={async (tipoFiltro) => {
+                        const opcoes = await buscarOpcoesFiltroContextual(tipoFiltro);
+                        if (tipoFiltro === 'cliente') {
+                          setOpcoesFiltradasClientes(opcoes);
+                        } else if (tipoFiltro === 'tarefa') {
+                          setOpcoesFiltradasTarefas(opcoes);
+                        } else if (tipoFiltro === 'produto') {
+                          setOpcoesFiltradasProdutos(opcoes);
+                        }
+                        return opcoes;
+                      }}
+                      loading={loading}
+                    />
+                  </div>
 
-                      // Função para calcular estatísticas (tarefas, produtos, clientes, responsáveis) por entidade
-                      const calcularEstatisticasPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
-                        // Filtrar agrupamentos pela entidade
-                        const agrupamentosFiltrados = agrupamentos.filter(agr => {
-                          const primeiroRegistro = agr.primeiroRegistro;
-                          if (tipoEntidade === 'responsavel') {
-                            return String(primeiroRegistro.responsavel_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'cliente') {
-                            // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
-                            const clienteIds = String(primeiroRegistro.cliente_id || '')
-                              .split(',')
-                              .map(id => id.trim())
-                              .filter(id => id.length > 0);
-                            return clienteIds.includes(String(entidadeId));
-                          } else if (tipoEntidade === 'produto') {
-                            return String(primeiroRegistro.produto_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'atividade') {
-                            return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                  {/* Componentes de seleção para filtros adicionais (ao lado do botão) */}
+                  {filtrosAdicionaisAtivos.cliente && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Clientes:</label>
+                      <FilterClientes
+                        value={filtroAdicionalCliente}
+                        onChange={(e) => setFiltroAdicionalCliente(e.target.value || null)}
+                        options={opcoesFiltradasClientes.length > 0 ? opcoesFiltradasClientes : clientes}
+                        disabled={loading || carregandoOpcoesFiltradas.cliente}
+                      />
+                    </div>
+                  )}
+
+                  {filtrosAdicionaisAtivos.tarefa && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Tarefas:</label>
+                      <FilterGeneric
+                        value={filtroAdicionalTarefa}
+                        onChange={(e) => setFiltroAdicionalTarefa(e.target.value || null)}
+                        options={opcoesFiltradasTarefas.length > 0 ? opcoesFiltradasTarefas : tarefas.map(t => ({ id: t.id, nome: t.nome }))}
+                        disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
+                        placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
+                      />
+                    </div>
+                  )}
+
+                  {filtrosAdicionaisAtivos.produto && (
+                    <div className="filtro-pai-select-wrapper">
+                      <label className="filtro-pai-label">Definir Produtos:</label>
+                      <FilterGeneric
+                        value={filtroAdicionalProduto}
+                        onChange={(e) => setFiltroAdicionalProduto(e.target.value || null)}
+                        options={opcoesFiltradasProdutos.length > 0 ? opcoesFiltradasProdutos : produtos.map(p => ({ id: p.id, nome: p.nome }))}
+                        disabled={loading || carregandoOpcoesFiltradas.produto || (opcoesFiltradasProdutos.length === 0 && produtos.length === 0)}
+                        placeholder={carregandoOpcoesFiltradas.produto ? "Carregando..." : "Selecionar produtos"}
+                      />
+                    </div>
+                  )}
+
+                </div>
+              )}
+            </FiltersCard>
+
+            {/* Lista de atribuições */}
+            {!filtrosAplicados ? (
+              <SemResultadosFiltros
+                filtrosAplicados={false}
+              />
+            ) : loading ? (
+              <div className="loading-container">
+                <i className="fas fa-spinner fa-spin"></i>
+                <span>Carregando atribuições...</span>
+              </div>
+            ) : registrosAgrupados.length === 0 ? (
+              <SemResultadosFiltros
+                mensagem="Nenhuma atribuição encontrada com os filtros selecionados."
+                filtrosAplicados={true}
+              />
+            ) : (
+              <div className="atribuicoes-list-container">
+                {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
+                {/* IMPORTANTE: Só exibir dashboards quando dados auxiliares (horas contratadas, tempo estimado total) estiverem 100% carregados */}
+                {/* Isso previne exibição de valores parciais (ex: 40h em vez de 100h) */}
+                {filtrosAplicados && filtrosUltimosAplicados && filtrosUltimosAplicados.periodoInicio && filtrosUltimosAplicados.periodoFim && registrosAgrupados.length > 0 && filtroPrincipal && dadosAuxiliaresCarregados && (
+                  <div className="tempo-disponivel-section">
+                    <h3 className="tempo-disponivel-title">
+                      <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
+                      {filtroPrincipal === 'responsavel'
+                        ? `Tempo Disponível vs Estimado por Responsável`
+                        : `Tempo Estimado vs Realizado por ${filtroPrincipal === 'cliente' ? 'Cliente' : filtroPrincipal === 'produto' ? 'Produto' : 'Atividade'}`
+                      }
+                    </h3>
+                    <div className="tempo-disponivel-grid">
+                      {(() => {
+                        // Usar os valores aplicados do período, não os valores atuais do estado
+                        const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
+                        const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
+
+                        // Obter filtros adicionais aplicados
+                        const filtrosAdicionaisAplicados = filtrosUltimosAplicados.filtrosAdicionais || {};
+                        const filtroAdicionalClienteAplicado = filtrosAdicionaisAplicados.cliente || filtroAdicionalCliente;
+                        const filtroAdicionalTarefaAplicado = filtrosAdicionaisAplicados.tarefa || filtroAdicionalTarefa;
+                        const filtroAdicionalProdutoAplicado = filtrosAdicionaisAplicados.produto || filtroAdicionalProduto;
+
+                        // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
+                        const habilitarFinaisSemanaAplicadoJSX = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
+                        const habilitarFeriadosAplicadoJSX = filtrosUltimosAplicados?.habilitarFeriados ?? false;
+                        const datasIndividuaisAplicadoJSX = filtrosUltimosAplicados?.datasIndividuais ?? [];
+
+                        // Obter conjunto de datas válidas (considerando opções e datas individuais)
+                        const datasValidasJSX = obterDatasValidasNoPeriodo(
+                          periodoAplicadoInicio,
+                          periodoAplicadoFim,
+                          habilitarFinaisSemanaAplicadoJSX,
+                          habilitarFeriadosAplicadoJSX,
+                          datasIndividuaisAplicadoJSX
+                        );
+
+                        // Função auxiliar para verificar se uma data está nas datas válidas
+                        const dataEstaNoPeriodoAplicado = (dataRegistro) => {
+                          if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
+                          if (datasValidasJSX.size === 0) return false; // Se não há datas válidas, não incluir nada
+
+                          try {
+                            let dataStr;
+                            if (dataRegistro instanceof Date) {
+                              const year = dataRegistro.getFullYear();
+                              const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
+                              const day = String(dataRegistro.getDate()).padStart(2, '0');
+                              dataStr = `${year}-${month}-${day}`;
+                            } else if (typeof dataRegistro === 'string') {
+                              dataStr = dataRegistro.split('T')[0];
+                            } else {
+                              const dataReg = new Date(dataRegistro);
+                              const year = dataReg.getFullYear();
+                              const month = String(dataReg.getMonth() + 1).padStart(2, '0');
+                              const day = String(dataReg.getDate()).padStart(2, '0');
+                              dataStr = `${year}-${month}-${day}`;
+                            }
+
+                            return datasValidasJSX.has(dataStr);
+                          } catch (error) {
+                            console.error('Erro ao verificar se data está no período aplicado:', error);
+                            return false;
                           }
-                          return false;
-                        });
+                        };
 
-                        // Coletar IDs únicos de cada tipo, considerando:
-                        // 1. Período filtrado (se houver)
-                        // 2. Filtros adicionais (se houver)
-                        const tarefasUnicas = new Set();
-                        const produtosUnicos = new Set();
-                        const clientesUnicos = new Set();
-                        const responsaveisUnicos = new Set();
-
-                        agrupamentosFiltrados.forEach(agr => {
-                          // Filtrar registros pelo período aplicado (se houver)
-                          const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
-                            ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                            : agr.registros;
-
-                          registrosFiltrados.forEach(reg => {
-                            // Aplicar filtros adicionais se existirem
-                            let deveIncluir = true;
-
-                            // Filtro adicional de cliente
-                            if (filtroAdicionalClienteAplicado && reg.cliente_id) {
-                              const clienteIds = String(reg.cliente_id || '')
+                        // Função para calcular estatísticas (tarefas, produtos, clientes, responsáveis) por entidade
+                        const calcularEstatisticasPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
+                              const clienteIds = String(primeiroRegistro.cliente_id || '')
                                 .split(',')
                                 .map(id => id.trim())
                                 .filter(id => id.length > 0);
-                              const filtroClienteIds = Array.isArray(filtroAdicionalClienteAplicado)
-                                ? filtroAdicionalClienteAplicado.map(id => String(id).trim())
-                                : [String(filtroAdicionalClienteAplicado).trim()];
-                              deveIncluir = deveIncluir && clienteIds.some(id => filtroClienteIds.includes(id));
+                              return clienteIds.includes(String(entidadeId));
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
                             }
+                            return false;
+                          });
 
-                            // Filtro adicional de tarefa
-                            if (filtroAdicionalTarefaAplicado && reg.tarefa_id) {
-                              const filtroTarefaIds = Array.isArray(filtroAdicionalTarefaAplicado)
-                                ? filtroAdicionalTarefaAplicado.map(id => String(id).trim())
-                                : [String(filtroAdicionalTarefaAplicado).trim()];
-                              deveIncluir = deveIncluir && filtroTarefaIds.includes(String(reg.tarefa_id).trim());
-                            }
+                          // Coletar IDs únicos de cada tipo, considerando:
+                          // 1. Período filtrado (se houver)
+                          // 2. Filtros adicionais (se houver)
+                          const tarefasUnicas = new Set();
+                          const produtosUnicos = new Set();
+                          const clientesUnicos = new Set();
+                          const responsaveisUnicos = new Set();
 
-                            // Filtro adicional de produto
-                            if (filtroAdicionalProdutoAplicado && reg.produto_id) {
-                              const filtroProdutoIds = Array.isArray(filtroAdicionalProdutoAplicado)
-                                ? filtroAdicionalProdutoAplicado.map(id => String(id).trim())
-                                : [String(filtroAdicionalProdutoAplicado).trim()];
-                              deveIncluir = deveIncluir && filtroProdutoIds.includes(String(reg.produto_id).trim());
-                            }
+                          agrupamentosFiltrados.forEach(agr => {
+                            // Filtrar registros pelo período aplicado (se houver)
+                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                              : agr.registros;
 
-                            // Se passou em todos os filtros, adicionar aos contadores
-                            if (deveIncluir) {
-                              // Verificar se o registro realmente pertence à entidade
-                              let pertenceAEntidade = true;
+                            registrosFiltrados.forEach(reg => {
+                              // Aplicar filtros adicionais se existirem
+                              let deveIncluir = true;
 
-                              if (tipoEntidade === 'cliente') {
+                              // Filtro adicional de cliente
+                              if (filtroAdicionalClienteAplicado && reg.cliente_id) {
                                 const clienteIds = String(reg.cliente_id || '')
                                   .split(',')
                                   .map(id => id.trim())
                                   .filter(id => id.length > 0);
-                                pertenceAEntidade = clienteIds.includes(String(entidadeId));
-                              } else if (tipoEntidade === 'responsavel') {
-                                pertenceAEntidade = String(reg.responsavel_id) === String(entidadeId);
-                              } else if (tipoEntidade === 'produto') {
-                                pertenceAEntidade = String(reg.produto_id) === String(entidadeId);
-                              } else if (tipoEntidade === 'atividade') {
-                                pertenceAEntidade = String(reg.tarefa_id) === String(entidadeId);
+                                const filtroClienteIds = Array.isArray(filtroAdicionalClienteAplicado)
+                                  ? filtroAdicionalClienteAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalClienteAplicado).trim()];
+                                deveIncluir = deveIncluir && clienteIds.some(id => filtroClienteIds.includes(id));
                               }
 
-                              if (pertenceAEntidade) {
-                                if (reg.tarefa_id) {
-                                  // Contar tarefas únicas considerando o contexto (cliente e produto)
-                                  // Isso garante que a mesma tarefa para clientes/produtos diferentes conte separatadamente
-                                  const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
-                                  const produtoIdKey = String(reg.produto_id || 'sem_produto');
-                                  tarefasUnicas.add(`${reg.tarefa_id}_${clienteIdKey}_${produtoIdKey}`);
-                                }
-                                if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
-                                if (reg.cliente_id) {
-                                  // cliente_id pode ser múltiplo, adicionar cada um
+                              // Filtro adicional de tarefa
+                              if (filtroAdicionalTarefaAplicado && reg.tarefa_id) {
+                                const filtroTarefaIds = Array.isArray(filtroAdicionalTarefaAplicado)
+                                  ? filtroAdicionalTarefaAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalTarefaAplicado).trim()];
+                                deveIncluir = deveIncluir && filtroTarefaIds.includes(String(reg.tarefa_id).trim());
+                              }
+
+                              // Filtro adicional de produto
+                              if (filtroAdicionalProdutoAplicado && reg.produto_id) {
+                                const filtroProdutoIds = Array.isArray(filtroAdicionalProdutoAplicado)
+                                  ? filtroAdicionalProdutoAplicado.map(id => String(id).trim())
+                                  : [String(filtroAdicionalProdutoAplicado).trim()];
+                                deveIncluir = deveIncluir && filtroProdutoIds.includes(String(reg.produto_id).trim());
+                              }
+
+                              // Se passou em todos os filtros, adicionar aos contadores
+                              if (deveIncluir) {
+                                // Verificar se o registro realmente pertence à entidade
+                                let pertenceAEntidade = true;
+
+                                if (tipoEntidade === 'cliente') {
                                   const clienteIds = String(reg.cliente_id || '')
                                     .split(',')
                                     .map(id => id.trim())
                                     .filter(id => id.length > 0);
-                                  clienteIds.forEach(id => clientesUnicos.add(id));
+                                  pertenceAEntidade = clienteIds.includes(String(entidadeId));
+                                } else if (tipoEntidade === 'responsavel') {
+                                  pertenceAEntidade = String(reg.responsavel_id) === String(entidadeId);
+                                } else if (tipoEntidade === 'produto') {
+                                  pertenceAEntidade = String(reg.produto_id) === String(entidadeId);
+                                } else if (tipoEntidade === 'atividade') {
+                                  pertenceAEntidade = String(reg.tarefa_id) === String(entidadeId);
                                 }
-                                if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+
+                                if (pertenceAEntidade) {
+                                  if (reg.tarefa_id) {
+                                    // Contar tarefas únicas considerando o contexto (cliente e produto)
+                                    // Isso garante que a mesma tarefa para clientes/produtos diferentes conte separatadamente
+                                    const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                    const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                    tarefasUnicas.add(`${reg.tarefa_id}_${clienteIdKey}_${produtoIdKey}`);
+                                  }
+                                  if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
+                                  if (reg.cliente_id) {
+                                    // cliente_id pode ser múltiplo, adicionar cada um
+                                    const clienteIds = String(reg.cliente_id || '')
+                                      .split(',')
+                                      .map(id => id.trim())
+                                      .filter(id => id.length > 0);
+                                    clienteIds.forEach(id => clientesUnicos.add(id));
+                                  }
+                                  if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+                                }
                               }
-                            }
-                          });
-                        });
-
-                        return {
-                          totalTarefas: tarefasUnicas.size,
-                          totalProdutos: produtosUnicos.size,
-                          totalClientes: clientesUnicos.size,
-                          totalResponsaveis: responsaveisUnicos.size
-                        };
-                      };
-
-                      // Função auxiliar para normalizar tempo realizado (converter horas decimais para milissegundos e garantir mínimo de 1 segundo)
-                      const normalizarTempoRealizado = (tempo) => {
-                        if (tempo === null || tempo === undefined) return 0;
-                        let tempoNormalizado = Number(tempo) || 0;
-                        // Converter horas decimais para milissegundos se necessário
-                        if (tempoNormalizado > 0 && tempoNormalizado < 1) {
-                          tempoNormalizado = Math.round(tempoNormalizado * 3600000);
-                        }
-                        // Se resultado < 1 segundo, arredondar para 1 segundo
-                        if (tempoNormalizado > 0 && tempoNormalizado < 1000) {
-                          tempoNormalizado = 1000;
-                        }
-                        return tempoNormalizado;
-                      };
-
-                      // Função para buscar detalhes (tarefas, clientes, produtos, responsáveis) relacionados a uma entidade
-                      const buscarDetalhesPorTipo = (entidadeId, tipoEntidade, tipoDetalhe, agrupamentos) => {
-                        // Filtrar agrupamentos pela entidade
-                        const agrupamentosFiltrados = agrupamentos.filter(agr => {
-                          const primeiroRegistro = agr.primeiroRegistro;
-                          if (tipoEntidade === 'responsavel') {
-                            return String(primeiroRegistro.responsavel_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'cliente') {
-                            // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
-                            const clienteIds = String(primeiroRegistro.cliente_id || '')
-                              .split(',')
-                              .map(id => id.trim())
-                              .filter(id => id.length > 0);
-                            return clienteIds.includes(String(entidadeId));
-                          } else if (tipoEntidade === 'produto') {
-                            return String(primeiroRegistro.produto_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'atividade') {
-                            return String(primeiroRegistro.tarefa_id) === String(entidadeId);
-                          }
-                          return false;
-                        });
-
-                        // Se for tarefas, agrupar por tarefa e calcular tempo realizado total
-                        if (tipoDetalhe === 'tarefas') {
-                          const tarefasMap = new Map();
-
-                          agrupamentosFiltrados.forEach(agr => {
-                            // Filtrar registros pelo período aplicado
-                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
-
-                            registrosFiltrados.forEach(reg => {
-                              if (!reg.tarefa_id) return;
-
-                              // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
-                              if (tipoEntidade === 'cliente') {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                if (!clienteIds.includes(String(entidadeId))) return;
-                              }
-
-                              const tarefaId = String(reg.tarefa_id);
-                              const nomeTarefa = getNomeTarefa(reg.tarefa_id);
-
-                              // Usar chave composta para diferenciar tarefas com mesmo ID mas contextos diferentes (cliente/produto)
-                              const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
-                              const produtoIdKey = String(reg.produto_id || 'sem_produto');
-                              const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
-
-                              if (!tarefasMap.has(compositeKey)) {
-                                tarefasMap.set(compositeKey, {
-                                  id: compositeKey, // Usar chave composta como ID
-                                  originalId: tarefaId,
-                                  nome: nomeTarefa,
-                                  tipo: 'tarefa',
-                                  tempoRealizado: 0,
-                                  tempoEstimado: 0,
-                                  responsavelId: reg.responsavel_id || null,
-                                  clienteId: reg.cliente_id || null,
-                                  registros: []
-                                });
-                              }
-
-                              const tarefa = tarefasMap.get(compositeKey);
-
-                              // Tempo realizado será buscado depois
-                              // tarefa.tempoRealizado será atualizado após buscar
-
-                              // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
-                              const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
-                              tarefa.tempoEstimado += tempoEstimadoReg;
-
-                              // Adicionar registro para poder buscar detalhes individuais depois
-                              tarefa.registros.push({
-                                ...reg,
-                                tempoRealizado: 0
-                              });
                             });
                           });
 
-                          return Array.from(tarefasMap.values());
-                        }
+                          return {
+                            totalTarefas: tarefasUnicas.size,
+                            totalProdutos: produtosUnicos.size,
+                            totalClientes: clientesUnicos.size,
+                            totalResponsaveis: responsaveisUnicos.size
+                          };
+                        };
 
-                        // Se for clientes, agrupar por cliente e calcular tempo realizado total, tempo estimado e tarefas
-                        if (tipoDetalhe === 'clientes') {
-                          const clientesMap = new Map();
+                        // Função auxiliar para normalizar tempo realizado (converter horas decimais para milissegundos e garantir mínimo de 1 segundo)
+                        const normalizarTempoRealizado = (tempo) => {
+                          if (tempo === null || tempo === undefined) return 0;
+                          let tempoNormalizado = Number(tempo) || 0;
+                          // Converter horas decimais para milissegundos se necessário
+                          if (tempoNormalizado > 0 && tempoNormalizado < 1) {
+                            tempoNormalizado = Math.round(tempoNormalizado * 3600000);
+                          }
+                          // Se resultado < 1 segundo, arredondar para 1 segundo
+                          if (tempoNormalizado > 0 && tempoNormalizado < 1000) {
+                            tempoNormalizado = 1000;
+                          }
+                          return tempoNormalizado;
+                        };
 
-                          agrupamentosFiltrados.forEach(agr => {
-                            // Filtrar registros pelo período aplicado
-                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
-
-                            registrosFiltrados.forEach(reg => {
-                              if (!reg.cliente_id) return;
-
-                              // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
-                              if (tipoEntidade === 'cliente') {
-                                const clienteIdsTemp = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                if (!clienteIdsTemp.includes(String(entidadeId))) return;
-                              }
-
-                              // cliente_id pode conter múltiplos IDs separados por ", "
-                              const clienteIds = String(reg.cliente_id)
+                        // Função para buscar detalhes (tarefas, clientes, produtos, responsáveis) relacionados a uma entidade
+                        const buscarDetalhesPorTipo = (entidadeId, tipoEntidade, tipoDetalhe, agrupamentos) => {
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
+                              const clienteIds = String(primeiroRegistro.cliente_id || '')
                                 .split(',')
                                 .map(id => id.trim())
                                 .filter(id => id.length > 0);
+                              return clienteIds.includes(String(entidadeId));
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                            }
+                            return false;
+                          });
 
-                              clienteIds.forEach(clienteId => {
-                                const clienteIdStr = String(clienteId).trim();
+                          // Se for tarefas, agrupar por tarefa e calcular tempo realizado total
+                          if (tipoDetalhe === 'tarefas') {
+                            const tarefasMap = new Map();
 
-                                if (!clientesMap.has(clienteIdStr)) {
-                                  const nomeCliente = getNomeCliente(clienteId);
-                                  clientesMap.set(clienteIdStr, {
-                                    id: clienteIdStr,
-                                    nome: nomeCliente,
-                                    tipo: 'cliente',
+                            agrupamentosFiltrados.forEach(agr => {
+                              // Filtrar registros pelo período aplicado
+                              const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
+
+                              registrosFiltrados.forEach(reg => {
+                                if (!reg.tarefa_id) return;
+
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (tipoEntidade === 'cliente') {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
+
+                                const tarefaId = String(reg.tarefa_id);
+                                const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+
+                                // Usar chave composta para diferenciar tarefas com mesmo ID mas contextos diferentes (cliente/produto)
+                                const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                if (!tarefasMap.has(compositeKey)) {
+                                  tarefasMap.set(compositeKey, {
+                                    id: compositeKey, // Usar chave composta como ID
+                                    originalId: tarefaId,
+                                    nome: nomeTarefa,
+                                    tipo: 'tarefa',
                                     tempoRealizado: 0,
                                     tempoEstimado: 0,
-                                    responsavelId: reg.responsavel_id || entidadeId, // Usar entidadeId se for responsável
-                                    tarefas: new Map(), // Map de tarefas por cliente
-                                    registros: [] // Registros de tempo estimado relacionados
+                                    responsavelId: reg.responsavel_id || null,
+                                    clienteId: reg.cliente_id || null,
+                                    registros: []
                                   });
                                 }
 
-                                const cliente = clientesMap.get(clienteIdStr);
+                                const tarefa = tarefasMap.get(compositeKey);
 
-                                // Tempo realizado sempre 0 (lógica removida)
-                                cliente.tempoRealizado += 0;
+                                // Tempo realizado será buscado depois
+                                // tarefa.tempoRealizado será atualizado após buscar
 
                                 // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
                                 const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
-                                cliente.tempoEstimado += tempoEstimadoReg;
-
-                                // Agrupar tarefas por cliente
-                                if (reg.tarefa_id) {
-                                  const tarefaId = String(reg.tarefa_id);
-                                  const nomeTarefa = getNomeTarefa(reg.tarefa_id);
-
-                                  // Usar chave composta para diferenciar tarefas
-                                  const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
-                                  const produtoIdKey = String(reg.produto_id || 'sem_produto');
-                                  const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
-
-                                  if (!cliente.tarefas.has(compositeKey)) {
-                                    cliente.tarefas.set(compositeKey, {
-                                      id: compositeKey, // Usar chave composta como ID
-                                      originalId: tarefaId,
-                                      nome: nomeTarefa,
-                                      tempoRealizado: 0,
-                                      tempoEstimado: 0,
-                                      responsavelId: reg.responsavel_id || entidadeId,
-                                      registros: []
-                                    });
-                                  }
-
-                                  const tarefa = cliente.tarefas.get(compositeKey);
-                                  tarefa.tempoRealizado += 0;
-                                  tarefa.tempoEstimado += tempoEstimadoReg;
-                                  tarefa.registros.push({
-                                    ...reg,
-                                    tempoRealizado: 0
-                                  });
-                                }
+                                tarefa.tempoEstimado += tempoEstimadoReg;
 
                                 // Adicionar registro para poder buscar detalhes individuais depois
-                                cliente.registros.push({
+                                tarefa.registros.push({
                                   ...reg,
                                   tempoRealizado: 0
                                 });
                               });
                             });
-                          });
 
-                          // Converter Map de tarefas para array em cada cliente
-                          const clientesArray = Array.from(clientesMap.values()).map(cliente => ({
-                            ...cliente,
-                            tarefas: Array.from(cliente.tarefas.values())
-                          }));
+                            return Array.from(tarefasMap.values());
+                          }
 
-                          return clientesArray;
-                        }
+                          // Se for clientes, agrupar por cliente e calcular tempo realizado total, tempo estimado e tarefas
+                          if (tipoDetalhe === 'clientes') {
+                            const clientesMap = new Map();
 
-                        // Se for produtos, agrupar por produto -> cliente -> tarefa (ou produto -> tarefa se filtro pai é cliente)
-                        if (tipoDetalhe === 'produtos') {
-                          const produtosMap = new Map();
-                          const isFiltroPaiCliente = tipoEntidade === 'cliente';
+                            agrupamentosFiltrados.forEach(agr => {
+                              // Filtrar registros pelo período aplicado
+                              const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
 
-                          // Cache de tarefa_id -> produto_id para otimizar buscas
-                          const tarefaProdutoCache = new Map();
+                              registrosFiltrados.forEach(reg => {
+                                if (!reg.cliente_id) return;
 
-                          // Preencher cache com produto_id dos registros que já têm
-                          agrupamentosFiltrados.forEach(agr => {
-                            agr.registros.forEach(reg => {
-                              if (reg.produto_id && reg.tarefa_id) {
-                                tarefaProdutoCache.set(String(reg.tarefa_id).trim(), parseInt(reg.produto_id, 10));
-                              }
-                            });
-                          });
-
-                          agrupamentosFiltrados.forEach(agr => {
-                            // Filtrar registros pelo período aplicado
-                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
-
-                            registrosFiltrados.forEach(reg => {
-                              // Buscar produto_id: primeiro do registro, depois da tarefa (usando cache)
-                              let produtoIdRegistro = reg.produto_id;
-
-                              // Se registro não tem produto_id, buscar da tarefa usando cache
-                              if (!produtoIdRegistro && reg.tarefa_id) {
-                                const tarefaIdStr = String(reg.tarefa_id).trim();
-                                produtoIdRegistro = tarefaProdutoCache.get(tarefaIdStr);
-
-                                // Se não está no cache, tentar buscar dos outros registros do mesmo agrupamento
-                                if (!produtoIdRegistro) {
-                                  const outroRegistro = agr.registros.find(r =>
-                                    String(r.tarefa_id).trim() === tarefaIdStr && r.produto_id
-                                  );
-                                  if (outroRegistro) {
-                                    produtoIdRegistro = outroRegistro.produto_id;
-                                    tarefaProdutoCache.set(tarefaIdStr, parseInt(produtoIdRegistro, 10));
-                                  }
-                                }
-                              }
-
-                              // Só ignorar se realmente não tem produto_id em nenhum lugar
-                              if (!produtoIdRegistro) return;
-
-                              // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
-                              if (isFiltroPaiCliente) {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                if (!clienteIds.includes(String(entidadeId))) return;
-                              }
-
-                              // Usar produtoIdRegistro (que pode vir do registro ou da tarefa)
-                              const produtoId = String(produtoIdRegistro).trim();
-
-                              if (!produtosMap.has(produtoId)) {
-                                const nomeProduto = getNomeProduto(reg.produto_id);
-                                produtosMap.set(produtoId, {
-                                  id: produtoId,
-                                  nome: nomeProduto,
-                                  tipo: 'produto',
-                                  tempoRealizado: 0,
-                                  tempoEstimado: 0,
-                                  responsavelId: reg.responsavel_id || entidadeId,
-                                  clientes: isFiltroPaiCliente ? null : new Map(), // Não criar hierarquia de clientes se filtro pai é cliente
-                                  tarefas: isFiltroPaiCliente ? new Map() : null, // Criar hierarquia de tarefas diretamente se filtro pai é cliente
-                                  registros: []
-                                });
-                              }
-
-                              const produto = produtosMap.get(produtoId);
-
-                              // Tempo realizado sempre 0 (lógica removida)
-                              produto.tempoRealizado += 0;
-
-                              // Calcular tempo estimado deste registro
-                              const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
-                              produto.tempoEstimado += tempoEstimadoReg;
-
-                              if (isFiltroPaiCliente) {
-                                // Se filtro pai é cliente, agrupar tarefas diretamente no produto (sem hierarquia de clientes)
-                                if (reg.tarefa_id) {
-                                  const tarefaId = String(reg.tarefa_id);
-                                  const nomeTarefa = getNomeTarefa(reg.tarefa_id);
-
-                                  // Usar chave composta para diferenciar tarefas
-                                  const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
-                                  const produtoIdKey = String(reg.produto_id || 'sem_produto');
-                                  const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
-
-                                  if (!produto.tarefas.has(compositeKey)) {
-                                    produto.tarefas.set(compositeKey, {
-                                      id: compositeKey, // Usar chave composta como ID
-                                      originalId: tarefaId,
-                                      nome: nomeTarefa,
-                                      tempoRealizado: 0,
-                                      tempoEstimado: 0,
-                                      responsavelId: reg.responsavel_id || entidadeId,
-                                      registros: []
-                                    });
-                                  }
-
-                                  const tarefa = produto.tarefas.get(compositeKey);
-                                  tarefa.tempoRealizado += 0;
-                                  tarefa.tempoEstimado += tempoEstimadoReg;
-                                  tarefa.registros.push({
-                                    ...reg,
-                                    tempoRealizado: 0
-                                  });
-                                }
-                              } else {
-                                // Se filtro pai não é cliente, manter hierarquia produto -> cliente -> tarefa
-                                if (reg.cliente_id) {
-                                  const clienteIds = String(reg.cliente_id)
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (tipoEntidade === 'cliente') {
+                                  const clienteIdsTemp = String(reg.cliente_id || '')
                                     .split(',')
                                     .map(id => id.trim())
                                     .filter(id => id.length > 0);
+                                  if (!clienteIdsTemp.includes(String(entidadeId))) return;
+                                }
 
-                                  clienteIds.forEach(clienteId => {
-                                    const clienteIdStr = String(clienteId).trim();
+                                // cliente_id pode conter múltiplos IDs separados por ", "
+                                const clienteIds = String(reg.cliente_id)
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
 
-                                    if (!produto.clientes.has(clienteIdStr)) {
-                                      const nomeCliente = getNomeCliente(clienteId);
-                                      produto.clientes.set(clienteIdStr, {
-                                        id: clienteIdStr,
-                                        nome: nomeCliente,
+                                clienteIds.forEach(clienteId => {
+                                  const clienteIdStr = String(clienteId).trim();
+
+                                  if (!clientesMap.has(clienteIdStr)) {
+                                    const nomeCliente = getNomeCliente(clienteId);
+                                    clientesMap.set(clienteIdStr, {
+                                      id: clienteIdStr,
+                                      nome: nomeCliente,
+                                      tipo: 'cliente',
+                                      tempoRealizado: 0,
+                                      tempoEstimado: 0,
+                                      responsavelId: reg.responsavel_id || entidadeId, // Usar entidadeId se for responsável
+                                      tarefas: new Map(), // Map de tarefas por cliente
+                                      registros: [] // Registros de tempo estimado relacionados
+                                    });
+                                  }
+
+                                  const cliente = clientesMap.get(clienteIdStr);
+
+                                  // Tempo realizado sempre 0 (lógica removida)
+                                  cliente.tempoRealizado += 0;
+
+                                  // Calcular tempo estimado deste registro (usar mesma lógica da tabela)
+                                  const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                  cliente.tempoEstimado += tempoEstimadoReg;
+
+                                  // Agrupar tarefas por cliente
+                                  if (reg.tarefa_id) {
+                                    const tarefaId = String(reg.tarefa_id);
+                                    const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+
+                                    // Usar chave composta para diferenciar tarefas
+                                    const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                    const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                    const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                    if (!cliente.tarefas.has(compositeKey)) {
+                                      cliente.tarefas.set(compositeKey, {
+                                        id: compositeKey, // Usar chave composta como ID
+                                        originalId: tarefaId,
+                                        nome: nomeTarefa,
                                         tempoRealizado: 0,
                                         tempoEstimado: 0,
-                                        tarefas: new Map(),
+                                        responsavelId: reg.responsavel_id || entidadeId,
                                         registros: []
                                       });
                                     }
 
-                                    const cliente = produto.clientes.get(clienteIdStr);
-                                    cliente.tempoRealizado += 0;
-                                    cliente.tempoEstimado += tempoEstimadoReg;
-
-                                    if (reg.tarefa_id) {
-                                      const tarefaId = String(reg.tarefa_id);
-                                      const nomeTarefa = getNomeTarefa(reg.tarefa_id);
-
-                                      // Usar chave composta para diferenciar tarefas
-                                      const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
-                                      const produtoIdKey = String(reg.produto_id || 'sem_produto');
-                                      const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
-
-                                      if (!cliente.tarefas.has(compositeKey)) {
-                                        cliente.tarefas.set(compositeKey, {
-                                          id: compositeKey, // Usar chave composta como ID
-                                          originalId: tarefaId,
-                                          nome: nomeTarefa,
-                                          tempoRealizado: 0,
-                                          tempoEstimado: 0,
-                                          responsavelId: reg.responsavel_id || entidadeId,
-                                          registros: []
-                                        });
-                                      }
-
-                                      const tarefa = cliente.tarefas.get(compositeKey);
-                                      tarefa.tempoRealizado += 0;
-                                      tarefa.tempoEstimado += tempoEstimadoReg;
-                                      tarefa.registros.push({
-                                        ...reg,
-                                        tempoRealizado: 0
-                                      });
-                                    }
-
-                                    cliente.registros.push({
+                                    const tarefa = cliente.tarefas.get(compositeKey);
+                                    tarefa.tempoRealizado += 0;
+                                    tarefa.tempoEstimado += tempoEstimadoReg;
+                                    tarefa.registros.push({
                                       ...reg,
                                       tempoRealizado: 0
                                     });
-                                  });
-                                }
-                              }
+                                  }
 
-                              // Adicionar registro para poder buscar detalhes individuais depois
-                              produto.registros.push({
-                                ...reg,
-                                tempoRealizado: 0
+                                  // Adicionar registro para poder buscar detalhes individuais depois
+                                  cliente.registros.push({
+                                    ...reg,
+                                    tempoRealizado: 0
+                                  });
+                                });
                               });
                             });
-                          });
 
-                          // Converter Maps para arrays
-                          if (isFiltroPaiCliente) {
-                            // Se filtro pai é cliente, retornar produtos com tarefas diretamente
-                            return Array.from(produtosMap.values()).map(produto => ({
-                              ...produto,
-                              tarefas: Array.from(produto.tarefas.values())
+                            // Converter Map de tarefas para array em cada cliente
+                            const clientesArray = Array.from(clientesMap.values()).map(cliente => ({
+                              ...cliente,
+                              tarefas: Array.from(cliente.tarefas.values())
                             }));
-                          } else {
-                            // Se filtro pai não é cliente, retornar produtos com hierarquia de clientes
-                            return Array.from(produtosMap.values()).map(produto => ({
-                              ...produto,
-                              clientes: Array.from(produto.clientes.values()).map(cliente => ({
-                                ...cliente,
-                                tarefas: Array.from(cliente.tarefas.values())
-                              }))
-                            }));
+
+                            return clientesArray;
                           }
-                        }
 
-                        // Se for responsáveis, agrupar por responsável -> produto -> cliente -> tarefa (ou responsável -> produto -> tarefa se filtro pai é cliente)
-                        if (tipoDetalhe === 'responsaveis') {
-                          const responsaveisMap = new Map();
-                          const isFiltroPaiCliente = tipoEntidade === 'cliente';
+                          // Se for produtos, agrupar por produto -> cliente -> tarefa (ou produto -> tarefa se filtro pai é cliente)
+                          if (tipoDetalhe === 'produtos') {
+                            const produtosMap = new Map();
+                            const isFiltroPaiCliente = tipoEntidade === 'cliente';
 
-                          agrupamentosFiltrados.forEach(agr => {
-                            // Filtrar registros pelo período aplicado
-                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
+                            // Cache de tarefa_id -> produto_id para otimizar buscas
+                            const tarefaProdutoCache = new Map();
 
-                            registrosFiltrados.forEach(reg => {
-                              if (!reg.responsavel_id) return;
+                            // Preencher cache com produto_id dos registros que já têm
+                            agrupamentosFiltrados.forEach(agr => {
+                              agr.registros.forEach(reg => {
+                                if (reg.produto_id && reg.tarefa_id) {
+                                  tarefaProdutoCache.set(String(reg.tarefa_id).trim(), parseInt(reg.produto_id, 10));
+                                }
+                              });
+                            });
 
-                              // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
-                              if (isFiltroPaiCliente) {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                if (!clienteIds.includes(String(entidadeId))) return;
-                              }
+                            agrupamentosFiltrados.forEach(agr => {
+                              // Filtrar registros pelo período aplicado
+                              const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
 
-                              const responsavelId = String(reg.responsavel_id).trim();
+                              registrosFiltrados.forEach(reg => {
+                                // Buscar produto_id: primeiro do registro, depois da tarefa (usando cache)
+                                let produtoIdRegistro = reg.produto_id;
 
-                              if (!responsaveisMap.has(responsavelId)) {
-                                const nomeResponsavel = getNomeColaborador(reg.responsavel_id);
-                                responsaveisMap.set(responsavelId, {
-                                  id: responsavelId,
-                                  nome: nomeResponsavel,
-                                  tipo: 'responsavel',
-                                  tempoRealizado: 0,
-                                  tempoEstimado: 0,
-                                  responsavelId: responsavelId,
-                                  produtos: new Map(),
-                                  registros: []
-                                });
-                              }
+                                // Se registro não tem produto_id, buscar da tarefa usando cache
+                                if (!produtoIdRegistro && reg.tarefa_id) {
+                                  const tarefaIdStr = String(reg.tarefa_id).trim();
+                                  produtoIdRegistro = tarefaProdutoCache.get(tarefaIdStr);
 
-                              const responsavel = responsaveisMap.get(responsavelId);
+                                  // Se não está no cache, tentar buscar dos outros registros do mesmo agrupamento
+                                  if (!produtoIdRegistro) {
+                                    const outroRegistro = agr.registros.find(r =>
+                                      String(r.tarefa_id).trim() === tarefaIdStr && r.produto_id
+                                    );
+                                    if (outroRegistro) {
+                                      produtoIdRegistro = outroRegistro.produto_id;
+                                      tarefaProdutoCache.set(tarefaIdStr, parseInt(produtoIdRegistro, 10));
+                                    }
+                                  }
+                                }
 
-                              // Tempo realizado sempre 0 (lógica removida)
-                              responsavel.tempoRealizado += 0;
+                                // Só ignorar se realmente não tem produto_id em nenhum lugar
+                                if (!produtoIdRegistro) return;
 
-                              // Calcular tempo estimado deste registro
-                              const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
-                              responsavel.tempoEstimado += tempoEstimadoReg;
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (isFiltroPaiCliente) {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
 
-                              // Agrupar por produto dentro do responsável
-                              if (reg.produto_id) {
-                                const produtoId = String(reg.produto_id).trim();
+                                // Usar produtoIdRegistro (que pode vir do registro ou da tarefa)
+                                const produtoId = String(produtoIdRegistro).trim();
 
-                                if (!responsavel.produtos.has(produtoId)) {
+                                if (!produtosMap.has(produtoId)) {
                                   const nomeProduto = getNomeProduto(reg.produto_id);
-                                  responsavel.produtos.set(produtoId, {
+                                  produtosMap.set(produtoId, {
                                     id: produtoId,
                                     nome: nomeProduto,
+                                    tipo: 'produto',
                                     tempoRealizado: 0,
                                     tempoEstimado: 0,
+                                    responsavelId: reg.responsavel_id || entidadeId,
                                     clientes: isFiltroPaiCliente ? null : new Map(), // Não criar hierarquia de clientes se filtro pai é cliente
                                     tarefas: isFiltroPaiCliente ? new Map() : null, // Criar hierarquia de tarefas diretamente se filtro pai é cliente
                                     registros: []
                                   });
                                 }
 
-                                const produto = responsavel.produtos.get(produtoId);
+                                const produto = produtosMap.get(produtoId);
+
+                                // Tempo realizado sempre 0 (lógica removida)
                                 produto.tempoRealizado += 0;
+
+                                // Calcular tempo estimado deste registro
+                                const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
                                 produto.tempoEstimado += tempoEstimadoReg;
 
                                 if (isFiltroPaiCliente) {
@@ -4227,7 +4040,7 @@ return (
                                         nome: nomeTarefa,
                                         tempoRealizado: 0,
                                         tempoEstimado: 0,
-                                        responsavelId: responsavelId,
+                                        responsavelId: reg.responsavel_id || entidadeId,
                                         registros: []
                                       });
                                     }
@@ -4241,7 +4054,7 @@ return (
                                     });
                                   }
                                 } else {
-                                  // Se filtro pai não é cliente, manter hierarquia responsável -> produto -> cliente -> tarefa
+                                  // Se filtro pai não é cliente, manter hierarquia produto -> cliente -> tarefa
                                   if (reg.cliente_id) {
                                     const clienteIds = String(reg.cliente_id)
                                       .split(',')
@@ -4283,7 +4096,7 @@ return (
                                             nome: nomeTarefa,
                                             tempoRealizado: 0,
                                             tempoEstimado: 0,
-                                            responsavelId: responsavelId,
+                                            responsavelId: reg.responsavel_id || entidadeId,
                                             registros: []
                                           });
                                         }
@@ -4305,517 +4118,1164 @@ return (
                                   }
                                 }
 
+                                // Adicionar registro para poder buscar detalhes individuais depois
                                 produto.registros.push({
                                   ...reg,
                                   tempoRealizado: 0
                                 });
-                              }
-
-                              // Adicionar registro para poder buscar detalhes individuais depois
-                              responsavel.registros.push({
-                                ...reg,
-                                tempoRealizado: 0
                               });
                             });
-                          });
 
-                          // Converter Maps para arrays
-                          if (isFiltroPaiCliente) {
-                            // Se filtro pai é cliente, retornar responsáveis com produtos e tarefas diretamente
-                            return Array.from(responsaveisMap.values()).map(responsavel => ({
-                              ...responsavel,
-                              produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                            // Converter Maps para arrays
+                            if (isFiltroPaiCliente) {
+                              // Se filtro pai é cliente, retornar produtos com tarefas diretamente
+                              return Array.from(produtosMap.values()).map(produto => ({
                                 ...produto,
                                 tarefas: Array.from(produto.tarefas.values())
-                              }))
-                            }));
-                          } else {
-                            // Se filtro pai não é cliente, retornar responsáveis com hierarquia completa
-                            return Array.from(responsaveisMap.values()).map(responsavel => ({
-                              ...responsavel,
-                              produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                              }));
+                            } else {
+                              // Se filtro pai não é cliente, retornar produtos com hierarquia de clientes
+                              return Array.from(produtosMap.values()).map(produto => ({
                                 ...produto,
                                 clientes: Array.from(produto.clientes.values()).map(cliente => ({
                                   ...cliente,
                                   tarefas: Array.from(cliente.tarefas.values())
                                 }))
-                              }))
-                            }));
+                              }));
+                            }
                           }
-                        }
 
-                        // Para outros tipos, retornar vazio
-                        return [];
-                      };
+                          // Se for responsáveis, agrupar por responsável -> produto -> cliente -> tarefa (ou responsável -> produto -> tarefa se filtro pai é cliente)
+                          if (tipoDetalhe === 'responsaveis') {
+                            const responsaveisMap = new Map();
+                            const isFiltroPaiCliente = tipoEntidade === 'cliente';
 
-                      // Função genérica para calcular tempo por qualquer entidade
-                      const calcularTempoPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
-                        if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
+                            agrupamentosFiltrados.forEach(agr => {
+                              // Filtrar registros pelo período aplicado
+                              const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
 
-                        // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
-                        const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
-                        const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
-                        const datasIndividuaisAplicado = filtrosUltimosAplicados?.datasIndividuais ?? [];
+                              registrosFiltrados.forEach(reg => {
+                                if (!reg.responsavel_id) return;
 
-                        // Obter conjunto de datas válidas (considerando opções e datas individuais)
-                        const datasValidas = obterDatasValidasNoPeriodo(
-                          periodoAplicadoInicio,
-                          periodoAplicadoFim,
-                          habilitarFinaisSemanaAplicado,
-                          habilitarFeriadosAplicado,
-                          datasIndividuaisAplicado
-                        );
+                                // Se o filtro pai é cliente, garantir que este registro pertence ao cliente
+                                if (isFiltroPaiCliente) {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  if (!clienteIds.includes(String(entidadeId))) return;
+                                }
 
-                        // Função auxiliar para verificar se uma data está nas datas válidas
-                        const dataEstaNoPeriodoAplicado = (dataRegistro) => {
-                          if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
-                          if (datasValidas.size === 0) return false; // Se não há datas válidas, não incluir nada
+                                const responsavelId = String(reg.responsavel_id).trim();
 
-                          try {
-                            let dataStr;
-                            if (typeof dataRegistro === 'string') {
-                              // Extrair apenas a parte da data (YYYY-MM-DD) ignorando timezone
-                              dataStr = dataRegistro.split('T')[0];
-                            } else if (dataRegistro instanceof Date) {
-                              // Para Date, usar métodos do timezone local para garantir consistência
-                              const year = dataRegistro.getFullYear();
-                              const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
-                              const day = String(dataRegistro.getDate()).padStart(2, '0');
-                              dataStr = `${year}-${month}-${day}`;
+                                if (!responsaveisMap.has(responsavelId)) {
+                                  const nomeResponsavel = getNomeColaborador(reg.responsavel_id);
+                                  responsaveisMap.set(responsavelId, {
+                                    id: responsavelId,
+                                    nome: nomeResponsavel,
+                                    tipo: 'responsavel',
+                                    tempoRealizado: 0,
+                                    tempoEstimado: 0,
+                                    responsavelId: responsavelId,
+                                    produtos: new Map(),
+                                    registros: []
+                                  });
+                                }
+
+                                const responsavel = responsaveisMap.get(responsavelId);
+
+                                // Tempo realizado sempre 0 (lógica removida)
+                                responsavel.tempoRealizado += 0;
+
+                                // Calcular tempo estimado deste registro
+                                const tempoEstimadoReg = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+                                responsavel.tempoEstimado += tempoEstimadoReg;
+
+                                // Agrupar por produto dentro do responsável
+                                if (reg.produto_id) {
+                                  const produtoId = String(reg.produto_id).trim();
+
+                                  if (!responsavel.produtos.has(produtoId)) {
+                                    const nomeProduto = getNomeProduto(reg.produto_id);
+                                    responsavel.produtos.set(produtoId, {
+                                      id: produtoId,
+                                      nome: nomeProduto,
+                                      tempoRealizado: 0,
+                                      tempoEstimado: 0,
+                                      clientes: isFiltroPaiCliente ? null : new Map(), // Não criar hierarquia de clientes se filtro pai é cliente
+                                      tarefas: isFiltroPaiCliente ? new Map() : null, // Criar hierarquia de tarefas diretamente se filtro pai é cliente
+                                      registros: []
+                                    });
+                                  }
+
+                                  const produto = responsavel.produtos.get(produtoId);
+                                  produto.tempoRealizado += 0;
+                                  produto.tempoEstimado += tempoEstimadoReg;
+
+                                  if (isFiltroPaiCliente) {
+                                    // Se filtro pai é cliente, agrupar tarefas diretamente no produto (sem hierarquia de clientes)
+                                    if (reg.tarefa_id) {
+                                      const tarefaId = String(reg.tarefa_id);
+                                      const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+
+                                      // Usar chave composta para diferenciar tarefas
+                                      const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                      const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                      const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                      if (!produto.tarefas.has(compositeKey)) {
+                                        produto.tarefas.set(compositeKey, {
+                                          id: compositeKey, // Usar chave composta como ID
+                                          originalId: tarefaId,
+                                          nome: nomeTarefa,
+                                          tempoRealizado: 0,
+                                          tempoEstimado: 0,
+                                          responsavelId: responsavelId,
+                                          registros: []
+                                        });
+                                      }
+
+                                      const tarefa = produto.tarefas.get(compositeKey);
+                                      tarefa.tempoRealizado += 0;
+                                      tarefa.tempoEstimado += tempoEstimadoReg;
+                                      tarefa.registros.push({
+                                        ...reg,
+                                        tempoRealizado: 0
+                                      });
+                                    }
+                                  } else {
+                                    // Se filtro pai não é cliente, manter hierarquia responsável -> produto -> cliente -> tarefa
+                                    if (reg.cliente_id) {
+                                      const clienteIds = String(reg.cliente_id)
+                                        .split(',')
+                                        .map(id => id.trim())
+                                        .filter(id => id.length > 0);
+
+                                      clienteIds.forEach(clienteId => {
+                                        const clienteIdStr = String(clienteId).trim();
+
+                                        if (!produto.clientes.has(clienteIdStr)) {
+                                          const nomeCliente = getNomeCliente(clienteId);
+                                          produto.clientes.set(clienteIdStr, {
+                                            id: clienteIdStr,
+                                            nome: nomeCliente,
+                                            tempoRealizado: 0,
+                                            tempoEstimado: 0,
+                                            tarefas: new Map(),
+                                            registros: []
+                                          });
+                                        }
+
+                                        const cliente = produto.clientes.get(clienteIdStr);
+                                        cliente.tempoRealizado += 0;
+                                        cliente.tempoEstimado += tempoEstimadoReg;
+
+                                        if (reg.tarefa_id) {
+                                          const tarefaId = String(reg.tarefa_id);
+                                          const nomeTarefa = getNomeTarefa(reg.tarefa_id);
+
+                                          // Usar chave composta para diferenciar tarefas
+                                          const clienteIdKey = String(reg.cliente_id || 'sem_cliente');
+                                          const produtoIdKey = String(reg.produto_id || 'sem_produto');
+                                          const compositeKey = `${tarefaId}_${clienteIdKey}_${produtoIdKey}`;
+
+                                          if (!cliente.tarefas.has(compositeKey)) {
+                                            cliente.tarefas.set(compositeKey, {
+                                              id: compositeKey, // Usar chave composta como ID
+                                              originalId: tarefaId,
+                                              nome: nomeTarefa,
+                                              tempoRealizado: 0,
+                                              tempoEstimado: 0,
+                                              responsavelId: responsavelId,
+                                              registros: []
+                                            });
+                                          }
+
+                                          const tarefa = cliente.tarefas.get(compositeKey);
+                                          tarefa.tempoRealizado += 0;
+                                          tarefa.tempoEstimado += tempoEstimadoReg;
+                                          tarefa.registros.push({
+                                            ...reg,
+                                            tempoRealizado: 0
+                                          });
+                                        }
+
+                                        cliente.registros.push({
+                                          ...reg,
+                                          tempoRealizado: 0
+                                        });
+                                      });
+                                    }
+                                  }
+
+                                  produto.registros.push({
+                                    ...reg,
+                                    tempoRealizado: 0
+                                  });
+                                }
+
+                                // Adicionar registro para poder buscar detalhes individuais depois
+                                responsavel.registros.push({
+                                  ...reg,
+                                  tempoRealizado: 0
+                                });
+                              });
+                            });
+
+                            // Converter Maps para arrays
+                            if (isFiltroPaiCliente) {
+                              // Se filtro pai é cliente, retornar responsáveis com produtos e tarefas diretamente
+                              return Array.from(responsaveisMap.values()).map(responsavel => ({
+                                ...responsavel,
+                                produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                                  ...produto,
+                                  tarefas: Array.from(produto.tarefas.values())
+                                }))
+                              }));
                             } else {
-                              // Para outros tipos, criar Date e depois normalizar
-                              // Se vier como timestamp ou outro formato, converter para string ISO primeiro
-                              const dataReg = new Date(dataRegistro);
-                              const year = dataReg.getFullYear();
-                              const month = String(dataReg.getMonth() + 1).padStart(2, '0');
-                              const day = String(dataReg.getDate()).padStart(2, '0');
-                              dataStr = `${year}-${month}-${day}`;
+                              // Se filtro pai não é cliente, retornar responsáveis com hierarquia completa
+                              return Array.from(responsaveisMap.values()).map(responsavel => ({
+                                ...responsavel,
+                                produtos: Array.from(responsavel.produtos.values()).map(produto => ({
+                                  ...produto,
+                                  clientes: Array.from(produto.clientes.values()).map(cliente => ({
+                                    ...cliente,
+                                    tarefas: Array.from(cliente.tarefas.values())
+                                  }))
+                                }))
+                              }));
                             }
-
-                            // Garantir formato correto (YYYY-MM-DD)
-                            if (!dataStr || !dataStr.match(/^\d{4}-\d{2}-\d{2}/)) {
-                              console.warn('Formato de data inválido:', dataRegistro, '->', dataStr);
-                              return false;
-                            }
-
-                            return datasValidas.has(dataStr);
-                          } catch (error) {
-                            console.error('Erro ao verificar se data está no período aplicado:', error, 'dataRegistro:', dataRegistro);
-                            return false;
                           }
+
+                          // Para outros tipos, retornar vazio
+                          return [];
                         };
 
-                        // Filtrar agrupamentos pela entidade
-                        const agrupamentosFiltrados = agrupamentos.filter(agr => {
-                          const primeiroRegistro = agr.primeiroRegistro;
-                          if (tipoEntidade === 'responsavel') {
-                            return String(primeiroRegistro.responsavel_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'cliente') {
-                            // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
-                            const clienteIds = String(primeiroRegistro.cliente_id || '')
-                              .split(',')
-                              .map(id => id.trim())
-                              .filter(id => id.length > 0);
-                            return clienteIds.includes(String(entidadeId));
-                          } else if (tipoEntidade === 'produto') {
-                            return String(primeiroRegistro.produto_id) === String(entidadeId);
-                          } else if (tipoEntidade === 'atividade') {
-                            return String(primeiroRegistro.tarefa_id) === String(entidadeId);
-                          }
-                          return false;
-                        });
+                        // Função genérica para calcular tempo por qualquer entidade
+                        const calcularTempoPorEntidade = (entidadeId, tipoEntidade, agrupamentos) => {
+                          if (!periodoAplicadoInicio || !periodoAplicadoFim) return null;
 
-                        // Calcular tempo estimado
-                        // Para responsável, usar o valor já calculado corretamente em loadRegistrosTempoEstimado
-                        // Para outras entidades, calcular somando registros (já que não temos cache para elas)
-                        let tempoEstimado;
-                        if (tipoEntidade === 'responsavel') {
-                          // Usar o valor já calculado corretamente que considera:
-                          // - Período filtrado corretamente
-                          // - Interseção entre período da regra e período filtrado
-                          // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
-                          // - Evita duplicação de datas usando Map de datas únicas
-                          tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
-                        } else {
-                          // Para outras entidades (cliente, produto, tarefa), calcular somando registros
-                          tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
-                            if (!agr.registros) return acc;
-                            // Filtrar registros pelo período
-                            let registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
-                              ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
+                          // Usar valores aplicados dos toggles (ou false como padrão se não foram aplicados)
+                          const habilitarFinaisSemanaAplicado = filtrosUltimosAplicados?.habilitarFinaisSemana ?? false;
+                          const habilitarFeriadosAplicado = filtrosUltimosAplicados?.habilitarFeriados ?? false;
+                          const datasIndividuaisAplicado = filtrosUltimosAplicados?.datasIndividuais ?? [];
 
-                            // Para cliente, filtrar também pelo cliente_id do registro individual
-                            if (tipoEntidade === 'cliente') {
-                              registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
-                                const clienteIds = String(reg.cliente_id || '')
-                                  .split(',')
-                                  .map(id => id.trim())
-                                  .filter(id => id.length > 0);
-                                return clienteIds.includes(String(entidadeId));
-                              });
-                            }
-
-                            return acc + registrosNoPeriodo.reduce(
-                              (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
-                              0
-                            );
-                          }, 0);
-                        }
-
-                        // Buscar tempo realizado do cache (será preenchido pelo useEffect)
-                        // Garantir que entidadeId seja string para consistência com a chave criada no useEffect
-                        const chaveTempoRealizado = `${tipoEntidade}_${String(entidadeId)}`;
-                        const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
-                        // Compatibilidade com backward se era apenas número
-                        const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
-                        const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
-
-                        // Para responsável, calcular disponível e sobrando
-                        if (tipoEntidade === 'responsavel') {
-                          // Calcular dias considerando as opções de incluir finais de semana, feriados e datas individuais
-                          const diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado, datasIndividuaisAplicado);
-
-                          // Verificar se é PJ (tipo_contrato === 2)
-                          const tipoContrato = tipoContratoPorResponsavel[String(entidadeId)];
-                          // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
-                          const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
-                            tipoContrato === 2 ||
-                            tipoContrato === '2' ||
-                            Number(tipoContrato) === 2 ||
-                            String(tipoContrato).trim() === '2'
+                          // Obter conjunto de datas válidas (considerando opções e datas individuais)
+                          const datasValidas = obterDatasValidasNoPeriodo(
+                            periodoAplicadoInicio,
+                            periodoAplicadoFim,
+                            habilitarFinaisSemanaAplicado,
+                            habilitarFeriadosAplicado,
+                            datasIndividuaisAplicado
                           );
 
-                          // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
-                          const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)];
+                          // Função auxiliar para verificar se uma data está nas datas válidas
+                          const dataEstaNoPeriodoAplicado = (dataRegistro) => {
+                            if (!periodoAplicadoInicio || !periodoAplicadoFim || !dataRegistro) return true;
+                            if (datasValidas.size === 0) return false; // Se não há datas válidas, não incluir nada
 
-                          // Verificar se horas contratadas ainda está carregando (undefined = ainda não carregado)
-                          const aindaCarregandoHoras = horasContratadasDia === undefined;
+                            try {
+                              let dataStr;
+                              if (typeof dataRegistro === 'string') {
+                                // Extrair apenas a parte da data (YYYY-MM-DD) ignorando timezone
+                                dataStr = dataRegistro.split('T')[0];
+                              } else if (dataRegistro instanceof Date) {
+                                // Para Date, usar métodos do timezone local para garantir consistência
+                                const year = dataRegistro.getFullYear();
+                                const month = String(dataRegistro.getMonth() + 1).padStart(2, '0');
+                                const day = String(dataRegistro.getDate()).padStart(2, '0');
+                                dataStr = `${year}-${month}-${day}`;
+                              } else {
+                                // Para outros tipos, criar Date e depois normalizar
+                                // Se vier como timestamp ou outro formato, converter para string ISO primeiro
+                                const dataReg = new Date(dataRegistro);
+                                const year = dataReg.getFullYear();
+                                const month = String(dataReg.getMonth() + 1).padStart(2, '0');
+                                const day = String(dataReg.getDate()).padStart(2, '0');
+                                dataStr = `${year}-${month}-${day}`;
+                              }
 
-                          // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
-                          const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                              // Garantir formato correto (YYYY-MM-DD)
+                              if (!dataStr || !dataStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+                                console.warn('Formato de data inválido:', dataRegistro, '->', dataStr);
+                                return false;
+                              }
 
-                          // Calcular tempo contratado total (horas contratadas por dia × dias no período)
-                          // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
-                          // Retornar null se ainda está carregando para distinguir de "já carregado mas sem valor" (0)
-                          const tempoContratadoTotal = aindaCarregandoHoras
-                            ? null  // Ainda carregando - permite distinguir de 0 (já carregado mas sem valor)
-                            : (isPJ
-                              ? tempoEstimado
-                              : (horasContratadasDia || 0) * diasNoPeriodo * 3600000); // converter horas para milissegundos
-
-                          // Calcular tempo disponível: contratadas - estimado
-                          const tempoDisponivelTotal = aindaCarregandoHoras
-                            ? null  // Ainda carregando
-                            : (isPJ
-                              ? tempoEstimado
-                              : Math.max(0, tempoContratadoTotal - tempoEstimado));
-                          const tempoSobrando = aindaCarregandoHoras
-                            ? null  // Ainda carregando
-                            : Math.max(0, tempoDisponivelTotal - tempoEstimado);
-
-                          return {
-                            disponivel: tempoDisponivelTotal,
-                            estimado: tempoEstimado,
-                            realizado: tempoRealizado,
-                            pendente: tempoPendente,
-                            sobrando: tempoSobrando,
-                            contratado: tempoContratadoTotal
-                          };
-                        }
-
-                        // Para outras entidades, não há conceito de disponível/sobrando
-                        // Mas precisamos extrair pendente também se houver
-                        const tempoRealizadoData2 = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
-                        const tempoRealizado2 = typeof tempoRealizadoData2 === 'number' ? tempoRealizadoData2 : (tempoRealizadoData2.realizado || 0);
-                        const tempoPendente2 = typeof tempoRealizadoData2 === 'number' ? 0 : (tempoRealizadoData2.pendente || 0);
-
-                        return {
-                          disponivel: 0,
-                          estimado: tempoEstimado,
-                          realizado: tempoRealizado2,
-                          pendente: tempoPendente2,
-                          sobrando: 0,
-                          contratado: 0
-                        };
-                      };
-
-                      // Coletar entidades únicas baseado no filtro principal
-                      const entidadesDosRegistros = new Map();
-                      registrosAgrupados.forEach(agrupamento => {
-                        const primeiroRegistro = agrupamento.primeiroRegistro;
-                        let entidadeId = null;
-                        let nomeEntidade = null;
-                        let fotoPerfil = null;
-                        let fotoPerfilPath = null;
-
-                        if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
-                          entidadeId = primeiroRegistro.responsavel_id;
-                          nomeEntidade = getNomeColaborador(entidadeId);
-                          fotoPerfil = primeiroRegistro.responsavel_foto_perfil;
-                          // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
-                        } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-                          // cliente_id pode conter múltiplos IDs separados por vírgula
-                          // Processar cada ID separadamente
-                          const clienteIds = String(primeiroRegistro.cliente_id)
-                            .split(',')
-                            .map(id => id.trim())
-                            .filter(id => id.length > 0);
-
-                          // Processar cada cliente ID separadamente
-                          clienteIds.forEach(clienteId => {
-                            const entidadeKey = String(clienteId);
-                            if (!entidadesDosRegistros.has(entidadeKey)) {
-                              entidadesDosRegistros.set(entidadeKey, {
-                                id: clienteId,
-                                nome: getNomeCliente(clienteId),
-                                fotoPerfil: null,
-                                fotoPerfilPath: null,
-                                registros: []
-                              });
+                              return datasValidas.has(dataStr);
+                            } catch (error) {
+                              console.error('Erro ao verificar se data está no período aplicado:', error, 'dataRegistro:', dataRegistro);
+                              return false;
                             }
+                          };
 
-                            // Adicionar todos os registros deste agrupamento que pertencem a este cliente
-                            agrupamento.registros.forEach(registro => {
-                              // Verificar se o registro pertence a este cliente
-                              const registroClienteIds = String(registro.cliente_id || '')
+                          // Filtrar agrupamentos pela entidade
+                          const agrupamentosFiltrados = agrupamentos.filter(agr => {
+                            const primeiroRegistro = agr.primeiroRegistro;
+                            if (tipoEntidade === 'responsavel') {
+                              return String(primeiroRegistro.responsavel_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'cliente') {
+                              // cliente_id pode ser uma string com múltiplos IDs separados por vírgula
+                              const clienteIds = String(primeiroRegistro.cliente_id || '')
                                 .split(',')
                                 .map(id => id.trim())
                                 .filter(id => id.length > 0);
+                              return clienteIds.includes(String(entidadeId));
+                            } else if (tipoEntidade === 'produto') {
+                              return String(primeiroRegistro.produto_id) === String(entidadeId);
+                            } else if (tipoEntidade === 'atividade') {
+                              return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+                            }
+                            return false;
+                          });
 
-                              if (registroClienteIds.includes(String(clienteId))) {
+                          // Calcular tempo estimado
+                          // Para responsável, usar o valor já calculado corretamente em loadRegistrosTempoEstimado
+                          // Para outras entidades, calcular somando registros (já que não temos cache para elas)
+                          let tempoEstimado;
+                          if (tipoEntidade === 'responsavel') {
+                            // Usar o valor já calculado corretamente que considera:
+                            // - Período filtrado corretamente
+                            // - Interseção entre período da regra e período filtrado
+                            // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
+                            // - Evita duplicação de datas usando Map de datas únicas
+                            tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                          } else {
+                            // Para outras entidades (cliente, produto, tarefa), calcular somando registros
+                            tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
+                              if (!agr.registros) return acc;
+                              // Filtrar registros pelo período
+                              let registrosNoPeriodo = periodoAplicadoInicio && periodoAplicadoFim
+                                ? agr.registros.filter((reg) => dataEstaNoPeriodoAplicado(reg.data))
+                                : agr.registros;
+
+                              // Para cliente, filtrar também pelo cliente_id do registro individual
+                              if (tipoEntidade === 'cliente') {
+                                registrosNoPeriodo = registrosNoPeriodo.filter(reg => {
+                                  const clienteIds = String(reg.cliente_id || '')
+                                    .split(',')
+                                    .map(id => id.trim())
+                                    .filter(id => id.length > 0);
+                                  return clienteIds.includes(String(entidadeId));
+                                });
+                              }
+
+                              return acc + registrosNoPeriodo.reduce(
+                                (sum, reg) => sum + (reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0),
+                                0
+                              );
+                            }, 0);
+                          }
+
+                          // Buscar tempo realizado do cache (será preenchido pelo useEffect)
+                          // Garantir que entidadeId seja string para consistência com a chave criada no useEffect
+                          const chaveTempoRealizado = `${tipoEntidade}_${String(entidadeId)}`;
+                          const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+                          // Compatibilidade com backward se era apenas número
+                          const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
+                          const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
+
+                          // Para responsável, calcular disponível e sobrando
+                          if (tipoEntidade === 'responsavel') {
+                            // Calcular dias considerando as opções de incluir finais de semana, feriados e datas individuais
+                            const diasNoPeriodo = calcularDiasComOpcoesEDatasIndividuais(periodoAplicadoInicio, periodoAplicadoFim, habilitarFinaisSemanaAplicado, habilitarFeriadosAplicado, datasIndividuaisAplicado);
+
+                            // Verificar se é PJ (tipo_contrato === 2)
+                            const tipoContrato = tipoContratoPorResponsavel[String(entidadeId)];
+                            // Verificar se tipo_contrato é 2 (PJ) - pode vir como número ou string
+                            const isPJ = tipoContrato !== null && tipoContrato !== undefined && (
+                              tipoContrato === 2 ||
+                              tipoContrato === '2' ||
+                              Number(tipoContrato) === 2 ||
+                              String(tipoContrato).trim() === '2'
+                            );
+
+                            // Se for PJ, usar estimado como disponível; caso contrário, calcular normalmente
+                            const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)];
+
+                            // Verificar se horas contratadas ainda está carregando (undefined = ainda não carregado)
+                            const aindaCarregandoHoras = horasContratadasDia === undefined;
+
+                            // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
+                            const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+
+                            // Calcular tempo contratado total (horas contratadas por dia × dias no período)
+                            // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
+                            // Retornar null se ainda está carregando para distinguir de "já carregado mas sem valor" (0)
+                            const tempoContratadoTotal = aindaCarregandoHoras
+                              ? null  // Ainda carregando - permite distinguir de 0 (já carregado mas sem valor)
+                              : (isPJ
+                                ? tempoEstimado
+                                : (horasContratadasDia || 0) * diasNoPeriodo * 3600000); // converter horas para milissegundos
+
+                            // Calcular tempo disponível: contratadas - estimado
+                            const tempoDisponivelTotal = aindaCarregandoHoras
+                              ? null  // Ainda carregando
+                              : (isPJ
+                                ? tempoEstimado
+                                : Math.max(0, tempoContratadoTotal - tempoEstimado));
+                            const tempoSobrando = aindaCarregandoHoras
+                              ? null  // Ainda carregando
+                              : Math.max(0, tempoDisponivelTotal - tempoEstimado);
+
+                            return {
+                              disponivel: tempoDisponivelTotal,
+                              estimado: tempoEstimado,
+                              realizado: tempoRealizado,
+                              pendente: tempoPendente,
+                              sobrando: tempoSobrando,
+                              contratado: tempoContratadoTotal
+                            };
+                          }
+
+                          // Para outras entidades, não há conceito de disponível/sobrando
+                          // Mas precisamos extrair pendente também se houver
+                          const tempoRealizadoData2 = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
+                          const tempoRealizado2 = typeof tempoRealizadoData2 === 'number' ? tempoRealizadoData2 : (tempoRealizadoData2.realizado || 0);
+                          const tempoPendente2 = typeof tempoRealizadoData2 === 'number' ? 0 : (tempoRealizadoData2.pendente || 0);
+
+                          return {
+                            disponivel: 0,
+                            estimado: tempoEstimado,
+                            realizado: tempoRealizado2,
+                            pendente: tempoPendente2,
+                            sobrando: 0,
+                            contratado: 0
+                          };
+                        };
+
+                        // Coletar entidades únicas baseado no filtro principal
+                        const entidadesDosRegistros = new Map();
+                        registrosAgrupados.forEach(agrupamento => {
+                          const primeiroRegistro = agrupamento.primeiroRegistro;
+                          let entidadeId = null;
+                          let nomeEntidade = null;
+                          let fotoPerfil = null;
+                          let fotoPerfilPath = null;
+
+                          if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
+                            entidadeId = primeiroRegistro.responsavel_id;
+                            nomeEntidade = getNomeColaborador(entidadeId);
+                            fotoPerfil = primeiroRegistro.responsavel_foto_perfil;
+                            // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
+                          } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+                            // cliente_id pode conter múltiplos IDs separados por vírgula
+                            // Processar cada ID separadamente
+                            const clienteIds = String(primeiroRegistro.cliente_id)
+                              .split(',')
+                              .map(id => id.trim())
+                              .filter(id => id.length > 0);
+
+                            // Processar cada cliente ID separadamente
+                            clienteIds.forEach(clienteId => {
+                              const entidadeKey = String(clienteId);
+                              if (!entidadesDosRegistros.has(entidadeKey)) {
+                                entidadesDosRegistros.set(entidadeKey, {
+                                  id: clienteId,
+                                  nome: getNomeCliente(clienteId),
+                                  fotoPerfil: null,
+                                  fotoPerfilPath: null,
+                                  registros: []
+                                });
+                              }
+
+                              // Adicionar todos os registros deste agrupamento que pertencem a este cliente
+                              agrupamento.registros.forEach(registro => {
+                                // Verificar se o registro pertence a este cliente
+                                const registroClienteIds = String(registro.cliente_id || '')
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+
+                                if (registroClienteIds.includes(String(clienteId))) {
+                                  entidadesDosRegistros.get(entidadeKey).registros.push({
+                                    ...registro,
+                                    quantidade: agrupamento.quantidade
+                                  });
+                                }
+                              });
+                            });
+
+                            // Pular o processamento padrão abaixo para clientes
+                            return;
+                          } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+                            entidadeId = primeiroRegistro.produto_id;
+                            nomeEntidade = getNomeProduto(entidadeId);
+                          } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+                            entidadeId = primeiroRegistro.tarefa_id;
+                            nomeEntidade = getNomeTarefa(entidadeId);
+                          }
+
+                          if (entidadeId) {
+                            const entidadeKey = String(entidadeId);
+                            if (!entidadesDosRegistros.has(entidadeKey)) {
+                              entidadesDosRegistros.set(entidadeKey, {
+                                id: entidadeId,
+                                nome: nomeEntidade,
+                                fotoPerfil: fotoPerfil,
+                                fotoPerfilPath: fotoPerfilPath,
+                                registros: []
+                              });
+                            }
+                            // Adicionar todos os registros deste agrupamento
+                            agrupamento.registros.forEach(registro => {
+                              let registroPertence = false;
+                              if (filtroPrincipal === 'responsavel') {
+                                registroPertence = String(registro.responsavel_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'cliente') {
+                                registroPertence = String(registro.cliente_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'produto') {
+                                registroPertence = String(registro.produto_id) === String(entidadeId);
+                              } else if (filtroPrincipal === 'atividade') {
+                                registroPertence = String(registro.tarefa_id) === String(entidadeId);
+                              }
+
+                              if (registroPertence) {
                                 entidadesDosRegistros.get(entidadeKey).registros.push({
                                   ...registro,
                                   quantidade: agrupamento.quantidade
                                 });
                               }
                             });
-                          });
-
-                          // Pular o processamento padrão abaixo para clientes
-                          return;
-                        } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
-                          entidadeId = primeiroRegistro.produto_id;
-                          nomeEntidade = getNomeProduto(entidadeId);
-                        } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
-                          entidadeId = primeiroRegistro.tarefa_id;
-                          nomeEntidade = getNomeTarefa(entidadeId);
-                        }
-
-                        if (entidadeId) {
-                          const entidadeKey = String(entidadeId);
-                          if (!entidadesDosRegistros.has(entidadeKey)) {
-                            entidadesDosRegistros.set(entidadeKey, {
-                              id: entidadeId,
-                              nome: nomeEntidade,
-                              fotoPerfil: fotoPerfil,
-                              fotoPerfilPath: fotoPerfilPath,
-                              registros: []
-                            });
                           }
-                          // Adicionar todos os registros deste agrupamento
-                          agrupamento.registros.forEach(registro => {
-                            let registroPertence = false;
-                            if (filtroPrincipal === 'responsavel') {
-                              registroPertence = String(registro.responsavel_id) === String(entidadeId);
-                            } else if (filtroPrincipal === 'cliente') {
-                              registroPertence = String(registro.cliente_id) === String(entidadeId);
-                            } else if (filtroPrincipal === 'produto') {
-                              registroPertence = String(registro.produto_id) === String(entidadeId);
-                            } else if (filtroPrincipal === 'atividade') {
-                              registroPertence = String(registro.tarefa_id) === String(entidadeId);
+                        });
+
+                        // Criar um mapa com entidades do sistema (filtradas pelos valores selecionados quando aplicável)
+                        const todasEntidades = new Map();
+
+                        // Função auxiliar para verificar se um ID está nos filtros selecionados
+                        const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
+                          if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
+                          const idStr = String(id);
+                          if (Array.isArray(filtroSelecionado)) {
+                            return filtroSelecionado.some(f => String(f) === idStr);
+                          }
+                          return String(filtroSelecionado) === idStr;
+                        };
+
+                        if (filtroPrincipal === 'responsavel') {
+                          // Para responsáveis, adicionar membros do sistema (filtrados se houver seleção)
+                          membros.forEach(membro => {
+                            const membroId = String(membro.id);
+                            // Se há filtro selecionado, verificar se o membro está incluído
+                            if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
+                              return; // Pular este membro se não estiver nos filtros
                             }
 
-                            if (registroPertence) {
-                              entidadesDosRegistros.get(entidadeKey).registros.push({
-                                ...registro,
-                                quantidade: agrupamento.quantidade
+                            if (entidadesDosRegistros.has(membroId)) {
+                              todasEntidades.set(membroId, entidadesDosRegistros.get(membroId));
+                            } else {
+                              todasEntidades.set(membroId, {
+                                id: membro.id,
+                                nome: membro.nome || getNomeColaborador(membro.id),
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
                               });
                             }
                           });
-                        }
-                      });
-
-                      // Criar um mapa com entidades do sistema (filtradas pelos valores selecionados quando aplicável)
-                      const todasEntidades = new Map();
-
-                      // Função auxiliar para verificar se um ID está nos filtros selecionados
-                      const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
-                        if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
-                        const idStr = String(id);
-                        if (Array.isArray(filtroSelecionado)) {
-                          return filtroSelecionado.some(f => String(f) === idStr);
-                        }
-                        return String(filtroSelecionado) === idStr;
-                      };
-
-                      if (filtroPrincipal === 'responsavel') {
-                        // Para responsáveis, adicionar membros do sistema (filtrados se houver seleção)
-                        membros.forEach(membro => {
-                          const membroId = String(membro.id);
-                          // Se há filtro selecionado, verificar se o membro está incluído
-                          if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
-                            return; // Pular este membro se não estiver nos filtros
-                          }
-
-                          if (entidadesDosRegistros.has(membroId)) {
-                            todasEntidades.set(membroId, entidadesDosRegistros.get(membroId));
-                          } else {
-                            todasEntidades.set(membroId, {
-                              id: membro.id,
-                              nome: membro.nome || getNomeColaborador(membro.id),
-                              fotoPerfil: null,
-                              fotoPerfilPath: null,
-                              registros: []
-                            });
-                          }
-                        });
-                      } else if (filtroPrincipal === 'cliente') {
-                        // Primeiro, adicionar todos os clientes que aparecem nos registros (mesmo sem registros de tempo realizado)
-                        entidadesDosRegistros.forEach((entidade, clienteId) => {
-                          // Se há filtro selecionado, verificar se o cliente está incluído
-                          if (!estaNosFiltrosSelecionados(clienteId, filtroClienteSelecionado)) {
-                            return; // Pular este cliente se não estiver nos filtros
-                          }
-                          todasEntidades.set(clienteId, entidade);
-                        });
-
-                        // Depois, adicionar clientes do sistema que não aparecem nos registros (filtrados se houver seleção)
-                        clientes.forEach(cliente => {
-                          const clienteId = String(cliente.id);
-                          // Se há filtro selecionado, verificar se o cliente está incluído
-                          if (!estaNosFiltrosSelecionados(cliente.id, filtroClienteSelecionado)) {
-                            return; // Pular este cliente se não estiver nos filtros
-                          }
-
-                          // Só adicionar se ainda não foi adicionado pelos registros
-                          if (!todasEntidades.has(clienteId)) {
-                            todasEntidades.set(clienteId, {
-                              id: cliente.id,
-                              nome: cliente.nome,
-                              fotoPerfil: null,
-                              fotoPerfilPath: null,
-                              registros: []
-                            });
-                          }
-                        });
-                      } else if (filtroPrincipal === 'produto') {
-                        // Para produtos, adicionar produtos do sistema (filtrados se houver seleção)
-                        produtos.forEach(produto => {
-                          const produtoId = String(produto.id);
-                          // Se há filtro selecionado, verificar se o produto está incluído
-                          if (!estaNosFiltrosSelecionados(produto.id, filtroProdutoSelecionado)) {
-                            return; // Pular este produto se não estiver nos filtros
-                          }
-
-                          if (entidadesDosRegistros.has(produtoId)) {
-                            todasEntidades.set(produtoId, entidadesDosRegistros.get(produtoId));
-                          } else {
-                            todasEntidades.set(produtoId, {
-                              id: produto.id,
-                              nome: produto.nome,
-                              fotoPerfil: null,
-                              fotoPerfilPath: null,
-                              registros: []
-                            });
-                          }
-                        });
-                      } else {
-                        // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
-                        entidadesDosRegistros.forEach((entidade, key) => {
-                          // Se há filtro selecionado, verificar se a tarefa está incluída
-                          if (!estaNosFiltrosSelecionados(entidade.id, filtroTarefaSelecionado)) {
-                            return; // Pular esta tarefa se não estiver nos filtros
-                          }
-                          todasEntidades.set(key, entidade);
-                        });
-                      }
-
-                      // Separar entidades com e sem tempo estimado, e ordenar alfabeticamente
-                      const entidadesComTempo = [];
-                      const entidadesSemTempo = [];
-
-                      Array.from(todasEntidades.values()).forEach(entidade => {
-                        const tempoInfo = calcularTempoPorEntidade(
-                          entidade.id,
-                          filtroPrincipal,
-                          registrosAgrupados
-                        );
-
-
-                        // Obter responsavelId para calcular custo quando filtro principal não é responsavel
-                        let responsavelIdParaCusto = null;
-                        if (filtroPrincipal !== 'responsavel') {
-                          // Buscar o responsavelId mais comum nos registros desta entidade
-                          const responsaveisCount = new Map();
-                          registrosAgrupados.forEach(agr => {
-                            const primeiroRegistro = agr.primeiroRegistro;
-                            let pertence = false;
-                            if (filtroPrincipal === 'cliente') {
-                              const clienteIds = String(primeiroRegistro.cliente_id || '')
-                                .split(',')
-                                .map(id => id.trim())
-                                .filter(id => id.length > 0);
-                              pertence = clienteIds.includes(String(entidade.id));
-                            } else if (filtroPrincipal === 'produto') {
-                              pertence = String(primeiroRegistro.produto_id) === String(entidade.id);
-                            } else if (filtroPrincipal === 'atividade') {
-                              pertence = String(primeiroRegistro.tarefa_id) === String(entidade.id);
+                        } else if (filtroPrincipal === 'cliente') {
+                          // Primeiro, adicionar todos os clientes que aparecem nos registros (mesmo sem registros de tempo realizado)
+                          entidadesDosRegistros.forEach((entidade, clienteId) => {
+                            // Se há filtro selecionado, verificar se o cliente está incluído
+                            if (!estaNosFiltrosSelecionados(clienteId, filtroClienteSelecionado)) {
+                              return; // Pular este cliente se não estiver nos filtros
                             }
-
-                            if (pertence && primeiroRegistro.responsavel_id) {
-                              const respId = String(primeiroRegistro.responsavel_id);
-                              responsaveisCount.set(respId, (responsaveisCount.get(respId) || 0) + 1);
-                            }
+                            todasEntidades.set(clienteId, entidade);
                           });
 
-                          // Pegar o responsavelId mais frequente
-                          if (responsaveisCount.size > 0) {
-                            let maxCount = 0;
-                            let responsavelMaisFrequente = null;
-                            responsaveisCount.forEach((count, respId) => {
-                              if (count > maxCount) {
-                                maxCount = count;
-                                responsavelMaisFrequente = respId;
+                          // Depois, adicionar clientes do sistema que não aparecem nos registros (filtrados se houver seleção)
+                          clientes.forEach(cliente => {
+                            const clienteId = String(cliente.id);
+                            // Se há filtro selecionado, verificar se o cliente está incluído
+                            if (!estaNosFiltrosSelecionados(cliente.id, filtroClienteSelecionado)) {
+                              return; // Pular este cliente se não estiver nos filtros
+                            }
+
+                            // Só adicionar se ainda não foi adicionado pelos registros
+                            if (!todasEntidades.has(clienteId)) {
+                              todasEntidades.set(clienteId, {
+                                id: cliente.id,
+                                nome: cliente.nome,
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
+                              });
+                            }
+                          });
+                        } else if (filtroPrincipal === 'produto') {
+                          // Para produtos, adicionar produtos do sistema (filtrados se houver seleção)
+                          produtos.forEach(produto => {
+                            const produtoId = String(produto.id);
+                            // Se há filtro selecionado, verificar se o produto está incluído
+                            if (!estaNosFiltrosSelecionados(produto.id, filtroProdutoSelecionado)) {
+                              return; // Pular este produto se não estiver nos filtros
+                            }
+
+                            if (entidadesDosRegistros.has(produtoId)) {
+                              todasEntidades.set(produtoId, entidadesDosRegistros.get(produtoId));
+                            } else {
+                              todasEntidades.set(produtoId, {
+                                id: produto.id,
+                                nome: produto.nome,
+                                fotoPerfil: null,
+                                fotoPerfilPath: null,
+                                registros: []
+                              });
+                            }
+                          });
+                        } else {
+                          // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
+                          entidadesDosRegistros.forEach((entidade, key) => {
+                            // Se há filtro selecionado, verificar se a tarefa está incluída
+                            if (!estaNosFiltrosSelecionados(entidade.id, filtroTarefaSelecionado)) {
+                              return; // Pular esta tarefa se não estiver nos filtros
+                            }
+                            todasEntidades.set(key, entidade);
+                          });
+                        }
+
+                        // Separar entidades com e sem tempo estimado, e ordenar alfabeticamente
+                        const entidadesComTempo = [];
+                        const entidadesSemTempo = [];
+
+                        Array.from(todasEntidades.values()).forEach(entidade => {
+                          const tempoInfo = calcularTempoPorEntidade(
+                            entidade.id,
+                            filtroPrincipal,
+                            registrosAgrupados
+                          );
+
+
+                          // Obter responsavelId para calcular custo quando filtro principal não é responsavel
+                          let responsavelIdParaCusto = null;
+                          if (filtroPrincipal !== 'responsavel') {
+                            // Buscar o responsavelId mais comum nos registros desta entidade
+                            const responsaveisCount = new Map();
+                            registrosAgrupados.forEach(agr => {
+                              const primeiroRegistro = agr.primeiroRegistro;
+                              let pertence = false;
+                              if (filtroPrincipal === 'cliente') {
+                                const clienteIds = String(primeiroRegistro.cliente_id || '')
+                                  .split(',')
+                                  .map(id => id.trim())
+                                  .filter(id => id.length > 0);
+                                pertence = clienteIds.includes(String(entidade.id));
+                              } else if (filtroPrincipal === 'produto') {
+                                pertence = String(primeiroRegistro.produto_id) === String(entidade.id);
+                              } else if (filtroPrincipal === 'atividade') {
+                                pertence = String(primeiroRegistro.tarefa_id) === String(entidade.id);
+                              }
+
+                              if (pertence && primeiroRegistro.responsavel_id) {
+                                const respId = String(primeiroRegistro.responsavel_id);
+                                responsaveisCount.set(respId, (responsaveisCount.get(respId) || 0) + 1);
                               }
                             });
-                            responsavelIdParaCusto = responsavelMaisFrequente;
+
+                            // Pegar o responsavelId mais frequente
+                            if (responsaveisCount.size > 0) {
+                              let maxCount = 0;
+                              let responsavelMaisFrequente = null;
+                              responsaveisCount.forEach((count, respId) => {
+                                if (count > maxCount) {
+                                  maxCount = count;
+                                  responsavelMaisFrequente = respId;
+                                }
+                              });
+                              responsavelIdParaCusto = responsavelMaisFrequente;
+                            }
+                          } else {
+                            responsavelIdParaCusto = entidade.id;
                           }
-                        } else {
-                          responsavelIdParaCusto = entidade.id;
-                        }
 
-                        if (tempoInfo && tempoInfo.estimado > 0) {
-                          entidadesComTempo.push({ entidade, tempoInfo, responsavelIdParaCusto });
-                        } else {
-                          entidadesSemTempo.push({ entidade, tempoInfo: null, responsavelIdParaCusto });
-                        }
-                      });
+                          if (tempoInfo && tempoInfo.estimado > 0) {
+                            entidadesComTempo.push({ entidade, tempoInfo, responsavelIdParaCusto });
+                          } else {
+                            entidadesSemTempo.push({ entidade, tempoInfo: null, responsavelIdParaCusto });
+                          }
+                        });
 
-                      // Ordenar alfabeticamente cada grupo
-                      entidadesComTempo.sort((a, b) =>
-                        a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
-                      );
-                      entidadesSemTempo.sort((a, b) =>
-                        a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
-                      );
+                        // Ordenar alfabeticamente cada grupo
+                        entidadesComTempo.sort((a, b) =>
+                          a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
+                        );
+                        entidadesSemTempo.sort((a, b) =>
+                          a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
+                        );
 
-                      // Combinar: primeiro os com tempo estimado, depois os sem
-                      const todosOrdenados = [...entidadesComTempo, ...entidadesSemTempo];
+                        // Combinar: primeiro os com tempo estimado, depois os sem
+                        const todosOrdenados = [...entidadesComTempo, ...entidadesSemTempo];
 
-                      // Limitar a 4 inicialmente se não estiver expandido
-                      const dashboardsParaExibir = dashboardsExpandidos
-                        ? todosOrdenados
-                        : todosOrdenados.slice(0, 4);
-                      const temMaisDashboards = todosOrdenados.length > 4;
+                        // Limitar a 4 inicialmente se não estiver expandido
+                        const dashboardsParaExibir = dashboardsExpandidos
+                          ? todosOrdenados
+                          : todosOrdenados.slice(0, 4);
+                        const temMaisDashboards = todosOrdenados.length > 4;
 
-                      return (
-                        <>
-                          {dashboardsParaExibir.map(({ entidade, tempoInfo, responsavelIdParaCusto }) => {
-                            // Sempre exibir o card, mesmo se não houver tempo estimado (para identificar quem falta estimar)
-                            if (!tempoInfo) {
-                              // Se não há tempoInfo, criar um objeto vazio para exibir valores zerados
-                              // Calcular estatísticas mesmo sem tempo
+                        return (
+                          <>
+                            {dashboardsParaExibir.map(({ entidade, tempoInfo, responsavelIdParaCusto }) => {
+                              // Sempre exibir o card, mesmo se não houver tempo estimado (para identificar quem falta estimar)
+                              if (!tempoInfo) {
+                                // Se não há tempoInfo, criar um objeto vazio para exibir valores zerados
+                                // Calcular estatísticas mesmo sem tempo
+                                const estatisticas = calcularEstatisticasPorEntidade(
+                                  entidade.id,
+                                  filtroPrincipal,
+                                  registrosAgrupados
+                                );
+
+                                return (
+                                  <div key={entidade.id} className="tempo-disponivel-card">
+                                    <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                      <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
+                                        {filtroPrincipal === 'responsavel' && (
+                                          <Avatar
+                                            key={`avatar-card-${entidade.id}-${entidade.fotoPerfil || 'no-photo'}`}
+                                            avatarId={entidade.fotoPerfil || null}
+                                            nomeUsuario={entidade.nome}
+                                            size="tiny"
+                                            customImagePath={entidade.fotoPerfilPath || null}
+                                          />
+                                        )}
+                                        <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
+                                        {filtroPrincipal === 'responsavel' && (() => {
+                                          const tipoContratoId = tipoContratoPorResponsavel[String(entidade.id)];
+                                          const nomeTipoContrato = tipoContratoId ? tiposContratoMap[String(tipoContratoId)] : null;
+                                          return nomeTipoContrato ? (
+                                            <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px' }}>
+                                              {nomeTipoContrato}
+                                            </span>
+                                          ) : null;
+                                        })()}
+                                      </div>
+                                    </div>
+                                    <div className="tempo-disponivel-card-content">
+
+                                      {/* Cards informativos */}
+                                      <div className="tempo-disponivel-card-stats">
+                                        {filtroPrincipal === 'responsavel' && (
+                                          <>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-list"></i>
+                                              <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-briefcase"></i>
+                                              <span>Clientes: {estatisticas.totalClientes}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'clientes',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-box"></i>
+                                              <span>Produtos: {estatisticas.totalProdutos}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'produtos',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+                                        {filtroPrincipal === 'cliente' && (
+                                          <>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-list"></i>
+                                              <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-box"></i>
+                                              <span>Produtos: {estatisticas.totalProdutos}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'produtos',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-user-tie"></i>
+                                              <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'responsaveis',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+                                        {filtroPrincipal === 'produto' && (
+                                          <>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-list"></i>
+                                              <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-briefcase"></i>
+                                              <span>Clientes: {estatisticas.totalClientes}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'clientes',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-user-tie"></i>
+                                              <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'responsaveis',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+                                        {filtroPrincipal === 'atividade' && (
+                                          <>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-box"></i>
+                                              <span>Produtos: {estatisticas.totalProdutos}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'produtos',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-briefcase"></i>
+                                              <span>Clientes: {estatisticas.totalClientes}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'clientes',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-user-tie"></i>
+                                              <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+                                                    // Posição no documento (considerando scroll)
+                                                    const documentLeft = rect.left + scrollLeft;
+                                                    const documentTop = rect.top + scrollTop;
+
+                                                    const position = {
+                                                      left: documentLeft + rect.width + 20,
+                                                      top: documentTop
+                                                    };
+                                                    setDetailCardPosition(position);
+                                                    const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                    if (detalhes && detalhes.length > 0) {
+                                                      setDetailCard({
+                                                        entidadeId: entidade.id,
+                                                        tipo: 'responsaveis',
+                                                        dados: { registros: detalhes }
+                                                      });
+                                                    }
+                                                  } : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                      <BarraProgressoTempo
+                                        disponivel={0}
+                                        estimado={0}
+                                        realizado={0}
+                                        pendente={0}
+                                        sobrando={0}
+                                        contratado={0}
+                                        responsavelId={responsavelIdParaCusto}
+                                        mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              // Calcular estatísticas para esta entidade
                               const estatisticas = calcularEstatisticasPorEntidade(
                                 entidade.id,
                                 filtroPrincipal,
@@ -4858,14 +5318,10 @@ return (
                                             <span>Tarefas: {estatisticas.totalTarefas}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
                                               title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -4873,37 +5329,30 @@ return (
                                             <span>Clientes: {estatisticas.totalClientes}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'clientes',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'clientes',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -4911,37 +5360,30 @@ return (
                                             <span>Produtos: {estatisticas.totalProdutos}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'produtos',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'produtos',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                         </>
@@ -4953,14 +5395,10 @@ return (
                                             <span>Tarefas: {estatisticas.totalTarefas}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
                                               title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -4968,37 +5406,30 @@ return (
                                             <span>Produtos: {estatisticas.totalProdutos}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'produtos',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'produtos',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -5006,37 +5437,30 @@ return (
                                             <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'responsaveis',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'responsaveis',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                         </>
@@ -5048,14 +5472,10 @@ return (
                                             <span>Tarefas: {estatisticas.totalTarefas}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
                                               title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -5063,37 +5483,30 @@ return (
                                             <span>Clientes: {estatisticas.totalClientes}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'clientes',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'clientes',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -5101,37 +5514,30 @@ return (
                                             <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'responsaveis',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'responsaveis',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                         </>
@@ -5143,37 +5549,30 @@ return (
                                             <span>Produtos: {estatisticas.totalProdutos}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalProdutos > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'produtos',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'produtos',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -5181,37 +5580,30 @@ return (
                                             <span>Clientes: {estatisticas.totalClientes}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalClientes > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'clientes',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'clientes',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                           <div className="tempo-disponivel-stat-item">
@@ -5219,1054 +5611,667 @@ return (
                                             <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
                                             <span
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
+                                                e.stopPropagation();
+                                                const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
+                                                const rect = elemento.getBoundingClientRect();
+                                                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                                                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                                                const documentLeft = rect.left + scrollLeft;
+                                                const documentTop = rect.top + scrollTop;
+                                                setDetailCardPosition({
+                                                  left: documentLeft + rect.width + 20,
+                                                  top: documentTop
+                                                });
+                                                const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
+                                                if (detalhes && detalhes.length > 0) {
+                                                  setDetailCard({
+                                                    entidadeId: entidade.id,
+                                                    tipo: 'responsaveis',
+                                                    dados: { registros: detalhes }
+                                                  });
+                                                }
+                                              } : undefined}
                                               title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
                                             >
-                                              <span
-                                                className="resumo-arrow-anchor"
-                                                onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                                  e.stopPropagation();
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                                  const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-                                                  // Posição no documento (considerando scroll)
-                                                  const documentLeft = rect.left + scrollLeft;
-                                                  const documentTop = rect.top + scrollTop;
-
-                                                  const position = {
-                                                    left: documentLeft + rect.width + 20,
-                                                    top: documentTop
-                                                  };
-                                                  setDetailCardPosition(position);
-                                                  const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                                  if (detalhes && detalhes.length > 0) {
-                                                    setDetailCard({
-                                                      entidadeId: entidade.id,
-                                                      tipo: 'responsaveis',
-                                                      dados: { registros: detalhes }
-                                                    });
-                                                  }
-                                                } : undefined}
-                                              >
-                                                &gt;
-                                              </span>
+                                              &gt;
                                             </span>
                                           </div>
                                         </>
                                       )}
                                     </div>
                                     <BarraProgressoTempo
-                                      disponivel={0}
-                                      estimado={0}
-                                      realizado={0}
-                                      pendente={0}
-                                      sobrando={0}
-                                      contratado={0}
+                                      disponivel={tempoInfo.disponivel}
+                                      estimado={tempoInfo.estimado}
+                                      realizado={tempoInfo.realizado}
+                                      pendente={tempoInfo.pendente}
+                                      sobrando={tempoInfo.sobrando}
+                                      contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
                                       responsavelId={responsavelIdParaCusto}
                                       mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                     />
                                   </div>
                                 </div>
                               );
-                            }
-
-                            // Calcular estatísticas para esta entidade
-                            const estatisticas = calcularEstatisticasPorEntidade(
-                              entidade.id,
-                              filtroPrincipal,
-                              registrosAgrupados
-                            );
-
-                            return (
-                              <div key={entidade.id} className="tempo-disponivel-card">
-                                <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
-                                  <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
-                                    {filtroPrincipal === 'responsavel' && (
-                                      <Avatar
-                                        key={`avatar-card-${entidade.id}-${entidade.fotoPerfil || 'no-photo'}`}
-                                        avatarId={entidade.fotoPerfil || null}
-                                        nomeUsuario={entidade.nome}
-                                        size="tiny"
-                                        customImagePath={entidade.fotoPerfilPath || null}
-                                      />
-                                    )}
-                                    <span className="tempo-disponivel-card-nome">{entidade.nome}</span>
-                                    {filtroPrincipal === 'responsavel' && (() => {
-                                      const tipoContratoId = tipoContratoPorResponsavel[String(entidade.id)];
-                                      const nomeTipoContrato = tipoContratoId ? tiposContratoMap[String(tipoContratoId)] : null;
-                                      return nomeTipoContrato ? (
-                                        <span className="painel-usuario-estimado-pill" style={{ marginLeft: '8px' }}>
-                                          {nomeTipoContrato}
-                                        </span>
-                                      ) : null;
-                                    })()}
-                                  </div>
-                                </div>
-                                <div className="tempo-disponivel-card-content">
-
-                                  {/* Cards informativos */}
-                                  <div className="tempo-disponivel-card-stats">
-                                    {filtroPrincipal === 'responsavel' && (
-                                      <>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-list"></i>
-                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-briefcase"></i>
-                                          <span>Clientes: {estatisticas.totalClientes}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-box"></i>
-                                          <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                      </>
-                                    )}
-                                    {filtroPrincipal === 'cliente' && (
-                                      <>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-list"></i>
-                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-box"></i>
-                                          <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-user-tie"></i>
-                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                      </>
-                                    )}
-                                    {filtroPrincipal === 'produto' && (
-                                      <>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-list"></i>
-                                          <span>Tarefas: {estatisticas.totalTarefas}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
-                                            title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-briefcase"></i>
-                                          <span>Clientes: {estatisticas.totalClientes}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-user-tie"></i>
-                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                      </>
-                                    )}
-                                    {filtroPrincipal === 'atividade' && (
-                                      <>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-box"></i>
-                                          <span>Produtos: {estatisticas.totalProdutos}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalProdutos === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalProdutos > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'produtos', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'produtos',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalProdutos > 0 ? "Ver detalhes de produtos" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-briefcase"></i>
-                                          <span>Clientes: {estatisticas.totalClientes}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalClientes === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalClientes > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'clientes', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'clientes',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalClientes > 0 ? "Ver detalhes de clientes" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                        <div className="tempo-disponivel-stat-item">
-                                          <i className="fas fa-user-tie"></i>
-                                          <span>Responsáveis: {estatisticas.totalResponsaveis}</span>
-                                          <span
-                                            className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
-                                            onClick={estatisticas.totalResponsaveis > 0 ? (e) => {
-                                              e.stopPropagation();
-                                              const elemento = e.currentTarget.closest('.tempo-disponivel-stat-item');
-                                              const rect = elemento.getBoundingClientRect();
-                                              const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                                              const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-                                              const documentLeft = rect.left + scrollLeft;
-                                              const documentTop = rect.top + scrollTop;
-                                              setDetailCardPosition({
-                                                left: documentLeft + rect.width + 20,
-                                                top: documentTop
-                                              });
-                                              const detalhes = buscarDetalhesPorTipo(entidade.id, filtroPrincipal, 'responsaveis', registrosAgrupados);
-                                              if (detalhes && detalhes.length > 0) {
-                                                setDetailCard({
-                                                  entidadeId: entidade.id,
-                                                  tipo: 'responsaveis',
-                                                  dados: { registros: detalhes }
-                                                });
-                                              }
-                                            } : undefined}
-                                            title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
-                                          >
-                                            &gt;
-                                          </span>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                  <BarraProgressoTempo
-                                    disponivel={tempoInfo.disponivel}
-                                    estimado={tempoInfo.estimado}
-                                    realizado={tempoInfo.realizado}
-                                    pendente={tempoInfo.pendente}
-                                    sobrando={tempoInfo.sobrando}
-                                    contratado={tempoInfo.contratado !== undefined ? tempoInfo.contratado : null}
-                                    responsavelId={responsavelIdParaCusto}
-                                    mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                          {temMaisDashboards && (
-                            <div
-                              className="tempo-disponivel-expand-bar"
-                              onClick={() => setDashboardsExpandidos(!dashboardsExpandidos)}
-                              style={{
-                                gridColumn: '1 / -1',
-                                cursor: 'pointer',
-                                marginTop: '8px'
-                              }}
-                            >
-                              <span className="tempo-disponivel-expand-text">
-                                {dashboardsExpandidos ? 'Ver menos' : `Ver mais (${todosOrdenados.length - 4} restantes)`}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
-              {false && (() => {
-                // Se há filtro principal, agrupar por ele
-                if (filtroPrincipal) {
-                  const agrupados = {};
-
-                  registrosAgrupados.forEach(agrupamento => {
-                    const primeiroRegistro = agrupamento.primeiroRegistro;
-                    let chaveAgrupamento = null;
-                    let nomeAgrupamento = null;
-
-                    if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
-                      chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
-                      nomeAgrupamento = getNomeProduto(primeiroRegistro.produto_id);
-                    } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
-                      chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
-                      nomeAgrupamento = getNomeTarefa(primeiroRegistro.tarefa_id);
-                    } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-                      chaveAgrupamento = `cliente_${primeiroRegistro.cliente_id}`;
-                      nomeAgrupamento = getNomeCliente(primeiroRegistro.cliente_id);
-                    } else if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
-                      chaveAgrupamento = `responsavel_${primeiroRegistro.responsavel_id}`;
-                      nomeAgrupamento = getNomeColaborador(primeiroRegistro.responsavel_id);
-                    }
-
-                    if (chaveAgrupamento) {
-                      if (!agrupados[chaveAgrupamento]) {
-                        agrupados[chaveAgrupamento] = {
-                          nome: nomeAgrupamento,
-                          tipo: filtroPrincipal,
-                          agrupamentos: [],
-                          fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null
-                          // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
-                        };
-                      }
-                      agrupados[chaveAgrupamento].agrupamentos.push(agrupamento);
-                    }
-                  });
-
-                  // Renderizar grupos expansíveis
-                  return Object.entries(agrupados).map(([chaveAgrupamento, grupo], index) => {
-                    const grupoKey = chaveAgrupamento;
-                    const isExpanded = gruposExpandidos.has(grupoKey);
-                    const totalItens = grupo.agrupamentos.length;
-                    const tempoEstimadoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
-                    // Tempo realizado sempre 0 (lógica removida)
-                    const tempoRealizadoTotal = 0;
-                    const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
-                    const tempoRealizadoFormatado = '0s';
-
-                    return (
-                      <div key={chaveAgrupamento} className="atribuicoes-group">
-                        <div
-                          className={`atribuicoes-group-header ${isExpanded ? 'expanded' : ''}`}
-                          onClick={() => toggleGrupo(grupoKey)}
-                        >
-                          <div className="atribuicoes-group-header-left">
-                            <i
-                              className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleGrupo(grupoKey);
-                              }}
-                              style={{ cursor: 'pointer' }}
-                            ></i>
-                            <span className={`atribuicoes-group-badge ${['produto', 'atividade', 'cliente', 'responsavel'].includes(grupo.tipo) ? 'atribuicoes-group-badge-orange' : ''}`}>
-                              {grupo.tipo === 'atividade' ? 'TAREFAS AGRUPADAS' : grupo.tipo.toUpperCase()}
-                            </span>
-                            <h3 className="atribuicoes-group-title">
-                              {grupo.tipo === 'responsavel' && grupo.fotoPerfil ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <Avatar
-                                    key={`avatar-group-${chaveAgrupamento}-${grupo.fotoPerfil}`}
-                                    avatarId={grupo.fotoPerfil}
-                                    nomeUsuario={grupo.nome}
-                                    size="tiny"
-                                    customImagePath={grupo.fotoPerfilPath || null}
-                                  />
-                                  <span>{grupo.nome}</span>
-                                </div>
-                              ) : (
-                                grupo.nome
-                              )}
-                            </h3>
-                            <div className="atribuicoes-group-header-info">
-                              {tempoEstimadoTotal > 0 && (
-                                <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-total" title={`Estimado: ${(tempoEstimadoTotal / 3600000).toFixed(2)}h`}>
-                                  <i className="fas fa-clock"></i>
-                                  <span>Estimado: {tempoEstimadoFormatado}</span>
+                            })}
+                            {temMaisDashboards && (
+                              <div
+                                className="tempo-disponivel-expand-bar"
+                                onClick={() => setDashboardsExpandidos(!dashboardsExpandidos)}
+                                style={{
+                                  gridColumn: '1 / -1',
+                                  cursor: 'pointer',
+                                  marginTop: '8px'
+                                }}
+                              >
+                                <span className="tempo-disponivel-expand-text">
+                                  {dashboardsExpandidos ? 'Ver menos' : `Ver mais (${todosOrdenados.length - 4} restantes)`}
                                 </span>
-                              )}
-                              <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-realizado" title="Realizado: 0h">
-                                <i className="fas fa-stopwatch"></i>
-                                <span>Realizado: 0s</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
+                {false && (() => {
+                  // Se há filtro principal, agrupar por ele
+                  if (filtroPrincipal) {
+                    const agrupados = {};
+
+                    registrosAgrupados.forEach(agrupamento => {
+                      const primeiroRegistro = agrupamento.primeiroRegistro;
+                      let chaveAgrupamento = null;
+                      let nomeAgrupamento = null;
+
+                      if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
+                        chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
+                        nomeAgrupamento = getNomeProduto(primeiroRegistro.produto_id);
+                      } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+                        chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
+                        nomeAgrupamento = getNomeTarefa(primeiroRegistro.tarefa_id);
+                      } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
+                        chaveAgrupamento = `cliente_${primeiroRegistro.cliente_id}`;
+                        nomeAgrupamento = getNomeCliente(primeiroRegistro.cliente_id);
+                      } else if (filtroPrincipal === 'responsavel' && primeiroRegistro.responsavel_id) {
+                        chaveAgrupamento = `responsavel_${primeiroRegistro.responsavel_id}`;
+                        nomeAgrupamento = getNomeColaborador(primeiroRegistro.responsavel_id);
+                      }
+
+                      if (chaveAgrupamento) {
+                        if (!agrupados[chaveAgrupamento]) {
+                          agrupados[chaveAgrupamento] = {
+                            nome: nomeAgrupamento,
+                            tipo: filtroPrincipal,
+                            agrupamentos: [],
+                            fotoPerfil: filtroPrincipal === 'responsavel' ? primeiroRegistro.responsavel_foto_perfil : null
+                            // foto_perfil_path removido - Avatar resolve via Supabase Storage automaticamente
+                          };
+                        }
+                        agrupados[chaveAgrupamento].agrupamentos.push(agrupamento);
+                      }
+                    });
+
+                    // Renderizar grupos expansíveis
+                    return Object.entries(agrupados).map(([chaveAgrupamento, grupo], index) => {
+                      const grupoKey = chaveAgrupamento;
+                      const isExpanded = gruposExpandidos.has(grupoKey);
+                      const totalItens = grupo.agrupamentos.length;
+                      const tempoEstimadoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
+                      // Tempo realizado sempre 0 (lógica removida)
+                      const tempoRealizadoTotal = 0;
+                      const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
+                      const tempoRealizadoFormatado = '0s';
+
+                      return (
+                        <div key={chaveAgrupamento} className="atribuicoes-group">
+                          <div
+                            className={`atribuicoes-group-header ${isExpanded ? 'expanded' : ''}`}
+                            onClick={() => toggleGrupo(grupoKey)}
+                          >
+                            <div className="atribuicoes-group-header-left">
+                              <i
+                                className={`fas fa-chevron-${isExpanded ? 'down' : 'right'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleGrupo(grupoKey);
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              ></i>
+                              <span className={`atribuicoes-group-badge ${['produto', 'atividade', 'cliente', 'responsavel'].includes(grupo.tipo) ? 'atribuicoes-group-badge-orange' : ''}`}>
+                                {grupo.tipo === 'atividade' ? 'TAREFAS AGRUPADAS' : grupo.tipo.toUpperCase()}
                               </span>
-                              <span className="atribuicoes-group-count">
-                                <i className="fas fa-tasks"></i>
-                                <span>{totalItens} {totalItens === 1 ? 'tarefa' : 'tarefas'}</span>
-                              </span>
+                              <h3 className="atribuicoes-group-title">
+                                {grupo.tipo === 'responsavel' && grupo.fotoPerfil ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Avatar
+                                      key={`avatar-group-${chaveAgrupamento}-${grupo.fotoPerfil}`}
+                                      avatarId={grupo.fotoPerfil}
+                                      nomeUsuario={grupo.nome}
+                                      size="tiny"
+                                      customImagePath={grupo.fotoPerfilPath || null}
+                                    />
+                                    <span>{grupo.nome}</span>
+                                  </div>
+                                ) : (
+                                  grupo.nome
+                                )}
+                              </h3>
+                              <div className="atribuicoes-group-header-info">
+                                {tempoEstimadoTotal > 0 && (
+                                  <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-total" title={`Estimado: ${(tempoEstimadoTotal / 3600000).toFixed(2)}h`}>
+                                    <i className="fas fa-clock"></i>
+                                    <span>Estimado: {tempoEstimadoFormatado}</span>
+                                  </span>
+                                )}
+                                <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-realizado" title="Realizado: 0h">
+                                  <i className="fas fa-stopwatch"></i>
+                                  <span>Realizado: 0s</span>
+                                </span>
+                                <span className="atribuicoes-group-count">
+                                  <i className="fas fa-tasks"></i>
+                                  <span>{totalItens} {totalItens === 1 ? 'tarefa' : 'tarefas'}</span>
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {isExpanded && (
-                          <div className="atribuicoes-group-content">
-                            <table className="atribuicoes-table">
-                              <thead>
-                                <tr>
-                                  {filtroPrincipal === 'atividade' && <th></th>}
-                                  {filtroPrincipal !== 'atividade' && <th>Tarefas Agrupadas</th>}
-                                  {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
-                                  {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
-                                  {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                  <th>Tempo Estimado / Realizado</th>
-                                  <th>Período</th>
-                                  <th className="atribuicoes-table-actions">Ações</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {grupo.agrupamentos.map((agrupamento) => {
-                                  const primeiroRegistro = agrupamento.primeiroRegistro;
-                                  const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
-                                  const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
-                                  const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
-                                  // Tempo realizado sempre 0 (lógica removida)
-                                  const tempoRealizadoTotal = 0;
-                                  const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
+                          {isExpanded && (
+                            <div className="atribuicoes-group-content">
+                              <table className="atribuicoes-table">
+                                <thead>
+                                  <tr>
+                                    {filtroPrincipal === 'atividade' && <th></th>}
+                                    {filtroPrincipal !== 'atividade' && <th>Tarefas Agrupadas</th>}
+                                    {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
+                                    {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                    {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                    <th>Tempo Estimado / Realizado</th>
+                                    <th>Período</th>
+                                    <th className="atribuicoes-table-actions">Ações</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {grupo.agrupamentos.map((agrupamento) => {
+                                    const primeiroRegistro = agrupamento.primeiroRegistro;
+                                    const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
+                                    const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
+                                    const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
+                                    // Tempo realizado sempre 0 (lógica removida)
+                                    const tempoRealizadoTotal = 0;
+                                    const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
 
-                                  // Tempo realizado sempre 0 (lógica removida)
-                                  const tempoRealizadoPorTarefa = {};
-                                  tarefasUnicas.forEach(tarefaId => {
-                                    tempoRealizadoPorTarefa[tarefaId] = 0;
-                                  });
+                                    // Tempo realizado sempre 0 (lógica removida)
+                                    const tempoRealizadoPorTarefa = {};
+                                    tarefasUnicas.forEach(tarefaId => {
+                                      tempoRealizadoPorTarefa[tarefaId] = 0;
+                                    });
 
-                                  return (
-                                    <React.Fragment key={agrupamento.agrupador_id}>
-                                      <tr>
-                                        {filtroPrincipal === 'atividade' && (
-                                          <td>
-                                            <button
-                                              type="button"
-                                              className="atribuicoes-expand-tarefas-btn"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleAgrupamentoTarefas(agrupamento.agrupador_id);
-                                              }}
-                                              title={isAgrupamentoTarefasExpanded ? "Ocultar tarefas" : "Ver tarefas"}
-                                            >
-                                              <i className={`fas fa-chevron-${isAgrupamentoTarefasExpanded ? 'down' : 'right'}`}></i>
-                                            </button>
-                                          </td>
-                                        )}
-                                        {filtroPrincipal !== 'atividade' && (
-                                          <td style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                                            {tarefasUnicas.map((tarefaId, idx) => {
-                                              const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
-                                              const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                                              const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
-                                              return (
-                                                <button
-                                                  key={tarefaId}
-                                                  type="button"
-                                                  className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleTarefa(agrupamento.agrupador_id, tarefaId);
-                                                  }}
-                                                  title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
-                                                  style={{
-                                                    margin: '2px 4px 2px 0',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    whiteSpace: 'nowrap'
-                                                  }}
-                                                >
-                                                  {getNomeTarefa(tarefaId)}
-                                                  <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px', flexShrink: 0 }}></i>
-                                                </button>
-                                              );
-                                            })}
-                                          </td>
-                                        )}
-                                        {filtroPrincipal !== 'produto' && (
-                                          <td className="atribuicoes-col-produto">
-                                            {produtosUnicos.map((produtoId, idx) => (
-                                              <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
-                                                {getNomeProduto(produtoId)}
+                                    return (
+                                      <React.Fragment key={agrupamento.agrupador_id}>
+                                        <tr>
+                                          {filtroPrincipal === 'atividade' && (
+                                            <td>
+                                              <button
+                                                type="button"
+                                                className="atribuicoes-expand-tarefas-btn"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  toggleAgrupamentoTarefas(agrupamento.agrupador_id);
+                                                }}
+                                                title={isAgrupamentoTarefasExpanded ? "Ocultar tarefas" : "Ver tarefas"}
+                                              >
+                                                <i className={`fas fa-chevron-${isAgrupamentoTarefasExpanded ? 'down' : 'right'}`}></i>
+                                              </button>
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'atividade' && (
+                                            <td style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                                              {tarefasUnicas.map((tarefaId, idx) => {
+                                                const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                                const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
+                                                const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
+                                                return (
+                                                  <button
+                                                    key={tarefaId}
+                                                    type="button"
+                                                    className={`atribuicoes-tag atribuicoes-tag-clickable ${isTarefaExpanded ? 'active' : ''}`}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      toggleTarefa(agrupamento.agrupador_id, tarefaId);
+                                                    }}
+                                                    title={isTarefaExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                                                    style={{
+                                                      margin: '2px 4px 2px 0',
+                                                      display: 'inline-flex',
+                                                      alignItems: 'center',
+                                                      whiteSpace: 'nowrap'
+                                                    }}
+                                                  >
+                                                    {getNomeTarefa(tarefaId)}
+                                                    <i className={`fas fa-chevron-${isTarefaExpanded ? 'down' : 'right'}`} style={{ marginLeft: '6px', fontSize: '10px', flexShrink: 0 }}></i>
+                                                  </button>
+                                                );
+                                              })}
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'produto' && (
+                                            <td className="atribuicoes-col-produto">
+                                              {produtosUnicos.map((produtoId, idx) => (
+                                                <span key={produtoId} className="atribuicoes-tag atribuicoes-tag-produto">
+                                                  {getNomeProduto(produtoId)}
+                                                </span>
+                                              ))}
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'cliente' && (
+                                            <td>
+                                              <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                {getNomeCliente(primeiroRegistro.cliente_id)}
                                               </span>
-                                            ))}
-                                          </td>
-                                        )}
-                                        {filtroPrincipal !== 'cliente' && (
-                                          <td>
-                                            <span className="atribuicoes-tag atribuicoes-tag-cliente">
-                                              {getNomeCliente(primeiroRegistro.cliente_id)}
-                                            </span>
-                                          </td>
-                                        )}
-                                        {filtroPrincipal !== 'responsavel' && (
-                                          <td className="atribuicoes-col-responsavel">
-                                            <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                              <Avatar
-                                                key={`avatar-${primeiroRegistro.responsavel_id}-${primeiroRegistro.responsavel_foto_perfil}`}
-                                                avatarId={primeiroRegistro.responsavel_foto_perfil}
-                                                nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
-                                                size="tiny"
-                                              />
-                                              <div className="responsavel-tooltip">
-                                                {getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                            </td>
+                                          )}
+                                          {filtroPrincipal !== 'responsavel' && (
+                                            <td className="atribuicoes-col-responsavel">
+                                              <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                <Avatar
+                                                  key={`avatar-${primeiroRegistro.responsavel_id}-${primeiroRegistro.responsavel_foto_perfil}`}
+                                                  avatarId={primeiroRegistro.responsavel_foto_perfil}
+                                                  nomeUsuario={getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                                  size="tiny"
+                                                />
+                                                <div className="responsavel-tooltip">
+                                                  {getNomeColaborador(primeiroRegistro.responsavel_id)}
+                                                </div>
                                               </div>
+                                            </td>
+                                          )}
+                                          <td>
+                                            <div className="atribuicoes-tempo">
+                                              {(() => {
+                                                const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
+                                                // Tempo realizado sempre 0 (lógica removida)
+                                                const tempoRealizadoFormatado = '0s';
+                                                const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
+                                                const custoRealizado = null;
+
+                                                return (
+                                                  <>
+                                                    {/* Card Estimado */}
+                                                    <div className="atribuicoes-tempo-card atribuicoes-tempo-card-estimado">
+                                                      <div className="atribuicoes-tempo-label atribuicoes-tempo-label-estimado">
+                                                        <i className="fas fa-clock"></i>
+                                                        <span>Estimado</span>
+                                                      </div>
+                                                      <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-estimado">
+                                                        {tempoEstimadoFormatado}
+                                                      </div>
+                                                      {custoEstimado !== null && (
+                                                        <div className="atribuicoes-tempo-custo atribuicoes-tempo-custo-estimado">
+                                                          {formatarValorMonetario(custoEstimado)}
+                                                        </div>
+                                                      )}
+                                                    </div>
+
+                                                    {/* Card Realizado */}
+                                                    <div className="atribuicoes-tempo-card atribuicoes-tempo-card-realizado-empty">
+                                                      <div className="atribuicoes-tempo-label atribuicoes-tempo-label-realizado-empty">
+                                                        <i className="fas fa-stopwatch"></i>
+                                                        <span>Realizado</span>
+                                                      </div>
+                                                      <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-realizado-empty">
+                                                        0s
+                                                      </div>
+                                                    </div>
+                                                  </>
+                                                );
+                                              })()}
                                             </div>
                                           </td>
-                                        )}
-                                        <td>
-                                          <div className="atribuicoes-tempo">
-                                            {(() => {
-                                              const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
-                                              // Tempo realizado sempre 0 (lógica removida)
-                                              const tempoRealizadoFormatado = '0s';
-                                              const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
-                                              const custoRealizado = null;
-
-                                              return (
-                                                <>
-                                                  {/* Card Estimado */}
-                                                  <div className="atribuicoes-tempo-card atribuicoes-tempo-card-estimado">
-                                                    <div className="atribuicoes-tempo-label atribuicoes-tempo-label-estimado">
-                                                      <i className="fas fa-clock"></i>
-                                                      <span>Estimado</span>
-                                                    </div>
-                                                    <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-estimado">
-                                                      {tempoEstimadoFormatado}
-                                                    </div>
-                                                    {custoEstimado !== null && (
-                                                      <div className="atribuicoes-tempo-custo atribuicoes-tempo-custo-estimado">
-                                                        {formatarValorMonetario(custoEstimado)}
-                                                      </div>
-                                                    )}
-                                                  </div>
-
-                                                  {/* Card Realizado */}
-                                                  <div className="atribuicoes-tempo-card atribuicoes-tempo-card-realizado-empty">
-                                                    <div className="atribuicoes-tempo-label atribuicoes-tempo-label-realizado-empty">
-                                                      <i className="fas fa-stopwatch"></i>
-                                                      <span>Realizado</span>
-                                                    </div>
-                                                    <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-realizado-empty">
-                                                      0s
-                                                    </div>
-                                                  </div>
-                                                </>
-                                              );
-                                            })()}
-                                          </div>
-                                        </td>
-                                        <td>
-                                          <span className="atribuicoes-periodo">
-                                            <i className="fas fa-calendar-alt"></i>
-                                            <span>{formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}</span>
-                                          </span>
-                                        </td>
-                                        <td className="atribuicoes-table-actions">
-                                          <div className="atribuicoes-row-actions">
-                                            <EditButton
-                                              onClick={() => handleEditAtribuicao(agrupamento)}
-                                              title="Editar atribuição"
-                                            />
-                                            <DeleteButton
-                                              onClick={() => {
-                                                setAgrupamentoParaDeletar(agrupamento);
-                                                setShowDeleteConfirmModal(true);
-                                              }}
-                                              title="Excluir atribuição"
-                                            />
-                                          </div>
-                                        </td>
-                                      </tr>
-                                      {/* Tarefas expandidas quando filtro pai é "atividade" */}
-                                      {filtroPrincipal === 'atividade' && isAgrupamentoTarefasExpanded && (
-                                        <tr className="atribuicoes-tarefa-detalhes">
-                                          <td colSpan={7} className="atribuicoes-tarefa-detalhes-cell">
-                                            <div className="atribuicoes-tarefa-detalhes-content">
-                                              <div className="atribuicoes-tarefa-detalhes-header">
-                                                <h4>Tarefas</h4>
-                                                <span className="atribuicoes-tarefa-detalhes-count">
-                                                  {tarefasUnicas.length} tarefa(s)
-                                                </span>
-                                              </div>
-                                              <div className="atribuicoes-tarefas-list">
-                                                {tarefasUnicas.map((tarefaId) => {
-                                                  const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
-                                                  const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
-
-                                                  return (
-                                                    <div key={tarefaId} className="atribuicoes-tarefa-item">
-                                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <div className="atribuicoes-tarefa-nome" style={{ fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
-                                                          {getNomeTarefa(tarefaId)}
-                                                        </div>
-                                                        <span style={{
-                                                          fontSize: '11px',
-                                                          color: '#9ca3af',
-                                                          fontWeight: 600,
-                                                          padding: '4px 8px',
-                                                          background: '#f3f4f6',
-                                                          borderRadius: '4px',
-                                                          display: 'flex',
-                                                          alignItems: 'center',
-                                                          gap: '4px'
-                                                        }}>
-                                                          <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
-                                                          Realizado: 0s
-                                                        </span>
-                                                      </div>
-                                                      <table className="atribuicoes-detalhes-table">
-                                                        <thead>
-                                                          <tr>
-                                                            <th>Data</th>
-                                                            {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
-                                                            {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
-                                                            {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                                            <th>Tempo Estimado / Realizado</th>
-                                                          </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                          {registrosTarefa
-                                                            .sort((a, b) => {
-                                                              const aNoPeriodo = dataEstaNoPeriodo(a.data);
-                                                              const bNoPeriodo = dataEstaNoPeriodo(b.data);
-                                                              // Ordenar: primeiro os que estão no período (true vem antes de false)
-                                                              if (aNoPeriodo && !bNoPeriodo) return -1;
-                                                              if (!aNoPeriodo && bNoPeriodo) return 1;
-                                                              return 0;
-                                                            })
-                                                            .map((registro, regIdx) => {
-                                                              const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
-                                                              return (
-                                                                <tr
-                                                                  key={`reg_${registro.id || regIdx}`}
-                                                                  style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
-                                                                >
-                                                                  <td>{formatarData(registro.data)}</td>
-                                                                  {filtroPrincipal !== 'produto' && (
-                                                                    <td>
-                                                                      <span className="atribuicoes-tag atribuicoes-tag-produto">
-                                                                        {getNomeProduto(registro.produto_id)}
-                                                                      </span>
-                                                                    </td>
-                                                                  )}
-                                                                  {filtroPrincipal !== 'cliente' && (
-                                                                    <td>
-                                                                      <span className="atribuicoes-tag atribuicoes-tag-cliente">
-                                                                        {getNomeCliente(registro.cliente_id)}
-                                                                      </span>
-                                                                    </td>
-                                                                  )}
-                                                                  {filtroPrincipal !== 'responsavel' && (
-                                                                    <td className="atribuicoes-col-responsavel">
-                                                                      <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                                                        <Avatar
-                                                                          key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
-                                                                          avatarId={registro.responsavel_foto_perfil}
-                                                                          nomeUsuario={getNomeColaborador(registro.responsavel_id)}
-                                                                          size="tiny"
-                                                                        />
-                                                                        <div className="responsavel-tooltip">
-                                                                          {getNomeColaborador(registro.responsavel_id)}
-                                                                        </div>
-                                                                      </div>
-                                                                    </td>
-                                                                  )}
-                                                                  <td>
-                                                                    <span className="atribuicoes-tempo">
-                                                                      {formatarTempoEstimadoERealizado(registro, true)}
-                                                                    </span>
-                                                                  </td>
-                                                                </tr>
-                                                              );
-                                                            })}
-                                                        </tbody>
-                                                      </table>
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
+                                          <td>
+                                            <span className="atribuicoes-periodo">
+                                              <i className="fas fa-calendar-alt"></i>
+                                              <span>{formatarPeriodo(agrupamento.dataInicio, agrupamento.dataFim)}</span>
+                                            </span>
+                                          </td>
+                                          <td className="atribuicoes-table-actions">
+                                            <div className="atribuicoes-row-actions">
+                                              <EditButton
+                                                onClick={() => handleEditAtribuicao(agrupamento)}
+                                                title="Editar atribuição"
+                                              />
+                                              <DeleteButton
+                                                onClick={() => {
+                                                  setAgrupamentoParaDeletar(agrupamento);
+                                                  setShowDeleteConfirmModal(true);
+                                                }}
+                                                title="Excluir atribuição"
+                                              />
                                             </div>
                                           </td>
                                         </tr>
-                                      )}
-                                      {/* Detalhes das tarefas expandidas (quando filtro pai não é "atividade") */}
-                                      {filtroPrincipal !== 'atividade' && tarefasUnicas.map((tarefaId) => {
-                                        const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
-                                        if (!tarefasExpandidas.has(tarefaKey)) return null;
-
-                                        // Filtrar registros dessa tarefa específica
-                                        const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
-
-                                        // Tempo realizado sempre 0 (lógica removida)
-                                        const tempoRealizadoTarefaDetalhes = 0;
-
-                                        return (
-                                          <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
-                                            <td colSpan={7 - (filtroPrincipal === 'atividade' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
+                                        {/* Tarefas expandidas quando filtro pai é "atividade" */}
+                                        {filtroPrincipal === 'atividade' && isAgrupamentoTarefasExpanded && (
+                                          <tr className="atribuicoes-tarefa-detalhes">
+                                            <td colSpan={7} className="atribuicoes-tarefa-detalhes-cell">
                                               <div className="atribuicoes-tarefa-detalhes-content">
                                                 <div className="atribuicoes-tarefa-detalhes-header">
-                                                  <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
-                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <span style={{
-                                                      fontSize: '11px',
-                                                      color: '#9ca3af',
-                                                      fontWeight: 600,
-                                                      padding: '4px 8px',
-                                                      background: '#f3f4f6',
-                                                      borderRadius: '4px',
-                                                      display: 'flex',
-                                                      alignItems: 'center',
-                                                      gap: '4px'
-                                                    }}>
-                                                      <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
-                                                      Realizado: 0s
-                                                    </span>
-                                                    <span className="atribuicoes-tarefa-detalhes-count">
-                                                      {registrosTarefa.length} registro(s)
-                                                    </span>
-                                                  </div>
+                                                  <h4>Tarefas</h4>
+                                                  <span className="atribuicoes-tarefa-detalhes-count">
+                                                    {tarefasUnicas.length} tarefa(s)
+                                                  </span>
                                                 </div>
-                                                <table className="atribuicoes-detalhes-table">
-                                                  <thead>
-                                                    <tr>
-                                                      <th>Data</th>
-                                                      {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
-                                                      {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
-                                                      {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
-                                                      <th>Tempo Estimado / Realizado</th>
-                                                    </tr>
-                                                  </thead>
-                                                  <tbody>
-                                                    {registrosTarefa
-                                                      .sort((a, b) => {
-                                                        const aNoPeriodo = dataEstaNoPeriodo(a.data);
-                                                        const bNoPeriodo = dataEstaNoPeriodo(b.data);
-                                                        // Ordenar: primeiro os que estão no período (true vem antes de false)
-                                                        if (aNoPeriodo && !bNoPeriodo) return -1;
-                                                        if (!aNoPeriodo && bNoPeriodo) return 1;
-                                                        return 0;
-                                                      })
-                                                      .map((registro, regIdx) => {
-                                                        const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
-                                                        return (
-                                                          <tr
-                                                            key={`reg_${registro.id || regIdx}`}
-                                                            style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
-                                                          >
-                                                            <td>{formatarData(registro.data)}</td>
-                                                            {filtroPrincipal !== 'produto' && (
-                                                              <td>
-                                                                <span className="atribuicoes-tag atribuicoes-tag-produto">
-                                                                  {getNomeProduto(registro.produto_id)}
-                                                                </span>
-                                                              </td>
-                                                            )}
-                                                            {filtroPrincipal !== 'cliente' && (
-                                                              <td>
-                                                                <span className="atribuicoes-tag atribuicoes-tag-cliente">
-                                                                  {getNomeCliente(registro.cliente_id)}
-                                                                </span>
-                                                              </td>
-                                                            )}
-                                                            {filtroPrincipal !== 'responsavel' && (
-                                                              <td className="atribuicoes-col-responsavel">
-                                                                <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                                                                  <Avatar
-                                                                    key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
-                                                                    avatarId={registro.responsavel_foto_perfil}
-                                                                    nomeUsuario={getNomeColaborador(registro.responsavel_id)}
-                                                                    size="tiny"
-                                                                  />
-                                                                  <div className="responsavel-tooltip">
-                                                                    {getNomeColaborador(registro.responsavel_id)}
-                                                                  </div>
-                                                                </div>
-                                                              </td>
-                                                            )}
-                                                            <td>
-                                                              <span className="atribuicoes-tempo">
-                                                                {formatarTempoEstimadoERealizado(registro, true)}
-                                                              </span>
-                                                            </td>
-                                                          </tr>
-                                                        );
-                                                      })}
-                                                  </tbody>
-                                                </table>
+                                                <div className="atribuicoes-tarefas-list">
+                                                  {tarefasUnicas.map((tarefaId) => {
+                                                    const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+                                                    const tempoRealizadoTarefa = tempoRealizadoPorTarefa[tarefaId] || 0;
+
+                                                    return (
+                                                      <div key={tarefaId} className="atribuicoes-tarefa-item">
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                          <div className="atribuicoes-tarefa-nome" style={{ fontWeight: 600, color: '#0e3b6f', fontSize: '13px' }}>
+                                                            {getNomeTarefa(tarefaId)}
+                                                          </div>
+                                                          <span style={{
+                                                            fontSize: '11px',
+                                                            color: '#9ca3af',
+                                                            fontWeight: 600,
+                                                            padding: '4px 8px',
+                                                            background: '#f3f4f6',
+                                                            borderRadius: '4px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                          }}>
+                                                            <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
+                                                            Realizado: 0s
+                                                          </span>
+                                                        </div>
+                                                        <table className="atribuicoes-detalhes-table">
+                                                          <thead>
+                                                            <tr>
+                                                              <th>Data</th>
+                                                              {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
+                                                              {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                                              {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                                              <th>Tempo Estimado / Realizado</th>
+                                                            </tr>
+                                                          </thead>
+                                                          <tbody>
+                                                            {registrosTarefa
+                                                              .sort((a, b) => {
+                                                                const aNoPeriodo = dataEstaNoPeriodo(a.data);
+                                                                const bNoPeriodo = dataEstaNoPeriodo(b.data);
+                                                                // Ordenar: primeiro os que estão no período (true vem antes de false)
+                                                                if (aNoPeriodo && !bNoPeriodo) return -1;
+                                                                if (!aNoPeriodo && bNoPeriodo) return 1;
+                                                                return 0;
+                                                              })
+                                                              .map((registro, regIdx) => {
+                                                                const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
+                                                                return (
+                                                                  <tr
+                                                                    key={`reg_${registro.id || regIdx}`}
+                                                                    style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
+                                                                  >
+                                                                    <td>{formatarData(registro.data)}</td>
+                                                                    {filtroPrincipal !== 'produto' && (
+                                                                      <td>
+                                                                        <span className="atribuicoes-tag atribuicoes-tag-produto">
+                                                                          {getNomeProduto(registro.produto_id)}
+                                                                        </span>
+                                                                      </td>
+                                                                    )}
+                                                                    {filtroPrincipal !== 'cliente' && (
+                                                                      <td>
+                                                                        <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                                          {getNomeCliente(registro.cliente_id)}
+                                                                        </span>
+                                                                      </td>
+                                                                    )}
+                                                                    {filtroPrincipal !== 'responsavel' && (
+                                                                      <td className="atribuicoes-col-responsavel">
+                                                                        <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                                          <Avatar
+                                                                            key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
+                                                                            avatarId={registro.responsavel_foto_perfil}
+                                                                            nomeUsuario={getNomeColaborador(registro.responsavel_id)}
+                                                                            size="tiny"
+                                                                          />
+                                                                          <div className="responsavel-tooltip">
+                                                                            {getNomeColaborador(registro.responsavel_id)}
+                                                                          </div>
+                                                                        </div>
+                                                                      </td>
+                                                                    )}
+                                                                    <td>
+                                                                      <span className="atribuicoes-tempo">
+                                                                        {formatarTempoEstimadoERealizado(registro, true)}
+                                                                      </span>
+                                                                    </td>
+                                                                  </tr>
+                                                                );
+                                                              })}
+                                                          </tbody>
+                                                        </table>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
                                               </div>
                                             </td>
                                           </tr>
-                                        );
-                                      })}
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                                        )}
+                                        {/* Detalhes das tarefas expandidas (quando filtro pai não é "atividade") */}
+                                        {filtroPrincipal !== 'atividade' && tarefasUnicas.map((tarefaId) => {
+                                          const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
+                                          if (!tarefasExpandidas.has(tarefaKey)) return null;
+
+                                          // Filtrar registros dessa tarefa específica
+                                          const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
+
+                                          // Tempo realizado sempre 0 (lógica removida)
+                                          const tempoRealizadoTarefaDetalhes = 0;
+
+                                          return (
+                                            <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
+                                              <td colSpan={7 - (filtroPrincipal === 'atividade' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
+                                                <div className="atribuicoes-tarefa-detalhes-content">
+                                                  <div className="atribuicoes-tarefa-detalhes-header">
+                                                    <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                      <span style={{
+                                                        fontSize: '11px',
+                                                        color: '#9ca3af',
+                                                        fontWeight: 600,
+                                                        padding: '4px 8px',
+                                                        background: '#f3f4f6',
+                                                        borderRadius: '4px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                      }}>
+                                                        <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
+                                                        Realizado: 0s
+                                                      </span>
+                                                      <span className="atribuicoes-tarefa-detalhes-count">
+                                                        {registrosTarefa.length} registro(s)
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                  <table className="atribuicoes-detalhes-table">
+                                                    <thead>
+                                                      <tr>
+                                                        <th>Data</th>
+                                                        {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
+                                                        {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
+                                                        {filtroPrincipal !== 'responsavel' && <th className="atribuicoes-col-responsavel">Responsável</th>}
+                                                        <th>Tempo Estimado / Realizado</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {registrosTarefa
+                                                        .sort((a, b) => {
+                                                          const aNoPeriodo = dataEstaNoPeriodo(a.data);
+                                                          const bNoPeriodo = dataEstaNoPeriodo(b.data);
+                                                          // Ordenar: primeiro os que estão no período (true vem antes de false)
+                                                          if (aNoPeriodo && !bNoPeriodo) return -1;
+                                                          if (!aNoPeriodo && bNoPeriodo) return 1;
+                                                          return 0;
+                                                        })
+                                                        .map((registro, regIdx) => {
+                                                          const estaNoPeriodo = dataEstaNoPeriodo(registro.data);
+                                                          return (
+                                                            <tr
+                                                              key={`reg_${registro.id || regIdx}`}
+                                                              style={!estaNoPeriodo ? { opacity: 0.3, color: '#9ca3af' } : {}}
+                                                            >
+                                                              <td>{formatarData(registro.data)}</td>
+                                                              {filtroPrincipal !== 'produto' && (
+                                                                <td>
+                                                                  <span className="atribuicoes-tag atribuicoes-tag-produto">
+                                                                    {getNomeProduto(registro.produto_id)}
+                                                                  </span>
+                                                                </td>
+                                                              )}
+                                                              {filtroPrincipal !== 'cliente' && (
+                                                                <td>
+                                                                  <span className="atribuicoes-tag atribuicoes-tag-cliente">
+                                                                    {getNomeCliente(registro.cliente_id)}
+                                                                  </span>
+                                                                </td>
+                                                              )}
+                                                              {filtroPrincipal !== 'responsavel' && (
+                                                                <td className="atribuicoes-col-responsavel">
+                                                                  <div className="responsavel-avatar-wrapper has-tooltip" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                                    <Avatar
+                                                                      key={`avatar-${registro.responsavel_id}-${registro.id}-${registro.responsavel_foto_perfil}`}
+                                                                      avatarId={registro.responsavel_foto_perfil}
+                                                                      nomeUsuario={getNomeColaborador(registro.responsavel_id)}
+                                                                      size="tiny"
+                                                                    />
+                                                                    <div className="responsavel-tooltip">
+                                                                      {getNomeColaborador(registro.responsavel_id)}
+                                                                    </div>
+                                                                  </div>
+                                                                </td>
+                                                              )}
+                                                              <td>
+                                                                <span className="atribuicoes-tempo">
+                                                                  {formatarTempoEstimadoERealizado(registro, true)}
+                                                                </span>
+                                                              </td>
+                                                            </tr>
+                                                          );
+                                                        })}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  } else {
+                    // Sem filtro principal, exibir lista simples
+                    return (
+                      <div className="atribuicoes-group">
+                        <AtribuicoesTabela
+                          registrosAgrupados={registrosAgrupados}
+                          periodoInicio={periodoInicio}
+                          periodoFim={periodoFim}
+                          tarefasExpandidas={tarefasExpandidas}
+                          toggleTarefa={toggleTarefa}
+                          getNomeTarefa={getNomeTarefa}
+                          getNomeProduto={getNomeProduto}
+                          getNomeCliente={getNomeCliente}
+                          getNomeColaborador={getNomeColaborador}
+                          formatarTempoComCusto={formatarTempoComCusto}
+                          formatarPeriodo={formatarPeriodo}
+                          handleEditAtribuicao={handleEditAtribuicao}
+                          setAgrupamentoParaDeletar={setAgrupamentoParaDeletar}
+                          setShowDeleteConfirmModal={setShowDeleteConfirmModal}
+                        />
                       </div>
                     );
-                  });
-                } else {
-                  // Sem filtro principal, exibir lista simples
-                  return (
-                    <div className="atribuicoes-group">
-                      <AtribuicoesTabela
-                        registrosAgrupados={registrosAgrupados}
-                        periodoInicio={periodoInicio}
-                        periodoFim={periodoFim}
-                        tarefasExpandidas={tarefasExpandidas}
-                        toggleTarefa={toggleTarefa}
-                        getNomeTarefa={getNomeTarefa}
-                        getNomeProduto={getNomeProduto}
-                        getNomeCliente={getNomeCliente}
-                        getNomeColaborador={getNomeColaborador}
-                        formatarTempoComCusto={formatarTempoComCusto}
-                        formatarPeriodo={formatarPeriodo}
-                        handleEditAtribuicao={handleEditAtribuicao}
-                        setAgrupamentoParaDeletar={setAgrupamentoParaDeletar}
-                        setShowDeleteConfirmModal={setShowDeleteConfirmModal}
-                      />
-                    </div>
-                  );
-                }
-              })()}
-              {/* FIM DA LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
-            </div>
-          )}
+                  }
+                })()}
+                {/* FIM DA LISTA DE ATRIBUIÇÕES - DESATIVADA TEMPORARIAMENTE */}
+              </div>
+            )}
 
-        </div>
-      </main>
-    </div>
+          </div>
+        </main>
+      </div>
 
-    {/* Modal de confirmação para exclusão */}
-    <ConfirmModal
-      isOpen={showDeleteConfirmModal}
-      onClose={() => {
-        setShowDeleteConfirmModal(false);
-        setAgrupamentoParaDeletar(null);
-      }}
-      onConfirm={handleDelete}
-      title="Confirmar Exclusão"
-      message={
-        agrupamentoParaDeletar ? (
-          <>
-            <p>Tem certeza que deseja excluir esta atribuição?</p>
-            <p style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
-              <strong>Cliente:</strong> {getNomeCliente(agrupamentoParaDeletar.primeiroRegistro.cliente_id)}<br />
-              <strong>Colaborador:</strong> {getNomeColaborador(agrupamentoParaDeletar.primeiroRegistro.responsavel_id)}<br />
-              <strong>Período:</strong> {formatarPeriodo(agrupamentoParaDeletar.dataInicio, agrupamentoParaDeletar.dataFim)}<br />
-              <strong>Quantidade de dias:</strong> {agrupamentoParaDeletar.quantidade} dia(s)
-            </p>
-            <p className="warning-text" style={{ marginTop: '12px', color: '#dc2626', fontWeight: 500 }}>
-              Todos os {agrupamentoParaDeletar.quantidade} dia(s) desta atribuição serão removidos. Esta ação não pode ser desfeita.
-            </p>
-          </>
-        ) : null
-      }
-      confirmText="Excluir"
-      cancelText="Cancelar"
-      confirmButtonClass="btn-danger"
-      loading={deleteLoading}
-    />
-
-    {/* DetailSideCard */}
-    {detailCard && (
-      <DetailSideCard
-        entidadeId={detailCard.entidadeId}
-        tipo={detailCard.tipo}
-        dados={detailCard.dados}
-        onClose={handleCloseDetail}
-        position={detailCardPosition}
-        formatarTempoEstimado={formatarTempoEstimado}
-        formatarData={formatarData}
-        calcularCustoPorTempo={calcularCustoPorTempo}
-        formatarValorMonetario={formatarValorMonetario}
-        getNomeCliente={getNomeCliente}
-        periodoInicio={filtrosUltimosAplicados?.periodoInicio || periodoInicio}
-        periodoFim={filtrosUltimosAplicados?.periodoFim || periodoFim}
-        filtrosAdicionais={{
-          cliente_id: filtroAdicionalCliente || null,
-          tarefa_id: filtroAdicionalTarefa || null,
-          produto_id: filtroAdicionalProduto || null,
-          responsavel_id: (filtroPrincipal !== 'responsavel' && filtroResponsavelSelecionado) ? filtroResponsavelSelecionado : (filtroPrincipal === 'responsavel' && detailCard?.entidadeId) ? detailCard.entidadeId : null
+      {/* Modal de confirmação para exclusão */}
+      <ConfirmModal
+        isOpen={showDeleteConfirmModal}
+        onClose={() => {
+          setShowDeleteConfirmModal(false);
+          setAgrupamentoParaDeletar(null);
         }}
+        onConfirm={handleDelete}
+        title="Confirmar Exclusão"
+        message={
+          agrupamentoParaDeletar ? (
+            <>
+              <p>Tem certeza que deseja excluir esta atribuição?</p>
+              <p style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>
+                <strong>Cliente:</strong> {getNomeCliente(agrupamentoParaDeletar.primeiroRegistro.cliente_id)}<br />
+                <strong>Colaborador:</strong> {getNomeColaborador(agrupamentoParaDeletar.primeiroRegistro.responsavel_id)}<br />
+                <strong>Período:</strong> {formatarPeriodo(agrupamentoParaDeletar.dataInicio, agrupamentoParaDeletar.dataFim)}<br />
+                <strong>Quantidade de dias:</strong> {agrupamentoParaDeletar.quantidade} dia(s)
+              </p>
+              <p className="warning-text" style={{ marginTop: '12px', color: '#dc2626', fontWeight: 500 }}>
+                Todos os {agrupamentoParaDeletar.quantidade} dia(s) desta atribuição serão removidos. Esta ação não pode ser desfeita.
+              </p>
+            </>
+          ) : null
+        }
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        confirmButtonClass="btn-danger"
+        loading={deleteLoading}
       />
-    )}
-  </Layout>
-);
+
+      {/* DetailSideCard */}
+      {detailCard && (
+        <DetailSideCard
+          entidadeId={detailCard.entidadeId}
+          tipo={detailCard.tipo}
+          dados={detailCard.dados}
+          onClose={handleCloseDetail}
+          position={detailCardPosition}
+          formatarTempoEstimado={formatarTempoEstimado}
+          formatarData={formatarData}
+          calcularCustoPorTempo={calcularCustoPorTempo}
+          formatarValorMonetario={formatarValorMonetario}
+          getNomeCliente={getNomeCliente}
+          periodoInicio={filtrosUltimosAplicados?.periodoInicio || periodoInicio}
+          periodoFim={filtrosUltimosAplicados?.periodoFim || periodoFim}
+          filtrosAdicionais={{
+            cliente_id: filtroAdicionalCliente || null,
+            tarefa_id: filtroAdicionalTarefa || null,
+            produto_id: filtroAdicionalProduto || null,
+            responsavel_id: (filtroPrincipal !== 'responsavel' && filtroResponsavelSelecionado) ? filtroResponsavelSelecionado : (filtroPrincipal === 'responsavel' && detailCard?.entidadeId) ? detailCard.entidadeId : null
+          }}
+        />
+      )}
+    </Layout>
+  );
 };
 
 export default DelegarTarefas;
