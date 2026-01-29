@@ -28,19 +28,19 @@ const AtribuicoesTabela = ({
     const registrosFiltrados =
       periodoInicio && periodoFim
         ? agrupamento.registros.filter((registro) => {
-            try {
-              if (!registro.data) return false;
-              let dataReg = new Date(registro.data);
-              let inicio = new Date(periodoInicio);
-              let fim = new Date(periodoFim);
-              dataReg.setHours(0, 0, 0, 0);
-              inicio.setHours(0, 0, 0, 0);
-              fim.setHours(23, 59, 59, 999);
-              return dataReg >= inicio && dataReg <= fim;
-            } catch {
-              return false;
-            }
-          })
+          try {
+            if (!registro.data) return false;
+            let dataReg = new Date(registro.data);
+            let inicio = new Date(periodoInicio);
+            let fim = new Date(periodoFim);
+            dataReg.setHours(0, 0, 0, 0);
+            inicio.setHours(0, 0, 0, 0);
+            fim.setHours(23, 59, 59, 999);
+            return dataReg >= inicio && dataReg <= fim;
+          } catch {
+            return false;
+          }
+        })
         : agrupamento.registros;
     return registrosFiltrados.reduce(
       (acc, reg) => acc + (reg.tempo_estimado_dia || agrupamento.primeiroRegistro?.tempo_estimado_dia || 0),
@@ -65,9 +65,16 @@ const AtribuicoesTabela = ({
         <tbody>
           {registrosAgrupados.map((agrupamento) => {
             const primeiroRegistro = agrupamento.primeiroRegistro;
-            const produtosUnicos = [...new Set(agrupamento.registros.map((r) => r.produto_id))];
-            const tarefasUnicas = [...new Set(agrupamento.registros.map((r) => r.tarefa_id))];
-            const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
+            // [ON-DEMAND] Se registros vazios, usar regras para identificar itens únicos
+            const fonteDados = (agrupamento.registros && agrupamento.registros.length > 0)
+              ? agrupamento.registros
+              : (agrupamento.regras || []);
+
+            const produtosUnicos = [...new Set(fonteDados.map((r) => r.produto_id))];
+            const tarefasUnicas = [...new Set(fonteDados.map((r) => r.tarefa_id))];
+
+            // [ON-DEMAND] Se tiver cache, usa ele. Se não, calcula (fallback para legado)
+            const tempoEstimadoTotal = agrupamento.totalEstimadoCache || calcularTempoEstimadoTotalAgrupamento(agrupamento);
 
             return (
               <React.Fragment key={agrupamento.agrupador_id}>
@@ -123,7 +130,11 @@ const AtribuicoesTabela = ({
                   </td>
                   <td>
                     <span className="atribuicoes-tempo">
-                      {formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)}
+                      {/* [ON-DEMAND] Usar total do cache se disponível, ou calcular se registros carregados */}
+                      {agrupamento.totalEstimadoCache
+                        ? formatarTempoComCusto(agrupamento.totalEstimadoCache, primeiroRegistro.responsavel_id, true)
+                        : formatarTempoComCusto(tempoEstimadoTotal, primeiroRegistro.responsavel_id, true)
+                      }
                     </span>
                   </td>
                   <td>
@@ -145,13 +156,37 @@ const AtribuicoesTabela = ({
                   </td>
                 </tr>
 
+                {/* [ON-DEMAND] Indicador de carregamento */}
+                {gruposExpandidos && gruposExpandidos.has(agrupamento.agrupador_id) && !agrupamento.detalhesCarregados && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                      <i className="fas fa-circle-notch fa-spin"></i> Carregando detalhes...
+                    </td>
+                  </tr>
+                )}
+
+                {/* [ON-DEMAND] Loop de tarefas - Renderizar Loading ou Detalhes se expandido */}
                 {tarefasUnicas.map((tarefaId) => {
                   const tarefaKey = `${agrupamento.agrupador_id}_${tarefaId}`;
                   if (!tarefasExpandidas.has(tarefaKey)) return null;
 
-                  const registrosTarefa = agrupamento.registros.filter(
+                  // [UX] Loading State Local: Se expandido mas sem detalhes -> mostrar loading
+                  if (!agrupamento.detalhesCarregados) {
+                    return (
+                      <tr key={`loading_${tarefaKey}`}>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '15px', background: '#f9fafb' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                            <div className="spinner-border text-secondary" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }} role="status"></div>
+                            <span style={{ color: '#6b7280', fontSize: '13px' }}>Carregando detalhes...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const registrosTarefa = agrupamento.registros ? agrupamento.registros.filter(
                     (r) => String(r.tarefa_id) === String(tarefaId)
-                  );
+                  ) : [];
 
                   return (
                     <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">

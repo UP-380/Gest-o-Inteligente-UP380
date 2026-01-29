@@ -138,6 +138,10 @@ const DelegarTarefas = () => {
   const [colaboradores, setColaboradores] = useState([]);
   const [membros, setMembros] = useState([]);
 
+  // Estados para fila de processamento (Queue)
+  const [filaProcessamento, setFilaProcessamento] = useState([]);
+  const [processandoFila, setProcessandoFila] = useState(false);
+
   // Estado para controlar expansão dos dashboards
   const [dashboardsExpandidos, setDashboardsExpandidos] = useState(false);
 
@@ -938,11 +942,25 @@ const DelegarTarefas = () => {
     setRegistrosAgrupados(Array.from(grupos.values()));
   };
 
+
   // Buscar horas contratadas por responsável
   const buscarHorasContratadasPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
     try {
+      if (!responsavelId) return null;
+
+      // Validação: Backend espera Integer
+      const idString = String(responsavelId).trim();
+      const isInteger = /^\d+$/.test(idString);
+
+      if (!isInteger) {
+        console.warn(`⚠️ [BUSCAR-HORAS] ID inválido (não é número): ${responsavelId}`);
+        return null;
+      }
+
+      const idNum = parseInt(idString, 10);
+
       const params = new URLSearchParams({
-        membro_id: responsavelId
+        membro_id: idNum,
       });
       if (dataInicio) params.append('data_inicio', dataInicio);
       if (dataFim) params.append('data_fim', dataFim);
@@ -955,10 +973,7 @@ const DelegarTarefas = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          return {
-            horascontratadasdia: result.data.horascontratadasdia || null,
-            tipo_contrato: result.data.tipo_contrato || null
-          };
+          return result.data;
         }
       }
       return null;
@@ -967,7 +982,6 @@ const DelegarTarefas = () => {
       return null;
     }
   };
-
   // Carregar tipos de contrato do backend
   const carregarTiposContrato = async () => {
     try {
@@ -1144,6 +1158,255 @@ const DelegarTarefas = () => {
     });
 
     return temposPorResponsavel;
+  };
+
+  // Função para carregar todos os dados de uma entidade (responsável, cliente, produto, tarefa) de forma sequencial
+  const carregarDadosIndividuaisEntidade = async (entidadeId, tipoEntidade, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
+    if (!periodoInicio || !periodoFim) return;
+
+    try {
+      console.log(`⏳ [QUEUE] Carregando dados para ${tipoEntidade} ${entidadeId}...`);
+
+      // Validação Estrita para Responsáveis: Apenas IDs numéricos permitidos (Regex estrito para não aceitar UUID iniciado com número)
+      if (tipoEntidade === 'responsavel') {
+        const idString = String(entidadeId).trim();
+        const isInteger = /^\d+$/.test(idString);
+
+        // Se não for um número válido, definir estados zerados e não fazer requisições
+        if (!isInteger) {
+          console.warn(`⚠️ [QUEUE] Ignorando responsável com ID inválido (UUID/String): ${entidadeId}`);
+          // Definir estados como zerados/nulos para encerrar loading
+          setTempoEstimadoTotalPorResponsavel(prev => ({ ...prev, [entidadeId]: 0 }));
+          setTemposRealizadosPorEntidade(prev => ({
+            ...prev,
+            [`${tipoEntidade}_${entidadeId}`]: { realizado: 0, pendente: 0 }
+          }));
+          setHorasContratadasPorResponsavel(prev => ({ ...prev, [entidadeId]: null }));
+          setTipoContratoPorResponsavel(prev => ({ ...prev, [entidadeId]: null }));
+          setCustosPorResponsavel(prev => ({ ...prev, [entidadeId]: 0 }));
+          return;
+        }
+      }
+
+      // 1. Tempo Estimado Total
+      const paramsEstimado = new URLSearchParams({
+        data_inicio: periodoInicio,
+        data_fim: periodoFim,
+        considerarFinaisDeSemana: habilitarFinaisSemana ? 'true' : 'false',
+        considerarFeriados: habilitarFeriados ? 'true' : 'false'
+      });
+
+      // Adicionar filtros específicos dependendo do tipo da entidade ou filtros adicionais
+      if (tipoEntidade === 'responsavel') paramsEstimado.append('responsavel_id', entidadeId);
+      else if (tipoEntidade === 'cliente') paramsEstimado.append('cliente_id', entidadeId);
+      else if (tipoEntidade === 'produto') paramsEstimado.append('produto_id', entidadeId);
+      else if (tipoEntidade === 'atividade') paramsEstimado.append('tarefa_id', entidadeId);
+
+      // Adicionar filtros adicionais se houver (importante para consistência entre cards e listagem)
+      if (tipoEntidade !== 'cliente' && (filtrosAdicionais.cliente_id || filtroAdicionalCliente)) {
+        const cId = filtrosAdicionais.cliente_id || filtroAdicionalCliente;
+        if (Array.isArray(cId)) cId.forEach(id => paramsEstimado.append('cliente_id', String(id)));
+        else paramsEstimado.append('cliente_id', String(cId));
+      }
+      if (tipoEntidade !== 'atividade' && (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa)) {
+        const tId = filtrosAdicionais.tarefa_id || filtroAdicionalTarefa;
+        if (Array.isArray(tId)) tId.forEach(id => paramsEstimado.append('tarefa_id', String(id)));
+        else paramsEstimado.append('tarefa_id', String(tId));
+      }
+      if (tipoEntidade !== 'produto' && (filtrosAdicionais.produto_id || filtroAdicionalProduto)) {
+        const pId = filtrosAdicionais.produto_id || filtroAdicionalProduto;
+        if (Array.isArray(pId)) pId.forEach(id => paramsEstimado.append('produto_id', String(id)));
+        else paramsEstimado.append('produto_id', String(pId));
+      }
+
+      const responseEstimado = await fetch(`${API_BASE_URL}/tempo-estimado/total?${paramsEstimado}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (responseEstimado.ok) {
+        const result = await responseEstimado.json();
+        if (result.success && result.data) {
+          setTempoEstimadoTotalPorResponsavel(prev => ({
+            ...prev,
+            [entidadeId]: result.data[entidadeId] || 0
+          }));
+        }
+      }
+
+      // 2. Tempo Realizado Total
+      const responseRealizado = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          responsavel_id: tipoEntidade === 'responsavel' ? entidadeId : null,
+          cliente_id: tipoEntidade === 'cliente' ? entidadeId : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
+          produto_id: tipoEntidade === 'produto' ? entidadeId : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
+          tarefa_id: tipoEntidade === 'atividade' ? entidadeId : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
+          data_inicio: periodoInicio,
+          data_fim: periodoFim
+        })
+      });
+
+      if (responseRealizado.ok) {
+        const result = await responseRealizado.json();
+        if (result.success && result.data) {
+          setTemposRealizadosPorEntidade(prev => ({
+            ...prev,
+            [`${tipoEntidade}_${entidadeId}`]: {
+              realizado: result.data.tempo_realizado_ms || 0,
+              pendente: result.data.tempo_pendente_ms || 0
+            }
+          }));
+        }
+      }
+
+      // 3. Horas Contratadas e Custos (Apenas para Responsáveis)
+      if (tipoEntidade === 'responsavel') {
+        // Horas Contratadas e Tipo Contrato
+        const resContratadas = await buscarHorasContratadasPorResponsavel(entidadeId, periodoInicio, periodoFim);
+        if (resContratadas) {
+          setHorasContratadasPorResponsavel(prev => ({ ...prev, [entidadeId]: resContratadas.horascontratadasdia }));
+          setTipoContratoPorResponsavel(prev => ({ ...prev, [entidadeId]: resContratadas.tipo_contrato }));
+        } else {
+          setHorasContratadasPorResponsavel(prev => ({ ...prev, [entidadeId]: null }));
+          setTipoContratoPorResponsavel(prev => ({ ...prev, [entidadeId]: null }));
+        }
+
+        // Custo Hora
+        const custoHora = await buscarCustoPorResponsavel(entidadeId, periodoInicio, periodoFim);
+        setCustosPorResponsavel(prev => ({ ...prev, [entidadeId]: custoHora }));
+      }
+
+      console.log(`✅ [QUEUE] Dados carregados para ${tipoEntidade} ${entidadeId}`);
+    } catch (error) {
+      console.error(`❌ [QUEUE] Erro ao carregar dados para ${tipoEntidade} ${entidadeId}:`, error);
+    }
+  };
+
+  // Efeito para processar a fila de forma sequencial
+  useEffect(() => {
+    const processarFila = async () => {
+      if (processandoFila || filaProcessamento.length === 0) return;
+
+      setProcessandoFila(true);
+      const item = filaProcessamento[0];
+
+      await carregarDadosIndividuaisEntidade(
+        item.id,
+        item.tipo,
+        periodoInicio,
+        periodoFim,
+        {
+          cliente_id: filtroAdicionalCliente,
+          tarefa_id: filtroAdicionalTarefa,
+          produto_id: filtroAdicionalProduto
+        }
+      );
+
+      setFilaProcessamento(prev => prev.slice(1));
+      setProcessandoFila(false);
+    };
+
+    processarFila();
+  }, [filaProcessamento, processandoFila, periodoInicio, periodoFim, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
+
+
+  // [ON-DEMAND] Função exclusiva para carregar detalhes ao clicar
+  const fetchDetalhesResponsavel = async (agrupadorId) => {
+    console.log(`⚡ [ON-DEMAND] Clicado em ${agrupadorId}. Verificando cache...`);
+
+    // 1. Encontrar o grupo atual
+    const grupoIndex = registrosAgrupados.findIndex(g => g.agrupador_id === agrupadorId);
+    if (grupoIndex === -1) return;
+
+    const grupo = registrosAgrupados[grupoIndex];
+
+    // 2. Verificar se já carregou
+    if (grupo.detalhesCarregados) {
+      console.log(`⚡ [ON-DEMAND] Detalhes já carregados. Retornando cache.`);
+      return;
+    }
+
+    console.log(`⚡ [ON-DEMAND] Calculando detalhes...`);
+    console.log(`⚡ [ON-DEMAND] Calculando detalhes...`);
+    // [UX] Não usar setLoading(true) para não travar a UI globalmente
+    // O loading será local no componente AtribuicoesTabela
+
+    try {
+      // 3. Logica de Explosão (movida de loadRegistrosTempoEstimado para cá)
+      const registrosCalculados = [];
+      const regrasDoGrupo = grupo.regras || [];
+      // Usar períodos do state
+      const pInicio = periodoInicio;
+      const pFim = periodoFim;
+
+      if (pInicio && pFim) {
+        regrasDoGrupo.forEach(regra => {
+          const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : pInicio;
+          const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : pFim;
+
+          const periodoInicioRegra = regraInicio > pInicio ? regraInicio : pInicio;
+          const periodoFimRegra = regraFim < pFim ? regraFim : pFim;
+
+          if (periodoInicioRegra <= periodoFimRegra) {
+            const datasValidasSet = obterDatasValidasNoPeriodo(
+              periodoInicioRegra,
+              periodoFimRegra,
+              regra.incluir_finais_semana !== false,
+              regra.incluir_feriados !== false
+            );
+
+            datasValidasSet.forEach(dataStr => {
+              // ID Virtual único
+              const idVirtual = `${regra.id}_${dataStr}`.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 36);
+              registrosCalculados.push({
+                id: idVirtual,
+                tempo_estimado_id: idVirtual,
+                agrupador_id: regra.agrupador_id,
+                cliente_id: regra.cliente_id,
+                produto_id: regra.produto_id,
+                tarefa_id: regra.tarefa_id,
+                responsavel_id: regra.responsavel_id,
+                data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
+                tempo_estimado_dia: regra.tempo_estimado_dia,
+                responsavel_foto_perfil: regra.responsavel_foto_perfil,
+                // Copy fields
+                created_at: regra.created_at,
+                updated_at: regra.updated_at
+              });
+            });
+          }
+        });
+      }
+
+      // 4. Carregar metadados (nomes) APENAS para esses registros novos
+      if (registrosCalculados.length > 0) {
+        await carregarNomesRelacionados(registrosCalculados);
+      }
+
+      // 5. Atualizar state especificamente deste grupo
+      setRegistrosAgrupados(prev => {
+        const novoArray = [...prev];
+        // Re-encontrar index pois state pode ter mudado
+        const idx = novoArray.findIndex(g => g.agrupador_id === agrupadorId);
+        if (idx !== -1) {
+          novoArray[idx] = {
+            ...novoArray[idx],
+            registros: registrosCalculados, // Populando detalhes
+            quantidade: registrosCalculados.length,
+            detalhesCarregados: true
+          };
+        }
+        return novoArray;
+      });
+
+    } catch (err) {
+      console.error("Erro ao explodir detalhes", err);
+    } finally {
+      // setLoading(false); // [UX] Removido para evitar flash/travamento
+    }
   };
 
   // Carregar registros de tempo estimado
@@ -1323,266 +1586,122 @@ const DelegarTarefas = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          // NOVA LÓGICA: Backend retorna REGRAS, não registros calculados
+
+
+
+
+
           const regras = result.data || [];
 
-          // DEBUG: Log das regras recebidas
-          console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Total de regras recebidas do backend: ${regras.length}`);
-          if (regras.length > 0) {
-            const responsaveisNasRegras = new Set(regras.map(r => String(r.responsavel_id)).filter(Boolean));
-            console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Responsáveis presentes nas regras:`, Array.from(responsaveisNasRegras));
-            const regrasLuizMarcelo = regras.filter(r => String(r.responsavel_id) === '75397340197');
-            console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Regras do Luiz Marcelo (75397340197): ${regrasLuizMarcelo.length}`);
-          }
+          // Helper para converter HH:mm:ss para ms
+          const timeToMs = (timeStr) => {
+            if (!timeStr) return 0;
+            if (typeof timeStr === 'number') return timeStr; // Já está em ms
+            if (typeof timeStr !== 'string') return 0; // Proteção extra (ex: undefined, object)
 
-          // Gerar registros apenas para a listagem (não para cards)
-          const registrosCalculados = [];
-          if (periodoAUsar.inicio && periodoAUsar.fim) {
-            regras.forEach(regra => {
-              const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : periodoAUsar.inicio;
-              const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : periodoAUsar.fim;
+            const [h, m, s] = timeStr.split(':').map(Number);
+            return ((h || 0) * 3600 + (m || 0) * 60 + (s || 0)) * 1000;
+          };
 
-              const periodoInicio = regraInicio > periodoAUsar.inicio ? regraInicio : periodoAUsar.inicio;
-              const periodoFim = regraFim < periodoAUsar.fim ? regraFim : periodoAUsar.fim;
+          // [ON-DEMAND] Não explodir regras aqui.
+          // Calcular apenas resumo.
+          const agrupamentosMap = new Map();
 
-              if (periodoInicio <= periodoFim) {
-                const datasValidasSet = obterDatasValidasNoPeriodo(
-                  periodoInicio,
-                  periodoFim,
-                  regra.incluir_finais_semana !== false,
-                  regra.incluir_feriados !== false
-                );
-
-                const datasValidas = Array.from(datasValidasSet);
-
-                datasValidas.forEach(dataStr => {
-                  const idVirtual = `${regra.id}_${dataStr}`.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 36);
-
-                  registrosCalculados.push({
-                    id: idVirtual,
-                    tempo_estimado_id: idVirtual,
-                    agrupador_id: regra.agrupador_id,
-                    cliente_id: regra.cliente_id,
-                    produto_id: regra.produto_id,
-                    tarefa_id: regra.tarefa_id,
-                    responsavel_id: regra.responsavel_id,
-
-                    data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
-                    tempo_estimado_dia: regra.tempo_estimado_dia,
-                    incluir_finais_semana: regra.incluir_finais_semana !== false,
-                    incluir_feriados: regra.incluir_feriados !== false,
-                    regra_id: regra.id,
-                    responsavel_foto_perfil: regra.responsavel_foto_perfil,
-                    created_at: regra.created_at,
-                    updated_at: regra.updated_at
-                  });
-                });
-              }
-            });
-          }
-
-          // Agrupar registros por agrupador_id
-          console.log(`📦 [LOAD-REGISTROS-TEMPO-ESTIMADO] Agrupando ${registrosCalculados.length} registros calculados`);
-          agruparRegistros(registrosCalculados);
-          console.log(`📦 [LOAD-REGISTROS-TEMPO-ESTIMADO] Registros agrupados. Total de agrupamentos será atualizado em setRegistrosAgrupados`);
-
-          // Quando há período, usamos limit alto e geramos todos os registros
-          // Nesse caso, usar o total de registros calculados para paginação
-          // Caso contrário, usar o total retornado pelo backend
-          const totalParaPaginar = temPeriodo
-            ? registrosCalculados.length
-            : (result.total || 0);
-
-          setTotalRegistros(totalParaPaginar);
-          setTotalPages(Math.ceil(totalParaPaginar / itemsPerPage));
-
-          // NOVA LÓGICA: Buscar tempo estimado total do backend
-          // O cálculo agora é feito no servidor, garantindo consistência e melhor performance
-          if (periodoAUsar.inicio && periodoAUsar.fim) {
-            // Construir parâmetros para o endpoint de tempo estimado total
-            const paramsTotal = new URLSearchParams();
-
-            // Adicionar período (obrigatório)
-            paramsTotal.append('data_inicio', periodoAUsar.inicio);
-            paramsTotal.append('data_fim', periodoAUsar.fim);
-
-            // Adicionar flags de finais de semana e feriados (filtros do dashboard)
-            paramsTotal.append('considerarFinaisDeSemana', habilitarFinaisSemana ? 'true' : 'false');
-            paramsTotal.append('considerarFeriados', habilitarFeriados ? 'true' : 'false');
-
-            // Adicionar filtros de valores selecionados
-            if (valoresAUsar.produto) {
-              const produtoIds = Array.isArray(valoresAUsar.produto)
-                ? valoresAUsar.produto
-                : [valoresAUsar.produto];
-              produtoIds.forEach(id => {
-                if (id) paramsTotal.append('produto_id', String(id).trim());
+          regras.forEach(regra => {
+            const agrupadorId = regra.agrupador_id || 'sem-grupo';
+            if (!agrupamentosMap.has(agrupadorId)) {
+              agrupamentosMap.set(agrupadorId, {
+                agrupador_id: agrupadorId,
+                registros: [],
+                regras: [],
+                primeiroRegistro: regra,
+                quantidade: 0,
+                totalEstimadoCache: 0,
+                detalhesCarregados: false
               });
             }
+            const grupo = agrupamentosMap.get(agrupadorId);
+            grupo.regras.push(regra); // Guardar regra
 
-            if (valoresAUsar.tarefa) {
-              const tarefaIds = Array.isArray(valoresAUsar.tarefa)
-                ? valoresAUsar.tarefa
-                : [valoresAUsar.tarefa];
-              tarefaIds.forEach(id => {
-                if (id) paramsTotal.append('tarefa_id', String(id).trim());
-              });
-            }
+            // Somar total estimado (Lightweight)
+            // Apenas se tivermos periodo definido (que sempre temos no state para filtro de periodo)
+            const pInicio = periodoAUsar.inicio;
+            const pFim = periodoAUsar.fim;
 
-            if (valoresAUsar.tipo_tarefa) {
-              const tipoTarefaIds = Array.isArray(valoresAUsar.tipo_tarefa)
-                ? valoresAUsar.tipo_tarefa
-                : [valoresAUsar.tipo_tarefa];
-              tipoTarefaIds.forEach(id => {
-                if (id) paramsTotal.append('tipo_tarefa_id', String(id).trim());
-              });
-            }
+            if (pInicio && pFim && regra.tempo_estimado_dia) {
+              const msPorDia = timeToMs(regra.tempo_estimado_dia);
+              if (msPorDia > 0) {
+                // Calcular dias válidos
+                const regraInicio = regra.data_inicio ? (regra.data_inicio.includes('T') ? regra.data_inicio.split('T')[0] : regra.data_inicio) : pInicio;
+                const regraFim = regra.data_fim ? (regra.data_fim.includes('T') ? regra.data_fim.split('T')[0] : regra.data_fim) : pFim;
 
-            if (valoresAUsar.cliente) {
-              const clienteIds = Array.isArray(valoresAUsar.cliente)
-                ? valoresAUsar.cliente
-                : [valoresAUsar.cliente];
-              clienteIds.forEach(id => {
-                if (id) paramsTotal.append('cliente_id', String(id).trim());
-              });
-            }
+                const rInicio = regraInicio > pInicio ? regraInicio : pInicio;
+                const rFim = regraFim < pFim ? regraFim : pFim;
 
-            if (valoresAUsar.responsavel) {
-              const responsavelIds = Array.isArray(valoresAUsar.responsavel)
-                ? valoresAUsar.responsavel
-                : [valoresAUsar.responsavel];
-              responsavelIds.forEach(id => {
-                if (id) paramsTotal.append('responsavel_id', String(id).trim());
-              });
-            }
-
-            // Adicionar filtros adicionais
-            if (filtrosAdicionaisAUsar.cliente) {
-              const clienteIds = Array.isArray(filtrosAdicionaisAUsar.cliente)
-                ? filtrosAdicionaisAUsar.cliente
-                : [filtrosAdicionaisAUsar.cliente];
-              clienteIds.forEach(id => {
-                if (id) paramsTotal.append('cliente_id', String(id).trim());
-              });
-            }
-            if (filtrosAdicionaisAUsar.tarefa) {
-              const tarefaIds = Array.isArray(filtrosAdicionaisAUsar.tarefa)
-                ? filtrosAdicionaisAUsar.tarefa
-                : [filtrosAdicionaisAUsar.tarefa];
-              tarefaIds.forEach(id => {
-                if (id) paramsTotal.append('tarefa_id', String(id).trim());
-              });
-            }
-            if (filtrosAdicionaisAUsar.produto) {
-              const produtoIds = Array.isArray(filtrosAdicionaisAUsar.produto)
-                ? filtrosAdicionaisAUsar.produto
-                : [filtrosAdicionaisAUsar.produto];
-              produtoIds.forEach(id => {
-                if (id) paramsTotal.append('produto_id', String(id).trim());
-              });
-            }
-
-            // Adicionar filtro de status de cliente se aplicável
-            const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
-            const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
-            if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
-              if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
-                paramsTotal.append('cliente_status', filtroStatusCliente);
-              }
-            }
-
-            const urlTotal = `${API_BASE_URL}/tempo-estimado/total?${paramsTotal}`;
-
-            try {
-              console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Buscando tempo estimado total do backend: ${urlTotal}`);
-
-              const responseTotal = await fetch(urlTotal, {
-                credentials: 'include',
-                headers: { 'Accept': 'application/json' }
-              });
-
-              if (responseTotal.status === 401) {
-                window.location.href = '/login';
-                return;
-              }
-
-              if (responseTotal.ok) {
-                const resultTotal = await responseTotal.json();
-                if (resultTotal.success && resultTotal.data) {
-                  const temposEstimadosPorResponsavel = resultTotal.data || {};
-
-                  console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Tempo estimado total recebido do backend:`, Object.keys(temposEstimadosPorResponsavel).map(id => ({
-                    id,
-                    tempo: `${(temposEstimadosPorResponsavel[id] / 3600000).toFixed(2)}h`
-                  })));
-
-                  // Atualizar cache de tempo estimado total
-                  setTempoEstimadoTotalPorResponsavel(temposEstimadosPorResponsavel);
-                } else {
-                  console.warn('⚠️ [LOAD-REGISTROS-TEMPO-ESTIMADO] Resposta do backend sem dados válidos');
-                  setTempoEstimadoTotalPorResponsavel({});
+                if (rInicio <= rFim) {
+                  const qtdDias = obterDatasValidasNoPeriodo(
+                    rInicio,
+                    rFim,
+                    regra.incluir_finais_semana !== false,
+                    regra.incluir_feriados !== false
+                  ).size;
+                  grupo.totalEstimadoCache += (qtdDias * msPorDia);
                 }
-              } else {
-                console.error('❌ [LOAD-REGISTROS-TEMPO-ESTIMADO] Erro ao buscar tempo estimado total:', responseTotal.status);
-                setTempoEstimadoTotalPorResponsavel({});
               }
-            } catch (error) {
-              console.error('❌ [LOAD-REGISTROS-TEMPO-ESTIMADO] Erro ao buscar tempo estimado total do backend:', error);
-              setTempoEstimadoTotalPorResponsavel({});
             }
-          } else {
-            // Se não há período, limpar cache de tempo estimado
-            setTempoEstimadoTotalPorResponsavel({});
-          }
+          });
 
-          // OTIMIZAÇÃO: Preparar agrupamentos ANTES de marcar como carregado para iniciar carregamento de horas contratadas mais cedo
-          let agrupamentosArray = [];
-          if (periodoAUsar.inicio && periodoAUsar.fim && registrosCalculados.length > 0) {
-            const agrupadosTemp = {};
-            registrosCalculados.forEach(registro => {
-              const agrupadorId = registro.agrupador_id || 'sem-grupo';
-              if (!agrupadosTemp[agrupadorId]) {
-                agrupadosTemp[agrupadorId] = {
-                  primeiroRegistro: registro,
-                  quantidade: 0
-                };
-              }
-              agrupadosTemp[agrupadorId].quantidade++;
-            });
+          const novosAgrupamentos = Array.from(agrupamentosMap.values());
+          console.log(`📦 [LOAD-SUMMARY] ${novosAgrupamentos.length} agrupamentos criados (sem detalhes). Total estimado calculado.`);
 
-            agrupamentosArray = Object.values(agrupadosTemp);
-          }
+          setRegistrosAgrupados(novosAgrupamentos);
 
-          // OTIMIZAÇÃO: Marcar como carregado para exibir cards (com tempo estimado já calculado)
+          setTotalRegistros(result.total || regras.length);
+          setTotalPages(Math.ceil((result.total || regras.length) / itemsPerPage));
+
+          // OTIMIZAÇÃO: Marcar como carregado
+
+          // OTIMIZAÇÃO: Marcar como carregado
           setDadosAuxiliaresCarregados(true);
 
-          // Carregar TODOS os dados auxiliares em paralelo desde o início (não sequencial)
+          // [RESTORE SUMMARY] Carregar totais (Realizado, Contratado, Custo) para os grupos VISÍVEIS
+          // Isso atende ao requisito: "Resumo = load inicial permitido"
+          // Usamos processBatch para não travar o navegador
+          const carregarTotaisVisiveis = async () => {
+            console.log(`💰 [LOAD-TOTALS] Iniciando carga de ${novosAgrupamentos.length} totais...`);
 
-          const promisesAuxiliares = [
-            carregarNomesRelacionados(registrosCalculados)
-          ];
+            await processBatch(novosAgrupamentos, async (grupo) => {
+              const id = grupo.agrupador_id;
+              let tipo = 'responsavel'; // Default
 
-          // Adicionar carregamento de custos e horas contratadas em paralelo
-          if (agrupamentosArray.length > 0) {
-            promisesAuxiliares.push(
-              carregarCustosPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar custos:', err)),
-              carregarHorasContratadasPorResponsaveis(agrupamentosArray, periodoAUsar.inicio, periodoAUsar.fim).catch(err => console.error('Erro ao carregar horas contratadas:', err))
-            );
-          }
+              // Determinar tipo com base nos filtros ativos
+              if (filtrosAUsar.responsavel) tipo = 'responsavel';
+              else if (filtrosAUsar.cliente) tipo = 'cliente';
+              else if (filtrosAUsar.atividade) tipo = 'atividade';
+              else if (filtrosAUsar.produto) tipo = 'produto';
 
-          Promise.all(promisesAuxiliares).catch(err => console.error('Erro ao carregar dados auxiliares:', err));
+              await carregarDadosIndividuaisEntidade(
+                id,
+                tipo,
+                periodoAUsar.inicio,
+                periodoAUsar.fim,
+                filtrosAdicionaisAUsar
+              );
+            }, 5);
+            console.log(`💰 [LOAD-TOTALS] Carga de totais concluída.`);
+          };
+
+          carregarTotaisVisiveis();
+
         } else {
-          // Se não há dados, marca como carregado mesmo assim
           setDadosAuxiliaresCarregados(true);
         }
       } else {
-        // Se não há resposta ok, marca como carregado para não travar a interface
         setDadosAuxiliaresCarregados(true);
       }
     } catch (error) {
       console.error('Erro ao carregar registros:', error);
       showToast('error', 'Erro ao carregar registros de tempo estimado');
-      // Em caso de erro, marca como carregado para não travar a interface
       setDadosAuxiliaresCarregados(true);
     } finally {
       setLoading(false);
@@ -1831,11 +1950,22 @@ const DelegarTarefas = () => {
     return incluirSegundos ? '0s' : '—';
   };
 
+
+
   // Buscar custo mais recente por responsável
   const buscarCustoPorResponsavel = async (responsavelId, dataInicio, dataFim) => {
     try {
+      if (!responsavelId) return null;
+
+      // Validação: Backend espera Integer
+      const idNum = parseInt(String(responsavelId).trim(), 10);
+      if (isNaN(idNum)) {
+        console.warn(`⚠️ [BUSCAR-CUSTO] ID inválido (não é número): ${responsavelId}`);
+        return null;
+      }
+
       const params = new URLSearchParams({
-        membro_id: responsavelId
+        membro_id: idNum
       });
       if (dataInicio) params.append('data_inicio', dataInicio);
       if (dataFim) params.append('data_fim', dataFim);
@@ -2142,19 +2272,30 @@ const DelegarTarefas = () => {
   // Função para buscar tempo realizado total de uma entidade (responsável, produto, tarefa, cliente)
   const buscarTempoRealizadoPorEntidade = useCallback(async (entidadeId, filtroPrincipal, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
     try {
-      if (!periodoInicio || !periodoFim) {
+      if (!periodoInicio || !periodoFim || !entidadeId) {
         return { realizado: 0, pendente: 0 };
       }
 
       // Se o filtro principal é responsavel, usar novo endpoint simplificado
       if (filtroPrincipal === 'responsavel') {
+        // Validação: Backend espera Integer para Responsável
+        const idString = String(entidadeId).trim();
+        const isInteger = /^\d+$/.test(idString);
+
+        if (!isInteger) {
+          console.warn(`⚠️ [BUSCAR-REALIZADO] ID de responsável inválido (não é número): ${entidadeId}`);
+          return { realizado: 0, pendente: 0 };
+        }
+
+        const idNum = parseInt(idString, 10);
+
         try {
           const response = await fetch('/api/registro-tempo/realizado-total', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              responsavel_id: entidadeId,
+              responsavel_id: idNum, // Enviando ID sanitizado
               data_inicio: periodoInicio,
               data_fim: periodoFim,
               tarefa_id: filtrosAdicionais.tarefa_id || null,
@@ -2173,7 +2314,10 @@ const DelegarTarefas = () => {
             }
           } else {
             const errorData = await response.json().catch(() => ({}));
-            console.error('Erro ao buscar tempo realizado total:', response.status, errorData);
+            // Ignorar 404 (Not Found) se for ID inválido ou inexistente no contexto
+            if (response.status !== 404) {
+              console.error('Erro ao buscar tempo realizado total:', response.status, errorData);
+            }
           }
           return { realizado: 0, pendente: 0 };
         } catch (error) {
@@ -2210,13 +2354,17 @@ const DelegarTarefas = () => {
 
       // Buscar tempo realizado para cada responsável usando novo endpoint e somar
       const promises = responsavelIds.map(async (responsavelId) => {
+        // Validation per responsavel
+        const idNum = parseInt(String(responsavelId).trim(), 10);
+        if (isNaN(idNum)) return { realizado: 0, pendente: 0 };
+
         try {
           const response = await fetch('/api/registro-tempo/realizado-total', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
-              responsavel_id: responsavelId,
+              responsavel_id: idNum,
               data_inicio: periodoInicio,
               data_fim: periodoFim,
               tarefa_id: filtrosAdicionais.tarefa_id || null,
@@ -2278,8 +2426,10 @@ const DelegarTarefas = () => {
     const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
     const custoPendente = responsavelId ? calcularCustoPorTempo(tempoPendenteValor, responsavelId) : null;
 
-    // Se Contratadas ainda está carregando, não renderizar Estimado ainda (aguardar ambos estarem prontos)
-    if (aindaCarregandoContratado) {
+    // Se o valor for null, estamos carregando
+    const estaCarregando = (estimado === null) || (realizado === null) || (mostrarContratadasDisponivel && contratado === null);
+
+    if (estaCarregando) {
       return (
         <div className="barra-progresso-tempo">
           <div className="barra-progresso-tempo-range"></div>
@@ -2333,7 +2483,7 @@ const DelegarTarefas = () => {
               </div>
               <div className="barra-progresso-tempo-badge-wrapper">
                 <span className="barra-progresso-tempo-badge realizado">
-                  <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoRealizadoValor, true)}</span>
+                  <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(realizado, true)}</span>
                 </span>
                 <span className={`barra-progresso-tempo-custo realizado ${custoRealizado === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
                   {custoRealizado !== null ? formatarValorMonetario(custoRealizado) : '\u00A0'}
@@ -2342,7 +2492,7 @@ const DelegarTarefas = () => {
             </div>
           </div>
 
-          {tempoPendenteValor > 0 && (
+          {pendente > 0 && (
             <div className="barra-progresso-tempo-item">
               <div className="barra-progresso-tempo-item-content">
                 <div className="barra-progresso-tempo-item-header">
@@ -2351,7 +2501,7 @@ const DelegarTarefas = () => {
                 </div>
                 <div className="barra-progresso-tempo-badge-wrapper">
                   <span className="barra-progresso-tempo-badge pendente" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
-                    <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(tempoPendenteValor, true)}</span>
+                    <span className="barra-progresso-tempo-badge-tempo">{formatarTempoEstimado(pendente, true)}</span>
                   </span>
                   <span className={`barra-progresso-tempo-custo pendente ${custoPendente === null ? 'barra-progresso-tempo-custo-placeholder' : ''}`}>
                     {custoPendente !== null ? formatarValorMonetario(custoPendente) : '\u00A0'}
@@ -2366,7 +2516,7 @@ const DelegarTarefas = () => {
               <div className="barra-progresso-tempo-item">
                 <div className="barra-progresso-tempo-item-content">
                   <span className="barra-progresso-tempo-label">Contratadas</span>
-                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(contratadoValor, true)}</span>
+                  <span className="barra-progresso-tempo-badge contratadas">{formatarTempoEstimado(contratado, true)}</span>
                 </div>
               </div>
               <div className="barra-progresso-tempo-item">
@@ -2375,7 +2525,7 @@ const DelegarTarefas = () => {
                     <span className="barra-progresso-tempo-indicador sobrando"></span>
                     <span className="barra-progresso-tempo-label">Disponível</span>
                   </div>
-                  <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(disponivelValor, true)}</span>
+                  <span className="barra-progresso-tempo-badge disponivel">{formatarTempoEstimado(disponivel, true)}</span>
                 </div>
               </div>
             </>
@@ -2427,6 +2577,8 @@ const DelegarTarefas = () => {
         novo.delete(grupoKey);
       } else {
         novo.add(grupoKey);
+        // [ON-DEMAND] Disparar carregamento de detalhes ao expandir
+        fetchDetalhesResponsavel(grupoKey);
       }
       return novo;
     });
@@ -2444,6 +2596,8 @@ const DelegarTarefas = () => {
       }
       return novo;
     });
+    // [ON-DEMAND] Garantir que os detalhes estejam carregados (ou carregando) para este grupo
+    fetchDetalhesResponsavel(agrupadorId);
   };
 
   // Toggle para expandir tarefas quando filtro pai é "atividade"
@@ -2827,33 +2981,18 @@ const DelegarTarefas = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
 
-  // Buscar tempos realizados quando os dados são carregados
+  // Efeito para inicializar a fila de processamento quando os registros agrupados mudam
   useEffect(() => {
-    if (!filtrosAplicados || !filtrosUltimosAplicados || !periodoInicio || !periodoFim || !filtroPrincipal) {
-      setTemposRealizadosPorEntidade({});
+    if (!dadosAuxiliaresCarregados || !filtroPrincipal || (registrosAgrupados.length === 0 && filtroPrincipal !== 'responsavel')) {
       return;
     }
 
-    // Para filtro responsavel, precisamos de membros carregados
-    if (filtroPrincipal === 'responsavel' && (!membros || membros.length === 0)) {
-      setTemposRealizadosPorEntidade({});
-      return;
-    }
-
-    // Para outros filtros, precisamos de registros agrupados
-    if (filtroPrincipal !== 'responsavel' && registrosAgrupados.length === 0) {
-      setTemposRealizadosPorEntidade({});
-      return;
-    }
-
-    const buscarTemposRealizados = async () => {
-      const novosTempos = {};
-      const periodoAplicadoInicio = filtrosUltimosAplicados.periodoInicio;
-      const periodoAplicadoFim = filtrosUltimosAplicados.periodoFim;
+    const identificarEntidades = () => {
+      const entidadesUnicas = new Map();
 
       // Função auxiliar para verificar se um ID está nos filtros selecionados
       const estaNosFiltrosSelecionados = (id, filtroSelecionado) => {
-        if (!filtroSelecionado) return true; // Se não há filtro, incluir todos
+        if (!filtroSelecionado) return true;
         const idStr = String(id);
         if (Array.isArray(filtroSelecionado)) {
           return filtroSelecionado.some(f => String(f) === idStr);
@@ -2861,74 +3000,80 @@ const DelegarTarefas = () => {
         return String(filtroSelecionado) === idStr;
       };
 
-      // Coletar todas as entidades únicas baseadas no filtro principal
-      const entidadesUnicas = new Map();
-
-      // Se filtro principal é responsavel, incluir TODOS os membros que aparecem nos cards
       if (filtroPrincipal === 'responsavel') {
+        // Para responsáveis, incluir todos os membros filtrados
         membros.forEach(membro => {
-          // Aplicar mesmos filtros usados na renderização dos cards
-          if (!estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
-            return; // Pular este membro se não estiver nos filtros
+          if (estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
+            entidadesUnicas.set(String(membro.id), { id: String(membro.id), tipo: 'responsavel' });
           }
-
-          const membroId = String(membro.id);
-          entidadesUnicas.set(`responsavel_${membroId}`, { tipo: 'responsavel', id: membroId });
         });
-      } else {
-        // Para outros filtros, usar lógica existente baseada em registrosAgrupados
+      } else if (filtroPrincipal === 'cliente') {
+        // Coletar clientes dos registros agrupados
         registrosAgrupados.forEach(agr => {
-          const primeiroRegistro = agr.primeiroRegistro;
+          const clienteIds = String(agr.primeiroRegistro.cliente_id || '')
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id.length > 0);
 
-          let entidadeId = null;
-          if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
-            const clienteIds = String(primeiroRegistro.cliente_id || '').split(',').map(id => id.trim());
-            clienteIds.forEach(id => {
-              if (id) entidadesUnicas.set(`cliente_${id}`, { tipo: 'cliente', id: id });
-            });
-            return;
-          } else if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
-            entidadeId = primeiroRegistro.produto_id;
-          } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
-            entidadeId = primeiroRegistro.tarefa_id;
+          clienteIds.forEach(id => {
+            if (estaNosFiltrosSelecionados(id, filtroClienteSelecionado)) {
+              entidadesUnicas.set(id, { id, tipo: 'cliente' });
+            }
+          });
+        });
+
+        // Adicionar clientes do sistema se filtro principal for cliente
+        clientes.forEach(cliente => {
+          const id = String(cliente.id);
+          if (estaNosFiltrosSelecionados(id, filtroClienteSelecionado)) {
+            if (!entidadesUnicas.has(id)) {
+              entidadesUnicas.set(id, { id, tipo: 'cliente' });
+            }
           }
+        });
+      } else if (filtroPrincipal === 'produto') {
+        // Coletar produtos dos registros agrupados
+        registrosAgrupados.forEach(agr => {
+          const id = String(agr.primeiroRegistro.produto_id);
+          if (id && estaNosFiltrosSelecionados(id, filtroProdutoSelecionado)) {
+            entidadesUnicas.set(id, { id, tipo: 'produto' });
+          }
+        });
 
-          if (entidadeId) {
-            entidadesUnicas.set(`${filtroPrincipal}_${entidadeId}`, { tipo: filtroPrincipal, id: entidadeId });
+        // Adicionar produtos do sistema
+        produtos.forEach(produto => {
+          const id = String(produto.id);
+          if (estaNosFiltrosSelecionados(id, filtroProdutoSelecionado)) {
+            if (!entidadesUnicas.has(id)) {
+              entidadesUnicas.set(id, { id, tipo: 'produto' });
+            }
+          }
+        });
+      } else if (filtroPrincipal === 'atividade') {
+        // Coletar tarefas dos registros agrupados
+        registrosAgrupados.forEach(agr => {
+          const id = String(agr.primeiroRegistro.tarefa_id);
+          if (id && estaNosFiltrosSelecionados(id, filtroTarefaSelecionado)) {
+            entidadesUnicas.set(id, { id, tipo: 'atividade' });
           }
         });
       }
 
-      // Preparar filtros adicionais
-      const filtrosAdicionais = {
-        tarefa_id: filtroAdicionalTarefa || null,
-        cliente_id: filtroAdicionalCliente || null,
-        produto_id: filtroAdicionalProduto || null
-      };
+      const fila = Array.from(entidadesUnicas.values());
+      console.log(`🚀 [QUEUE] Inicializando fila com ${fila.length} entidades`);
 
-      // Buscar tempo realizado para cada entidade
-      const promises = Array.from(entidadesUnicas.values()).map(async ({ tipo, id }) => {
-        const chave = `${tipo}_${id}`;
-        const tempoRealizado = await buscarTempoRealizadoPorEntidade(
-          id,
-          tipo,
-          periodoAplicadoInicio,
-          periodoAplicadoFim,
-          filtrosAdicionais
-        );
-        return { chave, tempoRealizado };
-      });
+      // Limpar caches antes de iniciar a nova fila para evitar flash de dados antigos
+      setTempoEstimadoTotalPorResponsavel({});
+      setTemposRealizadosPorEntidade({});
+      setHorasContratadasPorResponsavel({});
+      setTipoContratoPorResponsavel({});
+      setCustosPorResponsavel({});
 
-      const resultados = await Promise.all(promises);
-      resultados.forEach(({ chave, tempoRealizado }) => {
-        novosTempos[chave] = tempoRealizado;
-      });
-
-      setTemposRealizadosPorEntidade(novosTempos);
+      setFilaProcessamento(fila);
     };
 
-    buscarTemposRealizados();
-  }, [filtrosAplicados, filtrosUltimosAplicados, periodoInicio, periodoFim, registrosAgrupados, filtroPrincipal, filtroAdicionalTarefa, filtroAdicionalCliente, filtroAdicionalProduto, buscarTempoRealizadoPorEntidade, membros, filtroResponsavelSelecionado]);
+    identificarEntidades();
+  }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado]);
 
   // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
   useEffect(() => {
@@ -3446,9 +3591,11 @@ const DelegarTarefas = () => {
 
                           agrupamentosFiltrados.forEach(agr => {
                             // Filtrar registros pelo período aplicado (se houver)
-                            const registrosFiltrados = periodoAplicadoInicio && periodoAplicadoFim
+                            // [ON-DEMAND] Se não tiver registros, usar regras para contagem de itens únicos
+                            const fonteDados = (agr.registros && agr.registros.length > 0) ? agr.registros : (agr.regras || []);
+                            const registrosFiltrados = (periodoAplicadoInicio && periodoAplicadoFim && agr.registros && agr.registros.length > 0)
                               ? agr.registros.filter(reg => dataEstaNoPeriodoAplicado(reg.data))
-                              : agr.registros;
+                              : fonteDados;
 
                             registrosFiltrados.forEach(reg => {
                               // Aplicar filtros adicionais se existirem
@@ -4237,7 +4384,8 @@ const DelegarTarefas = () => {
                             // - Interseção entre período da regra e período filtrado
                             // - Configurações de cada regra (incluir_finais_semana, incluir_feriados)
                             // - Evita duplicação de datas usando Map de datas únicas
-                            tempoEstimado = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                            const tempoEstimadoCache = tempoEstimadoTotalPorResponsavel[String(entidadeId)];
+                            tempoEstimado = (tempoEstimadoCache === undefined) ? null : tempoEstimadoCache;
                           } else {
                             // Para outras entidades (cliente, produto, tarefa), calcular somando registros
                             tempoEstimado = agrupamentosFiltrados.reduce((acc, agr) => {
@@ -4266,10 +4414,21 @@ const DelegarTarefas = () => {
                           }
 
                           // Buscar tempo realizado do cache (será preenchido pelo useEffect)
-                          // Garantir que entidadeId seja string para consistência com a chave criada no useEffect
                           const chaveTempoRealizado = `${tipoEntidade}_${String(entidadeId)}`;
-                          const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
-                          // Compatibilidade com backward se era apenas número
+                          const tempoRealizadoData = temposRealizadosPorEntidade[chaveTempoRealizado];
+
+                          if (tempoRealizadoData === undefined) {
+                            // Se ainda não carregou, retornar null para tudo para mostrar "Carregando..."
+                            return {
+                              disponivel: null,
+                              estimado: tempoEstimado,
+                              realizado: null,
+                              pendente: null,
+                              sobrando: null,
+                              contratado: null
+                            };
+                          }
+
                           const tempoRealizado = typeof tempoRealizadoData === 'number' ? tempoRealizadoData : (tempoRealizadoData.realizado || 0);
                           const tempoPendente = typeof tempoRealizadoData === 'number' ? 0 : (tempoRealizadoData.pendente || 0);
 
@@ -4292,29 +4451,25 @@ const DelegarTarefas = () => {
                             const horasContratadasDia = horasContratadasPorResponsavel[String(entidadeId)];
 
                             // Verificar se horas contratadas ainda está carregando (undefined = ainda não carregado)
-                            const aindaCarregandoHoras = horasContratadasDia === undefined;
-
-                            // Buscar tempo estimado total já existente no período do cache (calculado no useEffect)
-                            const tempoEstimadoTotalNoPeriodo = tempoEstimadoTotalPorResponsavel[String(entidadeId)] || 0;
+                            const aindaCarregandoHoras = horasContratadasDia === undefined || tempoEstimado === null;
 
                             // Calcular tempo contratado total (horas contratadas por dia × dias no período)
-                            // Para PJ, usar estimado como contratado; caso contrário, calcular normalmente
-                            // Retornar null se ainda está carregando para distinguir de "já carregado mas sem valor" (0)
                             const tempoContratadoTotal = aindaCarregandoHoras
-                              ? null  // Ainda carregando - permite distinguir de 0 (já carregado mas sem valor)
+                              ? null
                               : (isPJ
-                                ? tempoEstimado
-                                : (horasContratadasDia || 0) * diasNoPeriodo * 3600000); // converter horas para milissegundos
+                                ? (tempoEstimado || 0)
+                                : (horasContratadasDia || 0) * diasNoPeriodo * 3600000);
 
                             // Calcular tempo disponível: contratadas - estimado
                             const tempoDisponivelTotal = aindaCarregandoHoras
-                              ? null  // Ainda carregando
+                              ? null
                               : (isPJ
-                                ? tempoEstimado
-                                : Math.max(0, tempoContratadoTotal - tempoEstimado));
+                                ? (tempoEstimado || 0)
+                                : Math.max(0, tempoContratadoTotal - (tempoEstimado || 0)));
+
                             const tempoSobrando = aindaCarregandoHoras
-                              ? null  // Ainda carregando
-                              : Math.max(0, tempoDisponivelTotal - tempoEstimado);
+                              ? null
+                              : Math.max(0, tempoDisponivelTotal - (tempoEstimado || 0));
 
                             return {
                               disponivel: tempoDisponivelTotal,
@@ -4326,17 +4481,12 @@ const DelegarTarefas = () => {
                             };
                           }
 
-                          // Para outras entidades, não há conceito de disponível/sobrando
-                          // Mas precisamos extrair pendente também se houver
-                          const tempoRealizadoData2 = temposRealizadosPorEntidade[chaveTempoRealizado] || { realizado: 0, pendente: 0 };
-                          const tempoRealizado2 = typeof tempoRealizadoData2 === 'number' ? tempoRealizadoData2 : (tempoRealizadoData2.realizado || 0);
-                          const tempoPendente2 = typeof tempoRealizadoData2 === 'number' ? 0 : (tempoRealizadoData2.pendente || 0);
-
+                          // Para outras entidades
                           return {
                             disponivel: 0,
                             estimado: tempoEstimado,
-                            realizado: tempoRealizado2,
-                            pendente: tempoPendente2,
+                            realizado: tempoRealizado,
+                            pendente: tempoPendente,
                             sobrando: 0,
                             contratado: 0
                           };
