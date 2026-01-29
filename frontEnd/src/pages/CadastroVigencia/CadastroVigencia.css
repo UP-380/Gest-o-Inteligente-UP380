@@ -1,0 +1,25 @@
+/* Estilos específicos da página CadastroVigencia */
+
+.cadastro-vigencia-container {
+  padding: 20px;
+}
+
+.cadastro-vigencia-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.cadastro-vigencia-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cadastro-vigencia-subtitle {
+  font-size: 14px;
+  color: #666;
+  margin: 4px 0 0 0;
+}
+

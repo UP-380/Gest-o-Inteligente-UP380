@@ -31,7 +31,7 @@ const Sidebar = () => {
   };
 
   const isRelatoriosActive = () => {
-    return isActive('/relatorios-clientes') || isActive('/relatorios-colaboradores') || isActive('/planilha-horas');
+    return isActive('/relatorios-clientes') || isActive('/relatorios-colaboradores') || isActive('/planilha-horas') || isActive('/relatorios/vigencias');
   };
 
   const isCadastrosActive = () => {
@@ -62,7 +62,7 @@ const Sidebar = () => {
 
   // Expandir automaticamente o menu Relatórios se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas';
+    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas' || location.pathname === '/relatorios/vigencias';
     if (isRelatoriosActive) {
       setRelatoriosExpanded(true);
     }
@@ -243,6 +243,12 @@ const Sidebar = () => {
         icon: 'fa-calendar-alt',
         label: 'Planilha de Horas',
         title: 'Planilha de Horas'
+      },
+      {
+        path: '/relatorios/vigencias',
+        icon: 'fa-calendar-check',
+        label: 'Relatório de Vigências',
+        title: 'Relatório de Vigências'
       }
     ];
     return allItems.filter(item => canAccessRoute(item.path));

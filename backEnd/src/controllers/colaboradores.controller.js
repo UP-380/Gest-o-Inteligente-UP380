@@ -6,118 +6,65 @@ const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
 const supabaseDirect = require('../config/database');
 const { resolveAvatarUrl } = require('../utils/storage');
+const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound, sendConflict } = require('../utils/responseHelper');
 
 // GET - Listar todos os colaboradores (com paginação opcional)
 async function getColaboradores(req, res) {
   try {
-    const { page = 1, limit = 50, search = '', status } = req.query;
+    const { page = 1, limit = 50, search = '', status, ids } = req.query;
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
-      .select('id, nome, cpf, usuario_id', { count: 'exact' });
+      .select('id, nome, usuario_id', { count: 'exact' });
     
-    // Se status for 'inativo', filtrar apenas inativos
-    // Caso contrário, mostrar apenas ativos (comportamento padrão)
-    if (status === 'inativo') {
-      query = query.eq('status', 'inativo');
-    } else {
-      query = query.or('status.is.null,status.eq.ativo');
+    // Filtro por IDs (quando fornecido como array de query params)
+    if (ids) {
+      const idsArray = Array.isArray(ids) ? ids : [ids];
+      const idsNumericos = idsArray.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      if (idsNumericos.length > 0) {
+        query = query.in('id', idsNumericos);
+      }
     }
+    
+    // Filtro de status: 'todos' (ou não informado) = todos, 'ativo' = apenas ativos, 'inativo' = apenas inativos
+    // IMPORTANTE: Quando status for 'todos' ou não informado, NÃO aplicar nenhum filtro de status
+    // Isso permite mostrar TODOS os colaboradores (ativos e inativos)
+    if (status && status !== 'todos') {
+      if (status === 'inativo') {
+        query = query.eq('status', 'inativo');
+      } else if (status === 'ativo') {
+        query = query.or('status.is.null,status.eq.ativo');
+      }
+    }
+    // Se status for 'todos', undefined, null ou vazio, não aplicar filtro (mostrar TODOS - ativos e inativos)
     
     query = query.order('nome', { ascending: true });
 
-    // Busca por nome ou CPF
-    if (search && search.trim()) {
+    // Busca por nome ou CPF (apenas se não houver filtro por IDs)
+    if (!ids && search && search.trim()) {
       const searchTerm = search.trim();
       const ilikePattern = `%${searchTerm}%`;
       
-      // Remover caracteres não numéricos do termo de busca para CPF
-      const cpfSearch = searchTerm.replace(/\D/g, '');
-      
-      if (cpfSearch.length >= 3) {
-        // Se o termo de busca contém números suficientes, buscar por nome OU CPF
-        const cpfPattern = `%${cpfSearch}%`;
-        query = query.or(`nome.ilike.${ilikePattern},cpf.ilike.${cpfPattern}`);
-      } else {
-        // Se não tem números suficientes, buscar apenas por nome
-        query = query.ilike('nome', ilikePattern);
-      }
+      // Buscar apenas por nome
+      query = query.ilike('nome', ilikePattern);
     }
 
-    // Aplicar paginação
-    if (limitNum > 0) {
+    // Aplicar paginação (apenas se não houver filtro por IDs)
+    if (limitNum > 0 && !ids) {
       query = query.range(offset, offset + limitNum - 1);
     }
 
     const { data, error, count } = await query;
 
     if (error) {
-      console.error('❌ Erro ao buscar colaboradores:', error);
-      console.error('❌ Detalhes do erro:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar colaboradores',
-        details: error.message
-      });
+      console.error('Erro ao buscar colaboradores:', error);
+      return sendError(res, 500, 'Erro ao buscar colaboradores', error.message);
     }
 
-    // Buscar salário base mais recente de cada colaborador
-    if (data && data.length > 0) {
-      const membroIds = data.map(m => m.id);
-      
-      // Buscar todas as vigências dos membros com salário base
-      const { data: vigencias, error: errorVigencias } = await supabase
-        
-        .from('custo_membro_vigencia')
-        .select('membro_id, salariobase, dt_vigencia, id')
-        .in('membro_id', membroIds)
-        .not('salariobase', 'is', null);
-
-      if (!errorVigencias && vigencias && vigencias.length > 0) {
-        // Ordenar vigências por dt_vigencia (mais recente primeiro) e depois por id (desempate)
-        vigencias.sort((a, b) => {
-          // Comparar por data de vigência (mais recente primeiro)
-          const dataA = new Date(a.dt_vigencia);
-          const dataB = new Date(b.dt_vigencia);
-          if (dataB.getTime() !== dataA.getTime()) {
-            return dataB.getTime() - dataA.getTime(); // Descendente
-          }
-          // Se as datas forem iguais, usar id como critério de desempate (maior id = mais recente)
-          return (b.id || 0) - (a.id || 0);
-        });
-
-        // Criar um mapa com o salário base mais recente de cada membro
-        // Como o array está ordenado por dt_vigencia descendente, a primeira ocorrência
-        // de cada membro_id será a mais recente
-        const salarioPorMembro = new Map();
-        vigencias.forEach(v => {
-          // Só adiciona se ainda não tiver um registro para este membro_id
-          // Isso garante que pegamos apenas o primeiro (mais recente) de cada membro
-          if (!salarioPorMembro.has(v.membro_id)) {
-            salarioPorMembro.set(v.membro_id, v.salariobase);
-          }
-        });
-
-        // Adicionar salário base a cada colaborador
-        data.forEach(colaborador => {
-          colaborador.salariobase = salarioPorMembro.get(colaborador.id) || null;
-        });
-      } else {
-        // Se não houver vigências ou houver erro, definir salariobase como null para todos
-        data.forEach(colaborador => {
-          colaborador.salariobase = null;
-        });
-      }
-    }
 
     // Buscar foto_perfil dos usuários vinculados aos membros
     if (data && data.length > 0) {
@@ -130,7 +77,7 @@ async function getColaboradores(req, res) {
       if (usuarioIds.length > 0) {
         // Buscar usuarios por usuario_id
         const { data: usuarios, error: usuariosError } = await supabase
-          
+          .schema('up_gestaointeligente')
           .from('usuarios')
           .select('id, foto_perfil')
           .in('id', usuarioIds);
@@ -183,21 +130,15 @@ async function getColaboradores(req, res) {
       }
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
-      count: data?.length || 0,
-      total: count || 0,
+    return sendSuccess(res, 200, data || [], null, {
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
+      total: count || 0,
+      count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar colaboradores:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -207,14 +148,11 @@ async function getColaboradorPorId(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     const { data, error } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .select('*')
       .eq('id', id)
@@ -222,31 +160,17 @@ async function getColaboradorPorId(req, res) {
 
     if (error) {
       console.error('Erro ao buscar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar colaborador', error.message);
     }
 
     if (!data) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
-    return res.json({
-      success: true,
-      data: data
-    });
+    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -257,20 +181,14 @@ async function criarColaborador(req, res) {
 
     // Validações
     if (!nome || !nome.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nome é obrigatório'
-      });
+      return sendValidationError(res, 'Nome é obrigatório');
     }
 
     // Validar CPF se fornecido (formato básico)
     if (cpf && cpf.trim()) {
       const cpfLimpo = cpf.replace(/\D/g, '');
-      if (cpfLimpo.length !== 11) {
-        return res.status(400).json({
-          success: false,
-          error: 'CPF deve conter 11 dígitos'
-        });
+      if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
+        return sendValidationError(res, 'CPF/CNPJ deve conter 11 ou 14 dígitos');
       }
     }
 
@@ -278,7 +196,7 @@ async function criarColaborador(req, res) {
     if (cpf && cpf.trim()) {
       const cpfLimpo = cpf.replace(/\D/g, '');
       const { data: existente, error: errorCheck } = await supabase
-        
+        .schema('up_gestaointeligente')
         .from('membro')
         .select('id, nome, cpf')
         .eq('cpf', cpfLimpo)
@@ -286,22 +204,11 @@ async function criarColaborador(req, res) {
 
       if (errorCheck) {
         console.error('Erro ao verificar CPF:', errorCheck);
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao verificar CPF',
-          details: errorCheck.message
-        });
+        return sendError(res, 500, 'Erro ao verificar CPF', errorCheck.message);
       }
 
       if (existente) {
-        return res.status(409).json({
-          success: false,
-          error: 'CPF já cadastrado',
-          data: {
-            id: existente.id,
-            nome: existente.nome
-          }
-        });
+        return sendConflict(res, 'CPF já cadastrado', null);
       }
     }
 
@@ -313,7 +220,7 @@ async function criarColaborador(req, res) {
 
     // Inserir no banco
     const { data, error } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .insert([dadosInsert])
       .select()
@@ -321,25 +228,13 @@ async function criarColaborador(req, res) {
 
     if (error) {
       console.error('Erro ao criar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao criar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao criar colaborador', error.message);
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Colaborador criado com sucesso',
-      data: data
-    });
+    return sendCreated(res, data, 'Colaborador criado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao criar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -350,15 +245,12 @@ async function atualizarColaborador(req, res) {
     const { nome, cpf, status } = req.body;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     // Verificar se colaborador existe
     const { data: existente, error: errorCheck } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .select('id, nome, cpf')
       .eq('id', id)
@@ -366,18 +258,11 @@ async function atualizarColaborador(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar colaborador', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
     // Preparar dados para atualização
@@ -385,10 +270,7 @@ async function atualizarColaborador(req, res) {
 
     if (nome !== undefined) {
       if (!nome || !nome.trim()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Nome não pode ser vazio'
-        });
+        return sendValidationError(res, 'Nome não pode ser vazio');
       }
       dadosUpdate.nome = nome.trim();
     }
@@ -397,15 +279,12 @@ async function atualizarColaborador(req, res) {
       if (cpf && cpf.trim()) {
         const cpfLimpo = cpf.replace(/\D/g, '');
         if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
-          return res.status(400).json({
-            success: false,
-            error: 'CPF/CNPJ deve conter 11 ou 14 dígitos'
-          });
+          return sendValidationError(res, 'CPF/CNPJ deve conter 11 ou 14 dígitos');
         }
 
         // Verificar se CPF já existe em outro colaborador
         const { data: cpfExistente, error: errorCpf } = await supabase
-          
+          .schema('up_gestaointeligente')
           .from('membro')
           .select('id, nome')
           .eq('cpf', cpfLimpo)
@@ -414,22 +293,11 @@ async function atualizarColaborador(req, res) {
 
         if (errorCpf) {
           console.error('Erro ao verificar CPF:', errorCpf);
-          return res.status(500).json({
-            success: false,
-            error: 'Erro ao verificar CPF',
-            details: errorCpf.message
-          });
+          return sendError(res, 500, 'Erro ao verificar CPF', errorCpf.message);
         }
 
         if (cpfExistente) {
-          return res.status(409).json({
-            success: false,
-            error: 'CPF já cadastrado para outro colaborador',
-            data: {
-              id: cpfExistente.id,
-              nome: cpfExistente.nome
-            }
-          });
+          return sendConflict(res, 'CPF já cadastrado para outro colaborador', null);
         }
 
         dadosUpdate.cpf = cpfLimpo;
@@ -445,15 +313,12 @@ async function atualizarColaborador(req, res) {
 
     // Se não há nada para atualizar
     if (Object.keys(dadosUpdate).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nenhum dado fornecido para atualização'
-      });
+      return sendValidationError(res, 'Nenhum dado fornecido para atualização');
     }
 
     // Atualizar no banco
     const { data, error } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .update(dadosUpdate)
       .eq('id', id)
@@ -462,25 +327,13 @@ async function atualizarColaborador(req, res) {
 
     if (error) {
       console.error('Erro ao atualizar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao atualizar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao atualizar colaborador', error.message);
     }
 
-    return res.json({
-      success: true,
-      message: 'Colaborador atualizado com sucesso',
-      data: data
-    });
+    return sendUpdated(res, data, 'Colaborador atualizado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao atualizar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -490,15 +343,12 @@ async function deletarColaborador(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do colaborador é obrigatório'
-      });
+      return sendValidationError(res, 'ID do colaborador é obrigatório');
     }
 
     // Verificar se colaborador existe
     const { data: existente, error: errorCheck } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .select('id, nome')
       .eq('id', id)
@@ -506,24 +356,17 @@ async function deletarColaborador(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar colaborador:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar colaborador',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar colaborador', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Colaborador não encontrado'
-      });
+      return sendNotFound(res, 'Colaborador');
     }
 
     // Verificar se há registros relacionados (opcional - pode ser ajustado conforme necessidade)
     // Por exemplo, verificar se há registros de tempo vinculados
     const { data: registrosTempo, error: errorRegistros } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('v_registro_tempo_vinculado')
       .select('id')
       .eq('usuario_id', id)
@@ -534,44 +377,28 @@ async function deletarColaborador(req, res) {
     }
 
     if (registrosTempo && registrosTempo.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'Não é possível deletar colaborador com registros de tempo vinculados',
-        message: 'Existem registros de tempo associados a este colaborador. Remova os registros antes de deletar.'
-      });
+      return sendConflict(res, 'Não é possível deletar colaborador com registros de tempo vinculados', 'Existem registros de tempo associados a este colaborador. Remova os registros antes de deletar.');
     }
 
     // Deletar do banco
     const { error } = await supabase
-      
+      .schema('up_gestaointeligente')
       .from('membro')
       .delete()
       .eq('id', id);
 
     if (error) {
       console.error('Erro ao deletar colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao deletar colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao deletar colaborador', error.message);
     }
 
-    return res.json({
-      success: true,
-      message: 'Colaborador deletado com sucesso',
-      data: {
-        id: existente.id,
-        nome: existente.nome
-      }
-    });
+    return sendDeleted(res, {
+      id: existente.id,
+      nome: existente.nome
+    }, 'Colaborador deletado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao deletar colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -579,32 +406,22 @@ async function deletarColaborador(req, res) {
 async function getTiposContrato(req, res) {
   try {
     const { data, error } = await supabaseDirect
-      
+      .schema('up_gestaointeligente')
       .from('cp_tipo_contrato_membro')
       .select('id, nome')
       .order('nome', { ascending: true });
 
     if (error) {
       console.error('Erro ao buscar tipos de contrato:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar tipos de contrato',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar tipos de contrato', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
+    return sendSuccess(res, 200, data || [], null, {
       count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar tipos de contrato:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 

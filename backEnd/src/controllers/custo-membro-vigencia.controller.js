@@ -3,6 +3,7 @@
 // =============================================================
 
 const vigenciaService = require('../services/custo-membro-vigencia.service');
+const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound, sendConflict } = require('../utils/responseHelper');
 
 // GET - Listar todas as vigências (com filtros opcionais)
 async function getCustosColaboradorVigencia(req, res) {
@@ -41,13 +42,6 @@ async function getCustosColaboradorVigencia(req, res) {
       
       // Converter para números válidos
       membroIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
-      
-      console.log('🔍 [CONTROLLER] Processamento membro_id:', {
-        original: membroIdsFromQuery,
-        processado: membroIdsArray,
-        tipo: typeof membroIdsFromQuery,
-        isArray: Array.isArray(membroIdsFromQuery)
-      });
     }
 
     const filters = {
@@ -61,28 +55,18 @@ async function getCustosColaboradorVigencia(req, res) {
 
     if (error) {
       console.error('Erro ao buscar custos colaborador vigência:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar custos colaborador vigência',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar custos colaborador vigência', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
-      count: data?.length || 0,
-      total: count || 0,
+    return sendSuccess(res, 200, data || [], null, {
       page: pageNum,
-      limit: limitNum
+      limit: limitNum,
+      total: count || 0,
+      count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar custos colaborador vigência:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -92,41 +76,24 @@ async function getCustoColaboradorVigenciaPorId(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID da vigência é obrigatório'
-      });
+      return sendValidationError(res, 'ID da vigência é obrigatório');
     }
 
     const { data, error } = await vigenciaService.buscarVigenciaPorId(id);
 
     if (error) {
       console.error('Erro ao buscar custo colaborador vigência:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar custo colaborador vigência',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar custo colaborador vigência', error.message);
     }
 
     if (!data) {
-      return res.status(404).json({
-        success: false,
-        error: 'Vigência não encontrada'
-      });
+      return sendNotFound(res, 'Vigência');
     }
 
-    return res.json({
-      success: true,
-      data: data
-    });
+    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar custo colaborador vigência:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -136,35 +103,22 @@ async function getCustosPorMembro(req, res) {
     const { membro_id } = req.params;
 
     if (!membro_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do membro é obrigatório'
-      });
+      return sendValidationError(res, 'ID do membro é obrigatório');
     }
 
     const { data, error } = await vigenciaService.buscarVigenciasPorMembro(membro_id);
 
     if (error) {
       console.error('Erro ao buscar custos por colaborador:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar custos por colaborador',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar custos por colaborador', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data || [],
+    return sendSuccess(res, 200, data || [], null, {
       count: data?.length || 0
     });
   } catch (error) {
     console.error('Erro inesperado ao buscar custos por colaborador:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -172,8 +126,10 @@ async function getCustosPorMembro(req, res) {
 // VERSÃO LIMPA: Salva exatamente o que vem do frontend, sem cálculos
 async function criarCustoColaboradorVigencia(req, res) {
   try {
-    console.log('🚀 [POST] Função criarCustoColaboradorVigencia chamada');
-    console.log('📥 [POST] Body recebido:', JSON.stringify(req.body, null, 2));
+    // Log apenas em desenvolvimento
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🚀 [POST] Criando nova vigência');
+    }
     
     // Pegar TODOS os campos do body
     // NOTA: diasuteis não existe na tabela, então não extraímos do body
@@ -188,7 +144,6 @@ async function criarCustoColaboradorVigencia(req, res) {
       decimoterceiro,
       fgts,
       custo_hora,
-      insspatronal,
       insscolaborador,
       ajudacusto,
       valetransporte,
@@ -196,30 +151,30 @@ async function criarCustoColaboradorVigencia(req, res) {
       descricao
       // descricao_beneficios - removido pois a coluna não existe na tabela
       // diasuteis - removido pois a coluna não existe na tabela
+      // insspatronal - removido pois o campo não existe mais
     } = req.body;
 
     // Validações obrigatórias
     if (!membro_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'membro_id é obrigatório'
-      });
+      return sendValidationError(res, 'membro_id é obrigatório');
     }
 
     if (!dt_vigencia) {
-      return res.status(400).json({
-        success: false,
-        error: 'dt_vigencia é obrigatória'
-      });
+      return sendValidationError(res, 'dt_vigencia é obrigatória');
     }
 
     // Validar formato de data (YYYY-MM-DD)
     const dataRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dataRegex.test(dt_vigencia)) {
-      return res.status(400).json({
-        success: false,
-        error: 'dt_vigencia deve estar no formato YYYY-MM-DD'
-      });
+      return sendValidationError(res, 'dt_vigencia deve estar no formato YYYY-MM-DD');
+    }
+
+    // Validar se data não é muito futura (limite de 10 anos)
+    const dataVigencia = new Date(dt_vigencia);
+    const dataLimite = new Date();
+    dataLimite.setFullYear(dataLimite.getFullYear() + 10);
+    if (dataVigencia > dataLimite) {
+      return sendValidationError(res, 'Data de vigência não pode ser mais de 10 anos no futuro');
     }
 
     // Verificar se membro existe
@@ -227,18 +182,23 @@ async function criarCustoColaboradorVigencia(req, res) {
 
     if (errorMembro) {
       console.error('Erro ao verificar membro:', errorMembro);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar membro',
-        details: errorMembro.message
-      });
+      return sendError(res, 500, 'Erro ao verificar membro', errorMembro.message);
     }
 
     if (!exists) {
-      return res.status(404).json({
-        success: false,
-        error: 'Membro não encontrado'
-      });
+      return sendNotFound(res, 'Membro');
+    }
+
+    // Verificar se já existe vigência com mesmo membro_id e dt_vigencia
+    const { exists: vigenciaExiste, error: errorVigencia } = await vigenciaService.verificarVigenciaUnica(membro_id, dt_vigencia);
+    
+    if (errorVigencia) {
+      console.error('Erro ao verificar unicidade de vigência:', errorVigencia);
+      return sendError(res, 500, 'Erro ao verificar vigência', errorVigencia.message);
+    }
+
+    if (vigenciaExiste) {
+      return sendConflict(res, 'Já existe uma vigência para este colaborador com esta data', 'Não é permitido criar vigências duplicadas para o mesmo colaborador na mesma data');
     }
 
     // Função para converter para string (campos TEXT)
@@ -272,74 +232,33 @@ async function criarCustoColaboradorVigencia(req, res) {
     };
 
     // Campos TEXT - enviar como string
-    console.log('🔍 [POST] Valores recebidos do frontend:');
-    console.log('   - ferias:', ferias, 'tipo:', typeof ferias);
-    console.log('   - terco_ferias:', terco_ferias, 'tipo:', typeof terco_ferias);
-    console.log('   - decimoterceiro:', decimoterceiro, 'tipo:', typeof decimoterceiro);
-    console.log('   - fgts:', fgts, 'tipo:', typeof fgts);
-    
     if (ferias !== null && ferias !== undefined && ferias !== '') {
       dadosInsert.ferias = toString(ferias);
-      console.log('✅ [POST] ferias adicionado:', dadosInsert.ferias);
     }
     if (terco_ferias !== null && terco_ferias !== undefined && terco_ferias !== '') {
       dadosInsert.um_terco_ferias = toString(terco_ferias); // Nome correto da coluna
-      console.log('✅ [POST] um_terco_ferias adicionado:', dadosInsert.um_terco_ferias);
     }
     if (decimoterceiro !== null && decimoterceiro !== undefined && decimoterceiro !== '') {
       dadosInsert.decimoterceiro = toString(decimoterceiro);
-      console.log('✅ [POST] decimoterceiro adicionado:', dadosInsert.decimoterceiro);
     }
     if (fgts !== null && fgts !== undefined && fgts !== '') {
       dadosInsert.fgts = toString(fgts);
-      console.log('✅ [POST] fgts adicionado:', dadosInsert.fgts);
     }
     if (custo_hora !== null && custo_hora !== undefined && custo_hora !== '') {
       dadosInsert.custo_hora = toString(custo_hora);
-      console.log('✅ [POST] custo_hora adicionado:', dadosInsert.custo_hora);
     }
-    // Campos numéricos - verificar se as colunas existem antes de enviar
-    // Se as colunas insspatronal e insscolaborador não existirem, não enviar
-    // (comentado temporariamente até confirmar se as colunas existem)
-    // if (insspatronal !== null && insspatronal !== undefined && insspatronal !== '') {
-    //   const inssPatronalNum = toNumber(insspatronal);
-    //   if (inssPatronalNum !== null) dadosInsert.insspatronal = inssPatronalNum;
-    // }
-    // if (insscolaborador !== null && insscolaborador !== undefined && insscolaborador !== '') {
-    //   const inssColabNum = toNumber(insscolaborador);
-    //   if (inssColabNum !== null) dadosInsert.insscolaborador = inssColabNum;
-    // }
-
-    console.log('📤 [POST] Dados para inserção:', JSON.stringify(dadosInsert, null, 2));
-
-    // Criar vigência - agora sem lógica de correção de trigger (campos são TEXT)
-    let { data, error } = await vigenciaService.criarVigencia(dadosInsert);
+    // Criar vigência
+    const { data, error } = await vigenciaService.criarVigencia(dadosInsert);
 
     if (error) {
-      console.error('❌ [POST] Erro ao criar vigência:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao criar custo colaborador vigência',
-        details: error.message || 'Erro desconhecido',
-        code: error.code,
-        hint: error.hint
-      });
+      console.error('Erro ao criar vigência:', error);
+      return sendError(res, 500, 'Erro ao criar custo colaborador vigência', error.message, error.code);
     }
 
-      return res.status(201).json({
-        success: true,
-        message: 'Custo colaborador vigência criado com sucesso',
-        data: data
-      });
+    return sendCreated(res, data, 'Custo colaborador vigência criado com sucesso');
   } catch (error) {
-    console.error('❌ [POST] Erro inesperado ao criar custo colaborador vigência:', error);
-    console.error('❌ [POST] Stack trace:', error.stack);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message || 'Erro desconhecido',
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Erro inesperado ao criar custo colaborador vigência:', error);
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -362,7 +281,6 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       decimoterceiro,
       fgts,
       custo_hora,
-      insspatronal,
       insscolaborador,
       ajudacusto,
       valetransporte,
@@ -371,13 +289,11 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       // descricao_beneficios - removido pois a coluna não existe na tabela
       // diasuteis - removido pois a coluna não existe na tabela
       // custo_total_mensal - não existe na tabela, é calculado
+      // insspatronal - removido pois o campo não existe mais
     } = req.body;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID da vigência é obrigatório'
-      });
+      return sendValidationError(res, 'ID da vigência é obrigatório');
     }
 
     // Verificar se vigência existe
@@ -385,18 +301,11 @@ async function atualizarCustoColaboradorVigencia(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar vigência:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar vigência',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar vigência', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Vigência não encontrada'
-      });
+      return sendNotFound(res, 'Vigência');
     }
 
     // Função para converter para string (campos TEXT)
@@ -421,17 +330,10 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     if (membro_id !== undefined) {
       const { exists, error: errorMembro } = await vigenciaService.verificarMembroExiste(membro_id);
       if (errorMembro) {
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao verificar membro',
-          details: errorMembro.message
-        });
+        return sendError(res, 500, 'Erro ao verificar membro', errorMembro.message);
       }
       if (!exists) {
-        return res.status(404).json({
-          success: false,
-          error: 'Membro não encontrado'
-        });
+        return sendNotFound(res, 'Membro');
       }
       dadosUpdate.membro_id = parseInt(membro_id, 10);
     }
@@ -439,11 +341,30 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     if (dt_vigencia !== undefined) {
       const dataRegex = /^\d{4}-\d{2}-\d{2}$/;
       if (!dataRegex.test(dt_vigencia)) {
-        return res.status(400).json({
-          success: false,
-          error: 'dt_vigencia deve estar no formato YYYY-MM-DD'
-        });
+        return sendValidationError(res, 'dt_vigencia deve estar no formato YYYY-MM-DD');
       }
+      
+      // Validar se data não é muito futura
+      const dataVigencia = new Date(dt_vigencia);
+      const dataLimite = new Date();
+      dataLimite.setFullYear(dataLimite.getFullYear() + 10);
+      if (dataVigencia > dataLimite) {
+        return sendValidationError(res, 'Data de vigência não pode ser mais de 10 anos no futuro');
+      }
+
+      // Verificar unicidade se dt_vigencia ou membro_id mudaram
+      const membroIdParaVerificar = dadosUpdate.membro_id || existente.membro_id;
+      const { exists: vigenciaExiste, error: errorVigencia } = await vigenciaService.verificarVigenciaUnica(membroIdParaVerificar, dt_vigencia, id);
+      
+      if (errorVigencia) {
+        console.error('Erro ao verificar unicidade de vigência:', errorVigencia);
+        return sendError(res, 500, 'Erro ao verificar vigência', errorVigencia.message);
+      }
+
+      if (vigenciaExiste) {
+        return sendConflict(res, 'Já existe uma vigência para este colaborador com esta data', 'Não é permitido ter vigências duplicadas para o mesmo colaborador na mesma data');
+      }
+
       dadosUpdate.dt_vigencia = dt_vigencia;
     }
 
@@ -468,51 +389,28 @@ async function atualizarCustoColaboradorVigencia(req, res) {
     if (valetransporte !== undefined) dadosUpdate.valetransporte = toString(valetransporte) || '0';
     if (vale_refeicao !== undefined) dadosUpdate.vale_refeicao = toString(vale_refeicao) || '0';
     // Campos numéricos - verificar se as colunas existem antes de enviar
-    // Se as colunas insspatronal e insscolaborador não existirem, não enviar
-    // (comentado temporariamente até confirmar se as colunas existem)
-    // if (insspatronal !== undefined) dadosUpdate.insspatronal = toNumber(insspatronal);
+    // insspatronal REMOVIDO - campo não existe mais
     // if (insscolaborador !== undefined) dadosUpdate.insscolaborador = toNumber(insscolaborador);
     if (descricao !== undefined) dadosUpdate.descricao = descricao || null;
     // descricao_beneficios - removido pois a coluna não existe na tabela
 
     // Se não há nada para atualizar
     if (Object.keys(dadosUpdate).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Nenhum dado fornecido para atualização'
-      });
+      return sendValidationError(res, 'Nenhum dado fornecido para atualização');
     }
-
-    console.log('📤 [PUT] Dados para atualização (EXATOS do frontend):', JSON.stringify(dadosUpdate, null, 2));
 
     // Atualizar vigência
     const { data, error } = await vigenciaService.atualizarVigencia(id, dadosUpdate);
 
     if (error) {
-      console.error('❌ [PUT] Erro ao atualizar custo colaborador vigência:', error);
-      console.error('❌ [PUT] Detalhes do erro:', JSON.stringify(error, null, 2));
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao atualizar custo colaborador vigência',
-        details: error.message || 'Erro desconhecido',
-        code: error.code,
-        hint: error.hint
-      });
+      console.error('Erro ao atualizar custo colaborador vigência:', error);
+      return sendError(res, 500, 'Erro ao atualizar custo colaborador vigência', error.message, error.code);
     }
 
-    return res.json({
-      success: true,
-      message: 'Custo colaborador vigência atualizado com sucesso',
-      data: data
-    });
+    return sendUpdated(res, data, 'Custo colaborador vigência atualizado com sucesso');
   } catch (error) {
-    console.error('❌ [PUT] Erro inesperado ao atualizar custo colaborador vigência:', error);
-    console.error('❌ [PUT] Stack trace:', error.stack);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message || 'Erro desconhecido'
-    });
+    console.error('Erro inesperado ao atualizar custo colaborador vigência:', error);
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -522,18 +420,12 @@ async function getHorasContratadasPorMembroEPeriodo(req, res) {
     const { membro_id, data_inicio, data_fim } = req.query;
 
     if (!membro_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do membro é obrigatório'
-      });
+      return sendValidationError(res, 'ID do membro é obrigatório');
     }
 
     const membroId = parseInt(membro_id, 10);
     if (isNaN(membroId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do membro inválido'
-      });
+      return sendValidationError(res, 'ID do membro inválido');
     }
 
     const { data, error } = await vigenciaService.buscarHorasContratadasPorMembroEPeriodo(
@@ -544,24 +436,13 @@ async function getHorasContratadasPorMembroEPeriodo(req, res) {
 
     if (error) {
       console.error('Erro ao buscar horas contratadas:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar horas contratadas',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar horas contratadas', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data
-    });
+    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar horas contratadas:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -571,18 +452,12 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
     const { membro_id, data_inicio, data_fim } = req.query;
 
     if (!membro_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do membro é obrigatório'
-      });
+      return sendValidationError(res, 'ID do membro é obrigatório');
     }
 
     const membroId = parseInt(membro_id, 10);
     if (isNaN(membroId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID do membro inválido'
-      });
+      return sendValidationError(res, 'ID do membro inválido');
     }
 
     const { data, error } = await vigenciaService.buscarCustoMaisRecentePorMembroEPeriodo(
@@ -593,24 +468,30 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
 
     if (error) {
       console.error('Erro ao buscar custo mais recente:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao buscar custo mais recente',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao buscar custo mais recente', error.message);
     }
 
-    return res.json({
-      success: true,
-      data: data
-    });
+    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar custo mais recente:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
+  }
+}
+
+// GET - Buscar todos os colaboradores com suas últimas vigências (para relatório)
+async function getColaboradoresComUltimaVigencia(req, res) {
+  try {
+    const { data, error } = await vigenciaService.buscarColaboradoresComUltimaVigencia();
+
+    if (error) {
+      console.error('Erro ao buscar colaboradores com últimas vigências:', error);
+      return sendError(res, 500, 'Erro ao buscar colaboradores com últimas vigências', error.message);
+    }
+
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    console.error('Erro inesperado ao buscar colaboradores com últimas vigências:', error);
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -620,10 +501,7 @@ async function deletarCustoColaboradorVigencia(req, res) {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID da vigência é obrigatório'
-      });
+      return sendValidationError(res, 'ID da vigência é obrigatório');
     }
 
     // Verificar se vigência existe
@@ -631,18 +509,11 @@ async function deletarCustoColaboradorVigencia(req, res) {
 
     if (errorCheck) {
       console.error('Erro ao verificar vigência:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar vigência',
-        details: errorCheck.message
-      });
+      return sendError(res, 500, 'Erro ao verificar vigência', errorCheck.message);
     }
 
     if (!existente) {
-      return res.status(404).json({
-        success: false,
-        error: 'Vigência não encontrada'
-      });
+      return sendNotFound(res, 'Vigência');
     }
 
     // Deletar vigência
@@ -650,29 +521,17 @@ async function deletarCustoColaboradorVigencia(req, res) {
 
     if (error) {
       console.error('Erro ao deletar custo colaborador vigência:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao deletar custo colaborador vigência',
-        details: error.message
-      });
+      return sendError(res, 500, 'Erro ao deletar custo colaborador vigência', error.message);
     }
 
-    return res.json({
-      success: true,
-      message: 'Custo colaborador vigência deletado com sucesso',
-      data: {
-        id: existente.id,
-        membro_id: existente.membro_id,
-        dt_vigencia: existente.dt_vigencia
-      }
-    });
+    return sendDeleted(res, {
+      id: existente.id,
+      membro_id: existente.membro_id,
+      dt_vigencia: existente.dt_vigencia
+    }, 'Custo colaborador vigência deletado com sucesso');
   } catch (error) {
     console.error('Erro inesperado ao deletar custo colaborador vigência:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Erro interno do servidor',
-      details: error.message
-    });
+    return sendError(res, 500, 'Erro interno do servidor', error.message);
   }
 }
 
@@ -682,6 +541,7 @@ module.exports = {
   getCustosPorMembro,
   getCustoMaisRecentePorMembroEPeriodo,
   getHorasContratadasPorMembroEPeriodo,
+  getColaboradoresComUltimaVigencia,
   criarCustoColaboradorVigencia,
   atualizarCustoColaboradorVigencia,
   deletarCustoColaboradorVigencia
