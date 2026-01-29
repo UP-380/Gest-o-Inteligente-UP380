@@ -1,14 +1,15 @@
 /**
  * Calcula os benefícios trabalhistas baseados na configuração de custo-colaborador
- * Busca a configuração mais próxima da data de vigência e usa os valores cadastrados
+ * Busca a configuração vigente na data informada e usa os valores cadastrados
  * 
  * @param {string|number} salarioBase - Salário base (pode vir formatado como string "1.000,00")
  * @param {string|null} dataVigencia - Data de vigência (obrigatória para buscar a config correta)
  * @param {number|null} diasUteisVigencia - Número de dias úteis da vigência atual (usado em TODOS os cálculos)
  * @param {number|null} horasContratadasDia - Horas contratadas por dia (para cálculo do custo hora)
+ * @param {number|string|null} tipoContrato - Tipo de contrato (para buscar a configuração correta)
  * @returns {Promise<Object>} Objeto com os benefícios calculados (valores diários)
  */
-export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUteisVigencia = null, horasContratadasDia = null) => {
+export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUteisVigencia = null, horasContratadasDia = null, tipoContrato = null) => {
   // Remover formatação do salário base se for string
   let salario = 0;
   if (typeof salarioBase === 'string') {
@@ -25,7 +26,6 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
       terco_ferias: 0,
       decimoterceiro: 0,
       fgts: 0,
-      insspatronal: 0,
       insscolaborador: 0,
       valetransporte: 0,
       vale_refeicao: 0,
@@ -34,37 +34,56 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
     };
   }
 
-  // Buscar configuração de custo-colaborador mais recente até a data de vigência
+  // Buscar configuração de custo-colaborador vigente na data informada
   let config = null;
-  try {
-    const API_BASE_URL = '/api';
-    let url = `${API_BASE_URL}/config-custo-colaborador/mais-recente`;
-    
-    // Se tiver data de vigência, usar para buscar a config mais próxima
-    if (dataVigencia) {
+  
+  // data_vigencia é obrigatória para buscar a configuração vigente
+  if (!dataVigencia) {
+    console.warn('calcularVigencia: dataVigencia não fornecida, não será possível buscar configuração');
+  } else {
+    try {
+      const API_BASE_URL = '/api';
+      
       // Garantir formato YYYY-MM-DD
-      const dataFormatada = dataVigencia.includes('T') 
-        ? dataVigencia.split('T')[0] 
-        : dataVigencia;
-      url += `?data_vigencia=${dataFormatada}`;
-    }
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include'
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      if (result.success && result.data) {
-        config = result.data;
+      let dataFormatada = dataVigencia;
+      if (dataVigencia.includes('T')) {
+        dataFormatada = dataVigencia.split('T')[0];
+      } else if (dataVigencia.includes('/')) {
+        // Se estiver no formato DD/MM/YYYY, converter para YYYY-MM-DD
+        const partes = dataVigencia.split('/');
+        if (partes.length === 3) {
+          dataFormatada = `${partes[2]}-${partes[1]}-${partes[0]}`;
+        }
       }
+      
+      let url = `${API_BASE_URL}/config-custo-colaborador/mais-recente?data_vigencia=${dataFormatada}`;
+      
+      // Adicionar tipo_contrato se fornecido
+      if (tipoContrato !== null && tipoContrato !== undefined && tipoContrato !== '') {
+        const tipoContratoNum = parseInt(tipoContrato, 10);
+        if (!isNaN(tipoContratoNum)) {
+          url += `&tipo_contrato=${tipoContratoNum}`;
+        }
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          config = result.data;
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao buscar configuração vigente:', error);
+      // Continuar com valores zerados se der erro
     }
-  } catch (error) {
-    // Continuar com valores zerados se der erro
   }
 
   // Se não encontrou config, retornar valores zerados
@@ -74,7 +93,6 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
       terco_ferias: 0,
       decimoterceiro: 0,
       fgts: 0,
-      insspatronal: 0,
       insscolaborador: 0,
       valetransporte: 0,
       vale_refeicao: 0,
@@ -128,12 +146,6 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
   // Vale Refeição: valor fixo por dia (já está correto na config)
   const vale_refeicao = config.vale_alimentacao || 0;
 
-  // INSS Patronal: porcentagem sobre o salário (da configuração), depois dividir por diasUteisVigenciaAtual
-  // Busca o valor da coluna inss_patronal da configuração (mesma lógica dos outros campos: FGTS, Férias, etc.)
-  const inssPatronalPercent = config.inss_patronal || 0; // Usar valor da configuração ou 0 se não configurado
-  const insspatronalMensal = (inssPatronalPercent / 100) * salario;
-  const insspatronal = diasUteisVigenciaAtual > 0 ? insspatronalMensal / diasUteisVigenciaAtual : 0;
-
   // INSS Colaborador: ~11% do salário (com teto), depois dividir por diasUteisVigenciaAtual
   // NOTA: Este valor é uma RETENÇÃO do colaborador, não é custo da empresa (não entra no custo total)
   const tetoINSS = 7507.49;
@@ -155,7 +167,6 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
   // - 1/3 Férias mensal = tercoFeriasMensal (provisão mensal = valor anual / 12)
   // - 13º Salário mensal = decimoTerceiroMensal (provisão mensal = valor anual / 12)
   // - FGTS mensal = fgtsMensal
-  // - INSS Patronal mensal = insspatronalMensal (custo da empresa)
   // - INSS Colaborador mensal = insscolaboradorMensal (RETENÇÃO - NÃO incluir no custo total)
   // - Vale Transporte mensal = valetransporte * diasUteisVigenciaAtual (já é por dia)
   // - Vale Refeição mensal = vale_refeicao * diasUteisVigenciaAtual (já é por dia)
@@ -170,7 +181,7 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
                             tercoFeriasMensal + 
                             decimoTerceiroMensal + 
                             fgtsMensal + 
-                            insspatronalMensal + 
+                            // insspatronalMensal REMOVIDO - campo não existe mais
                             // insscolaboradorMensal REMOVIDO - é retenção do colaborador, não custo da empresa
                             valetransporteMensal + 
                             valeRefeicaoMensal;
@@ -191,7 +202,7 @@ export const calcularVigencia = async (salarioBase, dataVigencia = null, diasUte
     terco_ferias: Math.round(terco_ferias * 100) / 100,
     decimoterceiro: Math.round(decimoterceiro * 100) / 100,
     fgts: Math.round(fgts * 100) / 100,
-    insspatronal: Math.round(insspatronal * 100) / 100,
+    // insspatronal REMOVIDO - campo não existe mais
     insscolaborador: Math.round(insscolaborador * 100) / 100,
     valetransporte: Math.round(valetransporte * 100) / 100,
     vale_refeicao: Math.round(vale_refeicao * 100) / 100,

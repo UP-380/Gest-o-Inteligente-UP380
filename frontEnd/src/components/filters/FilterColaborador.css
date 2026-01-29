@@ -135,16 +135,6 @@
   background-color: #cce0ff;
 }
 
-.colaborador-option.inactive.selected {
-  background-color: #fee2e2;
-  color: #ef4444;
-  border-left: 3px solid #ef4444;
-}
-
-.colaborador-option.inactive.selected:hover {
-  background-color: #fecaca;
-}
-
 .colaborador-option.no-results {
   color: #6c757d;
   font-style: italic;
@@ -173,33 +163,61 @@
   color: white;
 }
 
-.colaborador-option.inactive.selected .colaborador-option-checkbox {
-  background-color: #ef4444;
-  border-color: #ef4444;
-  color: white;
-}
-
 .colaborador-option-checkbox i {
   font-size: 10px;
 }
 
-.colaborador-option.inactive {
-  /* Removido background vermelho - apenas fonte vermelha */
+/* Responsividade */
+@media (max-width: 768px) {
+  .colaborador-filter-container {
+    width: 100%;
+  }
+
+  .colaborador-select-display {
+    padding: 10px 14px;
+    min-height: 42px;
+  }
+
+  .colaborador-select-text,
+  .colaborador-select-input {
+    font-size: 13px;
+  }
+
+  .colaborador-dropdown {
+    max-height: 250px;
+  }
+
+  .colaborador-options-container {
+    max-height: 200px;
+  }
+
+  .colaborador-option {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
 }
 
-.colaborador-option.inactive span {
-  color: #ef4444;
-}
+@media (max-width: 480px) {
+  .colaborador-select-display {
+    padding: 10px 12px;
+    min-height: 40px;
+  }
 
-.colaborador-option-inactive-badge {
-  display: inline-block;
-  background: #fee2e2;
-  color: #ef4444;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 12px;
-  margin-left: 8px;
-  text-transform: uppercase;
-}
+  .colaborador-select-text,
+  .colaborador-select-input {
+    font-size: 12px;
+  }
 
+  .colaborador-option {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .colaborador-dropdown {
+    max-height: 200px;
+  }
+
+  .colaborador-options-container {
+    max-height: 150px;
+  }
+}

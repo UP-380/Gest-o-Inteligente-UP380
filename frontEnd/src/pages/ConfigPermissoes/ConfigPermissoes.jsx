@@ -59,6 +59,7 @@ const TODAS_PAGINAS = [
   { path: '/relatorios-clientes', label: 'Relatórios de Clientes', categoria: 'Relatórios' },
   { path: '/relatorios-colaboradores', label: 'Relatórios de Colaboradores', categoria: 'Relatórios' },
   { path: '/planilha-horas', label: 'Planilha de Horas', categoria: 'Relatórios' },
+  { path: '/relatorios/vigencias', label: 'Relatório de Vigências', categoria: 'Relatórios' },
 
   // Cadastros
   { path: '/cadastro/clientes', label: 'Clientes', categoria: 'Cadastros' },

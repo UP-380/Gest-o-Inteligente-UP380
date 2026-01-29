@@ -1,0 +1,74 @@
+.tipo-contratos-listing-section {
+  width: 100%;
+}
+
+.cadastro-listing-page-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.cadastro-listing-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.cadastro-listing-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.cadastro-listing-header-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: #f0f9ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cadastro-listing-page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.cadastro-listing-page-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.listing-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.listing-controls-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.listing-table-container {
+  margin-bottom: 24px;
+}
+
+
+
+
+
+

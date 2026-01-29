@@ -7,6 +7,11 @@ import RelatoriosColaboradores from './pages/DashboardColaboradores/DashboardCol
 import CadastroClientes from './pages/CadastroClientes/CadastroClientes';
 import GestaoColaboradores from './pages/ConfiguracoesColaboradores/ConfiguracoesColaboradores';
 import ConfigCustoMembro from './pages/ConfigCustoMembro/ConfigCustoMembro';
+import CadastroColaborador from './pages/CadastroColaborador/CadastroColaborador';
+import CadastroVigencia from './pages/CadastroVigencia/CadastroVigencia';
+import ListaVigencias from './pages/ListaVigencias/ListaVigencias';
+import RelatorioVigencias from './pages/RelatorioVigencias/RelatorioVigencias';
+import EditarConfigCusto from './pages/EditarConfigCusto/EditarConfigCusto';
 import CadastroProdutos from './pages/CadastroProdutos/CadastroProdutos';
 import CadastroProdutoIndividual from './pages/CadastroProdutoIndividual/CadastroProdutoIndividual';
 import CadastroTarefas from './pages/CadastroTarefas/CadastroTarefas';
@@ -15,6 +20,8 @@ import CadastroSubtarefas from './pages/CadastroSubtarefas/CadastroSubtarefas';
 import CadastroSubtarefaIndividual from './pages/CadastroSubtarefaIndividual/CadastroSubtarefaIndividual';
 import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
 import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
+import CadastroTipoContratos from './pages/CadastroTipoContratos/CadastroTipoContratos';
+import CadastroTipoContrato from './pages/CadastroTipoContrato/CadastroTipoContrato';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
 import CadastroVinculacao from './pages/CadastroVinculacao/CadastroVinculacao';
 import NovaVinculacao from './pages/Vinculacoes/NovaVinculacao';
@@ -161,10 +168,50 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/colaborador"
+          element={
+            <ProtectedRoute>
+              <CadastroColaborador />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/vigencia"
+          element={
+            <ProtectedRoute>
+              <CadastroVigencia />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/colaborador/vigencias"
+          element={
+            <ProtectedRoute>
+              <ListaVigencias />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relatorios/vigencias"
+          element={
+            <ProtectedRoute>
+              <RelatorioVigencias />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cadastro/custo-colaborador"
           element={
             <ProtectedRoute>
               <ConfigCustoMembro />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/config-custo"
+          element={
+            <ProtectedRoute>
+              <EditarConfigCusto />
             </ProtectedRoute>
           }
         />
@@ -229,6 +276,22 @@ function App() {
           element={
             <ProtectedRoute>
               <CadastroTipoTarefaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tipo-contratos"
+          element={
+            <ProtectedRoute>
+              <CadastroTipoContratos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/tipo-contrato"
+          element={
+            <ProtectedRoute>
+              <CadastroTipoContrato />
             </ProtectedRoute>
           }
         />
