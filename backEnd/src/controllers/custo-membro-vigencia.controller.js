@@ -5,32 +5,36 @@
 const vigenciaService = require('../services/custo-membro-vigencia.service');
 const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound, sendConflict } = require('../utils/responseHelper');
 
+// [FIX] 503 Mitigation: Cache para custos (TTL 5 min)
+const NodeCache = require('node-cache');
+const custoCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+
 // GET - Listar todas as vigências (com filtros opcionais)
 async function getCustosColaboradorVigencia(req, res) {
   try {
-    const { 
-      page = 1, 
-      limit = 50, 
+    const {
+      page = 1,
+      limit = 50,
       membro_id,
       dt_vigencia_inicio,
       dt_vigencia_fim,
       status
     } = req.query;
-    
+
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
 
     // Processar membro_id - pode vir como array, múltiplos parâmetros na query string, ou string separada por vírgula
     let membroIdsArray = [];
     const membroIdsFromQuery = req.query.membro_id;
-    
+
     if (membroIdsFromQuery) {
       let idsParaProcessar = [];
-      
+
       // Se for array (múltiplos parâmetros na query string)
       if (Array.isArray(membroIdsFromQuery)) {
         idsParaProcessar = membroIdsFromQuery;
-      } 
+      }
       // Se for string que contém vírgulas (fallback)
       else if (typeof membroIdsFromQuery === 'string' && membroIdsFromQuery.includes(',')) {
         idsParaProcessar = membroIdsFromQuery.split(',').map(id => id.trim()).filter(Boolean);
@@ -39,7 +43,7 @@ async function getCustosColaboradorVigencia(req, res) {
       else {
         idsParaProcessar = [membroIdsFromQuery];
       }
-      
+
       // Converter para números válidos
       membroIdsArray = idsParaProcessar.map(id => parseInt(String(id).trim(), 10)).filter(id => !isNaN(id));
     }
@@ -130,7 +134,7 @@ async function criarCustoColaboradorVigencia(req, res) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('🚀 [POST] Criando nova vigência');
     }
-    
+
     // Pegar TODOS os campos do body
     // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
@@ -191,7 +195,7 @@ async function criarCustoColaboradorVigencia(req, res) {
 
     // Verificar se já existe vigência com mesmo membro_id e dt_vigencia
     const { exists: vigenciaExiste, error: errorVigencia } = await vigenciaService.verificarVigenciaUnica(membro_id, dt_vigencia);
-    
+
     if (errorVigencia) {
       console.error('Erro ao verificar unicidade de vigência:', errorVigencia);
       return sendError(res, 500, 'Erro ao verificar vigência', errorVigencia.message);
@@ -267,7 +271,7 @@ async function criarCustoColaboradorVigencia(req, res) {
 async function atualizarCustoColaboradorVigencia(req, res) {
   try {
     const { id } = req.params;
-    
+
     // Pegar TODOS os campos do body
     // NOTA: diasuteis não existe na tabela, então não extraímos do body
     const {
@@ -343,7 +347,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       if (!dataRegex.test(dt_vigencia)) {
         return sendValidationError(res, 'dt_vigencia deve estar no formato YYYY-MM-DD');
       }
-      
+
       // Validar se data não é muito futura
       const dataVigencia = new Date(dt_vigencia);
       const dataLimite = new Date();
@@ -355,7 +359,7 @@ async function atualizarCustoColaboradorVigencia(req, res) {
       // Verificar unicidade se dt_vigencia ou membro_id mudaram
       const membroIdParaVerificar = dadosUpdate.membro_id || existente.membro_id;
       const { exists: vigenciaExiste, error: errorVigencia } = await vigenciaService.verificarVigenciaUnica(membroIdParaVerificar, dt_vigencia, id);
-      
+
       if (errorVigencia) {
         console.error('Erro ao verificar unicidade de vigência:', errorVigencia);
         return sendError(res, 500, 'Erro ao verificar vigência', errorVigencia.message);
@@ -423,23 +427,38 @@ async function getHorasContratadasPorMembroEPeriodo(req, res) {
       return sendValidationError(res, 'ID do membro é obrigatório');
     }
 
-    const membroId = parseInt(membro_id, 10);
-    if (isNaN(membroId)) {
+    // Processar membro_id (pode ser único ou array/string separada por vírgula)
+    let ids = [];
+    if (Array.isArray(membro_id)) {
+      ids = membro_id.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    } else if (typeof membro_id === 'string' && membro_id.includes(',')) {
+      ids = membro_id.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+    } else {
+      const mid = parseInt(membro_id, 10);
+      if (!isNaN(mid)) ids = [mid];
+    }
+
+    if (ids.length === 0) {
       return sendValidationError(res, 'ID do membro inválido');
     }
 
-    const { data, error } = await vigenciaService.buscarHorasContratadasPorMembroEPeriodo(
-      membroId,
-      data_inicio || null,
-      data_fim || null
-    );
+    const isBatch = ids.length > 1 || Array.isArray(membro_id) || (typeof membro_id === 'string' && membro_id.includes(','));
 
-    if (error) {
-      console.error('Erro ao buscar horas contratadas:', error);
-      return sendError(res, 500, 'Erro ao buscar horas contratadas', error.message);
+    if (isBatch) {
+      const { data, error } = await vigenciaService.buscarHorasContratadasLote(ids, data_fim || null);
+      if (error) {
+        console.error('Erro ao buscar horas contratadas em lote:', error);
+        return sendError(res, 500, 'Erro ao buscar horas contratadas em lote', error.message);
+      }
+      return sendSuccess(res, 200, data);
+    } else {
+      const { data, error } = await vigenciaService.buscarHorasContratadasPorMembroEPeriodo(ids[0], data_inicio || null, data_fim || null);
+      if (error) {
+        console.error('Erro ao buscar horas contratadas:', error);
+        return sendError(res, 500, 'Erro ao buscar horas contratadas', error.message);
+      }
+      return sendSuccess(res, 200, data);
     }
-
-    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar horas contratadas:', error);
     return sendError(res, 500, 'Erro interno do servidor', error.message);
@@ -455,23 +474,53 @@ async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
       return sendValidationError(res, 'ID do membro é obrigatório');
     }
 
-    const membroId = parseInt(membro_id, 10);
-    if (isNaN(membroId)) {
+    // Processar membro_id
+    let ids = [];
+    if (Array.isArray(membro_id)) {
+      ids = membro_id.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    } else if (typeof membro_id === 'string' && membro_id.includes(',')) {
+      ids = membro_id.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+    } else {
+      const mid = parseInt(membro_id, 10);
+      if (!isNaN(mid)) ids = [mid];
+    }
+
+    if (ids.length === 0) {
       return sendValidationError(res, 'ID do membro inválido');
     }
 
-    const { data, error } = await vigenciaService.buscarCustoMaisRecentePorMembroEPeriodo(
-      membroId,
-      data_inicio || null,
-      data_fim || null
-    );
+    const isBatch = ids.length > 1 || Array.isArray(membro_id) || (typeof membro_id === 'string' && membro_id.includes(','));
 
-    if (error) {
-      console.error('Erro ao buscar custo mais recente:', error);
-      return sendError(res, 500, 'Erro ao buscar custo mais recente', error.message);
+    if (isBatch) {
+      // Para lote, no momento não usaremos o cache individual para simplificar, 
+      // mas a rota é muito mais eficiente que N chamadas.
+      const { data, error } = await vigenciaService.buscarCustoMaisRecenteLote(ids, data_fim || null);
+      if (error) {
+        console.error('Erro ao buscar custos em lote:', error);
+        return sendError(res, 500, 'Erro ao buscar custos em lote', error.message);
+      }
+      return sendSuccess(res, 200, data);
+    } else {
+      // [FIX] 503 Mitigation: Verificar cache antes de consultar DB (Apenas para chamadas individuais)
+      const membroId = ids[0];
+      const cacheKey = `custo_${membroId}_${data_inicio || 'all'}_${data_fim || 'all'}`;
+      const cachedData = custoCache.get(cacheKey);
+
+      if (cachedData) {
+        return sendSuccess(res, 200, cachedData);
+      }
+
+      const { data, error } = await vigenciaService.buscarCustoMaisRecentePorMembroEPeriodo(membroId, data_inicio || null, data_fim || null);
+      if (error) {
+        console.error('Erro ao buscar custo mais recente:', error);
+        return sendError(res, 500, 'Erro ao buscar custo mais recente', error.message);
+      }
+
+      if (data) {
+        custoCache.set(cacheKey, data);
+      }
+      return sendSuccess(res, 200, data);
     }
-
-    return sendSuccess(res, 200, data);
   } catch (error) {
     console.error('Erro inesperado ao buscar custo mais recente:', error);
     return sendError(res, 500, 'Erro interno do servidor', error.message);

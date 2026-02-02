@@ -888,6 +888,21 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     };
   }, [onClose]);
 
+  // Aplicar animação após montagem (apenas uma vez)
+  useEffect(() => {
+    const card = cardRef.current;
+    if (card) {
+      requestAnimationFrame(() => {
+        card.style.opacity = '1';
+        if (position) {
+          card.style.transform = 'scale(1)';
+        } else {
+          card.style.transform = 'translate(-50%, -50%) scale(1)';
+        }
+      });
+    }
+  }, [position]); // Apenas quando position muda (abre/fecha), não em scroll
+
   // Buscar registros individuais de tempo realizado para uma tarefa
   const buscarRegistrosIndividuais = async (tarefa) => {
     if (registrosIndividuais[tarefa.id] || carregandoRegistros[tarefa.id]) {
@@ -1014,9 +1029,12 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     }
   };
 
-  if (!dados || !dados.registros || dados.registros.length === 0) {
-    return null;
-  }
+  // OTIMIZAÇÃO OTIMISTA: Não retornamos null se dados estiver vazio.
+  // Renderizamos o card vazio/loading para feedback visual imediato.
+
+  // Garantir que dados existe minimamente
+  const registros = dados?.registros || [];
+  const isLoading = dados?.loading || false;
 
   const tipoLabels = {
     tarefas: { label: 'Tarefas', icon: 'fa-list', color: '#4b5563' },
@@ -1061,28 +1079,15 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     cardStyle.transform = 'translate(-50%, -50%) scale(0.95)';
   }
 
-  // Aplicar animação após montagem (apenas uma vez)
-  useEffect(() => {
-    const card = cardRef.current;
-    if (card) {
-      requestAnimationFrame(() => {
-        card.style.opacity = '1';
-        if (position) {
-          card.style.transform = 'scale(1)';
-        } else {
-          card.style.transform = 'translate(-50%, -50%) scale(1)';
-        }
-      });
-    }
-  }, [position]); // Apenas quando position muda (abre/fecha), não em scroll
+
 
   // Se for tarefas, clientes, produtos ou responsáveis, os dados já vêm agrupados com tempo realizado total e registros
   // Para outros tipos, agrupar por nome (para mostrar apenas uma vez cada item)
   const itensLista = (tipo === 'tarefas' || tipo === 'clientes' || tipo === 'produtos' || tipo === 'responsaveis' || tipo === 'tipos_tarefa')
-    ? dados.registros
+    ? registros
     : (() => {
       const itensUnicos = {};
-      dados.registros.forEach(reg => {
+      registros.forEach(reg => {
         const chave = reg.nome || `${reg.tipo}_${reg.id || reg.tarefa_id || reg.produto_id || reg.cliente_id || reg.responsavel_id}`;
         if (!itensUnicos[chave]) {
           itensUnicos[chave] = {
@@ -1173,7 +1178,11 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
       </div>
       <div className="detail-side-card-body">
         <div className="detail-side-card-list">
-          {itensLista.length === 0 ? (
+          {isLoading && itensLista.length === 0 ? (
+            <div className="loading-state" style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
+              <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i> Carregando detalhes...
+            </div>
+          ) : itensLista.length === 0 ? (
             <div className="empty-state">
               <p>Nenhum item encontrado</p>
             </div>

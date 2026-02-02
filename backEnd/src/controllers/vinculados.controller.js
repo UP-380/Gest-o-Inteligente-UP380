@@ -111,7 +111,7 @@ async function criarVinculado(req, res) {
     if (dadosVinculado.cliente_id && dadosVinculado.produto_id && dadosVinculado.tarefa_id) {
       // Verificar se a tarefa já está vinculada ao produto (sem cliente)
       const { data: vinculadoProdutoTarefa } = await supabase
-        
+
         .from('vinculados')
         .select('id')
         .eq('produto_id', dadosVinculado.produto_id)
@@ -130,7 +130,7 @@ async function criarVinculado(req, res) {
 
     // Inserir no banco (o índice único idx_vinculados_unique já previne duplicatas)
     const { data, error } = await supabase
-      
+
       .from('vinculados')
       .insert(dadosVinculado)
       .select()
@@ -254,7 +254,7 @@ async function criarMultiplosVinculados(req, res) {
       const tarefaIds = [...new Set(vinculadosClienteProdutoTarefa.map(v => v.tarefa_id))];
 
       const { data: vinculadosProdutoTarefa } = await supabase
-        
+
         .from('vinculados')
         .select('produto_id, tarefa_id')
         .in('produto_id', produtoIds)
@@ -296,7 +296,7 @@ async function criarMultiplosVinculados(req, res) {
     console.log(`📝 [criarMultiplosVinculados] Inserindo ${dadosParaInserir.length} vinculação(ões)...`);
 
     const { data, error } = await supabase
-      
+
       .from('vinculados')
       .insert(dadosParaInserir)
       .select();
@@ -313,7 +313,7 @@ async function criarMultiplosVinculados(req, res) {
 
         for (const item of dadosParaInserir) {
           const { data: itemData, error: itemError } = await supabase
-            
+
             .from('vinculados')
             .insert([item])
             .select();
@@ -425,7 +425,7 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
 
     // Buscar tipos de tarefa para todas as tarefas de uma vez
     const { data: tarefasComTipo, error: buscarError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_id, tarefa_tipo_id')
       .in('tarefa_id', tarefaIds)
@@ -457,7 +457,7 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
       // Atualizar o vinculado tarefa-produto para incluir o tipo de tarefa
       if (!vinculado.tarefa_tipo_id || vinculado.tarefa_tipo_id !== tarefaTipoId) {
         const { error: updateError } = await supabase
-          
+
           .from('vinculados')
           .update({ tarefa_tipo_id: tarefaTipoId })
           .eq('id', vinculado.id);
@@ -471,7 +471,7 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
 
       // Verificar se já existe vinculado produto-tipo de tarefa (sem tarefa e sem cliente)
       const { data: existente, error: checkError } = await supabase
-        
+
         .from('vinculados')
         .select('id')
         .eq('produto_id', vinculado.produto_id)
@@ -497,7 +497,7 @@ async function aplicarHerancaTipoTarefaParaProduto(vinculadosCriados) {
         novoVinculado.tipo_relacionamento = determinarTipoRelacionamento(novoVinculado);
 
         const { error: insertError } = await supabase
-          
+
           .from('vinculados')
           .insert([novoVinculado]);
 
@@ -552,7 +552,7 @@ async function aplicarHerancaTipoTarefa(vinculadosCriados) {
 
       // Buscar vinculados com essa tarefa mas sem tipo de tarefa
       const { data: vinculadosSemTipo, error: buscarError } = await supabase
-        
+
         .from('vinculados')
         .select('produto_id, cliente_id, tarefa_id')
         .eq('tarefa_id', tarefa_id)
@@ -585,7 +585,7 @@ async function aplicarHerancaTipoTarefa(vinculadosCriados) {
         console.log(`📝 Criando ${novosVinculados.length} vinculação(ões) com tipo de tarefa ${tarefa_tipo_id} para tarefa ${tarefa_id}`);
 
         const { error: insertError } = await supabase
-          
+
           .from('vinculados')
           .insert(novosVinculados);
 
@@ -634,7 +634,7 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
     for (const [produtoId, tarefaIds] of Object.entries(tarefasPorProduto)) {
       // Buscar clientes vinculados a este produto
       const { data: clientesVinculados, error: clientesError } = await supabase
-        
+
         .from('vinculados')
         .select('cliente_id')
         .eq('produto_id', parseInt(produtoId, 10))
@@ -676,7 +676,7 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
         // Inserir todos (o índice único já previne duplicatas)
         if (novosVinculados.length > 0) {
           const { error: insertError } = await supabase
-            
+
             .from('vinculados')
             .insert(novosVinculados);
 
@@ -693,7 +693,7 @@ async function aplicarHerancaParaNovasTarefas(vinculadosCriados) {
             // Aplicar herança de tipo de tarefa para os novos vinculados criados
             // Buscar os registros inseridos para passar para a função de herança
             const { data: vinculadosInseridos } = await supabase
-              
+
               .from('vinculados')
               .select('*')
               .in('produto_id', [parseInt(produtoId, 10)])
@@ -723,7 +723,7 @@ async function getVinculados(req, res) {
 
     // Buscar vinculados
     let query = supabase
-      
+
       .from('vinculados')
       .select('id, tarefa_id, tarefa_tipo_id, produto_id, cliente_id, subtarefa_id, tipo_relacionamento', { count: 'exact' })
       .order('id', { ascending: false });
@@ -858,7 +858,7 @@ async function getVinculados(req, res) {
       console.log(`🔍 Buscando ${idsTarefas.length} tarefa(s) em lote: [${idsTarefas.join(', ')}]`);
 
       const { data: tarefas, error: errorTarefas } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id, nome')
         .in('id', idsTarefas);
@@ -868,7 +868,7 @@ async function getVinculados(req, res) {
         // Fallback: buscar individualmente se .in() falhar
         for (const tarefaId of idsTarefas) {
           const { data: tarefa, error: errorTarefa } = await supabase
-            
+
             .from('cp_tarefa')
             .select('id, nome')
             .eq('id', tarefaId)
@@ -894,7 +894,7 @@ async function getVinculados(req, res) {
       console.log(`🔍 Buscando ${idsProdutos.length} produto(s) em lote: [${idsProdutos.join(', ')}]`);
 
       const { data: produtos, error: errorProdutos } = await supabase
-        
+
         .from('cp_produto')
         .select('id, nome')
         .in('id', idsProdutos);
@@ -904,7 +904,7 @@ async function getVinculados(req, res) {
         // Fallback: buscar individualmente
         for (const produtoId of idsProdutos) {
           const { data: produto, error: errorProduto } = await supabase
-            
+
             .from('cp_produto')
             .select('id, nome')
             .eq('id', produtoId)
@@ -930,7 +930,7 @@ async function getVinculados(req, res) {
       console.log(`🔍 Buscando ${idsTipoTarefas.length} tipo(s) de tarefa em lote: [${idsTipoTarefas.join(', ')}]`);
 
       const { data: tipoTarefas, error: errorTipoTarefas } = await supabase
-        
+
         .from('cp_tarefa_tipo')
         .select('id, nome')
         .in('id', idsTipoTarefas);
@@ -940,7 +940,7 @@ async function getVinculados(req, res) {
         // Fallback: buscar individualmente
         for (const tipoTarefaId of idsTipoTarefas) {
           const { data: tipoTarefa, error: errorTipoTarefa } = await supabase
-            
+
             .from('cp_tarefa_tipo')
             .select('id, nome')
             .eq('id', tipoTarefaId)
@@ -966,7 +966,7 @@ async function getVinculados(req, res) {
       console.log(`🔍 Buscando ${idsSubtarefas.length} subtarefa(s) em lote: [${idsSubtarefas.join(', ')}]`);
 
       const { data: subtarefas, error: errorSubtarefas } = await supabase
-        
+
         .from('cp_subtarefa')
         .select('id, nome')
         .in('id', idsSubtarefas);
@@ -976,7 +976,7 @@ async function getVinculados(req, res) {
         // Fallback: buscar individualmente
         for (const subtarefaId of idsSubtarefas) {
           const { data: subtarefa, error: errorSubtarefa } = await supabase
-            
+
             .from('cp_subtarefa')
             .select('id, nome')
             .eq('id', subtarefaId)
@@ -1003,7 +1003,7 @@ async function getVinculados(req, res) {
       console.log(`🔍 Buscando ${idsClientes.length} cliente(s) em lote: [${idsClientes.join(', ')}]`);
 
       const { data: clientes, error: errorClientes } = await supabase
-        
+
         .from('cp_cliente')
         .select('id, nome, nome_amigavel, nome_fantasia, razao_social')
         .in('id', idsClientes);
@@ -1013,7 +1013,7 @@ async function getVinculados(req, res) {
         // Fallback: buscar individualmente
         for (const clienteId of idsClientes) {
           const { data: cliente, error: errorCliente } = await supabase
-            
+
             .from('cp_cliente')
             .select('id, nome, nome_amigavel, nome_fantasia, razao_social')
             .eq('id', clienteId.trim())
@@ -1046,12 +1046,6 @@ async function getVinculados(req, res) {
       const tipoTarefaId = v.tarefa_tipo_id ? parseInt(v.tarefa_tipo_id, 10) : null;
       const subtarefaId = v.subtarefa_id ? parseInt(v.subtarefa_id, 10) : null;
 
-      console.log(`🔍 Processando vinculado ID ${v.id}:`);
-      console.log(`  - tarefa_id: ${v.tarefa_id} (tipo: ${typeof v.tarefa_id}) -> parseInt: ${tarefaId}`);
-      console.log(`  - produto_id: ${v.produto_id} (tipo: ${typeof v.produto_id}) -> parseInt: ${produtoId}`);
-      console.log(`  - tarefa_tipo_id: ${v.tarefa_tipo_id} (tipo: ${typeof v.tarefa_tipo_id}) -> parseInt: ${tipoTarefaId}`);
-      console.log(`  - subtarefa_id: ${v.subtarefa_id} (tipo: ${typeof v.subtarefa_id}) -> parseInt: ${subtarefaId}`);
-
       const tarefaNome = tarefaId ? tarefasMap.get(tarefaId) : null;
       const produtoNome = produtoId ? produtosMap.get(produtoId) : null;
       const tipoTarefaNome = tipoTarefaId ? tipoTarefasMap.get(tipoTarefaId) : null;
@@ -1063,30 +1057,6 @@ async function getVinculados(req, res) {
         const clienteIdStr = String(v.cliente_id).trim();
         // Buscar pelo UUID diretamente
         clienteNome = clientesMap.get(clienteIdStr) || null;
-      }
-
-      console.log(`  - tarefa_nome: ${tarefaNome || 'null'}`);
-      console.log(`  - produto_nome: ${produtoNome || 'null'}`);
-      console.log(`  - tipo_tarefa_nome: ${tipoTarefaNome || 'null'}`);
-      console.log(`  - subtarefa_nome: ${subtarefaNome || 'null'}`);
-      console.log(`  - cliente_nome: ${clienteNome || 'null'}`);
-
-      // Debug para cada vinculado
-      if (tarefaId && !tarefaNome) {
-        console.warn(`⚠️ Nome não encontrado para tarefa ID: ${tarefaId}`);
-        console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(tarefasMap.keys()).join(', ')}]`);
-      }
-      if (produtoId && !produtoNome) {
-        console.warn(`⚠️ Nome não encontrado para produto ID: ${produtoId}`);
-        console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(produtosMap.keys()).join(', ')}]`);
-      }
-      if (tipoTarefaId && !tipoTarefaNome) {
-        console.warn(`⚠️ Nome não encontrado para tipo de tarefa ID: ${tipoTarefaId}`);
-        console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(tipoTarefasMap.keys()).join(', ')}]`);
-      }
-      if (subtarefaId && !subtarefaNome) {
-        console.warn(`⚠️ Nome não encontrado para subtarefa ID: ${subtarefaId}`);
-        console.warn(`⚠️ Chaves disponíveis no Map: [${Array.from(subtarefasMap.keys()).join(', ')}]`);
       }
 
       return {
@@ -1145,7 +1115,7 @@ async function getVinculadoPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      
+
       .from('vinculados')
       .select('*')
       .eq('id', id)
@@ -1173,7 +1143,7 @@ async function getVinculadoPorId(req, res) {
     // Buscar nome da tarefa
     if (data.tarefa_id) {
       const { data: tarefa } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id, nome')
         .eq('id', data.tarefa_id)
@@ -1187,7 +1157,7 @@ async function getVinculadoPorId(req, res) {
     // Buscar nome do produto
     if (data.produto_id) {
       const { data: produto } = await supabase
-        
+
         .from('cp_produto')
         .select('id, nome')
         .eq('id', data.produto_id)
@@ -1200,7 +1170,7 @@ async function getVinculadoPorId(req, res) {
     // Buscar nome do tipo de tarefa
     if (data.tarefa_tipo_id) {
       const { data: tipoTarefa } = await supabase
-        
+
         .from('cp_tarefa_tipo')
         .select('id, nome')
         .eq('id', data.tarefa_tipo_id)
@@ -1214,7 +1184,7 @@ async function getVinculadoPorId(req, res) {
     // Buscar nome da subtarefa
     if (data.subtarefa_id) {
       const { data: subtarefa } = await supabase
-        
+
         .from('cp_subtarefa')
         .select('id, nome')
         .eq('id', data.subtarefa_id)
@@ -1227,7 +1197,7 @@ async function getVinculadoPorId(req, res) {
     // Buscar nome do cliente
     if (data.cliente_id) {
       const { data: cliente } = await supabase
-        
+
         .from('cp_cliente')
         .select('id, nome, nome_amigavel, nome_fantasia, razao_social')
         .eq('id', String(data.cliente_id).trim())
@@ -1306,7 +1276,7 @@ async function atualizarVinculado(req, res) {
 
     // Verificar se o vinculado existe e buscar dados atuais
     const { data: existingData, error: checkError } = await supabase
-      
+
       .from('vinculados')
       .select('*')
       .eq('id', id)
@@ -1342,7 +1312,7 @@ async function atualizarVinculado(req, res) {
 
     // Atualizar
     const { data, error } = await supabase
-      
+
       .from('vinculados')
       .update(dadosVinculado)
       .eq('id', id)
@@ -1394,7 +1364,7 @@ async function deletarVinculado(req, res) {
 
     // Verificar se o vinculado existe
     const { data: existingData, error: checkError } = await supabase
-      
+
       .from('vinculados')
       .select('id')
       .eq('id', idNum)
@@ -1421,7 +1391,7 @@ async function deletarVinculado(req, res) {
 
     // Deletar
     const { error } = await supabase
-      
+
       .from('vinculados')
       .delete()
       .eq('id', idNum);
@@ -1482,7 +1452,7 @@ async function getTarefasPorProdutos(req, res) {
     // Buscar vinculados que têm esses produtos e têm tarefa vinculada
     // IMPORTANTE: Buscar apenas tarefas vinculadas ao produto sem cliente específico (cp_cliente = null)
     const { data: vinculados, error: vinculadosError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_id, produto_id')
       .in('produto_id', idsArray)
@@ -1519,7 +1489,7 @@ async function getTarefasPorProdutos(req, res) {
       console.log(`🔍 Buscando ${tarefaIds.length} tarefa(s) em lote: [${tarefaIds.join(', ')}]`);
 
       const { data: tarefas, error: errorTarefas } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id, nome')
         .in('id', tarefaIds);
@@ -1529,7 +1499,7 @@ async function getTarefasPorProdutos(req, res) {
         // Fallback: buscar individualmente
         for (const tarefaId of tarefaIds) {
           const { data: tarefa, error: errorTarefa } = await supabase
-            
+
             .from('cp_tarefa')
             .select('id, nome')
             .eq('id', tarefaId)
@@ -1556,7 +1526,7 @@ async function getTarefasPorProdutos(req, res) {
 
       // Buscar vinculados Tipo de Tarefa → Tarefa (Seção 1: sem produto e sem cliente)
       const { data: vinculadosTipos, error: errorTipos } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id, tarefa_tipo_id')
         .in('tarefa_id', tarefaIds)
@@ -1578,7 +1548,7 @@ async function getTarefasPorProdutos(req, res) {
         if (tipoTarefaIds.length > 0) {
           // Buscar nomes dos tipos de tarefa em lote
           const { data: tipos, error: errorTiposNomes } = await supabase
-            
+
             .from('cp_tarefa_tipo')
             .select('id, nome')
             .in('id', tipoTarefaIds);
@@ -1620,7 +1590,7 @@ async function getTarefasPorProdutos(req, res) {
 
       // Buscar vinculados Tarefa → Subtarefa (Seção 2: sem produto e sem cliente)
       const { data: vinculadosSubtarefas, error: errorSubtarefas } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id, subtarefa_id')
         .in('tarefa_id', tarefaIds)
@@ -1641,7 +1611,7 @@ async function getTarefasPorProdutos(req, res) {
         if (subtarefaIds.length > 0) {
           // Buscar nomes das subtarefas em lote
           const { data: subtarefas, error: errorSubtarefasNomes } = await supabase
-            
+
             .from('cp_subtarefa')
             .select('id, nome')
             .in('id', subtarefaIds);
@@ -1755,7 +1725,7 @@ async function getTarefasPorCliente(req, res) {
 
     // Buscar vinculados que têm este cliente e têm tarefa vinculada
     const { data: vinculados, error: vinculadosError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_id')
       .eq('cliente_id', clienteIdStr)
@@ -1791,7 +1761,7 @@ async function getTarefasPorCliente(req, res) {
       console.log(`🔍 Buscando ${tarefaIds.length} tarefa(s) em lote: [${tarefaIds.join(', ')}]`);
 
       const { data: tarefas, error: errorTarefas } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id, nome')
         .in('id', tarefaIds);
@@ -1801,7 +1771,7 @@ async function getTarefasPorCliente(req, res) {
         // Fallback: buscar individualmente
         for (const tarefaId of tarefaIds) {
           const { data: tarefa, error: errorTarefa } = await supabase
-            
+
             .from('cp_tarefa')
             .select('id, nome')
             .eq('id', tarefaId)
@@ -1828,7 +1798,7 @@ async function getTarefasPorCliente(req, res) {
 
       // Buscar vinculados Tarefa → Subtarefa (Seção 2: sem produto e sem cliente)
       const { data: vinculadosSubtarefas, error: errorSubtarefas } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id, subtarefa_id')
         .in('tarefa_id', tarefaIds)
@@ -1849,7 +1819,7 @@ async function getTarefasPorCliente(req, res) {
         if (subtarefaIds.length > 0) {
           // Buscar nomes das subtarefas em lote
           const { data: subtarefas, error: errorSubtarefasNomes } = await supabase
-            
+
             .from('cp_subtarefa')
             .select('id, nome')
             .in('id', subtarefaIds);
@@ -1966,7 +1936,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
       // 1. BUSCAR TAREFAS DO PRODUTO (HERANÇA PADRÃO)
       // Buscar tarefas vinculadas ao produto (sem cliente específico)
       const { data: vinculadosProduto, error: errorProduto } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id')
         .eq('produto_id', produtoId)
@@ -1990,7 +1960,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
       // Buscar tarefas explicitamente vinculadas ao cliente para este produto
       // IMPORTANTE: Incluir subtarefa_id, produto_id, eh_excecao e tarefa_tipo_id para poder identificar subtarefas e tipos vinculados ao cliente
       const { data: vinculadosCliente, error: errorCliente } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id, subtarefa_id, produto_id, eh_excecao, tarefa_tipo_id')
         .eq('cliente_id', clienteIdStr)
@@ -2038,7 +2008,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
 
       // 4. BUSCAR DADOS DAS TAREFAS EM LOTE
       const { data: tarefas, error: errorTarefas } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id, nome')
         .in('id', todasTarefaIds);
@@ -2086,7 +2056,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
         // 1. Vinculados padrão (Seção 1: Tipo de Tarefa → Tarefa, sem produto e sem cliente)
         // 2. Vinculados do cliente (exceções) que têm tipo de tarefa
         const { data: vinculadosTiposPadrao } = await supabase
-          
+
           .from('vinculados')
           .select('tarefa_id, tarefa_tipo_id')
           .in('tarefa_id', todasTarefaIds)
@@ -2096,7 +2066,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
 
         // Buscar tipos de tarefa dos vinculados do cliente (exceções)
         const { data: vinculadosTiposCliente } = await supabase
-          
+
           .from('vinculados')
           .select('tarefa_id, tarefa_tipo_id')
           .in('tarefa_id', todasTarefaIds)
@@ -2113,7 +2083,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
         if (todosVinculadosTipos.length > 0) {
           const tipoIds = [...new Set(todosVinculadosTipos.map(v => v.tarefa_tipo_id))];
           const { data: tipos } = await supabase
-            
+
             .from('cp_tarefa_tipo')
             .select('id, nome')
             .in('id', tipoIds);
@@ -2139,7 +2109,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
 
         // Buscar subtarefas vinculadas à tarefa (herança - Seção 2)
         const { data: vinculadosSubtarefas } = await supabase
-          
+
           .from('vinculados')
           .select('tarefa_id, subtarefa_id')
           .in('tarefa_id', todasTarefaIds)
@@ -2150,7 +2120,7 @@ async function getTarefasPorClienteEProdutos(req, res) {
         if (vinculadosSubtarefas && vinculadosSubtarefas.length > 0) {
           const subtarefaIds = [...new Set(vinculadosSubtarefas.map(v => v.subtarefa_id))];
           const { data: subtarefas } = await supabase
-            
+
             .from('cp_subtarefa')
             .select('id, nome')
             .in('id', subtarefaIds);
@@ -2255,7 +2225,7 @@ async function getProdutosPorCliente(req, res) {
     // Buscar TODOS os produtos disponíveis (não apenas os já vinculados)
     // O usuário pode escolher qualquer produto para vincular ao cliente
     const { data: produtos, error: produtosError } = await supabase
-      
+
       .from('cp_produto')
       .select('id, nome')
       .order('nome', { ascending: true });
@@ -2305,7 +2275,7 @@ async function aplicarHeranca(req, res) {
 
     // Buscar todas as tarefas vinculadas ao produto (cp_cliente = null), incluindo tipos de tarefa
     const { data: tarefasVinculadas, error: tarefasError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_id, tarefa_tipo_id')
       .eq('produto_id', parseInt(produtoId, 10))
@@ -2328,7 +2298,7 @@ async function aplicarHeranca(req, res) {
 
       // Buscar todas as tarefas da tabela cp_tarefa
       const { data: todasTarefas, error: tarefasError2 } = await supabase
-        
+
         .from('cp_tarefa')
         .select('id');
 
@@ -2357,7 +2327,7 @@ async function aplicarHeranca(req, res) {
       for (const tarefaId of tarefaIds) {
         // Verificar se já existe vinculação produto-tarefa (sem cliente)
         const { data: existente, error: checkError } = await supabase
-          
+
           .from('vinculados')
           .select('id')
           .eq('produto_id', parseInt(produtoId, 10))
@@ -2386,7 +2356,7 @@ async function aplicarHeranca(req, res) {
       if (vinculadosProdutoTarefa.length > 0) {
         console.log(`📝 Criando ${vinculadosProdutoTarefa.length} vinculação(ões) produto-tarefa (sem cliente)`);
         const { error: createProdutoTarefaError } = await supabase
-          
+
           .from('vinculados')
           .insert(vinculadosProdutoTarefa);
 
@@ -2404,7 +2374,7 @@ async function aplicarHeranca(req, res) {
 
       // Agora buscar novamente as tarefas vinculadas ao produto, incluindo tipos de tarefa
       const { data: tarefasVinculadasNovas, error: tarefasError3 } = await supabase
-        
+
         .from('vinculados')
         .select('tarefa_id, tarefa_tipo_id')
         .eq('produto_id', parseInt(produtoId, 10))
@@ -2454,7 +2424,7 @@ async function aplicarHeranca(req, res) {
     const vinculadosExistentes = [];
     for (const tarefaId of tarefaIds) {
       const { data: existente, error: checkError } = await supabase
-        
+
         .from('vinculados')
         .select('id')
         .eq('produto_id', parseInt(produtoId, 10))
@@ -2493,7 +2463,7 @@ async function aplicarHeranca(req, res) {
 
     // Criar registros com cp_cliente preenchido
     const { data: novosVinculados, error: createError } = await supabase
-      
+
       .from('vinculados')
       .insert(vinculadosExistentes)
       .select();
@@ -2511,7 +2481,7 @@ async function aplicarHeranca(req, res) {
 
     // Buscar tipos de tarefa vinculados diretamente ao produto (sem tarefa específica)
     const { data: tiposTarefaProduto, error: tiposError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_tipo_id')
       .eq('produto_id', parseInt(produtoId, 10))
@@ -2535,7 +2505,7 @@ async function aplicarHeranca(req, res) {
       for (const tipoTarefaId of tiposTarefaIds) {
         // Verificar se já existe vinculação produto-cliente-tipo de tarefa
         const { data: existente, error: checkError } = await supabase
-          
+
           .from('vinculados')
           .select('id')
           .eq('produto_id', parseInt(produtoId, 10))
@@ -2565,7 +2535,7 @@ async function aplicarHeranca(req, res) {
       if (tiposVinculadosExistentes.length > 0) {
         console.log(`📝 Criando ${tiposVinculadosExistentes.length} vinculação(ões) produto-cliente-tipo de tarefa`);
         const { error: createTiposError } = await supabase
-          
+
           .from('vinculados')
           .insert(tiposVinculadosExistentes);
 
@@ -2624,7 +2594,7 @@ async function getTarefasPorTipo(req, res) {
 
     // 1. Buscar TODAS as tarefas disponíveis
     const { data: todasTarefas, error: tarefasError } = await supabase
-      
+
       .from('cp_tarefa')
       .select('id, nome')
       .order('nome', { ascending: true });
@@ -2640,7 +2610,7 @@ async function getTarefasPorTipo(req, res) {
 
     // 2. Buscar tarefas que JÁ estão vinculadas a este tipo de tarefa
     const { data: vinculados, error: vinculadosError } = await supabase
-      
+
       .from('vinculados')
       .select('tarefa_id')
       .eq('tarefa_tipo_id', tipoTarefaIdNum)
@@ -2738,7 +2708,7 @@ async function getSubtarefasPorTarefa(req, res) {
     if (listarTodas) {
       // Buscar TODAS as subtarefas da tabela cp_subtarefa, independente de vínculos
       const { data: todasSubtarefas, error: todasSubtarefasError } = await supabase
-        
+
         .from('cp_subtarefa')
         .select('id, nome, descricao')
         .order('nome', { ascending: true });
@@ -2765,7 +2735,7 @@ async function getSubtarefasPorTarefa(req, res) {
       // Buscar apenas vinculações Tarefa → Subtarefas (produto_id IS NULL e cliente_id IS NULL)
       // Se tarefaTipoId fornecido, filtrar também por tarefa_tipo_id (buscar combinação específica)
       let queryVinculados = supabase
-        
+
         .from('vinculados')
         .select('subtarefa_id')
         .eq('tarefa_id', tarefaIdNum)
@@ -2803,7 +2773,7 @@ async function getSubtarefasPorTarefa(req, res) {
         // Buscar cada subtarefa individualmente para obter o nome
         for (const subtarefaId of subtarefasIds) {
           const { data: subtarefa, error: subtarefaError } = await supabase
-            
+
             .from('cp_subtarefa')
             .select('id, nome, descricao')
             .eq('id', subtarefaId)
@@ -2871,7 +2841,7 @@ async function getTarefasPorProduto(req, res) {
     // Buscar TODAS as tarefas disponíveis (não apenas as já vinculadas)
     // O usuário pode escolher qualquer tarefa para vincular ao produto
     const { data: tarefas, error: tarefasError } = await supabase
-      
+
       .from('cp_tarefa')
       .select('id, nome')
       .order('nome', { ascending: true });

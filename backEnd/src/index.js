@@ -35,19 +35,27 @@ const routes = require('./routes');
 const { protectHTMLPages } = require('./middleware/auth');
 const { getCachedData, setCachedData } = require('./config/cache');
 
+const { requestTelemetry } = require('./middleware/telemetry');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 const IS_PROD = process.env.NODE_ENV === 'production';
+
+// ========================================
+// === TELEMETRIA E MONITORAMENTO ===
+// ========================================
+// Deve ser o primeiro middleware para medir o tempo total da request
+app.use(requestTelemetry);
 
 // Desabilitar logs em produção (mas manter console.error para debug)
 // IMPORTANTE: Não desabilitar console.error para poder ver erros críticos
 if (IS_PROD) {
   // Manter apenas console.error ativo para logs de erro
   const originalLog = console.log;
-  console.log = function() {
+  console.log = function () {
     // Em produção, ainda logar erros e informações críticas
-    if (arguments[0] && typeof arguments[0] === 'string' && 
-        (arguments[0].includes('❌') || arguments[0].includes('🚀') || arguments[0].includes('✅'))) {
+    if (arguments[0] && typeof arguments[0] === 'string' &&
+      (arguments[0].includes('❌') || arguments[0].includes('🚀') || arguments[0].includes('✅'))) {
       originalLog.apply(console, arguments);
     }
   };
@@ -59,7 +67,7 @@ if (IS_PROD) {
 
 // Configurar CORS para permitir credenciais do frontEnd
 // Em produção, aceitar qualquer origem (o nginx já faz o controle de domínio)
-const allowedOrigins = IS_PROD 
+const allowedOrigins = IS_PROD
   ? true // Aceitar qualquer origem em produção (nginx controla o domínio)
   : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:4000'];
 

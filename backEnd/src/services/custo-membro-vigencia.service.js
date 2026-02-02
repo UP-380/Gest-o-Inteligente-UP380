@@ -263,8 +263,42 @@ async function buscarHorasContratadasPorMembroEPeriodo(membroId, dataInicio, dat
   }
 }
 
+// Buscar horas contratadas em lote
+async function buscarHorasContratadasLote(membroIds, dataFim) {
+  try {
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('custo_membro_vigencia')
+      .select('membro_id, horascontratadasdia, dt_vigencia, tipo_contrato')
+      .in('membro_id', membroIds);
+
+    if (dataFim) {
+      query = query.lte('dt_vigencia', dataFim);
+    }
+
+    // Ordenar para facilitar picking do mais recente no JS
+    query = query.order('dt_vigencia', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) return { data: null, error };
+
+    // Pegar o mais recente para cada membro
+    const result = {};
+    membroIds.forEach(id => result[id] = null);
+
+    (data || []).forEach(v => {
+      if (!result[v.membro_id]) {
+        result[v.membro_id] = v;
+      }
+    });
+
+    return { data: result, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
 // Buscar custo mais recente por membro_id e período
-// Retorna a vigência com dt_vigencia mais recente que seja <= data_fim do período
 async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dataFim) {
   try {
     let query = supabase
@@ -273,12 +307,10 @@ async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dat
       .select('*')
       .eq('membro_id', membroId);
 
-    // Filtrar vigências que sejam <= data_fim (a mais recente antes ou no período)
     if (dataFim) {
       query = query.lte('dt_vigencia', dataFim);
     }
 
-    // Ordenar por dt_vigencia descendente e pegar apenas o primeiro (mais recente)
     query = query.order('dt_vigencia', { ascending: false }).limit(1);
 
     const { data, error } = await query;
@@ -287,8 +319,40 @@ async function buscarCustoMaisRecentePorMembroEPeriodo(membroId, dataInicio, dat
       return { data: null, error };
     }
 
-    // Retornar o primeiro registro (mais recente) ou null se não houver
     return { data: data && data.length > 0 ? data[0] : null, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+// Buscar custo mais recente em lote
+async function buscarCustoMaisRecenteLote(membroIds, dataFim) {
+  try {
+    let query = supabase
+      .schema('up_gestaointeligente')
+      .from('custo_membro_vigencia')
+      .select('*')
+      .in('membro_id', membroIds);
+
+    if (dataFim) {
+      query = query.lte('dt_vigencia', dataFim);
+    }
+
+    query = query.order('dt_vigencia', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) return { data: null, error };
+
+    const result = {};
+    membroIds.forEach(id => result[id] = null);
+
+    (data || []).forEach(v => {
+      if (!result[v.membro_id]) {
+        result[v.membro_id] = v;
+      }
+    });
+
+    return { data: result, error: null };
   } catch (error) {
     return { data: null, error };
   }
@@ -301,7 +365,7 @@ async function criarVigencia(dados) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('🔍 [SERVICE] Tentando inserir dados:', JSON.stringify(dados, null, 2));
     }
-    
+
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
@@ -324,7 +388,7 @@ async function criarVigencia(dados) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('✅ [SERVICE] Vigência criada com sucesso');
     }
-    
+
     return { data, error: null };
   } catch (error) {
     console.error('Erro inesperado ao criar vigência:', error);
@@ -339,7 +403,7 @@ async function atualizarVigencia(id, dados) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('🔧 [SERVICE] Atualizando vigência ID:', id);
     }
-    
+
     const { data, error } = await supabase
       .schema('up_gestaointeligente')
       .from('custo_membro_vigencia')
@@ -451,13 +515,13 @@ async function calcularCustosVigencia(vigencia) {
 
     // Calcular custo diário total
     const custoDiarioTotal = salarioBaseDiario +
-                             feriasDiaria +
-                             tercoFeriasDiaria +
-                             decimoTerceiroDiaria +
-                             fgtsDiaria +
-                             valeTransporteDiaria +
-                             valeRefeicaoDiaria +
-                             ajudaCustoDiaria;
+      feriasDiaria +
+      tercoFeriasDiaria +
+      decimoTerceiroDiaria +
+      fgtsDiaria +
+      valeTransporteDiaria +
+      valeRefeicaoDiaria +
+      ajudaCustoDiaria;
 
     // Calcular custo total mensal
     const custoTotalMensal = custoDiarioTotal * diasUteis;
@@ -566,6 +630,8 @@ module.exports = {
   deletarVigencia,
   buscarCustoMaisRecentePorMembroEPeriodo,
   buscarHorasContratadasPorMembroEPeriodo,
+  buscarCustoMaisRecenteLote,
+  buscarHorasContratadasLote,
   buscarColaboradoresComUltimaVigencia
 };
 
