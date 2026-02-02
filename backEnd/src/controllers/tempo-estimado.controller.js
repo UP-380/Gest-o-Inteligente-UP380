@@ -14,7 +14,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Buscar histórico associado ao agrupador
     const { data: historico, error: historicoError } = await supabase
-      
+
       .from('historico_atribuicoes')
       .select('id')
       .eq('agrupador_id', agrupador_id)
@@ -27,7 +27,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Buscar todas as tarefas restantes do agrupamento
     const { data: registrosRestantes, error: registrosError } = await supabase
-      
+
       .from('tempo_estimado')
       .select('data')
       .eq('agrupador_id', agrupador_id)
@@ -57,7 +57,7 @@ async function recalcularPeriodoHistorico(agrupador_id) {
 
     // Atualizar histórico com novo período
     const { error: updateError } = await supabase
-      
+
       .from('historico_atribuicoes')
       .update({
         data_inicio: dataInicio,
@@ -797,7 +797,7 @@ async function criarTempoEstimado(req, res) {
       for (const produtoId of produtoIdsArray) {
         // Buscar todas as regras existentes para este cliente + produto + responsável
         const { data: regrasExistentes, error: errorBusca } = await supabase
-          
+
           .from('tempo_estimado_regra')
           .select('agrupador_id, data_inicio, data_fim, cliente_id, produto_id, tarefa_id, responsavel_id')
           .eq('cliente_id', String(cliente_id).trim())
@@ -911,7 +911,7 @@ async function criarTempoEstimado(req, res) {
           if (!isNaN(produtoIdNum)) {
             // 1. Buscar vínculo específico: produto + tarefa + tipo_tarefa (herança do produto)
             const { data: vinculadoProduto, error: errorProduto } = await supabase
-              
+
               .from('vinculados')
               .select('tarefa_tipo_id')
               .eq('tarefa_id', tarefaIdNum)
@@ -938,7 +938,7 @@ async function criarTempoEstimado(req, res) {
 
         // 2. Se não encontrou com produto, buscar vínculo padrão: tarefa + tipo_tarefa (sem produto, sem cliente)
         const { data: vinculados, error: vinculadoError } = await supabase
-          
+
           .from('vinculados')
           .select('tarefa_tipo_id')
           .eq('tarefa_id', tarefaIdNum)
@@ -1016,7 +1016,7 @@ async function criarTempoEstimado(req, res) {
       const usuarioId = req.session?.usuario?.id || null;
       if (usuarioId) {
         const { data: membro } = await supabase
-          
+
           .from('membro')
           .select('id')
           .eq('usuario_id', String(usuarioId).trim())
@@ -1094,7 +1094,7 @@ async function criarTempoEstimado(req, res) {
 
     // Inserir todas as regras
     const { data: regrasInseridas, error } = await supabase
-      
+
       .from('tempo_estimado_regra')
       .insert(regrasParaInserir)
       .select();
@@ -1142,7 +1142,7 @@ async function criarTempoEstimado(req, res) {
         };
 
         const { error: historicoError } = await supabase
-          
+
           .from('historico_atribuicoes')
           .insert([historicoData]);
 
@@ -1243,7 +1243,7 @@ async function getTempoEstimado(req, res) {
       try {
         // Buscar clientes filtrados por status
         let clientesQuery = supabase
-          
+
           .from('cp_cliente')
           .select('id');
 
@@ -1300,7 +1300,7 @@ async function getTempoEstimado(req, res) {
 
     // NOVA LÓGICA: Buscar regras da tabela tempo_estimado_regra
     let query = supabase
-      
+
       .from('tempo_estimado_regra')
       .select('*', { count: 'exact' });
 
@@ -1387,7 +1387,7 @@ async function getTempoEstimado(req, res) {
         const criarQueryBuilder = () => {
           // Reconstruir a query do zero a cada chamada
           let queryBuilder = supabase
-            
+
             .from('tempo_estimado_regra')
             .select('*', { count: 'exact' });
 
@@ -1625,7 +1625,7 @@ async function getTempoEstimado(req, res) {
       if (responsavelIds.length > 0) {
         // Buscar membros por responsavel_id
         const { data: membros, error: membrosError } = await supabase
-          
+
           .from('membro')
           .select('id, usuario_id')
           .in('id', responsavelIds);
@@ -1641,7 +1641,7 @@ async function getTempoEstimado(req, res) {
           if (usuarioIds.length > 0) {
             // Buscar usuarios por usuario_id
             const { data: usuarios, error: usuariosError } = await supabase
-              
+
               .from('usuarios')
               .select('id, foto_perfil')
               .in('id', usuarioIds);
@@ -1771,7 +1771,7 @@ async function getTempoEstimadoPorId(req, res) {
     console.log(`🔍 [GET-TEMPO-ESTIMADO-POR-ID] Buscando tempo estimado com ID: ${id}`);
 
     const { data: tempoEstimado, error } = await supabase
-      
+
       .from('tempo_estimado')
       .select('*')
       .eq('id', id)
@@ -1843,7 +1843,7 @@ async function atualizarTempoEstimado(req, res) {
             if (isNaN(tarefaIdNum)) return null;
 
             const { data: vinculados, error } = await supabase
-              
+
               .from('vinculados')
               .select('tarefa_tipo_id')
               .eq('tarefa_id', tarefaIdNum)
@@ -1897,7 +1897,7 @@ async function atualizarTempoEstimado(req, res) {
     }
 
     const { data: tempoEstimadoAtualizado, error } = await supabase
-      
+
       .from('tempo_estimado')
       .update(dadosUpdate)
       .eq('id', id)
@@ -1956,7 +1956,7 @@ async function deletarTempoEstimado(req, res) {
 
     // Buscar o registro antes de deletar para obter o agrupador_id
     const { data: tempoEstimadoAntes, error: buscaError } = await supabase
-      
+
       .from('tempo_estimado')
       .select('agrupador_id')
       .eq('id', id)
@@ -1973,7 +1973,7 @@ async function deletarTempoEstimado(req, res) {
 
     // Deletar o registro
     const { data: tempoEstimadoDeletado, error } = await supabase
-      
+
       .from('tempo_estimado')
       .delete()
       .eq('id', id)
@@ -2040,7 +2040,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
         if (isNaN(tarefaIdNum)) return null;
 
         const { data: vinculados, error } = await supabase
-          
+
           .from('vinculados')
           .select('tarefa_tipo_id')
           .eq('tarefa_id', tarefaIdNum)
@@ -2210,7 +2210,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
 
     // Deletar TODAS as regras antigas deste agrupador (Operação Atômica Lógica)
     const { error: deleteError } = await supabase
-      
+
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);
@@ -2225,7 +2225,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       for (let i = 0; i < regrasParaInserirTotal.length; i += batchSize) {
         const lote = regrasParaInserirTotal.slice(i, i + batchSize);
         const { error: insertError } = await supabase
-          
+
           .from('tempo_estimado_regra')
           .insert(lote);
 
@@ -2294,7 +2294,7 @@ async function atualizarTempoEstimadoPorAgrupador(req, res) {
       if (cliente_id) historicoUpdate.cliente_id = String(cliente_id).trim();
 
       const { error: historicoError } = await supabase
-        
+
         .from('historico_atribuicoes')
         .update(historicoUpdate)
         .eq('agrupador_id', agrupador_id);
@@ -2343,7 +2343,7 @@ async function deletarTempoEstimadoPorAgrupador(req, res) {
 
     // NOVA LÓGICA: Buscar quantas regras serão deletadas
     const { count, error: countError } = await supabase
-      
+
       .from('tempo_estimado_regra')
       .select('*', { count: 'exact', head: true })
       .eq('agrupador_id', agrupador_id);
@@ -2359,7 +2359,7 @@ async function deletarTempoEstimadoPorAgrupador(req, res) {
 
     // Deletar todas as regras do agrupamento
     const { error } = await supabase
-      
+
       .from('tempo_estimado_regra')
       .delete()
       .eq('agrupador_id', agrupador_id);
@@ -2404,7 +2404,7 @@ async function getTempoEstimadoPorAgrupador(req, res) {
 
     // NOVA LÓGICA: Buscar regras do agrupador
     const { data: regras, error } = await supabase
-      
+
       .from('tempo_estimado_regra')
       .select('*')
       .eq('agrupador_id', agrupador_id)
@@ -2476,7 +2476,7 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
     // IMPORTANTE: Filtrar apenas registros onde cliente_id NÃO é NULL
     // IMPORTANTE: Incluir registros ativos (sem data_fim) para calcular tempo parcial do dia atual
     const { data: registrosTempo, error: errorTempo } = await supabase
-      
+
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, tempo_estimado_id')
       .in('tempo_estimado_id', tempoEstimadoIds)
@@ -2500,7 +2500,7 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
 
     if (usuarioIds.length > 0) {
       const { data: membros, error: errorMembros } = await supabase
-        
+
         .from('membro')
         .select('id, usuario_id')
         .in('usuario_id', usuarioIds);
@@ -2611,10 +2611,11 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
   }
 }
 
-// GET - Calcular tempo estimado total por responsável
+// GET - Calcular tempo estimado total (Agregado por entidade)
+// Suporta agregação por responsavel, cliente, produto ou tarefa
 async function getTempoEstimadoTotal(req, res) {
   try {
-    // Processar parâmetros que podem vir como array (quando múltiplos valores são passados)
+    // Processar parâmetros que podem vir como array
     const processarParametroArray = (param) => {
       if (!param) return null;
       if (Array.isArray(param)) {
@@ -2623,7 +2624,6 @@ async function getTempoEstimadoTotal(req, res) {
       if (typeof param === 'string' && param.includes(',')) {
         return param.split(',').map(id => id.trim()).filter(Boolean);
       }
-      // Valor único - retornar como array
       return [String(param).trim()].filter(Boolean);
     };
 
@@ -2634,227 +2634,148 @@ async function getTempoEstimadoTotal(req, res) {
       data_fim = null,
       cliente_status = null,
       considerarFinaisDeSemana,
-      considerarFeriados
+      considerarFeriados,
+      agrupar_por // 'responsavel', 'cliente', 'produto', 'tarefa'
     } = req.query;
 
     const overrideFinaisSemana = considerarFinaisDeSemana !== undefined ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true) : undefined;
     const overrideFeriados = considerarFeriados !== undefined ? (considerarFeriados === 'true' || considerarFeriados === true) : undefined;
 
-    // Processar IDs que podem vir como array
     const cliente_id = processarParametroArray(req.query.cliente_id);
     const produto_id = processarParametroArray(req.query.produto_id);
     const tarefa_id = processarParametroArray(req.query.tarefa_id);
 
-    // Filtrar apenas valores numéricos válidos para responsavel_id
+    // Responsável pode vir string ou num, tratar
     const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
     const responsavel_id = responsavel_id_raw
-      ? responsavel_id_raw
-        .map(id => parseInt(String(id).trim(), 10))
-        .filter(id => !isNaN(id) && id > 0)
+      ? responsavel_id_raw.map(id => String(id).trim()).filter(Boolean)
       : null;
 
-    // Validar período obrigatório
     if (!data_inicio || !data_fim) {
       return res.status(400).json({
         success: false,
-        error: 'data_inicio e data_fim são obrigatórios para calcular tempo estimado total'
+        error: 'data_inicio e data_fim são obrigatórios'
       });
+    }
+
+    // Determinar chave de agrupamento
+    let groupKey = agrupar_por;
+    if (!groupKey) {
+      if (responsavel_id && responsavel_id.length > 0) groupKey = 'responsavel';
+      else if (cliente_id && cliente_id.length > 0) groupKey = 'cliente';
+      else if (produto_id && produto_id.length > 0) groupKey = 'produto';
+      else groupKey = 'tarefa';
     }
 
     // FILTRO DE STATUS DE CLIENTE
     let clienteIdsFinais = cliente_id;
-
     if (cliente_status && cliente_status !== 'todos' && (cliente_status === 'ativo' || cliente_status === 'inativo')) {
+      // ... (manter lógica existente de filtro de status) ...
+      // Simplificação: apenas se necessário. Se já filtraram por ID, o status é secundário, mas vamos manter
       try {
-        let clientesQuery = supabase
-          
-          .from('cp_cliente')
-          .select('id');
+        let clientesQuery = supabase.from('cp_cliente').select('id');
+        if (cliente_status === 'ativo') clientesQuery = clientesQuery.eq('status', 'ativo');
+        else if (cliente_status === 'inativo') clientesQuery = clientesQuery.eq('status', 'inativo');
 
-        if (cliente_status === 'ativo') {
-          clientesQuery = clientesQuery.eq('status', 'ativo');
-        } else if (cliente_status === 'inativo') {
-          clientesQuery = clientesQuery.eq('status', 'inativo');
-        }
-
-        const { data: clientesFiltrados, error: clientesError } = await clientesQuery;
-
-        if (!clientesError && clientesFiltrados && clientesFiltrados.length > 0) {
-          const clienteIdsFiltrados = clientesFiltrados.map(c => String(c.id).trim()).filter(Boolean);
-
+        const { data: clientesFiltrados } = await clientesQuery;
+        if (clientesFiltrados) {
+          const idsFiltrados = clientesFiltrados.map(c => String(c.id).trim());
           if (cliente_id && cliente_id.length > 0) {
-            const clienteIdsLimpos = cliente_id.map(id => String(id).trim()).filter(Boolean);
-            clienteIdsFinais = clienteIdsLimpos.filter(id => clienteIdsFiltrados.includes(id));
+            clienteIdsFinais = cliente_id.filter(id => idsFiltrados.includes(id));
           } else {
-            clienteIdsFinais = clienteIdsFiltrados;
+            clienteIdsFinais = idsFiltrados;
           }
-
-          if (clienteIdsFinais.length === 0) {
-            return res.json({
-              success: true,
-              data: {}
-            });
-          }
-        } else if (!clientesFiltrados || clientesFiltrados.length === 0) {
-          return res.json({
-            success: true,
-            data: {}
-          });
+          if (clienteIdsFinais.length === 0) return res.json({ success: true, data: {} });
         }
-      } catch (error) {
-        console.error('❌ Erro ao processar filtro de status de cliente:', error);
+      } catch (e) {
+        console.error('Erro filtro status cliente:', e);
       }
     }
 
-    // Buscar TODAS as regras (sem paginação, usando paginação automática)
+    // Buscar Regras
     const criarQueryBuilder = () => {
-      let queryBuilder = supabase
-        
-        .from('tempo_estimado_regra')
-        .select('*');
+      let queryBuilder = supabase.from('tempo_estimado_regra').select('*');
 
-      // Aplicar filtros
-      if (clienteIdsFinais && clienteIdsFinais.length > 0) {
-        const clienteIdsLimpos = clienteIdsFinais.map(id => String(id).trim()).filter(Boolean);
-        if (clienteIdsLimpos.length === 1) {
-          queryBuilder = queryBuilder.eq('cliente_id', clienteIdsLimpos[0]);
-        } else if (clienteIdsLimpos.length > 1) {
-          queryBuilder = queryBuilder.in('cliente_id', clienteIdsLimpos);
-        }
-      }
+      if (clienteIdsFinais && clienteIdsFinais.length > 0) queryBuilder = queryBuilder.in('cliente_id', clienteIdsFinais);
+      if (produto_id && produto_id.length > 0) queryBuilder = queryBuilder.in('produto_id', produto_id);
+      if (tarefa_id && tarefa_id.length > 0) queryBuilder = queryBuilder.in('tarefa_id', tarefa_id);
+      if (responsavel_id && responsavel_id.length > 0) queryBuilder = queryBuilder.in('responsavel_id', responsavel_id);
 
-      if (produto_id && produto_id.length > 0) {
-        const produtoIdsLimpos = produto_id.map(id => String(id).trim()).filter(Boolean);
-        if (produtoIdsLimpos.length === 1) {
-          queryBuilder = queryBuilder.eq('produto_id', produtoIdsLimpos[0]);
-        } else if (produtoIdsLimpos.length > 1) {
-          queryBuilder = queryBuilder.in('produto_id', produtoIdsLimpos);
-        }
-      }
-
-      if (tarefa_id && tarefa_id.length > 0) {
-        const tarefaIdsLimpos = tarefa_id.map(id => String(id).trim()).filter(Boolean);
-        if (tarefaIdsLimpos.length === 1) {
-          queryBuilder = queryBuilder.eq('tarefa_id', tarefaIdsLimpos[0]);
-        } else if (tarefaIdsLimpos.length > 1) {
-          queryBuilder = queryBuilder.in('tarefa_id', tarefaIdsLimpos);
-        }
-      }
-
-      if (responsavel_id && responsavel_id.length > 0) {
-        if (responsavel_id.length === 1) {
-          queryBuilder = queryBuilder.eq('responsavel_id', responsavel_id[0]);
-        } else if (responsavel_id.length > 1) {
-          queryBuilder = queryBuilder.in('responsavel_id', responsavel_id);
-        }
-      }
-
-      // Aplicar filtro de período
-      const periodoInicioFiltro = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-      const periodoFimFiltro = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
-      queryBuilder = queryBuilder.lte('data_inicio', periodoFimFiltro).gte('data_fim', periodoInicioFiltro);
+      const pInicio = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+      const pFim = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+      queryBuilder = queryBuilder.lte('data_inicio', pFim).gte('data_fim', pInicio);
 
       return queryBuilder.order('data_inicio', { ascending: false });
     };
 
-    // Buscar todas as regras usando paginação automática
-    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, {
-      limit: 1000,
-      logProgress: true
-    });
+    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 1000, logProgress: true });
 
-    console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Encontradas ${regrasEncontradas.length} regra(s)`);
+    // Mapeamento de Membros (apenas se agrupar por responsável e tivermos apenas usuario_id ou vice-versa, mas aqui usamos responsavel_id string/int direto da regra)
+    // As regras usam responsavel_id (que é membro.id ou similar). O frontend manda membro.id.
 
-    // Expandir regras em registros usando calcularRegistrosDinamicos
-    const periodoInicioFiltro = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-    const periodoFimFiltro = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
-
+    // Expandir Regras
+    const pInicio = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+    const pFim = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
     const cacheFeriados = {};
     const todosRegistros = [];
 
     for (const regra of regrasEncontradas) {
       try {
-        const registrosExpandidos = await calcularRegistrosDinamicos(
-          regra,
-          periodoInicioFiltro,
-          periodoFimFiltro,
-          cacheFeriados,
-          overrideFinaisSemana,
-          overrideFeriados
-        );
-        todosRegistros.push(...registrosExpandidos);
-      } catch (error) {
-        console.error(`❌ Erro ao expandir regra ${regra.id}:`, error);
-      }
+        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, overrideFinaisSemana, overrideFeriados);
+        todosRegistros.push(...expandidos);
+      } catch (e) { console.error('Erro expandir regra:', e); }
     }
 
-    console.log(`📊 [TEMPO-ESTIMADO-TOTAL] Expandidas ${regrasEncontradas.length} regra(s) em ${todosRegistros.length} registro(s)`);
+    // Agrupar
+    const registrosPorChave = {};
 
-    // Calcular tempo estimado total por responsável (mesma lógica do frontend)
-    const temposPorResponsavel = {};
-
-    // Agrupar registros por responsável
-    const registrosPorResponsavel = {};
-    todosRegistros.forEach(registro => {
-      if (!registro.responsavel_id) return;
-      const responsavelId = String(registro.responsavel_id);
-      if (!registrosPorResponsavel[responsavelId]) {
-        registrosPorResponsavel[responsavelId] = [];
+    todosRegistros.forEach(reg => {
+      let key = null;
+      if (groupKey === 'cliente') key = String(reg.cliente_id).trim();
+      else if (groupKey === 'produto') key = String(reg.produto_id).trim();
+      else if (groupKey === 'tarefa') key = String(reg.tarefa_id).trim();
+      else {
+        // Default responsavel
+        if (reg.responsavel_id) key = String(reg.responsavel_id).trim();
       }
-      registrosPorResponsavel[responsavelId].push(registro);
+
+      if (key) {
+        if (!registrosPorChave[key]) registrosPorChave[key] = [];
+        registrosPorChave[key].push(reg);
+      }
     });
 
-    console.log(`🔍 [TEMPO-ESTIMADO-TOTAL] Encontrados ${Object.keys(registrosPorResponsavel).length} responsáveis únicos`);
-
-    // Para cada responsável, calcular tempo estimado total
-    Object.keys(registrosPorResponsavel).forEach(responsavelId => {
-      const registrosDoResponsavel = registrosPorResponsavel[responsavelId];
-
-      // Map de data -> maior tempo_estimado_dia (evitar duplicação)
+    // Calcular Totais por Chave
+    const resultados = {};
+    Object.keys(registrosPorChave).forEach(key => {
+      const regs = registrosPorChave[key];
       const tempoPorData = new Map();
 
-      registrosDoResponsavel.forEach(registro => {
-        // Extrair data do registro
-        const dataStr = registro.data ? registro.data.split('T')[0] : null;
+      regs.forEach(r => {
+        const dataStr = r.data ? r.data.split('T')[0] : null;
         if (!dataStr) return;
+        if (dataStr < pInicio || dataStr > pFim) return;
 
-        // Verificar se a data está no período (já deve estar, mas garantir)
-        if (periodoInicioFiltro && periodoFimFiltro) {
-          if (dataStr < periodoInicioFiltro || dataStr > periodoFimFiltro) return;
-        }
+        let tempo = Number(r.tempo_estimado_dia) || 0;
+        if (tempo > 0 && tempo < 1000) tempo = Math.round(tempo * 3600000); // Horas -> ms
 
-        // Obter tempo estimado do registro
-        let tempoEstimadoDia = Number(registro.tempo_estimado_dia) || 0;
-
-        // Converter se necessário (horas decimais para milissegundos)
-        if (tempoEstimadoDia > 0 && tempoEstimadoDia < 1000) {
-          tempoEstimadoDia = Math.round(tempoEstimadoDia * 3600000);
-        }
-
-        // Somar os tempos para a mesma data (acumular carga de trabalho)
-        const tempoAtual = tempoPorData.get(dataStr) || 0;
-        tempoPorData.set(dataStr, tempoAtual + tempoEstimadoDia);
+        // Somar tempos para a mesma data (acumular carga)
+        const atual = tempoPorData.get(dataStr) || 0;
+        tempoPorData.set(dataStr, atual + tempo);
       });
 
-      // Somar todos os tempos do Map
-      let tempoTotal = 0;
-      tempoPorData.forEach((tempoDia) => {
-        tempoTotal += tempoDia;
-      });
-
-      temposPorResponsavel[responsavelId] = tempoTotal;
-
-      // DEBUG: Log por responsável
-      console.log(`🔍 [TEMPO-ESTIMADO-TOTAL] Responsável ${responsavelId}: ${registrosDoResponsavel.length} registro(s), ${tempoPorData.size} data(s) única(s), total=${tempoTotal}ms (${(tempoTotal / 3600000).toFixed(2)}h)`);
+      let total = 0;
+      tempoPorData.forEach(t => total += t);
+      resultados[key] = total;
     });
 
     return res.json({
       success: true,
-      data: temposPorResponsavel
+      data: resultados
     });
+
   } catch (error) {
     console.error('❌ Erro inesperado ao calcular tempo estimado total:', error);
-    console.error('❌ Stack trace:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
@@ -2902,7 +2823,7 @@ async function getTempoRealizadoComFiltros(req, res) {
     }
 
     const { data: membro, error: errorMembro } = await supabase
-      
+
       .from('membro')
       .select('id, usuario_id')
       .eq('id', responsavelIdNum)
@@ -2953,7 +2874,7 @@ async function getTempoRealizadoComFiltros(req, res) {
 
     // Construir query base com filtros obrigatórios PRIMEIRO
     let query = supabase
-      
+
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, usuario_id, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, tempo_estimado_id');
 
@@ -3058,7 +2979,7 @@ async function getTempoRealizadoComFiltros(req, res) {
 
     if (usuarioIds.length > 0) {
       const { data: membros, error: errorMembros } = await supabase
-        
+
         .from('membro')
         .select('id, usuario_id')
         .in('usuario_id', usuarioIds);
@@ -3114,7 +3035,7 @@ async function getTempoRealizadoComFiltros(req, res) {
     let tempoTotalPendente = 0;
     try {
       let queryPendentes = supabase
-        
+
         .from('registro_tempo_pendente')
         .select('data_inicio, data_fim, usuario_id, tarefa_id, status');
 

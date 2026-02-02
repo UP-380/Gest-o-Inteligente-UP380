@@ -23,6 +23,7 @@ import { calcularDiasUteis, calcularDiasComOpcoes, calcularDiasComOpcoesEDatasIn
 import { processBatch, executeHighPriority, globalRequestPool } from '../../utils/requestPool';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
 import './DelegarTarefas.css';
+import { debounce } from '../../utils/debounce';
 
 const API_BASE_URL = '/api';
 
@@ -141,6 +142,11 @@ const DelegarTarefas = () => {
   // Estados para fila de processamento (Queue)
   const [filaProcessamento, setFilaProcessamento] = useState([]);
   const [processandoFila, setProcessandoFila] = useState(false);
+
+  // Ref para cancelar requisições anteriores
+  const abortControllerRef = useRef(null);
+  const loadingRef = useRef(false);
+
 
   // Estado para controlar expansão dos dashboards
   const [dashboardsExpandidos, setDashboardsExpandidos] = useState(false);
@@ -826,9 +832,14 @@ const DelegarTarefas = () => {
     let tempoEstimado = 0;
 
     // 1. Calcular Tempo Estimado
-    if (tipoEntidade === 'responsavel') {
-      const cache = tempoEstimadoTotalPorResponsavel[String(entidadeId)];
-      // Se tiver cache e não estivermos re-calculando com detalhes explodidos que podem ser mais precisos
+    const cache = tempoEstimadoTotalPorResponsavel[String(entidadeId)];
+
+    // Se tiver cache (seja responsável, cliente, etc), usar o cache que vem do batch loading
+    if (cache !== undefined && cache !== null) {
+      tempoEstimado = cache;
+    } else if (tipoEntidade === 'responsavel') {
+      // Fallback antigo para responsavel se não tiver cache
+      // const cache = tempoEstimadoTotalPorResponsavel[String(entidadeId)]; // Removido pois já checamos acima
       // Na verdade, o cache total vindo do backend é sempre mais preciso que a soma parcial
       if (cache !== undefined && cache !== null) {
         tempoEstimado = cache;
@@ -1309,6 +1320,37 @@ const DelegarTarefas = () => {
 
 
 
+  // Ref para debounce de busca de opções contextuais
+  const debouncedBuscarOpcoesRef = useRef(null);
+
+  // Inicializar debounce
+  useEffect(() => {
+    debouncedBuscarOpcoesRef.current = debounce(async (filtroPaiAtual) => {
+      if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+        const opcoes = await buscarOpcoesFiltroContextual('responsavel');
+        setOpcoesFiltradasResponsaveis(opcoes);
+      }
+      if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+        const opcoes = await buscarOpcoesFiltroContextual('cliente');
+        setOpcoesFiltradasClientes(opcoes);
+      }
+      if (filtroPaiAtual === 'produto' || filtros.produto) {
+        const opcoes = await buscarOpcoesFiltroContextual('produto');
+        setOpcoesFiltradasProdutos(opcoes);
+      }
+      if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+        const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+        setOpcoesFiltradasTarefas(opcoes);
+      }
+    }, 300);
+
+    return () => {
+      if (debouncedBuscarOpcoesRef.current && debouncedBuscarOpcoesRef.current.cancel) {
+        debouncedBuscarOpcoesRef.current.cancel();
+      }
+    }
+  }, [filtros]);
+
   // Buscar opções contextuais quando um filtro pai for selecionado pela primeira vez
   useEffect(() => {
     if (periodoInicio && periodoFim) {
@@ -1317,25 +1359,9 @@ const DelegarTarefas = () => {
 
       // Se há filtros adicionais ativos e um filtro pai foi selecionado, buscar opções contextuais
       if (temFiltrosAdicionais && filtroPaiAtual) {
-        const buscarOpcoesPai = async () => {
-          if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
-            const opcoes = await buscarOpcoesFiltroContextual('responsavel');
-            setOpcoesFiltradasResponsaveis(opcoes);
-          }
-          if (filtroPaiAtual === 'cliente' || filtros.cliente) {
-            const opcoes = await buscarOpcoesFiltroContextual('cliente');
-            setOpcoesFiltradasClientes(opcoes);
-          }
-          if (filtroPaiAtual === 'produto' || filtros.produto) {
-            const opcoes = await buscarOpcoesFiltroContextual('produto');
-            setOpcoesFiltradasProdutos(opcoes);
-          }
-          if (filtroPaiAtual === 'atividade' || filtros.atividade) {
-            const opcoes = await buscarOpcoesFiltroContextual('tarefa');
-            setOpcoesFiltradasTarefas(opcoes);
-          }
-        };
-        buscarOpcoesPai();
+        if (debouncedBuscarOpcoesRef.current) {
+          debouncedBuscarOpcoesRef.current(filtroPaiAtual);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1890,9 +1916,9 @@ const DelegarTarefas = () => {
 
       // 2. Tempo Realizado Total em Lote (Apenas para Responsáveis ou se filtros permitirem)
       // Nota: O backend agora aceita array em responsavel_id
-      const responsaveisDoBatch = tipoEntidade === 'responsavel' ? ids : [];
-
-      if (responsaveisDoBatch.length > 0) {
+      // 2. Tempo Realizado Total em Lote (Agora para todos os tipos)
+      // Nota: O backend agora aceita array em responsavel_id, cliente_id, etc.
+      if (ids.length > 0) {
         globalRequestPool.add(async () => {
           try {
             const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
@@ -1900,7 +1926,7 @@ const DelegarTarefas = () => {
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify({
-                responsavel_id: responsaveisDoBatch,
+                responsavel_id: tipoEntidade === 'responsavel' ? ids : [],
                 cliente_id: tipoEntidade === 'cliente' ? ids : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
                 produto_id: tipoEntidade === 'produto' ? ids : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
                 tarefa_id: tipoEntidade === 'atividade' ? ids : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
@@ -2126,8 +2152,28 @@ const DelegarTarefas = () => {
 
   // Carregar registros de tempo estimado
   const loadRegistrosTempoEstimado = useCallback(async (filtrosParaAplicar = null, periodoParaAplicar = null, valoresSelecionados = null, filtrosAdicionaisParaAplicar = null) => {
+    // 1. Cancelar requisições pendentes
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      console.log('🛑 [LOAD] Cancelando requisição anterior...');
+    }
+
+    // 2. Criar novo controlador
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Função chamada');
+
+    // 3. Verificar se já existe carregamento em paralelo (opcional, mas bom para evitar race conditions de state)
+    // Com AbortController isso é menos crítico, mas ainda útil para evitar updates de state sobrepostos
+    if (loadingRef.current) {
+      // Se quisermos apenas 1 por vez, poderiamos retornar aqui, mas como cancelamos o anterior,
+      // vamos prosseguir com o novo.
+    }
+
+    loadingRef.current = true;
     setLoading(true);
+
     // Marcar dados auxiliares como não carregados ANTES de iniciar carregamento
     // Isso garante que os dashboards não sejam exibidos com dados parciais
     setDadosAuxiliaresCarregados(false);
@@ -2137,6 +2183,8 @@ const DelegarTarefas = () => {
     setTarefasExpandidas(new Set());
     setAgrupamentosTarefasExpandidas(new Set());
     try {
+      if (abortController.signal.aborted) return;
+
       const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
       const periodoAUsar = periodoParaAplicar !== null ? periodoParaAplicar : {
         inicio: periodoInicio,
@@ -2290,7 +2338,8 @@ const DelegarTarefas = () => {
 
       const response = await fetch(url, {
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json' },
+        signal: abortController.signal // ADICIONADO: Sinal de aborto
       });
 
       if (response.status === 401) {
@@ -2420,11 +2469,25 @@ const DelegarTarefas = () => {
         setDadosAuxiliaresCarregados(true);
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('🔇 [LOAD] Requisição cancelada (AbortError)');
+        return; // Não fazer nada, apenas sair silenciosamente
+      }
       console.error('Erro ao carregar registros:', error);
       showToast('error', 'Erro ao carregar registros de tempo estimado');
       setDadosAuxiliaresCarregados(true);
     } finally {
-      setLoading(false);
+      // Só desliga o loading se não foi abortado (ou se chegamos aqui após um request completo)
+      // Se tivéssemos um check mais robusto de qual request é o "ativo", seria ideal.
+      // O AbortController garante que requests velhos morrem, mas o loading pode ficar "piscando" se não cuidarmos.
+      // Com o loadingRef, podemos garantir que desligamos apenas se formos o "dono" do lock? 
+      // Não exatamente, pois o ref é compartilhado.
+
+      // Simplificação: Se abortado, não desliga loading (pois o próximo request o manterá ligado)
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+        loadingRef.current = false;
+      }
     }
   }, [currentPage, itemsPerPage, filtros, periodoInicio, periodoFim]);
 
@@ -3661,6 +3724,22 @@ const DelegarTarefas = () => {
     }
   }, [filtrosAplicados]);
 
+  // Ref para a função debounced de carregamento
+  const debouncedLoadRef = useRef(null);
+
+  // Inicializar o debounce apenas uma vez
+  useEffect(() => {
+    debouncedLoadRef.current = debounce((f, c, v, a) => {
+      loadRegistrosTempoEstimado(f, c, v, a);
+    }, 500);
+
+    return () => {
+      if (debouncedLoadRef.current && debouncedLoadRef.current.cancel) {
+        debouncedLoadRef.current.cancel();
+      }
+    };
+  }, [loadRegistrosTempoEstimado]);
+
   // Atualizar automaticamente a listagem quando os filtros "Definir" mudarem
   useEffect(() => {
     // Só atualizar se houver filtros aplicados e período definido
@@ -3687,7 +3766,7 @@ const DelegarTarefas = () => {
       };
 
       // Limpar caches quando filtros detalhados mudarem para garantir consistência
-      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram, limpando caches e recarregando dados');
+      console.log('🔄 [FILTROS-DETALHADOS] Filtros detalhados mudaram (DEBOUNCED), limpando caches e agendando recarga');
       console.log('🔴 [CACHE-LIMPO] setTempoEstimadoTotalPorResponsavel({}) - FILTROS-DETALHADOS');
       setHorasContratadasPorResponsavel({});
       setTipoContratoPorResponsavel({});
@@ -3695,8 +3774,10 @@ const DelegarTarefas = () => {
       // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
       setDadosAuxiliaresCarregados(false);
 
-      // Recarregar registros com os novos valores selecionados e filtros adicionais
-      loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+      // Recarregar registros com os novos valores selecionados e filtros adicionais (USANDO DEBOUNCE)
+      if (debouncedLoadRef.current) {
+        debouncedLoadRef.current(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+      }
 
       // Atualizar filtrosUltimosAplicados para refletir os novos valores selecionados
       // (sem ativar o botão "Aplicar Filtros")
@@ -3810,55 +3891,69 @@ const DelegarTarefas = () => {
     identificarEntidades();
   }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado]);
 
+  // Ref para debounce de recarga geral de opções
+  const debouncedReloadOptionsRef = useRef(null);
+
+  // Inicializar debounce de recarga
+  useEffect(() => {
+    debouncedReloadOptionsRef.current = debounce(async (filtrosAdicionaisAtivos, filtroPaiAtual, temFiltrosAdicionais) => {
+      // Recarregar filtros adicionais
+      if (filtrosAdicionaisAtivos.tarefa) {
+        const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+        setOpcoesFiltradasTarefas(opcoes);
+      }
+      if (filtrosAdicionaisAtivos.produto) {
+        const opcoes = await buscarOpcoesFiltroContextual('produto');
+        setOpcoesFiltradasProdutos(opcoes);
+      }
+      if (filtrosAdicionaisAtivos.cliente) {
+        const opcoes = await buscarOpcoesFiltroContextual('cliente');
+        setOpcoesFiltradasClientes(opcoes);
+      }
+
+      if (temFiltrosAdicionais && filtroPaiAtual) {
+        if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
+          const opcoes = await buscarOpcoesFiltroContextual('responsavel');
+          setOpcoesFiltradasResponsaveis(opcoes);
+        }
+        if (filtroPaiAtual === 'cliente' || filtros.cliente) {
+          const opcoes = await buscarOpcoesFiltroContextual('cliente');
+          setOpcoesFiltradasClientes(opcoes);
+        }
+        if (filtroPaiAtual === 'produto' || filtros.produto) {
+          const opcoes = await buscarOpcoesFiltroContextual('produto');
+          setOpcoesFiltradasProdutos(opcoes);
+        }
+        if (filtroPaiAtual === 'atividade' || filtros.atividade) {
+          const opcoes = await buscarOpcoesFiltroContextual('tarefa');
+          setOpcoesFiltradasTarefas(opcoes);
+        }
+      } else if (!temFiltrosAdicionais) {
+        // Se não há filtros adicionais, limpar opções filtradas dos filtros pai
+        setOpcoesFiltradasResponsaveis([]);
+        setOpcoesFiltradasClientes([]);
+        setOpcoesFiltradasProdutos([]);
+        setOpcoesFiltradasTarefas([]);
+      }
+    }, 300);
+
+    return () => {
+      if (debouncedReloadOptionsRef.current && debouncedReloadOptionsRef.current.cancel) {
+        debouncedReloadOptionsRef.current.cancel();
+      }
+    };
+  }, [filtros]);
+
   // Recarregar opções filtradas quando filtros principais, adicionais ou período mudarem (mesmo sem aplicar)
   useEffect(() => {
     if (periodoInicio && periodoFim) {
       // Recarregar opções filtradas para TODOS os filtros ativos (pai e adicionais)
-      const recarregarOpcoes = async () => {
-        // Recarregar filtros adicionais
-        if (filtrosAdicionaisAtivos.tarefa) {
-          const opcoes = await buscarOpcoesFiltroContextual('tarefa');
-          setOpcoesFiltradasTarefas(opcoes);
-        }
-        if (filtrosAdicionaisAtivos.produto) {
-          const opcoes = await buscarOpcoesFiltroContextual('produto');
-          setOpcoesFiltradasProdutos(opcoes);
-        }
-        if (filtrosAdicionaisAtivos.cliente) {
-          const opcoes = await buscarOpcoesFiltroContextual('cliente');
-          setOpcoesFiltradasClientes(opcoes);
-        }
+      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+      const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
 
-        // Recarregar filtros pai se houver filtros adicionais ativos
-        const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
-        const temFiltrosAdicionais = filtrosAdicionaisAtivos.cliente || filtrosAdicionaisAtivos.tarefa || filtrosAdicionaisAtivos.produto;
-
-        if (temFiltrosAdicionais && filtroPaiAtual) {
-          if (filtroPaiAtual === 'responsavel' || filtros.responsavel) {
-            const opcoes = await buscarOpcoesFiltroContextual('responsavel');
-            setOpcoesFiltradasResponsaveis(opcoes);
-          }
-          if (filtroPaiAtual === 'cliente' || filtros.cliente) {
-            const opcoes = await buscarOpcoesFiltroContextual('cliente');
-            setOpcoesFiltradasClientes(opcoes);
-          }
-          if (filtroPaiAtual === 'produto' || filtros.produto) {
-            const opcoes = await buscarOpcoesFiltroContextual('produto');
-            setOpcoesFiltradasProdutos(opcoes);
-          }
-          if (filtroPaiAtual === 'atividade' || filtros.atividade) {
-            const opcoes = await buscarOpcoesFiltroContextual('tarefa');
-            setOpcoesFiltradasTarefas(opcoes);
-          }
-        } else if (!temFiltrosAdicionais) {
-          // Se não há filtros adicionais, limpar opções filtradas dos filtros pai
-          setOpcoesFiltradasResponsaveis([]);
-          setOpcoesFiltradasClientes([]);
-          setOpcoesFiltradasProdutos([]);
-          setOpcoesFiltradasTarefas([]);
-        }
-      };
-      recarregarOpcoes();
+      if (debouncedReloadOptionsRef.current) {
+        debouncedReloadOptionsRef.current(filtrosAdicionaisAtivos, filtroPaiAtual, temFiltrosAdicionais);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [

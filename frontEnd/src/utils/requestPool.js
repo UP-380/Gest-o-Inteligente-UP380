@@ -4,7 +4,7 @@
  */
 
 class RequestPool {
-  constructor(concurrencyLimit = 5) {
+  constructor(concurrencyLimit = 10) {
     this.concurrencyLimit = concurrencyLimit;
     this.activeRequests = 0;
     this.queue = []; // { fn, resolve, reject, priority }
@@ -54,13 +54,13 @@ class RequestPool {
 
 // Singleton global do pool para compartilhar limite entre componentes se necessário
 // ou pode ser instanciado localmente por componente
-export const globalRequestPool = new RequestPool(5);
+export const globalRequestPool = new RequestPool(10);
 
 /**
  * Função wrapper compatível com a API anterior processBatch, 
  * mas usando o pool global com prioridade baixa por padrão
  */
-export async function processBatch(items, asyncFn, concurrencyLimit = 5) {
+export async function processBatch(items, asyncFn, concurrencyLimit = 10) {
   if (!Array.isArray(items) || items.length === 0) return [];
 
   // Ajustar limite global se necessário (aviso: isso afeta todos)

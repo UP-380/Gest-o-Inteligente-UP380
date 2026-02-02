@@ -1561,8 +1561,8 @@ async function deletarRegistroTempo(req, res) {
   }
 }
 
-// POST - Buscar tempo realizado total por responsável com período e filtros opcionais
-// Similar ao getTempoRealizado mas aceita responsavel_id e não exige tarefa_id/cliente_id
+// POST - Buscar tempo realizado total (Agregado por entidade)
+// Suporta agragação por responsavel_id, cliente_id, produto_id ou tarefa_id
 async function getTempoRealizadoTotal(req, res) {
   try {
     const {
@@ -1571,62 +1571,69 @@ async function getTempoRealizadoTotal(req, res) {
       data_fim,
       tarefa_id,
       cliente_id,
-      produto_id
+      produto_id,
+      agrupar_por // 'responsavel', 'cliente', 'produto', 'tarefa' (default: 'responsavel' se responsavel_id fornecido)
     } = req.body;
-
-    // Se no houver responsavel_id, retornar zerado
-    if (!responsavel_id) {
-      return res.json({
-        success: true,
-        data: Array.isArray(responsavel_id) ? {} : { tempo_realizado_ms: 0, tempo_pendente_ms: 0, registros_count: 0 }
-      });
-    }
 
     if (!data_inicio || !data_fim) {
       return res.status(400).json({ success: false, error: 'data_inicio e data_fim são obrigatórios' });
     }
 
-    const isBatch = Array.isArray(responsavel_id);
-    const responsavelIds = isBatch ? responsavel_id.map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [parseInt(responsavel_id, 10)];
-
-    if (responsavelIds.length === 0) {
-      return res.json({ success: true, data: isBatch ? {} : { tempo_realizado_ms: 0, tempo_pendente_ms: 0, registros_count: 0 } });
+    // Determinar chave de agrupamento
+    let groupKey = agrupar_por;
+    if (!groupKey) {
+      if (responsavel_id) groupKey = 'responsavel';
+      else if (cliente_id) groupKey = 'cliente';
+      else if (produto_id) groupKey = 'produto';
+      else groupKey = 'tarefa';
     }
 
-    // 1. Resolver todos os responsavel_id -> usuario_id
-    const { data: membros, error: errorMembros } = await supabase
-      .from('membro')
-      .select('id, usuario_id')
-      .in('id', responsavelIds);
+    // Normalizar IDs de entrada para arrays
+    const responsavelIds = responsavel_id ? (Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id]).map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
+    const clienteIds = cliente_id ? (Array.isArray(cliente_id) ? cliente_id : [cliente_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    const produtoIds = produto_id ? (Array.isArray(produto_id) ? produto_id : [produto_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    const tarefaIds = tarefa_id ? (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean) : [];
 
-    if (errorMembros) throw errorMembros;
+    // Se não houver nenhum filtro de entidade, não podemos buscar "tudo" sem perigo de sobrecarga
+    if (responsavelIds.length === 0 && clienteIds.length === 0 && produtoIds.length === 0 && tarefaIds.length === 0) {
+      return res.json({ success: true, data: {} });
+    }
 
-    const usuarioParaMembro = {}; // Map usuario_id -> responsavel_id
-    const usuarioIds = [];
-    membros.forEach(m => {
-      if (m.usuario_id) {
-        usuarioParaMembro[m.usuario_id] = m.id;
-        usuarioIds.push(m.usuario_id);
+    // Mapeamento de Responsáveis (Necessário se agrupar ou filtrar por responsável)
+    let usuarioParaMembro = {};
+    let usuariosIdsFiltro = [];
+
+    if (responsavelIds.length > 0) {
+      const { data: membros, error: errorMembros } = await supabase
+        .from('membro')
+        .select('id, usuario_id')
+        .in('id', responsavelIds);
+
+      if (errorMembros) throw errorMembros;
+
+      membros.forEach(m => {
+        if (m.usuario_id) {
+          usuarioParaMembro[m.usuario_id] = m.id;
+          usuariosIdsFiltro.push(m.usuario_id);
+        }
+      });
+
+      // Se filtrou por responsáveis e não achou usuários, retorna vazio
+      if (usuariosIdsFiltro.length === 0) {
+        return res.json({ success: true, data: {} });
       }
-    });
-
-    // Inicializar resultados
-    const resultados = {};
-    responsavelIds.forEach(id => {
-      resultados[id] = { tempo_realizado_ms: 0, tempo_pendente_ms: 0, registros_count: 0 };
-    });
-
-    if (usuarioIds.length === 0) {
-      return res.json({ success: true, data: isBatch ? resultados : resultados[responsavelIds[0]] });
+    } else if (groupKey === 'responsavel') {
+      // Se agrupa por responsável mas não filtrou, precisamos buscar o mapa reverso na iteração ou buscar todos?
+      // Vamos buscar todos os membros para ter o mapa completo se necessário
+      // Otimização: Se não tem filtro de responsável, buscamos o mapa apenas dos user_ids que retornarem na query?
+      // Sim, faremos isso DEPOIS da query principal.
     }
 
-    // 2. Preparar filtros de período
+    // Preparar filtros de período
     const dataInicioStr = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
     const dataFimStr = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
-    const dataInicioFiltro = new Date(dataInicioStr + 'T00:00:00');
-    const dataFimFiltro = new Date(dataFimStr + 'T23:59:59.999');
-    const inicioStr = dataInicioFiltro.toISOString();
-    const fimStr = dataFimFiltro.toISOString();
+    const inicioStr = `${dataInicioStr}T00:00:00`;
+    const fimStr = `${dataFimStr}T23:59:59.999`;
 
     const orConditions = [
       `and(data_inicio.gte.${inicioStr},data_inicio.lte.${fimStr})`,
@@ -1635,38 +1642,59 @@ async function getTempoRealizadoTotal(req, res) {
       `and(data_inicio.lte.${fimStr},data_fim.is.null)`
     ].join(',');
 
-    // 3. Buscar Registros de Tempo (Realizado)
+    // ============================================
+    // 1. QUERY REGISTRO_TEMPO (REALIZADO)
+    // ============================================
     let queryRealizado = supabase
       .from('registro_tempo')
       .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, usuario_id')
-      .in('usuario_id', usuarioIds)
       .or(orConditions)
       .not('tempo_realizado', 'is', null);
 
-    if (tarefa_id) {
-      const tIds = (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean);
-      if (tIds.length > 0) queryRealizado = queryRealizado.in('tarefa_id', tIds);
-    }
-    if (cliente_id) {
-      const cIds = (Array.isArray(cliente_id) ? cliente_id : [cliente_id]).map(id => String(id).trim()).filter(Boolean);
-      if (cIds.length > 0) queryRealizado = queryRealizado.in('cliente_id', cIds);
-    }
+    // Aplicar Filtros
+    if (usuariosIdsFiltro.length > 0) queryRealizado = queryRealizado.in('usuario_id', usuariosIdsFiltro);
+    if (clienteIds.length > 0) queryRealizado = queryRealizado.in('cliente_id', clienteIds);
+    if (produtoIds.length > 0) queryRealizado = queryRealizado.in('produto_id', produtoIds);
+    if (tarefaIds.length > 0) queryRealizado = queryRealizado.in('tarefa_id', tarefaIds);
 
     const { data: registros, error: errorRealizado } = await queryRealizado;
     if (errorRealizado) throw errorRealizado;
 
-    // Processar Realizado
-    const pIdsFilter = produto_id ? (Array.isArray(produto_id) ? produto_id : [produto_id]).map(id => String(id).trim()).filter(Boolean) : null;
+    // Se agrupar por responsável e não tínhamos filtro, precisamos buscar os membros agora
+    if (groupKey === 'responsavel' && responsavelIds.length === 0 && registros && registros.length > 0) {
+      const uIdsPresentes = [...new Set(registros.map(r => r.usuario_id))];
+      if (uIdsPresentes.length > 0) {
+        const { data: membros } = await supabase.from('membro').select('id, usuario_id').in('usuario_id', uIdsPresentes);
+        membros?.forEach(m => { if (m.usuario_id) usuarioParaMembro[m.usuario_id] = m.id; });
+      }
+    }
 
+    // Inicializar Resultados Map
+    const resultados = {}; // Key -> { tempo_realizado_ms, tempo_pendente_ms, registros_count }
+
+    // Helper para inicializar chave
+    const initKey = (key) => {
+      if (!resultados[key]) resultados[key] = { tempo_realizado_ms: 0, tempo_pendente_ms: 0, registros_count: 0 };
+    };
+
+    // Helper para obter chave do registro com base no agrupamento
+    const getRecordKey = (reg) => {
+      if (groupKey === 'cliente') return reg.cliente_id;
+      if (groupKey === 'produto') return reg.produto_id;
+      if (groupKey === 'tarefa') return reg.tarefa_id;
+      if (groupKey === 'responsavel') return usuarioParaMembro[reg.usuario_id];
+      return null;
+    };
+
+    // Processar Realizado
     (registros || []).forEach(reg => {
       // Regra de exclusão (todas null)
       if (reg.cliente_id === null && reg.produto_id === null && reg.tipo_tarefa_id === null) return;
 
-      // Filtro de produto (estrito)
-      if (pIdsFilter && (!reg.produto_id || !pIdsFilter.includes(String(reg.produto_id).trim()))) return;
+      const key = getRecordKey(reg);
+      if (!key) return; // Ignorar se não conseguir mapear (ex: usuario sem membro, ou cliente null na task)
 
-      const respId = usuarioParaMembro[reg.usuario_id];
-      if (!respId) return;
+      initKey(key);
 
       let tempo = Number(reg.tempo_realizado) || 0;
       if (!tempo && reg.data_inicio) {
@@ -1676,63 +1704,89 @@ async function getTempoRealizadoTotal(req, res) {
       }
       if (tempo > 0 && tempo < 1) tempo = Math.round(tempo * 3600000);
 
-      resultados[respId].tempo_realizado_ms += tempo;
-      resultados[respId].registros_count++;
+      resultados[key].tempo_realizado_ms += tempo;
+      resultados[key].registros_count++;
     });
 
-    // 4. Buscar Registros Pendentes
+    // ============================================
+    // 2. QUERY PENDENTES (EM ANDAMENTO)
+    // ============================================
     let queryPendentes = supabase
       .from('registro_tempo_pendente')
       .select('data_inicio, data_fim, usuario_id, tarefa_id, atribuicao_pendente_id')
-      .in('usuario_id', usuarioIds)
       .or(orConditions);
 
-    if (tarefa_id) {
-      const tIds = (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean);
-      if (tIds.length > 0) queryPendentes = queryPendentes.in('tarefa_id', tIds);
-    }
+    if (usuariosIdsFiltro.length > 0) queryPendentes = queryPendentes.in('usuario_id', usuariosIdsFiltro);
+    if (tarefaIds.length > 0) queryPendentes = queryPendentes.in('tarefa_id', tarefaIds);
+    // Nota: Pendentes não têm cliente_id/produto_id diretos, dependem de join manual ou atribuicao
 
     const { data: pendentes, error: errorPendentes } = await queryPendentes;
-    if (errorPendentes) console.error('Erro ao buscar pendentes:', errorPendentes);
 
     if (pendentes && pendentes.length > 0) {
       let pendentesAptos = pendentes;
+      const attrIds = [...new Set(pendentes.map(p => p.atribuicao_pendente_id).filter(Boolean))];
+      const attrsMap = new Map();
 
-      // Filtro de Cliente/Produto para pendentes (via atribuicao_pendente_id)
-      if (cliente_id || produto_id) {
-        const attrIds = [...new Set(pendentes.map(p => p.atribuicao_pendente_id).filter(Boolean))];
-        if (attrIds.length > 0) {
-          const { data: attrs } = await supabase.from('atribuicoes_pendentes').select('id, cliente_id, produto_id').in('id', attrIds);
-          const attrsMap = new Map((attrs || []).map(a => [String(a.id), a]));
+      // Se precisarmos filtrar ou agrupar por cliente/produto, precisamos dos dados da atribuição
+      if (attrIds.length > 0 && (clienteIds.length > 0 || produtoIds.length > 0 || groupKey === 'cliente' || groupKey === 'produto')) {
+        const { data: attrs } = await supabase.from('atribuicoes_pendentes').select('id, cliente_id, produto_id').in('id', attrIds);
+        attrs?.forEach(a => attrsMap.set(String(a.id), a));
 
-          const cIdsF = cliente_id ? (Array.isArray(cliente_id) ? cliente_id.map(String) : [String(cliente_id)]) : null;
-          const pIdsF = produto_id ? (Array.isArray(produto_id) ? produto_id.map(String) : [String(produto_id)]) : null;
-
+        // Filtrar se houver filtros de cliente/produto
+        if (clienteIds.length > 0 || produtoIds.length > 0) {
           pendentesAptos = pendentes.filter(p => {
-            if (!p.atribuicao_pendente_id) return false;
             const attr = attrsMap.get(String(p.atribuicao_pendente_id));
+            // Se não tem atribuição e estamos apenas filtrando:
+            // Se o filtro é estrito, talvez devêssemos ignorar. Mas Plug Rapido pode ser órfão de cliente? Difícil.
+            // Vamos assumir que se o filtro existe, precisamos validar.
             if (!attr) return false;
-            if (cIdsF && !cIdsF.includes(String(attr.cliente_id || '').trim())) return false;
-            if (pIdsF && !pIdsF.includes(String(attr.produto_id || '').trim())) return false;
+
+            if (clienteIds.length > 0 && !clienteIds.includes(String(attr.cliente_id || '').trim())) return false;
+            if (produtoIds.length > 0 && !produtoIds.includes(String(attr.produto_id || '').trim())) return false;
             return true;
           });
-        } else {
-          pendentesAptos = [];
+        }
+      }
+
+      // Processar Pendentes
+      // Se agrupar por responsável e não tinha filtro, garantir mapa
+      if (groupKey === 'responsavel' && responsavelIds.length === 0) {
+        const uIdsPendentes = [...new Set(pendentesAptos.map(p => p.usuario_id))];
+        const uIdsFaltantes = uIdsPendentes.filter(id => !usuarioParaMembro.hasOwnProperty(id));
+        if (uIdsFaltantes.length > 0) {
+          const { data: membros } = await supabase.from('membro').select('id, usuario_id').in('usuario_id', uIdsFaltantes);
+          membros?.forEach(m => { if (m.usuario_id) usuarioParaMembro[m.usuario_id] = m.id; });
         }
       }
 
       pendentesAptos.forEach(p => {
-        const respId = usuarioParaMembro[p.usuario_id];
-        if (!respId) return;
+        let key = null;
+
+        if (groupKey === 'responsavel') {
+          key = usuarioParaMembro[p.usuario_id];
+        } else if (groupKey === 'tarefa') {
+          key = p.tarefa_id;
+        } else if (groupKey === 'cliente' || groupKey === 'produto') {
+          const attr = attrsMap.get(String(p.atribuicao_pendente_id));
+          if (attr) {
+            key = groupKey === 'cliente' ? attr.cliente_id : attr.produto_id;
+          }
+          // Se não tiver atribuição, tentamos inferir? Não, impossível para cliente/produto sem join.
+        }
+
+        if (!key) return;
+
+        initKey(key);
+
         const d1 = new Date(p.data_inicio).getTime();
         const d2 = p.data_fim ? new Date(p.data_fim).getTime() : Date.now();
-        resultados[respId].tempo_pendente_ms += Math.max(0, d2 - d1);
+        resultados[key].tempo_pendente_ms += Math.max(0, d2 - d1);
       });
     }
 
     return res.json({
       success: true,
-      data: isBatch ? resultados : resultados[responsavelIds[0]]
+      data: resultados
     });
 
   } catch (error) {
@@ -1740,6 +1794,8 @@ async function getTempoRealizadoTotal(req, res) {
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
   }
 }
+
+
 
 module.exports = {
   iniciarRegistroTempo,
