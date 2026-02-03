@@ -512,6 +512,7 @@ router.get('/gestao-colaboradores', requireAuth, (req, res) => {
 const atribuicoesPendentesController = require('../controllers/atribuicoes-pendentes.controller');
 router.post('/api/atribuicoes-pendentes', requireAuth, atribuicoesPendentesController.criarAtribuicaoPendente);
 router.get('/api/atribuicoes-pendentes/minhas', requireAuth, atribuicoesPendentesController.listarMinhasPendentes);
+router.get('/api/atribuicoes-pendentes/configuracoes-existentes', requireAuth, atribuicoesPendentesController.listarConfiguracoesExistentes);
 router.get('/api/atribuicoes-pendentes/aprovacao', requireGestor, atribuicoesPendentesController.listarPendentesParaAprovacao);
 router.post('/api/atribuicoes-pendentes/:id/aprovar', requireGestor, atribuicoesPendentesController.aprovarAtribuicao);
 router.get('/api/atribuicoes-pendentes/count', requireGestor, atribuicoesPendentesController.contarPendentes);

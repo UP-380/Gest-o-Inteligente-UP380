@@ -17,6 +17,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
     const [produtosOptions, setProdutosOptions] = useState([]);
     const [showNewTaskModal, setShowNewTaskModal] = useState(false);
     const [minhasPendentes, setMinhasPendentes] = useState([]);
+    const [configuracoesExistentes, setConfiguracoesExistentes] = useState([]);
     const [tasksRefreshToken, setTasksRefreshToken] = useState(0);
     const [formData, setFormData] = useState({
         cliente_id: '',
@@ -54,6 +55,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
             setProdutosOptions([]);
             fetchClientes();
             fetchMinhasPendentes();
+            fetchConfiguracoesExistentes();
             setTasksRefreshToken(0);
         }
     }, [isOpen]);
@@ -67,6 +69,18 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
             }
         } catch (error) {
             console.error('Erro ao buscar minhas pendências', error);
+        }
+    };
+
+    const fetchConfiguracoesExistentes = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/atribuicoes-pendentes/configuracoes-existentes`);
+            const json = await res.json();
+            if (json.success) {
+                setConfiguracoesExistentes(json.data || []);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar configurações existentes', error);
         }
     };
 
@@ -157,7 +171,11 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 if (onSuccess) onSuccess();
                 onClose();
             } else {
-                showToast('error', json.error || 'Erro ao criar solicitação.');
+                const msg = json.error || 'Erro ao criar solicitação.';
+                showToast('error', msg);
+                if (msg.includes('configuração de atribuição já existe')) {
+                    fetchConfiguracoesExistentes();
+                }
             }
 
         } catch (error) {
@@ -178,14 +196,22 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
             : (formData.cliente_id && formData.produto_id && formData.tarefa_id)
         );
 
-    // Verificar se já existe uma pendência idêntica
-    const isDuplicate = minhasPendentes.some(p =>
-        String(p.cliente_id) === String(formData.cliente_id) &&
-        String(p.produto_id) === String(formData.produto_id) &&
-        String(p.tarefa_id) === String(formData.tarefa_id) &&
-        p.data_inicio.split('T')[0] === formData.data_inicio &&
-        p.data_fim.split('T')[0] === formData.data_fim
-    );
+    // Verificar se já existe configuração idêntica (PENDENTE ou APROVADA): cliente, produto, tarefa, responsável, data
+    const isDuplicate = formData.sem_tarefa_definida
+        ? configuracoesExistentes.some(c => {
+            const dataInicio = (c.data_inicio || '').toString().split('T')[0];
+            const dataFim = (c.data_fim || '').toString().split('T')[0];
+            return (c.comentario_colaborador || '').trim() === (formData.comentario_colaborador || '').trim() &&
+                dataInicio === formData.data_inicio &&
+                dataFim === formData.data_fim;
+        })
+        : configuracoesExistentes.some(c =>
+            String(c.cliente_id || '') === String(formData.cliente_id || '') &&
+            String(c.produto_id || '') === String(formData.produto_id || '') &&
+            String(c.tarefa_id || '') === String(formData.tarefa_id || '') &&
+            (c.data_inicio || '').toString().split('T')[0] === formData.data_inicio &&
+            (c.data_fim || '').toString().split('T')[0] === formData.data_fim
+        );
 
     return createPortal(
         <div className="modal-plug-rapido-overlay" onClick={onClose}>
@@ -324,7 +350,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                             border: '1px solid #fecaca'
                         }}>
                             <i className="fas fa-exclamation-triangle"></i>
-                            <span>Você já possui uma solicitação idêntica aguardando aprovação para este período.</span>
+                            <span>Essa configuração de atribuição já existe.</span>
                         </div>
                     )}
 
@@ -339,7 +365,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                         disabled={loading || !isFormValid || isDuplicate}
                         title={
                             isDuplicate
-                                ? "Configuração de plug rápido já existente"
+                                ? "Essa configuração de atribuição já existe."
                                 : (!isFormValid ? "Preencha todos os campos" : "Criar Plug")
                         }
                     >
