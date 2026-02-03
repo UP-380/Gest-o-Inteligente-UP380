@@ -354,21 +354,11 @@ const ResponsaveisDetalhadosList = ({
 
                                             // Tempo realizado: tentar buscar do mapa, depois tarefa diretamente
                                             const tarefaKeyAlt = String(tarefa.id);
+                                            // Realizado da tarefa: apenas do mapa/cache (carregado ao abrir o card). Não usar registrosIndividuais para não interferir ao abrir "Registros de tempo".
                                             let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefaKey]
                                               || temposRealizadosPorTarefa[tarefaKeyAlt]
                                               || tarefa.tempoRealizado
                                               || 0;
-
-                                            // Fallback: se for 0 e tivermos registros, somar deles
-                                            const registrosDaTarefa = registrosIndividuais[tarefa.id];
-                                            if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
-                                              tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
-                                                let tempoReg = Number(reg.tempo_realizado) || 0;
-                                                if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
-                                                if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
-                                                return total + tempoReg;
-                                              }, 0);
-                                            }
 
                                             const tempoRealizadoTarefaFormatado = formatarTempoHMS
                                               ? formatarTempoHMS(tempoRealizadoTarefaMs)
@@ -760,21 +750,11 @@ const ResponsaveisDetalhadosList = ({
                                 const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
                                 // Tempo realizado: tentar buscar do mapa, depois tarefa diretamente
                                 const tarefaKeyAlt = String(tarefa.id);
+                                // Realizado da tarefa: apenas do mapa/cache (carregado ao abrir o card). Não usar registrosIndividuais para não interferir ao abrir "Registros de tempo".
                                 let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefaKey]
                                   || temposRealizadosPorTarefa[tarefaKeyAlt]
                                   || tarefa.tempoRealizado
                                   || 0;
-
-                                // Fallback: se for 0 e tivermos registros, somar deles
-                                const registrosDaTarefa = registrosIndividuais[tarefa.id];
-                                if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
-                                  tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
-                                    let tempoReg = Number(reg.tempo_realizado) || 0;
-                                    if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
-                                    if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
-                                    return total + tempoReg;
-                                  }, 0);
-                                }
 
                                 const tempoRealizadoTarefaFormatado = formatarTempoHMS
                                   ? formatarTempoHMS(tempoRealizadoTarefaMs)
