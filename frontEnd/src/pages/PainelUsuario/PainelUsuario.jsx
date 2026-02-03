@@ -4775,19 +4775,24 @@ const PainelUsuario = () => {
         }
       })();
 
+      // Coletar apenas valores que são de fato IDs (número ou UUID), não nome/email
       const coletarIds = (obj) => {
         const ids = [];
+        const chavesId = ['id', 'membro_id', 'colaborador_id', 'usuario_id', 'membroId', 'colaboradorId'];
         Object.entries(obj || {}).forEach(([k, v]) => {
-          if (!v) return;
-          const keyLower = k.toLowerCase();
-          const isIdKey =
-            keyLower.includes('id') ||
-            keyLower.includes('membro') ||
-            keyLower.includes('colaborador') ||
-            keyLower.includes('usuario');
-          if (isIdKey) {
-            if (typeof v === 'number') ids.push(String(v));
-            if (typeof v === 'string' && v.trim()) ids.push(v.trim());
+          if (v == null) return;
+          const keyNorm = k.toLowerCase().replace(/_/g, '');
+          const isChaveId = chavesId.some((c) => keyNorm === c.toLowerCase().replace(/_/g, ''));
+          if (!isChaveId) return;
+          if (typeof v === 'number' && !Number.isNaN(v)) {
+            ids.push(String(v));
+            return;
+          }
+          if (typeof v === 'string' && v.trim()) {
+            const s = v.trim();
+            // Apenas numérico ou UUID – não enviar email, nome, etc.
+            if (/^\d+$/.test(s)) ids.push(s);
+            else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) ids.push(s);
           }
         });
         return ids;
@@ -4810,9 +4815,15 @@ const PainelUsuario = () => {
         )
       ].filter(Boolean);
 
-      const idsUnicos = Array.from(new Set(idsPossiveis));
+      // Enviar só valores que parecem ID (número ou UUID), nunca email/nome
+      const ehIdValido = (v) => {
+        if (typeof v === 'number' && !Number.isNaN(v)) return true;
+        const s = String(v).trim();
+        return /^\d+$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+      };
+      const idsUnicos = Array.from(new Set(idsPossiveis)).filter(ehIdValido);
       if (idsUnicos.length > 0) {
-        idsUnicos.forEach((id) => params.append('responsavel_id', id));
+        idsUnicos.forEach((id) => params.append('responsavel_id', String(id)));
       }
 
       // IMPORTANTE: Enviar apenas a data selecionada para otimizar a busca

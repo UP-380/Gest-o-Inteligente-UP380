@@ -1981,11 +1981,17 @@ const DelegarTarefas = () => {
             credentials: 'include',
             body: JSON.stringify(payloadEstimado)
           });
-          const result = await res.json();
+          const text = await res.text();
+          let result;
+          try {
+            result = text ? JSON.parse(text) : {};
+          } catch {
+            if (!res.ok) console.warn('Batch estimado: servidor retornou', res.status, '(ex.: 414 URI Too Long). Use build atualizado com POST.');
+            return;
+          }
           if (result.success && result.data) {
             setTempoEstimadoTotalPorResponsavel(prev => {
               const next = { ...prev, ...result.data };
-              // Garantir chave para todos os IDs dos grupos (backend pode omitir quem tem 0)
               if (tipoEntidade === 'responsavel') {
                 entityIds.forEach(id => {
                   const k = String(id);
@@ -2085,7 +2091,14 @@ const DelegarTarefas = () => {
                 agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade
               })
             });
-            const result = await res.json();
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch realizado: servidor retornou', res.status);
+              return;
+            }
             if (result.success && result.data) {
               setTemposRealizadosPorEntidade(prev => {
                 const next = { ...prev };
@@ -2127,7 +2140,14 @@ const DelegarTarefas = () => {
               credentials: 'include',
               body: JSON.stringify(payload)
             });
-            const result = await res.json();
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch horas: servidor retornou', res.status, '(ex.: 414). Use build com POST.');
+              return;
+            }
             if (result.success && result.data) {
               const novasHoras = {};
               const novosContratos = {};
@@ -2169,7 +2189,14 @@ const DelegarTarefas = () => {
               credentials: 'include',
               body: JSON.stringify(payload)
             });
-            const result = await res.json();
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch custos: servidor retornou', res.status, '(ex.: 414). Use build com POST.');
+              return;
+            }
             if (result.success && result.data) {
               const novosCustos = {};
               Object.keys(result.data).forEach(rid => {
