@@ -1619,14 +1619,16 @@ const DelegarTarefas = () => {
     setTipoContratoPorResponsavel({});
 
     const ids = Array.from(responsaveisIds);
-    const queryParams = new URLSearchParams();
-    ids.forEach(id => queryParams.append('membro_id', id));
-    if (dataFim) queryParams.append('data_fim', dataFim);
+    // Usar POST para evitar 414 URI Too Long quando há muitos responsáveis
+    const payload = { membro_id: ids };
+    if (dataFim) payload.data_fim = dataFim;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas`, {
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -1756,40 +1758,36 @@ const DelegarTarefas = () => {
         }
       }
 
-      // 1. Tempo Estimado Total
-      const paramsEstimado = new URLSearchParams({
+      // 1. Tempo Estimado Total – usar POST para evitar 414 URI Too Long (muitos filtros = URL longa)
+      const payloadEstimado = {
         data_inicio: periodoInicio,
         data_fim: periodoFim,
-        considerarFinaisDeSemana: habilitarFinaisSemana ? 'true' : 'false',
-        considerarFeriados: habilitarFeriados ? 'true' : 'false'
-      });
+        considerarFinaisDeSemana: habilitarFinaisSemana,
+        considerarFeriados: habilitarFeriados
+      };
+      if (tipoEntidade === 'responsavel') payloadEstimado.responsavel_id = [entidadeId];
+      else if (tipoEntidade === 'cliente') payloadEstimado.cliente_id = [entidadeId];
+      else if (tipoEntidade === 'produto') payloadEstimado.produto_id = [entidadeId];
+      else if (tipoEntidade === 'atividade') payloadEstimado.tarefa_id = [entidadeId];
 
-      // Adicionar filtros específicos dependendo do tipo da entidade ou filtros adicionais
-      if (tipoEntidade === 'responsavel') paramsEstimado.append('responsavel_id', entidadeId);
-      else if (tipoEntidade === 'cliente') paramsEstimado.append('cliente_id', entidadeId);
-      else if (tipoEntidade === 'produto') paramsEstimado.append('produto_id', entidadeId);
-      else if (tipoEntidade === 'atividade') paramsEstimado.append('tarefa_id', entidadeId);
-
-      // Adicionar filtros adicionais se houver (importante para consistência entre cards e listagem)
       if (tipoEntidade !== 'cliente' && (filtrosAdicionais.cliente_id || filtroAdicionalCliente)) {
         const cId = filtrosAdicionais.cliente_id || filtroAdicionalCliente;
-        if (Array.isArray(cId)) cId.forEach(id => paramsEstimado.append('cliente_id', String(id)));
-        else paramsEstimado.append('cliente_id', String(cId));
+        payloadEstimado.cliente_id = Array.isArray(cId) ? cId : [cId];
       }
       if (tipoEntidade !== 'atividade' && (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa)) {
         const tId = filtrosAdicionais.tarefa_id || filtroAdicionalTarefa;
-        if (Array.isArray(tId)) tId.forEach(id => paramsEstimado.append('tarefa_id', String(id)));
-        else paramsEstimado.append('tarefa_id', String(tId));
+        payloadEstimado.tarefa_id = Array.isArray(tId) ? tId : [tId];
       }
       if (tipoEntidade !== 'produto' && (filtrosAdicionais.produto_id || filtroAdicionalProduto)) {
         const pId = filtrosAdicionais.produto_id || filtroAdicionalProduto;
-        if (Array.isArray(pId)) pId.forEach(id => paramsEstimado.append('produto_id', String(id)));
-        else paramsEstimado.append('produto_id', String(pId));
+        payloadEstimado.produto_id = Array.isArray(pId) ? pId : [pId];
       }
 
-      const responseEstimado = await fetch(`${API_BASE_URL}/tempo-estimado/total?${paramsEstimado}`, {
+      const responseEstimado = await fetch(`${API_BASE_URL}/tempo-estimado/total`, {
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadEstimado)
       });
 
       if (responseEstimado.ok) {
@@ -2541,21 +2539,60 @@ const DelegarTarefas = () => {
         return p;
       };
 
+      // Montar payload para POST (evitar 414 URI Too Long quando muitos responsavel_id/outros filtros)
+      const buildPayload = (page, limit) => {
+        const pl = { page: String(page), limit: String(limit) };
+        const arr = (v) => (Array.isArray(v) ? v : (v != null ? [v] : []));
+        const merge = (a, b) => [...arr(a).map(String).filter(Boolean), ...arr(b).map(String).filter(Boolean)];
+        if (filtrosAUsar.produto && valoresAUsar.produto) pl.produto_id = merge(valoresAUsar.produto, filtrosAdicionaisAUsar.produto);
+        if (filtrosAUsar.atividade && valoresAUsar.tarefa) pl.tarefa_id = merge(valoresAUsar.tarefa, filtrosAdicionaisAUsar.tarefa);
+        if (filtrosAUsar.cliente && valoresAUsar.cliente) pl.cliente_id = merge(valoresAUsar.cliente, filtrosAdicionaisAUsar.cliente);
+        if (filtrosAUsar.responsavel && valoresAUsar.responsavel) pl.responsavel_id = arr(valoresAUsar.responsavel).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.cliente && !pl.cliente_id) pl.cliente_id = arr(filtrosAdicionaisAUsar.cliente).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.tarefa && !pl.tarefa_id) pl.tarefa_id = arr(filtrosAdicionaisAUsar.tarefa).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.produto && !pl.produto_id) pl.produto_id = arr(filtrosAdicionaisAUsar.produto).map(String).filter(Boolean);
+        if (filtroPrincipal === 'cliente' && filtroStatusCliente && filtroStatusCliente !== 'todos') pl.cliente_status = filtroStatusCliente;
+        if (periodoAUsar.inicio) pl.data_inicio = periodoAUsar.inicio;
+        if (periodoAUsar.fim) pl.data_fim = periodoAUsar.fim;
+        return pl;
+      };
+
+      const LIMITE_URL_SEGURA = 1800; // usar POST se URL passar disso (evitar 414)
+      const usarPostListagem = () => {
+        const p = buildParams(1, LIMIT_POR_PAGINA);
+        return p.toString().length > LIMITE_URL_SEGURA;
+      };
+
       let regras = [];
       let totalDoBackend = null;
 
+      const fetchUmaPagina = async (page, limit) => {
+        const usePost = usarPostListagem();
+        if (usePost) {
+          const payload = buildPayload(page, limit);
+          const response = await fetch(`${API_BASE_URL}/tempo-estimado/listar`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: abortController.signal
+          });
+          return response;
+        }
+        const params = buildParams(page, limit);
+        const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+          signal: abortController.signal
+        });
+        return response;
+      };
+
       if (temPeriodo) {
-        // Buscar todas as páginas (sem limit total): cada request com limit 1000 para não sobrecarregar a VPS
         let pageAtual = 1;
         let result;
         do {
-          const params = buildParams(pageAtual, LIMIT_POR_PAGINA);
-          const url = `${API_BASE_URL}/tempo-estimado?${params}`;
-          const response = await fetch(url, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' },
-            signal: abortController.signal
-          });
+          const response = await fetchUmaPagina(pageAtual, LIMIT_POR_PAGINA);
           if (response.status === 401) {
             window.location.href = '/login';
             return;
@@ -2569,13 +2606,7 @@ const DelegarTarefas = () => {
         } while ((result.data?.length || 0) === LIMIT_POR_PAGINA && !abortController.signal.aborted);
         console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca completa: ${regras.length} regras (${pageAtual - 1} página(s), limit=${LIMIT_POR_PAGINA}/página)`);
       } else {
-        const params = buildParams(pageParaBusca, limitParaBusca);
-        const url = `${API_BASE_URL}/tempo-estimado?${params}`;
-        const response = await fetch(url, {
-          credentials: 'include',
-          headers: { 'Accept': 'application/json' },
-          signal: abortController.signal
-        });
+        const response = await fetchUmaPagina(pageParaBusca, limitParaBusca);
         if (response.status === 401) {
           window.location.href = '/login';
           return;
