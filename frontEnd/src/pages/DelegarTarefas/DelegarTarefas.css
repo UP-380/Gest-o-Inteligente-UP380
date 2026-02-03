@@ -1453,6 +1453,11 @@
   z-index: 3;
 }
 
+.barra-progresso-tempo-fill.pendente {
+  background-color: #ef4444; /* Vermelho alinhado à legenda Pendente */
+  z-index: 4;
+}
+
 .barra-progresso-tempo-legenda {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

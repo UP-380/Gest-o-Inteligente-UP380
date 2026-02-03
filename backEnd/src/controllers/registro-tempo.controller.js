@@ -1642,6 +1642,20 @@ async function getTempoRealizadoTotal(req, res) {
       return res.status(400).json({ success: false, error: 'data_inicio e data_fim são obrigatórios' });
     }
 
+    // Normalizar datas para string YYYY-MM-DD (evita 500 se vier timestamp ou Date)
+    const normalizarDataStr = (val) => {
+      if (val == null) return null;
+      if (typeof val === 'string') return val.includes('T') ? val.split('T')[0] : val.slice(0, 10);
+      if (typeof val === 'number') return new Date(val).toISOString().split('T')[0];
+      if (val instanceof Date) return val.toISOString().split('T')[0];
+      return String(val).slice(0, 10);
+    };
+    const dataInicioStr = normalizarDataStr(data_inicio);
+    const dataFimStr = normalizarDataStr(data_fim);
+    if (!dataInicioStr || !dataFimStr) {
+      return res.status(400).json({ success: false, error: 'data_inicio e data_fim inválidos' });
+    }
+
     // Determinar chave de agrupamento
     let groupKey = agrupar_por;
     if (!groupKey) {
@@ -1651,11 +1665,13 @@ async function getTempoRealizadoTotal(req, res) {
       else groupKey = 'tarefa';
     }
 
-    // Normalizar IDs de entrada para arrays
-    const responsavelIds = responsavel_id ? (Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id]).map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
+    // Normalizar IDs de entrada para arrays (responsavel_id pode ser inteiro ou UUID)
+    const responsavelIds = responsavel_id ? (Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id]).map(id => String(id).trim()).filter(Boolean) : [];
     const clienteIds = cliente_id ? (Array.isArray(cliente_id) ? cliente_id : [cliente_id]).map(id => String(id).trim()).filter(Boolean) : [];
     const produtoIds = produto_id ? (Array.isArray(produto_id) ? produto_id : [produto_id]).map(id => String(id).trim()).filter(Boolean) : [];
-    const tarefaIds = tarefa_id ? (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    // tarefa_id no banco é bigint: aceitar só numéricos (evitar ID composto tipo "98_uuid_131" que quebra a query)
+    const tarefaIdsRaw = tarefa_id ? (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    const tarefaIds = tarefaIdsRaw.filter(id => /^\d+$/.test(id));
 
     // Se não houver nenhum filtro de entidade, não podemos buscar "tudo" sem perigo de sobrecarga
     if (responsavelIds.length === 0 && clienteIds.length === 0 && produtoIds.length === 0 && tarefaIds.length === 0) {
@@ -1674,8 +1690,8 @@ async function getTempoRealizadoTotal(req, res) {
 
       if (errorMembros) throw errorMembros;
 
-      membros.forEach(m => {
-        if (m.usuario_id) {
+      (membros || []).forEach(m => {
+        if (m && m.usuario_id) {
           usuarioParaMembro[m.usuario_id] = m.id;
           usuariosIdsFiltro.push(m.usuario_id);
         }
@@ -1692,9 +1708,7 @@ async function getTempoRealizadoTotal(req, res) {
       // Sim, faremos isso DEPOIS da query principal.
     }
 
-    // Preparar filtros de período
-    const dataInicioStr = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-    const dataFimStr = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+    // Preparar filtros de período (dataInicioStr/dataFimStr já normalizados acima)
     const inicioStr = `${dataInicioStr}T00:00:00`;
     const fimStr = `${dataFimStr}T23:59:59.999`;
 
@@ -1867,6 +1881,7 @@ async function getTempoRealizadoTotal(req, res) {
 
   } catch (error) {
     console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro inesperado:', error);
+    console.error('❌ [TEMPO-REALIZADO-TOTAL] Stack:', error.stack);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
   }
 }

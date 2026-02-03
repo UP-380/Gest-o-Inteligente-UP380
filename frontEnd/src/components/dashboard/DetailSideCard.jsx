@@ -628,8 +628,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         resultados.forEach(({ produtoId, tempoRealizado }) => {
           novosTempos[produtoId] = tempoRealizado;
         });
-
-        setTemposRealizadosPorProduto(novosTempos);
+        // Não setar temposRealizadosPorProduto aqui; será preenchido por agregação bottom-up abaixo
 
         // Calcular tempo realizado por cliente dentro de cada produto
         const temposPorClientePorProduto = {};
@@ -638,16 +637,58 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
         const promisesProdutosHierarquicos = dados.registros.map(async (produto) => {
           const produtoIdNormalizado = String(produto.id);
-          if (!produto.clientes || !Array.isArray(produto.clientes) || produto.clientes.length === 0) {
-            return {
-              produtoId: produtoIdNormalizado,
-              temposPorCliente: {},
-              temposPorTarefaPorCliente: {}
-            };
-          }
-
           const temposPorCliente = {};
           const temposPorTarefaPorCliente = {};
+          const temClientesNaArvore = produto.clientes && Array.isArray(produto.clientes) && produto.clientes.length > 0;
+
+          if (!temClientesNaArvore) {
+            // Produto sem clientes na árvore: derivar a partir de produto.registros (tarefas únicas) para manter valor correto
+            if (produto.registros && Array.isArray(produto.registros) && produto.registros.length > 0) {
+              const tarefasUnicas = new Map();
+              produto.registros.forEach(reg => {
+                if (!reg.tarefa_id) return;
+                const compKey = `${reg.tarefa_id}_${reg.cliente_id || 'sem_cliente'}_${reg.produto_id || 'sem_produto'}`;
+                if (!tarefasUnicas.has(compKey)) {
+                  tarefasUnicas.set(compKey, { id: compKey, originalId: String(reg.tarefa_id), responsavel_id: reg.responsavel_id });
+                }
+              });
+              const chaveVirtualCliente = '_produto_sem_cliente_';
+              temposPorTarefaPorCliente[chaveVirtualCliente] = {};
+              for (const [, tarefa] of tarefasUnicas) {
+                let tempoTotalTarefa = 0;
+                const responsaveisTarefa = new Set();
+                if (tarefa.responsavel_id) responsaveisTarefa.add(tarefa.responsavel_id);
+                if (responsaveisTarefa.size === 0) responsaveisUnicos.forEach(r => responsaveisTarefa.add(r));
+                const promisesResp = Array.from(responsaveisTarefa).map(async (responsavelId) => {
+                  try {
+                    const tarefaIdReal = tarefa.originalId ?? (String(tarefa.id).includes('_') ? String(tarefa.id).split('_')[0] : tarefa.id);
+                    const response = await fetch('/api/registro-tempo/realizado-total', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        responsavel_id: responsavelId,
+                        data_inicio: periodoInicioUsar,
+                        data_fim: periodoFimUsar,
+                        tarefa_id: tarefaIdReal,
+                        cliente_id: null,
+                        produto_id: null
+                      })
+                    });
+                    if (response.ok) {
+                      const result = await response.json();
+                      return result.success ? extrairTempoRealizadoMs(result) : 0;
+                    }
+                    return 0;
+                  } catch (e) { return 0; }
+                });
+                const resultados = await Promise.all(promisesResp);
+                tempoTotalTarefa = resultados.reduce((s, t) => s + t, 0);
+                temposPorTarefaPorCliente[chaveVirtualCliente][tarefa.id] = tempoTotalTarefa;
+              }
+            }
+            return { produtoId: produtoIdNormalizado, temposPorCliente, temposPorTarefaPorCliente };
+          }
 
           const clientesPromises = produto.clientes.map(async (cliente) => {
             // Garantir que clienteIdNormalizado nunca seja null - usar cliente.id como fallback
@@ -716,13 +757,12 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   return { tarefaId: tarefa.id, tempoRealizado: 0 };
                 }
 
-                // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
+                // Buscar tempo realizado para cada responsável e somar — mesmo endpoint/payload do tipo 'tarefas'
+                // para retornar o tempo realizado total da tarefa (4min 1s), sem filtrar por cliente/produto
                 let tempoTotalTarefa = 0;
                 const promisesResponsaveisTarefa = Array.from(responsaveisUnicosTarefa).map(async (responsavelId) => {
                   try {
-                    // Usar mesma lógica do tipo 'tarefas' - cliente_id pode ser null se não estiver disponível
-                    const clienteIdParaBusca = cliente.id || null;
-                    const tarefaIdReal = tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id);
+                    const tarefaIdReal = tarefa.originalId ?? (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id);
 
                     const response = await fetch('/api/registro-tempo/realizado-total', {
                       method: 'POST',
@@ -733,8 +773,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                         data_inicio: periodoInicioUsar,
                         data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: clienteIdParaBusca,
-                        produto_id: parseInt(String(produto.id).trim(), 10) || null
+                        cliente_id: null,
+                        produto_id: null
                       })
                     });
 
@@ -815,10 +855,36 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
         const resultadosProdutosHierarquicos = await Promise.all(promisesProdutosHierarquicos);
         resultadosProdutosHierarquicos.forEach(({ produtoId, temposPorCliente, temposPorTarefaPorCliente }) => {
-          temposPorClientePorProduto[produtoId] = temposPorCliente;
+          temposPorClientePorProduto[produtoId] = { ...temposPorCliente };
           temposPorTarefaPorClientePorProduto[produtoId] = temposPorTarefaPorCliente;
         });
 
+        // Agregação bottom-up: cliente = soma das tarefas; produto = soma dos clientes (consistente com registros)
+        const temposRealizadosPorProdutoDerivados = {};
+        Object.keys(temposPorTarefaPorClientePorProduto).forEach(produtoId => {
+          const temposPorTarefaPorCliente = temposPorTarefaPorClientePorProduto[produtoId];
+          if (!temposPorClientePorProduto[produtoId]) temposPorClientePorProduto[produtoId] = {};
+          let somaProduto = 0;
+          Object.keys(temposPorTarefaPorCliente).forEach(clienteId => {
+            const temposTarefas = temposPorTarefaPorCliente[clienteId];
+            const somaCliente = typeof temposTarefas === 'object' && temposTarefas !== null
+              ? Object.values(temposTarefas).reduce((s, v) => s + (Number(v) || 0), 0)
+              : 0;
+            temposPorClientePorProduto[produtoId][clienteId] = somaCliente;
+            somaProduto += somaCliente;
+          });
+          temposRealizadosPorProdutoDerivados[produtoId] = somaProduto;
+        });
+        // Produtos sem clientes (sem filhos): manter valor da API do primeiro bloco. Não sobrescrever quando o produto tem clientes (valor derivado já é a soma correta).
+        Object.keys(novosTempos).forEach(produtoId => {
+          const temposPorTarefaPorCliente = temposPorTarefaPorClientePorProduto[produtoId] || {};
+          const temClientes = Object.keys(temposPorTarefaPorCliente).length > 0;
+          if (temposRealizadosPorProdutoDerivados[produtoId] === undefined || (!temClientes && (novosTempos[produtoId] || 0) > 0)) {
+            temposRealizadosPorProdutoDerivados[produtoId] = novosTempos[produtoId] || 0;
+          }
+        });
+
+        setTemposRealizadosPorProduto(temposRealizadosPorProdutoDerivados);
         setTemposRealizadosPorClientePorProduto(temposPorClientePorProduto);
         setTemposRealizadosPorTarefaPorClientePorProduto(temposPorTarefaPorClientePorProduto);
       } else if (tipo === 'tipos_tarefa') {

@@ -1316,10 +1316,11 @@ const DelegarTarefas = () => {
   }, [filtros.produto]);
 
   useEffect(() => {
-    if (filtros.atividade && tarefas.length === 0) {
+    // Carregar lista de tarefas quando filtro adicional atividade OU quando agrupamento principal é Por Atividade (para nomes nos cards)
+    if ((filtros.atividade || filtroPrincipal === 'atividade') && tarefas.length === 0) {
       loadTarefas();
     }
-  }, [filtros.atividade]);
+  }, [filtros.atividade, filtroPrincipal, tarefas.length]);
 
 
 
@@ -1928,6 +1929,34 @@ const DelegarTarefas = () => {
         });
       }
 
+      // [FIX] Pré-preencher para filtro agrupador Produto (igual ao responsável): evita "Carregando métricas..."
+      if (tipoEntidade === 'produto') {
+        setTempoEstimadoTotalPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = 0; });
+          return next;
+        });
+        setTemposRealizadosPorEntidade(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const key = `produto_${String(id)}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+          return next;
+        });
+      }
+
+      // [FIX] Pré-preencher para filtro agrupador Atividade (igual ao responsável): evita "Carregando métricas..."
+      if (tipoEntidade === 'atividade') {
+        setTempoEstimadoTotalPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = 0; });
+          return next;
+        });
+        setTemposRealizadosPorEntidade(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const key = `atividade_${String(id)}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+          return next;
+        });
+      }
+
       console.log(`🚀 [BATCH] Iniciando carga em lote de ${entityIds.length} entidades do tipo ${tipoEntidade}...`);
 
       // 1. Tempo Estimado Total: NÃO enviar IDs – backend agrega em SQL e retorna totais de todas as entidades
@@ -1973,53 +2002,121 @@ const DelegarTarefas = () => {
         }
       });
 
-      // 2. Tempo Realizado Total em Lote – enviar IDs de entidade (membro, cliente, produto, tarefa)
-      globalRequestPool.add(async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              responsavel_id: tipoEntidade === 'responsavel' ? entityIds : [],
-              cliente_id: tipoEntidade === 'cliente' ? entityIds : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
-              produto_id: tipoEntidade === 'produto' ? entityIds : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
-              tarefa_id: tipoEntidade === 'atividade' ? entityIds : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
-              data_inicio: periodoInicio,
-              data_fim: periodoFim,
-              agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade
-            })
-          });
-          const result = await res.json();
-          if (result.success && result.data) {
+      // 2. Tempo Realizado Total em Lote
+      // Produto: mesmo endpoint do painel de detalhes (por tarefa) e soma por produto, para bater com 4min 1s
+      if (tipoEntidade === 'produto') {
+        globalRequestPool.add(async () => {
+          const extrairTempoRealizadoMs = (result) => {
+            if (!result?.success || !result?.data) return 0;
+            const d = result.data;
+            if (typeof d === 'object' && !Array.isArray(d)) {
+              const first = Object.values(d)[0];
+              if (first && typeof first.tempo_realizado_ms !== 'undefined') return first.tempo_realizado_ms || 0;
+            }
+            return d?.tempo_realizado_ms || 0;
+          };
+          try {
+            const realizadosPorProduto = {};
+            entityIds.forEach(id => { realizadosPorProduto[String(id)] = 0; });
+
+            for (const productId of entityIds) {
+              const productIdStr = String(productId);
+              const agrupamentosDoProduto = itens.filter(
+                i => String((i.primeiroRegistro ?? i.regras?.[0])?.produto_id) === productIdStr
+              );
+              const paresRespTarefa = new Set();
+              agrupamentosDoProduto.forEach(agr => {
+                (agr.regras || []).forEach(regra => {
+                  const respId = regra.responsavel_id;
+                  const tId = regra.tarefa_id != null ? String(regra.tarefa_id).trim() : '';
+                  if (respId && tId && /^\d+$/.test(tId)) paresRespTarefa.add(`${respId}|${tId}`);
+                });
+              });
+
+              let somaProduto = 0;
+              for (const par of paresRespTarefa) {
+                const [responsavelId, tarefaId] = par.split('|');
+                const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavelId,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    tarefa_id: tarefaId,
+                    cliente_id: null,
+                    produto_id: null
+                  })
+                });
+                const result = await res.json();
+                somaProduto += extrairTempoRealizadoMs(result);
+              }
+              realizadosPorProduto[productIdStr] = somaProduto;
+            }
+
             setTemposRealizadosPorEntidade(prev => {
               const next = { ...prev };
-              Object.keys(result.data).forEach(respId => {
-                const key = `${tipoEntidade}_${String(respId)}`;
-                const newRealizado = result.data[respId].tempo_realizado_ms || 0;
-                const newPendente = result.data[respId].tempo_pendente_ms || 0;
+              Object.keys(realizadosPorProduto).forEach(id => {
+                const key = `produto_${id}`;
+                const realizado = realizadosPorProduto[id] || 0;
                 const cur = next[key];
-                const curRealizado = cur != null ? (typeof cur === 'number' ? cur : (cur.realizado ?? 0)) : 0;
                 const curPendente = cur != null && typeof cur === 'object' ? (cur.pendente ?? 0) : 0;
-                next[key] = {
-                  realizado: Math.max(curRealizado, newRealizado),
-                  pendente: Math.max(curPendente, newPendente)
-                };
+                next[key] = { realizado, pendente: curPendente };
               });
-              // Garantir chave para todos os IDs dos grupos (backend pode omitir quem tem 0 realizado)
-              if (tipoEntidade === 'responsavel' || tipoEntidade === 'cliente' || tipoEntidade === 'produto' || tipoEntidade === 'atividade') {
-                entityIds.forEach(id => {
-                  const key = `${tipoEntidade}_${String(id)}`;
-                  if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 };
-                });
-              }
               return next;
             });
+          } catch (err) {
+            console.error('Erro batch realizado (produto):', err);
           }
-        } catch (err) {
-          console.error('Erro batch realizado:', err);
-        }
-      });
+        });
+      } else {
+        globalRequestPool.add(async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                responsavel_id: tipoEntidade === 'responsavel' ? entityIds : [],
+                cliente_id: tipoEntidade === 'cliente' ? entityIds : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
+                produto_id: tipoEntidade === 'produto' ? entityIds : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
+                tarefa_id: tipoEntidade === 'atividade' ? entityIds : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
+                data_inicio: periodoInicio,
+                data_fim: periodoFim,
+                agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade
+              })
+            });
+            const result = await res.json();
+            if (result.success && result.data) {
+              setTemposRealizadosPorEntidade(prev => {
+                const next = { ...prev };
+                Object.keys(result.data).forEach(respId => {
+                  const key = `${tipoEntidade}_${String(respId)}`;
+                  const newRealizado = result.data[respId].tempo_realizado_ms || 0;
+                  const newPendente = result.data[respId].tempo_pendente_ms || 0;
+                  const cur = next[key];
+                  const curRealizado = cur != null ? (typeof cur === 'number' ? cur : (cur.realizado ?? 0)) : 0;
+                  const curPendente = cur != null && typeof cur === 'object' ? (cur.pendente ?? 0) : 0;
+                  next[key] = {
+                    realizado: Math.max(curRealizado, newRealizado),
+                    pendente: Math.max(curPendente, newPendente)
+                  };
+                });
+                if (tipoEntidade === 'responsavel' || tipoEntidade === 'cliente' || tipoEntidade === 'produto' || tipoEntidade === 'atividade') {
+                  entityIds.forEach(id => {
+                    const key = `${tipoEntidade}_${String(id)}`;
+                    if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 };
+                  });
+                }
+                return next;
+              });
+            }
+          } catch (err) {
+            console.error('Erro batch realizado:', err);
+          }
+        });
+      }
 
       // 3. Custos e Horas em Lote (Apenas para Responsáveis) – membro_id = responsavel_id (entidade)
       if (tipoEntidade === 'responsavel') {
@@ -2162,6 +2259,56 @@ const DelegarTarefas = () => {
       return next;
     });
   }, [filtroPrincipal, membros, filtroResponsavelSelecionado]);
+
+  // [FIX] Garantir chaves com 0 para TODOS os produtos que podem ter card (igual ao responsável).
+  // Os cards vêm de produtos.forEach; sem isso, produtos sem estimado/realizado ficam em "Carregando métricas...".
+  useEffect(() => {
+    if (filtroPrincipal !== 'produto' || !produtos?.length) return;
+    const estaNosFiltros = (id, filtroSelecionado) => {
+      if (filtroSelecionado == null || filtroSelecionado === undefined) return true;
+      const idStr = String(id);
+      if (Array.isArray(filtroSelecionado)) return filtroSelecionado.some(f => String(f) === idStr);
+      return String(filtroSelecionado) === idStr;
+    };
+    const ids = produtos.filter(p => estaNosFiltros(p.id, filtroProdutoSelecionado)).map(p => String(p.id));
+    if (ids.length === 0) return;
+
+    setTempoEstimadoTotalPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = 0; });
+      return next;
+    });
+    setTemposRealizadosPorEntidade(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { const key = `produto_${id}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+      return next;
+    });
+  }, [filtroPrincipal, produtos, filtroProdutoSelecionado]);
+
+  // [FIX] Garantir chaves com 0 para TODOS os clientes que podem ter card (igual ao responsável).
+  // Os cards vêm de clientes.forEach + entidadesDosRegistros; sem isso, clientes ficam em "Carregando métricas...".
+  useEffect(() => {
+    if (filtroPrincipal !== 'cliente' || !clientes?.length) return;
+    const estaNosFiltros = (id, filtroSelecionado) => {
+      if (filtroSelecionado == null || filtroSelecionado === undefined) return true;
+      const idStr = String(id);
+      if (Array.isArray(filtroSelecionado)) return filtroSelecionado.some(f => String(f) === idStr);
+      return String(filtroSelecionado) === idStr;
+    };
+    const ids = clientes.filter(c => estaNosFiltros(c.id, filtroClienteSelecionado)).map(c => String(c.id));
+    if (ids.length === 0) return;
+
+    setTempoEstimadoTotalPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = 0; });
+      return next;
+    });
+    setTemposRealizadosPorEntidade(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { const key = `cliente_${id}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+      return next;
+    });
+  }, [filtroPrincipal, clientes, filtroClienteSelecionado]);
 
   // [ON-DEMAND] Função exclusiva para carregar detalhes ao clicar
   // [BATCH-FIX] Adicionado parâmetro updateState para permitir batching e evitar re-renders múltiplos
@@ -2337,149 +2484,114 @@ const DelegarTarefas = () => {
         produto: filtroAdicionalProduto
       };
 
-      // IMPORTANTE: Quando há filtro de período, usar limit alto para garantir todas as regras
-      // Isso é necessário para calcular tempo estimado corretamente
-      // A paginação será aplicada apenas na listagem de registros, não nas regras retornadas
+      // Quando há período: buscar TODAS as regras por paginação (sem limit total) para não faltar estimado/realizado.
+      // Cada página usa limit moderado (1000) para não sobrecarregar a VPS.
       const temPeriodo = periodoAUsar.inicio && periodoAUsar.fim;
-      const limitParaBusca = temPeriodo ? '10000' : itemsPerPage.toString();
+      const LIMIT_POR_PAGINA = 1000;
+      const limitParaBusca = temPeriodo ? String(LIMIT_POR_PAGINA) : itemsPerPage.toString();
       const pageParaBusca = temPeriodo ? '1' : currentPage.toString();
 
-      const params = new URLSearchParams({
-        page: pageParaBusca,
-        limit: limitParaBusca
-      });
-
-      console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca com limit=${limitParaBusca}, page=${pageParaBusca} (temPeriodo=${temPeriodo})`);
-
-      // Adicionar filtros
-      if (filtrosAUsar.produto) {
-        params.append('filtro_produto', 'true');
-        // Adicionar IDs de produtos selecionados se houver
-        if (valoresAUsar.produto) {
-          const produtoIds = Array.isArray(valoresAUsar.produto)
-            ? valoresAUsar.produto
-            : [valoresAUsar.produto];
-          produtoIds.forEach(id => {
-            if (id) params.append('produto_id', String(id).trim());
-          });
-        }
-      }
-      if (filtrosAUsar.atividade) {
-        params.append('filtro_atividade', 'true');
-        // Adicionar IDs de tarefas selecionadas se houver
-        if (valoresAUsar.tarefa) {
-          const tarefaIds = Array.isArray(valoresAUsar.tarefa)
-            ? valoresAUsar.tarefa
-            : [valoresAUsar.tarefa];
-          tarefaIds.forEach(id => {
-            if (id) params.append('tarefa_id', String(id).trim());
-          });
-        }
-      }
-
-      if (filtrosAUsar.cliente) {
-        params.append('filtro_cliente', 'true');
-        // Adicionar IDs de clientes selecionados se houver
-        if (valoresAUsar.cliente) {
-          const clienteIds = Array.isArray(valoresAUsar.cliente)
-            ? valoresAUsar.cliente
-            : [valoresAUsar.cliente];
-          clienteIds.forEach(id => {
-            if (id) params.append('cliente_id', String(id).trim());
-          });
-        }
-      }
-      if (filtrosAUsar.responsavel) {
-        params.append('filtro_responsavel', 'true');
-      }
-      // IMPORTANTE: Sempre enviar responsavel_id quando houver colaborador selecionado,
-      // mesmo que o filtro de responsável não esteja ativo
-      // Isso garante que o tempo estimado seja calculado corretamente para o colaborador selecionado
-      if (valoresAUsar.responsavel) {
-        const responsavelIds = Array.isArray(valoresAUsar.responsavel)
-          ? valoresAUsar.responsavel
-          : [valoresAUsar.responsavel];
-        responsavelIds.forEach(id => {
-          if (id) {
-            const idStr = String(id).trim();
-            params.append('responsavel_id', idStr);
+      const buildParams = (page, limit) => {
+        const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+        if (filtrosAUsar.produto) {
+          p.append('filtro_produto', 'true');
+          if (valoresAUsar.produto) {
+            const produtoIds = Array.isArray(valoresAUsar.produto) ? valoresAUsar.produto : [valoresAUsar.produto];
+            produtoIds.forEach(id => { if (id) p.append('produto_id', String(id).trim()); });
           }
+        }
+        if (filtrosAUsar.atividade) {
+          p.append('filtro_atividade', 'true');
+          if (valoresAUsar.tarefa) {
+            const tarefaIds = Array.isArray(valoresAUsar.tarefa) ? valoresAUsar.tarefa : [valoresAUsar.tarefa];
+            tarefaIds.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+          }
+        }
+        if (filtrosAUsar.cliente) {
+          p.append('filtro_cliente', 'true');
+          if (valoresAUsar.cliente) {
+            const clienteIds = Array.isArray(valoresAUsar.cliente) ? valoresAUsar.cliente : [valoresAUsar.cliente];
+            clienteIds.forEach(id => { if (id) p.append('cliente_id', String(id).trim()); });
+          }
+        }
+        if (filtrosAUsar.responsavel) p.append('filtro_responsavel', 'true');
+        if (valoresAUsar.responsavel) {
+          const responsavelIds = Array.isArray(valoresAUsar.responsavel) ? valoresAUsar.responsavel : [valoresAUsar.responsavel];
+          responsavelIds.forEach(id => { if (id) p.append('responsavel_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.cliente) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.cliente) ? filtrosAdicionaisAUsar.cliente : [filtrosAdicionaisAUsar.cliente];
+          ids.forEach(id => { if (id) p.append('cliente_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.tarefa) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.tarefa) ? filtrosAdicionaisAUsar.tarefa : [filtrosAdicionaisAUsar.tarefa];
+          ids.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.produto) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.produto) ? filtrosAdicionaisAUsar.produto : [filtrosAdicionaisAUsar.produto];
+          ids.forEach(id => { if (id) p.append('produto_id', String(id).trim()); });
+        }
+        const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+        const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
+        if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos' && (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo')) {
+          p.append('cliente_status', filtroStatusCliente);
+        }
+        if (periodoAUsar.inicio) p.append('data_inicio', periodoAUsar.inicio);
+        if (periodoAUsar.fim) p.append('data_fim', periodoAUsar.fim);
+        return p;
+      };
+
+      let regras = [];
+      let totalDoBackend = null;
+
+      if (temPeriodo) {
+        // Buscar todas as páginas (sem limit total): cada request com limit 1000 para não sobrecarregar a VPS
+        let pageAtual = 1;
+        let result;
+        do {
+          const params = buildParams(pageAtual, LIMIT_POR_PAGINA);
+          const url = `${API_BASE_URL}/tempo-estimado?${params}`;
+          const response = await fetch(url, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+            signal: abortController.signal
+          });
+          if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+          if (!response.ok) break;
+          result = await response.json();
+          if (!result.success || !result.data) break;
+          regras = regras.concat(result.data || []);
+          if (result.total != null) totalDoBackend = result.total;
+          pageAtual++;
+        } while ((result.data?.length || 0) === LIMIT_POR_PAGINA && !abortController.signal.aborted);
+        console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca completa: ${regras.length} regras (${pageAtual - 1} página(s), limit=${LIMIT_POR_PAGINA}/página)`);
+      } else {
+        const params = buildParams(pageParaBusca, limitParaBusca);
+        const url = `${API_BASE_URL}/tempo-estimado?${params}`;
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+          signal: abortController.signal
         });
-      }
-
-      // Adicionar filtros adicionais (que não são o filtro pai)
-      // Cliente adicional
-      if (filtrosAdicionaisAUsar.cliente) {
-        const clienteIds = Array.isArray(filtrosAdicionaisAUsar.cliente)
-          ? filtrosAdicionaisAUsar.cliente
-          : [filtrosAdicionaisAUsar.cliente];
-        clienteIds.forEach(id => {
-          if (id) params.append('cliente_id', String(id).trim());
-        });
-      }
-
-      // Tarefa adicional
-      if (filtrosAdicionaisAUsar.tarefa) {
-        const tarefaIds = Array.isArray(filtrosAdicionaisAUsar.tarefa)
-          ? filtrosAdicionaisAUsar.tarefa
-          : [filtrosAdicionaisAUsar.tarefa];
-        tarefaIds.forEach(id => {
-          if (id) params.append('tarefa_id', String(id).trim());
-        });
-      }
-
-      // Produto adicional
-      if (filtrosAdicionaisAUsar.produto) {
-        const produtoIds = Array.isArray(filtrosAdicionaisAUsar.produto)
-          ? filtrosAdicionaisAUsar.produto
-          : [filtrosAdicionaisAUsar.produto];
-        produtoIds.forEach(id => {
-          if (id) params.append('produto_id', String(id).trim());
-        });
-      }
-
-      // Adicionar filtro de status de cliente (apenas quando filtro_cliente está ativo E é o filtro pai)
-      // Verificar se o filtro pai atual é realmente "cliente"
-      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
-      const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
-
-      if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
-        // Validar que o valor é válido antes de enviar
-        if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
-          params.append('cliente_status', filtroStatusCliente);
+        if (response.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            regras = result.data || [];
+            totalDoBackend = result.total;
+          }
         }
       }
 
-      // Adicionar filtro de período
-      if (periodoAUsar.inicio) {
-        params.append('data_inicio', periodoAUsar.inicio);
-      }
-      if (periodoAUsar.fim) {
-        params.append('data_fim', periodoAUsar.fim);
-      }
-
-      const url = `${API_BASE_URL}/tempo-estimado?${params}`;
-
-      const response = await fetch(url, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' },
-        signal: abortController.signal // ADICIONADO: Sinal de aborto
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-
-
-
-
-
-          const regras = result.data || [];
+      if (regras.length > 0 || !temPeriodo) {
+        const totalRegistros = totalDoBackend != null ? totalDoBackend : regras.length;
+        if (regras.length > 0) {
 
           // Helper para converter HH:mm:ss para ms
           const timeToMs = (timeStr) => {
@@ -2554,8 +2666,8 @@ const DelegarTarefas = () => {
 
           setRegistrosAgrupados(novosAgrupamentos);
 
-          setTotalRegistros(result.total || regras.length);
-          setTotalPages(Math.ceil((result.total || regras.length) / itemsPerPage));
+          setTotalRegistros(totalRegistros);
+          setTotalPages(Math.ceil(totalRegistros / itemsPerPage));
 
           // OTIMIZAÇÃO: Marcar como carregado
 
@@ -3328,14 +3440,22 @@ const DelegarTarefas = () => {
     // Calcular tempo excedido (quando estimado > contratado)
     const tempoExcedido = mostrarContratadasDisponivel && !aindaCarregandoContratado && estimado > contratadoValor ? estimado - contratadoValor : 0;
 
-    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
-    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
-    const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
-    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
-
-    // Usar tempo realizado passado como prop
+    // Usar tempo realizado e pendente passados como props (antes dos cálculos de percentual)
     const tempoRealizadoValor = realizado || 0;
     const tempoPendenteValor = pendente || 0;
+
+    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
+    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
+    const baseBarra = Math.max(totalParaBarra, 1);
+    const percentualEstimado = (estimado / baseBarra) * 100;
+    const percentualRealizado = (tempoRealizadoValor / baseBarra) * 100;
+    const percentualPendente = (tempoPendenteValor / baseBarra) * 100;
+    const somaPercentuais = percentualEstimado + percentualRealizado + percentualPendente;
+    const escala = somaPercentuais > 100 ? 100 / somaPercentuais : 1;
+    const wEstimado = Math.min(100, percentualEstimado * escala);
+    const wRealizado = Math.min(100, percentualRealizado * escala);
+    const wPendente = Math.min(100, percentualPendente * escala);
+    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
 
     // Custos
     const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
@@ -3364,8 +3484,21 @@ const DelegarTarefas = () => {
         <div className="barra-progresso-tempo-range">
           <div
             className="barra-progresso-tempo-fill estimado"
-            style={{ width: `${Math.min(100, percentualEstimado)}%` }}
+            style={{ width: `${wEstimado}%`, left: '0%' }}
+            title={`Estimado: ${formatarTempoEstimado(estimado, true)}`}
           ></div>
+          <div
+            className="barra-progresso-tempo-fill realizado"
+            style={{ width: `${wRealizado}%`, left: `${wEstimado}%` }}
+            title={`Realizado: ${formatarTempoEstimado(tempoRealizadoValor, true)}`}
+          ></div>
+          {tempoPendenteValor > 0 && (
+            <div
+              className="barra-progresso-tempo-fill pendente"
+              style={{ width: `${wPendente}%`, left: `${wEstimado + wRealizado}%` }}
+              title={`Pendente: ${formatarTempoEstimado(tempoPendenteValor, true)}`}
+            ></div>
+          )}
         </div>
         <div className="barra-progresso-tempo-legenda">
           <div className="barra-progresso-tempo-item">
@@ -4685,6 +4818,7 @@ const DelegarTarefas = () => {
                           });
                         } else if (filtroPrincipal === 'produto') {
                           // Para produtos, adicionar produtos do sistema (filtrados se houver seleção)
+                          // Sempre usar produto.nome da lista para o card (evita "Produto" genérico antes do cache)
                           produtos.forEach(produto => {
                             const produtoId = String(produto.id);
                             // Se há filtro selecionado, verificar se o produto está incluído
@@ -4693,7 +4827,8 @@ const DelegarTarefas = () => {
                             }
 
                             if (entidadesDosRegistros.has(produtoId)) {
-                              todasEntidades.set(produtoId, entidadesDosRegistros.get(produtoId));
+                              const ent = entidadesDosRegistros.get(produtoId);
+                              todasEntidades.set(produtoId, { ...ent, nome: produto.nome || ent.nome });
                             } else {
                               todasEntidades.set(produtoId, {
                                 id: produto.id,
@@ -4706,12 +4841,14 @@ const DelegarTarefas = () => {
                           });
                         } else {
                           // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
+                          // Mesclar nome da lista tarefas quando existir (evita "Tarefa" genérico antes do cache)
                           entidadesDosRegistros.forEach((entidade, key) => {
                             // Se há filtro selecionado, verificar se a tarefa está incluída
                             if (!estaNosFiltrosSelecionados(entidade.id, filtroTarefaSelecionado)) {
                               return; // Pular esta tarefa se não estiver nos filtros
                             }
-                            todasEntidades.set(key, entidade);
+                            const tarefa = tarefas.find(t => String(t.id) === String(entidade.id));
+                            todasEntidades.set(key, { ...entidade, nome: tarefa?.nome || entidade.nome });
                           });
                         }
 
