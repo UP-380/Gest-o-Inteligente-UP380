@@ -2631,9 +2631,9 @@ async function getTempoEstimadoTotal(req, res) {
     try {
       const fs = require('fs');
       const logMsg = `\n[${new Date().toISOString()}] METHOD: ${req.method} | BODY: ${JSON.stringify(req.body)} | QUERY: ${JSON.stringify(req.query)}`;
-      fs.appendFileSync('C:\\Aplicacao\\Gest-o-Inteligente-UP380\\backEnd\\debug_backend.log', logMsg);
+      fs.appendFileSync('debug_backend.log', logMsg);
     } catch (e) {
-      console.error('Falha ao escrever log:', e);
+      // Ignorar erros de log em produção para não causar 500
     }
 
     const {
