@@ -1176,7 +1176,8 @@ async function criarTempoEstimado(req, res) {
   }
 }
 
-// GET - Listar registros de tempo estimado (com paginação e filtros)
+// GET/POST - Listar registros de tempo estimado (com paginação e filtros)
+// POST aceito para evitar 414 URI Too Long quando há muitos filtros (ex.: muitos responsavel_id)
 async function getTempoEstimado(req, res) {
   try {
     // Processar parâmetros que podem vir como array (quando múltiplos valores são passados)
@@ -1192,7 +1193,8 @@ async function getTempoEstimado(req, res) {
       return [String(param).trim()].filter(Boolean);
     };
 
-    console.log('🔍 [TEMPO-ESTIMADO-REGRA] req.query completo:', JSON.stringify(req.query, null, 2));
+    const data_fonte = req.method === 'POST' ? req.body : req.query;
+    console.log('🔍 [TEMPO-ESTIMADO-REGRA] req.' + (req.method === 'POST' ? 'body' : 'query') + ' (amostra):', JSON.stringify({ ...data_fonte, responsavel_id: data_fonte.responsavel_id ? (Array.isArray(data_fonte.responsavel_id) ? `[${data_fonte.responsavel_id.length} ids]` : data_fonte.responsavel_id) : undefined }, null, 2));
 
     const {
       page = 1,
@@ -1201,20 +1203,18 @@ async function getTempoEstimado(req, res) {
       data_inicio = null,
       data_fim = null,
       cliente_status = null // 'ativo', 'inativo', ou null/undefined
-    } = req.query;
+    } = data_fonte;
 
     // Processar IDs que podem vir como array
-    const cliente_id = processarParametroArray(req.query.cliente_id);
-    const produto_id = processarParametroArray(req.query.produto_id);
-    const tarefa_id = processarParametroArray(req.query.tarefa_id);
+    const cliente_id = processarParametroArray(data_fonte.cliente_id);
+    const produto_id = processarParametroArray(data_fonte.produto_id);
+    const tarefa_id = processarParametroArray(data_fonte.tarefa_id);
 
-    // Filtrar apenas valores numéricos válidos para responsavel_id (campo INTEGER no banco)
-    // O frontend pode enviar email, nome, etc., mas precisamos apenas dos IDs numéricos
-    const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
+    // Aceitar responsavel_id como número ou UUID; descartar email/nome que causam 500
+    const responsavel_id_raw = processarParametroArray(data_fonte.responsavel_id);
+    const ehIdValido = (s) => /^\d+$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
     const responsavel_id = responsavel_id_raw
-      ? responsavel_id_raw
-        .map(id => parseInt(String(id).trim(), 10))
-        .filter(id => !isNaN(id) && id > 0)
+      ? responsavel_id_raw.map(id => String(id).trim()).filter(Boolean).filter(ehIdValido)
       : null;
 
     const pageNum = parseInt(page, 10);

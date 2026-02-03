@@ -212,6 +212,7 @@ router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEsti
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoEstimado);
+router.post('/api/tempo-estimado/listar', requireAuth, tempoEstimadoController.getTempoEstimado); // POST com body para evitar 414 URI Too Long
 router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
