@@ -142,7 +142,9 @@ router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.del
 // Rotas de Custo Colaborador Vigência (CRUD completo)
 router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
 router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
+router.post('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
+router.post('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/relatorio', requireAuth, custoColaboradorVigenciaController.getColaboradoresComUltimaVigencia);
 router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
 router.get('/api/custo-colaborador-vigencia/membro/:membro_id', requireAuth, custoColaboradorVigenciaController.getCustosPorMembro);
@@ -203,6 +205,7 @@ router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVi
 // Rotas de Tempo Estimado (CRUD completo)
 // IMPORTANTE: Rotas específicas devem vir ANTES das rotas dinâmicas (:id)
 router.get('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
+router.post('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
 router.post('/api/tempo-estimado/tempo-realizado-filtros', requireAuth, tempoEstimadoController.getTempoRealizadoComFiltros);
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);

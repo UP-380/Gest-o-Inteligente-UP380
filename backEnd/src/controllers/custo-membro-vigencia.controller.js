@@ -421,7 +421,8 @@ async function atualizarCustoColaboradorVigencia(req, res) {
 // GET - Buscar horas contratadas por membro_id e período
 async function getHorasContratadasPorMembroEPeriodo(req, res) {
   try {
-    const { membro_id, data_inicio, data_fim } = req.query;
+    const data_fonte = req.method === 'POST' ? req.body : req.query;
+    const { membro_id, data_inicio, data_fim } = data_fonte;
 
     if (!membro_id) {
       return sendValidationError(res, 'ID do membro é obrigatório');
@@ -468,7 +469,8 @@ async function getHorasContratadasPorMembroEPeriodo(req, res) {
 // GET - Buscar custo mais recente por membro_id e período
 async function getCustoMaisRecentePorMembroEPeriodo(req, res) {
   try {
-    const { membro_id, data_inicio, data_fim } = req.query;
+    const data_fonte = req.method === 'POST' ? req.body : req.query;
+    const { membro_id, data_inicio, data_fim } = data_fonte;
 
     if (!membro_id) {
       return sendValidationError(res, 'ID do membro é obrigatório');
