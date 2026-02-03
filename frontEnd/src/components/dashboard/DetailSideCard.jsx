@@ -122,7 +122,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
   // Buscar tempos realizados para tarefas, responsáveis, clientes e produtos quando os dados são recebidos
   useEffect(() => {
-    if (!dados?.registros || dados.registros.length === 0 || !periodoInicio || !periodoFim) {
+    if (!dados?.registros || dados.registros.length === 0) {
       setTemposRealizadosPorTarefa({});
       setTemposRealizadosPorResponsavel({});
       setTemposRealizadosPorCliente({});
@@ -135,13 +135,39 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
       return;
     }
 
+    // Período: usar prop ou padrão (início/fim do mês atual) para garantir que o realizado por tarefa carregue ao abrir "ver detalhes"
+    const periodoInicioUsar = periodoInicio || (() => {
+      const d = new Date();
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString().slice(0, 10);
+    })();
+    const periodoFimUsar = periodoFim || (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(0);
+      d.setHours(23, 59, 59, 999);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    // Backend retorna data como { [entityId]: { tempo_realizado_ms } }, não data.tempo_realizado_ms direto
+    const extrairTempoRealizadoMs = (result) => {
+      if (!result?.success || !result?.data) return 0;
+      const data = result.data;
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const first = Object.values(data)[0];
+        if (first && typeof first.tempo_realizado_ms !== 'undefined') return first.tempo_realizado_ms || 0;
+      }
+      return data?.tempo_realizado_ms || 0;
+    };
+
     const buscarTemposRealizados = async () => {
       if (tipo === 'tarefas') {
         const novosTempos = {};
 
-        // Buscar tempo realizado para cada tarefa
+        // Buscar tempo realizado para cada tarefa (ao abrir "ver detalhes" / painel Tarefas)
         const promises = dados.registros.map(async (tarefa) => {
-          // Coletar responsáveis únicos desta tarefa
+          // Coletar responsáveis únicos desta tarefa; se vazio, usar entidadeId (ex.: responsável do card) para ainda buscar
           const responsaveisUnicos = new Set();
           if (tarefa.registros && Array.isArray(tarefa.registros)) {
             tarefa.registros.forEach(reg => {
@@ -149,6 +175,9 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 responsaveisUnicos.add(reg.responsavel_id);
               }
             });
+          }
+          if (responsaveisUnicos.size === 0 && entidadeId) {
+            responsaveisUnicos.add(entidadeId);
           }
 
           if (responsaveisUnicos.size === 0) {
@@ -167,8 +196,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: tarefaIdReal,
                   cliente_id: tarefa.clienteId || filtrosAdicionais?.cliente_id || null,
                   produto_id: filtrosAdicionais?.produto_id || null
@@ -177,9 +206,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
               if (response.ok) {
                 const result = await response.json();
-                if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
-                }
+                return extrairTempoRealizadoMs(result);
               }
               return 0;
             } catch (error) {
@@ -215,8 +242,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               credentials: 'include',
               body: JSON.stringify({
                 responsavel_id: responsavel.id,
-                data_inicio: periodoInicio,
-                data_fim: periodoFim,
+                data_inicio: periodoInicioUsar,
+                data_fim: periodoFimUsar,
                 tarefa_id: filtrosAdicionais?.tarefa_id || null,
                 cliente_id: filtrosAdicionais?.cliente_id || null,
                 produto_id: filtrosAdicionais?.produto_id || null
@@ -226,7 +253,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
             if (response.ok) {
               const result = await response.json();
               if (result.success && result.data) {
-                return { responsavelId: responsavel.id, tempoRealizado: result.data.tempo_realizado_ms || 0 };
+                return { responsavelId: responsavel.id, tempoRealizado: extrairTempoRealizadoMs(result) };
               }
             }
             return { responsavelId: responsavel.id, tempoRealizado: 0 };
@@ -252,8 +279,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavel.id,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   produto_id: produto.id
                 })
               });
@@ -261,7 +288,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  const tempoMs = result.data.tempo_realizado_ms || 0;
+                  const tempoMs = extrairTempoRealizadoMs(result);
                   novosTemposProduto[produtoKey] = tempoMs;
                   // Não sobrescrever a chave simples se já existir (pode vir de outro responsável), 
                   // mas para visualização detalhada precisamos da chave composta.
@@ -270,6 +297,37 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 }
               }
             } catch (err) { console.error(err); }
+
+            // Tarefas diretamente no produto (sem cliente): chave resp-prod-tarefa
+            if (produto.tarefas && Array.isArray(produto.tarefas) && produto.tarefas.length > 0) {
+              await Promise.all(produto.tarefas.map(async (tarefa) => {
+                const tarefaKey3 = `${responsavel.id}-${produto.id}-${tarefa.id}`;
+                const tarefaKeyAlt = String(tarefa.id);
+                try {
+                  const response = await fetch('/api/registro-tempo/realizado-total', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      responsavel_id: responsavel.id,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
+                      produto_id: produto.id,
+                      cliente_id: null,
+                      tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
+                    })
+                  });
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                      const tempoMs = extrairTempoRealizadoMs(result);
+                      novosTemposTarefa[tarefaKey3] = tempoMs;
+                      if (novosTemposTarefa[tarefaKeyAlt] === undefined) novosTemposTarefa[tarefaKeyAlt] = tempoMs;
+                    }
+                  }
+                } catch (err) { console.error(err); }
+              }));
+            }
 
             if (!produto.clientes || !Array.isArray(produto.clientes)) return;
 
@@ -285,8 +343,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavel.id,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     produto_id: produto.id,
                     cliente_id: cliente.id
                   })
@@ -295,7 +353,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    const tempoMs = result.data.tempo_realizado_ms || 0;
+                    const tempoMs = extrairTempoRealizadoMs(result);
                     novosTemposCliente[clienteKey] = tempoMs;
                     if (!novosTemposCliente[clienteKeyAlt]) novosTemposCliente[clienteKeyAlt] = tempoMs;
                   }
@@ -316,8 +374,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     credentials: 'include',
                     body: JSON.stringify({
                       responsavel_id: responsavel.id,
-                      data_inicio: periodoInicio,
-                      data_fim: periodoFim,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
                       produto_id: produto.id,
                       cliente_id: cliente.id,
                       tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
@@ -327,7 +385,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   if (response.ok) {
                     const result = await response.json();
                     if (result.success && result.data) {
-                      const tempoMs = result.data.tempo_realizado_ms || 0;
+                      const tempoMs = extrairTempoRealizadoMs(result);
                       novosTemposTarefa[tarefaKey] = tempoMs;
                       // Fallback simples
                       novosTemposTarefa[tarefaKeyAlt] = tempoMs;
@@ -376,8 +434,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
                   cliente_id: cliente.id,
                   produto_id: filtrosAdicionais?.produto_id || null
@@ -387,7 +445,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
+                  return extrairTempoRealizadoMs(result);
                 }
               }
               return 0;
@@ -450,8 +508,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tarefa_id: tarefaIdReal,
                     cliente_id: cliente.id,
                     produto_id: filtrosAdicionais?.produto_id || null
@@ -461,7 +519,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -537,8 +595,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
                   cliente_id: filtrosAdicionais?.cliente_id || null,
                   produto_id: parseInt(String(produto.id).trim(), 10) || null
@@ -548,7 +606,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
+                  return extrairTempoRealizadoMs(result);
                 }
               }
               return 0;
@@ -611,8 +669,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tarefa_id: filtrosAdicionais?.tarefa_id || null,
                     cliente_id: cliente.id,
                     produto_id: parseInt(String(produto.id).trim(), 10) || null
@@ -622,7 +680,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -672,8 +730,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                       credentials: 'include',
                       body: JSON.stringify({
                         responsavel_id: responsavelId,
-                        data_inicio: periodoInicio,
-                        data_fim: periodoFim,
+                        data_inicio: periodoInicioUsar,
+                        data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
                         cliente_id: clienteIdParaBusca,
                         produto_id: parseInt(String(produto.id).trim(), 10) || null
@@ -683,7 +741,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     if (response.ok) {
                       const result = await response.json();
                       if (result.success && result.data) {
-                        return result.data.tempo_realizado_ms || 0;
+                        return extrairTempoRealizadoMs(result);
                       }
                     }
                     return 0;
@@ -788,8 +846,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tipo_tarefa_id: tipoTarefa.id,
                     cliente_id: filtrosAdicionais?.cliente_id || null,
                     produto_id: filtrosAdicionais?.produto_id || null
@@ -799,7 +857,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -832,15 +890,15 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     credentials: 'include',
                     body: JSON.stringify({
                       responsavel_id: responsavelId,
-                      data_inicio: periodoInicio,
-                      data_fim: periodoFim,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
                       tarefa_id: tarefaId,
                       tipo_tarefa_id: tipoTarefa.id
                     })
                   });
                   if (response.ok) {
                     const result = await response.json();
-                    return result.success ? (result.data.tempo_realizado_ms || 0) : 0;
+                    return result.success ? extrairTempoRealizadoMs(result) : 0;
                   }
                   return 0;
                 } catch (e) { return 0; }
