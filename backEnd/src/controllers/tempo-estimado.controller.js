@@ -2627,7 +2627,14 @@ async function getTempoEstimadoTotal(req, res) {
       return [String(param).trim()].filter(Boolean);
     };
 
-    console.log('🔍 [TEMPO-ESTIMADO-TOTAL] req.query completo:', JSON.stringify(req.query, null, 2));
+    const data_fonte = req.method === 'POST' ? req.body : req.query;
+    try {
+      const fs = require('fs');
+      const logMsg = `\n[${new Date().toISOString()}] METHOD: ${req.method} | BODY: ${JSON.stringify(req.body)} | QUERY: ${JSON.stringify(req.query)}`;
+      fs.appendFileSync('C:\\Aplicacao\\Gest-o-Inteligente-UP380\\backEnd\\debug_backend.log', logMsg);
+    } catch (e) {
+      console.error('Falha ao escrever log:', e);
+    }
 
     const {
       data_inicio = null,
@@ -2636,17 +2643,17 @@ async function getTempoEstimadoTotal(req, res) {
       considerarFinaisDeSemana,
       considerarFeriados,
       agrupar_por // 'responsavel', 'cliente', 'produto', 'tarefa'
-    } = req.query;
+    } = data_fonte;
 
     const overrideFinaisSemana = considerarFinaisDeSemana !== undefined ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true) : undefined;
     const overrideFeriados = considerarFeriados !== undefined ? (considerarFeriados === 'true' || considerarFeriados === true) : undefined;
 
-    const cliente_id = processarParametroArray(req.query.cliente_id);
-    const produto_id = processarParametroArray(req.query.produto_id);
-    const tarefa_id = processarParametroArray(req.query.tarefa_id);
+    const cliente_id = processarParametroArray(data_fonte.cliente_id);
+    const produto_id = processarParametroArray(data_fonte.produto_id);
+    const tarefa_id = processarParametroArray(data_fonte.tarefa_id);
 
     // Responsável pode vir string ou num, tratar
-    const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
+    const responsavel_id_raw = processarParametroArray(data_fonte.responsavel_id);
     const responsavel_id = responsavel_id_raw
       ? responsavel_id_raw.map(id => String(id).trim()).filter(Boolean)
       : null;
@@ -2775,6 +2782,8 @@ async function getTempoEstimadoTotal(req, res) {
     });
 
   } catch (error) {
+    const fs = require('fs');
+    fs.appendFileSync('debug_backend.log', `\n[${new Date().toISOString()}] ERROR: ` + error.message + '\n' + error.stack);
     console.error('❌ Erro inesperado ao calcular tempo estimado total:', error);
     return res.status(500).json({
       success: false,

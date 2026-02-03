@@ -1870,41 +1870,34 @@ const DelegarTarefas = () => {
 
       console.log(`🚀 [BATCH] Iniciando carga em lote de ${ids.length} itens do tipo ${tipoEntidade}...`);
 
-      // 1. Tempo Estimado Total em Lote (Já suportado nativamente)
-      const paramsEstimado = new URLSearchParams({
+      // 1. Tempo Estimado Total em Lote (Agora via POST para evitar erro 414)
+      const payloadEstimado = {
         data_inicio: periodoInicio,
         data_fim: periodoFim,
-        considerarFinaisDeSemana: habilitarFinaisSemana ? 'true' : 'false',
-        considerarFeriados: habilitarFeriados ? 'true' : 'false'
-      });
-
-      ids.forEach(id => {
-        if (tipoEntidade === 'responsavel') paramsEstimado.append('responsavel_id', id);
-        else if (tipoEntidade === 'cliente') paramsEstimado.append('cliente_id', id);
-        else if (tipoEntidade === 'produto') paramsEstimado.append('produto_id', id);
-        else if (tipoEntidade === 'atividade') paramsEstimado.append('tarefa_id', id);
-      });
+        considerarFinaisDeSemana: !!habilitarFinaisSemana,
+        considerarFeriados: !!habilitarFeriados,
+        agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade // Mapear 'atividade' para 'tarefa' no backend
+      };
+      if (tipoEntidade === 'responsavel') payloadEstimado.responsavel_id = ids;
+      else if (tipoEntidade === 'cliente') payloadEstimado.cliente_id = ids;
+      else if (tipoEntidade === 'produto') payloadEstimado.produto_id = ids;
+      else if (tipoEntidade === 'atividade') payloadEstimado.tarefa_id = ids;
 
       // Adicionar filtros adicionais se houver
       const cId = filtrosAdicionais.cliente_id || filtroAdicionalCliente;
-      if (cId) {
-        if (Array.isArray(cId)) cId.forEach(id => paramsEstimado.append('cliente_id', String(id)));
-        else paramsEstimado.append('cliente_id', String(cId));
-      }
+      if (cId) payloadEstimado.cliente_id = Array.isArray(cId) ? cId : [cId];
       const tId = filtrosAdicionais.tarefa_id || filtroAdicionalTarefa;
-      if (tId) {
-        if (Array.isArray(tId)) tId.forEach(id => paramsEstimado.append('tarefa_id', String(id)));
-        else paramsEstimado.append('tarefa_id', String(tId));
-      }
+      if (tId) payloadEstimado.tarefa_id = Array.isArray(tId) ? tId : [tId];
       const pId = filtrosAdicionais.produto_id || filtroAdicionalProduto;
-      if (pId) {
-        if (Array.isArray(pId)) pId.forEach(id => paramsEstimado.append('produto_id', String(id)));
-        else paramsEstimado.append('produto_id', String(pId));
-      }
-
+      if (pId) payloadEstimado.produto_id = Array.isArray(pId) ? pId : [pId];
       globalRequestPool.add(async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/tempo-estimado/total?${paramsEstimado}`, { credentials: 'include' });
+          const res = await fetch(`${API_BASE_URL}/tempo-estimado/total`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payloadEstimado)
+          });
           const result = await res.json();
           if (result.success && result.data) {
             setTempoEstimadoTotalPorResponsavel(prev => ({ ...prev, ...result.data }));
@@ -1914,53 +1907,49 @@ const DelegarTarefas = () => {
         }
       });
 
-      // 2. Tempo Realizado Total em Lote (Apenas para Responsáveis ou se filtros permitirem)
-      // Nota: O backend agora aceita array em responsavel_id
-      // 2. Tempo Realizado Total em Lote (Agora para todos os tipos)
-      // Nota: O backend agora aceita array em responsavel_id, cliente_id, etc.
-      if (ids.length > 0) {
-        globalRequestPool.add(async () => {
-          try {
-            const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                responsavel_id: tipoEntidade === 'responsavel' ? ids : [],
-                cliente_id: tipoEntidade === 'cliente' ? ids : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
-                produto_id: tipoEntidade === 'produto' ? ids : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
-                tarefa_id: tipoEntidade === 'atividade' ? ids : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
-                data_inicio: periodoInicio,
-                data_fim: periodoFim
-              })
+      // 2. Tempo Realizado Total em Lote (Já é POST)
+      globalRequestPool.add(async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              responsavel_id: tipoEntidade === 'responsavel' ? ids : [],
+              cliente_id: tipoEntidade === 'cliente' ? ids : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
+              produto_id: tipoEntidade === 'produto' ? ids : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
+              tarefa_id: tipoEntidade === 'atividade' ? ids : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
+              data_inicio: periodoInicio,
+              data_fim: periodoFim
+            })
+          });
+          const result = await res.json();
+          if (result.success && result.data) {
+            const novosTempos = {};
+            Object.keys(result.data).forEach(respId => {
+              novosTempos[`${tipoEntidade}_${respId}`] = {
+                realizado: result.data[respId].tempo_realizado_ms || 0,
+                pendente: result.data[respId].tempo_pendente_ms || 0
+              };
             });
-            const result = await res.json();
-            if (result.success && result.data) {
-              const novosTempos = {};
-              Object.keys(result.data).forEach(respId => {
-                novosTempos[`${tipoEntidade}_${respId}`] = {
-                  realizado: result.data[respId].tempo_realizado_ms || 0,
-                  pendente: result.data[respId].tempo_pendente_ms || 0
-                };
-              });
-              setTemposRealizadosPorEntidade(prev => ({ ...prev, ...novosTempos }));
-            }
-          } catch (err) {
-            console.error('Erro batch realizado:', err);
+            setTemposRealizadosPorEntidade(prev => ({ ...prev, ...novosTempos }));
           }
-        });
-      }
+        } catch (err) {
+          console.error('Erro batch realizado:', err);
+        }
+      });
 
       // 3. Custos e Horas em Lote (Apenas para Responsáveis)
       if (tipoEntidade === 'responsavel') {
-        const queryParams = new URLSearchParams();
-        ids.forEach(id => queryParams.append('membro_id', id));
-        if (periodoFim) queryParams.append('data_fim', periodoFim);
-
-        // Horas Contratadas Batch
         globalRequestPool.add(async () => {
           try {
-            const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?${queryParams}`, { credentials: 'include' });
+            const payload = { membro_id: ids, data_fim: periodoFim };
+            const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
             const result = await res.json();
             if (result.success && result.data) {
               const novasHoras = {};
@@ -1980,10 +1969,15 @@ const DelegarTarefas = () => {
         });
 
         // Custos Batch
-        // Custos Batch
         globalRequestPool.add(async () => {
           try {
-            const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente?${queryParams}`, { credentials: 'include' });
+            const payload = { membro_id: ids, data_fim: periodoFim };
+            const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
             const result = await res.json();
             if (result.success && result.data) {
               const novosCustos = {};
