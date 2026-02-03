@@ -400,8 +400,17 @@ const AprovacoesPendentes = () => {
                                                     <div className="aprovacao-time-label">Estimado/Dia</div>
                                                     <div className="aprovacao-time-value">
                                                         {(() => {
-                                                            const sec = p.tempo_estimado_dia || 0;
-                                                            const h = Math.floor(sec / 3600);
+                                                            const raw = p.tempo_estimado_dia || 0;
+                                                            // Heurística: Se < 50000, provavelmente é segundos (legado), então *1000.
+                                                            // Se >= 50000, é ms. (1h = 3600000ms)
+                                                            const ms = raw < 50000 ? raw * 1000 : raw;
+
+                                                            // Converter ms para horas
+                                                            const h = Math.floor(ms / 3600000);
+
+                                                            // Se tiver minutos relevantes, poderíamos mostrar, mas vou manter o padrão de horas
+                                                            if (h === 0 && ms > 0) return '< 1h';
+
                                                             return `${h}h`;
                                                         })()}
                                                     </div>

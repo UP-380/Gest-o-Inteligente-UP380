@@ -111,24 +111,8 @@ const TarefasDetalhadasList = ({
             {grupoCliente.tarefas.map((tarefa, index) => {
               const isExpanded = tarefasExpandidas.has(tarefa.id);
 
-              // Buscar tempo realizado do prop ou usar 0 como padrão
-              let tempoRealizadoMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
-
-              // Fallback: se for 0 e tivermos registros individuais carregados, somar deles
-              const registrosDaTarefa = registrosIndividuais[tarefa.id];
-              if ((!tempoRealizadoMs || tempoRealizadoMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
-                tempoRealizadoMs = registrosDaTarefa.reduce((total, reg) => {
-                  // Se houver filtro de tipo de tarefa, filtrar registros individuais
-                  if (filtrosAdicionais?.tipo_tarefa_id && String(reg.tipo_tarefa_id) !== String(filtrosAdicionais.tipo_tarefa_id)) {
-                    return total;
-                  }
-
-                  let tempoReg = Number(reg.tempo_realizado) || 0;
-                  if (tempoReg > 0 && tempoReg < 1) tempoReg = Math.round(tempoReg * 3600000);
-                  if (tempoReg > 0 && tempoReg < 1000) tempoReg = 1000;
-                  return total + tempoReg;
-                }, 0);
-              }
+              // Realizado da tarefa: apenas do mapa/cache (carregado ao abrir o painel). Não usar registrosIndividuais para não depender do clique em "Registros de tempo".
+              const tempoRealizadoMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
               const tempoRealizadoFormatado = formatarTempoHMS
                 ? formatarTempoHMS(tempoRealizadoMs)
                 : (formatarTempoEstimado ? formatarTempoEstimado(tempoRealizadoMs, true) : '0s');

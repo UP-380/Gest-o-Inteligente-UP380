@@ -65,25 +65,36 @@ async function criarAtribuicaoPendente(req, res) {
             nova_tarefa_criada: !!nova_tarefa_criada
         });
 
-        // 0. Validação de duplicidade (Evitar múltiplos cliques ou solicitações idênticas)
+        // 0. Validação de duplicidade: mesma configuração (cliente, produto, tarefa, responsável, data) já existe (PENDENTE ou APROVADA)
         let query = supabase
 
             .from('atribuicoes_pendentes')
-            .select('id')
+            .select('id, status')
             .eq('usuario_id', usuario_id)
-            .eq('status', 'PENDENTE');
-
-        if (tarefa_id) query = query.eq('tarefa_id', tarefa_id);
-        if (cliente_id) query = query.eq('cliente_id', cliente_id);
-        if (comentario_colaborador) query = query.eq('comentario_colaborador', comentario_colaborador);
-
-        const { data: existente, error: erroCheck } = await query
+            .in('status', ['PENDENTE', 'APROVADA'])
             .eq('data_inicio', data_inicio)
-            .eq('data_fim', data_fim)
-            .maybeSingle();
+            .eq('data_fim', data_fim);
+
+        if (comentario_colaborador) {
+            query = query.eq('comentario_colaborador', comentario_colaborador);
+        } else {
+            if (cliente_id) query = query.eq('cliente_id', cliente_id);
+            if (produto_id) query = query.eq('produto_id', produto_id);
+            if (tarefa_id) query = query.eq('tarefa_id', tarefa_id);
+        }
+
+        const { data: existentes, error: erroCheck } = await query.limit(1);
+        const existente = existentes && existentes.length > 0 ? existentes[0] : null;
 
         if (existente) {
-            // Se já existe e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
+            // Se já existe APROVADA: sempre bloquear
+            if (existente.status === 'APROVADA') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Essa configuração de atribuição já existe.'
+                });
+            }
+            // Se já existe PENDENTE e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
             if (iniciar_timer) {
                 const { data: registroAh, error: erroAh } = await supabase
 
@@ -96,14 +107,13 @@ async function criarAtribuicaoPendente(req, res) {
                 if (!registroAh) {
                     console.log('🔄 [Plug Rápido] Recuperando solicitação existente: Iniciando timer pendente...');
 
-                    // Tentar iniciar o timer para a atribuição existente
                     const { data: novoTimer, error: erroTimer } = await supabase
 
                         .from('registro_tempo_pendente')
                         .insert({
                             atribuicao_pendente_id: existente.id,
                             usuario_id,
-                            tarefa_id: tarefa_id || null, // Importante: null se não definido
+                            tarefa_id: tarefa_id || null,
                             data_inicio: new Date().toISOString(),
                             status: 'PENDENTE'
                         })
@@ -112,7 +122,6 @@ async function criarAtribuicaoPendente(req, res) {
 
                     if (erroTimer) {
                         console.error('❌ Erro ao recuperar timer:', erroTimer);
-                        // Se falhar (ex: constraint de banco), retorna erro para o usuário saber
                         return res.status(400).json({
                             success: false,
                             error: 'Erro ao iniciar cronômetro. Verifique se a tarefa é obrigatória no banco de dados.'
@@ -132,7 +141,7 @@ async function criarAtribuicaoPendente(req, res) {
 
             return res.status(400).json({
                 success: false,
-                error: 'Você já possui uma solicitação pendente idêntica para esta tarefa e período.'
+                error: 'Essa configuração de atribuição já existe.'
             });
         }
 
@@ -359,6 +368,31 @@ async function listarMinhasPendentes(req, res) {
     } catch (error) {
         console.error('Erro ao listar pendentes:', error);
         return res.status(500).json({ success: false, error: 'Erro ao listar atribuições pendentes.' });
+    }
+}
+
+/**
+ * Lista configurações de atribuição já existentes (PENDENTE + APROVADA) do usuário logado.
+ * Usado pelo front para bloquear duplicidade antes de salvar (mesmo cliente, produto, tarefa, data).
+ */
+async function listarConfiguracoesExistentes(req, res) {
+    try {
+        const usuario_id = req.session.usuario.id;
+
+        const { data: listas, error } = await supabase
+
+            .from('atribuicoes_pendentes')
+            .select('cliente_id, produto_id, tarefa_id, data_inicio, data_fim, comentario_colaborador')
+            .eq('usuario_id', usuario_id)
+            .in('status', ['PENDENTE', 'APROVADA']);
+
+        if (error) throw error;
+
+        const data = listas || [];
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error('Erro ao listar configurações existentes:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao listar configurações.' });
     }
 }
 
@@ -864,6 +898,7 @@ async function contarPendentes(req, res) {
 module.exports = {
     criarAtribuicaoPendente,
     listarMinhasPendentes,
+    listarConfiguracoesExistentes,
     listarPendentesParaAprovacao,
     contarPendentes,
     aprovarAtribuicao,
