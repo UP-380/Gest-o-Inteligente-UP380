@@ -4998,11 +4998,12 @@ const DelegarTarefas = () => {
                                 // Para outros filtros, checamos apenas realizado/estimado
                                 const chaveRealizado = `${filtroPrincipal}_${String(entidade.id)}`;
                                 const temRealizado = temposRealizadosPorEntidade[chaveRealizado] !== undefined;
-                                // Estimado é calculado na hora se não tiver cache, então é menos crítico, 
-                                // mas idealmente deveríamos ter cache.
                                 // Simplificação: se temRealizado, assume carregado
                                 if (!temRealizado) isFullyLoaded = false;
                               }
+
+                              // Após carga dos dados, cards sem métricas (0 tarefas) exibem 0 em vez de loading
+                              if (dadosAuxiliaresCarregados && !isFullyLoaded) isFullyLoaded = true;
 
                               // Se não estiver carregado, mostrar Skeleton/Loading unificado
                               if (!isFullyLoaded) {
