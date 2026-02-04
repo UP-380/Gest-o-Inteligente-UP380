@@ -1,20 +1,20 @@
 services:
-  upgi-app:
+  upgi-app-test:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: upgi-prod
+    container_name: upgi-test
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=production # Still production build but with test config
       - PORT=4000
     env_file:
-      - .env.production
+      - .env.test
     volumes:
-      - upgi-logs:/app/logs
-      - upgi-uploads:/app/frontEnd/public/assets/images/avatars/custom
+      - upgi-logs-test:/app/logs
+      - upgi-uploads-test:/app/frontEnd/public/assets/images/avatars/custom
     networks:
-      - upgi-network
+      - upgi-network-test
     restart: always
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
@@ -36,31 +36,31 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  nginx:
+  nginx-test:
     image: nginx:alpine
-    container_name: upgi-nginx
+    container_name: upgi-nginx-test
     ports:
-      - "6032:6032"
+      - "6033:6033" # Using 6033 to avoid conflict with production 6032
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.test.conf:/etc/nginx/nginx.conf:ro
       - ./frontEnd/dist:/usr/share/nginx/html
-      - upgi-uploads:/usr/share/nginx/html/assets/images/avatars/custom
-      - upgi-logs:/var/log/nginx
+      - upgi-uploads-test:/usr/share/nginx/html/assets/images/avatars/custom
+      - upgi-logs-test:/var/log/nginx
     depends_on:
-      - upgi-app
+      - upgi-app-test
     networks:
-      - upgi-network
+      - upgi-network-test
       - easypanel
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.upgi-nginx-http.rule=Host(`upmap.up380.com.br`)"
-      - "traefik.http.routers.upgi-nginx-http.entrypoints=http"
-      - "traefik.http.routers.upgi-nginx-http.middlewares=redirect-to-https"
-      - "traefik.http.routers.upgi-nginx-https.rule=Host(`upmap.up380.com.br`)"
-      - "traefik.http.routers.upgi-nginx-https.entrypoints=https"
-      - "traefik.http.routers.upgi-nginx-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.upgi-nginx.loadbalancer.server.port=6032"
-      - "traefik.http.services.upgi-nginx.loadbalancer.server.scheme=http"
+      - "traefik.http.routers.upgi-test-http.rule=Host(`test-upmap.up380.com.br`)"
+      - "traefik.http.routers.upgi-test-http.entrypoints=http"
+      - "traefik.http.routers.upgi-test-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.upgi-test-https.rule=Host(`test-upmap.up380.com.br`)"
+      - "traefik.http.routers.upgi-test-https.entrypoints=https"
+      - "traefik.http.routers.upgi-test-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.upgi-test.loadbalancer.server.port=6033"
+      - "traefik.http.services.upgi-test.loadbalancer.server.scheme=http"
       - "traefik.docker.network=easypanel"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
@@ -72,14 +72,14 @@ services:
         max-file: "3"
 
 networks:
-  upgi-network:
+  upgi-network-test:
     driver: bridge
   easypanel:
     external: true
     name: easypanel
 
 volumes:
-  upgi-logs:
+  upgi-logs-test:
     driver: local
-  upgi-uploads:
+  upgi-uploads-test:
     driver: local

@@ -142,7 +142,9 @@ router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.del
 // Rotas de Custo Colaborador Vigência (CRUD completo)
 router.get('/api/custo-colaborador-vigencia', requireAuth, custoColaboradorVigenciaController.getCustosColaboradorVigencia);
 router.get('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
+router.post('/api/custo-colaborador-vigencia/mais-recente', requireAuth, custoColaboradorVigenciaController.getCustoMaisRecentePorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
+router.post('/api/custo-colaborador-vigencia/horas-contratadas', requireAuth, custoColaboradorVigenciaController.getHorasContratadasPorMembroEPeriodo);
 router.get('/api/custo-colaborador-vigencia/relatorio', requireAuth, custoColaboradorVigenciaController.getColaboradoresComUltimaVigencia);
 router.get('/api/custo-colaborador-vigencia/:id', requireAuth, custoColaboradorVigenciaController.getCustoColaboradorVigenciaPorId);
 router.get('/api/custo-colaborador-vigencia/membro/:membro_id', requireAuth, custoColaboradorVigenciaController.getCustosPorMembro);
@@ -203,12 +205,14 @@ router.delete('/api/vinculados/:id', requireAuth, vinculadosController.deletarVi
 // Rotas de Tempo Estimado (CRUD completo)
 // IMPORTANTE: Rotas específicas devem vir ANTES das rotas dinâmicas (:id)
 router.get('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
+router.post('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
 router.post('/api/tempo-estimado/tempo-realizado-filtros', requireAuth, tempoEstimadoController.getTempoRealizadoComFiltros);
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
 router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoEstimado);
+router.post('/api/tempo-estimado/listar', requireAuth, tempoEstimadoController.getTempoEstimado); // POST com body para evitar 414 URI Too Long
 router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
@@ -509,6 +513,7 @@ router.get('/gestao-colaboradores', requireAuth, (req, res) => {
 const atribuicoesPendentesController = require('../controllers/atribuicoes-pendentes.controller');
 router.post('/api/atribuicoes-pendentes', requireAuth, atribuicoesPendentesController.criarAtribuicaoPendente);
 router.get('/api/atribuicoes-pendentes/minhas', requireAuth, atribuicoesPendentesController.listarMinhasPendentes);
+router.get('/api/atribuicoes-pendentes/configuracoes-existentes', requireAuth, atribuicoesPendentesController.listarConfiguracoesExistentes);
 router.get('/api/atribuicoes-pendentes/aprovacao', requireGestor, atribuicoesPendentesController.listarPendentesParaAprovacao);
 router.post('/api/atribuicoes-pendentes/:id/aprovar', requireGestor, atribuicoesPendentesController.aprovarAtribuicao);
 router.get('/api/atribuicoes-pendentes/count', requireGestor, atribuicoesPendentesController.contarPendentes);
