@@ -206,7 +206,8 @@
     gap: 1rem;
 }
 
-.btn-mark-read {
+.btn-mark-read,
+.btn-mark-unread {
     width: 36px;
     height: 36px;
     border-radius: 18px;
@@ -224,6 +225,12 @@
     background-color: #ecfdf5;
     border-color: #10b981;
     color: #10b981;
+}
+
+.btn-mark-unread:hover {
+    background-color: #fef2f2;
+    border-color: #ef4444;
+    color: #ef4444;
 }
 
 .action-arrow {

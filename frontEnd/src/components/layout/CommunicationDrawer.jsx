@@ -191,6 +191,7 @@ const CommunicationDrawer = ({ user }) => {
                 destinatario_id: selectedChat.id,
                 conteudo: newMessage
             };
+            console.log('[CHAT] Enviando mensagem para destinatario_id:', selectedChat.id, 'payload:', payload);
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {

@@ -59,7 +59,7 @@ const CadastroVinculacoes = () => {
   const [vinculados, setVinculados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(0); // 0 = sem limite (carrega todas as vinculações)
   const [totalPages, setTotalPages] = useState(1);
   const [totalVinculados, setTotalVinculados] = useState(0);
   
@@ -94,8 +94,8 @@ const CadastroVinculacoes = () => {
       const filtrosAUsar = filtrosParaAplicar !== null ? filtrosParaAplicar : filtros;
       
       const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString()
+        page: '1',
+        limit: itemsPerPage === 0 ? 'all' : itemsPerPage.toString()
       });
 
       // Adicionar filtros
@@ -145,7 +145,7 @@ const CadastroVinculacoes = () => {
       if (result.success) {
         setVinculados(result.data || []);
         setTotalVinculados(result.total || 0);
-        setTotalPages(Math.ceil((result.total || 0) / itemsPerPage));
+        setTotalPages(itemsPerPage === 0 ? 1 : Math.ceil((result.total || 0) / itemsPerPage));
       } else {
         throw new Error(result.error || 'Erro ao carregar vinculados');
       }
@@ -517,9 +517,9 @@ const CadastroVinculacoes = () => {
     return false;
   };
 
-  // Calcular range de itens exibidos
-  const startItem = totalVinculados === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1;
-  const endItem = Math.min(startItem + Math.min(itemsPerPage, vinculados.length) - 1, totalVinculados);
+  // Calcular range de itens exibidos (quando itemsPerPage=0, exibe todos)
+  const startItem = totalVinculados === 0 ? 0 : ((currentPage - 1) * (itemsPerPage || 1)) + 1;
+  const endItem = itemsPerPage === 0 ? totalVinculados : Math.min(startItem + Math.min(itemsPerPage, vinculados.length) - 1, totalVinculados);
 
   return (
     <Layout>
@@ -1617,10 +1617,12 @@ const CadastroVinculacoes = () => {
                       className="pagination-limit-select"
                       value={itemsPerPage}
                       onChange={(e) => {
-                        setItemsPerPage(parseInt(e.target.value));
+                        const val = e.target.value;
+                        setItemsPerPage(val === 'all' ? 0 : parseInt(val, 10));
                         setCurrentPage(1);
                       }}
                     >
+                      <option value="0">Todos</option>
                       <option value="10">10 itens</option>
                       <option value="20">20 itens</option>
                       <option value="30">30 itens</option>

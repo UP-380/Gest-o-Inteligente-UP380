@@ -3232,57 +3232,31 @@ const PainelUsuario = () => {
             const tempoEstimadoIdStr = String(tempoEstimadoId).trim();
             const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
             const isAtivo = !!registroAtivo;
-            // Verificar se é tarefa de outra data
-            const checkDataHoje = () => {
-              if (!reg.data) return true;
-              const hoje = new Date();
 
-              if (typeof reg.data === 'string') {
-                // Tentar extrair YYYY-MM-DD para evitar problemas de fuso horário
-                const dataPart = reg.data.split('T')[0];
-                const hojePart = hoje.getFullYear() + '-' +
-                  String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
-                  String(hoje.getDate()).padStart(2, '0');
-                return dataPart === hojePart;
-              }
-
-              const dataTarefa = new Date(reg.data);
-              return dataTarefa.getDate() === hoje.getDate() &&
-                dataTarefa.getMonth() === hoje.getMonth() &&
-                dataTarefa.getFullYear() === hoje.getFullYear();
-            };
-
-            const isHoje = checkDataHoje();
-
-            // Se não for hoje, bloqueia sempre
-            const isBloqueado = !isHoje;
-
-            // Só exibe como ativo (botão stop) se for hoje E estiver ativo
-            const mostrarComoAtivo = isHoje && isAtivo;
+            // Permitir plugar em tarefas de qualquer data; tempo realizado sempre contabilizado como hoje (data_inicio = now no backend)
+            const mostrarComoAtivo = isAtivo;
 
             const btnClass = mostrarComoAtivo
               ? 'painel-usuario-stop-btn'
-              : (isBloqueado ? 'painel-usuario-play-btn painel-usuario-btn-disabled' : 'painel-usuario-play-btn');
+              : 'painel-usuario-play-btn';
 
             const btnIcon = mostrarComoAtivo ? 'fa-stop' : 'fa-play';
 
             const btnTitle = mostrarComoAtivo
               ? 'Parar registro de tempo'
-              : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
+              : 'Iniciar registro de tempo';
 
             const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
 
             // Verificar se é uma tarefa "Interna UP"
             const isInternaUp = internaUpTaskIds.has(String(reg.tarefa_id).trim());
 
-            // Só aplica o verde se for "Interna UP" E não estiver bloqueado
-            // Se estiver bloqueado ("isBloqueado" = true), deve continuar cinza, como já definido no `btnStyle` original
-            let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
-            if (isInternaUp && !isBloqueado) {
+            let btnStyle = '';
+            if (isInternaUp) {
               btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 21px; height: 21px; min-width: 21px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 0;';
             }
 
-            const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
+            const btnDisabledAttr = '';
 
             item.innerHTML = `
               <div class="painel-usuario-tarefa-item-lista-content">
@@ -3305,7 +3279,7 @@ const PainelUsuario = () => {
                 data-action="${btnAction}"
                 ${btnDisabledAttr}
               >
-                    <i class="fas ${btnIcon}" style="${isInternaUp && !isBloqueado ? 'color: #fff;' : ''}"></i>
+                    <i class="fas ${btnIcon}" style="${isInternaUp ? 'color: #fff;' : ''}"></i>
                   </button>
                   </div>
                 </div>
@@ -3940,55 +3914,30 @@ const PainelUsuario = () => {
           const registroAtivo = registrosAtivosRef.current.get(tempoEstimadoIdStr);
           const isAtivo = !!registroAtivo;
 
-          // Verificar se é tarefa de outra data
-          const checkDataHoje = () => {
-            if (!reg.data) return true;
-            const hoje = new Date();
-
-            if (typeof reg.data === 'string') {
-              const dataPart = reg.data.split('T')[0];
-              const hojePart = hoje.getFullYear() + '-' +
-                String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
-                String(hoje.getDate()).padStart(2, '0');
-              return dataPart === hojePart;
-            }
-
-            const dataTarefa = new Date(reg.data);
-            return dataTarefa.getDate() === hoje.getDate() &&
-              dataTarefa.getMonth() === hoje.getMonth() &&
-              dataTarefa.getFullYear() === hoje.getFullYear();
-          };
-
-          const isHoje = checkDataHoje();
-
-          // Se não for hoje, bloqueia sempre
-          const isBloqueado = !isHoje;
-
-          // Só exibe como ativo (botão stop) se for hoje E estiver ativo
-          const mostrarComoAtivo = isHoje && isAtivo;
+          // Permitir plugar em tarefas de qualquer data; tempo realizado sempre contabilizado como hoje (data_inicio = now no backend)
+          const mostrarComoAtivo = isAtivo;
 
           const btnClass = mostrarComoAtivo
             ? 'painel-usuario-stop-btn'
-            : (isBloqueado ? 'painel-usuario-play-btn painel-usuario-btn-disabled' : 'painel-usuario-play-btn');
+            : 'painel-usuario-play-btn';
 
           const btnIcon = mostrarComoAtivo ? 'fa-stop' : 'fa-play';
 
           const btnTitle = mostrarComoAtivo
             ? 'Parar registro de tempo'
-            : (isBloqueado ? 'Não é possível plugar em tarefas de outra data' : 'Iniciar registro de tempo');
+            : 'Iniciar registro de tempo';
 
           const btnAction = mostrarComoAtivo ? 'parar' : 'iniciar';
 
           // Verificar se é uma tarefa "Interna UP"
           const isInternaUp = internaUpTaskIds.has(String(reg.tarefa_id).trim());
 
-          // Só aplica o verde se for "Interna UP" E não estiver bloqueado
-          let btnStyle = isBloqueado ? 'background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; border-color: #d1d5db;' : '';
-          if (isInternaUp && !isBloqueado) {
+          let btnStyle = '';
+          if (isInternaUp) {
             btnStyle = 'background-color: #28a745 !important; color: #fff; border: none; border-radius: 50%; width: 21px; height: 21px; min-width: 21px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 0;';
           }
 
-          const btnDisabledAttr = isBloqueado ? 'disabled="disabled"' : '';
+          const btnDisabledAttr = '';
 
           const chaveTimetrack = criarChaveTempo(reg);
           const isTimetrackExpanded = timetracksExpandidos.has(chaveTimetrack);
@@ -4010,7 +3959,7 @@ const PainelUsuario = () => {
                 data-action="${btnAction}"
                 ${btnDisabledAttr}
               >
-                      <i class="fas ${btnIcon}" style="${isInternaUp && !isBloqueado ? 'color: #fff;' : ''}"></i>
+                      <i class="fas ${btnIcon}" style="${isInternaUp ? 'color: #fff;' : ''}"></i>
                     </button>
             </div>
             </div>

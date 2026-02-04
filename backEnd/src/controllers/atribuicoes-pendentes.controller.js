@@ -597,7 +597,7 @@ async function aprovarAtribuicao(req, res) {
         // 2. Criar Agrupador ID
         const agrupador_id = uuidv4();
 
-        // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id
+        // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id | origem Plug Rápido
         const { error: erroHistorico } = await supabase
 
             .from('historico_atribuicoes')
@@ -610,6 +610,7 @@ async function aprovarAtribuicao(req, res) {
                 tarefas: [{ tarefa_id: dadosFinais.tarefa_id, tempo_estimado_dia: dadosFinais.tempo_estimado_dia }],
                 data_inicio: dadosFinais.data_inicio,
                 data_fim: dadosFinais.data_fim,
+                is_plug_rapido: true,
                 created_at: new Date().toISOString()
             });
 

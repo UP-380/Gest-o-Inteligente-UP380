@@ -859,6 +859,7 @@ const HistoricoAtribuicoes = () => {
                             <th>Período</th>
                             <th>Tarefas</th>
                             <th>Usuário Criador</th>
+                            <th style={{ width: '110px', textAlign: 'center' }}>Origem</th>
                             <th>Ações</th>
                           </tr>
                         </thead>
@@ -1010,6 +1011,30 @@ const HistoricoAtribuicoes = () => {
                                     </div>
                                   </td>
                                   <td><div className="historico-usuario-criador">{item.usuario_criador?.nome || `Usuário #${item.usuario_criador_id}`}</div></td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                    {item.is_plug_rapido ? (
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          backgroundColor: '#ecfdf5',
+                                          color: '#059669',
+                                          fontSize: '10px',
+                                          fontWeight: 600,
+                                          padding: '4px 8px',
+                                          borderRadius: '6px',
+                                          border: '1px solid #a7f3d0',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                        title="Atribuição criada via Plug Rápido (aprovada)"
+                                      >
+                                        <i className="fas fa-bolt"></i> Plug Rápido
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#9ca3af', fontSize: '12px' }}>—</span>
+                                    )}
+                                  </td>
                                   <td className="actions-column">
                                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                       <EditButton onClick={() => handleEditarAtribuicao(item)} title="Editar" />
@@ -1020,7 +1045,7 @@ const HistoricoAtribuicoes = () => {
 
                                 {estaExpandida && (
                                   <tr>
-                                    <td colSpan="9" style={{ padding: 0, backgroundColor: '#f9fafb' }}>
+                                    <td colSpan="10" style={{ padding: 0, backgroundColor: '#f9fafb' }}>
                                       <div style={{ padding: '20px', borderTop: '2px solid #e5e7eb' }}>
                                         {carregando ? (
                                           <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>

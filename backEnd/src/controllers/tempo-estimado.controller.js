@@ -1010,7 +1010,7 @@ async function criarTempoEstimado(req, res) {
 
     const regrasParaInserir = [];
 
-    // Buscar membro_id do criador (se disponível)
+    // Buscar membro_id do criador (OBRIGATÓRIO para garantir histórico sempre criado)
     let membroIdCriador = null;
     try {
       const usuarioId = req.session?.usuario?.id || null;
@@ -1027,6 +1027,13 @@ async function criarTempoEstimado(req, res) {
       }
     } catch (error) {
       console.warn('⚠️ Erro ao buscar membro_id do criador:', error);
+    }
+
+    if (!membroIdCriador) {
+      return res.status(400).json({
+        success: false,
+        error: 'Não foi possível identificar o criador da atribuição. É necessário ter vínculo de colaborador (membro) para criar atribuições. Faça login com um usuário vinculado a um colaborador.'
+      });
     }
 
     // Iterar sobre cada produto e APENAS suas tarefas específicas
@@ -1092,7 +1099,34 @@ async function criarTempoEstimado(req, res) {
       console.log('📋 Exemplo de regra:', JSON.stringify(regrasParaInserir[0], null, 2));
     }
 
-    // Inserir todas as regras
+    // 1. CRIAR HISTÓRICO PRIMEIRO (evita regras órfãs sem histórico)
+    const historicoData = {
+      agrupador_id: agrupador_id,
+      cliente_id: String(cliente_id).trim(),
+      responsavel_id: String(responsavel_id).trim(),
+      usuario_criador_id: String(membroIdCriador).trim(),
+      data_inicio: dataInicioRegra,
+      data_fim: dataFimRegra,
+      produto_ids: produtoIdsArray.map(id => String(id).trim()),
+      tarefas: todasTarefasComTempo,
+      is_plug_rapido: false
+    };
+
+    const { error: historicoError } = await supabase
+      .from('historico_atribuicoes')
+      .insert([historicoData]);
+
+    if (historicoError) {
+      console.error('❌ Erro ao criar histórico de atribuição:', historicoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao criar histórico da atribuição. A atribuição não foi criada.',
+        details: historicoError.message
+      });
+    }
+    console.log('✅ Histórico de atribuição criado com sucesso');
+
+    // 2. Inserir todas as regras (após histórico garantido)
     const { data: regrasInseridas, error } = await supabase
 
       .from('tempo_estimado_regra')
@@ -1100,7 +1134,7 @@ async function criarTempoEstimado(req, res) {
       .select();
 
     if (error) {
-      console.error('❌ Erro ao criar regras de tempo estimado:', error);
+      console.error('❌ Erro ao criar regras de tempo estimado (histórico já criado):', error);
       console.error('❌ Detalhes do erro:', {
         message: error.message,
         code: error.code,
@@ -1110,7 +1144,7 @@ async function criarTempoEstimado(req, res) {
       console.error('❌ Primeira regra que tentou inserir:', regrasParaInserir[0]);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao criar tempo estimado',
+        error: 'Erro ao criar regras de tempo estimado',
         details: error.message,
         hint: error.hint || null
       });
@@ -1118,46 +1152,11 @@ async function criarTempoEstimado(req, res) {
 
     console.log(`✅ ${regrasInseridas.length} regra(s) de tempo estimado criada(s) com sucesso`);
 
-    // Calcular registros virtuais para retornar no formato esperado pelo frontend
-    // (para manter compatibilidade - frontend espera registros individuais)
+    // Calcular registros virtuais para retornar no formato esperado pelo frontend (compatibilidade - frontend espera registros individuais)
     const dadosInseridos = [];
     for (const regra of regrasInseridas) {
       const registrosVirtuais = await calcularRegistrosDinamicos(regra);
       dadosInseridos.push(...registrosVirtuais);
-    }
-
-    // Salvar histórico da atribuição (usando dados calculados acima)
-    try {
-      // Se encontrou o membro_id, salvar histórico
-      if (membroIdCriador) {
-        const historicoData = {
-          agrupador_id: agrupador_id,
-          cliente_id: String(cliente_id).trim(),
-          responsavel_id: String(responsavel_id).trim(),
-          usuario_criador_id: String(membroIdCriador).trim(),
-          data_inicio: dataInicioRegra,
-          data_fim: dataFimRegra,
-          produto_ids: produtoIdsArray.map(id => String(id).trim()),
-          tarefas: todasTarefasComTempo
-        };
-
-        const { error: historicoError } = await supabase
-
-          .from('historico_atribuicoes')
-          .insert([historicoData]);
-
-        if (historicoError) {
-          console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
-          // Não falhar a requisição se o histórico não for salvo
-        } else {
-          console.log('✅ Histórico de atribuição salvo com sucesso');
-        }
-      } else {
-        console.warn('⚠️ Não foi possível encontrar membro_id para o usuário, histórico não será salvo');
-      }
-    } catch (historicoError) {
-      console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
-      // Não falhar a requisição se o histórico não for salvo
     }
 
     return res.status(201).json({
@@ -2640,6 +2639,9 @@ async function getTempoEstimadoTotal(req, res) {
     const considerarFinaisSemana = considerarFinaisDeSemana !== undefined
       ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true)
       : true;
+    const considerarFeriadosBool = considerarFeriados !== undefined
+      ? (considerarFeriados === 'true' || considerarFeriados === true)
+      : true;
 
     const cliente_id = processarParametroArray(data_fonte.cliente_id);
     const produto_id = processarParametroArray(data_fonte.produto_id);
@@ -2674,6 +2676,7 @@ async function getTempoEstimadoTotal(req, res) {
         let clientesQuery = supabase.from('cp_cliente').select('id');
         if (cliente_status === 'ativo') clientesQuery = clientesQuery.eq('status', 'ativo');
         else if (cliente_status === 'inativo') clientesQuery = clientesQuery.eq('status', 'inativo');
+
         const { data: clientesFiltrados } = await clientesQuery;
         if (clientesFiltrados) {
           const idsFiltrados = clientesFiltrados.map(c => String(c.id).trim());
@@ -2730,14 +2733,14 @@ async function getTempoEstimadoTotal(req, res) {
       return queryBuilder.order('data_inicio', { ascending: false });
     };
 
-    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 5000, logProgress: false });
+    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 5000, logProgress: true });
     const cacheFeriados = {};
     const resultados = {};
 
     for (const regra of regrasEncontradas) {
       try {
         const incluirFinaisSemanaRegra = considerarFinaisSemana && (regra.incluir_finais_semana !== false);
-        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinaisSemanaRegra, true);
+        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinaisSemanaRegra, considerarFeriadosBool);
         const qtdDias = expandidos.length;
         if (qtdDias === 0) continue;
 

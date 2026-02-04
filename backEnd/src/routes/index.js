@@ -523,7 +523,9 @@ router.post('/api/atribuicoes-pendentes/parar-timer', requireAuth, atribuicoesPe
 // Rotas de Notificações
 router.get('/api/notificacoes', requireAuth, notificacoesController.listarMinhasNotificacoes);
 router.get('/api/notificacoes/count', requireAuth, notificacoesController.contarNaoLidas);
+router.get('/api/notificacoes/stream', requireAuth, notificacoesController.getNotificacoesStream);
 router.patch('/api/notificacoes/:id/visualizar', requireAuth, notificacoesController.marcarComoVisualizada);
+router.patch('/api/notificacoes/:id/desvisualizar', requireAuth, notificacoesController.marcarComoNaoVisualizada);
 router.post('/api/notificacoes/visualizar-todas', requireAuth, notificacoesController.marcarTodasComoVisualizadas);
 
 // Rotas de Comunicação
