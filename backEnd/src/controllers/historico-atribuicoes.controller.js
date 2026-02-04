@@ -975,7 +975,8 @@ async function sincronizarHistoricosOrfaos(req, res) {
         data_inicio: dataInicioMin.split('T')[0], // Apenas data, sem hora
         data_fim: dataFimMax.split('T')[0], // Apenas data, sem hora
         produto_ids: Array.from(produtoIds).filter(id => id !== null && id !== undefined).map(id => parseInt(id, 10)),
-        tarefas: tarefasArray
+        tarefas: tarefasArray,
+        is_plug_rapido: false
       });
     }
 

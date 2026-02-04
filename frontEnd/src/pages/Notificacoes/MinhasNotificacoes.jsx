@@ -49,6 +49,18 @@ const MinhasNotificacoes = () => {
         }
     };
 
+    const handleMarkAsUnread = async (id) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/notificacoes/${id}/desvisualizar`, { method: 'PATCH' });
+            const json = await res.json();
+            if (json.success) {
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, visualizada: false } : n));
+            }
+        } catch (e) {
+            console.error('Erro ao desmarcar como lida:', e);
+        }
+    };
+
     const handleMarkAllAsRead = async () => {
         try {
             const res = await fetch(`${API_BASE_URL}/notificacoes/visualizar-todas`, { method: 'POST' });
@@ -148,13 +160,21 @@ const MinhasNotificacoes = () => {
                                             <p className="card-message">{notif.mensagem}</p>
                                         </div>
                                         <div className="card-actions">
-                                            {!notif.visualizada && (
+                                            {!notif.visualizada ? (
                                                 <button
                                                     className="btn-mark-read"
                                                     onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id); }}
                                                     title="Marcar como lida"
                                                 >
                                                     <i className="fas fa-check"></i>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    className="btn-mark-unread"
+                                                    onClick={(e) => { e.stopPropagation(); handleMarkAsUnread(notif.id); }}
+                                                    title="Marcar como não lida"
+                                                >
+                                                    <i className="fas fa-undo"></i>
                                                 </button>
                                             )}
                                             <div className="action-arrow">

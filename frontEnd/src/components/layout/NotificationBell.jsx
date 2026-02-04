@@ -1,10 +1,13 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { hasPermissionSync } from '../../utils/permissions';
 import './NotificationBell.css';
 
 const API_BASE_URL = '/api';
+const SSE_STREAM_URL = `${API_BASE_URL}/notificacoes/stream`;
+const SSE_RECONNECT_DELAY_MS = 3000;
+const SSE_MAX_RECONNECT_DELAY_MS = 60000;
+const FALLBACK_POLL_MS = 15000; // Fallback: atualiza a cada 15s se o SSE falhar ou não entregar
 
 const NotificationBell = ({ user }) => {
     const navigate = useNavigate();
@@ -13,34 +16,47 @@ const NotificationBell = ({ user }) => {
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    const [autoRead, setAutoRead] = useState(() => {
+        return localStorage.getItem('notifications_auto_read') === 'true';
+    });
+
     const [prevCount, setPrevCount] = useState(() => {
         const stored = localStorage.getItem('last_notified_count');
         return stored ? parseInt(stored, 10) : 0;
     });
     const [shouldPulse, setShouldPulse] = useState(false);
 
+    const audioContextRef = useRef(null);
+    const prevCountRef = useRef(prevCount);
+    prevCountRef.current = prevCount;
+
     // Verificar se o usuário tem permissão para ver o sininho
-    // Utiliza o utilitário de permissões para verificar acesso à página de notificações
     const canSeeBell = user && hasPermissionSync(user.permissoes, '/notificacoes');
 
     const playNotificationSound = useCallback(() => {
         try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = audioContextRef.current || new AudioCtx();
+            audioContextRef.current = ctx;
+            if (ctx.state === 'suspended') {
+                ctx.resume().catch(() => {});
+            }
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
 
             oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // Nota lá (A5)
-            oscillator.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.2); // Desce para A4 rapidamente
+            oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.2);
 
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            gainNode.gain.setValueAtTime(0.12, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
 
             oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(ctx.destination);
 
-            oscillator.start();
-            oscillator.stop(audioContext.currentTime + 0.2);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.25);
         } catch (e) {
             console.error('Erro ao reproduzir som de notificação:', e);
         }
@@ -53,25 +69,23 @@ const NotificationBell = ({ user }) => {
             const json = await res.json();
             if (json.success) {
                 const newCount = json.count;
+                const prev = prevCountRef.current;
 
-                // Se o count aumentou em relação ao que já sabíamos (mesmo de sessões anteriores),
-                // então disparamos a animação e o som.
-                if (newCount > prevCount) {
+                if (newCount > prev) {
                     setShouldPulse(true);
-                    playNotificationSound(); // Toca o som ao receber nova notificação
-                    setTimeout(() => setShouldPulse(false), 2000);
-                    // Se o drawer estiver aberto, recarregar a lista
+                    playNotificationSound();
+                    setTimeout(() => setShouldPulse(false), 2500);
                     if (isOpen) fetchNotifications();
                 }
 
                 setCount(newCount);
                 setPrevCount(newCount);
-                localStorage.setItem('last_notified_count', newCount.toString());
+                localStorage.setItem('last_notified_count', String(newCount));
             }
         } catch (e) {
             console.error('Erro ao buscar contagem de notificações:', e);
         }
-    }, [canSeeBell, prevCount, isOpen, playNotificationSound]);
+    }, [canSeeBell, isOpen, playNotificationSound]);
 
     const fetchNotifications = useCallback(async () => {
         setLoading(true);
@@ -88,19 +102,97 @@ const NotificationBell = ({ user }) => {
         }
     }, []);
 
+    // SSE para push em tempo real + fallback com polling para garantir que notificação sempre chegue
     useEffect(() => {
-        if (canSeeBell) {
-            fetchCount();
-            const interval = setInterval(fetchCount, 15000); // Polling 15s (Tempo Real Adaptativo)
-            return () => clearInterval(interval);
-        }
+        if (!canSeeBell) return;
+        fetchCount();
+        let eventSource = null;
+        let reconnectTimer = null;
+        let fallbackPollTimer = null;
+        let reconnectDelay = SSE_RECONNECT_DELAY_MS;
+
+        const connectSSE = () => {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            try {
+                eventSource = new EventSource(SSE_STREAM_URL);
+                eventSource.onopen = () => {
+                    reconnectDelay = SSE_RECONNECT_DELAY_MS;
+                    fetchCount();
+                };
+                eventSource.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.type === 'notification' || data.type === 'connected') {
+                            fetchCount();
+                        }
+                    } catch (_) {}
+                };
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    eventSource = null;
+                    reconnectTimer = setTimeout(() => {
+                        connectSSE();
+                        reconnectDelay = Math.min(reconnectDelay * 1.5, SSE_MAX_RECONNECT_DELAY_MS);
+                    }, reconnectDelay);
+                };
+            } catch (err) {
+                console.error('Erro ao conectar stream de notificações:', err);
+                reconnectTimer = setTimeout(connectSSE, reconnectDelay);
+            }
+        };
+
+        connectSSE();
+
+        // Fallback: polling a cada 15s para garantir que notificação chegue mesmo se o SSE falhar
+        fallbackPollTimer = setInterval(fetchCount, FALLBACK_POLL_MS);
+
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') fetchCount();
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            document.removeEventListener('visibilitychange', onVisibility);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            if (fallbackPollTimer) clearInterval(fallbackPollTimer);
+            if (eventSource) {
+                eventSource.close();
+            }
+        };
     }, [canSeeBell, fetchCount]);
 
     const handleToggleDrawer = () => {
+        try {
+            if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+                audioContextRef.current.resume();
+            } else if (!audioContextRef.current) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) audioContextRef.current = new AudioCtx();
+            }
+        } catch (_) {}
         const nextState = !isOpen;
         setIsOpen(nextState);
+
         if (nextState) {
             fetchNotifications();
+        } else {
+            // Ao fechar
+            // Se auto-leitura estiver habilitada e houver notificações, marcar todas como lidas
+            if (autoRead && count > 0) {
+                handleMarkAllAsRead();
+            }
+        }
+    };
+
+    const handleToggleAutoRead = (e) => {
+        const newValue = e.target.checked;
+        setAutoRead(newValue);
+        localStorage.setItem('notifications_auto_read', newValue.toString());
+        // Se estiver marcando como ligado agora e o drawer estiver aberto, já marca tudo
+        if (newValue && isOpen && count > 0) {
+            handleMarkAllAsRead();
         }
     };
 
@@ -173,21 +265,57 @@ const NotificationBell = ({ user }) => {
             </button>
 
             {/* Backdrop */}
-            {isOpen && <div className="notification-drawer-backdrop" onClick={() => setIsOpen(false)}></div>}
+            {isOpen && (
+                <div
+                    className="notification-drawer-backdrop"
+                    onClick={() => {
+                        setIsOpen(false);
+                        if (autoRead && count > 0) {
+                            handleMarkAllAsRead();
+                        }
+                    }}
+                ></div>
+            )}
 
             {/* Drawer */}
             <div className={`notification-drawer ${isOpen ? 'open' : ''}`}>
                 <div className="notification-drawer-header">
                     <div className="notification-drawer-header-top">
                         <h3>Notificações</h3>
-                        <button className="close-drawer-btn" onClick={() => setIsOpen(false)}>&times;</button>
-                    </div>
-                    {notifications.length > 0 && (
-                        <button className="mark-all-read-btn-header" onClick={handleMarkAllAsRead}>
-                            <i className="fas fa-check-double" style={{ marginRight: '5px' }}></i>
-                            Marcar todas como lidas
+                        <button
+                            className="close-drawer-btn"
+                            onClick={() => {
+                                setIsOpen(false);
+                                if (autoRead && count > 0) {
+                                    handleMarkAllAsRead();
+                                }
+                            }}
+                        >
+                            &times;
                         </button>
-                    )}
+                    </div>
+                    <div className="notification-drawer-header-actions">
+                        <div className="notification-auto-read-toggle">
+                            <label title="Marcar automaticamente como lidas ao abrir" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                <span>Auto-ler:</span>
+                                <div className="switch-wrapper">
+                                    <input
+                                        type="checkbox"
+                                        id="toggleAutoRead"
+                                        checked={autoRead}
+                                        onChange={handleToggleAutoRead}
+                                    />
+                                    <span className="switch-slider"></span>
+                                </div>
+                            </label>
+                        </div>
+                        {notifications.length > 0 && (
+                            <button className="mark-all-read-btn-header" onClick={handleMarkAllAsRead}>
+                                <i className="fas fa-check-double"></i>
+                                Marcar todas
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="notification-drawer-body">
                     {loading ? (

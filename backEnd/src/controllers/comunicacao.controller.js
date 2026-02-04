@@ -14,6 +14,8 @@ async function enviarMensagem(req, res) {
         const criador_id = req.session.usuario.id;
         const { tipo, destinatario_id, titulo, conteudo, status_chamado, mensagem_pai_id, metadata } = req.body;
 
+        console.log('[COMUNICACAO] enviarMensagem:', { tipo, destinatario_id, criador_id });
+
         if (!tipo || !conteudo) {
             return res.status(400).json({ success: false, error: 'Tipo e conteúdo são obrigatórios.' });
         }
@@ -37,25 +39,33 @@ async function enviarMensagem(req, res) {
 
         if (error) throw error;
 
-        // 2. Processar Destinatários e Notificações
-        if (tipo === 'CHAT' && destinatario_id) {
+        // 2. Processar Destinatários e Notificações (aceita CHAT ou chat)
+        const tipoNormalizado = String(tipo || '').toUpperCase();
+        if (tipoNormalizado === 'CHAT' && (destinatario_id != null && destinatario_id !== '')) {
+            const destinatarioId = parseInt(destinatario_id, 10) || destinatario_id;
+            console.log('[COMUNICACAO] CHAT: criando notificação para destinatario_id', destinatarioId);
             // Inserir leitura para o destinatário
             await supabase
                 
                 .from('comunicacao_leituras')
-                .insert({ mensagem_id: mensagem.id, usuario_id: destinatario_id, lida: false });
+                .insert({ mensagem_id: mensagem.id, usuario_id: destinatarioId, lida: false });
 
-            // Notificar apenas o destinatário
-            await distribuirNotificacao({
-                tipo: 'CHAT_MENSAGEM',
-                titulo: 'Nova mensagem',
-                mensagem: `Você recebeu uma mensagem de ${req.session.usuario.nome_usuario}`,
-                referencia_id: mensagem.id,
-                link: `/comunicacao?tab=chats&interlocutorId=${criador_id}`,
-                usuario_id: destinatario_id
-            });
+            // Notificar apenas o destinatário (não falha o envio da mensagem se der erro)
+            try {
+                await distribuirNotificacao({
+                    tipo: 'CHAT_MENSAGEM',
+                    titulo: 'Nova mensagem',
+                    mensagem: `Você recebeu uma mensagem de ${req.session.usuario.nome_usuario}`,
+                    referencia_id: mensagem.id,
+                    link: `/comunicacao?tab=chats&interlocutorId=${criador_id}`,
+                    usuario_id: destinatarioId
+                });
+            } catch (errNotif) {
+                console.error('[COMUNICACAO] Erro ao criar notificação de chat (mensagem já enviada):', errNotif?.message || errNotif);
+            }
+            console.log('[COMUNICACAO] Notificação de chat processada para usuario_id', destinatarioId);
 
-        } else if (tipo === 'COMUNICADO') {
+        } else if (tipoNormalizado === 'COMUNICADO') {
             // Lógica para comunicados: envia para todos os usuários
             const { data: usuarios } = await supabase.from('usuarios').select('id');
             if (usuarios && usuarios.length > 0) {
@@ -73,7 +83,7 @@ async function enviarMensagem(req, res) {
                     link: '/comunicacao?tab=comunicados'
                 });
             }
-        } else if (tipo === 'CHAMADO') {
+        } else if (tipoNormalizado === 'CHAMADO') {
             const isNovoChamado = !mensagem_pai_id;
 
             if (isNovoChamado) {
