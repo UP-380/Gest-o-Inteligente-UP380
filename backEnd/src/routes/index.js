@@ -39,6 +39,8 @@ const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const notificacoesController = require('../controllers/notificacoes.controller');
 const comunicacaoController = require('../controllers/comunicacao.controller');
+const uploadController = require('../controllers/upload.controller');
+
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -538,6 +540,15 @@ router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoCo
 router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
+
+// Rotas de Upload
+router.post('/api/upload/chamado',
+  requireAuth,
+  uploadController.multerMiddleware.single('file'),
+  handleMulterError,
+  uploadController.uploadMedia
+);
 
 
 module.exports = router;

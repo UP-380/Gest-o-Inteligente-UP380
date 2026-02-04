@@ -73,6 +73,11 @@ const request = async (url, options = {}) => {
     }
   };
 
+  // Se o body for FormData, remover Content-Type para o browser definir o boundary
+  if (options.body && typeof FormData !== 'undefined' && options.body instanceof FormData) {
+    delete defaultOptions.headers['Content-Type'];
+  }
+
   const response = await fetch(url, { ...defaultOptions, ...options });
 
   // Verificar se a resposta é JSON
@@ -1011,10 +1016,20 @@ export const usuariosAPI = {
 };
 
 // Exportar api genérica
+// Helper para verificar FormData
+const isFormData = (body) => typeof FormData !== 'undefined' && body instanceof FormData;
+
+// Exportar api genérica
 export const api = {
   get: (endpoint) => request(`${API_BASE_URL}${endpoint}`),
-  post: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, { method: 'POST', body: JSON.stringify(body) }),
-  put: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, { method: 'PUT', body: JSON.stringify(body) }),
+  post: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    body: isFormData(body) ? body : JSON.stringify(body)
+  }),
+  put: (endpoint, body) => request(`${API_BASE_URL}${endpoint}`, {
+    method: 'PUT',
+    body: isFormData(body) ? body : JSON.stringify(body)
+  }),
   delete: (endpoint) => request(`${API_BASE_URL}${endpoint}`, { method: 'DELETE' }),
   request // para casos avançados
 };
