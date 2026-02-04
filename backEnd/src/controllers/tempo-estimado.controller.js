@@ -2639,6 +2639,9 @@ async function getTempoEstimadoTotal(req, res) {
     const considerarFinaisSemana = considerarFinaisDeSemana !== undefined
       ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true)
       : true;
+    const considerarFeriadosBool = considerarFeriados !== undefined
+      ? (considerarFeriados === 'true' || considerarFeriados === true)
+      : true;
 
     const cliente_id = processarParametroArray(data_fonte.cliente_id);
     const produto_id = processarParametroArray(data_fonte.produto_id);
@@ -2730,14 +2733,14 @@ async function getTempoEstimadoTotal(req, res) {
       return queryBuilder.order('data_inicio', { ascending: false });
     };
 
-    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 5000, logProgress: false });
+    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 5000, logProgress: true });
     const cacheFeriados = {};
     const resultados = {};
 
     for (const regra of regrasEncontradas) {
       try {
         const incluirFinaisSemanaRegra = considerarFinaisSemana && (regra.incluir_finais_semana !== false);
-        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinaisSemanaRegra, true);
+        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinaisSemanaRegra, considerarFeriadosBool);
         const qtdDias = expandidos.length;
         if (qtdDias === 0) continue;
 
