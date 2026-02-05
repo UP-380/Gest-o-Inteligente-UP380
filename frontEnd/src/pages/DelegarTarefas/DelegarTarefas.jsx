@@ -6137,7 +6137,7 @@ const DelegarTarefas = () => {
           periodoInicio={filtrosUltimosAplicados?.periodoInicio || periodoInicio}
           periodoFim={filtrosUltimosAplicados?.periodoFim || periodoFim}
           filtrosAdicionais={{
-            cliente_id: filtroAdicionalCliente || null,
+            cliente_id: filtroPrincipal === 'cliente' && detailCard?.entidadeId ? detailCard.entidadeId : (filtroAdicionalCliente || null),
             tarefa_id: filtroAdicionalTarefa || null,
             produto_id: filtroAdicionalProduto || null,
             responsavel_id: (filtroPrincipal !== 'responsavel' && filtroResponsavelSelecionado) ? filtroResponsavelSelecionado : (filtroPrincipal === 'responsavel' && detailCard?.entidadeId) ? detailCard.entidadeId : null

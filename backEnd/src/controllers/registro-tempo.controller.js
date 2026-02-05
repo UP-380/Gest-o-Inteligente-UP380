@@ -1729,7 +1729,7 @@ async function getTempoRealizadoTotal(req, res) {
         .or(orConditions)
         .not('tempo_realizado', 'is', null);
       if (usuariosIdsFiltro.length > 0) q = q.in('usuario_id', usuariosIdsFiltro);
-      if (clienteIds.length > 0) q = q.in('cliente_id', clienteIds);
+      if (clienteIds.length > 0) q = q.not('cliente_id', 'is', null);
       if (produtoIds.length > 0) q = q.in('produto_id', produtoIds);
       if (tarefaIds.length > 0) q = q.in('tarefa_id', tarefaIds);
       return q;
@@ -1741,6 +1741,14 @@ async function getTempoRealizadoTotal(req, res) {
     } catch (errRealizado) {
       console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar registro_tempo paginado:', errRealizado);
       throw errRealizado;
+    }
+
+    if (clienteIds.length > 0 && registros && registros.length > 0) {
+      const clienteIdsNorm = clienteIds.map(c => String(c).trim().toLowerCase());
+      registros = registros.filter(reg => {
+        const ids = String(reg.cliente_id || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        return ids.some(id => clienteIdsNorm.includes(id));
+      });
     }
 
     // Se agrupar por responsável e não tínhamos filtro, precisamos buscar os membros agora

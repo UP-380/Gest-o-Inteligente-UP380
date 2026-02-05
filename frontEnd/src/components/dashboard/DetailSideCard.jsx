@@ -281,7 +281,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   responsavel_id: responsavel.id,
                   data_inicio: periodoInicioUsar,
                   data_fim: periodoFimUsar,
-                  produto_id: produto.id
+                  produto_id: produto.id,
+                  cliente_id: filtrosAdicionais?.cliente_id || null
                 })
               });
 
@@ -313,7 +314,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                       data_inicio: periodoInicioUsar,
                       data_fim: periodoFimUsar,
                       produto_id: produto.id,
-                      cliente_id: null,
+                      cliente_id: filtrosAdicionais?.cliente_id || null,
                       tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
                     })
                   });
@@ -598,7 +599,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   data_inicio: periodoInicioUsar,
                   data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
-                  cliente_id: filtrosAdicionais?.cliente_id || null,
+                  cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
                   produto_id: parseInt(String(produto.id).trim(), 10) || null
                 })
               });
@@ -671,8 +672,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                         data_inicio: periodoInicioUsar,
                         data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: null,
-                        produto_id: null
+                        cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
                       })
                     });
                     if (response.ok) {
@@ -773,8 +774,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                         data_inicio: periodoInicioUsar,
                         data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: null,
-                        produto_id: null
+                        cliente_id: cliente.id,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
                       })
                     });
 
