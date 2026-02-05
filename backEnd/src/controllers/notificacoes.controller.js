@@ -113,11 +113,15 @@ async function listarMinhasNotificacoes(req, res) {
 }
 
 /**
- * Conta notificações não lidas
+ * Conta notificações não lidas.
+ * Sempre responde 200 com count (0 quando sem sessão ou em caso de falha), para o sininho não quebrar.
  */
 async function contarNaoLidas(req, res) {
     try {
-        const rawId = req.session.usuario.id;
+        const rawId = req.session?.usuario?.id;
+        if (rawId == null || rawId === '') {
+            return res.status(200).json({ success: true, count: 0 });
+        }
         const usuario_id = Number(rawId) || rawId;
 
         const { count, error } = await supabase
@@ -129,10 +133,10 @@ async function contarNaoLidas(req, res) {
 
         if (error) throw error;
 
-        return res.json({ success: true, count: count || 0 });
+        return res.status(200).json({ success: true, count: count ?? 0 });
     } catch (error) {
-        console.error('Erro ao contar notificações:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao contar notificações.' });
+        console.warn('Contagem de notificações (fallback 0):', error?.message || error);
+        return res.status(200).json({ success: true, count: 0 });
     }
 }
 

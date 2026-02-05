@@ -65,25 +65,23 @@ const NotificationBell = ({ user }) => {
     const fetchCount = useCallback(async () => {
         if (!canSeeBell) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/notificacoes/count`);
-            const json = await res.json();
-            if (json.success) {
-                const newCount = json.count;
-                const prev = prevCountRef.current;
+            const res = await fetch(`${API_BASE_URL}/notificacoes/count`, { credentials: 'include' });
+            const json = await res.json().catch(() => ({ success: true, count: 0 }));
+            const newCount = json.success ? (json.count ?? 0) : 0;
+            const prev = prevCountRef.current;
 
-                if (newCount > prev) {
-                    setShouldPulse(true);
-                    playNotificationSound();
-                    setTimeout(() => setShouldPulse(false), 2500);
-                    if (isOpen) fetchNotifications();
-                }
-
-                setCount(newCount);
-                setPrevCount(newCount);
-                localStorage.setItem('last_notified_count', String(newCount));
+            if (newCount > prev) {
+                setShouldPulse(true);
+                playNotificationSound();
+                setTimeout(() => setShouldPulse(false), 2500);
+                if (isOpen) fetchNotifications();
             }
-        } catch (e) {
-            console.error('Erro ao buscar contagem de notificações:', e);
+
+            setCount(newCount);
+            setPrevCount(newCount);
+            localStorage.setItem('last_notified_count', String(newCount));
+        } catch (_) {
+            setCount(0);
         }
     }, [canSeeBell, isOpen, playNotificationSound]);
 

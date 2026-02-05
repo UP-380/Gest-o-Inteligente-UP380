@@ -135,6 +135,23 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
       return;
     }
 
+    // Dados já vieram do POST único (gestao-capacidade/cards): usar valores sem nova requisição
+    if (dados.preloaded) {
+      const byId = {};
+      dados.registros.forEach(item => {
+        const id = item.id ?? item.originalId;
+        if (id != null) {
+          const ms = item.tempoRealizado ?? item.total_realizado_ms ?? 0;
+          byId[String(id)] = ms;
+        }
+      });
+      if (tipo === 'tarefas') setTemposRealizadosPorTarefa(byId);
+      else if (tipo === 'responsaveis') setTemposRealizadosPorResponsavel(byId);
+      else if (tipo === 'clientes') setTemposRealizadosPorCliente(byId);
+      else if (tipo === 'produtos') setTemposRealizadosPorProduto(byId);
+      return;
+    }
+
     // Período: usar prop ou padrão (início/fim do mês atual) para garantir que o realizado por tarefa carregue ao abrir "ver detalhes"
     const periodoInicioUsar = periodoInicio || (() => {
       const d = new Date();

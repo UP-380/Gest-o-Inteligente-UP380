@@ -193,10 +193,10 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
   '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
-  '/atribuir-responsaveis': [
+  '/gestao-capacidade': [
     '/atribuicao/cliente',
     '/atribuicao/nova',
-    '/atribuir-responsaveis/historico',
+    '/gestao-capacidade/historico',
     '/aprovacoes-pendentes',
     '/atribuicoes/pendentes/aprovacao'
   ],

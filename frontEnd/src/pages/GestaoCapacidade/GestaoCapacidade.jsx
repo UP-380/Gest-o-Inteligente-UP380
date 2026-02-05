@@ -22,12 +22,12 @@ import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../se
 import { calcularDiasUteis, calcularDiasComOpcoes, calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo } from '../../utils/dateUtils';
 import { processBatch, executeHighPriority, globalRequestPool } from '../../utils/requestPool';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
-import './DelegarTarefas.css';
+import './GestaoCapacidade.css';
 import { debounce } from '../../utils/debounce';
 
 const API_BASE_URL = '/api';
 
-const DelegarTarefas = () => {
+const GestaoCapacidade = () => {
   const navigate = useNavigate();
   const showToast = useToast();
   const [registrosAgrupados, setRegistrosAgrupados] = useState([]);
@@ -136,6 +136,9 @@ const DelegarTarefas = () => {
   // Estado para rastrear se dados auxiliares (horas contratadas, tempo estimado total) foram completamente carregados
   // Isso garante que os dashboards só sejam exibidos quando todos os dados estiverem 100% prontos
   const [dadosAuxiliaresCarregados, setDadosAuxiliaresCarregados] = useState(false);
+
+  // Payload único do endpoint gestao-capacidade/cards (pai + detalhes por entidade)
+  const [cardsPorEntidade, setCardsPorEntidade] = useState({});
 
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
@@ -346,7 +349,82 @@ const DelegarTarefas = () => {
       });
     }
 
-    // NOVO: Garantir que os detalhes das regras relacionadas estejam explodidos
+    // Dados em cache (do POST inicial com incluir_detalhes=false ou de uma abertura anterior)
+    const cardData = cardsPorEntidade[String(entidade.id)];
+    const listaPreloaded = cardData?.detalhes?.[tipo];
+    if (listaPreloaded && Array.isArray(listaPreloaded) && listaPreloaded.length > 0) {
+      const registros = listaPreloaded.map(item => ({
+        id: item.id,
+        originalId: item.original_id ?? item.id,
+        nome: item.nome,
+        tempoRealizado: item.total_realizado_ms ?? 0,
+        tempoEstimado: item.total_estimado_ms ?? 0,
+        custo_estimado: item.custo_estimado,
+        registros: []
+      }));
+      setDetailCard({
+        entidadeId: entidade.id,
+        tipo,
+        dados: { registros, preloaded: true }
+      });
+      return;
+    }
+
+    // Detalhes sob demanda: chamar endpoint /api/gestao-capacidade/cards/{tipo}/detalhes (tarefas, clientes, produtos)
+    const tipoDetalheParaApi = ['tarefas', 'clientes', 'produtos'].includes(tipo) ? tipo : null;
+    if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim) {
+      const endpointTipo = filtroPrincipal === 'atividade' ? 'tarefa' : filtroPrincipal;
+      setDetailCard({
+        entidadeId: entidade.id,
+        tipo,
+        dados: { registros: [], loading: true }
+      });
+      try {
+        const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/${endpointTipo}/detalhes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            id: entidade.id,
+            data_inicio: filtrosUltimosAplicados.periodoInicio,
+            data_fim: filtrosUltimosAplicados.periodoFim,
+            considerar_finais_semana: !!filtrosUltimosAplicados.habilitarFinaisSemana,
+            considerar_feriados: !!filtrosUltimosAplicados.habilitarFeriados,
+            filtros_adicionais: (() => {
+              const fa = filtrosUltimosAplicados.filtrosAdicionais || {};
+              const toArr = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+              return { cliente_id: toArr(fa.cliente), produto_id: toArr(fa.produto), tarefa_id: toArr(fa.tarefa) };
+            })(),
+            tipo_detalhe: tipoDetalheParaApi
+          })
+        });
+        const result = await res.json();
+        const arr = result?.data ?? (result?.detalhes?.[tipoDetalheParaApi]) ?? [];
+        const registros = Array.isArray(arr) ? arr.map(item => ({
+          id: item.id,
+          originalId: item.original_id ?? item.id,
+          nome: item.nome,
+          tempoRealizado: item.total_realizado_ms ?? 0,
+          tempoEstimado: item.total_estimado_ms ?? 0,
+          custo_estimado: item.custo_estimado,
+          registros: []
+        })) : [];
+        setCardsPorEntidade(prev => ({
+          ...prev,
+          [String(entidade.id)]: {
+            ...prev[String(entidade.id)],
+            detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: arr }
+          }
+        }));
+        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros, preloaded: true } } : prev);
+      } catch (err) {
+        console.error('Erro ao buscar detalhes do card:', err);
+        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros: [], loading: false } } : prev);
+      }
+      return;
+    }
+
+    // Fallback: garantir que os detalhes das regras relacionadas estejam explodidos
     // Filtrar agrupamentos que pertencem a esta entidade
     const agrupamentosRelacionados = registrosAgrupados.filter(agr => {
       const p = agr.primeiroRegistro;
@@ -2732,29 +2810,117 @@ const DelegarTarefas = () => {
           // OTIMIZAÇÃO: Marcar como carregado
           setDadosAuxiliaresCarregados(true);
 
-          // [RESTORE SUMMARY] Carregar totais (Realizado, Contratado, Custo) para os grupos VISÍVEIS
-          // Agora usando BATCH para performance extrema e evitar 503
-          const carregarTotaisVisiveis = async () => {
+          // Um único POST por tipo: /api/gestao-capacidade/cards/{tipo} (pai + detalhes no mesmo payload)
+          const carregarCardsGestaoCapacidade = async () => {
             if (!novosAgrupamentos || novosAgrupamentos.length === 0) return;
 
-            console.log(`💰 [LOAD-TOTALS] Iniciando carga em lote de ${novosAgrupamentos.length} totais...`);
-
-            let tipo = 'responsavel'; // Default
+            const primeiroOuRegistro = (i) => i.primeiroRegistro ?? i.registros?.[0] ?? i.regras?.[0];
+            let tipo = 'responsavel';
             if (filtrosAUsar.responsavel) tipo = 'responsavel';
             else if (filtrosAUsar.cliente) tipo = 'cliente';
             else if (filtrosAUsar.atividade) tipo = 'atividade';
             else if (filtrosAUsar.produto) tipo = 'produto';
 
-            await carregarDadosEmLote(
-              novosAgrupamentos,
-              tipo,
-              periodoAUsar.inicio,
-              periodoAUsar.fim,
-              filtrosAdicionaisAUsar
-            );
+            const obterIds = () => {
+              if (tipo === 'responsavel') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.responsavel_id).filter(Boolean))].map(String);
+              if (tipo === 'cliente') return [...new Set(novosAgrupamentos.flatMap(i => String(primeiroOuRegistro(i)?.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean)))];
+              if (tipo === 'produto') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.produto_id).filter(Boolean))].map(String);
+              if (tipo === 'atividade') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.tarefa_id).filter(Boolean))].map(String);
+              return [];
+            };
+
+            const ids = obterIds();
+            if (ids.length === 0) {
+              setDadosAuxiliaresCarregados(true);
+              return;
+            }
+
+            const endpointTipo = tipo === 'atividade' ? 'tarefa' : tipo;
+            const payload = {
+              ids,
+              data_inicio: periodoAUsar.inicio,
+              data_fim: periodoAUsar.fim,
+              considerar_finais_semana: !!filtrosAUsar.habilitarFinaisSemana,
+              considerar_feriados: !!filtrosAUsar.habilitarFeriados,
+              filtros_adicionais: {
+                cliente_id: filtrosAdicionaisAUsar.cliente_id || null,
+                produto_id: filtrosAdicionaisAUsar.produto_id || null,
+                tarefa_id: filtrosAdicionaisAUsar.tarefa_id || null
+              },
+              incluir_detalhes: false
+            };
+
+            try {
+              const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/${endpointTipo}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+              });
+              const result = await res.json();
+              if (!result.success || !result.data) {
+                setDadosAuxiliaresCarregados(true);
+                return;
+              }
+              const data = result.data;
+
+              setCardsPorEntidade(data);
+
+              const chaveRealizado = (id) => `${tipo}_${String(id)}`;
+              setTempoEstimadoTotalPorResponsavel(prev => {
+                const next = { ...prev };
+                Object.keys(data).forEach(id => {
+                  const card = data[id];
+                  if (card.total_estimado_ms !== undefined) next[String(id)] = card.total_estimado_ms;
+                });
+                return next;
+              });
+              setTemposRealizadosPorEntidade(prev => {
+                const next = { ...prev };
+                Object.keys(data).forEach(id => {
+                  const card = data[id];
+                  const realizado = card.total_realizado_ms ?? 0;
+                  next[chaveRealizado(id)] = { realizado, pendente: 0 };
+                });
+                return next;
+              });
+
+              if (tipo === 'responsavel') {
+                setHorasContratadasPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    const horasDia = card.horas_contratadas_dia ?? (card.total_contratado_ms != null ? card.total_contratado_ms / (Math.ceil((new Date(periodoAUsar.fim) - new Date(periodoAUsar.inicio)) / (24 * 60 * 60 * 1000)) + 1) / 3600000 : 0);
+                    next[String(id)] = typeof horasDia === 'number' ? horasDia : (horasDia?.horascontratadasdia ?? null);
+                  });
+                  return next;
+                });
+                setTipoContratoPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    if (card.tipo_contrato != null) next[String(id)] = card.tipo_contrato;
+                  });
+                  return next;
+                });
+                setCustosPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    if (card.custo_hora != null) next[String(id)] = String(card.custo_hora).replace('.', ',');
+                  });
+                  return next;
+                });
+              }
+
+              setDadosAuxiliaresCarregados(true);
+            } catch (err) {
+              console.error('Erro ao carregar cards gestão capacidade:', err);
+              setDadosAuxiliaresCarregados(true);
+            }
           };
 
-          carregarTotaisVisiveis();
+          carregarCardsGestaoCapacidade();
 
         } else {
           setDadosAuxiliaresCarregados(true);
@@ -3950,6 +4116,8 @@ const DelegarTarefas = () => {
     setHorasContratadasPorResponsavel({});
     setTipoContratoPorResponsavel({});
     setTempoEstimadoTotalPorResponsavel({});
+    setTemposRealizadosPorEntidade({});
+    setCardsPorEntidade({});
     // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
     setDadosAuxiliaresCarregados(false);
 
@@ -4137,6 +4305,8 @@ const DelegarTarefas = () => {
       setHorasContratadasPorResponsavel({});
       setTipoContratoPorResponsavel({});
       setTempoEstimadoTotalPorResponsavel({});
+      setTemposRealizadosPorEntidade({});
+      setCardsPorEntidade({});
       // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
       setDadosAuxiliaresCarregados(false);
 
@@ -4361,7 +4531,7 @@ const DelegarTarefas = () => {
               <div className="listing-controls-right">
                 <button
                   className="custo-colaborador-btn"
-                  onClick={() => navigate('/atribuir-responsaveis/historico')}
+                  onClick={() => navigate('/gestao-capacidade/historico')}
                   title="Ver histórico de atribuições"
                   style={{ marginRight: '12px' }}
                 >
@@ -5032,11 +5202,10 @@ const DelegarTarefas = () => {
                                   filtroPrincipal,
                                   registrosAgrupados
                                 );
-                                const estatisticas = calcularEstatisticasPorEntidade(
-                                  entidade.id,
-                                  filtroPrincipal,
-                                  registrosAgrupados
-                                );
+                                const cardPayload = cardsPorEntidade[String(entidade.id)];
+                                const estatisticas = cardPayload
+                                  ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
+                                  : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
 
                                 return (
                                   <div key={entidade.id} className="tempo-disponivel-card">
@@ -5279,12 +5448,11 @@ const DelegarTarefas = () => {
                                 );
                               }
 
-                              // Calcular estatísticas para esta entidade
-                              const estatisticas = calcularEstatisticasPorEntidade(
-                                entidade.id,
-                                filtroPrincipal,
-                                registrosAgrupados
-                              );
+                              // Usar totais do payload único (gestao-capacidade/cards) quando disponível
+                              const cardPayload = cardsPorEntidade[String(entidade.id)];
+                              const estatisticas = cardPayload
+                                ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
+                                : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
 
                               return (
                                 <div key={entidade.id} className="tempo-disponivel-card">
@@ -6148,4 +6316,4 @@ const DelegarTarefas = () => {
   );
 };
 
-export default DelegarTarefas;
+export default GestaoCapacidade;

@@ -215,7 +215,7 @@ const Sidebar = () => {
         title: 'Minhas Tarefas'
       },
       {
-        path: '/atribuir-responsaveis',
+        path: '/gestao-capacidade',
         icon: 'fa-user-check',
         label: 'Gestão de Capacidade',
         title: 'Gestão de Capacidade'
