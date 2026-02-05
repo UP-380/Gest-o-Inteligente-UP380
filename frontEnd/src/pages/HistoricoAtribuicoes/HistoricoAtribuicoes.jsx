@@ -664,7 +664,7 @@ const HistoricoAtribuicoes = () => {
                 </div>
                 <button
                   className="btn-secondary"
-                  onClick={() => navigate('/atribuir-responsaveis')}
+                  onClick={() => navigate('/gestao-capacidade')}
                   style={{ marginLeft: 'auto' }}
                 >
                   <i className="fas fa-arrow-left" style={{ marginRight: '8px' }}></i>

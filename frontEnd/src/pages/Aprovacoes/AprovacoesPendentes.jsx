@@ -301,7 +301,7 @@ const AprovacoesPendentes = () => {
                                     <p className="aprovacoes-subtitle" style={{ margin: 0, color: '#6b7280' }}>Gerencie os plugs rápidos realizados pelos colaboradores</p>
                                 </div>
                             </div>
-                            <button className="btn-voltar" onClick={() => navigate('/atribuir-responsaveis')}>
+                            <button className="btn-voltar" onClick={() => navigate('/gestao-capacidade')}>
                                 <i className="fas fa-arrow-left"></i> Voltar para Gestão de Capacidade
                             </button>
                         </div>

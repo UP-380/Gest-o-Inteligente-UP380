@@ -26,14 +26,18 @@ export default defineConfig({
             if (proxyRes.headers['set-cookie']) {
               proxyRes.headers['set-cookie'] = proxyRes.headers['set-cookie'].map(cookie => {
                 return cookie.replace(/Domain=[^;]+;?/gi, '')
-                             .replace(/Path=[^;]+;?/gi, 'Path=/;')
-                             .replace(/Secure;?/gi, '')
-                             .replace(/SameSite=None;?/gi, 'SameSite=Lax;');
+                  .replace(/Path=[^;]+;?/gi, 'Path=/;')
+                  .replace(/Secure;?/gi, '')
+                  .replace(/SameSite=None;?/gi, 'SameSite=Lax;');
               });
             }
           });
         },
       },
+      '/uploads': {
+        target: 'http://localhost:4000',
+        changeOrigin: true
+      }
     },
   },
   build: {

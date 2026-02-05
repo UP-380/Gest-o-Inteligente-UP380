@@ -25,6 +25,7 @@ const tipoAtividadeController = require('../controllers/tipo-atividade.controlle
 const vinculadosController = require('../controllers/vinculados.controller');
 const tempoEstimadoController = require('../controllers/tempo-estimado.controller');
 const registroTempoController = require('../controllers/registro-tempo.controller');
+const gestaoCapacidadeCardsController = require('../controllers/gestao-capacidade-cards.controller');
 const historicoAtribuicoesController = require('../controllers/historico-atribuicoes.controller');
 const bancoController = require('../controllers/banco.controller');
 const adquirenteController = require('../controllers/adquirente.controller');
@@ -39,6 +40,8 @@ const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
 const notificacoesController = require('../controllers/notificacoes.controller');
 const comunicacaoController = require('../controllers/comunicacao.controller');
+const uploadController = require('../controllers/upload.controller');
+
 const apiClientes = require('../services/api-clientes');
 
 // Registrar rotas do api-clientes.js
@@ -252,6 +255,18 @@ router.get('/api/registro-tempo-sem-tarefa', requireAuth, registroTempoControlle
 router.get('/api/registro-tempo', requireAuth, registroTempoController.getRegistrosTempo);
 router.put('/api/registro-tempo/:id', requireAuth, registroTempoController.atualizarRegistroTempo);
 router.delete('/api/registro-tempo/:id', requireAuth, registroTempoController.deletarRegistroTempo);
+
+// Gestão de Capacidade - Cards (um POST por tipo: pai + detalhes no mesmo payload)
+router.post('/api/gestao-capacidade/cards/responsavel', requireAuth, gestaoCapacidadeCardsController.cardsResponsavel);
+router.post('/api/gestao-capacidade/cards/cliente', requireAuth, gestaoCapacidadeCardsController.cardsCliente);
+router.post('/api/gestao-capacidade/cards/produto', requireAuth, gestaoCapacidadeCardsController.cardsProduto);
+router.post('/api/gestao-capacidade/cards/tarefa', requireAuth, gestaoCapacidadeCardsController.cardsTarefa);
+
+// Rotas de detalhes de cards específicos
+router.post('/api/gestao-capacidade/cards/responsavel/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesResponsavel);
+router.post('/api/gestao-capacidade/cards/cliente/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesCliente);
+router.post('/api/gestao-capacidade/cards/produto/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesProduto);
+router.post('/api/gestao-capacidade/cards/tarefa/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesTarefa);
 
 // Rotas de Banco (CRUD completo)
 router.get('/api/bancos', requireAuth, bancoController.getBancos);
@@ -538,6 +553,15 @@ router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoCo
 router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
+
+// Rotas de Upload
+router.post('/api/upload/chamado',
+  requireAuth,
+  uploadController.multerMiddleware.single('file'),
+  handleMulterError,
+  uploadController.uploadMedia
+);
 
 
 module.exports = router;

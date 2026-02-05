@@ -23,10 +23,10 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
   '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
-  '/atribuir-responsaveis': [
+  '/gestao-capacidade': [
     '/atribuicao/cliente',
     '/atribuicao/nova',
-    '/atribuir-responsaveis/historico',
+    '/gestao-capacidade/historico',
     '/aprovacoes-pendentes',
     '/atribuicoes/pendentes/aprovacao'
   ],
@@ -73,8 +73,8 @@ const TODAS_PAGINAS = [
   { path: '/cadastro/vinculacoes', label: 'Vinculações', categoria: 'Cadastros' },
 
   // Atribuições
-  { path: '/atribuir-responsaveis', label: 'Gestão de Capacidade', categoria: 'Atribuições' },
-  { path: '/atribuir-responsaveis/historico', label: 'Histórico de Atribuições', categoria: 'Atribuições' },
+  { path: '/gestao-capacidade', label: 'Gestão de Capacidade', categoria: 'Atribuições' },
+  { path: '/gestao-capacidade/historico', label: 'Histórico de Atribuições', categoria: 'Atribuições' },
   { path: '/aprovacoes-pendentes', label: 'Aprovações Pendentes', categoria: 'Atribuições' },
 
   // Base de Conhecimento

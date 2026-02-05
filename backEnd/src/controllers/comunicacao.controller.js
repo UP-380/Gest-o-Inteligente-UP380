@@ -22,7 +22,7 @@ async function enviarMensagem(req, res) {
 
         // 1. Inserir Mensagem
         const { data: mensagem, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .insert({
                 tipo,
@@ -46,7 +46,7 @@ async function enviarMensagem(req, res) {
             console.log('[COMUNICACAO] CHAT: criando notificação para destinatario_id', destinatarioId);
             // Inserir leitura para o destinatário
             await supabase
-                
+
                 .from('comunicacao_leituras')
                 .insert({ mensagem_id: mensagem.id, usuario_id: destinatarioId, lida: false });
 
@@ -98,7 +98,7 @@ async function enviarMensagem(req, res) {
             } else {
                 // É uma resposta. Notificar dono original e gestores.
                 const { data: pai } = await supabase
-                    
+
                     .from('comunicacao_mensagens')
                     .select('criador_id')
                     .eq('id', mensagem_pai_id)
@@ -145,7 +145,7 @@ async function listarMensagensChat(req, res) {
         if (!com_usuario) return res.status(400).json({ success: false, error: 'Usuário alvo não informado.' });
 
         const { data, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select('*')
             .eq('tipo', 'CHAT')
@@ -172,7 +172,7 @@ async function listarConversasRecentes(req, res) {
 
         // Buscar todas as mensagens de chat onde sou criador ou destinatário
         const { data: mensagens, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select(`
                 id,
@@ -231,7 +231,7 @@ async function listarComunicados(req, res) {
         // Por simplificação MVP: buscar todos os comunicados.
 
         const { data, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -262,7 +262,7 @@ async function listarChamados(req, res) {
         const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor'; // Simplificado
 
         let query = supabase
-            
+
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -298,7 +298,7 @@ async function listarRespostasChamado(req, res) {
         const { id } = req.params;
 
         const { data, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select(`
                 *,
@@ -326,7 +326,7 @@ async function atualizarStatusChamado(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { data: chamado, error: errorBusca } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select('*')
             .eq('id', id)
@@ -335,7 +335,7 @@ async function atualizarStatusChamado(req, res) {
         if (errorBusca || !chamado) return res.status(404).json({ success: false, error: 'Chamado não encontrado.' });
 
         const { error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .update({ status_chamado: status })
             .eq('id', id);
@@ -370,7 +370,7 @@ async function marcarMensagemLida(req, res) {
         const usuario_id = req.session.usuario.id;
 
         const { error } = await supabase
-            
+
             .from('comunicacao_leituras')
             .update({ lida: true, data_leitura: new Date().toISOString() })
             .eq('mensagem_id', id)
@@ -394,7 +394,7 @@ async function listarComunicadoDestaque(req, res) {
 
         // 1. Buscar o ID do último comunicado marcado como destacado
         const { data: mensagem, error } = await supabase
-            
+
             .from('comunicacao_mensagens')
             .select('*, criador:criador_id(nome_usuario)')
             .eq('tipo', 'COMUNICADO')
@@ -408,7 +408,7 @@ async function listarComunicadoDestaque(req, res) {
 
         // 2. Verificar se o usuário já leu este comunicado
         const { data: leitura } = await supabase
-            
+
             .from('comunicacao_leituras')
             .select('lida')
             .eq('mensagem_id', mensagem.id)
@@ -426,6 +426,59 @@ async function listarComunicadoDestaque(req, res) {
     }
 }
 
+/**
+ * Atualiza o conteúdo de uma mensagem (Edição)
+ * Permite editar a descrição do chamado ou respostas
+ */
+async function atualizarMensagem(req, res) {
+    try {
+        const { id } = req.params;
+        const { conteudo, metadata } = req.body;
+        const usuario_id = req.session.usuario.id;
+
+        // 1. Verificar se a mensagem existe e pertence ao usuário
+        const { data: mensagem, error: errorBusca } = await supabase
+            .from('comunicacao_mensagens')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (errorBusca || !mensagem) {
+            return res.status(404).json({ success: false, error: 'Mensagem não encontrada.' });
+        }
+
+        if (mensagem.criador_id !== usuario_id) {
+            return res.status(403).json({ success: false, error: 'Você só pode editar suas próprias mensagens.' });
+        }
+
+        // 2. Atualizar
+        const updateData = {
+            conteudo,
+            updated_at: new Date().toISOString() // Assumindo que existe trigger ou campo
+        };
+
+        // Se houver metadata para mergear (opcional)
+        if (metadata) {
+            updateData.metadata = { ...mensagem.metadata, ...metadata };
+        }
+
+        const { data: updated, error } = await supabase
+            .from('comunicacao_mensagens')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return res.json({ success: true, data: updated });
+
+    } catch (error) {
+        console.error('Erro ao atualizar mensagem:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao atualizar mensagem.' });
+    }
+}
+
 module.exports = {
     enviarMensagem,
     listarMensagensChat,
@@ -435,5 +488,6 @@ module.exports = {
     listarRespostasChamado,
     atualizarStatusChamado,
     marcarMensagemLida,
-    listarComunicadoDestaque
+    listarComunicadoDestaque,
+    atualizarMensagem
 };

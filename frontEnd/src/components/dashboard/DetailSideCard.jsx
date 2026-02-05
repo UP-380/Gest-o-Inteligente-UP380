@@ -135,6 +135,23 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
       return;
     }
 
+    // Dados já vieram do POST único (gestao-capacidade/cards): usar valores sem nova requisição
+    if (dados.preloaded) {
+      const byId = {};
+      dados.registros.forEach(item => {
+        const id = item.id ?? item.originalId;
+        if (id != null) {
+          const ms = item.tempoRealizado ?? item.total_realizado_ms ?? 0;
+          byId[String(id)] = ms;
+        }
+      });
+      if (tipo === 'tarefas') setTemposRealizadosPorTarefa(byId);
+      else if (tipo === 'responsaveis') setTemposRealizadosPorResponsavel(byId);
+      else if (tipo === 'clientes') setTemposRealizadosPorCliente(byId);
+      else if (tipo === 'produtos') setTemposRealizadosPorProduto(byId);
+      return;
+    }
+
     // Período: usar prop ou padrão (início/fim do mês atual) para garantir que o realizado por tarefa carregue ao abrir "ver detalhes"
     const periodoInicioUsar = periodoInicio || (() => {
       const d = new Date();
@@ -281,7 +298,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   responsavel_id: responsavel.id,
                   data_inicio: periodoInicioUsar,
                   data_fim: periodoFimUsar,
-                  produto_id: produto.id
+                  produto_id: produto.id,
+                  cliente_id: filtrosAdicionais?.cliente_id || null
                 })
               });
 
@@ -313,7 +331,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                       data_inicio: periodoInicioUsar,
                       data_fim: periodoFimUsar,
                       produto_id: produto.id,
-                      cliente_id: null,
+                      cliente_id: filtrosAdicionais?.cliente_id || null,
                       tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
                     })
                   });
@@ -598,7 +616,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   data_inicio: periodoInicioUsar,
                   data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
-                  cliente_id: filtrosAdicionais?.cliente_id || null,
+                  cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
                   produto_id: parseInt(String(produto.id).trim(), 10) || null
                 })
               });
@@ -671,8 +689,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                         data_inicio: periodoInicioUsar,
                         data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: null,
-                        produto_id: null
+                        cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
                       })
                     });
                     if (response.ok) {
@@ -773,8 +791,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                         data_inicio: periodoInicioUsar,
                         data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: null,
-                        produto_id: null
+                        cliente_id: cliente.id,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
                       })
                     });
 

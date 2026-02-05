@@ -2315,7 +2315,7 @@ const AtribuicaoCliente = () => {
       }
 
       showToast('success', `Atribuição salva com sucesso! ${totalLinhas} dia(s) atribuídos/atualizados em ${grupos.length} grupo(s) de período.`);
-      navigate(editingAgrupamento ? '/atribuir-responsaveis/historico' : '/atribuir-responsaveis');
+      navigate(editingAgrupamento ? '/gestao-capacidade/historico' : '/gestao-capacidade');
     } catch (error) {
       console.error('Erro ao salvar atribuição:', error);
       showToast('error', error.message || 'Erro ao salvar atribuição. Verifique sua conexão e tente novamente.');
@@ -2364,7 +2364,7 @@ const AtribuicaoCliente = () => {
                   </div>
                   <button
                     className="btn-secondary knowledge-back-btn"
-                    onClick={() => navigate(editingAgrupamento ? '/atribuir-responsaveis/historico' : '/atribuir-responsaveis')}
+                    onClick={() => navigate(editingAgrupamento ? '/gestao-capacidade/historico' : '/gestao-capacidade')}
                   >
                     <i className="fas fa-arrow-left"></i>
                     Voltar

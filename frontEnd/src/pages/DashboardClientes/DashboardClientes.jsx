@@ -837,9 +837,15 @@ const RelatoriosClientes = () => {
     setDetailCard({
       clienteId: clienteId,
       tipo: tipo, // Usar o tipo passado (contratos, tarefas, produtos, etc.)
-      dados: dadosFiltrados // Passar os dados filtrados diretamente
+      dados: dadosFiltrados, // Passar os dados filtrados diretamente
+      filtrosAdicionais: {
+        cliente_id: clienteId,
+        data_inicio: filtrosAplicadosAtuais.dataInicio,
+        data_fim: filtrosAplicadosAtuais.dataFim,
+        ...(filtrosAplicadosAtuais.colaboradorId && { responsavel_id: filtrosAplicadosAtuais.colaboradorId })
+      }
     });
-  }, [filtroCliente, todosColaboradores]);
+  }, [filtroCliente, todosColaboradores, filtrosAplicadosAtuais]);
 
   // Fechar card lateral
   const handleCloseDetail = useCallback(() => {
@@ -1643,6 +1649,9 @@ const RelatoriosClientes = () => {
             clienteId={detailCard.clienteId}
             tipo={detailCard.tipo}
             dados={detailCard.dados}
+            filtrosAdicionais={detailCard.filtrosAdicionais}
+            periodoInicio={filtrosAplicadosAtuais.dataInicio}
+            periodoFim={filtrosAplicadosAtuais.dataFim}
             onClose={handleCloseDetail}
             position={detailCardPosition}
           />
