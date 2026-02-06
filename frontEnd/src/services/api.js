@@ -113,13 +113,23 @@ export const authAPI = {
         },
       });
 
+      // 401 = sessão inválida/expirada - logout real
+      if (response.status === 401) {
+        return {
+          authenticated: false,
+          error: 'Sessão expirada',
+          statusCode: 401
+        };
+      }
+
       // Verificar se a resposta é JSON
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        // Se não for JSON, retornar resposta padrão
+        // 502/503/erro de proxy - NÃO deslogar, manter estado atual
         return {
-          authenticated: false,
-          error: 'Resposta inválida do servidor'
+          authenticated: null, // null = indeterminado, não alterar estado
+          error: 'Resposta inválida do servidor',
+          statusCode: response.status
         };
       }
 
@@ -127,23 +137,38 @@ export const authAPI = {
       if (!response.ok) {
         try {
           const errorData = await response.json();
+          // 502, 503, 500 = erro de servidor - NÃO deslogar
+          if (response.status >= 500) {
+            return {
+              authenticated: null,
+              error: errorData.error || errorData.message || `HTTP ${response.status}`,
+              statusCode: response.status
+            };
+          }
           return {
             authenticated: false,
-            error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`
+            error: errorData.error || errorData.message || `HTTP error! status: ${response.status}`,
+            statusCode: response.status
           };
         } catch (e) {
+          if (response.status >= 500) {
+            return { authenticated: null, error: `HTTP ${response.status}`, statusCode: response.status };
+          }
           return {
             authenticated: false,
-            error: `HTTP error! status: ${response.status}`
+            error: `HTTP error! status: ${response.status}`,
+            statusCode: response.status
           };
         }
       }
 
       return await response.json();
     } catch (error) {
+      // Erro de rede (fetch falhou) - NÃO deslogar, servidor pode estar temporariamente indisponível
       return {
-        authenticated: false,
-        error: error.message || 'Erro de conexão'
+        authenticated: null,
+        error: error.message || 'Erro de conexão',
+        statusCode: 0
       };
     }
   },

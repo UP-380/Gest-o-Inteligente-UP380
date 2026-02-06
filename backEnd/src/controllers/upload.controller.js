@@ -1,40 +1,14 @@
-
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const { uploadFileToStorage } = require('../utils/storage');
 
-// Configurar armazenamento
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        // Caminho relativo à raiz do projeto backend (onde roda o server)
-        // Considerando que o server roda em backEnd/src/index.js ou backEnd/server.js
-        // Vamos salvar em ../../public/uploads/chamados para ficar acessível
-        // Se a estrutura é:
-        // /backEnd
-        //    /src
-        // /uploads (na raiz junto com frontEnd e backEnd? ou dentro de backEnd?)
-
-        // O index.js serve static de '../../' (raiz da aplicação).
-        // Então salvar em c:\Aplicacao\Gest-o-Inteligente-UP380\uploads\chamados é ideal.
-
-        const uploadDir = path.join(__dirname, '../../../uploads/chamados');
-
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, 'media-' + uniqueSuffix + ext);
-    }
-});
+// Usar memória para enviar o arquivo ao Supabase Storage
+const storage = multer.memoryStorage();
 
 // Filtro de arquivos
 const fileFilter = (req, file, cb) => {
     const allowedTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
         'video/mp4', 'video/webm', 'video/ogg'
     ];
 
@@ -46,39 +20,50 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({
-    storage: storage,
+    storage,
     limits: {
         fileSize: 50 * 1024 * 1024 // 50MB limite (principalmente para vídeos)
     },
-    fileFilter: fileFilter
+    fileFilter
 });
 
+const BUCKET_CHAMADOS = 'chamados';
+
 /**
- * Upload de Mídia (Imagem/Vídeo)
+ * Upload de Mídia (Imagem/Vídeo) para Supabase Storage
  */
-exports.uploadMedia = (req, res) => {
+exports.uploadMedia = async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'Nenhum arquivo enviado.' });
         }
 
-        // Retorna o caminho relativo acessível publicamente via static files
-        // Como o static serve a raiz, o caminho é /uploads/chamados/nome-arquivo
-        // Normaliza as barras para forward slash para URL
-        const url = `/uploads/chamados/${req.file.filename}`;
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(req.file.originalname) || '';
+        const fileName = 'media-' + uniqueSuffix + ext;
+
+        const uploadResult = await uploadFileToStorage(
+            req.file.buffer,
+            BUCKET_CHAMADOS,
+            fileName,
+            req.file.mimetype
+        );
 
         return res.json({
             success: true,
             data: {
-                url: url,
-                filename: req.file.filename,
+                url: uploadResult.publicUrl,
+                filename: fileName,
                 mimetype: req.file.mimetype
             }
         });
-
     } catch (error) {
         console.error('Erro no upload de mídia:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao processar upload.' });
+        return res.status(500).json({
+            success: false,
+            error: 'Erro ao processar upload.',
+            details: process.env.NODE_ENV === 'production' ? undefined : error.message
+        });
     }
 };
 

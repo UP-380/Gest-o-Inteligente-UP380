@@ -808,6 +808,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
 }
 
 // GET - Buscar histórico de registros de tempo de um usuário (finalizados)
+// Inclui registros aprovados (registro_tempo) E pendentes de aprovação (registro_tempo_pendente com data_fim)
 async function getHistoricoRegistros(req, res) {
   try {
     const { usuario_id, limite = 50 } = req.query;
@@ -827,16 +828,17 @@ async function getHistoricoRegistros(req, res) {
       });
     }
 
-    // Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
-    const { data: registros, error } = await supabase
+    const limiteNum = parseInt(limite, 10);
 
+    // 1. Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
+    const { data: registrosNormais, error } = await supabase
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, bloqueado')
       .eq('usuario_id', usuarioIdInt)
-      .not('data_fim', 'is', null) // Apenas registros finalizados
-      .not('cliente_id', 'is', null) // Apenas registros com cliente_id
+      .not('data_fim', 'is', null)
+      .not('cliente_id', 'is', null)
       .order('data_inicio', { ascending: false })
-      .limit(parseInt(limite, 10));
+      .limit(limiteNum);
 
     if (error) {
       console.error('[getHistoricoRegistros] Erro ao buscar histórico:', error);
@@ -847,10 +849,62 @@ async function getHistoricoRegistros(req, res) {
       });
     }
 
+    const normaisMapeados = (registrosNormais || []).map(r => ({ ...r, is_pendente: false }));
+
+    // 2. Buscar registros pendentes finalizados (Plug Rápido - com data_fim)
+    const { data: registrosPendentesData, error: errorPendentes } = await supabase
+      .from('registro_tempo_pendente')
+      .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
+      .eq('usuario_id', usuarioIdInt)
+      .not('data_fim', 'is', null)
+      .order('data_inicio', { ascending: false })
+      .limit(limiteNum);
+
+    let pendentesMapeados = [];
+    if (!errorPendentes && registrosPendentesData && registrosPendentesData.length > 0) {
+      const idsAtribuicoes = [...new Set(registrosPendentesData.map(r => r.atribuicao_pendente_id).filter(Boolean))];
+      const { data: atribuicoes } = await supabase
+        .from('atribuicoes_pendentes')
+        .select('id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia')
+        .in('id', idsAtribuicoes)
+        .eq('status', 'PENDENTE');
+
+      const attrsMap = new Map((atribuicoes || []).map(a => [a.id, a]));
+
+      pendentesMapeados = registrosPendentesData.map(r => {
+        const attr = attrsMap.get(r.atribuicao_pendente_id);
+        const clienteId = attr?.cliente_id;
+        const tempoMs = r.data_inicio && r.data_fim
+          ? Math.max(0, new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime())
+          : 0;
+        return {
+          id: r.id,
+          atribuicao_pendente_id: r.atribuicao_pendente_id,
+          tempo_realizado: tempoMs,
+          data_inicio: r.data_inicio,
+          data_fim: r.data_fim,
+          created_at: r.data_inicio,
+          usuario_id: r.usuario_id,
+          cliente_id: clienteId,
+          produto_id: attr?.produto_id,
+          tarefa_id: r.tarefa_id || attr?.tarefa_id,
+          bloqueado: false,
+          is_pendente: true,
+          periodo_inicio: attr?.data_inicio ? String(attr.data_inicio).split('T')[0] : null,
+          periodo_fim: attr?.data_fim ? String(attr.data_fim).split('T')[0] : null,
+          tempo_estimado_dia: attr?.tempo_estimado_dia ?? null
+        };
+      }).filter(r => r.cliente_id); // Apenas pendentes com cliente (mesmo critério do normal)
+    }
+
+    const todos = [...normaisMapeados, ...pendentesMapeados]
+      .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime())
+      .slice(0, limiteNum);
+
     return res.json({
       success: true,
-      data: registros || [],
-      count: (registros || []).length
+      data: todos,
+      count: todos.length
     });
   } catch (error) {
     console.error('[getHistoricoRegistros] Erro inesperado:', error);
@@ -1368,12 +1422,94 @@ async function getRegistrosTempo(req, res) {
       });
     }
 
-    const totalPages = limitNum > 0 ? Math.max(1, Math.ceil((count || 0) / limitNum)) : 1;
+    let registrosFinais = data || [];
+    let countFinal = count || 0;
+
+    // Quando buscar finalizados (ativo=false), incluir também registros pendentes (Plug Rápido)
+    if (ativo === 'false' && usuarioIdFinal) {
+      const usuarioIdInt = parseInt(usuarioIdFinal, 10);
+      let queryPendentes = supabase
+        .from('registro_tempo_pendente')
+        .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
+        .eq('usuario_id', usuarioIdInt)
+        .not('data_fim', 'is', null);
+
+      const periodoInicio = data_inicio || req.query.dataInicio;
+      const periodoFim = data_fim || req.query.dataFim;
+      if (periodoInicio && periodoFim) {
+        const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
+        const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
+        queryPendentes = queryPendentes
+          .gte('data_inicio', inicioISO.toISOString())
+          .lte('data_inicio', fimISO.toISOString());
+      }
+
+      const { data: pendentesData } = await queryPendentes;
+
+      if (pendentesData && pendentesData.length > 0) {
+        const idsAttr = [...new Set(pendentesData.map(p => p.atribuicao_pendente_id).filter(Boolean))];
+        const { data: attrs } = await supabase
+          .from('atribuicoes_pendentes')
+          .select('id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia')
+          .in('id', idsAttr)
+          .eq('status', 'PENDENTE');
+
+        const attrsMap = new Map((attrs || []).map(a => [a.id, a]));
+
+        const pendentesMapeados = pendentesData.map(r => {
+          const attr = attrsMap.get(r.atribuicao_pendente_id);
+          const tempoMs = r.data_inicio && r.data_fim
+            ? Math.max(0, new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime())
+            : 0;
+          return {
+            ...r,
+            tempo_realizado: tempoMs,
+            cliente_id: attr?.cliente_id,
+            produto_id: attr?.produto_id,
+            tarefa_id: r.tarefa_id || attr?.tarefa_id,
+            is_pendente: true,
+            atribuicao_pendente_id: r.atribuicao_pendente_id,
+            periodo_inicio: attr?.data_inicio ? String(attr.data_inicio).split('T')[0] : null,
+            periodo_fim: attr?.data_fim ? String(attr.data_fim).split('T')[0] : null,
+            tempo_estimado_dia: attr?.tempo_estimado_dia ?? null
+          };
+        });
+
+        // Aplicar mesmos filtros de cliente/tarefa/produto se fornecidos
+        let pendentesFiltrados = pendentesMapeados;
+        if (clienteIdFinal) {
+          const id = String(clienteIdFinal).trim();
+          pendentesFiltrados = pendentesFiltrados.filter(p =>
+            p.cliente_id === id || (typeof p.cliente_id === 'string' && (
+              p.cliente_id.startsWith(id + ',') ||
+              p.cliente_id.includes(',' + id + ',') ||
+              p.cliente_id.endsWith(',' + id)
+            ))
+          );
+        }
+        if (tarefa_id) {
+          pendentesFiltrados = pendentesFiltrados.filter(p => String(p.tarefa_id) === String(tarefa_id).trim());
+        }
+        if (produto_id) {
+          pendentesFiltrados = pendentesFiltrados.filter(p => String(p.produto_id) === String(produto_id).trim());
+        }
+
+        registrosFinais = [...registrosFinais, ...pendentesFiltrados]
+          .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+
+        if (limitNum > 0) {
+          registrosFinais = registrosFinais.slice(0, limitNum);
+        }
+        countFinal = registrosFinais.length;
+      }
+    }
+
+    const totalPages = limitNum > 0 ? Math.max(1, Math.ceil((countFinal || 0) / limitNum)) : 1;
 
     return res.json({
       success: true,
-      data: data || [],
-      count: count || 0,
+      data: registrosFinais,
+      count: countFinal,
       page: pageNum,
       limit: limitNum,
       totalPages

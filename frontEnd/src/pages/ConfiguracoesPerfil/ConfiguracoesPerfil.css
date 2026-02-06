@@ -239,8 +239,8 @@
 
 .avatar-options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 2.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+  gap: 1rem;
 }
 
 .avatar-option {
@@ -250,13 +250,19 @@
   align-items: center;
   justify-content: center;
   gap: 0;
-  padding: 1.75rem;
-  border: 2px solid #e2e8f0;
+  padding: 0.75rem;
+  border: 2px solid #94a3b8;
   border-radius: 8px;
-  background: white;
+  background: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
   z-index: 1;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+  justify-self: stretch;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .avatar-option:hover {
@@ -273,8 +279,8 @@
 }
 
 .avatar-preview {
-  width: 140px;
-  height: 140px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -286,7 +292,7 @@
 .avatar-preview-color {
   color: white;
   font-weight: 600;
-  font-size: 42px;
+  font-size: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
@@ -310,7 +316,7 @@
   justify-content: center;
   background: #f1f5f9;
   color: #64748b;
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -359,50 +365,50 @@
 
 .avatar-selected-indicator {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  width: 20px;
-  height: 20px;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 16px;
+  height: 16px;
   background: #0e3b6f;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 12px;
+  font-size: 10px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Responsividade para avatares */
 @media (max-width: 768px) {
   .avatar-options-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.75rem;
   }
 
   .avatar-preview {
-    width: 90px;
-    height: 90px;
+    width: 56px;
+    height: 56px;
   }
 
   .avatar-preview-color {
-    font-size: 28px;
+    font-size: 18px;
   }
 }
 
 @media (max-width: 480px) {
   .avatar-options-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 0.5rem;
   }
 
   .avatar-preview {
-    width: 80px;
-    height: 80px;
+    width: 48px;
+    height: 48px;
   }
 
   .avatar-preview-color {
-    font-size: 24px;
+    font-size: 14px;
   }
 }
 

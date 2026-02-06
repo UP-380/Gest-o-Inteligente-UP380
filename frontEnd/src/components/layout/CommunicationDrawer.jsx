@@ -259,7 +259,10 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
             console.error('Upload fail', error);
             const loader = document.getElementById(id);
             if (loader) loader.remove();
-            alert('Falha no upload');
+            const msg = error?.message?.includes('502') || error?.message?.includes('Bad Gateway')
+                ? 'Falha no upload (erro 502 - servidor). Tente novamente em instantes.'
+                : 'Falha no upload. Verifique a conexão e tente novamente.';
+            alert(msg);
         } finally {
             setUploading(false);
         }
@@ -641,7 +644,10 @@ const CommunicationDrawer = ({ user }) => {
             }
         } catch (error) {
             console.error('Erro no upload:', error);
-            alert('Erro ao enviar arquivo.');
+            const msg = error?.message?.includes('502') || error?.message?.includes('Bad Gateway')
+                ? 'Falha no upload (erro 502 - servidor). Tente novamente em instantes.'
+                : 'Erro ao enviar arquivo. Verifique a conexão e tente novamente.';
+            alert(msg);
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';

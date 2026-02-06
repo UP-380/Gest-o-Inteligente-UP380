@@ -101,9 +101,15 @@ async function listarMinhasNotificacoes(req, res) {
 
         if (error) throw error;
 
+        // Normalizar campo de data (Supabase/Postgres podem usar nomes diferentes)
+        const normalized = (data || []).map((n) => {
+            const criadoEm = n.criado_em ?? n.created_at ?? n.data_criacao ?? n.inserted_at;
+            return { ...n, criado_em: criadoEm };
+        });
+
         return res.json({
             success: true,
-            data: data || [],
+            data: normalized,
             total: count || 0
         });
     } catch (error) {

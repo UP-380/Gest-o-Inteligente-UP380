@@ -5,6 +5,7 @@ import FilterPeriodo from '../../components/filters/FilterPeriodo';
 import FilterDate from '../../components/filters/FilterDate';
 import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
+import EditarPendentePlugRapidoModal from '../../components/user/EditarPendentePlugRapidoModal';
 import { useToast } from '../../hooks/useToast';
 import './PlanilhaHoras.css';
 
@@ -55,6 +56,7 @@ const PlanilhaHoras = () => {
   const [formDataPorRegistro, setFormDataPorRegistro] = useState({});
   const [justificativaDelecaoPorRegistro, setJustificativaDelecaoPorRegistro] = useState({});
   const [salvando, setSalvando] = useState(false);
+  const [pendenteEditando, setPendenteEditando] = useState(null);
 
   // Formatar tempo em horas/minutos/segundos
   const formatarTempoHMS = (milissegundos) => {
@@ -261,6 +263,8 @@ const PlanilhaHoras = () => {
     if (registrosDia.length === 0) return;
 
     setCelulaSelecionada({
+      clienteId: grupo.clienteId,
+      tarefaId: grupo.tarefaId,
       clienteNome: grupo.clienteId !== 'sem-cliente' ? (nomesClientes[grupo.clienteId] || 'Cliente') : 'Sem Cliente',
       tarefaNome: grupo.tarefaId !== 'sem-tarefa' ? (nomesTarefas[grupo.tarefaId] || 'Tarefa') : 'Sem Tarefa',
       data: dataChave,
@@ -268,6 +272,18 @@ const PlanilhaHoras = () => {
     });
     setModalRegistroAberto(true);
   };
+
+  // Sincronizar registros da célula quando a lista for atualizada (ex: após editar pendente)
+  useEffect(() => {
+    if (!modalRegistroAberto || !celulaSelecionada?.clienteId) return;
+    const grupos = agruparRegistros();
+    const chave = `${celulaSelecionada.clienteId}-${celulaSelecionada.tarefaId}`;
+    const grupo = grupos[chave];
+    const novosRegistros = grupo?.registrosPorDia?.[celulaSelecionada.data];
+    if (Array.isArray(novosRegistros)) {
+      setCelulaSelecionada(prev => prev ? { ...prev, registros: novosRegistros } : prev);
+    }
+  }, [registros, modalRegistroAberto]);
 
   const handleEditar = (e, registro) => {
     if (e) e.stopPropagation();
@@ -630,12 +646,13 @@ const PlanilhaHoras = () => {
                             const tempo = grupo.dias[chaveData] || 0;
                             const temRegistros = (grupo.registrosPorDia[chaveData] || []).length > 0;
 
+                            const temPendentes = temRegistros && (grupo.registrosPorDia[chaveData] || []).some(r => r.is_pendente);
                             return (
                               <td
                                 key={dataIndex}
-                                className={`planilha-horas-td planilha-horas-td-tempo ${temRegistros ? 'planilha-horas-td-editavel' : ''}`}
+                                className={`planilha-horas-td planilha-horas-td-tempo ${temRegistros ? 'planilha-horas-td-editavel' : ''} ${temPendentes ? 'planilha-horas-td-pendente' : ''}`}
                                 onClick={() => temRegistros && handleCellClick(grupo, chaveData)}
-                                title={temRegistros ? 'Clique para ver/editar registros' : ''}
+                                title={temRegistros ? (temPendentes ? 'Clique para ver registros (há pendentes de aprovação)' : 'Clique para ver/editar registros') : ''}
                               >
                                 {tempo > 0 ? formatarTempoHMS(tempo) : '—'}
                               </td>
@@ -697,10 +714,17 @@ const PlanilhaHoras = () => {
                     const formData = formDataPorRegistro[reg.id] || {};
                     const justificativaDelecao = justificativaDelecaoPorRegistro[reg.id] || '';
 
+                    const isPendente = reg.is_pendente;
+
                     return (
-                      <div key={reg.id} className={`planilha-horas-registro-item ${isEditando ? 'editando' : ''} ${isDeletando ? 'deletando' : ''}`}>
+                      <div key={reg.id} className={`planilha-horas-registro-item ${isEditando ? 'editando' : ''} ${isDeletando ? 'deletando' : ''} ${isPendente ? 'planilha-horas-registro-item--pendente' : ''}`}>
                         <div className="planilha-horas-registro-info">
                           <div className="planilha-horas-registro-details">
+                            {isPendente && (
+                              <span className="planilha-horas-registro-badge-pendente" title="Plug Rápido aguardando aprovação">
+                                <i className="fas fa-bolt"></i> Pendente de aprovação
+                              </span>
+                            )}
                             <div className="planilha-horas-registro-time-range">
                               <i className="far fa-clock"></i>
                               {new Date(reg.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {new Date(reg.data_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -711,16 +735,29 @@ const PlanilhaHoras = () => {
                           </div>
 
                           <div className="planilha-horas-registro-actions">
-                            <EditButton
-                              onClick={(e) => handleEditar(e, reg)}
-                              disabled={reg.bloqueado || salvando}
-                              title={reg.bloqueado ? 'Registro bloqueado' : 'Editar'}
-                            />
-                            <DeleteButton
-                              onClick={(e) => handleDeletar(e, reg)}
-                              disabled={reg.bloqueado || salvando}
-                              title={reg.bloqueado ? 'Registro bloqueado' : 'Excluir'}
-                            />
+                            {isPendente ? (
+                              <EditButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPendenteEditando(reg);
+                                }}
+                                disabled={salvando}
+                                title="Editar pendente (Plug Rápido)"
+                              />
+                            ) : (
+                              <>
+                                <EditButton
+                                  onClick={(e) => handleEditar(e, reg)}
+                                  disabled={reg.bloqueado || salvando}
+                                  title={reg.bloqueado ? 'Registro bloqueado' : 'Editar'}
+                                />
+                                <DeleteButton
+                                  onClick={(e) => handleDeletar(e, reg)}
+                                  disabled={reg.bloqueado || salvando}
+                                  title={reg.bloqueado ? 'Registro bloqueado' : 'Excluir'}
+                                />
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -805,6 +842,19 @@ const PlanilhaHoras = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {pendenteEditando && (
+          <EditarPendentePlugRapidoModal
+            isOpen={!!pendenteEditando}
+            registro={pendenteEditando}
+            onClose={() => setPendenteEditando(null)}
+            onSuccess={async () => {
+              setPendenteEditando(null);
+              await buscarHistorico();
+              // Modal permanece aberto; useEffect sincroniza celulaSelecionada.registros em tempo real
+            }}
+          />
         )}
       </div>
     </Layout>
