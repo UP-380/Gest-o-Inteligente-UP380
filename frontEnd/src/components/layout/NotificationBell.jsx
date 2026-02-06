@@ -40,7 +40,7 @@ const NotificationBell = ({ user }) => {
             const ctx = audioContextRef.current || new AudioCtx();
             audioContextRef.current = ctx;
             if (ctx.state === 'suspended') {
-                ctx.resume().catch(() => {});
+                ctx.resume().catch(() => { });
             }
             const oscillator = ctx.createOscillator();
             const gainNode = ctx.createGain();
@@ -126,7 +126,7 @@ const NotificationBell = ({ user }) => {
                         if (data.type === 'notification' || data.type === 'connected') {
                             fetchCount();
                         }
-                    } catch (_) {}
+                    } catch (_) { }
                 };
                 eventSource.onerror = () => {
                     eventSource.close();
@@ -169,7 +169,7 @@ const NotificationBell = ({ user }) => {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 if (AudioCtx) audioContextRef.current = new AudioCtx();
             }
-        } catch (_) {}
+        } catch (_) { }
         const nextState = !isOpen;
         setIsOpen(nextState);
 
@@ -188,10 +188,8 @@ const NotificationBell = ({ user }) => {
         const newValue = e.target.checked;
         setAutoRead(newValue);
         localStorage.setItem('notifications_auto_read', newValue.toString());
-        // Se estiver marcando como ligado agora e o drawer estiver aberto, já marca tudo
-        if (newValue && isOpen && count > 0) {
-            handleMarkAllAsRead();
-        }
+        // Se estiver marcando como ligado agora, a ação ocorrerá apenas ao fechar o drawer
+
     };
 
     const handleMarkAsRead = async (e, id) => {

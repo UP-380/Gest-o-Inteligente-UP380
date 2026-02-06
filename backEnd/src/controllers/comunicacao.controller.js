@@ -369,14 +369,37 @@ async function marcarMensagemLida(req, res) {
         const { id } = req.params;
         const usuario_id = req.session.usuario.id;
 
-        const { error } = await supabase
-
+        // Primeiro tenta validar se existe registro de leitura
+        const { data: existing, error: checkError } = await supabase
             .from('comunicacao_leituras')
-            .update({ lida: true, data_leitura: new Date().toISOString() })
+            .select('id')
             .eq('mensagem_id', id)
-            .eq('usuario_id', usuario_id);
+            .eq('usuario_id', usuario_id)
+            .maybeSingle();
 
-        if (error) throw error;
+        if (checkError) throw checkError;
+
+        if (existing) {
+            // Se existe, atualiza
+            const { error } = await supabase
+                .from('comunicacao_leituras')
+                .update({ lida: true, data_leitura: new Date().toISOString() })
+                .eq('id', existing.id);
+
+            if (error) throw error;
+        } else {
+            // Se não existe, cria (Caso de usuários novos pós-envio)
+            const { error } = await supabase
+                .from('comunicacao_leituras')
+                .insert({
+                    mensagem_id: id,
+                    usuario_id: usuario_id,
+                    lida: true,
+                    data_leitura: new Date().toISOString()
+                });
+
+            if (error) throw error;
+        }
 
         return res.json({ success: true });
     } catch (error) {

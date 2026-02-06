@@ -353,15 +353,30 @@ const GestaoCapacidade = () => {
     const cardData = cardsPorEntidade[String(entidade.id)];
     const listaPreloaded = cardData?.detalhes?.[tipo];
     if (listaPreloaded && Array.isArray(listaPreloaded) && listaPreloaded.length > 0) {
-      const registros = listaPreloaded.map(item => ({
-        id: item.id,
-        originalId: item.original_id ?? item.id,
-        nome: item.nome,
-        tempoRealizado: item.total_realizado_ms ?? 0,
-        tempoEstimado: item.total_estimado_ms ?? 0,
-        custo_estimado: item.custo_estimado,
-        registros: []
-      }));
+      const registros = listaPreloaded.map(item => {
+        const base = {
+          id: item.id,
+          originalId: item.original_id ?? item.id,
+          nome: item.nome,
+          total_estimado_ms: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+          total_realizado_ms: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+          tempoEstimado: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+          tempoRealizado: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+          custo_estimado: item.custo_estimado ?? 0
+        };
+        // Para tarefas: preservar clientes aninhados para exibir registros
+        if (tipo === 'tarefas' && item.clientes && Array.isArray(item.clientes)) {
+          base.clientes = item.clientes.map(c => ({
+            id: c.id,
+            cliente_id: c.cliente_id ?? c.id,
+            nome: c.nome,
+            tempoRealizado: c.total_realizado_ms ?? 0,
+            total_realizado_ms: c.total_realizado_ms ?? 0,
+            registros: []
+          }));
+        }
+        return base;
+      });
       setDetailCard({
         entidadeId: entidade.id,
         tipo,
@@ -370,8 +385,8 @@ const GestaoCapacidade = () => {
       return;
     }
 
-    // Detalhes sob demanda: chamar endpoint /api/gestao-capacidade/cards/{tipo}/detalhes (tarefas, clientes, produtos)
-    const tipoDetalheParaApi = ['tarefas', 'clientes', 'produtos'].includes(tipo) ? tipo : null;
+    // Detalhes sob demanda: chamar endpoint /api/gestao-capacidade/cards/{tipo}/detalhes (tarefas, clientes, produtos, responsaveis)
+    const tipoDetalheParaApi = ['tarefas', 'clientes', 'produtos', 'responsaveis'].includes(tipo) ? tipo : null;
     if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim) {
       const endpointTipo = filtroPrincipal === 'atividade' ? 'tarefa' : filtroPrincipal;
       setDetailCard({
@@ -400,15 +415,30 @@ const GestaoCapacidade = () => {
         });
         const result = await res.json();
         const arr = result?.data ?? (result?.detalhes?.[tipoDetalheParaApi]) ?? [];
-        const registros = Array.isArray(arr) ? arr.map(item => ({
-          id: item.id,
-          originalId: item.original_id ?? item.id,
-          nome: item.nome,
-          tempoRealizado: item.total_realizado_ms ?? 0,
-          tempoEstimado: item.total_estimado_ms ?? 0,
-          custo_estimado: item.custo_estimado,
-          registros: []
-        })) : [];
+        const registros = Array.isArray(arr) ? arr.map(item => {
+          const base = {
+            id: item.id,
+            originalId: item.original_id ?? item.id,
+            nome: item.nome,
+            total_estimado_ms: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            total_realizado_ms: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            tempoEstimado: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            tempoRealizado: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            custo_estimado: item.custo_estimado ?? 0
+          };
+          // Para tarefas: preservar clientes aninhados para exibir registros
+          if (tipoDetalheParaApi === 'tarefas' && item.clientes && Array.isArray(item.clientes)) {
+            base.clientes = item.clientes.map(c => ({
+              id: c.id,
+              cliente_id: c.cliente_id ?? c.id,
+              nome: c.nome,
+              tempoRealizado: c.total_realizado_ms ?? 0,
+              total_realizado_ms: c.total_realizado_ms ?? 0,
+              registros: []
+            }));
+          }
+          return base;
+        }) : [];
         setCardsPorEntidade(prev => ({
           ...prev,
           [String(entidade.id)]: {
@@ -6293,6 +6323,7 @@ const GestaoCapacidade = () => {
       {detailCard && (
         <DetailSideCard
           entidadeId={detailCard.entidadeId}
+          cardTipo={filtroPrincipal}
           tipo={detailCard.tipo}
           dados={detailCard.dados}
           onClose={handleCloseDetail}

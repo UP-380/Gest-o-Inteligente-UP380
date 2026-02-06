@@ -92,9 +92,9 @@ const ProdutosDetalhadosList = ({
         newExpanded.delete(key);
       } else {
         newExpanded.add(key);
-        // Buscar registros individuais quando expandir
-        if (buscarRegistrosIndividuais && tarefa) {
-          buscarRegistrosIndividuais(tarefa);
+        // Buscar registros por tarefa+cliente+produto para o total dos registros bater com o realizado da tarefa (escopo Produto > Cliente > Tarefa)
+        if (buscarRegistrosIndividuais && tarefa && clienteId) {
+          buscarRegistrosIndividuais(tarefa, clienteId, produtoId);
         }
       }
       return newExpanded;
@@ -286,10 +286,11 @@ const ProdutosDetalhadosList = ({
                                 const porProduto = temposRealizadosPorTarefaPorClientePorProduto || {};
                                 const porCliente = porProduto[produtoIdStr] || porProduto[produto.id] || {};
                                 const porTarefa = porCliente[clienteIdNormalizado] || porCliente[clienteIdStr] || porCliente[cliente.id] || porCliente[String(cliente.id)] || {};
-                                let tempoRealizadoTarefaMs = porTarefa[tarefa.id] ?? porTarefa[tarefaIdStr] ?? (tarefa.originalId != null ? porTarefa[tarefa.originalId] : undefined) ?? tarefa.tempoRealizado ?? 0;
+                                const regKeyTarefaCliente = `${tarefa.id}-${clienteIdNormalizado}`;
+                                let tempoRealizadoTarefaMs = porTarefa[tarefa.id] ?? porTarefa[tarefaIdStr] ?? (tarefa.originalId != null ? porTarefa[tarefa.originalId] : undefined) ?? tarefa.total_realizado_ms ?? tarefa.tempoRealizado ?? 0;
 
-                                // Fallback: se for 0 e tivermos registros, somar deles
-                                const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                                // Fallback: se for 0 e tivermos registros (por tarefa+cliente), somar deles
+                                const registrosDaTarefa = registrosIndividuais[regKeyTarefaCliente] || registrosIndividuais[tarefa.id];
                                 if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
                                   tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
                                     let tempoReg = Number(reg.tempo_realizado) || 0;
@@ -355,7 +356,7 @@ const ProdutosDetalhadosList = ({
                                           </div>
                                         </div>
                                       </div>
-                                      {tarefa.registros && tarefa.registros.length > 0 && (
+                                      {((tarefa.id || tarefa.original_id) && cliente.id) ? (
                                         <button
                                           className="tarefa-detalhada-toggle"
                                           onClick={() => toggleTarefa(produto.id, cliente.id, tarefa.id, tarefa)}
@@ -365,20 +366,20 @@ const ProdutosDetalhadosList = ({
                                             className={`fas fa-chevron-down ${isTarefaExpanded ? 'expanded' : ''}`}
                                           ></i>
                                         </button>
-                                      )}
+                                      ) : null}
                                     </div>
                                     {isTarefaExpanded && (
                                       <div className="tarefa-detalhada-registros">
                                         <div className="tarefa-detalhada-registros-title">
                                           Registros de Tempo Realizado:
                                         </div>
-                                        {carregandoRegistros[tarefa.id] ? (
+                                        {carregandoRegistros[regKeyTarefaCliente] ? (
                                           <div className="tarefa-detalhada-loading">
                                             <i className="fas fa-spinner fa-spin"></i>
                                             <span>Carregando...</span>
                                           </div>
                                         ) : (() => {
-                                          const registros = registrosIndividuais[tarefa.id] || [];
+                                          const registros = (registrosIndividuais[regKeyTarefaCliente] || registrosIndividuais[tarefa.id] || []);
                                           if (registros.length === 0) {
                                             return (
                                               <div className="tarefa-detalhada-empty-registros">
