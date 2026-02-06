@@ -26,6 +26,7 @@ const DocumentacaoAPI = () => {
     { id: 'atividades', label: 'Atividades', icon: 'fa-list' },
     { id: 'vinculacoes', label: 'Vinculações', icon: 'fa-link' },
     { id: 'tempo', label: 'Tempo', icon: 'fa-clock' },
+    { id: 'gestao-capacidade', label: 'Gestão de Capacidade', icon: 'fa-chart-pie' },
     { id: 'base-conhecimento', label: 'Base de Conhecimento', icon: 'fa-book' },
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-bar' },
     { id: 'erros', label: 'Códigos de Erro', icon: 'fa-exclamation-triangle' }
@@ -59,6 +60,8 @@ const DocumentacaoAPI = () => {
         return <VinculacoesSection />;
       case 'tempo':
         return <TempoSection />;
+      case 'gestao-capacidade':
+        return <GestaoCapacidadeSection />;
       case 'base-conhecimento':
         return <BaseConhecimentoSection />;
       case 'dashboard':
@@ -402,66 +405,64 @@ const IntroducaoSection = () => (
         <tr>
           <td><code>Cookie</code></td>
           <td><code>connect.sid=...</code></td>
-          <td>✅ Sim*</td>
-          <td>Em todas as requisições autenticadas (*exceto login)</td>
+          <td>✅ Um dos dois*</td>
+          <td>Sessão: em requisições autenticadas (*exceto login)</td>
+        </tr>
+        <tr>
+          <td><code>Authorization</code></td>
+          <td><code>Bearer up_sua_chave</code></td>
+          <td>✅ Um dos dois*</td>
+          <td>Chave de API: alternativa ao cookie (veja seção Chave de API)</td>
         </tr>
       </tbody>
     </table>
+    <p><small>* Para rotas autenticadas é necessário enviar <strong>Cookie</strong> (sessão) ou <strong>Authorization: Bearer</strong> (chave de API). Login não requer autenticação.</small></p>
 
     <h3>Encoding de Caracteres</h3>
     <p>Todas as requisições e respostas utilizam <strong>UTF-8</strong> como encoding padrão.</p>
 
     <h2>🔐 Autenticação</h2>
     <p>
-      A API utiliza autenticação baseada em <strong>sessão HTTP</strong> (cookies). Após fazer login, 
-      um cookie de sessão é criado e deve ser enviado automaticamente em todas as requisições subsequentes.
+      A API aceita autenticação por <strong>sessão (cookie)</strong> ou por <strong>Chave de API (Bearer token)</strong>.
+      Após fazer login, um cookie é criado; ou use uma chave obtida na seção <strong>Chave de API</strong> (menu lateral).
     </p>
-    
-    <h3>Fluxo de Autenticação</h3>
-    <ol>
-      <li>Faça uma requisição <code>POST /api/login</code> com email e senha</li>
-      <li>O servidor retorna um cookie de sessão (enviado automaticamente pelo navegador)</li>
-      <li>Use esse cookie em todas as requisições subsequentes</li>
-      <li>Faça <code>POST /api/logout</code> para encerrar a sessão</li>
-    </ol>
 
-    <div className="api-info-box" style={{ 
-      background: '#e8f5e9', 
-      border: '1px solid #4caf50', 
-      borderRadius: '4px', 
-      padding: '15px', 
-      margin: '15px 0' 
-    }}>
-      <strong>💡 Dica Rápida:</strong> Para testar rapidamente, use o exemplo abaixo:
-      <div className="api-code-block" style={{ marginTop: '10px' }}>
-        <pre>{`# 1. Fazer login e salvar cookie
-curl -X POST http://localhost:3000/api/login \\
+    <h3>Exemplo de autenticação</h3>
+    <p>Dois jeitos de autenticar: com <strong>cookie</strong> (login) ou com <strong>Bearer</strong> (chave de API).</p>
+
+    <p><strong>Opção 1 — Login com sessão (cookie)</strong></p>
+    <div className="api-code-block">
+      <pre>{`# 1. Login (retorna cookie)
+curl -X POST ${BASE_URL_DOC}/api/login \\
   -H "Content-Type: application/json" \\
   -d '{"email": "seu-email@exemplo.com", "senha": "sua-senha"}' \\
   -c cookies.txt
 
-# 2. Usar cookie em requisições autenticadas
-curl -X GET http://localhost:3000/api/clientes \\
+# 2. Requisição autenticada (usa o cookie)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
   -H "Accept: application/json" \\
   -b cookies.txt`}</pre>
-      </div>
-      <p style={{ marginTop: '10px', marginBottom: 0 }}>
-        <strong>📖 Veja mais:</strong> A seção <strong>"Autenticação"</strong> contém exemplos detalhados 
-        para cURL, JavaScript, Python, Postman e outras ferramentas.
-      </p>
     </div>
 
-    <div className="api-info-box" style={{ 
-      background: '#e3f2fd', 
-      border: '1px solid #2196F3', 
-      borderRadius: '4px', 
-      padding: '15px', 
-      margin: '15px 0' 
-    }}>
-      <strong>⚠️ Importante:</strong> Para testar a API com ferramentas como Postman, cURL ou scripts, 
-      você precisa habilitar o envio de cookies. Veja a seção <strong>"Autenticação"</strong> para exemplos práticos 
-      e configurações específicas de cada ferramenta.
+    <p><strong>Opção 2 — Chave de API (Bearer)</strong></p>
+    <p>Obtenha sua chave em <strong>Chave de API</strong> no menu e use no header:</p>
+    <div className="api-code-block">
+      <pre>{`curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_SUA_CHAVE_AQUI"`}</pre>
     </div>
+    <p>Em JavaScript:</p>
+    <div className="api-code-block">
+      <pre>{`fetch('/api/clientes', {
+  headers: {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer up_SUA_CHAVE_AQUI'
+  },
+  credentials: 'include'
+});`}</pre>
+    </div>
+
+    <p><strong>📖 Mais detalhes:</strong> Veja a seção <strong>Autenticação</strong> no menu para login/logout, cookies e exemplos em outras ferramentas.</p>
 
     <h2>📋 Estrutura de Resposta</h2>
     <p>Todas as respostas da API seguem um padrão consistente para facilitar o tratamento de erros e o parsing dos dados.</p>
@@ -807,8 +808,9 @@ curl -X GET http://localhost:3000/api/clientes \\
     <h2>📚 Próximos Passos</h2>
     <p>Agora que você entende os conceitos básicos, recomendamos:</p>
     <ol>
-      <li>Ler a seção <strong>"Autenticação"</strong> para aprender a fazer login e gerenciar sessões</li>
-      <li>Explorar os endpoints específicos nas seções correspondentes (Clientes, Colaboradores, etc.)</li>
+      <li>Ler a seção <strong>"Autenticação"</strong> para aprender a fazer login e gerenciar sessões (e o <strong>Exemplo de autenticação</strong> com cookie e Bearer)</li>
+      <li>Obter sua <strong>"Chave de API"</strong> (seção no menu) para usar <code>Authorization: Bearer</code> em scripts e integrações</li>
+      <li>Explorar os endpoints nas seções correspondentes (Clientes, Colaboradores, <strong>Gestão de Capacidade</strong>, etc.)</li>
       <li>Consultar a seção <strong>"Códigos de Erro"</strong> para entender como tratar erros adequadamente</li>
       <li>Testar os exemplos práticos fornecidos em cada seção</li>
     </ol>
@@ -895,6 +897,43 @@ const AutenticacaoSection = () => {
   -H "Accept: application/json" \\
   -H "Authorization: Bearer up_sua_chave_aqui"`}</pre>
       </div>
+    </div>
+
+    <h2>Exemplo de autenticação</h2>
+    <p>Dois fluxos possíveis: por <strong>sessão (cookie)</strong> ou por <strong>Chave de API (Bearer)</strong>.</p>
+
+    <h3>Opção 1: Login com sessão (cookie)</h3>
+    <p>Faça login e use o cookie em requisições subsequentes (o navegador envia automaticamente).</p>
+    <div className="api-code-block">
+      <pre>{`# 1. Login (retorna Set-Cookie)
+curl -X POST ${BASE_URL_DOC}/api/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "seu-email@exemplo.com", "senha": "sua-senha"}' \\
+  -c cookies.txt
+
+# 2. Requisição autenticada (usa o cookie salvo)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -b cookies.txt`}</pre>
+    </div>
+
+    <h3>Opção 2: Chave de API (Bearer token)</h3>
+    <p>Obtenha sua chave na seção <strong>Chave de API</strong> e envie no header em toda requisição.</p>
+    <div className="api-code-block">
+      <pre>{`# Requisição autenticada com Bearer (sem cookie)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_SUA_CHAVE_AQUI"`}</pre>
+    </div>
+    <p>Em JavaScript (fetch):</p>
+    <div className="api-code-block">
+      <pre>{`const response = await fetch('/api/clientes', {
+  headers: {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer up_SUA_CHAVE_AQUI'
+  },
+  credentials: 'include'  // opcional se também usar cookie
+});`}</pre>
     </div>
 
     <h2>POST /api/login</h2>
@@ -2363,6 +2402,75 @@ const TempoSection = () => (
       <li><strong>PUT /api/registro-tempo/:id</strong> - Atualiza registro de tempo</li>
       <li><strong>DELETE /api/registro-tempo/:id</strong> - Remove registro de tempo</li>
     </ul>
+  </div>
+);
+
+const GestaoCapacidadeSection = () => (
+  <div className="api-section">
+    <h1 className="api-section-title">
+      <i className="fas fa-chart-pie"></i> Gestão de Capacidade
+    </h1>
+    <p className="api-section-intro">
+      Endpoints para consultar capacidade por <strong>responsável</strong>, <strong>cliente</strong>, <strong>produto</strong> ou <strong>tarefa</strong>,
+      com tempo estimado e realizado em um período. Todos os endpoints são <code>POST</code> e recebem um body JSON com <code>ids</code>, <code>data_inicio</code> e <code>data_fim</code>.
+    </p>
+
+    <h2>Body comum (todos os endpoints)</h2>
+    <p>Os endpoints de cards e de detalhes aceitam o mesmo formato de body:</p>
+    <table className="api-table" style={{ width: '100%', marginBottom: '20px' }}>
+      <thead>
+        <tr>
+          <th>Campo</th>
+          <th>Tipo</th>
+          <th>Obrigatório</th>
+          <th>Descrição</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>ids</code></td><td>array de strings</td><td>Sim</td><td>IDs do agrupador (ex.: IDs de membros, clientes, produtos ou tarefas). Máximo 500 por requisição.</td></tr>
+        <tr><td><code>data_inicio</code></td><td>string (YYYY-MM-DD)</td><td>Sim</td><td>Data de início do período</td></tr>
+        <tr><td><code>data_fim</code></td><td>string (YYYY-MM-DD)</td><td>Sim</td><td>Data de fim do período</td></tr>
+        <tr><td><code>considerar_finais_semana</code></td><td>boolean</td><td>Não</td><td>Incluir sábado/domingo no cálculo (default: false)</td></tr>
+        <tr><td><code>considerar_feriados</code></td><td>boolean</td><td>Não</td><td>Incluir feriados (default: false)</td></tr>
+        <tr><td><code>filtros_adicionais</code></td><td>objeto</td><td>Não</td><td>Filtros opcionais: <code>cliente_id</code>, <code>produto_id</code>, <code>tarefa_id</code> (arrays de IDs)</td></tr>
+        <tr><td><code>incluir_detalhes</code></td><td>boolean</td><td>Não</td><td>Incluir detalhamento na resposta (default: false)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Cards (resumo por agrupador)</h2>
+    <p>Retornam cards com tempo estimado e realizado para cada ID no período.</p>
+    <ul>
+      <li><strong>POST /api/gestao-capacidade/cards/responsavel</strong> — Cards por responsável (membro). <code>ids</code> = IDs de membros/usuários.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/cliente</strong> — Cards por cliente. <code>ids</code> = IDs de clientes.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/produto</strong> — Cards por produto. <code>ids</code> = IDs de produtos.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/tarefa</strong> — Cards por tarefa. <code>ids</code> = IDs de tarefas.</li>
+    </ul>
+
+    <h2>Detalhes (expandido)</h2>
+    <p>Retornam o card pai e a árvore de detalhes (clientes, tarefas, produtos) conforme o tipo.</p>
+    <ul>
+      <li><strong>POST /api/gestao-capacidade/cards/responsavel/detalhes</strong> — Detalhes por responsável</li>
+      <li><strong>POST /api/gestao-capacidade/cards/cliente/detalhes</strong> — Detalhes por cliente</li>
+      <li><strong>POST /api/gestao-capacidade/cards/produto/detalhes</strong> — Detalhes por produto</li>
+      <li><strong>POST /api/gestao-capacidade/cards/tarefa/detalhes</strong> — Detalhes por tarefa</li>
+    </ul>
+
+    <h3>Exemplo de requisição</h3>
+    <div className="api-code-block">
+      <pre>{`POST ${BASE_URL_DOC}/api/gestao-capacidade/cards/responsavel
+Content-Type: application/json
+Authorization: Bearer up_sua_chave   # ou cookie de sessão
+
+{
+  "ids": ["membro-uuid-1", "membro-uuid-2"],
+  "data_inicio": "2025-01-01",
+  "data_fim": "2025-01-31",
+  "considerar_finais_semana": false,
+  "considerar_feriados": false,
+  "incluir_detalhes": false
+}`}</pre>
+    </div>
+    <p>Resposta: array de cards com <code>total_estimado_ms</code>, <code>total_realizado_ms</code> e demais campos do agrupador.</p>
   </div>
 );
 

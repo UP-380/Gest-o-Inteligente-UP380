@@ -8,14 +8,23 @@ import './CommunicationDrawer.css';
 // ==============================================================================
 // === HELPER: Markdown <-> HTML Converter for Rich Editor ===
 // ==============================================================================
+// Substitui imagem/vídeo por labels "(imagem)" e "(video)" sem exibir o link
 const markdownToHtml = (text) => {
     if (!text) return '';
     let html = text
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
         .replace(/\n/g, '<br>') // Lines
-        .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rich-media-img" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin: 5px 0;">') // Images
-        .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="rich-media-video" style="max-width: 100%; border-radius: 8px; margin: 5px 0;"></video>'); // Videos
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="media-label">(imagem)</a>') // Images
+        .replace(/\[video\]\((.*?)\)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="media-label">(video)</a>'); // Videos
     return html;
+};
+
+// Para previews/listas: troca markdown de mídia por labels sem link
+const conteudoParaPreview = (text) => {
+    if (!text) return '';
+    return String(text)
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '(imagem)')
+        .replace(/\[video\]\((.*?)\)/g, '(video)');
 };
 
 const htmlToMarkdown = (html) => {
@@ -42,6 +51,15 @@ const htmlToMarkdown = (html) => {
         vid.replaceWith(document.createTextNode(markdown));
     });
 
+    // Process media-label links (imagem)/(video) - converter de volta para markdown
+    const mediaLinks = temp.querySelectorAll('a.media-label');
+    mediaLinks.forEach(a => {
+        const href = a.getAttribute('href') || '';
+        const text = (a.textContent || '').trim();
+        const markdown = text === '(video)' ? `[video](${href})` : `![imagem](${href})`;
+        a.replaceWith(document.createTextNode(markdown));
+    });
+
     // Process Line Breaks
     // Replace <br> and <div> with newlines
     let text = temp.innerHTML
@@ -58,13 +76,8 @@ const htmlToMarkdown = (html) => {
 
 const getPreviewText = (text) => {
     if (!text) return '';
-    return text
-        .replace(/!\[(.*?)\]\((.*?)\)/g, ' (Imagem anexada) ')
-        .replace(/\[video\]\((.*?)\)/g, ' (Vídeo anexado) ')
-        .replace(/<br>/g, ' ')
-        // Remove URLs extras se houver soltas (opcional, mas bom pra limpeza)
-        // .replace(/(https?:\/\/[^\s]+)/g, '(Link)') 
-        .substring(0, 100) + (text.length > 100 ? '...' : '');
+    const cleaned = conteudoParaPreview(text).replace(/<br>/g, ' ');
+    return cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '');
 };
 
 const formatTime = (dateString) => {
@@ -744,7 +757,7 @@ const CommunicationDrawer = ({ user }) => {
                                 <div className="comm-item-last-msg">
                                     {c.ultima_mensagem ? (
                                         c.ultima_mensagem.criador_id === user?.id ? 'Você: ' : ''
-                                    ) + (c.ultima_mensagem?.conteudo || 'Nova conversa') : 'Nova conversa'}
+                                    ) + conteudoParaPreview(c.ultima_mensagem?.conteudo || 'Nova conversa') : 'Nova conversa'}
                                 </div>
                             </div>
                         </div>
@@ -894,7 +907,7 @@ const CommunicationDrawer = ({ user }) => {
                                 color: '#475569',
                                 lineHeight: '1.5'
                             }}>
-                                {com.conteudo}
+                                {conteudoParaPreview(com.conteudo)}
                             </p>
                         </div>
                     ))
