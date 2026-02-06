@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ApiTester from '../../components/api/ApiTester';
+import { api } from '../../services/api';
+import { useToast } from '../../hooks/useToast';
 import './DocumentacaoAPI.css';
 
 // Constante para a URL base da API (usada na documentação)
@@ -13,6 +15,7 @@ const DocumentacaoAPI = () => {
   const sections = [
     { id: 'introducao', label: 'Introdução', icon: 'fa-info-circle' },
     { id: 'autenticacao', label: 'Autenticação', icon: 'fa-key' },
+    { id: 'chave-api', label: 'Chave de API', icon: 'fa-shield-alt' },
     { id: 'clientes', label: 'Clientes', icon: 'fa-briefcase' },
     { id: 'colaboradores', label: 'Colaboradores', icon: 'fa-user-cog' },
     { id: 'produtos', label: 'Produtos', icon: 'fa-box' },
@@ -23,6 +26,7 @@ const DocumentacaoAPI = () => {
     { id: 'atividades', label: 'Atividades', icon: 'fa-list' },
     { id: 'vinculacoes', label: 'Vinculações', icon: 'fa-link' },
     { id: 'tempo', label: 'Tempo', icon: 'fa-clock' },
+    { id: 'gestao-capacidade', label: 'Gestão de Capacidade', icon: 'fa-chart-pie' },
     { id: 'base-conhecimento', label: 'Base de Conhecimento', icon: 'fa-book' },
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-bar' },
     { id: 'erros', label: 'Códigos de Erro', icon: 'fa-exclamation-triangle' }
@@ -34,6 +38,8 @@ const DocumentacaoAPI = () => {
         return <IntroducaoSection />;
       case 'autenticacao':
         return <AutenticacaoSection />;
+      case 'chave-api':
+        return <ChaveAPISection />;
       case 'clientes':
         return <ClientesSection />;
       case 'colaboradores':
@@ -54,6 +60,8 @@ const DocumentacaoAPI = () => {
         return <VinculacoesSection />;
       case 'tempo':
         return <TempoSection />;
+      case 'gestao-capacidade':
+        return <GestaoCapacidadeSection />;
       case 'base-conhecimento':
         return <BaseConhecimentoSection />;
       case 'dashboard':
@@ -100,6 +108,211 @@ const DocumentacaoAPI = () => {
 };
 
 // Seções de conteúdo
+const ChaveAPISection = () => {
+  const showToast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [hasKey, setHasKey] = useState(false);
+  const [maskedKey, setMaskedKey] = useState(null);
+  const [newKey, setNewKey] = useState(null);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, danger: false });
+
+  const fetchStatus = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.get('/auth/api-key');
+      if (data.success) {
+        setHasKey(!!data.hasKey);
+        setMaskedKey(data.maskedKey || null);
+      } else {
+        setError(data.error || 'Erro ao carregar status da chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro de conexão. Verifique se o backend está rodando (porta 4000) e reinicie-o se alterou rotas.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const handleGerar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.post('/auth/api-key', {});
+      if (data.success && data.apiKey) {
+        setNewKey(data.apiKey);
+        setHasKey(true);
+        setMaskedKey('up_••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••');
+      } else {
+        setError(data.error || 'Erro ao gerar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao gerar chave. Reinicie o backend (porta 4000) se a rota foi adicionada recentemente.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const runRegenerar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.post('/auth/api-key', {});
+      if (data.success && data.apiKey) {
+        setNewKey(data.apiKey);
+        setHasKey(true);
+        setMaskedKey('up_••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••');
+      } else {
+        setError(data.error || 'Erro ao regenerar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao regenerar chave.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRegenerarClick = () => {
+    setConfirmModal({
+      open: true,
+      title: 'Regenerar chave',
+      message: 'Gerar uma nova chave irá invalidar a chave atual. Deseja continuar?',
+      danger: false,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, open: false }));
+        runRegenerar();
+      }
+    });
+  };
+
+  const handleRevogarClick = () => {
+    setConfirmModal({
+      open: true,
+      title: 'Revogar chave',
+      message: 'Revogar a chave irá desativar o acesso à API por token. Deseja continuar?',
+      danger: true,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, open: false }));
+        runRevogar();
+      }
+    });
+  };
+
+  const runRevogar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.delete('/auth/api-key');
+      if (data.success) {
+        setHasKey(false);
+        setMaskedKey(null);
+      } else {
+        setError(data.error || 'Erro ao revogar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao revogar chave.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCopiar = () => {
+    if (!newKey) return;
+    navigator.clipboard.writeText(newKey).then(() => {
+      showToast('success', 'Chave copiada para a área de transferência.');
+    }).catch(() => {});
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModal(prev => ({ ...prev, open: false }));
+  };
+
+  return (
+    <div className="api-section">
+      <h1 className="api-section-title">
+        <i className="fas fa-shield-alt"></i> Chave de API
+      </h1>
+      <p className="api-section-intro">
+        Gerencie sua chave de API (Security Key) para acessar os endpoints com o header <code>Authorization: Bearer &lt;sua_chave&gt;</code>.
+        A chave pode ser usada em scripts, integrações e ferramentas que não utilizam cookies de sessão.
+      </p>
+      {error && (
+        <div className="chave-api-error">
+          <i className="fas fa-exclamation-circle" style={{ marginRight: '8px' }}></i>
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <p className="chave-api-loading"><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Carregando...</p>
+      ) : (
+        <>
+          {newKey ? (
+            <div className="chave-api-key-card">
+              <h3><i className="fas fa-key"></i> Sua chave (guarde em local seguro)</h3>
+              <div className="chave-api-key-value">{newKey}</div>
+              <button type="button" className="chave-api-btn chave-api-btn-primary" onClick={handleCopiar}>
+                <i className="fas fa-copy"></i> Copiar
+              </button>
+              <p className="chave-api-key-warning" style={{ marginTop: '16px' }}>
+                <i className="fas fa-exclamation-triangle"></i>
+                Guarde esta chave em local seguro; ela não será mostrada novamente.
+              </p>
+            </div>
+          ) : hasKey ? (
+            <>
+              <p className="chave-api-masked">Sua chave atual: <code>{maskedKey || 'up_••••••••••••••••'}</code></p>
+              <div className="chave-api-actions">
+                <button type="button" className="chave-api-btn chave-api-btn-primary" disabled={actionLoading} onClick={handleRegenerarClick}>
+                  <i className="fas fa-sync-alt"></i> Regenerar chave
+                </button>
+                <button type="button" className="chave-api-btn chave-api-btn-danger" disabled={actionLoading} onClick={handleRevogarClick}>
+                  <i className="fas fa-ban"></i> Revogar chave
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>Você ainda não possui uma chave de API. Gere uma para usar a API com <code>Authorization: Bearer &lt;sua_chave&gt;</code>.</p>
+              <button type="button" className="chave-api-btn chave-api-btn-primary" disabled={actionLoading} onClick={handleGerar} style={{ marginTop: '12px' }}>
+                <i className="fas fa-plus-circle"></i> Gerar chave de API
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {confirmModal.open && (
+        <div className="chave-api-modal-overlay" onClick={closeConfirmModal} role="dialog" aria-modal="true" aria-labelledby="chave-api-modal-title">
+          <div className="chave-api-modal-box" onClick={e => e.stopPropagation()}>
+            <h2 id="chave-api-modal-title" className="chave-api-modal-title">
+              <i className={`fas ${confirmModal.danger ? 'fa-exclamation-triangle' : 'fa-key'}`}></i>
+              {confirmModal.title}
+            </h2>
+            <p className="chave-api-modal-message">{confirmModal.message}</p>
+            <div className="chave-api-modal-actions">
+              <button type="button" className="chave-api-modal-btn chave-api-modal-btn-cancel" onClick={closeConfirmModal}>
+                Cancelar
+              </button>
+              <button type="button" className={`chave-api-modal-btn ${confirmModal.danger ? 'chave-api-modal-btn-danger' : 'chave-api-modal-btn-confirm'}`} onClick={() => confirmModal.onConfirm && confirmModal.onConfirm()}>
+                {confirmModal.danger ? 'Revogar' : 'Continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const IntroducaoSection = () => (
   <div className="api-section">
     <h1 className="api-section-title">
@@ -192,66 +405,64 @@ const IntroducaoSection = () => (
         <tr>
           <td><code>Cookie</code></td>
           <td><code>connect.sid=...</code></td>
-          <td>✅ Sim*</td>
-          <td>Em todas as requisições autenticadas (*exceto login)</td>
+          <td>✅ Um dos dois*</td>
+          <td>Sessão: em requisições autenticadas (*exceto login)</td>
+        </tr>
+        <tr>
+          <td><code>Authorization</code></td>
+          <td><code>Bearer up_sua_chave</code></td>
+          <td>✅ Um dos dois*</td>
+          <td>Chave de API: alternativa ao cookie (veja seção Chave de API)</td>
         </tr>
       </tbody>
     </table>
+    <p><small>* Para rotas autenticadas é necessário enviar <strong>Cookie</strong> (sessão) ou <strong>Authorization: Bearer</strong> (chave de API). Login não requer autenticação.</small></p>
 
     <h3>Encoding de Caracteres</h3>
     <p>Todas as requisições e respostas utilizam <strong>UTF-8</strong> como encoding padrão.</p>
 
     <h2>🔐 Autenticação</h2>
     <p>
-      A API utiliza autenticação baseada em <strong>sessão HTTP</strong> (cookies). Após fazer login, 
-      um cookie de sessão é criado e deve ser enviado automaticamente em todas as requisições subsequentes.
+      A API aceita autenticação por <strong>sessão (cookie)</strong> ou por <strong>Chave de API (Bearer token)</strong>.
+      Após fazer login, um cookie é criado; ou use uma chave obtida na seção <strong>Chave de API</strong> (menu lateral).
     </p>
-    
-    <h3>Fluxo de Autenticação</h3>
-    <ol>
-      <li>Faça uma requisição <code>POST /api/login</code> com email e senha</li>
-      <li>O servidor retorna um cookie de sessão (enviado automaticamente pelo navegador)</li>
-      <li>Use esse cookie em todas as requisições subsequentes</li>
-      <li>Faça <code>POST /api/logout</code> para encerrar a sessão</li>
-    </ol>
 
-    <div className="api-info-box" style={{ 
-      background: '#e8f5e9', 
-      border: '1px solid #4caf50', 
-      borderRadius: '4px', 
-      padding: '15px', 
-      margin: '15px 0' 
-    }}>
-      <strong>💡 Dica Rápida:</strong> Para testar rapidamente, use o exemplo abaixo:
-      <div className="api-code-block" style={{ marginTop: '10px' }}>
-        <pre>{`# 1. Fazer login e salvar cookie
-curl -X POST http://localhost:3000/api/login \\
+    <h3>Exemplo de autenticação</h3>
+    <p>Dois jeitos de autenticar: com <strong>cookie</strong> (login) ou com <strong>Bearer</strong> (chave de API).</p>
+
+    <p><strong>Opção 1 — Login com sessão (cookie)</strong></p>
+    <div className="api-code-block">
+      <pre>{`# 1. Login (retorna cookie)
+curl -X POST ${BASE_URL_DOC}/api/login \\
   -H "Content-Type: application/json" \\
   -d '{"email": "seu-email@exemplo.com", "senha": "sua-senha"}' \\
   -c cookies.txt
 
-# 2. Usar cookie em requisições autenticadas
-curl -X GET http://localhost:3000/api/clientes \\
+# 2. Requisição autenticada (usa o cookie)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
   -H "Accept: application/json" \\
   -b cookies.txt`}</pre>
-      </div>
-      <p style={{ marginTop: '10px', marginBottom: 0 }}>
-        <strong>📖 Veja mais:</strong> A seção <strong>"Autenticação"</strong> contém exemplos detalhados 
-        para cURL, JavaScript, Python, Postman e outras ferramentas.
-      </p>
     </div>
 
-    <div className="api-info-box" style={{ 
-      background: '#e3f2fd', 
-      border: '1px solid #2196F3', 
-      borderRadius: '4px', 
-      padding: '15px', 
-      margin: '15px 0' 
-    }}>
-      <strong>⚠️ Importante:</strong> Para testar a API com ferramentas como Postman, cURL ou scripts, 
-      você precisa habilitar o envio de cookies. Veja a seção <strong>"Autenticação"</strong> para exemplos práticos 
-      e configurações específicas de cada ferramenta.
+    <p><strong>Opção 2 — Chave de API (Bearer)</strong></p>
+    <p>Obtenha sua chave em <strong>Chave de API</strong> no menu e use no header:</p>
+    <div className="api-code-block">
+      <pre>{`curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_SUA_CHAVE_AQUI"`}</pre>
     </div>
+    <p>Em JavaScript:</p>
+    <div className="api-code-block">
+      <pre>{`fetch('/api/clientes', {
+  headers: {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer up_SUA_CHAVE_AQUI'
+  },
+  credentials: 'include'
+});`}</pre>
+    </div>
+
+    <p><strong>📖 Mais detalhes:</strong> Veja a seção <strong>Autenticação</strong> no menu para login/logout, cookies e exemplos em outras ferramentas.</p>
 
     <h2>📋 Estrutura de Resposta</h2>
     <p>Todas as respostas da API seguem um padrão consistente para facilitar o tratamento de erros e o parsing dos dados.</p>
@@ -597,8 +808,9 @@ curl -X GET http://localhost:3000/api/clientes \\
     <h2>📚 Próximos Passos</h2>
     <p>Agora que você entende os conceitos básicos, recomendamos:</p>
     <ol>
-      <li>Ler a seção <strong>"Autenticação"</strong> para aprender a fazer login e gerenciar sessões</li>
-      <li>Explorar os endpoints específicos nas seções correspondentes (Clientes, Colaboradores, etc.)</li>
+      <li>Ler a seção <strong>"Autenticação"</strong> para aprender a fazer login e gerenciar sessões (e o <strong>Exemplo de autenticação</strong> com cookie e Bearer)</li>
+      <li>Obter sua <strong>"Chave de API"</strong> (seção no menu) para usar <code>Authorization: Bearer</code> em scripts e integrações</li>
+      <li>Explorar os endpoints nas seções correspondentes (Clientes, Colaboradores, <strong>Gestão de Capacidade</strong>, etc.)</li>
       <li>Consultar a seção <strong>"Códigos de Erro"</strong> para entender como tratar erros adequadamente</li>
       <li>Testar os exemplos práticos fornecidos em cada seção</li>
     </ol>
@@ -665,6 +877,63 @@ const AutenticacaoSection = () => {
         <li><strong>Domínio:</strong> O cookie é válido apenas para o domínio que o criou</li>
         <li><strong>HttpOnly:</strong> O cookie não é acessível via JavaScript (proteção contra XSS)</li>
       </ul>
+    </div>
+
+    <div className="api-info-box" style={{
+      background: '#e3f2fd',
+      border: '1px solid #2196F3',
+      borderRadius: '4px',
+      padding: '15px',
+      margin: '20px 0'
+    }}>
+      <h3 style={{ marginTop: 0 }}>Autenticação por Chave de API (Bearer Token)</h3>
+      <p>
+        Além do cookie de sessão, é possível autenticar enviando o header <code>Authorization: Bearer &lt;sua_chave&gt;</code> em todas as requisições.
+        A chave pode ser obtida e gerenciada na seção <strong>Chave de API</strong> desta documentação (menu lateral).
+      </p>
+      <p><strong>Exemplo com cURL:</strong></p>
+      <div className="api-code-block" style={{ marginTop: '10px' }}>
+        <pre>{`curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_sua_chave_aqui"`}</pre>
+      </div>
+    </div>
+
+    <h2>Exemplo de autenticação</h2>
+    <p>Dois fluxos possíveis: por <strong>sessão (cookie)</strong> ou por <strong>Chave de API (Bearer)</strong>.</p>
+
+    <h3>Opção 1: Login com sessão (cookie)</h3>
+    <p>Faça login e use o cookie em requisições subsequentes (o navegador envia automaticamente).</p>
+    <div className="api-code-block">
+      <pre>{`# 1. Login (retorna Set-Cookie)
+curl -X POST ${BASE_URL_DOC}/api/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "seu-email@exemplo.com", "senha": "sua-senha"}' \\
+  -c cookies.txt
+
+# 2. Requisição autenticada (usa o cookie salvo)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -b cookies.txt`}</pre>
+    </div>
+
+    <h3>Opção 2: Chave de API (Bearer token)</h3>
+    <p>Obtenha sua chave na seção <strong>Chave de API</strong> e envie no header em toda requisição.</p>
+    <div className="api-code-block">
+      <pre>{`# Requisição autenticada com Bearer (sem cookie)
+curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_SUA_CHAVE_AQUI"`}</pre>
+    </div>
+    <p>Em JavaScript (fetch):</p>
+    <div className="api-code-block">
+      <pre>{`const response = await fetch('/api/clientes', {
+  headers: {
+    'Accept': 'application/json',
+    'Authorization': 'Bearer up_SUA_CHAVE_AQUI'
+  },
+  credentials: 'include'  // opcional se também usar cookie
+});`}</pre>
     </div>
 
     <h2>POST /api/login</h2>
@@ -2133,6 +2402,75 @@ const TempoSection = () => (
       <li><strong>PUT /api/registro-tempo/:id</strong> - Atualiza registro de tempo</li>
       <li><strong>DELETE /api/registro-tempo/:id</strong> - Remove registro de tempo</li>
     </ul>
+  </div>
+);
+
+const GestaoCapacidadeSection = () => (
+  <div className="api-section">
+    <h1 className="api-section-title">
+      <i className="fas fa-chart-pie"></i> Gestão de Capacidade
+    </h1>
+    <p className="api-section-intro">
+      Endpoints para consultar capacidade por <strong>responsável</strong>, <strong>cliente</strong>, <strong>produto</strong> ou <strong>tarefa</strong>,
+      com tempo estimado e realizado em um período. Todos os endpoints são <code>POST</code> e recebem um body JSON com <code>ids</code>, <code>data_inicio</code> e <code>data_fim</code>.
+    </p>
+
+    <h2>Body comum (todos os endpoints)</h2>
+    <p>Os endpoints de cards e de detalhes aceitam o mesmo formato de body:</p>
+    <table className="api-table" style={{ width: '100%', marginBottom: '20px' }}>
+      <thead>
+        <tr>
+          <th>Campo</th>
+          <th>Tipo</th>
+          <th>Obrigatório</th>
+          <th>Descrição</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>ids</code></td><td>array de strings</td><td>Sim</td><td>IDs do agrupador (ex.: IDs de membros, clientes, produtos ou tarefas). Máximo 500 por requisição.</td></tr>
+        <tr><td><code>data_inicio</code></td><td>string (YYYY-MM-DD)</td><td>Sim</td><td>Data de início do período</td></tr>
+        <tr><td><code>data_fim</code></td><td>string (YYYY-MM-DD)</td><td>Sim</td><td>Data de fim do período</td></tr>
+        <tr><td><code>considerar_finais_semana</code></td><td>boolean</td><td>Não</td><td>Incluir sábado/domingo no cálculo (default: false)</td></tr>
+        <tr><td><code>considerar_feriados</code></td><td>boolean</td><td>Não</td><td>Incluir feriados (default: false)</td></tr>
+        <tr><td><code>filtros_adicionais</code></td><td>objeto</td><td>Não</td><td>Filtros opcionais: <code>cliente_id</code>, <code>produto_id</code>, <code>tarefa_id</code> (arrays de IDs)</td></tr>
+        <tr><td><code>incluir_detalhes</code></td><td>boolean</td><td>Não</td><td>Incluir detalhamento na resposta (default: false)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Cards (resumo por agrupador)</h2>
+    <p>Retornam cards com tempo estimado e realizado para cada ID no período.</p>
+    <ul>
+      <li><strong>POST /api/gestao-capacidade/cards/responsavel</strong> — Cards por responsável (membro). <code>ids</code> = IDs de membros/usuários.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/cliente</strong> — Cards por cliente. <code>ids</code> = IDs de clientes.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/produto</strong> — Cards por produto. <code>ids</code> = IDs de produtos.</li>
+      <li><strong>POST /api/gestao-capacidade/cards/tarefa</strong> — Cards por tarefa. <code>ids</code> = IDs de tarefas.</li>
+    </ul>
+
+    <h2>Detalhes (expandido)</h2>
+    <p>Retornam o card pai e a árvore de detalhes (clientes, tarefas, produtos) conforme o tipo.</p>
+    <ul>
+      <li><strong>POST /api/gestao-capacidade/cards/responsavel/detalhes</strong> — Detalhes por responsável</li>
+      <li><strong>POST /api/gestao-capacidade/cards/cliente/detalhes</strong> — Detalhes por cliente</li>
+      <li><strong>POST /api/gestao-capacidade/cards/produto/detalhes</strong> — Detalhes por produto</li>
+      <li><strong>POST /api/gestao-capacidade/cards/tarefa/detalhes</strong> — Detalhes por tarefa</li>
+    </ul>
+
+    <h3>Exemplo de requisição</h3>
+    <div className="api-code-block">
+      <pre>{`POST ${BASE_URL_DOC}/api/gestao-capacidade/cards/responsavel
+Content-Type: application/json
+Authorization: Bearer up_sua_chave   # ou cookie de sessão
+
+{
+  "ids": ["membro-uuid-1", "membro-uuid-2"],
+  "data_inicio": "2025-01-01",
+  "data_fim": "2025-01-31",
+  "considerar_finais_semana": false,
+  "considerar_feriados": false,
+  "incluir_detalhes": false
+}`}</pre>
+    </div>
+    <p>Resposta: array de cards com <code>total_estimado_ms</code>, <code>total_realizado_ms</code> e demais campos do agrupador.</p>
   </div>
 );
 

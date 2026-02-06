@@ -12,6 +12,26 @@ import './AprovacoesPendentes.css';
 
 const API_BASE_URL = '/api';
 
+const formatarDataSolicitacao = (val) => {
+    if (!val) return '—';
+    const d = new Date(val);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '—';
+    return d.toLocaleDateString('pt-BR');
+};
+
+const formatarDataHoraSolicitacao = (val) => {
+    if (!val) return '—';
+    const d = new Date(val);
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) return '—';
+    return d.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
 const AprovacoesPendentes = () => {
     const showToast = useToast();
     const navigate = useNavigate();
@@ -220,6 +240,19 @@ const AprovacoesPendentes = () => {
         }
     };
 
+    const formatarTempoEstimado = (raw) => {
+        if (!raw && raw !== 0) return '—';
+        const ms = raw < 50000 ? raw * 1000 : raw;
+        if (ms <= 0) return '0';
+        const totalSegundos = Math.floor(ms / 1000);
+        const h = Math.floor(totalSegundos / 3600);
+        const m = Math.floor((totalSegundos % 3600) / 60);
+        const s = totalSegundos % 60;
+        if (h > 0) return `${h}h ${m}min`;
+        if (m > 0) return `${m}min ${s}s`;
+        return `${s}s`;
+    };
+
     const formatarTempoDisponivel = (ms) => {
         const totalMinutos = Math.floor(Math.abs(ms) / 60000);
         const horas = Math.floor(totalMinutos / 60);
@@ -301,7 +334,7 @@ const AprovacoesPendentes = () => {
                                     <p className="aprovacoes-subtitle" style={{ margin: 0, color: '#6b7280' }}>Gerencie os plugs rápidos realizados pelos colaboradores</p>
                                 </div>
                             </div>
-                            <button className="btn-voltar" onClick={() => navigate('/atribuir-responsaveis')}>
+                            <button className="btn-voltar" onClick={() => navigate('/gestao-capacidade')}>
                                 <i className="fas fa-arrow-left"></i> Voltar para Gestão de Capacidade
                             </button>
                         </div>
@@ -327,7 +360,7 @@ const AprovacoesPendentes = () => {
                                                 />
                                                 <div>
                                                     <div className="aprovacao-user-name">{p.usuario?.nome_usuario || 'Usuário'}</div>
-                                                    <div className="aprovacao-date">Criado em {new Date(p.criado_em).toLocaleDateString()}</div>
+                                                    <div className="aprovacao-date">Criado em {formatarDataSolicitacao(p.data_solicitacao || p.criado_em)}</div>
                                                 </div>
                                             </div>
                                             <div style={{
@@ -399,11 +432,7 @@ const AprovacoesPendentes = () => {
                                                 <div className="aprovacao-time-item">
                                                     <div className="aprovacao-time-label">Estimado/Dia</div>
                                                     <div className="aprovacao-time-value">
-                                                        {(() => {
-                                                            const sec = p.tempo_estimado_dia || 0;
-                                                            const h = Math.floor(sec / 3600);
-                                                            return `${h}h`;
-                                                        })()}
+                                                        {formatarTempoEstimado(p.tempo_estimado_dia)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -469,6 +498,31 @@ const AprovacoesPendentes = () => {
                                     : "Verifique os dados abaixo. Você pode ajustar o Cliente, Produto ou a própria Tarefa se necessário."
                                 }
                             </p>
+
+                            <div style={{
+                                backgroundColor: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                                padding: '12px 14px',
+                                marginBottom: '15px'
+                            }}>
+                                <div style={{ fontWeight: '600', fontSize: '0.75rem', color: '#64748b', marginBottom: '8px' }}>
+                                    <i className="fas fa-user" style={{ marginRight: '6px' }}></i>Solicitante
+                                </div>
+                                <div style={{ fontSize: '0.9rem', color: '#1e293b', marginBottom: '6px' }}>
+                                    <strong>{selectedItem?.usuario?.nome_usuario || '—'}</strong>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', fontSize: '0.85rem', color: '#475569' }}>
+                                    <span>
+                                        <i className="far fa-clock" style={{ marginRight: '4px' }}></i>
+                                        Tempo realizado: <strong>{selectedItem?.tempo_realizado_formatado || '—'}</strong>
+                                    </span>
+                                    <span>
+                                        <i className="far fa-calendar-alt" style={{ marginRight: '4px' }}></i>
+                                        Solicitado em: <strong>{formatarDataHoraSolicitacao(selectedItem?.data_solicitacao)}</strong>
+                                    </span>
+                                </div>
+                            </div>
 
                             {selectedItem?.comentario_colaborador && (
                                 <div className="modal-comentario-destaque" style={{

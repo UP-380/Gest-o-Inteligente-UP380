@@ -22,12 +22,19 @@ const RegistroTempoItem = ({
   onFecharEdicao,
   onFecharDelecao,
   onAtualizarFormData,
-  onAtualizarJustificativaDelecao
+  onAtualizarJustificativaDelecao,
+  isPendente = false,
+  onEditarPendente
 }) => {
   return (
-    <div className="timer-dropdown-registro">
+    <div className={`timer-dropdown-registro ${isPendente ? 'timer-dropdown-registro--pendente' : ''}`}>
       <div className="timer-dropdown-registro-header">
         <div className="timer-dropdown-registro-info">
+          {isPendente && (
+            <span className="timer-dropdown-registro-badge-pendente" title="Plug Rápido aguardando aprovação">
+              <i className="fas fa-bolt"></i> Pendente de aprovação
+            </span>
+          )}
           <div className="timer-dropdown-registro-tempo">
             {formatarTempoHMS(registro.tempo_realizado || 0)}
           </div>
@@ -37,13 +44,22 @@ const RegistroTempoItem = ({
         </div>
         <div className="timer-dropdown-registro-actions">
           <EditButton
-            onClick={(e) => onEditar(e, registro)}
-            title={isEditando ? "Fechar edição" : "Editar registro"}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPendente && onEditarPendente) {
+                onEditarPendente(registro);
+              } else if (onEditar) {
+                onEditar(e, registro);
+              }
+            }}
+            title={isPendente ? "Editar pendente (Plug Rápido)" : (isEditando ? "Fechar edição" : "Editar registro")}
           />
-          <DeleteButton
-            onClick={(e) => onDeletar(e, registro)}
-            title={isDeletando ? "Fechar exclusão" : "Excluir registro"}
-          />
+          {!isPendente && (
+            <DeleteButton
+              onClick={(e) => onDeletar(e, registro)}
+              title={isDeletando ? "Fechar exclusão" : "Excluir registro"}
+            />
+          )}
         </div>
       </div>
 

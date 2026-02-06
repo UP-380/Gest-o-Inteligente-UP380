@@ -42,11 +42,15 @@ const SelecaoTarefasPlugRapido = ({
                 const produtoData = data.find(p => String(p.produtoId) === String(produtoId));
 
                 if (produtoData && produtoData.tarefas) {
-                    // Mapear para o formato do CustomSelect
-                    const options = produtoData.tarefas.map(t => ({
-                        value: String(t.id),
-                        label: t.nome
-                    }));
+                    // Mapear para o formato do CustomSelect (exibir tipo entre parênteses como em SelecaoTarefasPorProduto)
+                    const tipoNome = t => t.tipoTarefa && (typeof t.tipoTarefa === 'object' ? t.tipoTarefa.nome : t.tipoTarefa);
+                    const options = produtoData.tarefas.map(t => {
+                        const tipo = tipoNome(t);
+                        return {
+                            value: String(t.id),
+                            label: tipo ? `${t.nome} (${tipo})` : t.nome
+                        };
+                    });
                     setTarefas(options);
                 } else {
                     setTarefas([]);

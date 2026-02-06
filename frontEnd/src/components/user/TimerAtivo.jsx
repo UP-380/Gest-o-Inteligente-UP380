@@ -734,46 +734,10 @@ const TimerAtivo = () => {
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success && result.data) {
-          const registrosParaVerificar = result.data.filter(
-            reg => reg.id !== registroId && reg.data_fim // Apenas finalizados
-          );
-
-          for (const registro of registrosParaVerificar) {
-            const outroInicio = new Date(registro.data_inicio);
-            const outroFim = new Date(registro.data_fim);
-
-            // Verificar sobreposição: (novo_inicio < outro_fim) E (novo_fim > outro_inicio)
-            const temSobreposicao =
-              (dataInicio < outroFim) &&
-              (dataFim > outroInicio);
-
-            if (temSobreposicao) {
-              const formatarPeriodo = (inicio, fim) => {
-                const inicioStr = inicio.toLocaleString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-                const fimStr = fim.toLocaleString('pt-BR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-                return `${inicioStr} - ${fimStr}`;
-              };
-
-              return {
-                valido: false,
-                erro: `Conflito com registro existente: ${formatarPeriodo(outroInicio, outroFim)}`
-              };
-            }
-          }
-        }
+        // SMART EDIT: O backend agora lida com ajustes automáticos de sobreposição.
+        // Portanto, não bloqueamos mais no frontend.
+        // Apenas retornamos true para permitir o envio.
+        return { valido: true };
       }
 
       return { valido: true };
@@ -1079,6 +1043,7 @@ const TimerAtivo = () => {
                 onFecharDelecao={handleFecharDelecao}
                 onAtualizarFormData={handleAtualizarFormData}
                 onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+                onBuscarHistorico={buscarHistorico}
                 registroEditandoId={registroEditandoId}
                 registroDeletandoId={registroDeletandoId}
                 formDataPorRegistro={formDataPorRegistro}
@@ -1161,6 +1126,7 @@ const TimerAtivo = () => {
               onFecharDelecao={handleFecharDelecao}
               onAtualizarFormData={handleAtualizarFormData}
               onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+              onBuscarHistorico={buscarHistorico}
               registroEditandoId={registroEditandoId}
               registroDeletandoId={registroDeletandoId}
               formDataPorRegistro={formDataPorRegistro}

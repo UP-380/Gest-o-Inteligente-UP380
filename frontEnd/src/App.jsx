@@ -32,7 +32,7 @@ import CadastroAdquirenteIndividual from './pages/CadastroAdquirenteIndividual/C
 import CadastroSistemas from './pages/CadastroSistemas/CadastroSistemas';
 import CadastroSistemaIndividual from './pages/CadastroSistemaIndividual/CadastroSistemaIndividual';
 import CadastroContatoCliente from './pages/CadastroContatoCliente/CadastroContatoCliente';
-import DelegarTarefas from './pages/DelegarTarefas/DelegarTarefas';
+import GestaoCapacidade from './pages/GestaoCapacidade/GestaoCapacidade';
 import HistoricoAtribuicoes from './pages/HistoricoAtribuicoes/HistoricoAtribuicoes';
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
@@ -376,10 +376,27 @@ function App() {
           }
         />
         <Route
+          path="/gestao-capacidade"
+          element={
+            <ProtectedRoute>
+              <GestaoCapacidade />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao-capacidade/historico"
+          element={
+            <ProtectedRoute>
+              <HistoricoAtribuicoes />
+            </ProtectedRoute>
+          }
+        />
+        {/* Redirecionamentos de rotas antigas */}
+        <Route
           path="/atribuir-responsaveis"
           element={
             <ProtectedRoute>
-              <DelegarTarefas />
+              <Navigate to="/gestao-capacidade" replace />
             </ProtectedRoute>
           }
         />
@@ -387,7 +404,7 @@ function App() {
           path="/atribuir-responsaveis/historico"
           element={
             <ProtectedRoute>
-              <HistoricoAtribuicoes />
+              <Navigate to="/gestao-capacidade/historico" replace />
             </ProtectedRoute>
           }
         />
@@ -399,12 +416,11 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Redirecionamento da rota antiga */}
         <Route
           path="/delegar-tarefas"
           element={
             <ProtectedRoute>
-              <Navigate to="/atribuir-responsaveis" replace />
+              <Navigate to="/gestao-capacidade" replace />
             </ProtectedRoute>
           }
         />

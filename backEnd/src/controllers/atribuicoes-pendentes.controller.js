@@ -65,25 +65,36 @@ async function criarAtribuicaoPendente(req, res) {
             nova_tarefa_criada: !!nova_tarefa_criada
         });
 
-        // 0. Validação de duplicidade (Evitar múltiplos cliques ou solicitações idênticas)
+        // 0. Validação de duplicidade: mesma configuração (cliente, produto, tarefa, responsável, data) já existe (PENDENTE ou APROVADA)
         let query = supabase
 
             .from('atribuicoes_pendentes')
-            .select('id')
+            .select('id, status')
             .eq('usuario_id', usuario_id)
-            .eq('status', 'PENDENTE');
-
-        if (tarefa_id) query = query.eq('tarefa_id', tarefa_id);
-        if (cliente_id) query = query.eq('cliente_id', cliente_id);
-        if (comentario_colaborador) query = query.eq('comentario_colaborador', comentario_colaborador);
-
-        const { data: existente, error: erroCheck } = await query
+            .in('status', ['PENDENTE', 'APROVADA'])
             .eq('data_inicio', data_inicio)
-            .eq('data_fim', data_fim)
-            .maybeSingle();
+            .eq('data_fim', data_fim);
+
+        if (comentario_colaborador) {
+            query = query.eq('comentario_colaborador', comentario_colaborador);
+        } else {
+            if (cliente_id) query = query.eq('cliente_id', cliente_id);
+            if (produto_id) query = query.eq('produto_id', produto_id);
+            if (tarefa_id) query = query.eq('tarefa_id', tarefa_id);
+        }
+
+        const { data: existentes, error: erroCheck } = await query.limit(1);
+        const existente = existentes && existentes.length > 0 ? existentes[0] : null;
 
         if (existente) {
-            // Se já existe e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
+            // Se já existe APROVADA: sempre bloquear
+            if (existente.status === 'APROVADA') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Essa configuração de atribuição já existe.'
+                });
+            }
+            // Se já existe PENDENTE e o usuário pediu para iniciar timer, tentar iniciar o timer se não houver um
             if (iniciar_timer) {
                 const { data: registroAh, error: erroAh } = await supabase
 
@@ -96,14 +107,13 @@ async function criarAtribuicaoPendente(req, res) {
                 if (!registroAh) {
                     console.log('🔄 [Plug Rápido] Recuperando solicitação existente: Iniciando timer pendente...');
 
-                    // Tentar iniciar o timer para a atribuição existente
                     const { data: novoTimer, error: erroTimer } = await supabase
 
                         .from('registro_tempo_pendente')
                         .insert({
                             atribuicao_pendente_id: existente.id,
                             usuario_id,
-                            tarefa_id: tarefa_id || null, // Importante: null se não definido
+                            tarefa_id: tarefa_id || null,
                             data_inicio: new Date().toISOString(),
                             status: 'PENDENTE'
                         })
@@ -112,7 +122,6 @@ async function criarAtribuicaoPendente(req, res) {
 
                     if (erroTimer) {
                         console.error('❌ Erro ao recuperar timer:', erroTimer);
-                        // Se falhar (ex: constraint de banco), retorna erro para o usuário saber
                         return res.status(400).json({
                             success: false,
                             error: 'Erro ao iniciar cronômetro. Verifique se a tarefa é obrigatória no banco de dados.'
@@ -132,7 +141,7 @@ async function criarAtribuicaoPendente(req, res) {
 
             return res.status(400).json({
                 success: false,
-                error: 'Você já possui uma solicitação pendente idêntica para esta tarefa e período.'
+                error: 'Essa configuração de atribuição já existe.'
             });
         }
 
@@ -363,6 +372,31 @@ async function listarMinhasPendentes(req, res) {
 }
 
 /**
+ * Lista configurações de atribuição já existentes (PENDENTE + APROVADA) do usuário logado.
+ * Usado pelo front para bloquear duplicidade antes de salvar (mesmo cliente, produto, tarefa, data).
+ */
+async function listarConfiguracoesExistentes(req, res) {
+    try {
+        const usuario_id = req.session.usuario.id;
+
+        const { data: listas, error } = await supabase
+
+            .from('atribuicoes_pendentes')
+            .select('cliente_id, produto_id, tarefa_id, data_inicio, data_fim, comentario_colaborador')
+            .eq('usuario_id', usuario_id)
+            .in('status', ['PENDENTE', 'APROVADA']);
+
+        if (error) throw error;
+
+        const data = listas || [];
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error('Erro ao listar configurações existentes:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao listar configurações.' });
+    }
+}
+
+/**
  * Lista pendentes para aprovação (Apenas GESTOR)
  */
 async function listarPendentesParaAprovacao(req, res) {
@@ -405,8 +439,9 @@ async function listarPendentesParaAprovacao(req, res) {
             .select('atribuicao_pendente_id, data_inicio, data_fim')
             .in('atribuicao_pendente_id', pendentesIds);
 
-        // Agrupar tempos por atribuição id
+        // Agrupar tempos por atribuição id e guardar a data_inicio mais antiga (data da solicitação)
         const temposMap = new Map();
+        const dataSolicitacaoMap = new Map();
         if (todosTempos) {
             todosTempos.forEach(t => {
                 const id = String(t.atribuicao_pendente_id);
@@ -415,6 +450,14 @@ async function listarPendentesParaAprovacao(req, res) {
                 const diff = fim - inicio;
 
                 temposMap.set(id, (temposMap.get(id) || 0) + diff);
+
+                // Usar a data_inicio mais antiga como data da solicitação
+                if (t.data_inicio) {
+                    const atual = dataSolicitacaoMap.get(id);
+                    if (!atual || new Date(t.data_inicio).getTime() < new Date(atual).getTime()) {
+                        dataSolicitacaoMap.set(id, t.data_inicio);
+                    }
+                }
             });
         }
 
@@ -426,6 +469,7 @@ async function listarPendentesParaAprovacao(req, res) {
             const s = totalSegundos % 60;
             const tempoFmt = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
+            const dataSolicitacao = dataSolicitacaoMap.get(String(p.id)) || p.criado_em || p.data_inicio;
             return {
                 ...p,
                 usuario: usuariosMap.get(String(p.usuario_id)) || { nome_usuario: 'Desconhecido' },
@@ -433,7 +477,8 @@ async function listarPendentesParaAprovacao(req, res) {
                 produto: produtosMap.get(String(p.produto_id)) || { nome: 'N/A' },
                 tarefa: tarefasMap.get(String(p.tarefa_id)) || { nome: 'N/A' },
                 tempo_realizado_ms: totalMs,
-                tempo_realizado_formatado: tempoFmt
+                tempo_realizado_formatado: tempoFmt,
+                data_solicitacao: dataSolicitacao
             };
         });
 
@@ -563,7 +608,7 @@ async function aprovarAtribuicao(req, res) {
         // 2. Criar Agrupador ID
         const agrupador_id = uuidv4();
 
-        // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id
+        // 3. Criar Historico de Atribuição (Oficial) - Usa membro_id | origem Plug Rápido
         const { error: erroHistorico } = await supabase
 
             .from('historico_atribuicoes')
@@ -576,6 +621,7 @@ async function aprovarAtribuicao(req, res) {
                 tarefas: [{ tarefa_id: dadosFinais.tarefa_id, tempo_estimado_dia: dadosFinais.tempo_estimado_dia }],
                 data_inicio: dadosFinais.data_inicio,
                 data_fim: dadosFinais.data_fim,
+                is_plug_rapido: true,
                 created_at: new Date().toISOString()
             });
 
@@ -717,6 +763,21 @@ async function aprovarAtribuicao(req, res) {
 
         if (erroUpdate) throw erroUpdate;
 
+        // Notificar o solicitante que sua solicitação foi aprovada
+        try {
+            await notificacoesController.distribuirNotificacao({
+                tipo: NOTIFICATION_TYPES.PLUG_RAPIDO_APROVADO,
+                titulo: 'Plug Rápido aprovado',
+                mensagem: 'Sua solicitação de Plug Rápido foi aprovada pelo gestor.',
+                referencia_id: id,
+                link: '/gestao-capacidade',
+                metadata: { tipo: 'aprovacao' },
+                usuario_id: pendente.usuario_id
+            });
+        } catch (errNotif) {
+            console.error('Aviso: falha ao enviar notificação de aprovação:', errNotif?.message);
+        }
+
         res.json({ success: true, message: 'Atribuição aprovada e processada com sucesso.' });
 
     } catch (error) {
@@ -841,6 +902,102 @@ async function pararTimerPendente(req, res) {
 
 
 /**
+ * Edita um registro pendente (Plug Rápido) pelo próprio colaborador
+ * Atualiza registro_tempo_pendente (timer) e atribuicoes_pendentes (config)
+ */
+async function editarPendentePeloColaborador(req, res) {
+    try {
+        const { id: registroId } = req.params;
+        const usuario_id = req.session?.usuario?.id;
+        if (!usuario_id) {
+            return res.status(401).json({ success: false, error: 'Não autenticado.' });
+        }
+
+        const {
+            data_inicio,
+            data_fim,
+            cliente_id,
+            produto_id,
+            tarefa_id,
+            periodo_inicio,
+            periodo_fim,
+            tempo_estimado_ms,
+            tempo_estimado_dia
+        } = req.body;
+
+        if (!registroId) {
+            return res.status(400).json({ success: false, error: 'ID do registro é obrigatório.' });
+        }
+
+        // Buscar registro e validar propriedade
+        const { data: registro, error: errReg } = await supabase
+            .from('registro_tempo_pendente')
+            .select('id, usuario_id, atribuicao_pendente_id')
+            .eq('id', registroId)
+            .single();
+
+        if (errReg || !registro) {
+            return res.status(404).json({ success: false, error: 'Registro pendente não encontrado.' });
+        }
+        if (Number(registro.usuario_id) !== Number(usuario_id)) {
+            return res.status(403).json({ success: false, error: 'Só é possível editar seus próprios registros pendentes.' });
+        }
+
+        const attrId = registro.atribuicao_pendente_id;
+        if (!attrId) {
+            return res.status(400).json({ success: false, error: 'Atribuição vinculada não encontrada.' });
+        }
+
+        // Atualizar registro_tempo_pendente (timer)
+        const updatesRegistro = {};
+        if (data_inicio) updatesRegistro.data_inicio = data_inicio;
+        if (data_fim) updatesRegistro.data_fim = data_fim;
+        if (tarefa_id !== undefined) updatesRegistro.tarefa_id = tarefa_id || null;
+
+        if (Object.keys(updatesRegistro).length > 0) {
+            const { error: errUpdReg } = await supabase
+                .from('registro_tempo_pendente')
+                .update(updatesRegistro)
+                .eq('id', registroId);
+            if (errUpdReg) {
+                console.error('Erro ao atualizar registro_tempo_pendente:', errUpdReg);
+                return res.status(500).json({ success: false, error: 'Erro ao atualizar registro de tempo.' });
+            }
+        }
+
+        // Atualizar atribuicoes_pendentes (config Plug Rápido)
+        const updatesAttr = {};
+        if (cliente_id !== undefined) updatesAttr.cliente_id = cliente_id || null;
+        if (produto_id !== undefined) updatesAttr.produto_id = produto_id || null;
+        if (tarefa_id !== undefined) updatesAttr.tarefa_id = tarefa_id || null;
+        if (periodo_inicio) updatesAttr.data_inicio = `${periodo_inicio}T00:00:00`;
+        if (periodo_fim) updatesAttr.data_fim = `${periodo_fim}T23:59:59`;
+
+        const tempoEst = tempo_estimado_ms ?? tempo_estimado_dia;
+        if (tempoEst !== undefined && tempoEst !== null) {
+            updatesAttr.tempo_estimado_dia = tempoEst;
+        }
+
+        if (Object.keys(updatesAttr).length > 0) {
+            const { error: errUpdAttr } = await supabase
+                .from('atribuicoes_pendentes')
+                .update(updatesAttr)
+                .eq('id', attrId)
+                .eq('status', 'PENDENTE');
+            if (errUpdAttr) {
+                console.error('Erro ao atualizar atribuicoes_pendentes:', errUpdAttr);
+                return res.status(500).json({ success: false, error: 'Erro ao atualizar atribuição.' });
+            }
+        }
+
+        return res.json({ success: true, message: 'Registro pendente atualizado com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao editar pendente:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao editar registro pendente.' });
+    }
+}
+
+/**
  * Conta o total de atribuições pendentes
  */
 async function contarPendentes(req, res) {
@@ -864,9 +1021,11 @@ async function contarPendentes(req, res) {
 module.exports = {
     criarAtribuicaoPendente,
     listarMinhasPendentes,
+    listarConfiguracoesExistentes,
     listarPendentesParaAprovacao,
     contarPendentes,
     aprovarAtribuicao,
     iniciarTimerPendente,
-    pararTimerPendente
+    pararTimerPendente,
+    editarPendentePeloColaborador
 };

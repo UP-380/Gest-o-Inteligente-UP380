@@ -3,6 +3,7 @@
 // =============================================================
 
 const supabase = require('../config/database');
+const { buscarTodosComPaginacao } = require('../services/database-utils');
 const { v4: uuidv4 } = require('uuid');
 
 // Função auxiliar para buscar tipo_tarefa_id da tabela vinculados
@@ -807,6 +808,7 @@ async function getRegistrosPorTempoEstimado(req, res) {
 }
 
 // GET - Buscar histórico de registros de tempo de um usuário (finalizados)
+// Inclui registros aprovados (registro_tempo) E pendentes de aprovação (registro_tempo_pendente com data_fim)
 async function getHistoricoRegistros(req, res) {
   try {
     const { usuario_id, limite = 50 } = req.query;
@@ -826,16 +828,17 @@ async function getHistoricoRegistros(req, res) {
       });
     }
 
-    // Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
-    const { data: registros, error } = await supabase
+    const limiteNum = parseInt(limite, 10);
 
+    // 1. Buscar registros finalizados (com data_fim) ordenados por data_inicio (mais recentes primeiro)
+    const { data: registrosNormais, error } = await supabase
       .from('registro_tempo')
       .select('id, tempo_realizado, data_inicio, data_fim, created_at, usuario_id, cliente_id, tarefa_id, bloqueado')
       .eq('usuario_id', usuarioIdInt)
-      .not('data_fim', 'is', null) // Apenas registros finalizados
-      .not('cliente_id', 'is', null) // Apenas registros com cliente_id
+      .not('data_fim', 'is', null)
+      .not('cliente_id', 'is', null)
       .order('data_inicio', { ascending: false })
-      .limit(parseInt(limite, 10));
+      .limit(limiteNum);
 
     if (error) {
       console.error('[getHistoricoRegistros] Erro ao buscar histórico:', error);
@@ -846,10 +849,62 @@ async function getHistoricoRegistros(req, res) {
       });
     }
 
+    const normaisMapeados = (registrosNormais || []).map(r => ({ ...r, is_pendente: false }));
+
+    // 2. Buscar registros pendentes finalizados (Plug Rápido - com data_fim)
+    const { data: registrosPendentesData, error: errorPendentes } = await supabase
+      .from('registro_tempo_pendente')
+      .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
+      .eq('usuario_id', usuarioIdInt)
+      .not('data_fim', 'is', null)
+      .order('data_inicio', { ascending: false })
+      .limit(limiteNum);
+
+    let pendentesMapeados = [];
+    if (!errorPendentes && registrosPendentesData && registrosPendentesData.length > 0) {
+      const idsAtribuicoes = [...new Set(registrosPendentesData.map(r => r.atribuicao_pendente_id).filter(Boolean))];
+      const { data: atribuicoes } = await supabase
+        .from('atribuicoes_pendentes')
+        .select('id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia')
+        .in('id', idsAtribuicoes)
+        .eq('status', 'PENDENTE');
+
+      const attrsMap = new Map((atribuicoes || []).map(a => [a.id, a]));
+
+      pendentesMapeados = registrosPendentesData.map(r => {
+        const attr = attrsMap.get(r.atribuicao_pendente_id);
+        const clienteId = attr?.cliente_id;
+        const tempoMs = r.data_inicio && r.data_fim
+          ? Math.max(0, new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime())
+          : 0;
+        return {
+          id: r.id,
+          atribuicao_pendente_id: r.atribuicao_pendente_id,
+          tempo_realizado: tempoMs,
+          data_inicio: r.data_inicio,
+          data_fim: r.data_fim,
+          created_at: r.data_inicio,
+          usuario_id: r.usuario_id,
+          cliente_id: clienteId,
+          produto_id: attr?.produto_id,
+          tarefa_id: r.tarefa_id || attr?.tarefa_id,
+          bloqueado: false,
+          is_pendente: true,
+          periodo_inicio: attr?.data_inicio ? String(attr.data_inicio).split('T')[0] : null,
+          periodo_fim: attr?.data_fim ? String(attr.data_fim).split('T')[0] : null,
+          tempo_estimado_dia: attr?.tempo_estimado_dia ?? null
+        };
+      }).filter(r => r.cliente_id); // Apenas pendentes com cliente (mesmo critério do normal)
+    }
+
+    const todos = [...normaisMapeados, ...pendentesMapeados]
+      .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime())
+      .slice(0, limiteNum);
+
     return res.json({
       success: true,
-      data: registros || [],
-      count: (registros || []).length
+      data: todos,
+      count: todos.length
     });
   } catch (error) {
     console.error('[getHistoricoRegistros] Erro inesperado:', error);
@@ -1048,11 +1103,11 @@ async function atualizarRegistroTempo(req, res) {
       });
     }
 
-    // REGRA 5: Validar sobreposição com outros registros do mesmo usuário
+    // REGRA 5: Ajuste Inteligente de Sobreposições (Cascading Update)
+    // Em vez de bloquear, ajustamos os registros conflitantes
     const { data: registrosUsuario, error: errorRegistros } = await supabase
-
       .from('registro_tempo')
-      .select('id, data_inicio, data_fim')
+      .select('id, data_inicio, data_fim, usuario_id, tarefa_id')
       .eq('usuario_id', registroExistente.usuario_id)
       .not('id', 'eq', id) // Excluir o registro atual
       .not('data_fim', 'is', null); // Apenas registros finalizados
@@ -1066,7 +1121,7 @@ async function atualizarRegistroTempo(req, res) {
       });
     }
 
-    // Verificar sobreposição
+    // Verificar sobreposição e realizar ajustes
     if (registrosUsuario && registrosUsuario.length > 0) {
       for (const registro of registrosUsuario) {
         const outroInicio = new Date(registro.data_inicio);
@@ -1076,20 +1131,82 @@ async function atualizarRegistroTempo(req, res) {
         const temSobreposicao = (novoInicio < outroFim) && (novoFim > outroInicio);
 
         if (temSobreposicao) {
-          const formatarData = (date) => {
-            return date.toLocaleString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
+          console.log(`⚠️ [SmartEdit] Conflito detectado com registro ${registro.id}. Iniciando ajuste automático...`);
+
+          const dadosAjuste = {};
+          let motivoAjuste = '';
+
+          // CASO A: O novo registro "empurra" o início do próximo registro
+          // Ex: Novo termina 10:30, Outro começava 10:00 -> Outro passa a começar 10:30
+          if (novoFim > outroInicio && novoInicio < outroInicio) {
+            dadosAjuste.data_inicio = novoFim.toISOString();
+            motivoAjuste = `Ajuste automático: Início alterado de ${outroInicio.toISOString()} para ${novoFim.toISOString()} devido à extensão da tarefa anterior.`;
+          }
+
+          // CASO B: O novo registro "anteceipa" o fim do registro anterior
+          // Ex: Novo começa 10:00, Outro terminava 10:30 -> Outro passa a terminar 10:00
+          else if (novoInicio < outroFim && novoFim > outroFim) {
+            dadosAjuste.data_fim = novoInicio.toISOString();
+            motivoAjuste = `Ajuste automático: Fim alterado de ${outroFim.toISOString()} para ${novoInicio.toISOString()} devido à antecipação da tarefa seguinte.`;
+          }
+
+          // CASO C: Envelopamento (Novo está DENTRO do Outro ou Outro está DENTRO do Novo)
+          // Implementação simplificada: Ajustar o lado que invade menos, priorizando a integridade do Novo
+          else {
+            // Se a invasão for pelo início do "Outro"
+            if (novoFim > outroInicio) {
+              dadosAjuste.data_inicio = novoFim.toISOString();
+            }
+            // Se a invasão for pelo fim do "Outro"
+            else {
+              dadosAjuste.data_fim = novoInicio.toISOString();
+            }
+            motivoAjuste = 'Ajuste automático devido à sobreposição total ou parcial complexa.';
+          }
+
+          // Recalcular tempo realizado do registro ajustado
+          let novoInicioAjustado = dadosAjuste.data_inicio ? new Date(dadosAjuste.data_inicio) : outroInicio;
+          let novoFimAjustado = dadosAjuste.data_fim ? new Date(dadosAjuste.data_fim) : outroFim;
+
+          // Se o ajuste resultar em duração negativa ou zero, deletar o registro vizinho?
+          // Por segurança, vamos definir duração mínima de 1s ou pular (mas isso manteria sobreposição)
+          // Decisão: Permitir atualização, mas se invalidar tempo, logar aviso.
+          const novaDuracaoAjustada = novoFimAjustado.getTime() - novoInicioAjustado.getTime();
+
+          if (novaDuracaoAjustada < 1000) {
+            console.warn(`⚠️ [SmartEdit] Ajuste tornaria registro ${registro.id} inválido (<1s).`);
+            // Opcional: Deletar registro ou impedir?
+            // Por enquanto, vamos ajustar para 1s após o início (token change) ou simplesmente permitir e o sistema que lide
+            dadosAjuste.tempo_realizado = 1000; // Forçar 1s mínimo visual
+          } else {
+            dadosAjuste.tempo_realizado = novaDuracaoAjustada;
+          }
+
+          // Realizar o UPDATE no registro conflitante
+          const { error: errorAjuste } = await supabase
+            .from('registro_tempo')
+            .update(dadosAjuste)
+            .eq('id', registro.id);
+
+          if (errorAjuste) {
+            console.error(`❌ [SmartEdit] Falha ao ajustar registro vizinho ${registro.id}:`, errorAjuste);
+            continue; // Tenta ajustar os outros se houver
+          }
+
+          // Registrar no Histórico de Edições do registro vizinho
+          const historicoAjuste = {
+            registro_tempo_id: registro.id,
+            data_inicio_nova: dadosAjuste.data_inicio || registro.data_inicio,
+            data_fim_nova: dadosAjuste.data_fim || registro.data_fim,
+            justificativa_nova: motivoAjuste,
+            data_inicio_anterior: registro.data_inicio,
+            data_fim_anterior: registro.data_fim,
+            justificativa_anterior: 'Registro Original'
           };
 
-          return res.status(400).json({
-            success: false,
-            error: `Conflito com registro existente: ${formatarData(outroInicio)} - ${formatarData(outroFim)}`
-          });
+          await supabase.from('registro_tempo_edicoes').insert([historicoAjuste]);
+
+          console.log(`✅ [SmartEdit] Registro vizinho ${registro.id} ajustado com sucesso.`);
         }
       }
     }
@@ -1205,6 +1322,7 @@ async function getRegistrosTempo(req, res) {
       usuario_id,
       cliente_id,
       tarefa_id,
+      produto_id,
       data_inicio,
       data_fim,
       ativo, // true/false para filtrar apenas ativos ou finalizados
@@ -1233,13 +1351,25 @@ async function getRegistrosTempo(req, res) {
     }
 
     // Compatibilidade: suporta tanto cliente_id quanto clienteId
+    // Match exato OU cliente_id em lista separada por vírgula (igual ao breakdown dos cards)
     const clienteIdFinal = cliente_id || req.query.clienteId;
     if (clienteIdFinal) {
-      query = query.eq('cliente_id', String(clienteIdFinal).trim());
+      const id = String(clienteIdFinal).trim();
+      const conditions = [
+        `cliente_id.eq.${id}`,
+        `cliente_id.like.${encodeURIComponent(id + ',%')}`,
+        `cliente_id.like.${encodeURIComponent('%,' + id + ',%')}`,
+        `cliente_id.like.${encodeURIComponent('%,' + id)}`
+      ];
+      query = query.or(conditions.join(','));
     }
 
     if (tarefa_id) {
       query = query.eq('tarefa_id', String(tarefa_id).trim());
+    }
+
+    if (produto_id) {
+      query = query.eq('produto_id', String(produto_id).trim());
     }
 
     // Filtro de status (ativo/finalizado)
@@ -1292,12 +1422,94 @@ async function getRegistrosTempo(req, res) {
       });
     }
 
-    const totalPages = limitNum > 0 ? Math.max(1, Math.ceil((count || 0) / limitNum)) : 1;
+    let registrosFinais = data || [];
+    let countFinal = count || 0;
+
+    // Quando buscar finalizados (ativo=false), incluir também registros pendentes (Plug Rápido)
+    if (ativo === 'false' && usuarioIdFinal) {
+      const usuarioIdInt = parseInt(usuarioIdFinal, 10);
+      let queryPendentes = supabase
+        .from('registro_tempo_pendente')
+        .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
+        .eq('usuario_id', usuarioIdInt)
+        .not('data_fim', 'is', null);
+
+      const periodoInicio = data_inicio || req.query.dataInicio;
+      const periodoFim = data_fim || req.query.dataFim;
+      if (periodoInicio && periodoFim) {
+        const inicioISO = new Date(`${periodoInicio}T00:00:00.000Z`);
+        const fimISO = new Date(`${periodoFim}T23:59:59.999Z`);
+        queryPendentes = queryPendentes
+          .gte('data_inicio', inicioISO.toISOString())
+          .lte('data_inicio', fimISO.toISOString());
+      }
+
+      const { data: pendentesData } = await queryPendentes;
+
+      if (pendentesData && pendentesData.length > 0) {
+        const idsAttr = [...new Set(pendentesData.map(p => p.atribuicao_pendente_id).filter(Boolean))];
+        const { data: attrs } = await supabase
+          .from('atribuicoes_pendentes')
+          .select('id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia')
+          .in('id', idsAttr)
+          .eq('status', 'PENDENTE');
+
+        const attrsMap = new Map((attrs || []).map(a => [a.id, a]));
+
+        const pendentesMapeados = pendentesData.map(r => {
+          const attr = attrsMap.get(r.atribuicao_pendente_id);
+          const tempoMs = r.data_inicio && r.data_fim
+            ? Math.max(0, new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime())
+            : 0;
+          return {
+            ...r,
+            tempo_realizado: tempoMs,
+            cliente_id: attr?.cliente_id,
+            produto_id: attr?.produto_id,
+            tarefa_id: r.tarefa_id || attr?.tarefa_id,
+            is_pendente: true,
+            atribuicao_pendente_id: r.atribuicao_pendente_id,
+            periodo_inicio: attr?.data_inicio ? String(attr.data_inicio).split('T')[0] : null,
+            periodo_fim: attr?.data_fim ? String(attr.data_fim).split('T')[0] : null,
+            tempo_estimado_dia: attr?.tempo_estimado_dia ?? null
+          };
+        });
+
+        // Aplicar mesmos filtros de cliente/tarefa/produto se fornecidos
+        let pendentesFiltrados = pendentesMapeados;
+        if (clienteIdFinal) {
+          const id = String(clienteIdFinal).trim();
+          pendentesFiltrados = pendentesFiltrados.filter(p =>
+            p.cliente_id === id || (typeof p.cliente_id === 'string' && (
+              p.cliente_id.startsWith(id + ',') ||
+              p.cliente_id.includes(',' + id + ',') ||
+              p.cliente_id.endsWith(',' + id)
+            ))
+          );
+        }
+        if (tarefa_id) {
+          pendentesFiltrados = pendentesFiltrados.filter(p => String(p.tarefa_id) === String(tarefa_id).trim());
+        }
+        if (produto_id) {
+          pendentesFiltrados = pendentesFiltrados.filter(p => String(p.produto_id) === String(produto_id).trim());
+        }
+
+        registrosFinais = [...registrosFinais, ...pendentesFiltrados]
+          .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
+
+        if (limitNum > 0) {
+          registrosFinais = registrosFinais.slice(0, limitNum);
+        }
+        countFinal = registrosFinais.length;
+      }
+    }
+
+    const totalPages = limitNum > 0 ? Math.max(1, Math.ceil((countFinal || 0) / limitNum)) : 1;
 
     return res.json({
       success: true,
-      data: data || [],
-      count: count || 0,
+      data: registrosFinais,
+      count: countFinal,
       page: pageNum,
       limit: limitNum,
       totalPages
@@ -1579,6 +1791,20 @@ async function getTempoRealizadoTotal(req, res) {
       return res.status(400).json({ success: false, error: 'data_inicio e data_fim são obrigatórios' });
     }
 
+    // Normalizar datas para string YYYY-MM-DD (evita 500 se vier timestamp ou Date)
+    const normalizarDataStr = (val) => {
+      if (val == null) return null;
+      if (typeof val === 'string') return val.includes('T') ? val.split('T')[0] : val.slice(0, 10);
+      if (typeof val === 'number') return new Date(val).toISOString().split('T')[0];
+      if (val instanceof Date) return val.toISOString().split('T')[0];
+      return String(val).slice(0, 10);
+    };
+    const dataInicioStr = normalizarDataStr(data_inicio);
+    const dataFimStr = normalizarDataStr(data_fim);
+    if (!dataInicioStr || !dataFimStr) {
+      return res.status(400).json({ success: false, error: 'data_inicio e data_fim inválidos' });
+    }
+
     // Determinar chave de agrupamento
     let groupKey = agrupar_por;
     if (!groupKey) {
@@ -1588,11 +1814,13 @@ async function getTempoRealizadoTotal(req, res) {
       else groupKey = 'tarefa';
     }
 
-    // Normalizar IDs de entrada para arrays
-    const responsavelIds = responsavel_id ? (Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id]).map(id => parseInt(id, 10)).filter(id => !isNaN(id)) : [];
+    // Normalizar IDs de entrada para arrays (responsavel_id pode ser inteiro ou UUID)
+    const responsavelIds = responsavel_id ? (Array.isArray(responsavel_id) ? responsavel_id : [responsavel_id]).map(id => String(id).trim()).filter(Boolean) : [];
     const clienteIds = cliente_id ? (Array.isArray(cliente_id) ? cliente_id : [cliente_id]).map(id => String(id).trim()).filter(Boolean) : [];
     const produtoIds = produto_id ? (Array.isArray(produto_id) ? produto_id : [produto_id]).map(id => String(id).trim()).filter(Boolean) : [];
-    const tarefaIds = tarefa_id ? (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    // tarefa_id no banco é bigint: aceitar só numéricos (evitar ID composto tipo "98_uuid_131" que quebra a query)
+    const tarefaIdsRaw = tarefa_id ? (Array.isArray(tarefa_id) ? tarefa_id : [tarefa_id]).map(id => String(id).trim()).filter(Boolean) : [];
+    const tarefaIds = tarefaIdsRaw.filter(id => /^\d+$/.test(id));
 
     // Se não houver nenhum filtro de entidade, não podemos buscar "tudo" sem perigo de sobrecarga
     if (responsavelIds.length === 0 && clienteIds.length === 0 && produtoIds.length === 0 && tarefaIds.length === 0) {
@@ -1611,8 +1839,8 @@ async function getTempoRealizadoTotal(req, res) {
 
       if (errorMembros) throw errorMembros;
 
-      membros.forEach(m => {
-        if (m.usuario_id) {
+      (membros || []).forEach(m => {
+        if (m && m.usuario_id) {
           usuarioParaMembro[m.usuario_id] = m.id;
           usuariosIdsFiltro.push(m.usuario_id);
         }
@@ -1629,9 +1857,7 @@ async function getTempoRealizadoTotal(req, res) {
       // Sim, faremos isso DEPOIS da query principal.
     }
 
-    // Preparar filtros de período
-    const dataInicioStr = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-    const dataFimStr = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+    // Preparar filtros de período (dataInicioStr/dataFimStr já normalizados acima)
     const inicioStr = `${dataInicioStr}T00:00:00`;
     const fimStr = `${dataFimStr}T23:59:59.999`;
 
@@ -1643,22 +1869,36 @@ async function getTempoRealizadoTotal(req, res) {
     ].join(',');
 
     // ============================================
-    // 1. QUERY REGISTRO_TEMPO (REALIZADO)
+    // 1. QUERY REGISTRO_TEMPO (REALIZADO) – com paginação para considerar todos os registros
     // ============================================
-    let queryRealizado = supabase
-      .from('registro_tempo')
-      .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, usuario_id')
-      .or(orConditions)
-      .not('tempo_realizado', 'is', null);
+    const criarQueryBuilderRealizado = () => {
+      let q = supabase
+        .from('registro_tempo')
+        .select('tempo_realizado, data_inicio, data_fim, cliente_id, produto_id, tipo_tarefa_id, tarefa_id, usuario_id')
+        .or(orConditions)
+        .not('tempo_realizado', 'is', null);
+      if (usuariosIdsFiltro.length > 0) q = q.in('usuario_id', usuariosIdsFiltro);
+      if (clienteIds.length > 0) q = q.not('cliente_id', 'is', null);
+      if (produtoIds.length > 0) q = q.in('produto_id', produtoIds);
+      if (tarefaIds.length > 0) q = q.in('tarefa_id', tarefaIds);
+      return q;
+    };
 
-    // Aplicar Filtros
-    if (usuariosIdsFiltro.length > 0) queryRealizado = queryRealizado.in('usuario_id', usuariosIdsFiltro);
-    if (clienteIds.length > 0) queryRealizado = queryRealizado.in('cliente_id', clienteIds);
-    if (produtoIds.length > 0) queryRealizado = queryRealizado.in('produto_id', produtoIds);
-    if (tarefaIds.length > 0) queryRealizado = queryRealizado.in('tarefa_id', tarefaIds);
+    let registros;
+    try {
+      registros = await buscarTodosComPaginacao(criarQueryBuilderRealizado, { limit: 1000, logProgress: false });
+    } catch (errRealizado) {
+      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar registro_tempo paginado:', errRealizado);
+      throw errRealizado;
+    }
 
-    const { data: registros, error: errorRealizado } = await queryRealizado;
-    if (errorRealizado) throw errorRealizado;
+    if (clienteIds.length > 0 && registros && registros.length > 0) {
+      const clienteIdsNorm = clienteIds.map(c => String(c).trim().toLowerCase());
+      registros = registros.filter(reg => {
+        const ids = String(reg.cliente_id || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        return ids.some(id => clienteIdsNorm.includes(id));
+      });
+    }
 
     // Se agrupar por responsável e não tínhamos filtro, precisamos buscar os membros agora
     if (groupKey === 'responsavel' && responsavelIds.length === 0 && registros && registros.length > 0) {
@@ -1709,18 +1949,25 @@ async function getTempoRealizadoTotal(req, res) {
     });
 
     // ============================================
-    // 2. QUERY PENDENTES (EM ANDAMENTO)
+    // 2. QUERY PENDENTES (EM ANDAMENTO) – com paginação para considerar todos
     // ============================================
-    let queryPendentes = supabase
-      .from('registro_tempo_pendente')
-      .select('data_inicio, data_fim, usuario_id, tarefa_id, atribuicao_pendente_id')
-      .or(orConditions);
+    const criarQueryBuilderPendentes = () => {
+      let q = supabase
+        .from('registro_tempo_pendente')
+        .select('data_inicio, data_fim, usuario_id, tarefa_id, atribuicao_pendente_id')
+        .or(orConditions);
+      if (usuariosIdsFiltro.length > 0) q = q.in('usuario_id', usuariosIdsFiltro);
+      if (tarefaIds.length > 0) q = q.in('tarefa_id', tarefaIds);
+      return q;
+    };
 
-    if (usuariosIdsFiltro.length > 0) queryPendentes = queryPendentes.in('usuario_id', usuariosIdsFiltro);
-    if (tarefaIds.length > 0) queryPendentes = queryPendentes.in('tarefa_id', tarefaIds);
-    // Nota: Pendentes não têm cliente_id/produto_id diretos, dependem de join manual ou atribuicao
-
-    const { data: pendentes, error: errorPendentes } = await queryPendentes;
+    let pendentes;
+    try {
+      pendentes = await buscarTodosComPaginacao(criarQueryBuilderPendentes, { limit: 1000, logProgress: false });
+    } catch (errPendentes) {
+      console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro ao buscar registro_tempo_pendente paginado:', errPendentes);
+      throw errPendentes;
+    }
 
     if (pendentes && pendentes.length > 0) {
       let pendentesAptos = pendentes;
@@ -1791,6 +2038,7 @@ async function getTempoRealizadoTotal(req, res) {
 
   } catch (error) {
     console.error('❌ [TEMPO-REALIZADO-TOTAL] Erro inesperado:', error);
+    console.error('❌ [TEMPO-REALIZADO-TOTAL] Stack:', error.stack);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
   }
 }

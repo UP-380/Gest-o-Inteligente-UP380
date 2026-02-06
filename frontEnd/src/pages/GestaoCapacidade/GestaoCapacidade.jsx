@@ -22,12 +22,12 @@ import { clientesAPI, colaboradoresAPI, produtosAPI, tarefasAPI } from '../../se
 import { calcularDiasUteis, calcularDiasComOpcoes, calcularDiasComOpcoesEDatasIndividuais, obterDatasValidasNoPeriodo } from '../../utils/dateUtils';
 import { processBatch, executeHighPriority, globalRequestPool } from '../../utils/requestPool';
 import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
-import './DelegarTarefas.css';
+import './GestaoCapacidade.css';
 import { debounce } from '../../utils/debounce';
 
 const API_BASE_URL = '/api';
 
-const DelegarTarefas = () => {
+const GestaoCapacidade = () => {
   const navigate = useNavigate();
   const showToast = useToast();
   const [registrosAgrupados, setRegistrosAgrupados] = useState([]);
@@ -105,6 +105,9 @@ const DelegarTarefas = () => {
 
   // Estado para agrupamentos com tarefas expandidas quando filtro pai é "atividade"
   const [agrupamentosTarefasExpandidas, setAgrupamentosTarefasExpandidas] = useState(new Set());
+  // Nível 3: Registros de tempo (realizado) carregados sob demanda por tarefa
+  const [registroTempoExpandidoPorTarefa, setRegistroTempoExpandidoPorTarefa] = useState(new Set());
+  const [registroTempoCache, setRegistroTempoCache] = useState({}); // { tarefaKey: { loading, data: [], error } }
 
   // Cache de nomes
   const [nomesCache, setNomesCache] = useState({
@@ -133,6 +136,9 @@ const DelegarTarefas = () => {
   // Estado para rastrear se dados auxiliares (horas contratadas, tempo estimado total) foram completamente carregados
   // Isso garante que os dashboards só sejam exibidos quando todos os dados estiverem 100% prontos
   const [dadosAuxiliaresCarregados, setDadosAuxiliaresCarregados] = useState(false);
+
+  // Payload único do endpoint gestao-capacidade/cards (pai + detalhes por entidade)
+  const [cardsPorEntidade, setCardsPorEntidade] = useState({});
 
   // Estados para carregar dados
   const [clientes, setClientes] = useState([]);
@@ -343,7 +349,112 @@ const DelegarTarefas = () => {
       });
     }
 
-    // NOVO: Garantir que os detalhes das regras relacionadas estejam explodidos
+    // Dados em cache (do POST inicial com incluir_detalhes=false ou de uma abertura anterior)
+    const cardData = cardsPorEntidade[String(entidade.id)];
+    const listaPreloaded = cardData?.detalhes?.[tipo];
+    if (listaPreloaded && Array.isArray(listaPreloaded) && listaPreloaded.length > 0) {
+      const registros = listaPreloaded.map(item => {
+        const base = {
+          id: item.id,
+          originalId: item.original_id ?? item.id,
+          nome: item.nome,
+          total_estimado_ms: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+          total_realizado_ms: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+          tempoEstimado: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+          tempoRealizado: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+          custo_estimado: item.custo_estimado ?? 0
+        };
+        // Para tarefas: preservar clientes aninhados para exibir registros
+        if (tipo === 'tarefas' && item.clientes && Array.isArray(item.clientes)) {
+          base.clientes = item.clientes.map(c => ({
+            id: c.id,
+            cliente_id: c.cliente_id ?? c.id,
+            nome: c.nome,
+            tempoRealizado: c.total_realizado_ms ?? 0,
+            total_realizado_ms: c.total_realizado_ms ?? 0,
+            registros: []
+          }));
+        }
+        return base;
+      });
+      setDetailCard({
+        entidadeId: entidade.id,
+        tipo,
+        dados: { registros, preloaded: true }
+      });
+      return;
+    }
+
+    // Detalhes sob demanda: chamar endpoint /api/gestao-capacidade/cards/{tipo}/detalhes (tarefas, clientes, produtos, responsaveis)
+    const tipoDetalheParaApi = ['tarefas', 'clientes', 'produtos', 'responsaveis'].includes(tipo) ? tipo : null;
+    if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim) {
+      const endpointTipo = filtroPrincipal === 'atividade' ? 'tarefa' : filtroPrincipal;
+      setDetailCard({
+        entidadeId: entidade.id,
+        tipo,
+        dados: { registros: [], loading: true }
+      });
+      try {
+        const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/${endpointTipo}/detalhes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            id: entidade.id,
+            data_inicio: filtrosUltimosAplicados.periodoInicio,
+            data_fim: filtrosUltimosAplicados.periodoFim,
+            considerar_finais_semana: !!filtrosUltimosAplicados.habilitarFinaisSemana,
+            considerar_feriados: !!filtrosUltimosAplicados.habilitarFeriados,
+            filtros_adicionais: (() => {
+              const fa = filtrosUltimosAplicados.filtrosAdicionais || {};
+              const toArr = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+              return { cliente_id: toArr(fa.cliente), produto_id: toArr(fa.produto), tarefa_id: toArr(fa.tarefa) };
+            })(),
+            tipo_detalhe: tipoDetalheParaApi
+          })
+        });
+        const result = await res.json();
+        const arr = result?.data ?? (result?.detalhes?.[tipoDetalheParaApi]) ?? [];
+        const registros = Array.isArray(arr) ? arr.map(item => {
+          const base = {
+            id: item.id,
+            originalId: item.original_id ?? item.id,
+            nome: item.nome,
+            total_estimado_ms: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            total_realizado_ms: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            tempoEstimado: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            tempoRealizado: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            custo_estimado: item.custo_estimado ?? 0
+          };
+          // Para tarefas: preservar clientes aninhados para exibir registros
+          if (tipoDetalheParaApi === 'tarefas' && item.clientes && Array.isArray(item.clientes)) {
+            base.clientes = item.clientes.map(c => ({
+              id: c.id,
+              cliente_id: c.cliente_id ?? c.id,
+              nome: c.nome,
+              tempoRealizado: c.total_realizado_ms ?? 0,
+              total_realizado_ms: c.total_realizado_ms ?? 0,
+              registros: []
+            }));
+          }
+          return base;
+        }) : [];
+        setCardsPorEntidade(prev => ({
+          ...prev,
+          [String(entidade.id)]: {
+            ...prev[String(entidade.id)],
+            detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: arr }
+          }
+        }));
+        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros, preloaded: true } } : prev);
+      } catch (err) {
+        console.error('Erro ao buscar detalhes do card:', err);
+        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros: [], loading: false } } : prev);
+      }
+      return;
+    }
+
+    // Fallback: garantir que os detalhes das regras relacionadas estejam explodidos
     // Filtrar agrupamentos que pertencem a esta entidade
     const agrupamentosRelacionados = registrosAgrupados.filter(agr => {
       const p = agr.primeiroRegistro;
@@ -1313,10 +1424,11 @@ const DelegarTarefas = () => {
   }, [filtros.produto]);
 
   useEffect(() => {
-    if (filtros.atividade && tarefas.length === 0) {
+    // Carregar lista de tarefas quando filtro adicional atividade OU quando agrupamento principal é Por Atividade (para nomes nos cards)
+    if ((filtros.atividade || filtroPrincipal === 'atividade') && tarefas.length === 0) {
       loadTarefas();
     }
-  }, [filtros.atividade]);
+  }, [filtros.atividade, filtroPrincipal, tarefas.length]);
 
 
 
@@ -1615,14 +1727,16 @@ const DelegarTarefas = () => {
     setTipoContratoPorResponsavel({});
 
     const ids = Array.from(responsaveisIds);
-    const queryParams = new URLSearchParams();
-    ids.forEach(id => queryParams.append('membro_id', id));
-    if (dataFim) queryParams.append('data_fim', dataFim);
+    // Usar POST para evitar 414 URI Too Long quando há muitos responsáveis
+    const payload = { membro_id: ids };
+    if (dataFim) payload.data_fim = dataFim;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas`, {
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -1752,40 +1866,36 @@ const DelegarTarefas = () => {
         }
       }
 
-      // 1. Tempo Estimado Total
-      const paramsEstimado = new URLSearchParams({
+      // 1. Tempo Estimado Total – usar POST para evitar 414 URI Too Long (muitos filtros = URL longa)
+      const payloadEstimado = {
         data_inicio: periodoInicio,
         data_fim: periodoFim,
-        considerarFinaisDeSemana: habilitarFinaisSemana ? 'true' : 'false',
-        considerarFeriados: habilitarFeriados ? 'true' : 'false'
-      });
+        considerarFinaisDeSemana: habilitarFinaisSemana,
+        considerarFeriados: habilitarFeriados
+      };
+      if (tipoEntidade === 'responsavel') payloadEstimado.responsavel_id = [entidadeId];
+      else if (tipoEntidade === 'cliente') payloadEstimado.cliente_id = [entidadeId];
+      else if (tipoEntidade === 'produto') payloadEstimado.produto_id = [entidadeId];
+      else if (tipoEntidade === 'atividade') payloadEstimado.tarefa_id = [entidadeId];
 
-      // Adicionar filtros específicos dependendo do tipo da entidade ou filtros adicionais
-      if (tipoEntidade === 'responsavel') paramsEstimado.append('responsavel_id', entidadeId);
-      else if (tipoEntidade === 'cliente') paramsEstimado.append('cliente_id', entidadeId);
-      else if (tipoEntidade === 'produto') paramsEstimado.append('produto_id', entidadeId);
-      else if (tipoEntidade === 'atividade') paramsEstimado.append('tarefa_id', entidadeId);
-
-      // Adicionar filtros adicionais se houver (importante para consistência entre cards e listagem)
       if (tipoEntidade !== 'cliente' && (filtrosAdicionais.cliente_id || filtroAdicionalCliente)) {
         const cId = filtrosAdicionais.cliente_id || filtroAdicionalCliente;
-        if (Array.isArray(cId)) cId.forEach(id => paramsEstimado.append('cliente_id', String(id)));
-        else paramsEstimado.append('cliente_id', String(cId));
+        payloadEstimado.cliente_id = Array.isArray(cId) ? cId : [cId];
       }
       if (tipoEntidade !== 'atividade' && (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa)) {
         const tId = filtrosAdicionais.tarefa_id || filtroAdicionalTarefa;
-        if (Array.isArray(tId)) tId.forEach(id => paramsEstimado.append('tarefa_id', String(id)));
-        else paramsEstimado.append('tarefa_id', String(tId));
+        payloadEstimado.tarefa_id = Array.isArray(tId) ? tId : [tId];
       }
       if (tipoEntidade !== 'produto' && (filtrosAdicionais.produto_id || filtroAdicionalProduto)) {
         const pId = filtrosAdicionais.produto_id || filtroAdicionalProduto;
-        if (Array.isArray(pId)) pId.forEach(id => paramsEstimado.append('produto_id', String(id)));
-        else paramsEstimado.append('produto_id', String(pId));
+        payloadEstimado.produto_id = Array.isArray(pId) ? pId : [pId];
       }
 
-      const responseEstimado = await fetch(`${API_BASE_URL}/tempo-estimado/total?${paramsEstimado}`, {
+      const responseEstimado = await fetch(`${API_BASE_URL}/tempo-estimado/total`, {
+        method: 'POST',
         credentials: 'include',
-        headers: { 'Accept': 'application/json' }
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payloadEstimado)
       });
 
       if (responseEstimado.ok) {
@@ -1820,21 +1930,31 @@ const DelegarTarefas = () => {
         if (responseRealizado.ok) {
           const result = await responseRealizado.json();
           if (result.success && result.data) {
-            setTemposRealizadosPorEntidade(prev => ({
-              ...prev,
-              [`${tipoEntidade}_${entidadeId}`]: {
-                realizado: result.data.tempo_realizado_ms || 0,
-                pendente: result.data.tempo_pendente_ms || 0
-              }
-            }));
+            const chave = `${tipoEntidade}_${entidadeId}`;
+            const newRealizado = result.data.tempo_realizado_ms || 0;
+            const newPendente = result.data.tempo_pendente_ms || 0;
+            setTemposRealizadosPorEntidade(prev => {
+              const cur = prev[chave];
+              const curRealizado = cur != null ? (typeof cur === 'number' ? cur : (cur.realizado ?? 0)) : 0;
+              const curPendente = cur != null && typeof cur === 'object' ? (cur.pendente ?? 0) : 0;
+              return {
+                ...prev,
+                [chave]: {
+                  realizado: Math.max(curRealizado, newRealizado),
+                  pendente: Math.max(curPendente, newPendente)
+                }
+              };
+            });
           }
         }
       } else {
-        // Se não tem responsável, definir como zero para liberar carregamento/cache
-        setTemposRealizadosPorEntidade(prev => ({
-          ...prev,
-          [`${tipoEntidade}_${entidadeId}`]: { realizado: 0, pendente: 0 }
-        }));
+        // Se não tem responsável: não sobrescrever valor já carregado (ex.: 15s vindo do registro sob demanda)
+        setTemposRealizadosPorEntidade(prev => {
+          const chave = `${tipoEntidade}_${entidadeId}`;
+          const cur = prev[chave];
+          const curRealizado = cur != null ? (typeof cur === 'number' ? cur : (cur.realizado ?? 0)) : 0;
+          return { ...prev, [chave]: { realizado: Math.max(curRealizado, 0), pendente: 0 } };
+        });
       }
 
       // 3. Horas Contratadas e Custos (Apenas para Responsáveis)
@@ -1861,35 +1981,106 @@ const DelegarTarefas = () => {
   };
 
   // [NEW] Função para carregar todos os dados de múltiplas entidades de UMA SÓ VEZ (Batch)
+  // Nível 1: Tempo estimado total SEM enviar lista de IDs – backend retorna totais agregados no banco (evita 414/500)
+  // Realizado: enviar IDs de ENTIDADE (responsavel_id, cliente_id, etc.), não agrupador_id (UUID)
   const carregarDadosEmLote = async (itens, tipoEntidade, periodoInicio, periodoFim, filtrosAdicionais = {}) => {
     if (!periodoInicio || !periodoFim || !itens || itens.length === 0) return;
 
     try {
-      const ids = itens.map(item => item.agrupador_id).filter(id => id !== 'sem-grupo');
-      if (ids.length === 0) return;
+      // IDs de entidade para realizado/custos: backend espera membro id, cliente id, etc. (não agrupador_id UUID)
+      const obterIdsEntidade = () => {
+        const primeiroOuRegistro = (i) => i.primeiroRegistro ?? i.registros?.[0] ?? i.regras?.[0];
+        if (tipoEntidade === 'responsavel') {
+          return [...new Set(itens.map(i => primeiroOuRegistro(i)?.responsavel_id).filter(Boolean))].map(String);
+        }
+        if (tipoEntidade === 'cliente') {
+          return [...new Set(itens.flatMap(i => String(primeiroOuRegistro(i)?.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean)))];
+        }
+        if (tipoEntidade === 'produto') {
+          return [...new Set(itens.map(i => primeiroOuRegistro(i)?.produto_id).filter(Boolean))].map(String);
+        }
+        if (tipoEntidade === 'atividade') {
+          return [...new Set(itens.map(i => primeiroOuRegistro(i)?.tarefa_id).filter(Boolean))].map(String);
+        }
+        return [];
+      };
+      const entityIds = obterIdsEntidade();
+      if (entityIds.length === 0) return;
 
-      console.log(`🚀 [BATCH] Iniciando carga em lote de ${ids.length} itens do tipo ${tipoEntidade}...`);
+      // Para custos/horas: membro_id é o mesmo que responsavel_id (membro.id)
+      const idsParaCusto = tipoEntidade === 'responsavel' ? entityIds : itens.map(i => i.agrupador_id).filter(id => id !== 'sem-grupo');
 
-      // 1. Tempo Estimado Total em Lote (Agora via POST para evitar erro 414)
+      // [FIX] Pré-preencher chaves com 0/null para todos os cards visíveis: assim, responsáveis sem regra
+      // (ou cuja API não retornou) exibem o card normalmente com valores "0" em vez de ficar em "Carregando métricas..."
+      if (tipoEntidade === 'responsavel') {
+        setTempoEstimadoTotalPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = 0; });
+          return next;
+        });
+        setTemposRealizadosPorEntidade(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const key = `responsavel_${String(id)}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+          return next;
+        });
+        setHorasContratadasPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = null; });
+          return next;
+        });
+        setTipoContratoPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = null; });
+          return next;
+        });
+      }
+
+      // [FIX] Pré-preencher para filtro agrupador Produto (igual ao responsável): evita "Carregando métricas..."
+      if (tipoEntidade === 'produto') {
+        setTempoEstimadoTotalPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = 0; });
+          return next;
+        });
+        setTemposRealizadosPorEntidade(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const key = `produto_${String(id)}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+          return next;
+        });
+      }
+
+      // [FIX] Pré-preencher para filtro agrupador Atividade (igual ao responsável): evita "Carregando métricas..."
+      if (tipoEntidade === 'atividade') {
+        setTempoEstimadoTotalPorResponsavel(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const k = String(id); if (next[k] === undefined) next[k] = 0; });
+          return next;
+        });
+        setTemposRealizadosPorEntidade(prev => {
+          const next = { ...prev };
+          entityIds.forEach(id => { const key = `atividade_${String(id)}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+          return next;
+        });
+      }
+
+      console.log(`🚀 [BATCH] Iniciando carga em lote de ${entityIds.length} entidades do tipo ${tipoEntidade}...`);
+
+      // 1. Tempo Estimado Total: NÃO enviar IDs – backend agrega em SQL e retorna totais de todas as entidades
       const payloadEstimado = {
         data_inicio: periodoInicio,
         data_fim: periodoFim,
         considerarFinaisDeSemana: !!habilitarFinaisSemana,
         considerarFeriados: !!habilitarFeriados,
-        agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade // Mapear 'atividade' para 'tarefa' no backend
+        agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade
       };
-      if (tipoEntidade === 'responsavel') payloadEstimado.responsavel_id = ids;
-      else if (tipoEntidade === 'cliente') payloadEstimado.cliente_id = ids;
-      else if (tipoEntidade === 'produto') payloadEstimado.produto_id = ids;
-      else if (tipoEntidade === 'atividade') payloadEstimado.tarefa_id = ids;
-
-      // Adicionar filtros adicionais se houver
+      // Apenas filtros adicionais (não a lista de IDs dos cards)
       const cId = filtrosAdicionais.cliente_id || filtroAdicionalCliente;
       if (cId) payloadEstimado.cliente_id = Array.isArray(cId) ? cId : [cId];
       const tId = filtrosAdicionais.tarefa_id || filtroAdicionalTarefa;
       if (tId) payloadEstimado.tarefa_id = Array.isArray(tId) ? tId : [tId];
       const pId = filtrosAdicionais.produto_id || filtroAdicionalProduto;
       if (pId) payloadEstimado.produto_id = Array.isArray(pId) ? pId : [pId];
+      if (filtroStatusCliente && filtroStatusCliente !== 'todos') payloadEstimado.cliente_status = filtroStatusCliente;
       globalRequestPool.add(async () => {
         try {
           const res = await fetch(`${API_BASE_URL}/tempo-estimado/total`, {
@@ -1898,59 +2089,173 @@ const DelegarTarefas = () => {
             credentials: 'include',
             body: JSON.stringify(payloadEstimado)
           });
-          const result = await res.json();
+          const text = await res.text();
+          let result;
+          try {
+            result = text ? JSON.parse(text) : {};
+          } catch {
+            if (!res.ok) console.warn('Batch estimado: servidor retornou', res.status, '(ex.: 414 URI Too Long). Use build atualizado com POST.');
+            return;
+          }
           if (result.success && result.data) {
-            setTempoEstimadoTotalPorResponsavel(prev => ({ ...prev, ...result.data }));
+            setTempoEstimadoTotalPorResponsavel(prev => {
+              const next = { ...prev, ...result.data };
+              if (tipoEntidade === 'responsavel') {
+                entityIds.forEach(id => {
+                  const k = String(id);
+                  if (next[k] === undefined) next[k] = 0;
+                });
+              }
+              return next;
+            });
           }
         } catch (err) {
           console.error('Erro batch estimado:', err);
         }
       });
 
-      // 2. Tempo Realizado Total em Lote (Já é POST)
-      globalRequestPool.add(async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              responsavel_id: tipoEntidade === 'responsavel' ? ids : [],
-              cliente_id: tipoEntidade === 'cliente' ? ids : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
-              produto_id: tipoEntidade === 'produto' ? ids : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
-              tarefa_id: tipoEntidade === 'atividade' ? ids : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
-              data_inicio: periodoInicio,
-              data_fim: periodoFim
-            })
-          });
-          const result = await res.json();
-          if (result.success && result.data) {
-            const novosTempos = {};
-            Object.keys(result.data).forEach(respId => {
-              novosTempos[`${tipoEntidade}_${respId}`] = {
-                realizado: result.data[respId].tempo_realizado_ms || 0,
-                pendente: result.data[respId].tempo_pendente_ms || 0
-              };
-            });
-            setTemposRealizadosPorEntidade(prev => ({ ...prev, ...novosTempos }));
-          }
-        } catch (err) {
-          console.error('Erro batch realizado:', err);
-        }
-      });
+      // 2. Tempo Realizado Total em Lote
+      // Produto: mesmo endpoint do painel de detalhes (por tarefa) e soma por produto, para bater com 4min 1s
+      if (tipoEntidade === 'produto') {
+        globalRequestPool.add(async () => {
+          const extrairTempoRealizadoMs = (result) => {
+            if (!result?.success || !result?.data) return 0;
+            const d = result.data;
+            if (typeof d === 'object' && !Array.isArray(d)) {
+              const first = Object.values(d)[0];
+              if (first && typeof first.tempo_realizado_ms !== 'undefined') return first.tempo_realizado_ms || 0;
+            }
+            return d?.tempo_realizado_ms || 0;
+          };
+          try {
+            const realizadosPorProduto = {};
+            entityIds.forEach(id => { realizadosPorProduto[String(id)] = 0; });
 
-      // 3. Custos e Horas em Lote (Apenas para Responsáveis)
+            for (const productId of entityIds) {
+              const productIdStr = String(productId);
+              const agrupamentosDoProduto = itens.filter(
+                i => String((i.primeiroRegistro ?? i.regras?.[0])?.produto_id) === productIdStr
+              );
+              const paresRespTarefa = new Set();
+              agrupamentosDoProduto.forEach(agr => {
+                (agr.regras || []).forEach(regra => {
+                  const respId = regra.responsavel_id;
+                  const tId = regra.tarefa_id != null ? String(regra.tarefa_id).trim() : '';
+                  if (respId && tId && /^\d+$/.test(tId)) paresRespTarefa.add(`${respId}|${tId}`);
+                });
+              });
+
+              let somaProduto = 0;
+              for (const par of paresRespTarefa) {
+                const [responsavelId, tarefaId] = par.split('|');
+                const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    responsavel_id: responsavelId,
+                    data_inicio: periodoInicio,
+                    data_fim: periodoFim,
+                    tarefa_id: tarefaId,
+                    cliente_id: null,
+                    produto_id: null
+                  })
+                });
+                const result = await res.json();
+                somaProduto += extrairTempoRealizadoMs(result);
+              }
+              realizadosPorProduto[productIdStr] = somaProduto;
+            }
+
+            setTemposRealizadosPorEntidade(prev => {
+              const next = { ...prev };
+              Object.keys(realizadosPorProduto).forEach(id => {
+                const key = `produto_${id}`;
+                const realizado = realizadosPorProduto[id] || 0;
+                const cur = next[key];
+                const curPendente = cur != null && typeof cur === 'object' ? (cur.pendente ?? 0) : 0;
+                next[key] = { realizado, pendente: curPendente };
+              });
+              return next;
+            });
+          } catch (err) {
+            console.error('Erro batch realizado (produto):', err);
+          }
+        });
+      } else {
+        globalRequestPool.add(async () => {
+          try {
+            const res = await fetch(`${API_BASE_URL}/registro-tempo/realizado-total`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                responsavel_id: tipoEntidade === 'responsavel' ? entityIds : [],
+                cliente_id: tipoEntidade === 'cliente' ? entityIds : (filtrosAdicionais.cliente_id || filtroAdicionalCliente || null),
+                produto_id: tipoEntidade === 'produto' ? entityIds : (filtrosAdicionais.produto_id || filtroAdicionalProduto || null),
+                tarefa_id: tipoEntidade === 'atividade' ? entityIds : (filtrosAdicionais.tarefa_id || filtroAdicionalTarefa || null),
+                data_inicio: periodoInicio,
+                data_fim: periodoFim,
+                agrupar_por: tipoEntidade === 'atividade' ? 'tarefa' : tipoEntidade
+              })
+            });
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch realizado: servidor retornou', res.status);
+              return;
+            }
+            if (result.success && result.data) {
+              setTemposRealizadosPorEntidade(prev => {
+                const next = { ...prev };
+                Object.keys(result.data).forEach(respId => {
+                  const key = `${tipoEntidade}_${String(respId)}`;
+                  const newRealizado = result.data[respId].tempo_realizado_ms || 0;
+                  const newPendente = result.data[respId].tempo_pendente_ms || 0;
+                  const cur = next[key];
+                  const curRealizado = cur != null ? (typeof cur === 'number' ? cur : (cur.realizado ?? 0)) : 0;
+                  const curPendente = cur != null && typeof cur === 'object' ? (cur.pendente ?? 0) : 0;
+                  next[key] = {
+                    realizado: Math.max(curRealizado, newRealizado),
+                    pendente: Math.max(curPendente, newPendente)
+                  };
+                });
+                if (tipoEntidade === 'responsavel' || tipoEntidade === 'cliente' || tipoEntidade === 'produto' || tipoEntidade === 'atividade') {
+                  entityIds.forEach(id => {
+                    const key = `${tipoEntidade}_${String(id)}`;
+                    if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 };
+                  });
+                }
+                return next;
+              });
+            }
+          } catch (err) {
+            console.error('Erro batch realizado:', err);
+          }
+        });
+      }
+
+      // 3. Custos e Horas em Lote (Apenas para Responsáveis) – membro_id = responsavel_id (entidade)
       if (tipoEntidade === 'responsavel') {
         globalRequestPool.add(async () => {
           try {
-            const payload = { membro_id: ids, data_fim: periodoFim };
+            const payload = { membro_id: idsParaCusto, data_fim: periodoFim };
             const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify(payload)
             });
-            const result = await res.json();
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch horas: servidor retornou', res.status, '(ex.: 414). Use build com POST.');
+              return;
+            }
             if (result.success && result.data) {
               const novasHoras = {};
               const novosContratos = {};
@@ -1960,8 +2265,22 @@ const DelegarTarefas = () => {
                   novosContratos[rid] = result.data[rid].tipo_contrato;
                 }
               });
-              setHorasContratadasPorResponsavel(prev => ({ ...prev, ...novasHoras }));
-              setTipoContratoPorResponsavel(prev => ({ ...prev, ...novosContratos }));
+              setHorasContratadasPorResponsavel(prev => {
+                const next = { ...prev, ...novasHoras };
+                entityIds.forEach(id => {
+                  const k = String(id);
+                  if (next[k] === undefined) next[k] = null;
+                });
+                return next;
+              });
+              setTipoContratoPorResponsavel(prev => {
+                const next = { ...prev, ...novosContratos };
+                entityIds.forEach(id => {
+                  const k = String(id);
+                  if (next[k] === undefined) next[k] = null;
+                });
+                return next;
+              });
             }
           } catch (err) {
             console.error('Erro batch horas:', err);
@@ -1971,14 +2290,21 @@ const DelegarTarefas = () => {
         // Custos Batch
         globalRequestPool.add(async () => {
           try {
-            const payload = { membro_id: ids, data_fim: periodoFim };
+            const payload = { membro_id: idsParaCusto, data_fim: periodoFim };
             const res = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/mais-recente`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
               body: JSON.stringify(payload)
             });
-            const result = await res.json();
+            const text = await res.text();
+            let result;
+            try {
+              result = text ? JSON.parse(text) : {};
+            } catch {
+              if (!res.ok) console.warn('Batch custos: servidor retornou', res.status, '(ex.: 414). Use build com POST.');
+              return;
+            }
             if (result.success && result.data) {
               const novosCustos = {};
               Object.keys(result.data).forEach(rid => {
@@ -2032,6 +2358,90 @@ const DelegarTarefas = () => {
     processarFila();
   }, [filaProcessamento, processandoFila, periodoInicio, periodoFim, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
 
+  // [FIX] Garantir chaves com 0/null para TODOS os membros que podem ter card (incluindo quem não tem regra).
+  // Os cards vêm de membros.forEach, não só de agrupamentos; sem isso, responsáveis sem regra ficam em "Carregando métricas...".
+  useEffect(() => {
+    if (filtroPrincipal !== 'responsavel' || !membros?.length) return;
+    const estaNosFiltros = (id, filtroSelecionado) => {
+      if (filtroSelecionado == null || filtroSelecionado === undefined) return true;
+      const idStr = String(id);
+      if (Array.isArray(filtroSelecionado)) return filtroSelecionado.some(f => String(f) === idStr);
+      return String(filtroSelecionado) === idStr;
+    };
+    const ids = membros.filter(m => estaNosFiltros(m.id, filtroResponsavelSelecionado)).map(m => String(m.id));
+    if (ids.length === 0) return;
+
+    setTempoEstimadoTotalPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = 0; });
+      return next;
+    });
+    setTemposRealizadosPorEntidade(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { const key = `responsavel_${id}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+      return next;
+    });
+    setHorasContratadasPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = null; });
+      return next;
+    });
+    setTipoContratoPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = null; });
+      return next;
+    });
+  }, [filtroPrincipal, membros, filtroResponsavelSelecionado]);
+
+  // [FIX] Garantir chaves com 0 para TODOS os produtos que podem ter card (igual ao responsável).
+  // Os cards vêm de produtos.forEach; sem isso, produtos sem estimado/realizado ficam em "Carregando métricas...".
+  useEffect(() => {
+    if (filtroPrincipal !== 'produto' || !produtos?.length) return;
+    const estaNosFiltros = (id, filtroSelecionado) => {
+      if (filtroSelecionado == null || filtroSelecionado === undefined) return true;
+      const idStr = String(id);
+      if (Array.isArray(filtroSelecionado)) return filtroSelecionado.some(f => String(f) === idStr);
+      return String(filtroSelecionado) === idStr;
+    };
+    const ids = produtos.filter(p => estaNosFiltros(p.id, filtroProdutoSelecionado)).map(p => String(p.id));
+    if (ids.length === 0) return;
+
+    setTempoEstimadoTotalPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = 0; });
+      return next;
+    });
+    setTemposRealizadosPorEntidade(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { const key = `produto_${id}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+      return next;
+    });
+  }, [filtroPrincipal, produtos, filtroProdutoSelecionado]);
+
+  // [FIX] Garantir chaves com 0 para TODOS os clientes que podem ter card (igual ao responsável).
+  // Os cards vêm de clientes.forEach + entidadesDosRegistros; sem isso, clientes ficam em "Carregando métricas...".
+  useEffect(() => {
+    if (filtroPrincipal !== 'cliente' || !clientes?.length) return;
+    const estaNosFiltros = (id, filtroSelecionado) => {
+      if (filtroSelecionado == null || filtroSelecionado === undefined) return true;
+      const idStr = String(id);
+      if (Array.isArray(filtroSelecionado)) return filtroSelecionado.some(f => String(f) === idStr);
+      return String(filtroSelecionado) === idStr;
+    };
+    const ids = clientes.filter(c => estaNosFiltros(c.id, filtroClienteSelecionado)).map(c => String(c.id));
+    if (ids.length === 0) return;
+
+    setTempoEstimadoTotalPorResponsavel(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { if (next[id] === undefined) next[id] = 0; });
+      return next;
+    });
+    setTemposRealizadosPorEntidade(prev => {
+      const next = { ...prev };
+      ids.forEach(id => { const key = `cliente_${id}`; if (next[key] === undefined) next[key] = { realizado: 0, pendente: 0 }; });
+      return next;
+    });
+  }, [filtroPrincipal, clientes, filtroClienteSelecionado]);
 
   // [ON-DEMAND] Função exclusiva para carregar detalhes ao clicar
   // [BATCH-FIX] Adicionado parâmetro updateState para permitir batching e evitar re-renders múltiplos
@@ -2207,149 +2617,147 @@ const DelegarTarefas = () => {
         produto: filtroAdicionalProduto
       };
 
-      // IMPORTANTE: Quando há filtro de período, usar limit alto para garantir todas as regras
-      // Isso é necessário para calcular tempo estimado corretamente
-      // A paginação será aplicada apenas na listagem de registros, não nas regras retornadas
+      // Quando há período: buscar TODAS as regras por paginação (sem limit total) para não faltar estimado/realizado.
+      // Cada página usa limit moderado (1000) para não sobrecarregar a VPS.
       const temPeriodo = periodoAUsar.inicio && periodoAUsar.fim;
-      const limitParaBusca = temPeriodo ? '10000' : itemsPerPage.toString();
+      const LIMIT_POR_PAGINA = 1000;
+      const limitParaBusca = temPeriodo ? String(LIMIT_POR_PAGINA) : itemsPerPage.toString();
       const pageParaBusca = temPeriodo ? '1' : currentPage.toString();
 
-      const params = new URLSearchParams({
-        page: pageParaBusca,
-        limit: limitParaBusca
-      });
-
-      console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca com limit=${limitParaBusca}, page=${pageParaBusca} (temPeriodo=${temPeriodo})`);
-
-      // Adicionar filtros
-      if (filtrosAUsar.produto) {
-        params.append('filtro_produto', 'true');
-        // Adicionar IDs de produtos selecionados se houver
-        if (valoresAUsar.produto) {
-          const produtoIds = Array.isArray(valoresAUsar.produto)
-            ? valoresAUsar.produto
-            : [valoresAUsar.produto];
-          produtoIds.forEach(id => {
-            if (id) params.append('produto_id', String(id).trim());
-          });
-        }
-      }
-      if (filtrosAUsar.atividade) {
-        params.append('filtro_atividade', 'true');
-        // Adicionar IDs de tarefas selecionadas se houver
-        if (valoresAUsar.tarefa) {
-          const tarefaIds = Array.isArray(valoresAUsar.tarefa)
-            ? valoresAUsar.tarefa
-            : [valoresAUsar.tarefa];
-          tarefaIds.forEach(id => {
-            if (id) params.append('tarefa_id', String(id).trim());
-          });
-        }
-      }
-
-      if (filtrosAUsar.cliente) {
-        params.append('filtro_cliente', 'true');
-        // Adicionar IDs de clientes selecionados se houver
-        if (valoresAUsar.cliente) {
-          const clienteIds = Array.isArray(valoresAUsar.cliente)
-            ? valoresAUsar.cliente
-            : [valoresAUsar.cliente];
-          clienteIds.forEach(id => {
-            if (id) params.append('cliente_id', String(id).trim());
-          });
-        }
-      }
-      if (filtrosAUsar.responsavel) {
-        params.append('filtro_responsavel', 'true');
-      }
-      // IMPORTANTE: Sempre enviar responsavel_id quando houver colaborador selecionado,
-      // mesmo que o filtro de responsável não esteja ativo
-      // Isso garante que o tempo estimado seja calculado corretamente para o colaborador selecionado
-      if (valoresAUsar.responsavel) {
-        const responsavelIds = Array.isArray(valoresAUsar.responsavel)
-          ? valoresAUsar.responsavel
-          : [valoresAUsar.responsavel];
-        responsavelIds.forEach(id => {
-          if (id) {
-            const idStr = String(id).trim();
-            params.append('responsavel_id', idStr);
+      const buildParams = (page, limit) => {
+        const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+        if (filtrosAUsar.produto) {
+          p.append('filtro_produto', 'true');
+          if (valoresAUsar.produto) {
+            const produtoIds = Array.isArray(valoresAUsar.produto) ? valoresAUsar.produto : [valoresAUsar.produto];
+            produtoIds.forEach(id => { if (id) p.append('produto_id', String(id).trim()); });
           }
+        }
+        if (filtrosAUsar.atividade) {
+          p.append('filtro_atividade', 'true');
+          if (valoresAUsar.tarefa) {
+            const tarefaIds = Array.isArray(valoresAUsar.tarefa) ? valoresAUsar.tarefa : [valoresAUsar.tarefa];
+            tarefaIds.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+          }
+        }
+        if (filtrosAUsar.cliente) {
+          p.append('filtro_cliente', 'true');
+          if (valoresAUsar.cliente) {
+            const clienteIds = Array.isArray(valoresAUsar.cliente) ? valoresAUsar.cliente : [valoresAUsar.cliente];
+            clienteIds.forEach(id => { if (id) p.append('cliente_id', String(id).trim()); });
+          }
+        }
+        if (filtrosAUsar.responsavel) p.append('filtro_responsavel', 'true');
+        if (valoresAUsar.responsavel) {
+          const responsavelIds = Array.isArray(valoresAUsar.responsavel) ? valoresAUsar.responsavel : [valoresAUsar.responsavel];
+          responsavelIds.forEach(id => { if (id) p.append('responsavel_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.cliente) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.cliente) ? filtrosAdicionaisAUsar.cliente : [filtrosAdicionaisAUsar.cliente];
+          ids.forEach(id => { if (id) p.append('cliente_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.tarefa) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.tarefa) ? filtrosAdicionaisAUsar.tarefa : [filtrosAdicionaisAUsar.tarefa];
+          ids.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+        }
+        if (filtrosAdicionaisAUsar.produto) {
+          const ids = Array.isArray(filtrosAdicionaisAUsar.produto) ? filtrosAdicionaisAUsar.produto : [filtrosAdicionaisAUsar.produto];
+          ids.forEach(id => { if (id) p.append('produto_id', String(id).trim()); });
+        }
+        const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
+        const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
+        if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos' && (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo')) {
+          p.append('cliente_status', filtroStatusCliente);
+        }
+        if (periodoAUsar.inicio) p.append('data_inicio', periodoAUsar.inicio);
+        if (periodoAUsar.fim) p.append('data_fim', periodoAUsar.fim);
+        return p;
+      };
+
+      // Montar payload para POST (evitar 414 URI Too Long quando muitos responsavel_id/outros filtros)
+      const buildPayload = (page, limit) => {
+        const pl = { page: String(page), limit: String(limit) };
+        const arr = (v) => (Array.isArray(v) ? v : (v != null ? [v] : []));
+        const merge = (a, b) => [...arr(a).map(String).filter(Boolean), ...arr(b).map(String).filter(Boolean)];
+        if (filtrosAUsar.produto && valoresAUsar.produto) pl.produto_id = merge(valoresAUsar.produto, filtrosAdicionaisAUsar.produto);
+        if (filtrosAUsar.atividade && valoresAUsar.tarefa) pl.tarefa_id = merge(valoresAUsar.tarefa, filtrosAdicionaisAUsar.tarefa);
+        if (filtrosAUsar.cliente && valoresAUsar.cliente) pl.cliente_id = merge(valoresAUsar.cliente, filtrosAdicionaisAUsar.cliente);
+        if (filtrosAUsar.responsavel && valoresAUsar.responsavel) pl.responsavel_id = arr(valoresAUsar.responsavel).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.cliente && !pl.cliente_id) pl.cliente_id = arr(filtrosAdicionaisAUsar.cliente).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.tarefa && !pl.tarefa_id) pl.tarefa_id = arr(filtrosAdicionaisAUsar.tarefa).map(String).filter(Boolean);
+        if (filtrosAdicionaisAUsar.produto && !pl.produto_id) pl.produto_id = arr(filtrosAdicionaisAUsar.produto).map(String).filter(Boolean);
+        if (filtroPrincipal === 'cliente' && filtroStatusCliente && filtroStatusCliente !== 'todos') pl.cliente_status = filtroStatusCliente;
+        if (periodoAUsar.inicio) pl.data_inicio = periodoAUsar.inicio;
+        if (periodoAUsar.fim) pl.data_fim = periodoAUsar.fim;
+        return pl;
+      };
+
+      const LIMITE_URL_SEGURA = 1800; // usar POST se URL passar disso (evitar 414)
+      const usarPostListagem = () => {
+        const p = buildParams(1, LIMIT_POR_PAGINA);
+        return p.toString().length > LIMITE_URL_SEGURA;
+      };
+
+      let regras = [];
+      let totalDoBackend = null;
+
+      const fetchUmaPagina = async (page, limit) => {
+        const usePost = usarPostListagem();
+        if (usePost) {
+          const payload = buildPayload(page, limit);
+          const response = await fetch(`${API_BASE_URL}/tempo-estimado/listar`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: abortController.signal
+          });
+          return response;
+        }
+        const params = buildParams(page, limit);
+        const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' },
+          signal: abortController.signal
         });
-      }
+        return response;
+      };
 
-      // Adicionar filtros adicionais (que não são o filtro pai)
-      // Cliente adicional
-      if (filtrosAdicionaisAUsar.cliente) {
-        const clienteIds = Array.isArray(filtrosAdicionaisAUsar.cliente)
-          ? filtrosAdicionaisAUsar.cliente
-          : [filtrosAdicionaisAUsar.cliente];
-        clienteIds.forEach(id => {
-          if (id) params.append('cliente_id', String(id).trim());
-        });
-      }
-
-      // Tarefa adicional
-      if (filtrosAdicionaisAUsar.tarefa) {
-        const tarefaIds = Array.isArray(filtrosAdicionaisAUsar.tarefa)
-          ? filtrosAdicionaisAUsar.tarefa
-          : [filtrosAdicionaisAUsar.tarefa];
-        tarefaIds.forEach(id => {
-          if (id) params.append('tarefa_id', String(id).trim());
-        });
-      }
-
-      // Produto adicional
-      if (filtrosAdicionaisAUsar.produto) {
-        const produtoIds = Array.isArray(filtrosAdicionaisAUsar.produto)
-          ? filtrosAdicionaisAUsar.produto
-          : [filtrosAdicionaisAUsar.produto];
-        produtoIds.forEach(id => {
-          if (id) params.append('produto_id', String(id).trim());
-        });
-      }
-
-      // Adicionar filtro de status de cliente (apenas quando filtro_cliente está ativo E é o filtro pai)
-      // Verificar se o filtro pai atual é realmente "cliente"
-      const filtroPaiAtual = filtroPrincipal || ordemFiltros[0];
-      const isFiltroPaiCliente = filtroPaiAtual === 'cliente' || (ordemFiltros.length === 0 && filtrosAUsar.cliente);
-
-      if (filtrosAUsar.cliente && isFiltroPaiCliente && filtroStatusCliente && filtroStatusCliente !== 'todos') {
-        // Validar que o valor é válido antes de enviar
-        if (filtroStatusCliente === 'ativo' || filtroStatusCliente === 'inativo') {
-          params.append('cliente_status', filtroStatusCliente);
+      if (temPeriodo) {
+        let pageAtual = 1;
+        let result;
+        do {
+          const response = await fetchUmaPagina(pageAtual, LIMIT_POR_PAGINA);
+          if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+          if (!response.ok) break;
+          result = await response.json();
+          if (!result.success || !result.data) break;
+          regras = regras.concat(result.data || []);
+          if (result.total != null) totalDoBackend = result.total;
+          pageAtual++;
+        } while ((result.data?.length || 0) === LIMIT_POR_PAGINA && !abortController.signal.aborted);
+        console.log(`🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Busca completa: ${regras.length} regras (${pageAtual - 1} página(s), limit=${LIMIT_POR_PAGINA}/página)`);
+      } else {
+        const response = await fetchUmaPagina(pageParaBusca, limitParaBusca);
+        if (response.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            regras = result.data || [];
+            totalDoBackend = result.total;
+          }
         }
       }
 
-      // Adicionar filtro de período
-      if (periodoAUsar.inicio) {
-        params.append('data_inicio', periodoAUsar.inicio);
-      }
-      if (periodoAUsar.fim) {
-        params.append('data_fim', periodoAUsar.fim);
-      }
-
-      const url = `${API_BASE_URL}/tempo-estimado?${params}`;
-
-      const response = await fetch(url, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' },
-        signal: abortController.signal // ADICIONADO: Sinal de aborto
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-
-
-
-
-
-          const regras = result.data || [];
+      if (regras.length > 0 || !temPeriodo) {
+        const totalRegistros = totalDoBackend != null ? totalDoBackend : regras.length;
+        if (regras.length > 0) {
 
           // Helper para converter HH:mm:ss para ms
           const timeToMs = (timeStr) => {
@@ -2424,37 +2832,125 @@ const DelegarTarefas = () => {
 
           setRegistrosAgrupados(novosAgrupamentos);
 
-          setTotalRegistros(result.total || regras.length);
-          setTotalPages(Math.ceil((result.total || regras.length) / itemsPerPage));
+          setTotalRegistros(totalRegistros);
+          setTotalPages(Math.ceil(totalRegistros / itemsPerPage));
 
           // OTIMIZAÇÃO: Marcar como carregado
 
           // OTIMIZAÇÃO: Marcar como carregado
           setDadosAuxiliaresCarregados(true);
 
-          // [RESTORE SUMMARY] Carregar totais (Realizado, Contratado, Custo) para os grupos VISÍVEIS
-          // Agora usando BATCH para performance extrema e evitar 503
-          const carregarTotaisVisiveis = async () => {
+          // Um único POST por tipo: /api/gestao-capacidade/cards/{tipo} (pai + detalhes no mesmo payload)
+          const carregarCardsGestaoCapacidade = async () => {
             if (!novosAgrupamentos || novosAgrupamentos.length === 0) return;
 
-            console.log(`💰 [LOAD-TOTALS] Iniciando carga em lote de ${novosAgrupamentos.length} totais...`);
-
-            let tipo = 'responsavel'; // Default
+            const primeiroOuRegistro = (i) => i.primeiroRegistro ?? i.registros?.[0] ?? i.regras?.[0];
+            let tipo = 'responsavel';
             if (filtrosAUsar.responsavel) tipo = 'responsavel';
             else if (filtrosAUsar.cliente) tipo = 'cliente';
             else if (filtrosAUsar.atividade) tipo = 'atividade';
             else if (filtrosAUsar.produto) tipo = 'produto';
 
-            await carregarDadosEmLote(
-              novosAgrupamentos,
-              tipo,
-              periodoAUsar.inicio,
-              periodoAUsar.fim,
-              filtrosAdicionaisAUsar
-            );
+            const obterIds = () => {
+              if (tipo === 'responsavel') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.responsavel_id).filter(Boolean))].map(String);
+              if (tipo === 'cliente') return [...new Set(novosAgrupamentos.flatMap(i => String(primeiroOuRegistro(i)?.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean)))];
+              if (tipo === 'produto') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.produto_id).filter(Boolean))].map(String);
+              if (tipo === 'atividade') return [...new Set(novosAgrupamentos.map(i => primeiroOuRegistro(i)?.tarefa_id).filter(Boolean))].map(String);
+              return [];
+            };
+
+            const ids = obterIds();
+            if (ids.length === 0) {
+              setDadosAuxiliaresCarregados(true);
+              return;
+            }
+
+            const endpointTipo = tipo === 'atividade' ? 'tarefa' : tipo;
+            const payload = {
+              ids,
+              data_inicio: periodoAUsar.inicio,
+              data_fim: periodoAUsar.fim,
+              considerar_finais_semana: !!filtrosAUsar.habilitarFinaisSemana,
+              considerar_feriados: !!filtrosAUsar.habilitarFeriados,
+              filtros_adicionais: {
+                cliente_id: filtrosAdicionaisAUsar.cliente_id || null,
+                produto_id: filtrosAdicionaisAUsar.produto_id || null,
+                tarefa_id: filtrosAdicionaisAUsar.tarefa_id || null
+              },
+              incluir_detalhes: false
+            };
+
+            try {
+              const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/${endpointTipo}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+              });
+              const result = await res.json();
+              if (!result.success || !result.data) {
+                setDadosAuxiliaresCarregados(true);
+                return;
+              }
+              const data = result.data;
+
+              setCardsPorEntidade(data);
+
+              const chaveRealizado = (id) => `${tipo}_${String(id)}`;
+              setTempoEstimadoTotalPorResponsavel(prev => {
+                const next = { ...prev };
+                Object.keys(data).forEach(id => {
+                  const card = data[id];
+                  if (card.total_estimado_ms !== undefined) next[String(id)] = card.total_estimado_ms;
+                });
+                return next;
+              });
+              setTemposRealizadosPorEntidade(prev => {
+                const next = { ...prev };
+                Object.keys(data).forEach(id => {
+                  const card = data[id];
+                  const realizado = card.total_realizado_ms ?? 0;
+                  next[chaveRealizado(id)] = { realizado, pendente: 0 };
+                });
+                return next;
+              });
+
+              if (tipo === 'responsavel') {
+                setHorasContratadasPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    const horasDia = card.horas_contratadas_dia ?? (card.total_contratado_ms != null ? card.total_contratado_ms / (Math.ceil((new Date(periodoAUsar.fim) - new Date(periodoAUsar.inicio)) / (24 * 60 * 60 * 1000)) + 1) / 3600000 : 0);
+                    next[String(id)] = typeof horasDia === 'number' ? horasDia : (horasDia?.horascontratadasdia ?? null);
+                  });
+                  return next;
+                });
+                setTipoContratoPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    if (card.tipo_contrato != null) next[String(id)] = card.tipo_contrato;
+                  });
+                  return next;
+                });
+                setCustosPorResponsavel(prev => {
+                  const next = { ...prev };
+                  Object.keys(data).forEach(id => {
+                    const card = data[id];
+                    if (card.custo_hora != null) next[String(id)] = String(card.custo_hora).replace('.', ',');
+                  });
+                  return next;
+                });
+              }
+
+              setDadosAuxiliaresCarregados(true);
+            } catch (err) {
+              console.error('Erro ao carregar cards gestão capacidade:', err);
+              setDadosAuxiliaresCarregados(true);
+            }
           };
 
-          carregarTotaisVisiveis();
+          carregarCardsGestaoCapacidade();
 
         } else {
           setDadosAuxiliaresCarregados(true);
@@ -3198,14 +3694,22 @@ const DelegarTarefas = () => {
     // Calcular tempo excedido (quando estimado > contratado)
     const tempoExcedido = mostrarContratadasDisponivel && !aindaCarregandoContratado && estimado > contratadoValor ? estimado - contratadoValor : 0;
 
-    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
-    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
-    const percentualEstimado = totalParaBarra > 0 ? (estimado / totalParaBarra) * 100 : 0;
-    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
-
-    // Usar tempo realizado passado como prop
+    // Usar tempo realizado e pendente passados como props (antes dos cálculos de percentual)
     const tempoRealizadoValor = realizado || 0;
     const tempoPendenteValor = pendente || 0;
+
+    // Se não deve mostrar contratadas/disponível, usar o estimado como 100%
+    const totalParaBarra = mostrarContratadasDisponivel ? contratadoValor : (estimado || 1);
+    const baseBarra = Math.max(totalParaBarra, 1);
+    const percentualEstimado = (estimado / baseBarra) * 100;
+    const percentualRealizado = (tempoRealizadoValor / baseBarra) * 100;
+    const percentualPendente = (tempoPendenteValor / baseBarra) * 100;
+    const somaPercentuais = percentualEstimado + percentualRealizado + percentualPendente;
+    const escala = somaPercentuais > 100 ? 100 / somaPercentuais : 1;
+    const wEstimado = Math.min(100, percentualEstimado * escala);
+    const wRealizado = Math.min(100, percentualRealizado * escala);
+    const wPendente = Math.min(100, percentualPendente * escala);
+    const custoEstimado = calcularCustoPorTempo(estimado, responsavelId);
 
     // Custos
     const custoRealizado = responsavelId ? calcularCustoPorTempo(tempoRealizadoValor, responsavelId) : null;
@@ -3234,8 +3738,21 @@ const DelegarTarefas = () => {
         <div className="barra-progresso-tempo-range">
           <div
             className="barra-progresso-tempo-fill estimado"
-            style={{ width: `${Math.min(100, percentualEstimado)}%` }}
+            style={{ width: `${wEstimado}%`, left: '0%' }}
+            title={`Estimado: ${formatarTempoEstimado(estimado, true)}`}
           ></div>
+          <div
+            className="barra-progresso-tempo-fill realizado"
+            style={{ width: `${wRealizado}%`, left: `${wEstimado}%` }}
+            title={`Realizado: ${formatarTempoEstimado(tempoRealizadoValor, true)}`}
+          ></div>
+          {tempoPendenteValor > 0 && (
+            <div
+              className="barra-progresso-tempo-fill pendente"
+              style={{ width: `${wPendente}%`, left: `${wEstimado + wRealizado}%` }}
+              title={`Pendente: ${formatarTempoEstimado(tempoPendenteValor, true)}`}
+            ></div>
+          )}
         </div>
         <div className="barra-progresso-tempo-legenda">
           <div className="barra-progresso-tempo-item">
@@ -3387,6 +3904,57 @@ const DelegarTarefas = () => {
       else newSet.add(key);
       return newSet;
     });
+  };
+
+  // Nível 3: Toggle e carregar registros de tempo (realizado) sob demanda para uma tarefa
+  const toggleRegistroTempoTarefa = async (agrupadorId, tarefaId, clienteId, responsavelId) => {
+    const tarefaKey = `${agrupadorId}_${tarefaId}`;
+    const inicio = filtrosUltimosAplicados?.periodoInicio ?? periodoInicio;
+    const fim = filtrosUltimosAplicados?.periodoFim ?? periodoFim;
+    if (!inicio || !fim) return;
+
+    setRegistroTempoExpandidoPorTarefa(prev => {
+      const next = new Set(prev);
+      if (next.has(tarefaKey)) next.delete(tarefaKey);
+      else next.add(tarefaKey);
+      return next;
+    });
+
+    if (registroTempoCache[tarefaKey]?.data !== undefined) return; // já carregado
+    setRegistroTempoCache(prev => ({ ...prev, [tarefaKey]: { ...prev[tarefaKey], loading: true, error: null } }));
+    const usuarioId = (membros.find(m => String(m.id) === String(responsavelId)) || {}).usuario_id || responsavelId;
+    try {
+      const params = new URLSearchParams({
+        tarefa_id: String(tarefaId),
+        data_inicio: inicio,
+        data_fim: fim
+      });
+      if (clienteId) params.append('cliente_id', String(clienteId));
+      if (usuarioId) params.append('usuario_id', String(usuarioId));
+      const res = await fetch(`${API_BASE_URL}/registro-tempo?${params}`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      const result = await res.json();
+      const data = (result.success && result.data) ? result.data : [];
+      setRegistroTempoCache(prev => ({ ...prev, [tarefaKey]: { loading: false, data, error: null } }));
+
+      // Atualizar visualização rápida: somar tempo realizado desta tarefa ao cache do responsável
+      const sumMs = (data || []).reduce((acc, r) => {
+        let t = Number(r.tempo_realizado) || 0;
+        if (t > 0 && t < 1) t = Math.round(t * 3600000);
+        return acc + t;
+      }, 0);
+      if (sumMs > 0 && responsavelId != null) {
+        const chaveResponsavel = `responsavel_${String(responsavelId)}`;
+        setTemposRealizadosPorEntidade(prev => {
+          const current = prev[chaveResponsavel];
+          const currentRealizado = current != null ? (typeof current === 'number' ? current : (current.realizado ?? 0)) : 0;
+          const newRealizado = currentRealizado > 0 ? Math.max(currentRealizado, sumMs) : sumMs;
+          return { ...prev, [chaveResponsavel]: { realizado: newRealizado, pendente: current?.pendente ?? 0 } };
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao carregar registros de tempo da tarefa:', err);
+      setRegistroTempoCache(prev => ({ ...prev, [tarefaKey]: { loading: false, data: [], error: err.message } }));
+    }
   };
 
   // Toggle para expandir tarefas quando filtro pai é "atividade"
@@ -3578,6 +4146,8 @@ const DelegarTarefas = () => {
     setHorasContratadasPorResponsavel({});
     setTipoContratoPorResponsavel({});
     setTempoEstimadoTotalPorResponsavel({});
+    setTemposRealizadosPorEntidade({});
+    setCardsPorEntidade({});
     // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
     setDadosAuxiliaresCarregados(false);
 
@@ -3765,6 +4335,8 @@ const DelegarTarefas = () => {
       setHorasContratadasPorResponsavel({});
       setTipoContratoPorResponsavel({});
       setTempoEstimadoTotalPorResponsavel({});
+      setTemposRealizadosPorEntidade({});
+      setCardsPorEntidade({});
       // Marcar dados auxiliares como não carregados para prevenir exibição de dados parciais
       setDadosAuxiliaresCarregados(false);
 
@@ -3808,14 +4380,15 @@ const DelegarTarefas = () => {
       };
 
       if (filtroPrincipal === 'responsavel') {
-        // Para responsáveis, incluir todos os membros filtrados
-        membros.forEach(membro => {
-          if (estaNosFiltrosSelecionados(membro.id, filtroResponsavelSelecionado)) {
-            entidadesUnicas.set(String(membro.id), { id: String(membro.id), tipo: 'responsavel' });
+        // Enxugamento: só incluir responsáveis que aparecem na lista (têm grupo/card em registrosAgrupados)
+        registrosAgrupados.forEach(agr => {
+          const id = agr.primeiroRegistro?.responsavel_id;
+          if (id && estaNosFiltrosSelecionados(id, filtroResponsavelSelecionado)) {
+            entidadesUnicas.set(String(id), { id: String(id), tipo: 'responsavel' });
           }
         });
       } else if (filtroPrincipal === 'cliente') {
-        // Coletar clientes dos registros agrupados
+        // Enxugamento: só incluir clientes que aparecem na lista (têm grupo/card em registrosAgrupados)
         registrosAgrupados.forEach(agr => {
           const clienteIds = String(agr.primeiroRegistro.cliente_id || '')
             .split(',')
@@ -3828,32 +4401,12 @@ const DelegarTarefas = () => {
             }
           });
         });
-
-        // Adicionar clientes do sistema se filtro principal for cliente
-        clientes.forEach(cliente => {
-          const id = String(cliente.id);
-          if (estaNosFiltrosSelecionados(id, filtroClienteSelecionado)) {
-            if (!entidadesUnicas.has(id)) {
-              entidadesUnicas.set(id, { id, tipo: 'cliente' });
-            }
-          }
-        });
       } else if (filtroPrincipal === 'produto') {
-        // Coletar produtos dos registros agrupados
+        // Enxugamento: só incluir produtos que aparecem na lista (têm grupo/card em registrosAgrupados)
         registrosAgrupados.forEach(agr => {
           const id = String(agr.primeiroRegistro.produto_id);
           if (id && estaNosFiltrosSelecionados(id, filtroProdutoSelecionado)) {
             entidadesUnicas.set(id, { id, tipo: 'produto' });
-          }
-        });
-
-        // Adicionar produtos do sistema
-        produtos.forEach(produto => {
-          const id = String(produto.id);
-          if (estaNosFiltrosSelecionados(id, filtroProdutoSelecionado)) {
-            if (!entidadesUnicas.has(id)) {
-              entidadesUnicas.set(id, { id, tipo: 'produto' });
-            }
           }
         });
       } else if (filtroPrincipal === 'atividade') {
@@ -3866,8 +4419,19 @@ const DelegarTarefas = () => {
         });
       }
 
-      const fila = Array.from(entidadesUnicas.values());
-      console.log(`🚀 [QUEUE] Inicializando fila com ${fila.length} entidades`);
+      // Só enfileirar entidades que ainda não têm todos os dados (evita re-fetch ao abrir detalhes e sobrescrever realizado)
+      const entidadesArray = Array.from(entidadesUnicas.values());
+      const fila = entidadesArray.filter(ent => {
+        const chave = `${ent.tipo}_${String(ent.id)}`;
+        const temRealizado = temposRealizadosPorEntidade[chave] !== undefined;
+        if (ent.tipo === 'responsavel') {
+          const temEstimado = tempoEstimadoTotalPorResponsavel[String(ent.id)] !== undefined;
+          const temContratadas = horasContratadasPorResponsavel[String(ent.id)] !== undefined;
+          return !temEstimado || !temRealizado || !temContratadas;
+        }
+        return !temRealizado;
+      });
+      console.log(`🚀 [QUEUE] Inicializando fila com ${fila.length} entidades (${entidadesArray.length - fila.length} já carregadas)`);
 
       // [FIX-DISCREPANCY] Removido limpeza agressiva de cache que causava sumiço de dados ao abrir detalhes
       // A limpeza já é feita em aplicarFiltros e handleFilterChange.
@@ -3883,7 +4447,7 @@ const DelegarTarefas = () => {
     };
 
     identificarEntidades();
-  }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado]);
+  }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, temposRealizadosPorEntidade, tempoEstimadoTotalPorResponsavel, horasContratadasPorResponsavel]);
 
   // Ref para debounce de recarga geral de opções
   const debouncedReloadOptionsRef = useRef(null);
@@ -3997,7 +4561,7 @@ const DelegarTarefas = () => {
               <div className="listing-controls-right">
                 <button
                   className="custo-colaborador-btn"
-                  onClick={() => navigate('/atribuir-responsaveis/historico')}
+                  onClick={() => navigate('/gestao-capacidade/historico')}
                   title="Ver histórico de atribuições"
                   style={{ marginRight: '12px' }}
                 >
@@ -4512,6 +5076,7 @@ const DelegarTarefas = () => {
                           });
                         } else if (filtroPrincipal === 'produto') {
                           // Para produtos, adicionar produtos do sistema (filtrados se houver seleção)
+                          // Sempre usar produto.nome da lista para o card (evita "Produto" genérico antes do cache)
                           produtos.forEach(produto => {
                             const produtoId = String(produto.id);
                             // Se há filtro selecionado, verificar se o produto está incluído
@@ -4520,7 +5085,8 @@ const DelegarTarefas = () => {
                             }
 
                             if (entidadesDosRegistros.has(produtoId)) {
-                              todasEntidades.set(produtoId, entidadesDosRegistros.get(produtoId));
+                              const ent = entidadesDosRegistros.get(produtoId);
+                              todasEntidades.set(produtoId, { ...ent, nome: produto.nome || ent.nome });
                             } else {
                               todasEntidades.set(produtoId, {
                                 id: produto.id,
@@ -4533,12 +5099,14 @@ const DelegarTarefas = () => {
                           });
                         } else {
                           // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
+                          // Mesclar nome da lista tarefas quando existir (evita "Tarefa" genérico antes do cache)
                           entidadesDosRegistros.forEach((entidade, key) => {
                             // Se há filtro selecionado, verificar se a tarefa está incluída
                             if (!estaNosFiltrosSelecionados(entidade.id, filtroTarefaSelecionado)) {
                               return; // Pular esta tarefa se não estiver nos filtros
                             }
-                            todasEntidades.set(key, entidade);
+                            const tarefa = tarefas.find(t => String(t.id) === String(entidade.id));
+                            todasEntidades.set(key, { ...entidade, nome: tarefa?.nome || entidade.nome });
                           });
                         }
 
@@ -4658,13 +5226,16 @@ const DelegarTarefas = () => {
 
                               // Sempre exibir o card, mesmo se não houver tempo estimado (para identificar quem falta estimar)
                               if (!tempoInfo) {
-                                // Se não há tempoInfo, criar um objeto vazio para exibir valores zerados
-                                // Calcular estatísticas mesmo sem tempo
-                                const estatisticas = calcularEstatisticasPorEntidade(
+                                // Calcular tempo (estimado/realizado) para exibir na barra mesmo quando estimado é 0
+                                const tempoInfoSemEstimado = calcularTempoPorEntidade(
                                   entidade.id,
                                   filtroPrincipal,
                                   registrosAgrupados
                                 );
+                                const cardPayload = cardsPorEntidade[String(entidade.id)];
+                                const estatisticas = cardPayload
+                                  ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
+                                  : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
 
                                 return (
                                   <div key={entidade.id} className="tempo-disponivel-card">
@@ -4893,12 +5464,12 @@ const DelegarTarefas = () => {
                                         )}
                                       </div>
                                       <BarraProgressoTempo
-                                        disponivel={0}
-                                        estimado={0}
-                                        realizado={0}
-                                        pendente={0}
-                                        sobrando={0}
-                                        contratado={0}
+                                        disponivel={tempoInfoSemEstimado?.disponivel ?? 0}
+                                        estimado={tempoInfoSemEstimado?.estimado ?? 0}
+                                        realizado={tempoInfoSemEstimado?.realizado ?? 0}
+                                        pendente={tempoInfoSemEstimado?.pendente ?? 0}
+                                        sobrando={tempoInfoSemEstimado?.sobrando ?? 0}
+                                        contratado={tempoInfoSemEstimado?.contratado ?? 0}
                                         responsavelId={responsavelIdParaCusto}
                                         mostrarContratadasDisponivel={filtroPrincipal === 'responsavel'}
                                       />
@@ -4907,12 +5478,11 @@ const DelegarTarefas = () => {
                                 );
                               }
 
-                              // Calcular estatísticas para esta entidade
-                              const estatisticas = calcularEstatisticasPorEntidade(
-                                entidade.id,
-                                filtroPrincipal,
-                                registrosAgrupados
-                              );
+                              // Usar totais do payload único (gestao-capacidade/cards) quando disponível
+                              const cardPayload = cardsPorEntidade[String(entidade.id)];
+                              const estatisticas = cardPayload
+                                ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
+                                : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
 
                               return (
                                 <div key={entidade.id} className="tempo-disponivel-card">
@@ -5173,10 +5743,9 @@ const DelegarTarefas = () => {
                       const isExpanded = gruposExpandidos.has(grupoKey);
                       const totalItens = grupo.agrupamentos.length;
                       const tempoEstimadoTotal = calcularTempoTotalGrupoFiltrado(grupo.agrupamentos);
-                      // Tempo realizado sempre 0 (lógica removida)
-                      const tempoRealizadoTotal = 0;
+                      const tempoRealizadoTotal = (temposRealizadosPorEntidade[grupoKey] && (typeof temposRealizadosPorEntidade[grupoKey] === 'number' ? temposRealizadosPorEntidade[grupoKey] : temposRealizadosPorEntidade[grupoKey].realizado)) || 0;
                       const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
-                      const tempoRealizadoFormatado = '0s';
+                      const tempoRealizadoFormatado = formatarTempoEstimado(tempoRealizadoTotal, true);
 
                       return (
                         <div key={chaveAgrupamento} className="atribuicoes-group">
@@ -5219,9 +5788,9 @@ const DelegarTarefas = () => {
                                     <span>Estimado: {tempoEstimadoFormatado}</span>
                                   </span>
                                 )}
-                                <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-realizado" title="Realizado: 0h">
+                                <span className="atribuicoes-group-tempo-badge atribuicoes-group-tempo-realizado" title={`Realizado: ${formatarTempoEstimado(tempoRealizadoTotal, true)}`}>
                                   <i className="fas fa-stopwatch"></i>
-                                  <span>Realizado: 0s</span>
+                                  <span>Realizado: {tempoRealizadoFormatado}</span>
                                 </span>
                                 <span className="atribuicoes-group-count">
                                   <i className="fas fa-tasks"></i>
@@ -5252,11 +5821,11 @@ const DelegarTarefas = () => {
                                     const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
                                     const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
                                     const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
-                                    // Tempo realizado sempre 0 (lógica removida)
-                                    const tempoRealizadoTotal = 0;
+                                    const chaveRealizadoAgrupamento = filtroPrincipal === 'responsavel' ? `responsavel_${primeiroRegistro?.responsavel_id}` : filtroPrincipal === 'cliente' ? `cliente_${String(primeiroRegistro?.cliente_id || '').split(',')[0]?.trim()}` : filtroPrincipal === 'produto' ? `produto_${primeiroRegistro?.produto_id}` : `atividade_${primeiroRegistro?.tarefa_id}`;
+                                    const dadosRealizadoAgrupamento = temposRealizadosPorEntidade[chaveRealizadoAgrupamento];
+                                    const tempoRealizadoTotal = dadosRealizadoAgrupamento != null ? (typeof dadosRealizadoAgrupamento === 'number' ? dadosRealizadoAgrupamento : (dadosRealizadoAgrupamento.realizado ?? 0)) : 0;
                                     const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
 
-                                    // Tempo realizado sempre 0 (lógica removida)
                                     const tempoRealizadoPorTarefa = {};
                                     tarefasUnicas.forEach(tarefaId => {
                                       tempoRealizadoPorTarefa[tarefaId] = 0;
@@ -5345,10 +5914,9 @@ const DelegarTarefas = () => {
                                             <div className="atribuicoes-tempo">
                                               {(() => {
                                                 const tempoEstimadoFormatado = formatarTempoEstimado(tempoEstimadoTotal, true);
-                                                // Tempo realizado sempre 0 (lógica removida)
-                                                const tempoRealizadoFormatado = '0s';
+                                                const tempoRealizadoFormatado = formatarTempoEstimado(tempoRealizadoTotal, true);
                                                 const custoEstimado = calcularCustoPorTempo(tempoEstimadoTotal, primeiroRegistro.responsavel_id);
-                                                const custoRealizado = null;
+                                                const custoRealizado = tempoRealizadoTotal > 0 ? calcularCustoPorTempo(tempoRealizadoTotal, primeiroRegistro.responsavel_id) : null;
 
                                                 return (
                                                   <>
@@ -5369,14 +5937,19 @@ const DelegarTarefas = () => {
                                                     </div>
 
                                                     {/* Card Realizado */}
-                                                    <div className="atribuicoes-tempo-card atribuicoes-tempo-card-realizado-empty">
+                                                    <div className={`atribuicoes-tempo-card ${tempoRealizadoTotal > 0 ? 'atribuicoes-tempo-card-realizado' : 'atribuicoes-tempo-card-realizado-empty'}`}>
                                                       <div className="atribuicoes-tempo-label atribuicoes-tempo-label-realizado-empty">
                                                         <i className="fas fa-stopwatch"></i>
                                                         <span>Realizado</span>
                                                       </div>
                                                       <div className="atribuicoes-tempo-valor atribuicoes-tempo-valor-realizado-empty">
-                                                        0s
+                                                        {tempoRealizadoFormatado}
                                                       </div>
+                                                      {custoRealizado !== null && (
+                                                        <div className="atribuicoes-tempo-custo atribuicoes-tempo-custo-realizado">
+                                                          {formatarValorMonetario(custoRealizado)}
+                                                        </div>
+                                                      )}
                                                     </div>
                                                   </>
                                                 );
@@ -5439,7 +6012,7 @@ const DelegarTarefas = () => {
                                                             gap: '4px'
                                                           }}>
                                                             <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
-                                                            Realizado: 0s
+                                                            Realizado: {formatarTempoEstimado(tempoRealizadoTarefa || tempoRealizadoTotal, true)}
                                                           </span>
                                                         </div>
                                                         <table className="atribuicoes-detalhes-table">
@@ -5525,8 +6098,14 @@ const DelegarTarefas = () => {
                                           // Filtrar registros dessa tarefa específica
                                           const registrosTarefa = agrupamento.registros.filter(r => String(r.tarefa_id) === String(tarefaId));
 
-                                          // Tempo realizado sempre 0 (lógica removida)
-                                          const tempoRealizadoTarefaDetalhes = 0;
+                                          // Realizado da tarefa: usar soma do cache (registros carregados sob demanda) se existir
+                                          const dadosCacheTarefa = registroTempoCache[tarefaKey]?.data;
+                                          const sumRealizadoCache = Array.isArray(dadosCacheTarefa) ? dadosCacheTarefa.reduce((acc, r) => {
+                                            let t = Number(r.tempo_realizado) || 0;
+                                            if (t > 0 && t < 1) t = Math.round(t * 3600000);
+                                            return acc + t;
+                                          }, 0) : 0;
+                                          const tempoRealizadoTarefaDetalhes = sumRealizadoCache > 0 ? sumRealizadoCache : (tempoRealizadoPorTarefa[tarefaId] ?? tempoRealizadoTotal);
 
                                           return (
                                             <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
@@ -5547,12 +6126,53 @@ const DelegarTarefas = () => {
                                                         gap: '4px'
                                                       }}>
                                                         <i className="fas fa-stopwatch" style={{ fontSize: '10px' }}></i>
-                                                        Realizado: 0s
+                                                        Realizado: {formatarTempoEstimado(tempoRealizadoTarefaDetalhes, true)}
                                                       </span>
                                                       <span className="atribuicoes-tarefa-detalhes-count">
                                                         {registrosTarefa.length} registro(s)
                                                       </span>
                                                     </div>
+                                                  </div>
+                                                  {/* Nível 3: Registros de tempo realizado – carregados sob demanda */}
+                                                  <div className="atribuicoes-registro-tempo-toggle" style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '12px' }}>
+                                                    <button
+                                                      type="button"
+                                                      className="atribuicoes-tag atribuicoes-tag-clickable"
+                                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                                      onClick={() => toggleRegistroTempoTarefa(agrupamento.agrupador_id, tarefaId, primeiroRegistro?.cliente_id, primeiroRegistro?.responsavel_id)}
+                                                    >
+                                                      <i className={`fas fa-chevron-${registroTempoExpandidoPorTarefa.has(tarefaKey) ? 'down' : 'right'}`} style={{ fontSize: '10px' }}></i>
+                                                      <span>Registros de tempo realizado</span>
+                                                      {registroTempoCache[tarefaKey]?.loading && <span style={{ marginLeft: '6px', fontSize: '11px', color: '#6b7280' }}>Carregando...</span>}
+                                                    </button>
+                                                    {registroTempoExpandidoPorTarefa.has(tarefaKey) && registroTempoCache[tarefaKey] && !registroTempoCache[tarefaKey].loading && (
+                                                      <div style={{ marginTop: '8px' }}>
+                                                        {registroTempoCache[tarefaKey].error ? (
+                                                          <span style={{ fontSize: '12px', color: '#dc2626' }}>Erro ao carregar.</span>
+                                                        ) : (registroTempoCache[tarefaKey].data || []).length === 0 ? (
+                                                          <span style={{ fontSize: '12px', color: '#6b7280' }}>Nenhum registro encontrado.</span>
+                                                        ) : (
+                                                          <table className="atribuicoes-detalhes-table" style={{ fontSize: '12px' }}>
+                                                            <thead>
+                                                              <tr>
+                                                                <th>Início</th>
+                                                                <th>Fim</th>
+                                                                <th>Tempo</th>
+                                                              </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                              {(registroTempoCache[tarefaKey].data || []).map((reg, idx) => (
+                                                                <tr key={reg.id || idx}>
+                                                                  <td>{reg.data_inicio ? new Date(reg.data_inicio).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-'}</td>
+                                                                  <td>{reg.data_fim ? new Date(reg.data_fim).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '-'}</td>
+                                                                  <td>{reg.tempo_realizado != null ? `${Math.round(reg.tempo_realizado / 1000)}s` : '-'}</td>
+                                                                </tr>
+                                                              ))}
+                                                            </tbody>
+                                                          </table>
+                                                        )}
+                                                      </div>
+                                                    )}
                                                   </div>
                                                   <table className="atribuicoes-detalhes-table">
                                                     <thead>
@@ -5703,6 +6323,7 @@ const DelegarTarefas = () => {
       {detailCard && (
         <DetailSideCard
           entidadeId={detailCard.entidadeId}
+          cardTipo={filtroPrincipal}
           tipo={detailCard.tipo}
           dados={detailCard.dados}
           onClose={handleCloseDetail}
@@ -5715,7 +6336,7 @@ const DelegarTarefas = () => {
           periodoInicio={filtrosUltimosAplicados?.periodoInicio || periodoInicio}
           periodoFim={filtrosUltimosAplicados?.periodoFim || periodoFim}
           filtrosAdicionais={{
-            cliente_id: filtroAdicionalCliente || null,
+            cliente_id: filtroPrincipal === 'cliente' && detailCard?.entidadeId ? detailCard.entidadeId : (filtroAdicionalCliente || null),
             tarefa_id: filtroAdicionalTarefa || null,
             produto_id: filtroAdicionalProduto || null,
             responsavel_id: (filtroPrincipal !== 'responsavel' && filtroResponsavelSelecionado) ? filtroResponsavelSelecionado : (filtroPrincipal === 'responsavel' && detailCard?.entidadeId) ? detailCard.entidadeId : null
@@ -5726,4 +6347,4 @@ const DelegarTarefas = () => {
   );
 };
 
-export default DelegarTarefas;
+export default GestaoCapacidade;

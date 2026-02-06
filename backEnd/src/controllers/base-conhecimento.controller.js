@@ -172,7 +172,6 @@ async function getBaseConhecimentoCliente(req, res) {
     if (vinculadosResult.error) {
       console.error('❌ Erro ao buscar vinculados do cliente:', vinculadosResult.error);
     }
-
     // Buscar informações detalhadas dos vinculados
     let vinculacoesDetalhadas = [];
     if (vinculados && vinculados.length > 0) {

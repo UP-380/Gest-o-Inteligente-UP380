@@ -718,8 +718,9 @@ async function getVinculados(req, res) {
   try {
     const { page = 1, limit = 50, filtro_produto, filtro_atividade, filtro_tipo_atividade, filtro_subtarefa, filtro_cliente } = req.query;
     const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
-    const offset = (pageNum - 1) * limitNum;
+    const semLimite = limit === 'all' || limit === '0' || String(limit).toLowerCase() === 'all';
+    const limitNum = semLimite ? 0 : parseInt(limit, 10);
+    const offset = (pageNum - 1) * Math.max(limitNum, 1);
 
     // Buscar vinculados
     let query = supabase
@@ -793,8 +794,8 @@ async function getVinculados(req, res) {
       console.log('✅ Filtro cliente aplicado: cliente_id IS NOT NULL');
     }
 
-    // Aplicar paginação
-    if (limitNum > 0) {
+    // Aplicar paginação (quando semLimite, não aplica range - retorna todos)
+    if (!semLimite && limitNum > 0) {
       query = query.range(offset, offset + limitNum - 1);
     }
 

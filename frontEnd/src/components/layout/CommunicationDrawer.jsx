@@ -5,11 +5,370 @@ import { hasPermissionSync } from '../../utils/permissions';
 import Avatar from '../user/Avatar';
 import './CommunicationDrawer.css';
 
+// ==============================================================================
+// === HELPER: Markdown <-> HTML Converter for Rich Editor ===
+// ==============================================================================
+// Substitui imagem/vídeo por labels "(imagem)" e "(video)" sem exibir o link
+const markdownToHtml = (text) => {
+    if (!text) return '';
+    let html = text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
+        .replace(/\n/g, '<br>') // Lines
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="media-label">(imagem)</a>') // Images
+        .replace(/\[video\]\((.*?)\)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="media-label">(video)</a>'); // Videos
+    return html;
+};
+
+// Para previews/listas: troca markdown de mídia por labels sem link
+const conteudoParaPreview = (text) => {
+    if (!text) return '';
+    return String(text)
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '(imagem)')
+        .replace(/\[video\]\((.*?)\)/g, '(video)');
+};
+
+const htmlToMarkdown = (html) => {
+    if (!html) return '';
+    // Create a temp div to parse HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+
+    // Remove remove buttons before parsing
+    const removeBtns = temp.querySelectorAll('.media-remove-btn');
+    removeBtns.forEach(btn => btn.remove());
+
+    // Process images
+    const images = temp.querySelectorAll('img');
+    images.forEach(img => {
+        const markdown = `![${img.alt || 'image'}](${img.src})`;
+        img.replaceWith(document.createTextNode(markdown));
+    });
+
+    // Process videos
+    const videos = temp.querySelectorAll('video');
+    videos.forEach(vid => {
+        const markdown = `[video](${vid.src})`;
+        vid.replaceWith(document.createTextNode(markdown));
+    });
+
+    // Process media-label links (imagem)/(video) - converter de volta para markdown
+    const mediaLinks = temp.querySelectorAll('a.media-label');
+    mediaLinks.forEach(a => {
+        const href = a.getAttribute('href') || '';
+        const text = (a.textContent || '').trim();
+        const markdown = text === '(video)' ? `[video](${href})` : `![imagem](${href})`;
+        a.replaceWith(document.createTextNode(markdown));
+    });
+
+    // Process Line Breaks
+    // Replace <br> and <div> with newlines
+    let text = temp.innerHTML
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<div\s*>/gi, '\n')
+        .replace(/<\/div>/gi, '')
+        .replace(/<[^>]+>/g, ''); // Strip any remaining HTML tags (like the contentEditable wrappers)
+
+    // Decode entities
+    const decoder = document.createElement('textarea');
+    decoder.innerHTML = text;
+    return decoder.value;
+};
+
+const getPreviewText = (text) => {
+    if (!text) return '';
+    const cleaned = conteudoParaPreview(text).replace(/<br>/g, ' ');
+    return cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '');
+};
+
+const formatTime = (dateString) => {
+    try {
+        const date = dateString ? new Date(dateString) : new Date();
+        // Check if date is valid
+        if (isNaN(date.getTime())) return '';
+
+        return date.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'America/Sao_Paulo'
+        });
+    } catch (e) {
+        // Fallback to system time if timezone is not supported
+        const date = dateString ? new Date(dateString) : new Date();
+        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+};
+
+const formatDate = (dateString) => {
+    try {
+        const date = dateString ? new Date(dateString) : new Date();
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    } catch (e) {
+        const date = dateString ? new Date(dateString) : new Date();
+        return date.toLocaleDateString('pt-BR');
+    }
+};
+
+const getDateLabel = (dateString) => {
+    try {
+        const date = dateString ? new Date(dateString) : new Date();
+        if (isNaN(date.getTime())) return '';
+
+        const now = new Date();
+
+        // Adjust to comparable date string ('YYYY-MM-DD') in 'America/Sao_Paulo'
+        const getIsoDate = (d) => new Intl.DateTimeFormat('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/Sao_Paulo' }).format(d);
+
+        const dateIso = getIsoDate(date);
+        const todayIso = getIsoDate(now);
+
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayIso = getIsoDate(yesterday);
+
+        if (dateIso === todayIso) return 'Hoje';
+        if (dateIso === yesterdayIso) return 'Ontem';
+
+        // Check if within 7 days
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 7) {
+            // Get weekday
+            const weekday = date.toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' });
+            // Capitalize
+            return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+        }
+
+        return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    } catch (e) {
+        return '';
+    }
+};
+
+// ==============================================================================
+// === COMPONENT: Rich Editor (Teams-like) ===
+// ==============================================================================
+const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '100px', autoFocus = false }) => {
+    const editorRef = useRef(null);
+    const [uploading, setUploading] = useState(false);
+
+    useEffect(() => {
+        if (editorRef.current) {
+            // Initial setup
+            if (!editorRef.current.innerHTML && initialValue) {
+                editorRef.current.innerHTML = markdownToHtml(initialValue);
+            }
+            // Reset if parent clears value (e.g. after send)
+            if (initialValue === '' && editorRef.current.innerHTML !== '') {
+                editorRef.current.innerHTML = '';
+            }
+        }
+    }, [initialValue]);
+
+    const handleInput = () => {
+        if (editorRef.current) {
+            const markdown = htmlToMarkdown(editorRef.current.innerHTML);
+            onContentChange(markdown);
+        }
+    };
+
+    const insertAtCursor = (element) => {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        // Ensure we are inside the editor
+        if (!editorRef.current.contains(range.commonAncestorContainer)) return;
+
+        range.deleteContents();
+        range.insertNode(element);
+        range.collapse(false);
+    };
+
+    const handleUpload = async (file) => {
+        if (!file) return;
+        if (file.size > 50 * 1024 * 1024) return alert('Arquivo > 50MB');
+
+        setUploading(true);
+
+        // 1. Create Placeholder
+        const id = 'loader-' + Date.now();
+        const placeholderImg = document.createElement('img');
+        placeholderImg.id = id;
+        placeholderImg.src = 'https://cdnjs.cloudflare.com/ajax/libs/galleriffic/2.0.1/css/loader.gif'; // Generic loader or local asset
+        placeholderImg.style.maxWidth = '30px';
+        insertAtCursor(placeholderImg);
+
+        try {
+            const data = new FormData();
+            data.append('file', file);
+            const response = await comunicacaoAPI.uploadMedia(data);
+
+            if (response.success) {
+                const url = response.data.url;
+                const isVideo = file.type.startsWith('video');
+
+                // 2. Replace Placeholder
+                const loader = document.getElementById(id);
+                if (loader) {
+                    // Create Wrapper
+                    const wrapper = document.createElement('span');
+                    wrapper.contentEditable = "false"; // Atomic element
+                    wrapper.style.cssText = "position: relative; display: inline-block; margin: 5px 0; vertical-align: bottom;";
+
+                    // Create Media
+                    let media;
+                    if (isVideo) {
+                        media = document.createElement('video');
+                        media.src = url;
+                        media.controls = true;
+                    } else {
+                        media = document.createElement('img');
+                        media.src = url;
+                    }
+                    media.style.cssText = "max-width: 100%; max-height: 300px; border-radius: 8px; display: block;";
+
+                    // Create Remove Button
+                    const btn = document.createElement('span');
+                    btn.innerHTML = '&times;';
+                    btn.className = 'media-remove-btn';
+                    btn.contentEditable = "false";
+                    btn.style.cssText = "position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 22px; cursor: pointer; font-weight: bold; font-size: 16px; z-index: 10; transition: background 0.2s;";
+
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        wrapper.remove();
+                        // Trigger input event manually since we are outside React render flow
+                        handleInput();
+                    };
+
+                    // Hover effect for button
+                    btn.onmouseenter = () => btn.style.background = 'red';
+                    btn.onmouseleave = () => btn.style.background = 'rgba(0,0,0,0.6)';
+
+                    wrapper.appendChild(media);
+                    wrapper.appendChild(btn);
+
+                    loader.replaceWith(wrapper);
+
+                    // Add a space after to allow typing
+                    const space = document.createTextNode(' \u00A0');
+                    wrapper.after(space);
+
+                    // Fix cursor position
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.setStartAfter(wrapper);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    // Trigger change update
+                    handleInput();
+                }
+            }
+        } catch (error) {
+            console.error('Upload fail', error);
+            const loader = document.getElementById(id);
+            if (loader) loader.remove();
+            const msg = error?.message?.includes('502') || error?.message?.includes('Bad Gateway')
+                ? 'Falha no upload (erro 502 - servidor). Tente novamente em instantes.'
+                : 'Falha no upload. Verifique a conexão e tente novamente.';
+            alert(msg);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handlePaste = (e) => {
+        const items = e.clipboardData.items;
+        let hasFile = false;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].kind === 'file') {
+                e.preventDefault();
+                hasFile = true;
+                const blob = items[i].getAsFile();
+                if (blob) {
+                    // Reconstruct file to ensure valid name and type for Multer
+                    // Chrome pastes often have generic 'image.png' or empty names
+                    const ext = blob.type.split('/')[1] || 'png';
+                    const fileName = `pasted_image_${Date.now()}.${ext}`;
+                    const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+                    handleUpload(file);
+                }
+            }
+        }
+        // If not file, let normal paste happen (text)
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleUpload(files[0]);
+        }
+    };
+
+    return (
+        <div
+            className="rich-editor-wrapper"
+            style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                backgroundColor: 'white',
+                cursor: 'text',
+                position: 'relative',
+                width: '100%'
+            }}
+            onClick={() => editorRef.current?.focus()}
+        >
+            <div
+                ref={editorRef}
+                contentEditable={true}
+                onInput={handleInput}
+                onPaste={handlePaste}
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                style={{
+                    minHeight: minHeight,
+                    padding: '12px',
+                    outline: 'none',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    color: 'black'
+                }}
+            />
+            {(!editorRef.current?.innerText && !editorRef.current?.innerHTML && placeholder) && (
+                <div style={{ position: 'absolute', top: '12px', left: '12px', color: '#94a3b8', pointerEvents: 'none' }}>
+                    {placeholder}
+                </div>
+            )}
+            {uploading && (
+                <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
+                    <i className="fas fa-spinner fa-spin" style={{ color: '#0e3b6f' }}></i>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Main Component
 const CommunicationDrawer = ({ user }) => {
     const [isOpen, setIsOpen] = useState(false);
     const canSeeComm = user && hasPermissionSync(user.permissoes, '/comunicacao');
     const [activeTab, setActiveTab] = useState('chats'); // 'chats', 'comunicados', 'chamados'
     const [selectedChat, setSelectedChat] = useState(null);
+    const [expandedImage, setExpandedImage] = useState(null);
+
+    const handleImageClick = (e) => {
+        if (e.target.tagName === 'IMG') {
+            e.stopPropagation(); // Prevent bubble click
+            setExpandedImage(e.target.src);
+        }
+    };
 
     // Chat States
     const [conversas, setConversas] = useState([]);
@@ -40,6 +399,14 @@ const CommunicationDrawer = ({ user }) => {
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
     const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false });
     const [isSaving, setIsSaving] = useState(false);
+
+    // Edit & Upload States
+    const [editingMessageId, setEditingMessageId] = useState(null);
+    const [editContent, setEditContent] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef(null);
+    // Para identificar onde inserir a mídia (novo chamado, resposta ou edição)
+    const [uploadTarget, setUploadTarget] = useState(null); // 'NEW_CHAMADO', 'REPLY', 'EDIT_MSG'
 
     const messagesEndRef = useRef(null);
 
@@ -191,6 +558,7 @@ const CommunicationDrawer = ({ user }) => {
                 destinatario_id: selectedChat.id,
                 conteudo: newMessage
             };
+            console.log('[CHAT] Enviando mensagem para destinatario_id:', selectedChat.id, 'payload:', payload);
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {
@@ -257,6 +625,80 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    // Upload Handler
+    const handleUploadFile = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validar tamanho (50MB)
+        if (file.size > 50 * 1024 * 1024) {
+            alert('Arquivo muito grande (Max 50MB).');
+            return;
+        }
+
+        setUploading(true);
+        const data = new FormData();
+        data.append('file', file);
+
+        try {
+            const response = await comunicacaoAPI.uploadMedia(data);
+            if (response.success) {
+                const url = response.data.url;
+                const isVideo = file.type.startsWith('video');
+                const markdown = isVideo ? `\n[video](${url})\n` : `\n![imagem](${url})\n`;
+
+                if (uploadTarget === 'NEW_CHAMADO') {
+                    setFormData(prev => ({ ...prev, conteudo: prev.conteudo + markdown }));
+                } else if (uploadTarget === 'REPLY') {
+                    setNewMessage(prev => prev + markdown);
+                } else if (uploadTarget === 'EDIT') {
+                    setEditContent(prev => prev + markdown);
+                }
+            }
+        } catch (error) {
+            console.error('Erro no upload:', error);
+            const msg = error?.message?.includes('502') || error?.message?.includes('Bad Gateway')
+                ? 'Falha no upload (erro 502 - servidor). Tente novamente em instantes.'
+                : 'Erro ao enviar arquivo. Verifique a conexão e tente novamente.';
+            alert(msg);
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const triggerUpload = (target) => {
+        setUploadTarget(target);
+        if (fileInputRef.current) fileInputRef.current.click();
+    };
+
+    // Edit Handlers
+    const handleStartEdit = (msg) => {
+        setEditingMessageId(msg.id);
+        setEditContent(msg.conteudo);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingMessageId(null);
+        setEditContent('');
+    };
+
+    const handleSaveEdit = async (msgId) => {
+        if (!editContent.trim()) return; // Não permitir vazio (ou permitir para "deletar" conteudo? Melhor não)
+
+        try {
+            const response = await comunicacaoAPI.atualizarMensagem(msgId, { conteudo: editContent });
+            if (response.success) {
+                // Atualizar lista local
+                setChamadoMessages(prev => prev.map(m => m.id === msgId ? { ...m, conteudo: editContent } : m));
+                handleCancelEdit();
+            }
+        } catch (error) {
+            console.error('Erro ao salvar edição:', error);
+            alert('Erro ao salvar alterações.');
+        }
+    };
+
     const handleCreateItem = async (tipo) => {
         if (!formData.titulo.trim() || !formData.conteudo.trim()) return;
         setIsSaving(true);
@@ -315,7 +757,7 @@ const CommunicationDrawer = ({ user }) => {
                                 <div className="comm-item-last-msg">
                                     {c.ultima_mensagem ? (
                                         c.ultima_mensagem.criador_id === user?.id ? 'Você: ' : ''
-                                    ) + (c.ultima_mensagem?.conteudo || 'Nova conversa') : 'Nova conversa'}
+                                    ) + conteudoParaPreview(c.ultima_mensagem?.conteudo || 'Nova conversa') : 'Nova conversa'}
                                 </div>
                             </div>
                         </div>
@@ -376,30 +818,58 @@ const CommunicationDrawer = ({ user }) => {
                 {loadingMessages ? (
                     <div className="comm-loading"><i className="fas fa-spinner fa-spin"></i></div>
                 ) : (
-                    messages.map(msg => {
-                        const isMe = msg.criador_id === user?.id;
-                        return (
-                            <div key={msg.id} className={`comm-msg-bubble ${isMe ? 'me' : 'other'}`}>
-                                <div className="msg-content">{msg.conteudo}</div>
-                                <div className="msg-time">
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                            </div>
-                        );
-                    })
+                    (() => {
+                        let lastDateLabel = null;
+                        return messages.map(msg => {
+                            const isMe = msg.criador_id === user?.id;
+                            const currentDateLabel = getDateLabel(msg.created_at);
+                            const showDateSeparator = currentDateLabel !== lastDateLabel;
+                            if (showDateSeparator) lastDateLabel = currentDateLabel;
+
+                            return (
+                                <React.Fragment key={msg.id}>
+                                    {showDateSeparator && (
+                                        <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
+                                            <span style={{
+                                                backgroundColor: '#e1f5fe',
+                                                color: '#0e3b6f',
+                                                fontSize: '11px',
+                                                padding: '4px 12px',
+                                                borderRadius: '12px',
+                                                fontWeight: '600',
+                                                display: 'inline-block'
+                                            }}>
+                                                {currentDateLabel}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'}`}>
+                                        <div className="msg-content" onClick={handleImageClick} style={{ color: 'inherit', cursor: 'pointer' }} dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
+                                        <div className="msg-time">
+                                            {formatTime(msg.created_at)}
+                                        </div>
+                                    </div>
+                                </React.Fragment>
+                            );
+                        });
+                    })()
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <form className="comm-chat-input" onSubmit={handleSendMessage}>
-                <input
-                    type="text"
-                    placeholder="Digite aqui..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                />
-                <button type="submit" disabled={!newMessage.trim()}>
-                    <i className="fas fa-paper-plane"></i>
-                </button>
+            <form className="comm-chat-input" onSubmit={handleSendMessage} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '8px', overflow: 'hidden' }}>
+                        <RichEditor
+                            initialValue={newMessage}
+                            onContentChange={setNewMessage}
+                            placeholder="Digite aqui... Cole imagens ou vídeos"
+                            minHeight="40px"
+                        />
+                    </div>
+                    <button type="submit" disabled={!newMessage.trim()} style={{ height: '40px', alignSelf: 'flex-end', marginBottom: '1px' }}>
+                        <i className="fas fa-paper-plane"></i>
+                    </button>
+                </div>
             </form>
         </div>
     );
@@ -426,7 +896,7 @@ const CommunicationDrawer = ({ user }) => {
                                     <i className="fas fa-user-circle" style={{ marginRight: '5px', opacity: 0.5 }}></i>
                                     {com.criador?.nome_usuario}
                                 </span>
-                                <span className="date">{new Date(com.created_at).toLocaleDateString()}</span>
+                                <span className="date">{formatDate(com.created_at)}</span>
                             </div>
 
                             <h4 className="comm-card-title" style={{ fontSize: '15px', color: '#0e3b6f', marginBottom: '8px' }}>{com.titulo}</h4>
@@ -437,7 +907,7 @@ const CommunicationDrawer = ({ user }) => {
                                 color: '#475569',
                                 lineHeight: '1.5'
                             }}>
-                                {com.conteudo}
+                                {conteudoParaPreview(com.conteudo)}
                             </p>
                         </div>
                     ))
@@ -465,11 +935,11 @@ const CommunicationDrawer = ({ user }) => {
                                 {cham.status_chamado}
                             </div>
                             <h4 className="comm-card-title">{cham.titulo}</h4>
-                            <p className="comm-card-content">{cham.conteudo}</p>
+                            <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
-                                    <span>{new Date(cham.created_at).toLocaleDateString()}</span>
+                                    <span>{formatDate(cham.created_at)}</span>
                                 </div>
                                 <i className="fas fa-chevron-right" style={{ opacity: 0.3 }}></i>
                             </div>
@@ -488,7 +958,7 @@ const CommunicationDrawer = ({ user }) => {
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span className="chat-target-name">{selectedChamado.titulo}</span>
-                    <span style={{ fontSize: '11px', opacity: 0.7 }}>Aberto em {new Date(selectedChamado.created_at).toLocaleDateString()}</span>
+                    <span style={{ fontSize: '11px', opacity: 0.7 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
                 </div>
             </div>
 
@@ -519,18 +989,87 @@ const CommunicationDrawer = ({ user }) => {
                 {loadingChamadoMessages ? (
                     <div className="comm-loading"><i className="fas fa-spinner fa-spin"></i></div>
                 ) : (
-                    chamadoMessages.map(msg => {
+                    chamadoMessages.map((msg, index) => {
                         const isMe = msg.criador_id === user?.id;
+                        const isEditing = editingMessageId === msg.id;
+
+                        // Date Separator Logic
+                        const prevMsg = index > 0 ? chamadoMessages[index - 1] : null;
+                        const currentDateLabel = getDateLabel(msg.created_at);
+                        const prevDateLabel = prevMsg ? getDateLabel(prevMsg.created_at) : null;
+                        const showDateSeparator = currentDateLabel !== prevDateLabel;
+
+                        {/* Rich Editor for Editing */ }
+                        if (isEditing) {
+                            return (
+                                <React.Fragment key={msg.id}>
+                                    {showDateSeparator && (
+                                        <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
+                                            <span style={{
+                                                backgroundColor: '#e1f5fe',
+                                                color: '#0e3b6f',
+                                                fontSize: '11px',
+                                                padding: '4px 12px',
+                                                borderRadius: '12px',
+                                                fontWeight: '600',
+                                                display: 'inline-block'
+                                            }}>
+                                                {currentDateLabel}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} intellisense-edit-mode`} style={{ width: '90%', maxWidth: 'none', flexDirection: 'column' }}>
+                                        <div style={{ marginBottom: '5px', fontWeight: 'bold', fontSize: '12px' }}>Editando mensagem...</div>
+                                        <RichEditor
+                                            initialValue={editContent}
+                                            onContentChange={setEditContent}
+                                            placeholder="Digite sua mensagem..."
+                                            minHeight="80px"
+                                        />
+                                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', marginTop: '5px' }}>
+                                            <button onClick={handleCancelEdit} style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+                                            <button onClick={() => handleSaveEdit(msg.id)} style={{ padding: '4px 8px', background: '#0e3b6f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
+                                        </div>
+                                    </div>
+                                </React.Fragment>
+                            );
+                        }
+
                         return (
-                            <div key={msg.id} className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`}>
-                                <div className="msg-author" style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '2px', opacity: 0.7 }}>
-                                    {msg.criador?.nome_usuario || 'Sistema'}
+                            <React.Fragment key={msg.id}>
+                                {showDateSeparator && (
+                                    <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
+                                        <span style={{
+                                            backgroundColor: '#e1f5fe',
+                                            color: '#0e3b6f',
+                                            fontSize: '11px',
+                                            padding: '4px 12px',
+                                            borderRadius: '12px',
+                                            fontWeight: '600',
+                                            display: 'inline-block'
+                                        }}>
+                                            {currentDateLabel}
+                                        </span>
+                                    </div>
+                                )}
+                                <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`} style={{ position: 'relative' }}>
+                                    {isMe && (
+                                        <div className="msg-actions" style={{ position: 'absolute', top: '5px', right: '5px', opacity: 0.5, cursor: 'pointer', zIndex: 10 }}>
+                                            <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)} style={{ fontSize: '10px' }}></i>
+                                        </div>
+                                    )}
+                                    <div className="msg-author" style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '2px', opacity: 0.7 }}>
+                                        {msg.criador?.nome_usuario || 'Sistema'}
+                                    </div>
+                                    <div className="msg-content" onClick={handleImageClick} style={{ cursor: 'pointer' }}>
+                                        {/* Use formatMessageContent only for viewing, RichEditor handles raw HTML internally but outputs Markdown */}
+                                        <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
+                                    </div>
+                                    <div className="msg-time">
+                                        {formatTime(msg.created_at)}
+                                    </div>
                                 </div>
-                                <div className="msg-content">{msg.conteudo}</div>
-                                <div className="msg-time">
-                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                            </div>
+                            </React.Fragment>
                         );
                     })
                 )}
@@ -538,17 +1077,23 @@ const CommunicationDrawer = ({ user }) => {
             </div>
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
-                <form className="comm-chat-input" onSubmit={handleSendChamadoReply}>
-                    <input
-                        type="text"
-                        placeholder="Responder chamado..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        disabled={replyingToChamado}
-                    />
-                    <button type="submit" disabled={!newMessage.trim() || replyingToChamado}>
-                        <i className="fas fa-reply"></i>
-                    </button>
+                <form className="comm-chat-input" onSubmit={handleSendChamadoReply} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                            type="text"
+                            placeholder="Responder chamado..."
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            disabled={replyingToChamado}
+                            style={{ flex: 1 }}
+                        />
+                        <button type="button" onClick={() => triggerUpload('REPLY')} disabled={uploading}>
+                            <i className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-paperclip'}`}></i>
+                        </button>
+                        <button type="submit" disabled={!newMessage.trim() || replyingToChamado}>
+                            <i className="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
                 </form>
             ) : (
                 <div style={{ padding: '15px', textAlign: 'center', backgroundColor: '#f1f5f9', fontSize: '12px', color: '#64748b' }}>
@@ -582,11 +1127,11 @@ const CommunicationDrawer = ({ user }) => {
                 </div>
                 <div className="form-group" style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Descrição *</label>
-                    <textarea
-                        placeholder="Digite o conteúdo..."
-                        value={formData.conteudo}
-                        onChange={(e) => setFormData({ ...formData, conteudo: e.target.value })}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '150px', resize: 'vertical' }}
+                    <RichEditor
+                        initialValue={formData.conteudo}
+                        onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
+                        placeholder={tipo === 'COMUNICADO' ? "Digite o aviso..." : "Descreva o chamado..."}
+                        minHeight="150px"
                     />
                 </div>
                 {tipo === 'COMUNICADO' && (
@@ -675,6 +1220,54 @@ const CommunicationDrawer = ({ user }) => {
                     )}
                 </div>
             </div>
+
+            {/* Lightbox for Images */}
+            {expandedImage && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.9)',
+                        zIndex: 99999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px'
+                    }}
+                    onClick={() => setExpandedImage(null)}
+                >
+                    <button
+                        style={{
+                            position: 'absolute',
+                            top: '20px',
+                            right: '20px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'white',
+                            fontSize: '30px',
+                            cursor: 'pointer'
+                        }}
+                        onClick={() => setExpandedImage(null)}
+                    >
+                        &times;
+                    </button>
+                    <img
+                        src={expandedImage}
+                        alt="Expanded"
+                        style={{
+                            maxWidth: '90%',
+                            maxHeight: '90%',
+                            objectFit: 'contain',
+                            borderRadius: '4px',
+                            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </div>
     );
 };

@@ -1,9 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import DetalhesFlatList from './DetalhesFlatList';
 import TarefasDetalhadasList from './TarefasDetalhadasList';
-import ClientesDetalhadosList from './ClientesDetalhadosList';
-import ProdutosDetalhadosList from './ProdutosDetalhadosList';
-import ResponsaveisDetalhadosList from './ResponsaveisDetalhadosList';
 import TiposTarefaDetalhadosList from './TiposTarefaDetalhadosList';
 import './DetailSideCard.css';
 
@@ -41,12 +39,9 @@ const formatarDataHora = (dataInput) => {
   }
 };
 
-const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRealizado, formatarTempoEstimado, formatarData, calcularCustoPorTempo, formatarValorMonetario, getNomeCliente, getNomeTipoTarefa, periodoInicio, periodoFim, filtrosAdicionais }) => {
+const DetailSideCard = ({ entidadeId, cardTipo, tipo, dados, onClose, position, getTempoRealizado, formatarTempoEstimado, formatarData, calcularCustoPorTempo, formatarValorMonetario, getNomeCliente, getNomeTipoTarefa, periodoInicio, periodoFim, filtrosAdicionais }) => {
   const cardRef = useRef(null);
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
-  const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
-  const [produtosExpandidos, setProdutosExpandidos] = useState(new Set());
-  const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
   const [tiposTarefaExpandidos, setTiposTarefaExpandidos] = useState(new Set());
   const [registrosIndividuais, setRegistrosIndividuais] = useState({});
   const [carregandoRegistros, setCarregandoRegistros] = useState({});
@@ -122,7 +117,13 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
   // Buscar tempos realizados para tarefas, responsáveis, clientes e produtos quando os dados são recebidos
   useEffect(() => {
-    if (!dados?.registros || dados.registros.length === 0 || !periodoInicio || !periodoFim) {
+    // Tipos com lista plana: dados já contêm total_realizado_ms e total_estimado_ms por item; sem fetch
+    // EXCEÇÃO: tarefas precisa buscar tempos para exibir nos registros individuais
+    if (['clientes', 'produtos', 'responsaveis'].includes(tipo)) {
+      return;
+    }
+
+    if (!dados?.registros || dados.registros.length === 0) {
       setTemposRealizadosPorTarefa({});
       setTemposRealizadosPorResponsavel({});
       setTemposRealizadosPorCliente({});
@@ -135,13 +136,56 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
       return;
     }
 
+    // Dados já vieram do POST único (gestao-capacidade/cards): usar valores sem nova requisição
+    if (dados.preloaded) {
+      const byId = {};
+      dados.registros.forEach(item => {
+        const id = item.id ?? item.originalId;
+        if (id != null) {
+          const ms = item.tempoRealizado ?? item.total_realizado_ms ?? 0;
+          byId[String(id)] = ms;
+        }
+      });
+      if (tipo === 'tarefas') setTemposRealizadosPorTarefa(byId);
+      else if (tipo === 'responsaveis') setTemposRealizadosPorResponsavel(byId);
+      else if (tipo === 'clientes') setTemposRealizadosPorCliente(byId);
+      else if (tipo === 'produtos') setTemposRealizadosPorProduto(byId);
+      return;
+    }
+
+    // Período: usar prop ou padrão (início/fim do mês atual) para garantir que o realizado por tarefa carregue ao abrir "ver detalhes"
+    const periodoInicioUsar = periodoInicio || (() => {
+      const d = new Date();
+      d.setDate(1);
+      d.setHours(0, 0, 0, 0);
+      return d.toISOString().slice(0, 10);
+    })();
+    const periodoFimUsar = periodoFim || (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(0);
+      d.setHours(23, 59, 59, 999);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    // Backend retorna data como { [entityId]: { tempo_realizado_ms } }, não data.tempo_realizado_ms direto
+    const extrairTempoRealizadoMs = (result) => {
+      if (!result?.success || !result?.data) return 0;
+      const data = result.data;
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const first = Object.values(data)[0];
+        if (first && typeof first.tempo_realizado_ms !== 'undefined') return first.tempo_realizado_ms || 0;
+      }
+      return data?.tempo_realizado_ms || 0;
+    };
+
     const buscarTemposRealizados = async () => {
       if (tipo === 'tarefas') {
         const novosTempos = {};
 
-        // Buscar tempo realizado para cada tarefa
+        // Buscar tempo realizado para cada tarefa (ao abrir "ver detalhes" / painel Tarefas)
         const promises = dados.registros.map(async (tarefa) => {
-          // Coletar responsáveis únicos desta tarefa
+          // Coletar responsáveis únicos desta tarefa; se vazio, usar entidadeId (ex.: responsável do card) para ainda buscar
           const responsaveisUnicos = new Set();
           if (tarefa.registros && Array.isArray(tarefa.registros)) {
             tarefa.registros.forEach(reg => {
@@ -149,6 +193,9 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 responsaveisUnicos.add(reg.responsavel_id);
               }
             });
+          }
+          if (responsaveisUnicos.size === 0 && entidadeId) {
+            responsaveisUnicos.add(entidadeId);
           }
 
           if (responsaveisUnicos.size === 0) {
@@ -167,8 +214,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: tarefaIdReal,
                   cliente_id: tarefa.clienteId || filtrosAdicionais?.cliente_id || null,
                   produto_id: filtrosAdicionais?.produto_id || null
@@ -177,9 +224,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
               if (response.ok) {
                 const result = await response.json();
-                if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
-                }
+                return extrairTempoRealizadoMs(result);
               }
               return 0;
             } catch (error) {
@@ -215,8 +260,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               credentials: 'include',
               body: JSON.stringify({
                 responsavel_id: responsavel.id,
-                data_inicio: periodoInicio,
-                data_fim: periodoFim,
+                data_inicio: periodoInicioUsar,
+                data_fim: periodoFimUsar,
                 tarefa_id: filtrosAdicionais?.tarefa_id || null,
                 cliente_id: filtrosAdicionais?.cliente_id || null,
                 produto_id: filtrosAdicionais?.produto_id || null
@@ -226,7 +271,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
             if (response.ok) {
               const result = await response.json();
               if (result.success && result.data) {
-                return { responsavelId: responsavel.id, tempoRealizado: result.data.tempo_realizado_ms || 0 };
+                return { responsavelId: responsavel.id, tempoRealizado: extrairTempoRealizadoMs(result) };
               }
             }
             return { responsavelId: responsavel.id, tempoRealizado: 0 };
@@ -252,16 +297,17 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavel.id,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
-                  produto_id: produto.id
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
+                  produto_id: produto.id,
+                  cliente_id: filtrosAdicionais?.cliente_id || null
                 })
               });
 
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  const tempoMs = result.data.tempo_realizado_ms || 0;
+                  const tempoMs = extrairTempoRealizadoMs(result);
                   novosTemposProduto[produtoKey] = tempoMs;
                   // Não sobrescrever a chave simples se já existir (pode vir de outro responsável), 
                   // mas para visualização detalhada precisamos da chave composta.
@@ -270,6 +316,37 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 }
               }
             } catch (err) { console.error(err); }
+
+            // Tarefas diretamente no produto (sem cliente): chave resp-prod-tarefa
+            if (produto.tarefas && Array.isArray(produto.tarefas) && produto.tarefas.length > 0) {
+              await Promise.all(produto.tarefas.map(async (tarefa) => {
+                const tarefaKey3 = `${responsavel.id}-${produto.id}-${tarefa.id}`;
+                const tarefaKeyAlt = String(tarefa.id);
+                try {
+                  const response = await fetch('/api/registro-tempo/realizado-total', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      responsavel_id: responsavel.id,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
+                      produto_id: produto.id,
+                      cliente_id: filtrosAdicionais?.cliente_id || null,
+                      tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
+                    })
+                  });
+                  if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                      const tempoMs = extrairTempoRealizadoMs(result);
+                      novosTemposTarefa[tarefaKey3] = tempoMs;
+                      if (novosTemposTarefa[tarefaKeyAlt] === undefined) novosTemposTarefa[tarefaKeyAlt] = tempoMs;
+                    }
+                  }
+                } catch (err) { console.error(err); }
+              }));
+            }
 
             if (!produto.clientes || !Array.isArray(produto.clientes)) return;
 
@@ -285,8 +362,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavel.id,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     produto_id: produto.id,
                     cliente_id: cliente.id
                   })
@@ -295,7 +372,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    const tempoMs = result.data.tempo_realizado_ms || 0;
+                    const tempoMs = extrairTempoRealizadoMs(result);
                     novosTemposCliente[clienteKey] = tempoMs;
                     if (!novosTemposCliente[clienteKeyAlt]) novosTemposCliente[clienteKeyAlt] = tempoMs;
                   }
@@ -316,8 +393,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     credentials: 'include',
                     body: JSON.stringify({
                       responsavel_id: responsavel.id,
-                      data_inicio: periodoInicio,
-                      data_fim: periodoFim,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
                       produto_id: produto.id,
                       cliente_id: cliente.id,
                       tarefa_id: tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id)
@@ -327,7 +404,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   if (response.ok) {
                     const result = await response.json();
                     if (result.success && result.data) {
-                      const tempoMs = result.data.tempo_realizado_ms || 0;
+                      const tempoMs = extrairTempoRealizadoMs(result);
                       novosTemposTarefa[tarefaKey] = tempoMs;
                       // Fallback simples
                       novosTemposTarefa[tarefaKeyAlt] = tempoMs;
@@ -376,8 +453,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
                   cliente_id: cliente.id,
                   produto_id: filtrosAdicionais?.produto_id || null
@@ -387,7 +464,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
+                  return extrairTempoRealizadoMs(result);
                 }
               }
               return 0;
@@ -450,8 +527,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tarefa_id: tarefaIdReal,
                     cliente_id: cliente.id,
                     produto_id: filtrosAdicionais?.produto_id || null
@@ -461,7 +538,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -537,10 +614,10 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 credentials: 'include',
                 body: JSON.stringify({
                   responsavel_id: responsavelId,
-                  data_inicio: periodoInicio,
-                  data_fim: periodoFim,
+                  data_inicio: periodoInicioUsar,
+                  data_fim: periodoFimUsar,
                   tarefa_id: filtrosAdicionais?.tarefa_id || null,
-                  cliente_id: filtrosAdicionais?.cliente_id || null,
+                  cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
                   produto_id: parseInt(String(produto.id).trim(), 10) || null
                 })
               });
@@ -548,7 +625,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               if (response.ok) {
                 const result = await response.json();
                 if (result.success && result.data) {
-                  return result.data.tempo_realizado_ms || 0;
+                  return extrairTempoRealizadoMs(result);
                 }
               }
               return 0;
@@ -570,8 +647,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
         resultados.forEach(({ produtoId, tempoRealizado }) => {
           novosTempos[produtoId] = tempoRealizado;
         });
-
-        setTemposRealizadosPorProduto(novosTempos);
+        // Não setar temposRealizadosPorProduto aqui; será preenchido por agregação bottom-up abaixo
 
         // Calcular tempo realizado por cliente dentro de cada produto
         const temposPorClientePorProduto = {};
@@ -580,16 +656,58 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
         const promisesProdutosHierarquicos = dados.registros.map(async (produto) => {
           const produtoIdNormalizado = String(produto.id);
-          if (!produto.clientes || !Array.isArray(produto.clientes) || produto.clientes.length === 0) {
-            return {
-              produtoId: produtoIdNormalizado,
-              temposPorCliente: {},
-              temposPorTarefaPorCliente: {}
-            };
-          }
-
           const temposPorCliente = {};
           const temposPorTarefaPorCliente = {};
+          const temClientesNaArvore = produto.clientes && Array.isArray(produto.clientes) && produto.clientes.length > 0;
+
+          if (!temClientesNaArvore) {
+            // Produto sem clientes na árvore: derivar a partir de produto.registros (tarefas únicas) para manter valor correto
+            if (produto.registros && Array.isArray(produto.registros) && produto.registros.length > 0) {
+              const tarefasUnicas = new Map();
+              produto.registros.forEach(reg => {
+                if (!reg.tarefa_id) return;
+                const compKey = `${reg.tarefa_id}_${reg.cliente_id || 'sem_cliente'}_${reg.produto_id || 'sem_produto'}`;
+                if (!tarefasUnicas.has(compKey)) {
+                  tarefasUnicas.set(compKey, { id: compKey, originalId: String(reg.tarefa_id), responsavel_id: reg.responsavel_id });
+                }
+              });
+              const chaveVirtualCliente = '_produto_sem_cliente_';
+              temposPorTarefaPorCliente[chaveVirtualCliente] = {};
+              for (const [, tarefa] of tarefasUnicas) {
+                let tempoTotalTarefa = 0;
+                const responsaveisTarefa = new Set();
+                if (tarefa.responsavel_id) responsaveisTarefa.add(tarefa.responsavel_id);
+                if (responsaveisTarefa.size === 0) responsaveisUnicos.forEach(r => responsaveisTarefa.add(r));
+                const promisesResp = Array.from(responsaveisTarefa).map(async (responsavelId) => {
+                  try {
+                    const tarefaIdReal = tarefa.originalId ?? (String(tarefa.id).includes('_') ? String(tarefa.id).split('_')[0] : tarefa.id);
+                    const response = await fetch('/api/registro-tempo/realizado-total', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        responsavel_id: responsavelId,
+                        data_inicio: periodoInicioUsar,
+                        data_fim: periodoFimUsar,
+                        tarefa_id: tarefaIdReal,
+                        cliente_id: (filtrosAdicionais?.cliente_id ?? (tipo === 'produtos' ? entidadeId : null)) || null,
+                        produto_id: parseInt(String(produto.id).trim(), 10) || null
+                      })
+                    });
+                    if (response.ok) {
+                      const result = await response.json();
+                      return result.success ? extrairTempoRealizadoMs(result) : 0;
+                    }
+                    return 0;
+                  } catch (e) { return 0; }
+                });
+                const resultados = await Promise.all(promisesResp);
+                tempoTotalTarefa = resultados.reduce((s, t) => s + t, 0);
+                temposPorTarefaPorCliente[chaveVirtualCliente][tarefa.id] = tempoTotalTarefa;
+              }
+            }
+            return { produtoId: produtoIdNormalizado, temposPorCliente, temposPorTarefaPorCliente };
+          }
 
           const clientesPromises = produto.clientes.map(async (cliente) => {
             // Garantir que clienteIdNormalizado nunca seja null - usar cliente.id como fallback
@@ -611,8 +729,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tarefa_id: filtrosAdicionais?.tarefa_id || null,
                     cliente_id: cliente.id,
                     produto_id: parseInt(String(produto.id).trim(), 10) || null
@@ -622,7 +740,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -658,13 +776,12 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   return { tarefaId: tarefa.id, tempoRealizado: 0 };
                 }
 
-                // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
+                // Buscar tempo realizado para cada responsável e somar — mesmo endpoint/payload do tipo 'tarefas'
+                // para retornar o tempo realizado total da tarefa (4min 1s), sem filtrar por cliente/produto
                 let tempoTotalTarefa = 0;
                 const promisesResponsaveisTarefa = Array.from(responsaveisUnicosTarefa).map(async (responsavelId) => {
                   try {
-                    // Usar mesma lógica do tipo 'tarefas' - cliente_id pode ser null se não estiver disponível
-                    const clienteIdParaBusca = cliente.id || null;
-                    const tarefaIdReal = tarefa.originalId || (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id);
+                    const tarefaIdReal = tarefa.originalId ?? (typeof tarefa.id === 'string' && tarefa.id.includes('_') ? tarefa.id.split('_')[0] : tarefa.id);
 
                     const response = await fetch('/api/registro-tempo/realizado-total', {
                       method: 'POST',
@@ -672,10 +789,10 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                       credentials: 'include',
                       body: JSON.stringify({
                         responsavel_id: responsavelId,
-                        data_inicio: periodoInicio,
-                        data_fim: periodoFim,
+                        data_inicio: periodoInicioUsar,
+                        data_fim: periodoFimUsar,
                         tarefa_id: tarefaIdReal,
-                        cliente_id: clienteIdParaBusca,
+                        cliente_id: cliente.id,
                         produto_id: parseInt(String(produto.id).trim(), 10) || null
                       })
                     });
@@ -683,7 +800,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     if (response.ok) {
                       const result = await response.json();
                       if (result.success && result.data) {
-                        return result.data.tempo_realizado_ms || 0;
+                        return extrairTempoRealizadoMs(result);
                       }
                     }
                     return 0;
@@ -757,10 +874,36 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
 
         const resultadosProdutosHierarquicos = await Promise.all(promisesProdutosHierarquicos);
         resultadosProdutosHierarquicos.forEach(({ produtoId, temposPorCliente, temposPorTarefaPorCliente }) => {
-          temposPorClientePorProduto[produtoId] = temposPorCliente;
+          temposPorClientePorProduto[produtoId] = { ...temposPorCliente };
           temposPorTarefaPorClientePorProduto[produtoId] = temposPorTarefaPorCliente;
         });
 
+        // Agregação bottom-up: cliente = soma das tarefas; produto = soma dos clientes (consistente com registros)
+        const temposRealizadosPorProdutoDerivados = {};
+        Object.keys(temposPorTarefaPorClientePorProduto).forEach(produtoId => {
+          const temposPorTarefaPorCliente = temposPorTarefaPorClientePorProduto[produtoId];
+          if (!temposPorClientePorProduto[produtoId]) temposPorClientePorProduto[produtoId] = {};
+          let somaProduto = 0;
+          Object.keys(temposPorTarefaPorCliente).forEach(clienteId => {
+            const temposTarefas = temposPorTarefaPorCliente[clienteId];
+            const somaCliente = typeof temposTarefas === 'object' && temposTarefas !== null
+              ? Object.values(temposTarefas).reduce((s, v) => s + (Number(v) || 0), 0)
+              : 0;
+            temposPorClientePorProduto[produtoId][clienteId] = somaCliente;
+            somaProduto += somaCliente;
+          });
+          temposRealizadosPorProdutoDerivados[produtoId] = somaProduto;
+        });
+        // Produtos sem clientes (sem filhos): manter valor da API do primeiro bloco. Não sobrescrever quando o produto tem clientes (valor derivado já é a soma correta).
+        Object.keys(novosTempos).forEach(produtoId => {
+          const temposPorTarefaPorCliente = temposPorTarefaPorClientePorProduto[produtoId] || {};
+          const temClientes = Object.keys(temposPorTarefaPorCliente).length > 0;
+          if (temposRealizadosPorProdutoDerivados[produtoId] === undefined || (!temClientes && (novosTempos[produtoId] || 0) > 0)) {
+            temposRealizadosPorProdutoDerivados[produtoId] = novosTempos[produtoId] || 0;
+          }
+        });
+
+        setTemposRealizadosPorProduto(temposRealizadosPorProdutoDerivados);
         setTemposRealizadosPorClientePorProduto(temposPorClientePorProduto);
         setTemposRealizadosPorTarefaPorClientePorProduto(temposPorTarefaPorClientePorProduto);
       } else if (tipo === 'tipos_tarefa') {
@@ -788,8 +931,8 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                   credentials: 'include',
                   body: JSON.stringify({
                     responsavel_id: responsavelId,
-                    data_inicio: periodoInicio,
-                    data_fim: periodoFim,
+                    data_inicio: periodoInicioUsar,
+                    data_fim: periodoFimUsar,
                     tipo_tarefa_id: tipoTarefa.id,
                     cliente_id: filtrosAdicionais?.cliente_id || null,
                     produto_id: filtrosAdicionais?.produto_id || null
@@ -799,7 +942,7 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                 if (response.ok) {
                   const result = await response.json();
                   if (result.success && result.data) {
-                    return result.data.tempo_realizado_ms || 0;
+                    return extrairTempoRealizadoMs(result);
                   }
                 }
                 return 0;
@@ -832,15 +975,15 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
                     credentials: 'include',
                     body: JSON.stringify({
                       responsavel_id: responsavelId,
-                      data_inicio: periodoInicio,
-                      data_fim: periodoFim,
+                      data_inicio: periodoInicioUsar,
+                      data_fim: periodoFimUsar,
                       tarefa_id: tarefaId,
                       tipo_tarefa_id: tipoTarefa.id
                     })
                   });
                   if (response.ok) {
                     const result = await response.json();
-                    return result.success ? (result.data.tempo_realizado_ms || 0) : 0;
+                    return result.success ? extrairTempoRealizadoMs(result) : 0;
                   }
                   return 0;
                 } catch (e) { return 0; }
@@ -904,16 +1047,69 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
   }, [position]); // Apenas quando position muda (abre/fecha), não em scroll
 
   // Buscar registros individuais de tempo realizado para uma tarefa
-  const buscarRegistrosIndividuais = async (tarefa) => {
-    if (registrosIndividuais[tarefa.id] || carregandoRegistros[tarefa.id]) {
+  // (tarefa, clienteId, produtoIdOpcional) — produtoIdOpcional: quando a tarefa está sob Produto > Cliente > Tarefa, passar o produto.id para o total dos registros bater com o realizado exibido na tarefa
+  const buscarRegistrosIndividuais = async (tarefa, clienteId, produtoIdOpcional) => {
+    const storageKey = (tipo === 'tarefas' || tipo === 'responsaveis' || tipo === 'produtos') && clienteId ? `${tarefa.id}-${clienteId}` : tarefa.id;
+    if (registrosIndividuais[storageKey] || carregandoRegistros[storageKey]) {
       return; // Já carregado ou carregando
     }
 
-    setCarregandoRegistros(prev => ({ ...prev, [tarefa.id]: true }));
+    setCarregandoRegistros(prev => ({ ...prev, [storageKey]: true }));
 
     try {
+      // Caminho: tipo clientes/tarefas/responsaveis/produtos e tarefa sem registros — buscar por GET registro-tempo (cliente_id, tarefa_id, período; produto_id quando card de produto ou quando passado pelo contexto da árvore)
+      const registrosVazios = !tarefa.registros || !Array.isArray(tarefa.registros) || tarefa.registros.length === 0;
+      const usaBuscaPorClienteTarefa = (tipo === 'clientes' || tipo === 'tarefas' || tipo === 'responsaveis' || tipo === 'produtos') && registrosVazios && clienteId && periodoInicio && periodoFim;
+      if (usaBuscaPorClienteTarefa) {
+        const tarefaIdReal = tarefa.originalId ?? tarefa.original_id ?? (typeof tarefa.id === 'string' && tarefa.id !== 'sem_tarefa' ? tarefa.id : tarefa.id);
+        if (tarefaIdReal && tarefaIdReal !== 'sem_tarefa') {
+          const params = new URLSearchParams();
+          params.append('cliente_id', String(clienteId));
+          params.append('tarefa_id', String(tarefaIdReal));
+          params.append('data_inicio', typeof periodoInicio === 'string' ? periodoInicio.split('T')[0] : (periodoInicio instanceof Date ? periodoInicio.toISOString().split('T')[0] : String(periodoInicio).split('T')[0]));
+          params.append('data_fim', typeof periodoFim === 'string' ? periodoFim.split('T')[0] : (periodoFim instanceof Date ? periodoFim.toISOString().split('T')[0] : String(periodoFim).split('T')[0]));
+          // produto_id: do contexto da árvore (produtoIdOpcional) ou do card quando o card é de produto — assim o total dos registros bate com o realizado exibido na tarefa
+          const produtoIdParaFiltro = produtoIdOpcional ?? (cardTipo === 'produto' && entidadeId ? entidadeId : null);
+          if (produtoIdParaFiltro) {
+            params.append('produto_id', String(produtoIdParaFiltro));
+          }
+          params.append('limit', '500');
+          const response = await fetch(`${API_BASE_URL}/registro-tempo?${params.toString()}`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' }
+          });
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && Array.isArray(result.data)) {
+              const registros = result.data.map(r => ({
+                ...r,
+                tempo_realizado: r.tempo_realizado || (r.data_inicio && r.data_fim ? (new Date(r.data_fim).getTime() - new Date(r.data_inicio).getTime()) : 0)
+              }));
+              registros.sort((a, b) => {
+                const dataA = a.data_inicio ? new Date(a.data_inicio).getTime() : 0;
+                const dataB = b.data_inicio ? new Date(b.data_inicio).getTime() : 0;
+                return dataB - dataA;
+              });
+              setRegistrosIndividuais(prev => ({ ...prev, [storageKey]: registros }));
+            } else {
+              setRegistrosIndividuais(prev => ({ ...prev, [storageKey]: [] }));
+            }
+          } else {
+            setRegistrosIndividuais(prev => ({ ...prev, [storageKey]: [] }));
+          }
+        } else {
+          setRegistrosIndividuais(prev => ({ ...prev, [storageKey]: [] }));
+        }
+        setCarregandoRegistros(prev => {
+          const novo = { ...prev };
+          delete novo[storageKey];
+          return novo;
+        });
+        return;
+      }
+
       // Coletar todos os tempo_estimado_ids dos registros desta tarefa
-      const tempoEstimadoIds = tarefa.registros
+      const tempoEstimadoIds = (tarefa.registros || [])
         .map(reg => reg.id || reg.tempo_estimado_id)
         .filter(Boolean);
 
@@ -1117,42 +1313,6 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
     });
   };
 
-  const toggleCliente = (clienteId) => {
-    setClientesExpandidos(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(clienteId)) {
-        newExpanded.delete(clienteId);
-      } else {
-        newExpanded.add(clienteId);
-      }
-      return newExpanded;
-    });
-  };
-
-  const toggleProduto = (produtoId) => {
-    setProdutosExpandidos(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(produtoId)) {
-        newExpanded.delete(produtoId);
-      } else {
-        newExpanded.add(produtoId);
-      }
-      return newExpanded;
-    });
-  };
-
-  const toggleResponsavel = (responsavelId) => {
-    setResponsaveisExpandidos(prev => {
-      const newExpanded = new Set(prev);
-      if (newExpanded.has(responsavelId)) {
-        newExpanded.delete(responsavelId);
-      } else {
-        newExpanded.add(responsavelId);
-      }
-      return newExpanded;
-    });
-  };
-
   const toggleTipoTarefa = (tipoId) => {
     setTiposTarefaExpandidos(prev => {
       const newExpanded = new Set(prev);
@@ -1198,69 +1358,17 @@ const DetailSideCard = ({ entidadeId, tipo, dados, onClose, position, getTempoRe
               formatarDataHora={formatarDataHora}
               formatarTempoHMS={formatarTempoHMS}
               onToggleTarefa={toggleTarefa}
+              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeCliente={getNomeCliente}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
               getNomeTipoTarefa={getNomeTipoTarefa}
               temposRealizadosPorTarefa={temposRealizadosPorTarefa}
               filtrosAdicionais={filtrosAdicionais}
             />
-          ) : tipo === 'clientes' ? (
-            <ClientesDetalhadosList
-              clientes={itensLista}
-              clientesExpandidos={clientesExpandidos}
-              registrosIndividuais={registrosIndividuais}
-              carregandoRegistros={carregandoRegistros}
-              formatarTempoEstimado={formatarTempoEstimado}
-              calcularCustoPorTempo={calcularCustoPorTempo}
-              formatarValorMonetario={formatarValorMonetario}
-              formatarDataHora={formatarDataHora}
+          ) : (tipo === 'clientes' || tipo === 'produtos' || tipo === 'responsaveis') ? (
+            <DetalhesFlatList
+              items={itensLista}
               formatarTempoHMS={formatarTempoHMS}
-              onToggleCliente={toggleCliente}
-              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
-              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
-              getNomeCliente={getNomeCliente}
-              temposRealizadosPorCliente={temposRealizadosPorCliente}
-              temposRealizadosPorTarefaPorCliente={temposRealizadosPorTarefaPorCliente}
-            />
-          ) : tipo === 'produtos' ? (
-            <ProdutosDetalhadosList
-              produtos={itensLista}
-              produtosExpandidos={produtosExpandidos}
-              registrosIndividuais={registrosIndividuais}
-              carregandoRegistros={carregandoRegistros}
-              formatarTempoEstimado={formatarTempoEstimado}
-              calcularCustoPorTempo={calcularCustoPorTempo}
-              formatarValorMonetario={formatarValorMonetario}
-              formatarDataHora={formatarDataHora}
-              formatarTempoHMS={formatarTempoHMS}
-              onToggleProduto={toggleProduto}
-              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
-              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
-              temposRealizadosPorProduto={temposRealizadosPorProduto}
-              temposRealizadosPorClientePorProduto={temposRealizadosPorClientePorProduto}
-              temposRealizadosPorTarefaPorClientePorProduto={temposRealizadosPorTarefaPorClientePorProduto}
-              periodoInicio={periodoInicio}
-              periodoFim={periodoFim}
-              filtrosAdicionais={filtrosAdicionais}
-            />
-          ) : tipo === 'responsaveis' ? (
-            <ResponsaveisDetalhadosList
-              responsaveis={itensLista}
-              responsaveisExpandidos={responsaveisExpandidos}
-              registrosIndividuais={registrosIndividuais}
-              carregandoRegistros={carregandoRegistros}
-              formatarTempoEstimado={formatarTempoEstimado}
-              calcularCustoPorTempo={calcularCustoPorTempo}
-              formatarValorMonetario={formatarValorMonetario}
-              formatarDataHora={formatarDataHora}
-              formatarTempoHMS={formatarTempoHMS}
-              onToggleResponsavel={toggleResponsavel}
-              buscarRegistrosIndividuais={buscarRegistrosIndividuais}
-              getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
-              temposRealizadosPorResponsavel={temposRealizadosPorResponsavel}
-              temposRealizadosPorProduto={temposRealizadosPorProduto}
-              temposRealizadosPorCliente={temposRealizadosPorCliente}
-              temposRealizadosPorTarefa={temposRealizadosPorTarefa}
             />
           ) : tipo === 'tipos_tarefa' ? (
             <TiposTarefaDetalhadosList

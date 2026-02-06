@@ -1010,7 +1010,7 @@ async function criarTempoEstimado(req, res) {
 
     const regrasParaInserir = [];
 
-    // Buscar membro_id do criador (se disponível)
+    // Buscar membro_id do criador (OBRIGATÓRIO para garantir histórico sempre criado)
     let membroIdCriador = null;
     try {
       const usuarioId = req.session?.usuario?.id || null;
@@ -1027,6 +1027,13 @@ async function criarTempoEstimado(req, res) {
       }
     } catch (error) {
       console.warn('⚠️ Erro ao buscar membro_id do criador:', error);
+    }
+
+    if (!membroIdCriador) {
+      return res.status(400).json({
+        success: false,
+        error: 'Não foi possível identificar o criador da atribuição. É necessário ter vínculo de colaborador (membro) para criar atribuições. Faça login com um usuário vinculado a um colaborador.'
+      });
     }
 
     // Iterar sobre cada produto e APENAS suas tarefas específicas
@@ -1092,7 +1099,34 @@ async function criarTempoEstimado(req, res) {
       console.log('📋 Exemplo de regra:', JSON.stringify(regrasParaInserir[0], null, 2));
     }
 
-    // Inserir todas as regras
+    // 1. CRIAR HISTÓRICO PRIMEIRO (evita regras órfãs sem histórico)
+    const historicoData = {
+      agrupador_id: agrupador_id,
+      cliente_id: String(cliente_id).trim(),
+      responsavel_id: String(responsavel_id).trim(),
+      usuario_criador_id: String(membroIdCriador).trim(),
+      data_inicio: dataInicioRegra,
+      data_fim: dataFimRegra,
+      produto_ids: produtoIdsArray.map(id => String(id).trim()),
+      tarefas: todasTarefasComTempo,
+      is_plug_rapido: false
+    };
+
+    const { error: historicoError } = await supabase
+      .from('historico_atribuicoes')
+      .insert([historicoData]);
+
+    if (historicoError) {
+      console.error('❌ Erro ao criar histórico de atribuição:', historicoError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao criar histórico da atribuição. A atribuição não foi criada.',
+        details: historicoError.message
+      });
+    }
+    console.log('✅ Histórico de atribuição criado com sucesso');
+
+    // 2. Inserir todas as regras (após histórico garantido)
     const { data: regrasInseridas, error } = await supabase
 
       .from('tempo_estimado_regra')
@@ -1100,7 +1134,7 @@ async function criarTempoEstimado(req, res) {
       .select();
 
     if (error) {
-      console.error('❌ Erro ao criar regras de tempo estimado:', error);
+      console.error('❌ Erro ao criar regras de tempo estimado (histórico já criado):', error);
       console.error('❌ Detalhes do erro:', {
         message: error.message,
         code: error.code,
@@ -1110,7 +1144,7 @@ async function criarTempoEstimado(req, res) {
       console.error('❌ Primeira regra que tentou inserir:', regrasParaInserir[0]);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao criar tempo estimado',
+        error: 'Erro ao criar regras de tempo estimado',
         details: error.message,
         hint: error.hint || null
       });
@@ -1118,46 +1152,11 @@ async function criarTempoEstimado(req, res) {
 
     console.log(`✅ ${regrasInseridas.length} regra(s) de tempo estimado criada(s) com sucesso`);
 
-    // Calcular registros virtuais para retornar no formato esperado pelo frontend
-    // (para manter compatibilidade - frontend espera registros individuais)
+    // Calcular registros virtuais para retornar no formato esperado pelo frontend (compatibilidade - frontend espera registros individuais)
     const dadosInseridos = [];
     for (const regra of regrasInseridas) {
       const registrosVirtuais = await calcularRegistrosDinamicos(regra);
       dadosInseridos.push(...registrosVirtuais);
-    }
-
-    // Salvar histórico da atribuição (usando dados calculados acima)
-    try {
-      // Se encontrou o membro_id, salvar histórico
-      if (membroIdCriador) {
-        const historicoData = {
-          agrupador_id: agrupador_id,
-          cliente_id: String(cliente_id).trim(),
-          responsavel_id: String(responsavel_id).trim(),
-          usuario_criador_id: String(membroIdCriador).trim(),
-          data_inicio: dataInicioRegra,
-          data_fim: dataFimRegra,
-          produto_ids: produtoIdsArray.map(id => String(id).trim()),
-          tarefas: todasTarefasComTempo
-        };
-
-        const { error: historicoError } = await supabase
-
-          .from('historico_atribuicoes')
-          .insert([historicoData]);
-
-        if (historicoError) {
-          console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
-          // Não falhar a requisição se o histórico não for salvo
-        } else {
-          console.log('✅ Histórico de atribuição salvo com sucesso');
-        }
-      } else {
-        console.warn('⚠️ Não foi possível encontrar membro_id para o usuário, histórico não será salvo');
-      }
-    } catch (historicoError) {
-      console.error('⚠️ Erro ao salvar histórico de atribuição:', historicoError);
-      // Não falhar a requisição se o histórico não for salvo
     }
 
     return res.status(201).json({
@@ -1176,7 +1175,8 @@ async function criarTempoEstimado(req, res) {
   }
 }
 
-// GET - Listar registros de tempo estimado (com paginação e filtros)
+// GET/POST - Listar registros de tempo estimado (com paginação e filtros)
+// POST aceito para evitar 414 URI Too Long quando há muitos filtros (ex.: muitos responsavel_id)
 async function getTempoEstimado(req, res) {
   try {
     // Processar parâmetros que podem vir como array (quando múltiplos valores são passados)
@@ -1192,7 +1192,8 @@ async function getTempoEstimado(req, res) {
       return [String(param).trim()].filter(Boolean);
     };
 
-    console.log('🔍 [TEMPO-ESTIMADO-REGRA] req.query completo:', JSON.stringify(req.query, null, 2));
+    const data_fonte = req.method === 'POST' ? req.body : req.query;
+    console.log('🔍 [TEMPO-ESTIMADO-REGRA] req.' + (req.method === 'POST' ? 'body' : 'query') + ' (amostra):', JSON.stringify({ ...data_fonte, responsavel_id: data_fonte.responsavel_id ? (Array.isArray(data_fonte.responsavel_id) ? `[${data_fonte.responsavel_id.length} ids]` : data_fonte.responsavel_id) : undefined }, null, 2));
 
     const {
       page = 1,
@@ -1201,20 +1202,18 @@ async function getTempoEstimado(req, res) {
       data_inicio = null,
       data_fim = null,
       cliente_status = null // 'ativo', 'inativo', ou null/undefined
-    } = req.query;
+    } = data_fonte;
 
     // Processar IDs que podem vir como array
-    const cliente_id = processarParametroArray(req.query.cliente_id);
-    const produto_id = processarParametroArray(req.query.produto_id);
-    const tarefa_id = processarParametroArray(req.query.tarefa_id);
+    const cliente_id = processarParametroArray(data_fonte.cliente_id);
+    const produto_id = processarParametroArray(data_fonte.produto_id);
+    const tarefa_id = processarParametroArray(data_fonte.tarefa_id);
 
-    // Filtrar apenas valores numéricos válidos para responsavel_id (campo INTEGER no banco)
-    // O frontend pode enviar email, nome, etc., mas precisamos apenas dos IDs numéricos
-    const responsavel_id_raw = processarParametroArray(req.query.responsavel_id);
+    // Aceitar responsavel_id como número ou UUID; descartar email/nome que causam 500
+    const responsavel_id_raw = processarParametroArray(data_fonte.responsavel_id);
+    const ehIdValido = (s) => /^\d+$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
     const responsavel_id = responsavel_id_raw
-      ? responsavel_id_raw
-        .map(id => parseInt(String(id).trim(), 10))
-        .filter(id => !isNaN(id) && id > 0)
+      ? responsavel_id_raw.map(id => String(id).trim()).filter(Boolean).filter(ehIdValido)
       : null;
 
     const pageNum = parseInt(page, 10);
@@ -2611,11 +2610,10 @@ async function getTempoRealizadoPorTarefasEstimadas(req, res) {
   }
 }
 
-// GET - Calcular tempo estimado total (Agregado por entidade)
-// Suporta agregação por responsavel, cliente, produto ou tarefa
+// GET/POST - Calcular tempo estimado total (Agregado por entidade)
+// Agregação em SQL no banco (RPC) para evitar O(n*dias) em memória. Fallback otimizado sem explosão.
 async function getTempoEstimadoTotal(req, res) {
   try {
-    // Processar parâmetros que podem vir como array
     const processarParametroArray = (param) => {
       if (!param) return null;
       if (Array.isArray(param)) {
@@ -2628,13 +2626,6 @@ async function getTempoEstimadoTotal(req, res) {
     };
 
     const data_fonte = req.method === 'POST' ? req.body : req.query;
-    try {
-      const fs = require('fs');
-      const logMsg = `\n[${new Date().toISOString()}] METHOD: ${req.method} | BODY: ${JSON.stringify(req.body)} | QUERY: ${JSON.stringify(req.query)}`;
-      fs.appendFileSync('C:\\Aplicacao\\Gest-o-Inteligente-UP380\\backEnd\\debug_backend.log', logMsg);
-    } catch (e) {
-      console.error('Falha ao escrever log:', e);
-    }
 
     const {
       data_inicio = null,
@@ -2642,17 +2633,19 @@ async function getTempoEstimadoTotal(req, res) {
       cliente_status = null,
       considerarFinaisDeSemana,
       considerarFeriados,
-      agrupar_por // 'responsavel', 'cliente', 'produto', 'tarefa'
+      agrupar_por
     } = data_fonte;
 
-    const overrideFinaisSemana = considerarFinaisDeSemana !== undefined ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true) : undefined;
-    const overrideFeriados = considerarFeriados !== undefined ? (considerarFeriados === 'true' || considerarFeriados === true) : undefined;
+    const considerarFinaisSemana = considerarFinaisDeSemana !== undefined
+      ? (considerarFinaisDeSemana === 'true' || considerarFinaisDeSemana === true)
+      : true;
+    const considerarFeriadosBool = considerarFeriados !== undefined
+      ? (considerarFeriados === 'true' || considerarFeriados === true)
+      : true;
 
     const cliente_id = processarParametroArray(data_fonte.cliente_id);
     const produto_id = processarParametroArray(data_fonte.produto_id);
     const tarefa_id = processarParametroArray(data_fonte.tarefa_id);
-
-    // Responsável pode vir string ou num, tratar
     const responsavel_id_raw = processarParametroArray(data_fonte.responsavel_id);
     const responsavel_id = responsavel_id_raw
       ? responsavel_id_raw.map(id => String(id).trim()).filter(Boolean)
@@ -2665,7 +2658,9 @@ async function getTempoEstimadoTotal(req, res) {
       });
     }
 
-    // Determinar chave de agrupamento
+    const pInicio = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
+    const pFim = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+
     let groupKey = agrupar_por;
     if (!groupKey) {
       if (responsavel_id && responsavel_id.length > 0) groupKey = 'responsavel';
@@ -2674,11 +2669,9 @@ async function getTempoEstimadoTotal(req, res) {
       else groupKey = 'tarefa';
     }
 
-    // FILTRO DE STATUS DE CLIENTE
+    // Filtro de status de cliente (reduz lista de cliente_ids quando ativo/inativo)
     let clienteIdsFinais = cliente_id;
     if (cliente_status && cliente_status !== 'todos' && (cliente_status === 'ativo' || cliente_status === 'inativo')) {
-      // ... (manter lógica existente de filtro de status) ...
-      // Simplificação: apenas se necessário. Se já filtraram por ID, o status é secundário, mas vamos manter
       try {
         let clientesQuery = supabase.from('cp_cliente').select('id');
         if (cliente_status === 'ativo') clientesQuery = clientesQuery.eq('status', 'ativo');
@@ -2692,99 +2685,86 @@ async function getTempoEstimadoTotal(req, res) {
           } else {
             clienteIdsFinais = idsFiltrados;
           }
-          if (clienteIdsFinais.length === 0) return res.json({ success: true, data: {} });
+          if (clienteIdsFinais.length === 0) {
+            return res.json({ success: true, data: {} });
+          }
         }
       } catch (e) {
         console.error('Erro filtro status cliente:', e);
       }
     }
 
-    // Buscar Regras
-    const criarQueryBuilder = () => {
-      let queryBuilder = supabase.from('tempo_estimado_regra').select('*');
+    // 1) Tentar agregação via RPC (SQL no banco – sem explosão em memória)
+    const pResponsavelIds = (responsavel_id && responsavel_id.length > 0) ? responsavel_id : null;
+    const pClienteIds = (clienteIdsFinais && clienteIdsFinais.length > 0) ? clienteIdsFinais : null;
+    const pProdutoIds = (produto_id && produto_id.length > 0) ? produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null;
+    const pTarefaIds = (tarefa_id && tarefa_id.length > 0) ? tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)) : null;
 
+    const { data: rpcRows, error: rpcError } = await supabase.rpc('get_tempo_estimado_total_agregado', {
+      p_data_inicio: pInicio,
+      p_data_fim: pFim,
+      p_considerar_finais_semana: considerarFinaisSemana,
+      p_cliente_ids: pClienteIds,
+      p_responsavel_ids: pResponsavelIds,
+      p_produto_ids: pProdutoIds,
+      p_tarefa_ids: pTarefaIds,
+      p_agrupar_por: groupKey
+    });
+
+    if (!rpcError && rpcRows && Array.isArray(rpcRows)) {
+      const resultados = {};
+      rpcRows.forEach(row => {
+        if (row && row.entity_id != null) {
+          const total = Number(row.total_ms) || 0;
+          resultados[String(row.entity_id).trim()] = total;
+        }
+      });
+      return res.json({ success: true, data: resultados });
+    }
+
+    // 2) Fallback: agregação em Node sem explosão (apenas contagem de dias por regra, sem array de registros)
+    const criarQueryBuilder = () => {
+      let queryBuilder = supabase.from('tempo_estimado_regra').select('id, responsavel_id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia, incluir_finais_semana');
       if (clienteIdsFinais && clienteIdsFinais.length > 0) queryBuilder = queryBuilder.in('cliente_id', clienteIdsFinais);
       if (produto_id && produto_id.length > 0) queryBuilder = queryBuilder.in('produto_id', produto_id);
       if (tarefa_id && tarefa_id.length > 0) queryBuilder = queryBuilder.in('tarefa_id', tarefa_id);
       if (responsavel_id && responsavel_id.length > 0) queryBuilder = queryBuilder.in('responsavel_id', responsavel_id);
-
-      const pInicio = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-      const pFim = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
       queryBuilder = queryBuilder.lte('data_inicio', pFim).gte('data_fim', pInicio);
-
       return queryBuilder.order('data_inicio', { ascending: false });
     };
 
-    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 1000, logProgress: true });
-
-    // Mapeamento de Membros (apenas se agrupar por responsável e tivermos apenas usuario_id ou vice-versa, mas aqui usamos responsavel_id string/int direto da regra)
-    // As regras usam responsavel_id (que é membro.id ou similar). O frontend manda membro.id.
-
-    // Expandir Regras
-    const pInicio = data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio;
-    const pFim = data_fim.includes('T') ? data_fim.split('T')[0] : data_fim;
+    const regrasEncontradas = await buscarTodosComPaginacao(criarQueryBuilder, { limit: 5000, logProgress: true });
     const cacheFeriados = {};
-    const todosRegistros = [];
+    const resultados = {};
 
     for (const regra of regrasEncontradas) {
       try {
-        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, overrideFinaisSemana, overrideFeriados);
-        todosRegistros.push(...expandidos);
-      } catch (e) { console.error('Erro expandir regra:', e); }
+        const incluirFinaisSemanaRegra = considerarFinaisSemana && (regra.incluir_finais_semana !== false);
+        const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinaisSemanaRegra, considerarFeriadosBool);
+        const qtdDias = expandidos.length;
+        if (qtdDias === 0) continue;
+
+        let tempoMs = Number(regra.tempo_estimado_dia) || 0;
+        if (tempoMs > 0 && tempoMs < 1000) tempoMs = Math.round(tempoMs * 3600000);
+        const totalRegra = qtdDias * tempoMs;
+
+        let key = null;
+        if (groupKey === 'cliente') key = String(regra.cliente_id).trim();
+        else if (groupKey === 'produto') key = String(regra.produto_id).trim();
+        else if (groupKey === 'tarefa') key = String(regra.tarefa_id).trim();
+        else if (regra.responsavel_id) key = String(regra.responsavel_id).trim();
+
+        if (key) {
+          resultados[key] = (resultados[key] || 0) + totalRegra;
+        }
+      } catch (e) {
+        console.error('Erro ao agregar regra (fallback):', e);
+      }
     }
 
-    // Agrupar
-    const registrosPorChave = {};
-
-    todosRegistros.forEach(reg => {
-      let key = null;
-      if (groupKey === 'cliente') key = String(reg.cliente_id).trim();
-      else if (groupKey === 'produto') key = String(reg.produto_id).trim();
-      else if (groupKey === 'tarefa') key = String(reg.tarefa_id).trim();
-      else {
-        // Default responsavel
-        if (reg.responsavel_id) key = String(reg.responsavel_id).trim();
-      }
-
-      if (key) {
-        if (!registrosPorChave[key]) registrosPorChave[key] = [];
-        registrosPorChave[key].push(reg);
-      }
-    });
-
-    // Calcular Totais por Chave
-    const resultados = {};
-    Object.keys(registrosPorChave).forEach(key => {
-      const regs = registrosPorChave[key];
-      const tempoPorData = new Map();
-
-      regs.forEach(r => {
-        const dataStr = r.data ? r.data.split('T')[0] : null;
-        if (!dataStr) return;
-        if (dataStr < pInicio || dataStr > pFim) return;
-
-        let tempo = Number(r.tempo_estimado_dia) || 0;
-        if (tempo > 0 && tempo < 1000) tempo = Math.round(tempo * 3600000); // Horas -> ms
-
-        // Somar tempos para a mesma data (acumular carga)
-        const atual = tempoPorData.get(dataStr) || 0;
-        tempoPorData.set(dataStr, atual + tempo);
-      });
-
-      let total = 0;
-      tempoPorData.forEach(t => total += t);
-      resultados[key] = total;
-    });
-
-    return res.json({
-      success: true,
-      data: resultados
-    });
-
+    return res.json({ success: true, data: resultados });
   } catch (error) {
-    const fs = require('fs');
-    fs.appendFileSync('debug_backend.log', `\n[${new Date().toISOString()}] ERROR: ` + error.message + '\n' + error.stack);
-    console.error('❌ Erro inesperado ao calcular tempo estimado total:', error);
+    console.error('❌ Erro ao calcular tempo estimado total:', error);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',

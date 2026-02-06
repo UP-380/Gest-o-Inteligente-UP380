@@ -131,6 +131,80 @@
     color: #111827;
 }
 
+.notification-drawer-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    width: 100%;
+}
+
+.notification-auto-read-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notification-auto-read-toggle label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #4b5563;
+    cursor: help;
+}
+
+.switch-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
+.switch-wrapper input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+    margin: 0;
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #cbd5e1;
+    transition: .4s;
+    border-radius: 20px;
+    z-index: 1;
+}
+
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+input:checked+.switch-slider {
+    background-color: #0e3b6f;
+}
+
+input:checked+.switch-slider:before {
+    transform: translateX(16px);
+}
+
 .mark-all-read-btn-header {
     background: none;
     border: 1px solid #e5e7eb;
@@ -144,8 +218,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
+    flex: 1;
     font-weight: 500;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 .mark-all-read-btn-header:hover {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './TarefasDetalhadasList.css';
 
 /**
@@ -46,7 +46,6 @@ const ProdutosDetalhadosList = ({
   const [clientesExpandidos, setClientesExpandidos] = useState(new Set());
   const [tarefasExpandidas, setTarefasExpandidas] = useState(new Set());
   const [responsaveisExpandidos, setResponsaveisExpandidos] = useState(new Set());
-  const [temposRealizadosPorTarefa, setTemposRealizadosPorTarefa] = useState({}); // Buscar diretamente igual ao TarefasDetalhadasList
 
   const toggleResponsavel = (tarefaId, dataNormalizada, responsavelKey) => {
     const key = `${tarefaId}_${dataNormalizada}_${responsavelKey}`;
@@ -61,92 +60,8 @@ const ProdutosDetalhadosList = ({
     });
   };
 
-  // Buscar tempos realizados diretamente para TODAS as tarefas (igual ao TarefasDetalhadasList)
-  useEffect(() => {
-    if (!periodoInicio || !periodoFim || !produtos || produtos.length === 0) return;
-
-    // Coletar TODAS as tarefas de todos os produtos e clientes
-    const todasTarefas = [];
-    produtos.forEach(produto => {
-      if (produto.clientes && Array.isArray(produto.clientes)) {
-        produto.clientes.forEach(cliente => {
-          if (cliente.tarefas && Array.isArray(cliente.tarefas)) {
-            cliente.tarefas.forEach(tarefa => {
-              todasTarefas.push({ tarefa, cliente, produto });
-            });
-          }
-        });
-      }
-    });
-
-    if (todasTarefas.length === 0) return;
-
-    // Buscar tempos realizados diretamente (EXATAMENTE igual ao TarefasDetalhadasList)
-    const buscarTemposRealizados = async () => {
-      const novosTempos = {};
-
-      const promises = todasTarefas.map(async ({ tarefa, cliente, produto }) => {
-        // Coletar responsáveis únicos desta tarefa (igual ao tipo 'tarefas' linha ~139-146)
-        const responsaveisUnicos = new Set();
-        if (tarefa.registros && Array.isArray(tarefa.registros)) {
-          tarefa.registros.forEach(reg => {
-            if (reg.responsavel_id) {
-              responsaveisUnicos.add(reg.responsavel_id);
-            }
-          });
-        }
-
-        if (responsaveisUnicos.size === 0) {
-          return { tarefaId: tarefa.id, tempoRealizado: 0 };
-        }
-
-        // Buscar tempo realizado para cada responsável e somar (igual ao tipo 'tarefas')
-        let tempoTotal = 0;
-        const promisesResponsaveis = Array.from(responsaveisUnicos).map(async (responsavelId) => {
-          try {
-            const response = await fetch('/api/registro-tempo/realizado-total', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                responsavel_id: responsavelId,
-                data_inicio: periodoInicio,
-                data_fim: periodoFim,
-                tarefa_id: tarefa.id,
-                cliente_id: cliente.id || null,
-                produto_id: produto.id || null
-              })
-            });
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                return result.data.tempo_realizado_ms || 0;
-              }
-            }
-            return 0;
-          } catch (error) {
-            console.error('Erro ao buscar tempo realizado da tarefa:', error);
-            return 0;
-          }
-        });
-
-        const resultados = await Promise.all(promisesResponsaveis);
-        tempoTotal = resultados.reduce((sum, tempo) => sum + tempo, 0);
-
-        return { tarefaId: tarefa.id, tempoRealizado: tempoTotal };
-      });
-
-      const resultados = await Promise.all(promises);
-      resultados.forEach(({ tarefaId, tempoRealizado }) => {
-        novosTempos[tarefaId] = tempoRealizado;
-      });
-
-      setTemposRealizadosPorTarefa(novosTempos);
-    };
-
-    buscarTemposRealizados();
-  }, [produtos, periodoInicio, periodoFim]);
+  // Realizado por tarefa vem exclusivamente do DetailSideCard (temposRealizadosPorTarefaPorClientePorProduto)
+  // para evitar chamadas à API com tarefa.id composto e valores incorretos.
 
   if (!produtos || produtos.length === 0) {
     return (
@@ -177,9 +92,9 @@ const ProdutosDetalhadosList = ({
         newExpanded.delete(key);
       } else {
         newExpanded.add(key);
-        // Buscar registros individuais quando expandir
-        if (buscarRegistrosIndividuais && tarefa) {
-          buscarRegistrosIndividuais(tarefa);
+        // Buscar registros por tarefa+cliente+produto para o total dos registros bater com o realizado da tarefa (escopo Produto > Cliente > Tarefa)
+        if (buscarRegistrosIndividuais && tarefa && clienteId) {
+          buscarRegistrosIndividuais(tarefa, clienteId, produtoId);
         }
       }
       return newExpanded;
@@ -365,17 +280,17 @@ const ProdutosDetalhadosList = ({
                                 const produtoIdStr = String(produto.id);
                                 const clienteIdStr = String(cliente.id);
                                 const tarefaIdStr = String(tarefa.id);
-                                // Normalizar clienteId usando mesma lógica
                                 const clienteIdCalculado = cliente.id || (cliente.nome && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(cliente.nome)) ? cliente.nome : null);
                                 const clienteIdNormalizado = clienteIdCalculado ? String(clienteIdCalculado) : clienteIdStr;
-                                // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
-                                // Usar temposRealizadosPorTarefa que busca diretamente do endpoint
-                                // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
-                                // Usar temposRealizadosPorTarefa que busca diretamente do endpoint
-                                let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                                // Fonte principal: prop hierárquico do DetailSideCard (evita API com tarefa.id composto)
+                                const porProduto = temposRealizadosPorTarefaPorClientePorProduto || {};
+                                const porCliente = porProduto[produtoIdStr] || porProduto[produto.id] || {};
+                                const porTarefa = porCliente[clienteIdNormalizado] || porCliente[clienteIdStr] || porCliente[cliente.id] || porCliente[String(cliente.id)] || {};
+                                const regKeyTarefaCliente = `${tarefa.id}-${clienteIdNormalizado}`;
+                                let tempoRealizadoTarefaMs = porTarefa[tarefa.id] ?? porTarefa[tarefaIdStr] ?? (tarefa.originalId != null ? porTarefa[tarefa.originalId] : undefined) ?? tarefa.total_realizado_ms ?? tarefa.tempoRealizado ?? 0;
 
-                                // Fallback: se for 0 e tivermos registros, somar deles
-                                const registrosDaTarefa = registrosIndividuais[tarefa.id];
+                                // Fallback: se for 0 e tivermos registros (por tarefa+cliente), somar deles
+                                const registrosDaTarefa = registrosIndividuais[regKeyTarefaCliente] || registrosIndividuais[tarefa.id];
                                 if ((!tempoRealizadoTarefaMs || tempoRealizadoTarefaMs === 0) && registrosDaTarefa && registrosDaTarefa.length > 0) {
                                   tempoRealizadoTarefaMs = registrosDaTarefa.reduce((total, reg) => {
                                     let tempoReg = Number(reg.tempo_realizado) || 0;
@@ -441,7 +356,7 @@ const ProdutosDetalhadosList = ({
                                           </div>
                                         </div>
                                       </div>
-                                      {tarefa.registros && tarefa.registros.length > 0 && (
+                                      {((tarefa.id || tarefa.original_id) && cliente.id) ? (
                                         <button
                                           className="tarefa-detalhada-toggle"
                                           onClick={() => toggleTarefa(produto.id, cliente.id, tarefa.id, tarefa)}
@@ -451,20 +366,20 @@ const ProdutosDetalhadosList = ({
                                             className={`fas fa-chevron-down ${isTarefaExpanded ? 'expanded' : ''}`}
                                           ></i>
                                         </button>
-                                      )}
+                                      ) : null}
                                     </div>
                                     {isTarefaExpanded && (
                                       <div className="tarefa-detalhada-registros">
                                         <div className="tarefa-detalhada-registros-title">
                                           Registros de Tempo Realizado:
                                         </div>
-                                        {carregandoRegistros[tarefa.id] ? (
+                                        {carregandoRegistros[regKeyTarefaCliente] ? (
                                           <div className="tarefa-detalhada-loading">
                                             <i className="fas fa-spinner fa-spin"></i>
                                             <span>Carregando...</span>
                                           </div>
                                         ) : (() => {
-                                          const registros = registrosIndividuais[tarefa.id] || [];
+                                          const registros = (registrosIndividuais[regKeyTarefaCliente] || registrosIndividuais[tarefa.id] || []);
                                           if (registros.length === 0) {
                                             return (
                                               <div className="tarefa-detalhada-empty-registros">
@@ -781,9 +696,12 @@ const ProdutosDetalhadosList = ({
                   {produto.tarefas.map((tarefa, tarefaIndex) => {
                     const tarefaKey = `${produto.id}-${tarefa.id}`;
                     const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
-                    // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
-                    // Buscar tempo realizado diretamente (igual ao TarefasDetalhadasList)
-                    let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefa.id] || tarefa.tempoRealizado || 0;
+                    const produtoIdStr = String(produto.id || '');
+                    // Produto sem clientes: DetailSideCard usa chave virtual '_produto_sem_cliente_'
+                    const porProduto = temposRealizadosPorTarefaPorClientePorProduto || {};
+                    const porCliente = porProduto[produtoIdStr] || porProduto[produto.id] || {};
+                    const semCliente = porCliente['_produto_sem_cliente_'] || {};
+                    let tempoRealizadoTarefaMs = semCliente[tarefa.id] ?? semCliente[String(tarefa.id)] ?? (tarefa.originalId != null ? semCliente[tarefa.originalId] : undefined) ?? tarefa.tempoRealizado ?? 0;
 
                     // Fallback: se for 0 e tivermos registros, somar deles
                     const registrosDaTarefa = registrosIndividuais[tarefa.id];

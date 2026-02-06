@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useHistoricoTempo } from '../../hooks/useHistoricoTempo';
 import RegistroTempoItem from './RegistroTempoItem';
+import EditarPendentePlugRapidoModal from './EditarPendentePlugRapidoModal';
 import './HistoTempoRastreado.css';
 
 const API_BASE_URL = '/api';
@@ -56,6 +57,7 @@ const HistoTempoRastreado = ({
   const [tarefasExpandidas, setTarefasExpandidas] = useState({});
   const [nomesClientesCache, setNomesClientesCache] = useState({});
   const nomesClientesCacheRef = useRef({});
+  const [pendenteEditando, setPendenteEditando] = useState(null);
 
   // Sincronizar ref com estado do cache
   useEffect(() => {
@@ -275,6 +277,8 @@ const HistoTempoRastreado = ({
                                         onFecharDelecao={onFecharDelecao}
                                         onAtualizarFormData={onAtualizarFormData}
                                         onAtualizarJustificativaDelecao={onAtualizarJustificativaDelecao}
+                                        isPendente={reg.is_pendente}
+                                        onEditarPendente={(r) => setPendenteEditando(r)}
                                       />
                                     );
                                   })}
@@ -292,6 +296,18 @@ const HistoTempoRastreado = ({
           </div>
         );
       })}
+      {pendenteEditando && (
+        <EditarPendentePlugRapidoModal
+          isOpen={!!pendenteEditando}
+          registro={pendenteEditando}
+          onClose={() => setPendenteEditando(null)}
+          onSuccess={() => {
+            handleBuscarHistorico();
+            setPendenteEditando(null);
+            window.dispatchEvent(new CustomEvent('registro-tempo-atualizado'));
+          }}
+        />
+      )}
     </div>
   );
 };

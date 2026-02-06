@@ -470,6 +470,35 @@
   font-weight: 400;
 }
 
+/* Plug Rápido pendente de aprovação */
+.timer-dropdown-registro--pendente {
+  background: #fefce8 !important;
+  border-color: #fde047 !important;
+}
+
+.timer-dropdown-registro--pendente:hover {
+  background: #fef9c3 !important;
+  border-color: #facc15 !important;
+}
+
+.timer-dropdown-registro-badge-pendente {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #fef08a;
+  color: #854d0e;
+  border: 1px solid #facc15;
+  margin-bottom: 4px;
+}
+
+.timer-dropdown-registro-badge-pendente i {
+  color: #ca8a04;
+}
+
 .timer-dropdown-registro-actions {
   display: flex;
   gap: 4px;

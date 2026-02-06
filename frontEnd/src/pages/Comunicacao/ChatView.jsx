@@ -79,6 +79,7 @@ const ChatView = () => {
                 destinatario_id: selectedUser.id,
                 conteudo: newMessage
             };
+            console.log('[CHAT] Enviando mensagem para destinatario_id:', selectedUser.id, 'payload:', payload);
 
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {

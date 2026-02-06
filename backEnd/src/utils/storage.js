@@ -233,8 +233,48 @@ async function resolveAvatarUrl(fotoPerfil, entityType = 'user') {
   }
 }
 
+/**
+ * Upload de arquivo genérico (imagem ou vídeo) para o Supabase Storage
+ * Usado para anexos de comunicações/chamados
+ * @param {Buffer} fileBuffer - Buffer do arquivo
+ * @param {string} bucketName - Nome do bucket (ex: 'chamados')
+ * @param {string} fileName - Nome do arquivo
+ * @param {string} contentType - Tipo MIME (ex: 'image/jpeg', 'video/mp4')
+ * @returns {Promise<{publicUrl: string, path: string, fullPath: string}>}
+ */
+async function uploadFileToStorage(fileBuffer, bucketName, fileName, contentType = 'application/octet-stream') {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, fileBuffer, {
+        contentType: contentType,
+        upsert: false,
+        cacheControl: '3600'
+      });
+
+    if (error) {
+      console.error('❌ Erro ao fazer upload para Supabase Storage:', error);
+      throw error;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    return {
+      publicUrl: urlData.publicUrl,
+      path: data.path,
+      fullPath: `${bucketName}/${data.path}`
+    };
+  } catch (error) {
+    console.error('❌ Erro ao fazer upload de arquivo:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   uploadImageToStorage,
+  uploadFileToStorage,
   deleteImageFromStorage,
   getPublicUrl,
   getCustomAvatarUrl,

@@ -215,7 +215,7 @@ const Sidebar = () => {
         title: 'Minhas Tarefas'
       },
       {
-        path: '/atribuir-responsaveis',
+        path: '/gestao-capacidade',
         icon: 'fa-user-check',
         label: 'Gestão de Capacidade',
         title: 'Gestão de Capacidade'
@@ -702,7 +702,7 @@ const Sidebar = () => {
               <div className="sidebar-footer-meta">
                 <div className="sidebar-footer-version-info">
                   <i className="fas fa-code-branch"></i>
-                  <span className="marca-dagua-texto">v{VERSAO_SISTEMA}</span>
+                  <span className="marca-dagua-texto">v1.0.5</span>
                 </div>
                 <div className="sidebar-footer-copyright">
                   <span>2025 UP Gestão Inteligente</span>
