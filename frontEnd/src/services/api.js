@@ -1010,6 +1010,103 @@ export const usuariosAPI = {
   }
 };
 
+// ============================================
+// DOCUMENTOS (GED)
+// ============================================
+
+export const documentosAPI = {
+  /**
+   * Lista todos os documentos de um cliente
+   * @param {string} clienteId - ID do cliente
+   */
+  async getDocumentosCliente(clienteId) {
+    return await request(`${API_BASE_URL}/clientes/${clienteId}/documentos`);
+  },
+
+  /**
+   * Busca um documento específico por ID
+   * @param {string} documentoId - ID do documento
+   */
+  async getDocumentoPorId(documentoId) {
+    return await request(`${API_BASE_URL}/documentos/${documentoId}`);
+  },
+
+  /**
+   * Faz upload de um documento para um cliente
+   * @param {string} clienteId - ID do cliente
+   * @param {FormData} formData - FormData com arquivo e metadados
+   */
+  async uploadDocumento(clienteId, formData) {
+    return await request(`${API_BASE_URL}/clientes/${clienteId}/documentos`, {
+      method: 'POST',
+      headers: {}, // Não definir Content-Type, o browser define automaticamente com boundary para FormData
+      body: formData
+    });
+  },
+
+  /**
+   * Atualiza metadados de um documento
+   * @param {string} documentoId - ID do documento
+   * @param {Object} dados - { nome_exibicao?, descricao? }
+   */
+  async updateDocumento(documentoId, dados) {
+    return await request(`${API_BASE_URL}/documentos/${documentoId}`, {
+      method: 'PUT',
+      body: JSON.stringify(dados)
+    });
+  },
+
+  /**
+   * Deleta um documento
+   * @param {string} documentoId - ID do documento
+   */
+  async deleteDocumento(documentoId) {
+    return await request(`${API_BASE_URL}/documentos/${documentoId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
+   * Obtém URL de download de um documento
+   * @param {string} documentoId - ID do documento
+   */
+  async downloadDocumento(documentoId) {
+    const response = await fetch(`${API_BASE_URL}/documentos/${documentoId}/download`, {
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    // Se a resposta é um redirect, seguir o redirect
+    if (response.redirected) {
+      return response.url;
+    }
+
+    // Caso contrário, retornar a URL da resposta
+    const data = await response.json();
+    return data.url || response.url;
+  },
+
+  /**
+   * Obtém URL de preview de um documento
+   * @param {string} documentoId - ID do documento
+   */
+  async getDocumentPreview(documentoId) {
+    return await request(`${API_BASE_URL}/documentos/${documentoId}/preview`);
+  },
+
+  /**
+   * Valida documentos obrigatórios de um cliente
+   * @param {string} clienteId - ID do cliente
+   */
+  async validarDocumentosObrigatorios(clienteId) {
+    return await request(`${API_BASE_URL}/clientes/${clienteId}/documentos/validacao`);
+  }
+};
+
 // Exportar api genérica
 export const api = {
   get: (endpoint) => request(`${API_BASE_URL}${endpoint}`),

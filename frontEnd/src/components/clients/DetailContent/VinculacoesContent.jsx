@@ -1,13 +1,56 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useToast } from '../../../hooks/useToast';
 import RichTextEditor from '../../common/RichTextEditor';
 
 const API_BASE_URL = '/api';
 
-const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => {
+const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated, expandAll }) => {
   const showToast = useToast();
   const [expandedObservacao, setExpandedObservacao] = useState(null); // { subtarefaId: X }
   const [observacoesEditando, setObservacoesEditando] = useState({}); // { subtarefaId: { observacao: '', saving: false } }
+  const [expandedTiposTarefa, setExpandedTiposTarefa] = useState({}); // { tipoTarefaId: true/false }
+  const [expandedTarefas, setExpandedTarefas] = useState({}); // { tarefaId: true/false }
+  const [tipoTarefaExpandAll, setTipoTarefaExpandAll] = useState({}); // { tipoTarefaId: true/false } - controla expandir/recolher todas as tarefas de um tipo
+
+  // Efeito para expandir/recolher tudo quando expandAll mudar
+  useEffect(() => {
+    if (expandAll !== undefined && vinculacoes && vinculacoes.length > 0) {
+      const tiposTarefaMap = {};
+      const tarefasMap = {};
+
+      // Usar vinculacoesAgrupadas para obter todos os IDs únicos
+      const grupos = new Map();
+      vinculacoes.forEach(vinculo => {
+        const produtoId = vinculo.produto?.id || 'sem-produto';
+        if (!grupos.has(produtoId)) {
+          grupos.set(produtoId, { tiposTarefa: new Set(), tarefas: new Set() });
+        }
+        const grupo = grupos.get(produtoId);
+        
+        const tipoTarefaId = vinculo.tipoTarefa?.id || `sem-tipo-${vinculo.tipoTarefa?.nome || ''}`;
+        grupo.tiposTarefa.add(tipoTarefaId);
+        tiposTarefaMap[tipoTarefaId] = expandAll;
+
+        if (vinculo.tarefa) {
+          const tarefaId = vinculo.tarefa.id;
+          grupo.tarefas.add(tarefaId);
+          tarefasMap[tarefaId] = expandAll;
+        }
+      });
+
+      setExpandedTiposTarefa(tiposTarefaMap);
+      setExpandedTarefas(tarefasMap);
+      
+      // Sincronizar tipoTarefaExpandAll também
+      const tipoTarefaExpandAllMap = {};
+      grupos.forEach((grupo, produtoId) => {
+        grupo.tiposTarefa.forEach(tipoTarefaId => {
+          tipoTarefaExpandAllMap[tipoTarefaId] = expandAll;
+        });
+      });
+      setTipoTarefaExpandAll(tipoTarefaExpandAllMap);
+    }
+  }, [expandAll, vinculacoes]);
   // Agrupar vinculações por produto (ou sem produto)
   const vinculacoesAgrupadas = useMemo(() => {
     if (!vinculacoes || vinculacoes.length === 0) return [];
@@ -234,7 +277,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
       display: 'flex', 
       flexDirection: 'column', 
       gap: '32px',
-      width: '100%'
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
+      overflowX: 'hidden'
     }}>
       {vinculacoesAgrupadas.map((grupo, grupoIndex) => {
         const grupoId = grupo.produto?.id || `sem-produto-${grupoIndex}`;
@@ -250,7 +296,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
               background: '#fff',
               borderRadius: '12px',
               boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              width: '100%'
+              width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+              overflow: 'hidden'
             }}
           >
             {/* Título: Produtos contratos pelo cliente */}
@@ -276,54 +325,216 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
               {grupo.tiposTarefa.map((tipoTarefaGrupo, tipoIndex) => {
                 const tipoTarefaId = tipoTarefaGrupo.tipoTarefa?.id || `sem-tipo-${tipoIndex}`;
 
+                const isExpanded = expandedTiposTarefa[tipoTarefaId] === true; // Por padrão fechado
+
                 return (
                   <section key={tipoTarefaId} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {/* Tipo de Tarefas */}
-                    <h3 style={{
-                      fontSize: '18px',
-                      fontWeight: 600,
-                      color: '#374151',
-                      margin: 0,
-                      paddingBottom: '8px',
-                      borderBottom: '1px solid #e5e7eb',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
+                    <h3 
+                      style={{
+                        fontSize: '18px',
+                        fontWeight: 600,
+                        color: '#374151',
+                        margin: 0,
+                        paddingBottom: '8px',
+                        borderBottom: '1px solid #e5e7eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'background-color 0.2s ease',
+                        padding: '8px',
+                        margin: '-8px -8px 8px -8px',
+                        borderRadius: '6px'
+                      }}
+                      onClick={() => setExpandedTiposTarefa(prev => ({
+                        ...prev,
+                        [tipoTarefaId]: !isExpanded
+                      }))}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
                       <i className="fas fa-tags" style={{ color: '#10b981', fontSize: '16px' }}></i>
-                      {tipoTarefaGrupo.tipoTarefa?.nome || 'Sem Tipo de Tarefa'}
+                      <span style={{ flex: 1 }}>{tipoTarefaGrupo.tipoTarefa?.nome || 'Sem Tipo de Tarefa'}</span>
+                      {isExpanded && tipoTarefaGrupo.tarefas.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const newState = !tipoTarefaExpandAll[tipoTarefaId];
+                            setTipoTarefaExpandAll(prev => ({
+                              ...prev,
+                              [tipoTarefaId]: newState
+                            }));
+                            // Expandir/recolher todas as tarefas deste tipo
+                            const tarefasMap = { ...expandedTarefas };
+                            tipoTarefaGrupo.tarefas.forEach(tarefaGrupo => {
+                              tarefasMap[tarefaGrupo.tarefa.id] = newState;
+                            });
+                            setExpandedTarefas(tarefasMap);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: '1px solid #d1d5db',
+                            cursor: 'pointer',
+                            padding: 0,
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#64748b',
+                            transition: 'all 0.2s ease',
+                            width: '24px',
+                            height: '24px',
+                            marginRight: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = '#3b82f6';
+                            e.currentTarget.style.backgroundColor = '#f1f5f9';
+                            e.currentTarget.style.borderColor = '#3b82f6';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = '#64748b';
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                          }}
+                          title={tipoTarefaExpandAll[tipoTarefaId] ? 'Recolher todas as tarefas' : 'Expandir todas as tarefas'}
+                        >
+                          <i className={`fas ${tipoTarefaExpandAll[tipoTarefaId] ? 'fa-compress-alt' : 'fa-expand-alt'}`} style={{ fontSize: '10px' }}></i>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedTiposTarefa(prev => ({
+                            ...prev,
+                            [tipoTarefaId]: !isExpanded
+                          }));
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b',
+                          transition: 'transform 0.2s ease, color 0.2s ease',
+                          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '4px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = '#3b82f6';
+                          e.currentTarget.style.backgroundColor = '#f1f5f9';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = '#64748b';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                        aria-label={isExpanded ? 'Recolher seção' : 'Expandir seção'}
+                      >
+                        <i className="fas fa-chevron-down" style={{ fontSize: '14px' }}></i>
+                      </button>
                     </h3>
 
                     {/* Lista de Tarefas */}
-                    {tipoTarefaGrupo.tarefas.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingLeft: '16px' }}>
+                    {isExpanded && tipoTarefaGrupo.tarefas.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingLeft: '16px', maxWidth: '100%', boxSizing: 'border-box' }}>
                         {tipoTarefaGrupo.tarefas.map((tarefaGrupo) => {
                           const tarefaId = tarefaGrupo.tarefa.id;
+                          const isTarefaExpanded = expandedTarefas[tarefaId] === true; // Por padrão fechado
 
                           return (
                             <div key={tarefaId} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                               {/* Tarefas */}
-                              <h4 style={{
-                                fontSize: '16px',
-                                fontWeight: 600,
-                                color: '#4b5563',
-                                margin: 0,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                              }}>
+                              <h4 
+                                style={{
+                                  fontSize: '16px',
+                                  fontWeight: 600,
+                                  color: '#4b5563',
+                                  margin: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  cursor: 'pointer',
+                                  userSelect: 'none',
+                                  transition: 'background-color 0.2s ease',
+                                  padding: '6px 8px',
+                                  margin: '-6px -8px 6px -8px',
+                                  borderRadius: '6px'
+                                }}
+                                onClick={() => setExpandedTarefas(prev => ({
+                                  ...prev,
+                                  [tarefaId]: !isTarefaExpanded
+                                }))}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#f8fafc';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
                                 <i className="fas fa-list" style={{ color: '#8b5cf6', fontSize: '14px' }}></i>
-                                {tarefaGrupo.tarefa.nome}
+                                <span style={{ flex: 1 }}>{tarefaGrupo.tarefa.nome}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedTarefas(prev => ({
+                                      ...prev,
+                                      [tarefaId]: !isTarefaExpanded
+                                    }));
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px 8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#64748b',
+                                    transition: 'transform 0.2s ease, color 0.2s ease',
+                                    transform: isTarefaExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '4px'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = '#3b82f6';
+                                    e.currentTarget.style.backgroundColor = '#f1f5f9';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = '#64748b';
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  aria-label={isTarefaExpanded ? 'Recolher seção' : 'Expandir seção'}
+                                >
+                                  <i className="fas fa-chevron-down" style={{ fontSize: '12px' }}></i>
+                                </button>
                               </h4>
 
                               {/* Descrição das Tarefas */}
-                              {tarefaGrupo.tarefa.descricao && (
+                              {isTarefaExpanded && tarefaGrupo.tarefa.descricao && (
                                 <div style={{
                                   padding: '12px',
                                   background: '#f9fafb',
                                   borderRadius: '8px',
                                   border: '1px solid #e5e7eb',
-                                  marginLeft: '24px'
+                                  marginLeft: '24px',
+                                  maxWidth: 'calc(100% - 24px)',
+                                  boxSizing: 'border-box',
+                                  overflow: 'hidden'
                                 }}>
                                   <div style={{ 
                                     fontSize: '12px', 
@@ -336,11 +547,15 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                     Descrição das Tarefas
                                   </div>
                                   <div 
+                                    className="rich-text-content-display"
                                     style={{
                                       fontSize: '14px',
                                       color: '#374151',
                                       lineHeight: '1.6',
-                                      wordBreak: 'break-word'
+                                      wordBreak: 'break-word',
+                                      overflowWrap: 'break-word',
+                                      maxWidth: '100%',
+                                      boxSizing: 'border-box'
                                     }}
                                     dangerouslySetInnerHTML={{ __html: tarefaGrupo.tarefa.descricao }}
                                   />
@@ -348,8 +563,8 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                               )}
 
                               {/* Subtarefas */}
-                              {tarefaGrupo.subtarefas.length > 0 && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '24px' }}>
+                              {isTarefaExpanded && tarefaGrupo.subtarefas.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '24px', maxWidth: 'calc(100% - 24px)', boxSizing: 'border-box' }}>
                                   <div style={{
                                     fontSize: '14px',
                                     fontWeight: 600,
@@ -378,7 +593,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                         border: '1px solid #e5e7eb',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        gap: '8px'
+                                        gap: '8px',
+                                        maxWidth: '100%',
+                                        boxSizing: 'border-box',
+                                        overflow: 'hidden'
                                       }}>
                                         <div style={{ 
                                           fontWeight: 600, 
@@ -397,6 +615,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                         {/* Descrição Subtarefas */}
                                         {subtarefa.descricao && (
                                           <div 
+                                            className="rich-text-content-display"
                                             style={{
                                               padding: '10px',
                                               background: '#fafafa',
@@ -405,14 +624,18 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                               fontSize: '13px',
                                               color: '#6b7280',
                                               lineHeight: '1.6',
-                                              wordBreak: 'break-word'
+                                              wordBreak: 'break-word',
+                                              overflowWrap: 'break-word',
+                                              maxWidth: 'calc(100% - 14px)',
+                                              boxSizing: 'border-box',
+                                              overflow: 'hidden'
                                             }}
                                             dangerouslySetInnerHTML={{ __html: subtarefa.descricao }}
                                           />
                                         )}
                                         {/* Observação Particular do Cliente */}
                                         {clienteId && (
-                                          <div style={{ marginLeft: '14px', marginTop: '12px' }}>
+                                          <div style={{ marginLeft: '14px', marginTop: '12px', maxWidth: 'calc(100% - 14px)', boxSizing: 'border-box' }}>
                                             {subtarefa.observacaoParticular && !expandedObservacao && (
                                               <div 
                                                 style={{
@@ -420,7 +643,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                                   background: '#fff7ed',
                                                   borderRadius: '6px',
                                                   border: '1px solid #fed7aa',
-                                                  position: 'relative'
+                                                  position: 'relative',
+                                                  maxWidth: '100%',
+                                                  boxSizing: 'border-box',
+                                                  overflow: 'hidden'
                                                 }}
                                               >
                                                 <div style={{
@@ -458,11 +684,12 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                                     Editar
                                                   </button>
                                                 </div>
-                                                <div 
+                                                <div
+                                                  className="rich-text-content-display"
                                                   style={{
-                                                    fontSize: '13px',
-                                                    color: '#4b5563',
-                                                    lineHeight: '1.6',
+                                                    maxWidth: '100%',
+                                                    boxSizing: 'border-box',
+                                                    overflowWrap: 'break-word',
                                                     wordBreak: 'break-word'
                                                   }}
                                                   dangerouslySetInnerHTML={{ __html: subtarefa.observacaoParticular }}
@@ -479,7 +706,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                                 border: '1px solid #d1d5db',
                                                 display: 'flex',
                                                 flexDirection: 'column',
-                                                gap: '12px'
+                                                gap: '12px',
+                                                maxWidth: '100%',
+                                                boxSizing: 'border-box',
+                                                overflow: 'hidden'
                                               }}>
                                                 <div style={{
                                                   fontSize: '12px',
@@ -627,7 +857,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                           );
                         })}
                       </div>
-                    ) : (
+                    ) : isExpanded ? (
                       <div style={{ 
                         fontSize: '14px', 
                         color: '#9ca3af', 
@@ -637,7 +867,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                       }}>
                         Nenhuma tarefa vinculada
                       </div>
-                    )}
+                    ) : null}
                   </section>
                 );
               })}

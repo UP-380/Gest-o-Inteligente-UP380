@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const AdquirentesContent = ({ adquirentes, maxHeight }) => {
+const AdquirentesContent = ({ adquirentes, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -134,6 +134,22 @@ const AdquirentesContent = ({ adquirentes, maxHeight }) => {
               <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
                 {adquirenteNome}
               </span>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClone(adquirente);
+                  }}
+                  title="Clonar adquirente"
+                  style={{
+                    fontSize: '16px',
+                    color: '#64748b'
+                  }}
+                >
+                  <i className="fas fa-clone"></i>
+                </button>
+              )}
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>

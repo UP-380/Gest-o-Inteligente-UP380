@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const SistemasContent = ({ sistemas, maxHeight }) => {
+const SistemasContent = ({ sistemas, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -137,6 +137,22 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
               <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
                 {sistemaNome}
               </span>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClone(sistema);
+                  }}
+                  title="Clonar acesso de sistema"
+                  style={{
+                    fontSize: '16px',
+                    color: '#64748b'
+                  }}
+                >
+                  <i className="fas fa-clone"></i>
+                </button>
+              )}
             </div>
 
             {/* Informações do Servidor - Ordem: Servidor, Usuário, Senha */}

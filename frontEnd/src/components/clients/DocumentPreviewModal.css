@@ -1,0 +1,143 @@
+.documento-preview-modal {
+  max-width: 90%;
+  width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-icon.btn-download {
+  color: #3b82f6;
+}
+
+.btn-icon.btn-download:hover {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.documento-preview-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.preview-loading,
+.preview-error,
+.preview-not-supported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  flex: 1;
+}
+
+.preview-loading i,
+.preview-error i,
+.preview-not-supported i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #9ca3af;
+}
+
+.preview-loading i {
+  color: #3b82f6;
+}
+
+.preview-error i {
+  color: #dc2626;
+}
+
+.preview-loading p,
+.preview-error p,
+.preview-not-supported p {
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0 0 20px 0;
+}
+
+.preview-iframe {
+  width: 100%;
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  min-height: 600px;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+  margin: 0 auto;
+  display: block;
+}
+
+.preview-description {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.preview-description strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.preview-description p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.preview-meta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.preview-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-meta i {
+  font-size: 12px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .documento-preview-modal {
+    max-width: 95%;
+    width: 95%;
+  }
+
+  .preview-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

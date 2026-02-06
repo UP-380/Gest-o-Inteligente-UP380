@@ -15,7 +15,7 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de adquirentes do cliente
  */
-const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
+const ClienteAdquirentesList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
   
   // Estados principais
@@ -116,6 +116,23 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
       setLoading(false);
     }
   }, [clienteId, currentPage, itemsPerPage, showToast]);
+
+  // Abrir formulário com dados iniciais (ex.: clonar a partir da Base de Conhecimento)
+  useEffect(() => {
+    if (!initialData) return;
+    const adquirenteObj = initialData.cp_adquirente || {};
+    setFormData({
+      adquirente_id: adquirenteObj.id || '',
+      email: initialData['e-mail'] || initialData.email || '',
+      usuario: initialData.usuario || '',
+      senha: initialData.senha || '',
+      estabelecimento: initialData.estabelecimento || ''
+    });
+    setEditingId(null);
+    setShowForm(true);
+    setFormErrors({});
+    onDataUsed?.();
+  }, [initialData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carregar adquirente para edição
   const loadAdquirenteParaEdicao = useCallback(async (id) => {
@@ -350,6 +367,21 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
     { key: 'estabelecimento', label: 'Estabelecimento', render: (item) => item.estabelecimento || '-' }
   ];
 
+  // Função para clonar adquirente
+  const handleClone = useCallback((adquirente) => {
+    const adquirenteObj = adquirente.cp_adquirente || {};
+    setFormData({
+      adquirente_id: adquirenteObj.id || '',
+      email: adquirente['e-mail'] || adquirente.email || '',
+      usuario: adquirente.usuario || '',
+      senha: adquirente.senha || '',
+      estabelecimento: adquirente.estabelecimento || ''
+    });
+    setEditingId(null); // Sempre criar novo, não editar
+    setShowForm(true);
+    setFormErrors({});
+  }, []);
+
   // Renderizar ações da tabela
   const renderTableActions = (adquirente) => {
     const isPasswordVisible = visiblePasswords.has(adquirente.id);
@@ -366,6 +398,18 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
           }}
         >
           <i className={`fas ${isPasswordVisible ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+        </button>
+        <button
+          className="btn-icon"
+          onClick={() => handleClone(adquirente)}
+          title="Clonar adquirente"
+          disabled={showForm}
+          style={{
+            fontSize: '16px',
+            color: '#64748b'
+          }}
+        >
+          <i className="fas fa-clone"></i>
         </button>
         <EditButton
           onClick={() => handleEdit(adquirente)}

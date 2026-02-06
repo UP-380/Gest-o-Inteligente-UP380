@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import BankLogo from '../../bancos/BankLogo';
 
-const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
+const ContasBancariasContent = ({ contasBancarias, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -132,16 +132,34 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
               background: '#fff'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <BankLogo 
-                codigo={banco.codigo} 
-                nome={banco.nome} 
-                size={32}
-                className="bank-logo-card"
-              />
-              <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
-                {bancoNome}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <BankLogo 
+                  codigo={banco.codigo} 
+                  nome={banco.nome} 
+                  size={32}
+                  className="bank-logo-card"
+                />
+                <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
+                  {bancoNome}
+                </span>
+              </div>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClone(conta);
+                  }}
+                  title="Clonar conta bancária"
+                  style={{
+                    fontSize: '16px',
+                    color: '#64748b'
+                  }}
+                >
+                  <i className="fas fa-clone"></i>
+                </button>
+              )}
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -15,7 +15,7 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de contas bancárias do cliente
  */
-const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
+const ClienteContasBancariasList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
   
   // Estados principais
@@ -121,6 +121,35 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       setLoading(false);
     }
   }, [clienteId, currentPage, itemsPerPage, searchTerm, showToast]);
+
+  // Efeito para pré-preencher formulário quando initialData for fornecido (clonagem)
+  useEffect(() => {
+    if (initialData && !showForm) {
+      const banco = initialData.cp_banco || {};
+      setFormData({
+        banco_id: banco.id || '',
+        agencia: initialData.agencia || '',
+        conta: initialData.conta || '',
+        operador: initialData.operador || '',
+        usuario: initialData.usuario || '',
+        senha: initialData.senha || '',
+        status_cadastro: initialData.status_cadastro || '',
+        status_acesso: initialData.status_acesso || '',
+        observacoes: initialData.observacoes || '',
+        chave_acesso: initialData.chave_acesso || '',
+        senha_4digitos: initialData.senha_4digitos || '',
+        senha_6digitos: initialData.senha_6digitos || '',
+        senha_8digitos: initialData.senha_8digitos || '',
+        link_acesso: initialData.link_acesso || ''
+      });
+      setEditingId(null); // Sempre criar novo, não editar
+      setShowForm(true);
+      setFormErrors({});
+      if (onDataUsed) {
+        onDataUsed();
+      }
+    }
+  }, [initialData, showForm, onDataUsed]);
 
   // Carregar conta para edição
   const loadContaParaEdicao = useCallback(async (id) => {
@@ -397,6 +426,30 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
     }
   ];
 
+  // Função para clonar conta bancária
+  const handleClone = useCallback((conta) => {
+    const banco = conta.cp_banco || {};
+    setFormData({
+      banco_id: banco.id || '',
+      agencia: conta.agencia || '',
+      conta: conta.conta || '',
+      operador: conta.operador || '',
+      usuario: conta.usuario || '',
+      senha: conta.senha || '',
+      status_cadastro: conta.status_cadastro || '',
+      status_acesso: conta.status_acesso || '',
+      observacoes: conta.observacoes || '',
+      chave_acesso: conta.chave_acesso || '',
+      senha_4digitos: conta.senha_4digitos || '',
+      senha_6digitos: conta.senha_6digitos || '',
+      senha_8digitos: conta.senha_8digitos || '',
+      link_acesso: conta.link_acesso || ''
+    });
+    setEditingId(null); // Sempre criar novo, não editar
+    setShowForm(true);
+    setFormErrors({});
+  }, []);
+
   // Renderizar ações da tabela
   const renderTableActions = (conta) => {
     const isPasswordVisible = visiblePasswords.has(conta.id);
@@ -413,6 +466,18 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
           }}
         >
           <i className={`fas ${isPasswordVisible ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+        </button>
+        <button
+          className="btn-icon"
+          onClick={() => handleClone(conta)}
+          title="Clonar conta bancária"
+          disabled={showForm}
+          style={{
+            fontSize: '16px',
+            color: '#64748b'
+          }}
+        >
+          <i className="fas fa-clone"></i>
         </button>
         <EditButton
           onClick={() => handleEdit(conta)}

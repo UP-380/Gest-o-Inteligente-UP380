@@ -347,6 +347,266 @@
   color: #1d4ed8;
 }
 
+/* Exibição read-only do conteúdo rico (mesma formatação do editor) */
+.rich-text-content-display {
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  font-size: 14px;
+  font-family: inherit;
+  min-height: auto;
+  padding: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Garantir que todos os elementos filhos respeitem as margens */
+.rich-text-content-display * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.rich-text-content-display img,
+.rich-text-content-display video,
+.rich-text-content-display iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.rich-text-content-display table {
+  max-width: 100%;
+  table-layout: auto;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.rich-text-content-display pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.rich-text-content-display .ql-font-arial {
+  font-family: Arial, sans-serif;
+}
+
+.rich-text-content-display .ql-font-arial-black {
+  font-family: 'Arial Black', Arial, sans-serif;
+}
+
+.rich-text-content-display .ql-font-comic-sans-ms {
+  font-family: 'Comic Sans MS', cursive;
+}
+
+.rich-text-content-display .ql-font-courier-new {
+  font-family: 'Courier New', monospace;
+}
+
+.rich-text-content-display .ql-font-georgia {
+  font-family: Georgia, serif;
+}
+
+.rich-text-content-display .ql-font-impact {
+  font-family: Impact, fantasy;
+}
+
+.rich-text-content-display .ql-font-lucida-console {
+  font-family: 'Lucida Console', monospace;
+}
+
+.rich-text-content-display .ql-font-palatino {
+  font-family: Palatino, serif;
+}
+
+.rich-text-content-display .ql-font-tahoma {
+  font-family: Tahoma, sans-serif;
+}
+
+.rich-text-content-display .ql-font-times-new-roman {
+  font-family: 'Times New Roman', serif;
+}
+
+.rich-text-content-display .ql-font-trebuchet-ms {
+  font-family: 'Trebuchet MS', sans-serif;
+}
+
+.rich-text-content-display .ql-font-verdana {
+  font-family: Verdana, sans-serif;
+}
+
+.rich-text-content-display .ql-font-poppins {
+  font-family: 'Poppins', sans-serif;
+}
+
+.rich-text-content-display .ql-font-inter {
+  font-family: 'Inter', sans-serif;
+}
+
+.rich-text-content-display .ql-font-roboto {
+  font-family: 'Roboto', sans-serif;
+}
+
+.rich-text-content-display .ql-font-open-sans {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.rich-text-content-display .ql-font-lato {
+  font-family: 'Lato', sans-serif;
+}
+
+.rich-text-content-display .ql-font-montserrat {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.rich-text-content-display .ql-font-raleway {
+  font-family: 'Raleway', sans-serif;
+}
+
+.rich-text-content-display .ql-font-ubuntu {
+  font-family: 'Ubuntu', sans-serif;
+}
+
+.rich-text-content-display .ql-font-playfair-display {
+  font-family: 'Playfair Display', serif;
+}
+
+.rich-text-content-display .ql-font-merriweather {
+  font-family: 'Merriweather', serif;
+}
+
+.rich-text-content-display .ql-font-source-sans-pro {
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+.rich-text-content-display .ql-font-oswald {
+  font-family: 'Oswald', sans-serif;
+}
+
+.rich-text-content-display .ql-font-roboto-slab {
+  font-family: 'Roboto Slab', serif;
+}
+
+.rich-text-content-display .ql-font-nunito {
+  font-family: 'Nunito', sans-serif;
+}
+
+.rich-text-content-display .ql-font-lora {
+  font-family: 'Lora', serif;
+}
+
+.rich-text-content-display .ql-font-pt-sans {
+  font-family: 'PT Sans', sans-serif;
+}
+
+.rich-text-content-display .ql-font-noto-sans {
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.rich-text-content-display .ql-font-dancing-script {
+  font-family: 'Dancing Script', cursive;
+}
+
+.rich-text-content-display .ql-font-crimson-text {
+  font-family: 'Crimson Text', serif;
+}
+
+.rich-text-content-display .ql-font-bebas-neue {
+  font-family: 'Bebas Neue', sans-serif;
+}
+
+.rich-text-content-display .ql-size-8px { font-size: 8px; }
+.rich-text-content-display .ql-size-10px { font-size: 10px; }
+.rich-text-content-display .ql-size-12px { font-size: 12px; }
+.rich-text-content-display .ql-size-14px { font-size: 14px; }
+.rich-text-content-display .ql-size-16px { font-size: 16px; }
+.rich-text-content-display .ql-size-18px { font-size: 18px; }
+.rich-text-content-display .ql-size-20px { font-size: 20px; }
+.rich-text-content-display .ql-size-24px { font-size: 24px; }
+.rich-text-content-display .ql-size-28px { font-size: 28px; }
+.rich-text-content-display .ql-size-32px { font-size: 32px; }
+.rich-text-content-display .ql-size-36px { font-size: 36px; }
+.rich-text-content-display .ql-size-48px { font-size: 48px; }
+.rich-text-content-display .ql-size-60px { font-size: 60px; }
+.rich-text-content-display .ql-size-72px { font-size: 72px; }
+
+.rich-text-content-display p,
+.rich-text-content-display ol,
+.rich-text-content-display ul {
+  margin-bottom: 12px;
+}
+
+.rich-text-content-display ul,
+.rich-text-content-display ol {
+  padding-left: 1.5em;
+  margin-left: 0;
+  list-style-position: inside;
+}
+
+.rich-text-content-display ul ul,
+.rich-text-content-display ul ol,
+.rich-text-content-display ol ul,
+.rich-text-content-display ol ol {
+  padding-left: 1.5em;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.rich-text-content-display li {
+  margin-bottom: 4px;
+}
+
+.rich-text-content-display h1,
+.rich-text-content-display h2,
+.rich-text-content-display h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.rich-text-content-display h1 {
+  font-size: 24px;
+}
+
+.rich-text-content-display h2 {
+  font-size: 20px;
+}
+
+.rich-text-content-display h3 {
+  font-size: 18px;
+}
+
+.rich-text-content-display blockquote {
+  border-left: 4px solid #d1d5db;
+  padding-left: 16px;
+  margin-left: 0;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.rich-text-content-display code,
+.rich-text-content-display pre {
+  background-color: #f3f4f6;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Courier New', monospace;
+}
+
+.rich-text-content-display pre {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.rich-text-content-display a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.rich-text-content-display a:hover {
+  color: #1d4ed8;
+}
+
 /* Toolbar flutuante */
 .rich-text-editor-floating-toolbar {
   display: flex;

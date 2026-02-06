@@ -2,6 +2,8 @@
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Header da Página */
@@ -59,6 +61,66 @@
   line-height: 1.4;
 }
 
+.knowledge-header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.btn-expand-all {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #64748b;
+  cursor: pointer;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  width: 42px;
+  height: 42px;
+}
+
+.btn-expand-all:hover {
+  background: #f1f5f9;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.btn-expand-all:active {
+  transform: scale(0.95);
+}
+
+.btn-expand-section {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  width: 28px;
+  height: 28px;
+}
+
+.btn-expand-section:hover {
+  background: #f1f5f9;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.btn-expand-section:active {
+  transform: scale(0.95);
+}
+
 .knowledge-back-btn {
   padding: 10px 20px;
   font-size: 14px;
@@ -86,6 +148,110 @@
   background: transparent;
   border-bottom: 1px solid #e5e7eb;
   margin-bottom: 24px;
+  min-height: 36px; /* Garantir altura mínima consistente */
+}
+
+.section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 36px; /* Mesma altura do section-icon para garantir alinhamento */
+}
+
+/* Garantir que o EditButton dentro do header-actions tenha altura consistente */
+.section-header-actions .btn-icon.btn-edit {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.section-header-actions .btn-icon.btn-edit svg {
+  width: 18px;
+  height: 18px;
+}
+
+.section-header-collapsible {
+  transition: background-color 0.2s ease;
+  user-select: none;
+}
+
+.section-header-collapsible:hover {
+  background-color: #f8fafc;
+  border-radius: 8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+}
+
+.section-expand-toggle {
+  transition: transform 0.3s ease, color 0.2s ease, background-color 0.2s ease !important;
+  flex-shrink: 0;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
+  padding: 0 !important;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  margin-left: 0 !important;
+}
+
+.section-expand-toggle i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.section-expand-toggle:hover {
+  color: #3b82f6 !important;
+  background-color: #f1f5f9 !important;
+  border-radius: 4px !important;
+}
+
+.section-expand-toggle:active {
+  transform: scale(0.95) !important;
+}
+
+.badge-warning {
+  margin-left: 6px;
+  color: #f59e0b;
+  font-size: 12px;
+}
+
+.section-content {
+  padding: 24px 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Animação para conteúdo expansível - aplicada quando a seção tem header collapsible */
+.knowledge-section:has(.section-header-collapsible) .section-content {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 10000px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
 }
 
 .section-icon {
@@ -107,6 +273,23 @@
   flex: 1;
 }
 
+/* EditButton quando está logo após o título */
+.section-header > .btn-icon.btn-edit {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.section-header > .btn-icon.btn-edit svg {
+  width: 16px;
+  height: 16px;
+}
+
 .section-badge {
   padding: 4px 10px;
   background: #3b82f6;
@@ -114,8 +297,15 @@
   border-radius: 16px;
   font-size: 11px;
   font-weight: 600;
-  min-width: 24px;
+  min-width: 32px;
+  height: 24px;
   text-align: center;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .section-edit-button {
@@ -149,6 +339,9 @@
 
 .section-content {
   padding: 24px 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .info-grid {
@@ -216,6 +409,8 @@
   border: none;
   border-bottom: 1px solid #e5e7eb;
   max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .info-card:last-child {
@@ -322,11 +517,14 @@
   color: #1f2937;
   font-weight: 500;
   word-break: break-word;
+  overflow-wrap: break-word;
   line-height: 1.4;
   padding: 4px 0;
   display: flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .card-value.password-field {

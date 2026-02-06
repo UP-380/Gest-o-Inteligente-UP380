@@ -1027,19 +1027,6 @@ const ClienteSistemaModal = ({
           marginTop: 'auto'
         }}>
           <button
-            type="button"
-            className="btn-secondary"
-            onClick={onClose}
-            disabled={submitting}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px'
-            }}
-          >
-            <i className="fas fa-times" style={{ marginRight: '6px' }}></i>
-            Cancelar
-          </button>
-          <button
             type="submit"
             className="btn-primary"
             onClick={handleSubmit}

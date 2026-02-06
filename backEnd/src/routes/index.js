@@ -34,6 +34,7 @@ const clienteSistemaController = require('../controllers/cliente-sistema.control
 const clienteAdquirenteController = require('../controllers/cliente-adquirente.controller');
 const baseConhecimentoController = require('../controllers/base-conhecimento.controller');
 const clienteSubtarefaObservacaoController = require('../controllers/cliente-subtarefa-observacao.controller');
+const documentosController = require('../controllers/documentos.controller');
 const contatoClienteController = require('../controllers/contato-cliente.controller');
 const usuariosController = require('../controllers/usuarios.controller');
 const permissoesConfigController = require('../controllers/permissoes-config.controller');
@@ -330,6 +331,22 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/bulk-summary', requireAuth, baseConhecimentoController.getBaseConhecimentoBulkSummary);
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
+
+// Rotas de Documentos (GED)
+// IMPORTANTE: Rotas mais específicas devem vir ANTES das genéricas
+router.get('/api/clientes/:clienteId/documentos/validacao', requireAuth, documentosController.validarDocumentosObrigatorios);
+router.get('/api/clientes/:clienteId/documentos', requireAuth, documentosController.getDocumentosCliente);
+router.post('/api/clientes/:clienteId/documentos',
+  requireAuth,
+  documentosController.uploadDocumento.single('arquivo'),
+  handleMulterError,
+  documentosController.uploadDocumentoCliente
+);
+router.get('/api/documentos/:id/preview', requireAuth, documentosController.previewDocumento);
+router.get('/api/documentos/:id/download', requireAuth, documentosController.downloadDocumento);
+router.get('/api/documentos/:id', requireAuth, documentosController.getDocumentoPorId);
+router.put('/api/documentos/:id', requireAuth, documentosController.updateDocumento);
+router.delete('/api/documentos/:id', requireAuth, documentosController.deleteDocumento);
 
 // Rotas de Observações Particulares de Subtarefas por Cliente
 router.get('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.getObservacao);

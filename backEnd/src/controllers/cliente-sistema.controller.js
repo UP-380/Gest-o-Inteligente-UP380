@@ -168,31 +168,6 @@ async function criarSistemaCliente(req, res) {
       });
     }
 
-    // Verificar se já existe a combinação cliente + sistema
-    const { data: existente, error: errorCheck } = await supabase
-      
-      .from('cliente_sistema')
-      .select('id')
-      .eq('cliente_id', cliente_id)
-      .eq('sistema_id', sistema_id)
-      .maybeSingle();
-
-    if (errorCheck) {
-      console.error('Erro ao verificar sistema do cliente:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar sistema do cliente',
-        details: errorCheck.message
-      });
-    }
-
-    if (existente) {
-      return res.status(409).json({
-        success: false,
-        error: 'Este sistema já está vinculado a este cliente'
-      });
-    }
-
     // Função auxiliar para limpar valores
     const cleanValue = (value) => {
       if (value === undefined || value === null || value === '') {
@@ -303,34 +278,6 @@ async function atualizarSistemaCliente(req, res) {
         success: false,
         error: 'Sistema do cliente não encontrado'
       });
-    }
-
-    // Verificar se já existe outra combinação cliente + sistema (se sistema_id foi alterado)
-    if (sistema_id !== undefined && existente.sistema_id !== parseInt(sistema_id, 10)) {
-      const { data: outroExistente, error: errorOutro } = await supabase
-        
-        .from('cliente_sistema')
-        .select('id')
-        .eq('cliente_id', existente.cliente_id)
-        .eq('sistema_id', sistema_id)
-        .neq('id', id)
-        .maybeSingle();
-
-      if (errorOutro) {
-        console.error('Erro ao verificar sistema duplicado:', errorOutro);
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao verificar sistema duplicado',
-          details: errorOutro.message
-        });
-      }
-
-      if (outroExistente) {
-        return res.status(409).json({
-          success: false,
-          error: 'Este sistema já está vinculado a este cliente'
-        });
-      }
     }
 
     // Função auxiliar para limpar valores

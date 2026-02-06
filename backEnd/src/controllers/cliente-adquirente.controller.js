@@ -149,31 +149,6 @@ async function criarAdquirenteCliente(req, res) {
       });
     }
 
-    // Verificar se já existe a combinação cliente + adquirente
-    const { data: existente, error: errorCheck } = await supabase
-      
-      .from('cliente_adquirente')
-      .select('id')
-      .eq('cliente_id', cliente_id)
-      .eq('adquirente_id', adquirente_id)
-      .maybeSingle();
-
-    if (errorCheck) {
-      console.error('Erro ao verificar adquirente do cliente:', errorCheck);
-      return res.status(500).json({
-        success: false,
-        error: 'Erro ao verificar adquirente do cliente',
-        details: errorCheck.message
-      });
-    }
-
-    if (existente) {
-      return res.status(409).json({
-        success: false,
-        error: 'Este adquirente já está vinculado a este cliente'
-      });
-    }
-
     // Preparar dados para inserção
     const dadosInsert = {
       cliente_id: cliente_id,
@@ -263,34 +238,6 @@ async function atualizarAdquirenteCliente(req, res) {
         success: false,
         error: 'Adquirente do cliente não encontrado'
       });
-    }
-
-    // Verificar se já existe outra combinação cliente + adquirente (se adquirente_id foi alterado)
-    if (adquirente_id !== undefined && existente.adquirente_id !== parseInt(adquirente_id, 10)) {
-      const { data: outroExistente, error: errorOutro } = await supabase
-        
-        .from('cliente_adquirente')
-        .select('id')
-        .eq('cliente_id', existente.cliente_id)
-        .eq('adquirente_id', adquirente_id)
-        .neq('id', id)
-        .maybeSingle();
-
-      if (errorOutro) {
-        console.error('Erro ao verificar adquirente duplicado:', errorOutro);
-        return res.status(500).json({
-          success: false,
-          error: 'Erro ao verificar adquirente duplicado',
-          details: errorOutro.message
-        });
-      }
-
-      if (outroExistente) {
-        return res.status(409).json({
-          success: false,
-          error: 'Este adquirente já está vinculado a este cliente'
-        });
-      }
     }
 
     // Preparar dados para atualização

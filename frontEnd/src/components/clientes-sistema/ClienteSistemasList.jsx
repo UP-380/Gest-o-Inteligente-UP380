@@ -15,7 +15,7 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de sistemas do cliente
  */
-const ClienteSistemasList = ({ clienteId, clienteNome }) => {
+const ClienteSistemasList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
   
   // Estados principais
@@ -112,6 +112,32 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
       setLoading(false);
     }
   }, [clienteId, currentPage, itemsPerPage, showToast]);
+
+  // Efeito para pré-preencher formulário quando initialData for fornecido (clonagem)
+  useEffect(() => {
+    if (initialData && !showForm) {
+      const sistema = initialData.cp_sistema || {};
+      setFormData({
+        sistema_id: sistema.id || '',
+        servidor: initialData.servidor || '',
+        usuario_servidor: initialData.usuario_servidor || '',
+        senha_servidor: initialData.senha_servidor || '',
+        vpn: initialData.vpn || '',
+        usuario_vpn: initialData.usuario_vpn || '',
+        senha_vpn: initialData.senha_vpn || '',
+        usuario_sistema: initialData.usuario_sistema || '',
+        senha_sistema: initialData.senha_sistema || '',
+        link_acesso: initialData.link_acesso || '',
+        observacoes: initialData.observacoes || ''
+      });
+      setEditingId(null); // Sempre criar novo, não editar
+      setShowForm(true);
+      setFormErrors({});
+      if (onDataUsed) {
+        onDataUsed();
+      }
+    }
+  }, [initialData, showForm, onDataUsed]);
 
   // Carregar sistema para edição
   const loadSistemaParaEdicao = useCallback(async (id) => {
@@ -374,6 +400,27 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
     }
   ];
 
+  // Função para clonar sistema
+  const handleClone = useCallback((sistema) => {
+    const sistemaObj = sistema.cp_sistema || {};
+    setFormData({
+      sistema_id: sistemaObj.id || '',
+      servidor: sistema.servidor || '',
+      usuario_servidor: sistema.usuario_servidor || '',
+      senha_servidor: sistema.senha_servidor || '',
+      vpn: sistema.vpn || '',
+      usuario_vpn: sistema.usuario_vpn || '',
+      senha_vpn: sistema.senha_vpn || '',
+      usuario_sistema: sistema.usuario_sistema || '',
+      senha_sistema: sistema.senha_sistema || '',
+      link_acesso: sistema.link_acesso || '',
+      observacoes: sistema.observacoes || ''
+    });
+    setEditingId(null); // Sempre criar novo, não editar
+    setShowForm(true);
+    setFormErrors({});
+  }, []);
+
   // Renderizar ações da tabela
   const renderTableActions = (sistema) => {
     const isPasswordVisible = visiblePasswords.has(sistema.id);
@@ -390,6 +437,18 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
           }}
         >
           <i className={`fas ${isPasswordVisible ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+        </button>
+        <button
+          className="btn-icon"
+          onClick={() => handleClone(sistema)}
+          title="Clonar sistema"
+          disabled={showForm}
+          style={{
+            fontSize: '16px',
+            color: '#64748b'
+          }}
+        >
+          <i className="fas fa-clone"></i>
         </button>
         <EditButton
           onClick={() => handleEdit(sistema)}
