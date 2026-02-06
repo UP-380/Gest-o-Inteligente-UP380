@@ -439,8 +439,9 @@ async function listarPendentesParaAprovacao(req, res) {
             .select('atribuicao_pendente_id, data_inicio, data_fim')
             .in('atribuicao_pendente_id', pendentesIds);
 
-        // Agrupar tempos por atribuição id
+        // Agrupar tempos por atribuição id e guardar a data_inicio mais antiga (data da solicitação)
         const temposMap = new Map();
+        const dataSolicitacaoMap = new Map();
         if (todosTempos) {
             todosTempos.forEach(t => {
                 const id = String(t.atribuicao_pendente_id);
@@ -449,6 +450,14 @@ async function listarPendentesParaAprovacao(req, res) {
                 const diff = fim - inicio;
 
                 temposMap.set(id, (temposMap.get(id) || 0) + diff);
+
+                // Usar a data_inicio mais antiga como data da solicitação
+                if (t.data_inicio) {
+                    const atual = dataSolicitacaoMap.get(id);
+                    if (!atual || new Date(t.data_inicio).getTime() < new Date(atual).getTime()) {
+                        dataSolicitacaoMap.set(id, t.data_inicio);
+                    }
+                }
             });
         }
 
@@ -460,6 +469,7 @@ async function listarPendentesParaAprovacao(req, res) {
             const s = totalSegundos % 60;
             const tempoFmt = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
+            const dataSolicitacao = dataSolicitacaoMap.get(String(p.id)) || p.criado_em || p.data_inicio;
             return {
                 ...p,
                 usuario: usuariosMap.get(String(p.usuario_id)) || { nome_usuario: 'Desconhecido' },
@@ -467,7 +477,8 @@ async function listarPendentesParaAprovacao(req, res) {
                 produto: produtosMap.get(String(p.produto_id)) || { nome: 'N/A' },
                 tarefa: tarefasMap.get(String(p.tarefa_id)) || { nome: 'N/A' },
                 tempo_realizado_ms: totalMs,
-                tempo_realizado_formatado: tempoFmt
+                tempo_realizado_formatado: tempoFmt,
+                data_solicitacao: dataSolicitacao
             };
         });
 
