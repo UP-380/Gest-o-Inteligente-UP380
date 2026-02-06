@@ -763,6 +763,21 @@ async function aprovarAtribuicao(req, res) {
 
         if (erroUpdate) throw erroUpdate;
 
+        // Notificar o solicitante que sua solicitação foi aprovada
+        try {
+            await notificacoesController.distribuirNotificacao({
+                tipo: NOTIFICATION_TYPES.PLUG_RAPIDO_APROVADO,
+                titulo: 'Plug Rápido aprovado',
+                mensagem: 'Sua solicitação de Plug Rápido foi aprovada pelo gestor.',
+                referencia_id: id,
+                link: '/gestao-capacidade',
+                metadata: { tipo: 'aprovacao' },
+                usuario_id: pendente.usuario_id
+            });
+        } catch (errNotif) {
+            console.error('Aviso: falha ao enviar notificação de aprovação:', errNotif?.message);
+        }
+
         res.json({ success: true, message: 'Atribuição aprovada e processada com sucesso.' });
 
     } catch (error) {

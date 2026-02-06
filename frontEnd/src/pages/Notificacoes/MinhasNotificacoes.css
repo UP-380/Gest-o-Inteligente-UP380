@@ -69,6 +69,24 @@
     padding-bottom: 1rem;
 }
 
+/* Filtros por tipo - mesmo padrão dos filtros de vinculação */
+.filtros-tipo-notificacao.filtros-vinculacao-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.filtros-tipo-notificacao .filter-group {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* Selecionado: mantém consistência com padrão (ícone branco) */
+.filtros-tipo-notificacao .filtro-tipo-notif input:checked + .filtro-card-content .filtro-tipo-icon i {
+    color: white !important;
+}
+
 .filter-btn {
     background: none;
     border: none;
@@ -184,7 +202,17 @@
 
 .date-text {
     font-size: 0.875rem;
-    color: #9ca3af;
+    color: #4b5563;
+    flex-shrink: 0;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.date-text i {
+    font-size: 0.75rem;
+    color: #6b7280;
 }
 
 .card-title {
