@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authAPI.checkAuth();
       
-      if (data.authenticated) {
+      if (data.authenticated === true) {
         setIsAuthenticated(true);
         // Salvar dados do usuário no localStorage se disponível
         if (data.usuario) {
@@ -57,16 +57,23 @@ export const AuthProvider = ({ children }) => {
           const usuarioStorage = getUsuarioFromStorage();
           setUsuario(usuarioStorage);
         }
-      } else {
+      } else if (data.authenticated === false) {
+        // 401 ou sessão expirada - logout real
         setIsAuthenticated(false);
         localStorage.removeItem('usuario');
         setUsuario(null);
       }
+      // authenticated === null: erro 502/500/rede - NÃO alterar estado, manter usuário logado
     } catch (error) {
-      // Erro silencioso na verificação de autenticação
-      setIsAuthenticated(false);
-      localStorage.removeItem('usuario');
-      setUsuario(null);
+      // Erro na verificação - NÃO deslogar por erros transitórios
+      const usuarioStorage = getUsuarioFromStorage();
+      if (usuarioStorage) {
+        setIsAuthenticated(true);
+        setUsuario(usuarioStorage);
+      } else {
+        setIsAuthenticated(false);
+        setUsuario(null);
+      }
     } finally {
       setLoading(false);
     }
