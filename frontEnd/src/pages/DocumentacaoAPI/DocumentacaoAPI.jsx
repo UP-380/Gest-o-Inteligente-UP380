@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import ApiTester from '../../components/api/ApiTester';
+import { api } from '../../services/api';
+import { useToast } from '../../hooks/useToast';
 import './DocumentacaoAPI.css';
 
 // Constante para a URL base da API (usada na documentação)
@@ -13,6 +15,7 @@ const DocumentacaoAPI = () => {
   const sections = [
     { id: 'introducao', label: 'Introdução', icon: 'fa-info-circle' },
     { id: 'autenticacao', label: 'Autenticação', icon: 'fa-key' },
+    { id: 'chave-api', label: 'Chave de API', icon: 'fa-shield-alt' },
     { id: 'clientes', label: 'Clientes', icon: 'fa-briefcase' },
     { id: 'colaboradores', label: 'Colaboradores', icon: 'fa-user-cog' },
     { id: 'produtos', label: 'Produtos', icon: 'fa-box' },
@@ -34,6 +37,8 @@ const DocumentacaoAPI = () => {
         return <IntroducaoSection />;
       case 'autenticacao':
         return <AutenticacaoSection />;
+      case 'chave-api':
+        return <ChaveAPISection />;
       case 'clientes':
         return <ClientesSection />;
       case 'colaboradores':
@@ -100,6 +105,211 @@ const DocumentacaoAPI = () => {
 };
 
 // Seções de conteúdo
+const ChaveAPISection = () => {
+  const showToast = useToast();
+  const [loading, setLoading] = useState(true);
+  const [hasKey, setHasKey] = useState(false);
+  const [maskedKey, setMaskedKey] = useState(null);
+  const [newKey, setNewKey] = useState(null);
+  const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', onConfirm: null, danger: false });
+
+  const fetchStatus = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.get('/auth/api-key');
+      if (data.success) {
+        setHasKey(!!data.hasKey);
+        setMaskedKey(data.maskedKey || null);
+      } else {
+        setError(data.error || 'Erro ao carregar status da chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro de conexão. Verifique se o backend está rodando (porta 4000) e reinicie-o se alterou rotas.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const handleGerar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.post('/auth/api-key', {});
+      if (data.success && data.apiKey) {
+        setNewKey(data.apiKey);
+        setHasKey(true);
+        setMaskedKey('up_••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••');
+      } else {
+        setError(data.error || 'Erro ao gerar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao gerar chave. Reinicie o backend (porta 4000) se a rota foi adicionada recentemente.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const runRegenerar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.post('/auth/api-key', {});
+      if (data.success && data.apiKey) {
+        setNewKey(data.apiKey);
+        setHasKey(true);
+        setMaskedKey('up_••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••');
+      } else {
+        setError(data.error || 'Erro ao regenerar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao regenerar chave.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRegenerarClick = () => {
+    setConfirmModal({
+      open: true,
+      title: 'Regenerar chave',
+      message: 'Gerar uma nova chave irá invalidar a chave atual. Deseja continuar?',
+      danger: false,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, open: false }));
+        runRegenerar();
+      }
+    });
+  };
+
+  const handleRevogarClick = () => {
+    setConfirmModal({
+      open: true,
+      title: 'Revogar chave',
+      message: 'Revogar a chave irá desativar o acesso à API por token. Deseja continuar?',
+      danger: true,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, open: false }));
+        runRevogar();
+      }
+    });
+  };
+
+  const runRevogar = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNewKey(null);
+    try {
+      const data = await api.delete('/auth/api-key');
+      if (data.success) {
+        setHasKey(false);
+        setMaskedKey(null);
+      } else {
+        setError(data.error || 'Erro ao revogar chave.');
+      }
+    } catch (err) {
+      setError(err.message || 'Erro ao revogar chave.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCopiar = () => {
+    if (!newKey) return;
+    navigator.clipboard.writeText(newKey).then(() => {
+      showToast('success', 'Chave copiada para a área de transferência.');
+    }).catch(() => {});
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmModal(prev => ({ ...prev, open: false }));
+  };
+
+  return (
+    <div className="api-section">
+      <h1 className="api-section-title">
+        <i className="fas fa-shield-alt"></i> Chave de API
+      </h1>
+      <p className="api-section-intro">
+        Gerencie sua chave de API (Security Key) para acessar os endpoints com o header <code>Authorization: Bearer &lt;sua_chave&gt;</code>.
+        A chave pode ser usada em scripts, integrações e ferramentas que não utilizam cookies de sessão.
+      </p>
+      {error && (
+        <div className="chave-api-error">
+          <i className="fas fa-exclamation-circle" style={{ marginRight: '8px' }}></i>
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <p className="chave-api-loading"><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Carregando...</p>
+      ) : (
+        <>
+          {newKey ? (
+            <div className="chave-api-key-card">
+              <h3><i className="fas fa-key"></i> Sua chave (guarde em local seguro)</h3>
+              <div className="chave-api-key-value">{newKey}</div>
+              <button type="button" className="chave-api-btn chave-api-btn-primary" onClick={handleCopiar}>
+                <i className="fas fa-copy"></i> Copiar
+              </button>
+              <p className="chave-api-key-warning" style={{ marginTop: '16px' }}>
+                <i className="fas fa-exclamation-triangle"></i>
+                Guarde esta chave em local seguro; ela não será mostrada novamente.
+              </p>
+            </div>
+          ) : hasKey ? (
+            <>
+              <p className="chave-api-masked">Sua chave atual: <code>{maskedKey || 'up_••••••••••••••••'}</code></p>
+              <div className="chave-api-actions">
+                <button type="button" className="chave-api-btn chave-api-btn-primary" disabled={actionLoading} onClick={handleRegenerarClick}>
+                  <i className="fas fa-sync-alt"></i> Regenerar chave
+                </button>
+                <button type="button" className="chave-api-btn chave-api-btn-danger" disabled={actionLoading} onClick={handleRevogarClick}>
+                  <i className="fas fa-ban"></i> Revogar chave
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>Você ainda não possui uma chave de API. Gere uma para usar a API com <code>Authorization: Bearer &lt;sua_chave&gt;</code>.</p>
+              <button type="button" className="chave-api-btn chave-api-btn-primary" disabled={actionLoading} onClick={handleGerar} style={{ marginTop: '12px' }}>
+                <i className="fas fa-plus-circle"></i> Gerar chave de API
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {confirmModal.open && (
+        <div className="chave-api-modal-overlay" onClick={closeConfirmModal} role="dialog" aria-modal="true" aria-labelledby="chave-api-modal-title">
+          <div className="chave-api-modal-box" onClick={e => e.stopPropagation()}>
+            <h2 id="chave-api-modal-title" className="chave-api-modal-title">
+              <i className={`fas ${confirmModal.danger ? 'fa-exclamation-triangle' : 'fa-key'}`}></i>
+              {confirmModal.title}
+            </h2>
+            <p className="chave-api-modal-message">{confirmModal.message}</p>
+            <div className="chave-api-modal-actions">
+              <button type="button" className="chave-api-modal-btn chave-api-modal-btn-cancel" onClick={closeConfirmModal}>
+                Cancelar
+              </button>
+              <button type="button" className={`chave-api-modal-btn ${confirmModal.danger ? 'chave-api-modal-btn-danger' : 'chave-api-modal-btn-confirm'}`} onClick={() => confirmModal.onConfirm && confirmModal.onConfirm()}>
+                {confirmModal.danger ? 'Revogar' : 'Continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const IntroducaoSection = () => (
   <div className="api-section">
     <h1 className="api-section-title">
@@ -665,6 +875,26 @@ const AutenticacaoSection = () => {
         <li><strong>Domínio:</strong> O cookie é válido apenas para o domínio que o criou</li>
         <li><strong>HttpOnly:</strong> O cookie não é acessível via JavaScript (proteção contra XSS)</li>
       </ul>
+    </div>
+
+    <div className="api-info-box" style={{
+      background: '#e3f2fd',
+      border: '1px solid #2196F3',
+      borderRadius: '4px',
+      padding: '15px',
+      margin: '20px 0'
+    }}>
+      <h3 style={{ marginTop: 0 }}>Autenticação por Chave de API (Bearer Token)</h3>
+      <p>
+        Além do cookie de sessão, é possível autenticar enviando o header <code>Authorization: Bearer &lt;sua_chave&gt;</code> em todas as requisições.
+        A chave pode ser obtida e gerenciada na seção <strong>Chave de API</strong> desta documentação (menu lateral).
+      </p>
+      <p><strong>Exemplo com cURL:</strong></p>
+      <div className="api-code-block" style={{ marginTop: '10px' }}>
+        <pre>{`curl -X GET ${BASE_URL_DOC}/api/clientes \\
+  -H "Accept: application/json" \\
+  -H "Authorization: Bearer up_sua_chave_aqui"`}</pre>
+      </div>
     </div>
 
     <h2>POST /api/login</h2>

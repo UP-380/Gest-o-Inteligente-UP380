@@ -41,6 +41,7 @@ const permissoesConfigController = require('../controllers/permissoes-config.con
 const notificacoesController = require('../controllers/notificacoes.controller');
 const comunicacaoController = require('../controllers/comunicacao.controller');
 const uploadController = require('../controllers/upload.controller');
+const apiKeyController = require('../controllers/api-key.controller');
 
 const apiClientes = require('../services/api-clientes');
 
@@ -94,6 +95,11 @@ router.post('/api/auth/upload-avatar',
   authController.uploadAvatar
 );
 router.get('/api/auth/custom-avatar-path', requireAuth, authController.getCustomAvatarPath);
+
+// Rotas de chave de API (Bearer token para acesso à API)
+router.get('/api/auth/api-key', requireAuth, apiKeyController.getApiKey);
+router.post('/api/auth/api-key', requireAuth, apiKeyController.createApiKey);
+router.delete('/api/auth/api-key', requireAuth, apiKeyController.revokeApiKey);
 
 // Rotas de clientes
 router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKamino);
