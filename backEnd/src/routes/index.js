@@ -534,6 +534,7 @@ router.post('/api/atribuicoes-pendentes/:id/aprovar', requireGestor, atribuicoes
 router.get('/api/atribuicoes-pendentes/count', requireGestor, atribuicoesPendentesController.contarPendentes);
 router.post('/api/atribuicoes-pendentes/iniciar-timer', requireAuth, atribuicoesPendentesController.iniciarTimerPendente);
 router.post('/api/atribuicoes-pendentes/parar-timer', requireAuth, atribuicoesPendentesController.pararTimerPendente);
+router.put('/api/registro-tempo-pendente/:id', requireAuth, atribuicoesPendentesController.editarPendentePeloColaborador);
 
 // Rotas de Notificações
 router.get('/api/notificacoes', requireAuth, notificacoesController.listarMinhasNotificacoes);

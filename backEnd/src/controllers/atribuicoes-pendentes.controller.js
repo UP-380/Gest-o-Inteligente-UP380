@@ -876,6 +876,102 @@ async function pararTimerPendente(req, res) {
 
 
 /**
+ * Edita um registro pendente (Plug Rápido) pelo próprio colaborador
+ * Atualiza registro_tempo_pendente (timer) e atribuicoes_pendentes (config)
+ */
+async function editarPendentePeloColaborador(req, res) {
+    try {
+        const { id: registroId } = req.params;
+        const usuario_id = req.session?.usuario?.id;
+        if (!usuario_id) {
+            return res.status(401).json({ success: false, error: 'Não autenticado.' });
+        }
+
+        const {
+            data_inicio,
+            data_fim,
+            cliente_id,
+            produto_id,
+            tarefa_id,
+            periodo_inicio,
+            periodo_fim,
+            tempo_estimado_ms,
+            tempo_estimado_dia
+        } = req.body;
+
+        if (!registroId) {
+            return res.status(400).json({ success: false, error: 'ID do registro é obrigatório.' });
+        }
+
+        // Buscar registro e validar propriedade
+        const { data: registro, error: errReg } = await supabase
+            .from('registro_tempo_pendente')
+            .select('id, usuario_id, atribuicao_pendente_id')
+            .eq('id', registroId)
+            .single();
+
+        if (errReg || !registro) {
+            return res.status(404).json({ success: false, error: 'Registro pendente não encontrado.' });
+        }
+        if (Number(registro.usuario_id) !== Number(usuario_id)) {
+            return res.status(403).json({ success: false, error: 'Só é possível editar seus próprios registros pendentes.' });
+        }
+
+        const attrId = registro.atribuicao_pendente_id;
+        if (!attrId) {
+            return res.status(400).json({ success: false, error: 'Atribuição vinculada não encontrada.' });
+        }
+
+        // Atualizar registro_tempo_pendente (timer)
+        const updatesRegistro = {};
+        if (data_inicio) updatesRegistro.data_inicio = data_inicio;
+        if (data_fim) updatesRegistro.data_fim = data_fim;
+        if (tarefa_id !== undefined) updatesRegistro.tarefa_id = tarefa_id || null;
+
+        if (Object.keys(updatesRegistro).length > 0) {
+            const { error: errUpdReg } = await supabase
+                .from('registro_tempo_pendente')
+                .update(updatesRegistro)
+                .eq('id', registroId);
+            if (errUpdReg) {
+                console.error('Erro ao atualizar registro_tempo_pendente:', errUpdReg);
+                return res.status(500).json({ success: false, error: 'Erro ao atualizar registro de tempo.' });
+            }
+        }
+
+        // Atualizar atribuicoes_pendentes (config Plug Rápido)
+        const updatesAttr = {};
+        if (cliente_id !== undefined) updatesAttr.cliente_id = cliente_id || null;
+        if (produto_id !== undefined) updatesAttr.produto_id = produto_id || null;
+        if (tarefa_id !== undefined) updatesAttr.tarefa_id = tarefa_id || null;
+        if (periodo_inicio) updatesAttr.data_inicio = `${periodo_inicio}T00:00:00`;
+        if (periodo_fim) updatesAttr.data_fim = `${periodo_fim}T23:59:59`;
+
+        const tempoEst = tempo_estimado_ms ?? tempo_estimado_dia;
+        if (tempoEst !== undefined && tempoEst !== null) {
+            updatesAttr.tempo_estimado_dia = tempoEst;
+        }
+
+        if (Object.keys(updatesAttr).length > 0) {
+            const { error: errUpdAttr } = await supabase
+                .from('atribuicoes_pendentes')
+                .update(updatesAttr)
+                .eq('id', attrId)
+                .eq('status', 'PENDENTE');
+            if (errUpdAttr) {
+                console.error('Erro ao atualizar atribuicoes_pendentes:', errUpdAttr);
+                return res.status(500).json({ success: false, error: 'Erro ao atualizar atribuição.' });
+            }
+        }
+
+        return res.json({ success: true, message: 'Registro pendente atualizado com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao editar pendente:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao editar registro pendente.' });
+    }
+}
+
+/**
  * Conta o total de atribuições pendentes
  */
 async function contarPendentes(req, res) {
@@ -904,5 +1000,6 @@ module.exports = {
     contarPendentes,
     aprovarAtribuicao,
     iniciarTimerPendente,
-    pararTimerPendente
+    pararTimerPendente,
+    editarPendentePeloColaborador
 };

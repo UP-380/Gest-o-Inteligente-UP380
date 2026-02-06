@@ -1043,6 +1043,7 @@ const TimerAtivo = () => {
                 onFecharDelecao={handleFecharDelecao}
                 onAtualizarFormData={handleAtualizarFormData}
                 onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+                onBuscarHistorico={buscarHistorico}
                 registroEditandoId={registroEditandoId}
                 registroDeletandoId={registroDeletandoId}
                 formDataPorRegistro={formDataPorRegistro}
@@ -1125,6 +1126,7 @@ const TimerAtivo = () => {
               onFecharDelecao={handleFecharDelecao}
               onAtualizarFormData={handleAtualizarFormData}
               onAtualizarJustificativaDelecao={handleAtualizarJustificativaDelecao}
+              onBuscarHistorico={buscarHistorico}
               registroEditandoId={registroEditandoId}
               registroDeletandoId={registroDeletandoId}
               formDataPorRegistro={formDataPorRegistro}
