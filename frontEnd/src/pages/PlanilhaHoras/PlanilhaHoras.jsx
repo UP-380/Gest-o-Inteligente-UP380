@@ -362,13 +362,19 @@ const PlanilhaHoras = () => {
         // Atualizar celula selecionada localmente
         const result = await response.json();
         if (result.success && result.data) {
+          const updatedRecord = result.data;
+
           setCelulaSelecionada(prev => ({
             ...prev,
-            registros: prev.registros.map(r => r.id === registro.id ? result.data : r)
+            registros: prev.registros.map(r => r.id === registro.id ? updatedRecord : r)
           }));
+
+          // Atualizar a lista principal de registros para refletir na tabela
+          setRegistros(prev => prev.map(r => r.id === registro.id ? { ...r, ...updatedRecord } : r));
         }
 
-        buscarHistorico();
+        // Não recarregar tudo para manter a fluidez e evitar flash de loading
+        // buscarHistorico();
       } else {
         const result = await response.json();
         showToast('error', result.error || 'Erro ao atualizar');
@@ -406,7 +412,10 @@ const PlanilhaHoras = () => {
           registros: prev.registros.filter(r => r.id !== registro.id)
         }));
 
-        buscarHistorico();
+        // Atualizar a lista principal de registros para refletir na tabela
+        setRegistros(prev => prev.filter(r => r.id !== registro.id));
+
+        // buscarHistorico();
 
         // Se deletou o último registro da célula, fecha o modal
         if (celulaSelecionada && celulaSelecionada.registros.length <= 1) {

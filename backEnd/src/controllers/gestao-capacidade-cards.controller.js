@@ -83,6 +83,31 @@ function validateAndNormalizeBody(req, res) {
   };
 }
 
+/**
+ * Contrato canônico: todo nó da árvore deve ter tempo_estimado e tempo_realizado.
+ * Garante total_estimado_ms e total_realizado_ms (0 se ausente).
+ */
+function noCanonico(node) {
+  if (!node || typeof node !== 'object') return node;
+  return {
+    ...node,
+    total_estimado_ms: node.total_estimado_ms ?? node.tempo_estimado_ms ?? 0,
+    total_realizado_ms: node.total_realizado_ms ?? node.tempo_realizado_ms ?? 0
+  };
+}
+
+/** Aplica contrato canônico (estimado/realizado) à árvore de detalhes (raiz + clientes, tarefas, produtos). */
+function normalizarDataDetalhes(data) {
+  if (!Array.isArray(data)) return [];
+  return data.map(noCanonico).map(item => {
+    const out = { ...item };
+    if (Array.isArray(out.clientes)) out.clientes = out.clientes.map(noCanonico);
+    if (Array.isArray(out.tarefas)) out.tarefas = out.tarefas.map(noCanonico);
+    if (Array.isArray(out.produtos)) out.produtos = out.produtos.map(noCanonico);
+    return out;
+  });
+}
+
 // --- Tempo realizado: agregar por responsavel e por (responsavel, tarefa/cliente/produto) ---
 async function getRealizadoPorResponsavel(supabaseClient, opts) {
   const {
@@ -134,7 +159,7 @@ async function getRealizadoPorResponsavel(supabaseClient, opts) {
   }
 
   const porMembro = {};
-  const breakdown = { tarefas: {}, clientes: {}, produtos: {} };
+  const breakdown = { tarefas: {}, clientes: {}, produtos: {}, tarefaClientes: {} };
 
   (registros || []).forEach(reg => {
     if (reg.cliente_id === null && reg.produto_id === null) return;
@@ -155,16 +180,23 @@ async function getRealizadoPorResponsavel(supabaseClient, opts) {
 
     if (withBreakdown) {
       const mid = key;
-      if (reg.tarefa_id != null) {
-        const tk = `${mid}_${reg.tarefa_id}`;
+      const tid = reg.tarefa_id != null ? String(reg.tarefa_id) : null;
+      if (tid) {
+        const tk = `${mid}_${tid}`;
         if (!breakdown.tarefas[tk]) breakdown.tarefas[tk] = 0;
         breakdown.tarefas[tk] += tempo;
       }
       const clienteIds = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
+      const nClientes = clienteIds.length || 1;
+      const tempoPorCliente = tempo / nClientes;
       clienteIds.forEach(cid => {
         const ck = `${mid}_${cid}`;
         if (!breakdown.clientes[ck]) breakdown.clientes[ck] = 0;
-        breakdown.clientes[ck] += tempo;
+        breakdown.clientes[ck] += tempoPorCliente;
+        if (tid) {
+          const tck = `${mid}_${tid}_${cid}`;
+          breakdown.tarefaClientes[tck] = (breakdown.tarefaClientes[tck] || 0) + tempoPorCliente;
+        }
       });
       if (reg.produto_id != null) {
         const pk = `${mid}_${reg.produto_id}`;
@@ -266,7 +298,7 @@ async function getRealizadoPorCliente(supabaseClient, opts) {
   }
 
   const porCliente = {};
-  const breakdown = { tarefas: {}, produtos: {}, responsaveis: {} };
+  const breakdown = { tarefas: {}, produtos: {}, responsaveis: {}, produtoTarefas: {} };
   (registros || []).forEach(reg => {
     const list = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
     let tempo = Number(reg.tempo_realizado) || 0;
@@ -289,6 +321,10 @@ async function getRealizadoPorCliente(supabaseClient, opts) {
         if (reg.produto_id != null) {
           const pk = `${key}_${reg.produto_id}`;
           breakdown.produtos[pk] = (breakdown.produtos[pk] || 0) + tempo;
+          if (reg.tarefa_id != null) {
+            const ptk = `${key}_${reg.produto_id}_${reg.tarefa_id}`;
+            breakdown.produtoTarefas[ptk] = (breakdown.produtoTarefas[ptk] || 0) + tempo;
+          }
         }
         if (reg.usuario_id) {
           breakdown.responsaveis[`${key}_${reg.usuario_id}`] = (breakdown.responsaveis[`${key}_${reg.usuario_id}`] || 0) + tempo;
@@ -340,7 +376,9 @@ async function getRealizadoPorProduto(supabaseClient, opts) {
   }
 
   const porProduto = {};
-  const breakdown = { tarefas: {}, clientes: {}, responsaveis: {} };
+  const breakdown = { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} };
+  const tempoSemTarefaPorProduto = {};
+  const tempoSemClientePorProduto = {};
   (registros || []).forEach(reg => {
     const pid = String(reg.produto_id);
     if (!produtoIds.includes(Number(reg.produto_id))) return;
@@ -354,20 +392,40 @@ async function getRealizadoPorProduto(supabaseClient, opts) {
     if (!porProduto[pid]) porProduto[pid] = 0;
     porProduto[pid] += tempo;
     if (withBreakdown) {
+      const tid = reg.tarefa_id != null ? String(reg.tarefa_id) : 'sem_tarefa';
       if (reg.tarefa_id != null) {
         const tk = `${pid}_${reg.tarefa_id}`;
         breakdown.tarefas[tk] = (breakdown.tarefas[tk] || 0) + tempo;
+      } else {
+        tempoSemTarefaPorProduto[pid] = (tempoSemTarefaPorProduto[pid] || 0) + tempo;
       }
       const clienteIds = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
-      clienteIds.forEach(cid => {
-        const ck = `${pid}_${cid}`;
-        breakdown.clientes[ck] = (breakdown.clientes[ck] || 0) + tempo;
-      });
+      const nClientes = clienteIds.length || 1;
+      if (nClientes > 0) {
+        const tempoPorCliente = tempo / nClientes;
+        clienteIds.forEach(cid => {
+          const ck = `${pid}_${cid}`;
+          breakdown.clientes[ck] = (breakdown.clientes[ck] || 0) + tempoPorCliente;
+          const keyCt = `${pid}_${cid}_${tid}`;
+          breakdown.clienteTarefas[keyCt] = (breakdown.clienteTarefas[keyCt] || 0) + tempoPorCliente;
+        });
+      } else {
+        tempoSemClientePorProduto[pid] = (tempoSemClientePorProduto[pid] || 0) + tempo;
+      }
       if (reg.usuario_id) {
         breakdown.responsaveis[`${pid}_${reg.usuario_id}`] = (breakdown.responsaveis[`${pid}_${reg.usuario_id}`] || 0) + tempo;
       }
     }
   });
+  if (withBreakdown) {
+    produtoIds.forEach(pid => {
+      const idStr = String(pid);
+      const msTarefa = tempoSemTarefaPorProduto[idStr] || 0;
+      const msCliente = tempoSemClientePorProduto[idStr] || 0;
+      if (msTarefa > 0) breakdown.tarefas[`${idStr}_sem_tarefa`] = msTarefa;
+      if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
+    });
+  }
 
   return { porProduto, breakdown };
 }
@@ -412,7 +470,8 @@ async function getRealizadoPorTarefa(supabaseClient, opts) {
   }
 
   const porTarefa = {};
-  const breakdown = { produtos: {}, clientes: {}, responsaveis: {} };
+  const breakdown = { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} };
+  const tempoSemClientePorTarefa = {};
   (registros || []).forEach(reg => {
     const tid = String(reg.tarefa_id);
     if (!tarefaIds.includes(Number(reg.tarefa_id))) return;
@@ -426,20 +485,40 @@ async function getRealizadoPorTarefa(supabaseClient, opts) {
     if (!porTarefa[tid]) porTarefa[tid] = 0;
     porTarefa[tid] += tempo;
     if (withBreakdown) {
-      if (reg.produto_id != null) {
-        const pk = `${tid}_${reg.produto_id}`;
+      const pid = reg.produto_id != null ? String(reg.produto_id) : null;
+      if (pid) {
+        const pk = `${tid}_${pid}`;
         breakdown.produtos[pk] = (breakdown.produtos[pk] || 0) + tempo;
       }
       const clienteIds = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
-      clienteIds.forEach(cid => {
-        const ck = `${tid}_${cid}`;
-        breakdown.clientes[ck] = (breakdown.clientes[ck] || 0) + tempo;
-      });
+      const nClientes = clienteIds.length || 1;
+      if (nClientes > 0) {
+        const tempoPorCliente = tempo / nClientes;
+        clienteIds.forEach(cid => {
+          const ck = `${tid}_${cid}`;
+          breakdown.clientes[ck] = (breakdown.clientes[ck] || 0) + tempoPorCliente;
+          const keyCt = `${tid}_${cid}_${tid}`;
+          breakdown.clienteTarefas[keyCt] = (breakdown.clienteTarefas[keyCt] || 0) + tempoPorCliente;
+          if (pid) {
+            const keyPct = `${tid}_${pid}_${cid}`;
+            breakdown.produtoClienteTarefas[keyPct] = (breakdown.produtoClienteTarefas[keyPct] || 0) + tempoPorCliente;
+          }
+        });
+      } else {
+        tempoSemClientePorTarefa[tid] = (tempoSemClientePorTarefa[tid] || 0) + tempo;
+      }
       if (reg.usuario_id) {
         breakdown.responsaveis[`${tid}_${reg.usuario_id}`] = (breakdown.responsaveis[`${tid}_${reg.usuario_id}`] || 0) + tempo;
       }
     }
   });
+  if (withBreakdown) {
+    tarefaIds.forEach(tid => {
+      const idStr = String(tid);
+      const msCliente = tempoSemClientePorTarefa[idStr] || 0;
+      if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
+    });
+  }
 
   return { porTarefa, breakdown };
 }
@@ -621,7 +700,7 @@ async function getDetalhesEstimadoCliente(supabaseClient, opts) {
     return clienteIdsRegra.some(cid => clienteIdsNorm.includes(cid));
   });
 
-  const detalhes = { tarefas: {}, produtos: {}, responsaveis: {} };
+  const detalhes = { tarefas: {}, produtos: {}, responsaveis: {}, produtoTarefas: {} };
   const cacheFeriados = {};
   const pInicio = `${dataInicioStr}T00:00:00`;
   const pFim = `${dataFimStr}T23:59:59.999`;
@@ -650,6 +729,10 @@ async function getDetalhesEstimadoCliente(supabaseClient, opts) {
         if (regra.produto_id != null) {
           const pk = `${cidStr}_${regra.produto_id}`;
           detalhes.produtos[pk] = (detalhes.produtos[pk] || 0) + totalRegra;
+          if (regra.tarefa_id != null) {
+            const ptk = `${cidStr}_${regra.produto_id}_${regra.tarefa_id}`;
+            detalhes.produtoTarefas[ptk] = (detalhes.produtoTarefas[ptk] || 0) + totalRegra;
+          }
         }
         if (regra.responsavel_id != null) {
           const rk = `${cidStr}_${regra.responsavel_id}`;
@@ -695,7 +778,7 @@ async function getDetalhesEstimadoProduto(supabaseClient, opts) {
     return { tarefas: {}, clientes: {}, responsaveis: {} };
   }
 
-  const detalhes = { tarefas: {}, clientes: {}, responsaveis: {} };
+  const detalhes = { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} };
   const cacheFeriados = {};
   const pInicio = `${dataInicioStr}T00:00:00`;
   const pFim = `${dataFimStr}T23:59:59.999`;
@@ -720,6 +803,10 @@ async function getDetalhesEstimadoProduto(supabaseClient, opts) {
       clienteIds.forEach(cid => {
         const ck = `${pid}_${cid}`;
         detalhes.clientes[ck] = (detalhes.clientes[ck] || 0) + totalRegra;
+        if (regra.tarefa_id != null) {
+          const ctk = `${pid}_${cid}_${regra.tarefa_id}`;
+          detalhes.clienteTarefas[ctk] = (detalhes.clienteTarefas[ctk] || 0) + totalRegra;
+        }
       });
       if (regra.responsavel_id != null) {
         const rk = `${pid}_${regra.responsavel_id}`;
@@ -1428,7 +1515,9 @@ async function cardsProduto(req, res) {
     }
 
     const realizadoPorProduto = {};
-    const breakdown = { tarefas: {}, clientes: {}, responsaveis: {} };
+    const breakdown = { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} };
+    const tempoSemTarefaPorProduto = {};
+    const tempoSemClientePorProduto = {};
     (registros || []).forEach(reg => {
       const pid = String(reg.produto_id);
       let tempo = Number(reg.tempo_realizado) || 0;
@@ -1439,10 +1528,32 @@ async function cardsProduto(req, res) {
       }
       if (tempo > 0 && tempo < 1) tempo = Math.round(tempo * 3600000);
       realizadoPorProduto[pid] = (realizadoPorProduto[pid] || 0) + tempo;
-      if (reg.tarefa_id != null) breakdown.tarefas[`${pid}_${reg.tarefa_id}`] = (breakdown.tarefas[`${pid}_${reg.tarefa_id}`] || 0) + tempo;
+      const tid = reg.tarefa_id != null ? String(reg.tarefa_id) : 'sem_tarefa';
+      if (reg.tarefa_id != null) {
+        breakdown.tarefas[`${pid}_${reg.tarefa_id}`] = (breakdown.tarefas[`${pid}_${reg.tarefa_id}`] || 0) + tempo;
+      } else {
+        tempoSemTarefaPorProduto[pid] = (tempoSemTarefaPorProduto[pid] || 0) + tempo;
+      }
       const cids = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
-      cids.forEach(cid => { breakdown.clientes[`${pid}_${cid}`] = (breakdown.clientes[`${pid}_${cid}`] || 0) + tempo; });
+      const nClientes = cids.length || 1;
+      if (nClientes > 0) {
+        const tempoPorCliente = tempo / nClientes;
+        cids.forEach(cid => {
+          breakdown.clientes[`${pid}_${cid}`] = (breakdown.clientes[`${pid}_${cid}`] || 0) + tempoPorCliente;
+          const keyCt = `${pid}_${cid}_${tid}`;
+          breakdown.clienteTarefas[keyCt] = (breakdown.clienteTarefas[keyCt] || 0) + tempoPorCliente;
+        });
+      } else {
+        tempoSemClientePorProduto[pid] = (tempoSemClientePorProduto[pid] || 0) + tempo;
+      }
       if (reg.usuario_id) breakdown.responsaveis[`${pid}_${reg.usuario_id}`] = (breakdown.responsaveis[`${pid}_${reg.usuario_id}`] || 0) + tempo;
+    });
+    idsNum.forEach(pid => {
+      const idStr = String(pid);
+      const msTarefa = tempoSemTarefaPorProduto[idStr] || 0;
+      const msCliente = tempoSemClientePorProduto[idStr] || 0;
+      if (msTarefa > 0) breakdown.tarefas[`${idStr}_sem_tarefa`] = msTarefa;
+      if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
     });
 
     const { data: produtosList } = await supabase.from('cp_produto').select('id, nome').in('id', idsNum);
@@ -1496,9 +1607,9 @@ async function cardsProduto(req, res) {
           if (!k.startsWith(idStr + '_')) return;
           const tid = k.split('_').slice(1).join('_');
           detalhesTarefas.push({
-            id: `t${tid}_c0_p${idStr}`,
+            id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c0_p${idStr}`,
             original_id: String(tid),
-            nome: nomeTarefa[tid] || `Tarefa #${tid}`,
+            nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
             total_estimado_ms: 0,
             total_realizado_ms: breakdown.tarefas[k] || 0,
             custo_estimado: 0
@@ -1507,12 +1618,26 @@ async function cardsProduto(req, res) {
         Object.keys(breakdown.clientes).forEach(k => {
           if (!k.startsWith(idStr + '_')) return;
           const cid = k.split('_').slice(1).join('_');
+          const tarefasDoCliente = [];
+          Object.keys(breakdown.clienteTarefas || {}).forEach(ctKey => {
+            if (!ctKey.startsWith(`${idStr}_${cid}_`)) return;
+            const tid = ctKey.split('_').slice(2).join('_');
+            const totalRealizadoMs = breakdown.clienteTarefas[ctKey] || 0;
+            tarefasDoCliente.push({
+              id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c0_p${idStr}`,
+              original_id: String(tid),
+              nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
+              total_estimado_ms: 0,
+              total_realizado_ms: totalRealizadoMs
+            });
+          });
           detalhesClientes.push({
             id: String(cid),
-            nome: nomeCliente[cid] || `Cliente #${cid}`,
+            nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
             total_estimado_ms: 0,
             total_realizado_ms: breakdown.clientes[k] || 0,
-            custo_estimado: 0
+            custo_estimado: 0,
+            tarefas: tarefasDoCliente
           });
         });
         Object.keys(breakdown.responsaveis).forEach(k => {
@@ -1636,7 +1761,8 @@ async function cardsTarefa(req, res) {
     }
 
     const realizadoPorTarefa = {};
-    const breakdown = { produtos: {}, clientes: {}, responsaveis: {} };
+    const breakdown = { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} };
+    const tempoSemClientePorTarefa = {};
     (registros || []).forEach(reg => {
       const tid = String(reg.tarefa_id);
       let tempo = Number(reg.tempo_realizado) || 0;
@@ -1647,10 +1773,26 @@ async function cardsTarefa(req, res) {
       }
       if (tempo > 0 && tempo < 1) tempo = Math.round(tempo * 3600000);
       realizadoPorTarefa[tid] = (realizadoPorTarefa[tid] || 0) + tempo;
-      if (reg.produto_id != null) breakdown.produtos[`${tid}_${reg.produto_id}`] = (breakdown.produtos[`${tid}_${reg.produto_id}`] || 0) + tempo;
+      const pid = reg.produto_id != null ? String(reg.produto_id) : null;
+      if (pid) breakdown.produtos[`${tid}_${pid}`] = (breakdown.produtos[`${tid}_${pid}`] || 0) + tempo;
       const cids = String(reg.cliente_id || '').split(',').map(s => s.trim()).filter(Boolean);
-      cids.forEach(cid => { breakdown.clientes[`${tid}_${cid}`] = (breakdown.clientes[`${tid}_${cid}`] || 0) + tempo; });
+      const nClientes = cids.length || 1;
+      if (nClientes > 0) {
+        const tempoPorCliente = tempo / nClientes;
+        cids.forEach(cid => {
+          breakdown.clientes[`${tid}_${cid}`] = (breakdown.clientes[`${tid}_${cid}`] || 0) + tempoPorCliente;
+          breakdown.clienteTarefas[`${tid}_${cid}_${tid}`] = (breakdown.clienteTarefas[`${tid}_${cid}_${tid}`] || 0) + tempoPorCliente;
+          if (pid) breakdown.produtoClienteTarefas[`${tid}_${pid}_${cid}`] = (breakdown.produtoClienteTarefas[`${tid}_${pid}_${cid}`] || 0) + tempoPorCliente;
+        });
+      } else {
+        tempoSemClientePorTarefa[tid] = (tempoSemClientePorTarefa[tid] || 0) + tempo;
+      }
       if (reg.usuario_id) breakdown.responsaveis[`${tid}_${reg.usuario_id}`] = (breakdown.responsaveis[`${tid}_${reg.usuario_id}`] || 0) + tempo;
+    });
+    idsNum.forEach(tid => {
+      const idStr = String(tid);
+      const msCliente = tempoSemClientePorTarefa[idStr] || 0;
+      if (msCliente > 0) breakdown.clientes[`${idStr}_sem_cliente`] = msCliente;
     });
 
     const { data: tarefasList } = await supabase.from('cp_tarefa').select('id, nome').in('id', idsNum);
@@ -1714,12 +1856,26 @@ async function cardsTarefa(req, res) {
         Object.keys(breakdown.clientes).forEach(k => {
           if (!k.startsWith(idStr + '_')) return;
           const cid = k.split('_').slice(1).join('_');
+          const tarefasDoCliente = [];
+          Object.keys(breakdown.clienteTarefas || {}).forEach(ctKey => {
+            if (!ctKey.startsWith(`${idStr}_${cid}_`)) return;
+            const tidKey = ctKey.split('_').slice(2).join('_');
+            const totalRealizadoMs = breakdown.clienteTarefas[ctKey] || 0;
+            tarefasDoCliente.push({
+              id: idStr,
+              original_id: String(idStr),
+              nome: tarefa.nome || `Tarefa #${idStr}`,
+              total_estimado_ms: 0,
+              total_realizado_ms: totalRealizadoMs
+            });
+          });
           detalhesClientes.push({
             id: String(cid),
-            nome: nomeCliente[cid] || `Cliente #${cid}`,
+            nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
             total_estimado_ms: 0,
             total_realizado_ms: breakdown.clientes[k] || 0,
-            custo_estimado: 0
+            custo_estimado: 0,
+            tarefas: tarefasDoCliente
           });
         });
         Object.keys(breakdown.responsaveis).forEach(k => {
@@ -1818,7 +1974,7 @@ function validateDetalhesBody(req, res) {
 
   const tipoDetalhe = typeof tipo_detalhe === 'string' ? tipo_detalhe.toLowerCase() : 'tarefas';
   if (!TIPOS_DETALHE_VALIDOS.includes(tipoDetalhe)) {
-    res.status(400).json({ success: false, error: 'tipo_detalhe deve ser tarefas, clientes ou produtos' });
+    res.status(400).json({ success: false, error: 'tipo_detalhe deve ser tarefas, clientes, produtos ou responsaveis' });
     return null;
   }
 
@@ -1996,8 +2152,27 @@ async function detalhesResponsavel(req, res) {
       }
     });
 
+    // Adicionar clientes aninhados a cada tarefa (detalhesResponsavel tipo=tarefas): árvore Responsável > Tarefa > Cliente > Registros
+    const tarefaClientesResp = realizadoResult.breakdown?.tarefaClientes || {};
+    detalhesTarefas.forEach(tar => {
+      const tid = tar.original_id || tar.id;
+      const clientesDaTarefa = [];
+      Object.keys(tarefaClientesResp).forEach(tcKey => {
+        if (!tcKey.startsWith(`${idStr}_${tid}_`)) return;
+        const cid = tcKey.split('_').slice(2).join('_');
+        const totalRealizadoMs = tarefaClientesResp[tcKey] || 0;
+        clientesDaTarefa.push({
+          id: String(cid),
+          nome: nomeCliente[cid] || `Cliente #${cid}`,
+          total_estimado_ms: 0,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      tar.clientes = clientesDaTarefa;
+    });
+
     const data = tipoDetalhe === 'tarefas' ? detalhesTarefas : tipoDetalhe === 'clientes' ? detalhesClientes : detalhesProdutos;
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: normalizarDataDetalhes(data) });
   } catch (error) {
     console.error('❌ [GESTAO-CAPACIDADE] detalhesResponsavel:', error);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
@@ -2042,9 +2217,12 @@ async function detalhesCliente(req, res) {
     });
     
     if (!realizadoResult) {
-      realizadoResult = { breakdown: { tarefas: {}, produtos: {}, responsaveis: {} } };
+      realizadoResult = { breakdown: { tarefas: {}, produtos: {}, responsaveis: {}, produtoTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
-      realizadoResult.breakdown = { tarefas: {}, produtos: {}, responsaveis: {} };
+      realizadoResult.breakdown = { tarefas: {}, produtos: {}, responsaveis: {}, produtoTarefas: {} };
+    }
+    if (!realizadoResult.breakdown.produtoTarefas) {
+      realizadoResult.breakdown.produtoTarefas = {};
     }
 
     // Coletar IDs únicos para buscar nomes
@@ -2073,6 +2251,10 @@ async function detalhesCliente(req, res) {
     Object.keys(realizadoResult.breakdown.produtos || {}).forEach(k => {
       const parts = k.split('_');
       if (parts.length >= 2) produtoIdsSet.add(parts.slice(1).join('_'));
+    });
+    Object.keys(realizadoResult.breakdown.produtoTarefas || {}).forEach(k => {
+      const parts = k.split('_');
+      if (parts.length >= 3) tarefaIds.add(parts.slice(2).join('_'));
     });
     Object.keys(realizadoResult.breakdown.responsaveis || {}).forEach(k => {
       const parts = k.split('_');
@@ -2118,9 +2300,9 @@ async function detalhesCliente(req, res) {
       seenTarefas.add(tid);
       const realizadoMs = realizadoResult.breakdown?.tarefas?.[key] || 0;
       detalhesTarefas.push({
-        id: `t${tid}_c${idStr}_p0`,
+        id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c${idStr}_p0`,
         original_id: String(tid),
-        nome: nomeTarefa[tid] || `Tarefa #${tid}`,
+        nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
         total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoMs,
         custo_estimado: 0
@@ -2133,9 +2315,9 @@ async function detalhesCliente(req, res) {
       if (seenTarefas.has(tid)) return;
       seenTarefas.add(tid);
       detalhesTarefas.push({
-        id: `t${tid}_c${idStr}_p0`,
+        id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c${idStr}_p0`,
         original_id: String(tid),
-        nome: nomeTarefa[tid] || `Tarefa #${tid}`,
+        nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
         total_estimado_ms: 0,
         total_realizado_ms: realizadoResult.breakdown.tarefas[k] || 0,
         custo_estimado: 0
@@ -2157,19 +2339,41 @@ async function detalhesCliente(req, res) {
         custo_estimado: 0
       });
     });
-    // Adicionar produtos que só têm realizado
+    // Adicionar produtos que só têm realizado (ou que têm estimado no breakdown)
     Object.keys(realizadoResult.breakdown.produtos || {}).forEach(k => {
       if (!k.startsWith(idStr + '_')) return;
       const pid = k.split('_').slice(1).join('_');
       if (seenProdutos.has(pid)) return;
       seenProdutos.add(pid);
+      const estimadoMs = detalhesEstimado.produtos?.[k] || 0;
       detalhesProdutos.push({
         id: String(pid),
         nome: nomeProduto[pid] || `Produto #${pid}`,
-        total_estimado_ms: 0,
+        total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoResult.breakdown.produtos[k] || 0,
         custo_estimado: 0
       });
+    });
+
+    // Adicionar tarefas aninhadas a cada produto (detalhesCliente tipo=produtos): árvore Produto > Tarefa > Registros
+    const produtoTarefasCliente = realizadoResult.breakdown.produtoTarefas || {};
+    const produtoTarefasEstimado = detalhesEstimado.produtoTarefas || {};
+    detalhesProdutos.forEach(prod => {
+      const tarefasDoProduto = [];
+      Object.keys(produtoTarefasCliente).forEach(ptKey => {
+        if (!ptKey.startsWith(`${idStr}_${prod.id}_`)) return;
+        const tid = ptKey.split('_').slice(2).join('_');
+        const totalRealizadoMs = produtoTarefasCliente[ptKey] || 0;
+        const totalEstimadoMs = produtoTarefasEstimado[ptKey] || 0;
+        tarefasDoProduto.push({
+          id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c${idStr}_p${prod.id}`,
+          original_id: String(tid),
+          nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      prod.tarefas = tarefasDoProduto;
     });
 
     // Buscar mapeamentos usuario_id <-> responsavel_id
@@ -2237,7 +2441,7 @@ async function detalhesCliente(req, res) {
     const data = tipoMap[tipoDetalhe] || [];
     
     console.log(`✅ [DETALHES-CLIENTE] Retornando ${data.length} itens do tipo ${tipoDetalhe}`);
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: normalizarDataDetalhes(data) });
   } catch (error) {
     console.error('❌ [GESTAO-CAPACIDADE] detalhesCliente:', error);
     console.error('❌ [GESTAO-CAPACIDADE] Stack:', error.stack);
@@ -2286,9 +2490,12 @@ async function detalhesProduto(req, res) {
     });
     
     if (!realizadoResult) {
-      realizadoResult = { breakdown: { tarefas: {}, clientes: {}, responsaveis: {} } };
+      realizadoResult = { breakdown: { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
-      realizadoResult.breakdown = { tarefas: {}, clientes: {}, responsaveis: {} };
+      realizadoResult.breakdown = { tarefas: {}, clientes: {}, responsaveis: {}, clienteTarefas: {} };
+    }
+    if (!realizadoResult.breakdown.clienteTarefas) {
+      realizadoResult.breakdown.clienteTarefas = {};
     }
 
     // Coletar IDs únicos para buscar nomes
@@ -2317,6 +2524,10 @@ async function detalhesProduto(req, res) {
     Object.keys(realizadoResult.breakdown.clientes || {}).forEach(k => {
       const parts = k.split('_');
       if (parts.length >= 2) clienteIds.add(parts.slice(1).join('_'));
+    });
+    Object.keys(realizadoResult.breakdown.clienteTarefas || {}).forEach(k => {
+      const parts = k.split('_');
+      if (parts.length >= 3) tarefaIds.add(parts.slice(2).join('_'));
     });
     Object.keys(realizadoResult.breakdown.responsaveis || {}).forEach(k => {
       const parts = k.split('_');
@@ -2376,9 +2587,9 @@ async function detalhesProduto(req, res) {
       seenTarefas.add(tid);
       const realizadoMs = realizadoResult.breakdown?.tarefas?.[key] || 0;
       detalhesTarefas.push({
-        id: `t${tid}_c0_p${idStr}`,
+        id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c0_p${idStr}`,
         original_id: String(tid),
-        nome: nomeTarefa[tid] || `Tarefa #${tid}`,
+        nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
         total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoMs,
         custo_estimado: 0
@@ -2391,13 +2602,36 @@ async function detalhesProduto(req, res) {
       if (seenTarefas.has(tid)) return;
       seenTarefas.add(tid);
       detalhesTarefas.push({
-        id: `t${tid}_c0_p${idStr}`,
+        id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c0_p${idStr}`,
         original_id: String(tid),
-        nome: nomeTarefa[tid] || `Tarefa #${tid}`,
+        nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
         total_estimado_ms: 0,
         total_realizado_ms: realizadoResult.breakdown.tarefas[k] || 0,
         custo_estimado: 0
       });
+    });
+
+    // Adicionar clientes aninhados a cada tarefa (detalhesProduto tipo=tarefas): árvore Tarefa > Cliente > Registros
+    const clienteTarefasParaTarefas = realizadoResult.breakdown.clienteTarefas || {};
+    const clienteTarefasEstimadoParaTarefas = detalhesEstimado.clienteTarefas || {};
+    detalhesTarefas.forEach(tar => {
+      const tid = tar.original_id || tar.id;
+      const clientesDaTarefa = [];
+      Object.keys(clienteTarefasParaTarefas).forEach(ctKey => {
+        if (!ctKey.startsWith(`${idStr}_`) || !ctKey.endsWith('_' + tid)) return;
+        const parts = ctKey.split('_');
+        if (parts.length < 3) return;
+        const cid = parts[1];
+        const totalRealizadoMs = clienteTarefasParaTarefas[ctKey] || 0;
+        const totalEstimadoMs = clienteTarefasEstimadoParaTarefas[ctKey] || 0;
+        clientesDaTarefa.push({
+          id: String(cid),
+          nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      tar.clientes = clientesDaTarefa;
     });
 
     // Processar clientes
@@ -2409,25 +2643,47 @@ async function detalhesProduto(req, res) {
       const realizadoMs = realizadoResult.breakdown?.clientes?.[key] || 0;
       detalhesClientes.push({
         id: String(cid),
-        nome: nomeCliente[cid] || `Cliente #${cid}`,
+        nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
         total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoMs,
         custo_estimado: 0
       });
     });
-    // Adicionar clientes que só têm realizado
+    // Adicionar clientes que só têm realizado (ou que têm estimado no breakdown)
     Object.keys(realizadoResult.breakdown.clientes || {}).forEach(k => {
       if (!k.startsWith(idStr + '_')) return;
       const cid = k.split('_').slice(1).join('_');
       if (seenClientes.has(cid)) return;
       seenClientes.add(cid);
+      const estimadoMs = detalhesEstimado.clientes?.[k] || 0;
       detalhesClientes.push({
         id: String(cid),
-        nome: nomeCliente[cid] || `Cliente #${cid}`,
-        total_estimado_ms: 0,
+        nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+        total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoResult.breakdown.clientes[k] || 0,
         custo_estimado: 0
       });
+    });
+
+    // Adicionar tarefas aninhadas a cada cliente (detalhesProduto)
+    const clienteTarefas = realizadoResult.breakdown.clienteTarefas || {};
+    const clienteTarefasEstimado = detalhesEstimado.clienteTarefas || {};
+    detalhesClientes.forEach(cli => {
+      const tarefasDoCliente = [];
+      Object.keys(clienteTarefas).forEach(ctKey => {
+        if (!ctKey.startsWith(`${idStr}_${cli.id}_`)) return;
+        const tid = ctKey.split('_').slice(2).join('_');
+        const totalRealizadoMs = clienteTarefas[ctKey] || 0;
+        const totalEstimadoMs = clienteTarefasEstimado[ctKey] || 0;
+        tarefasDoCliente.push({
+          id: tid === 'sem_tarefa' ? 'sem_tarefa' : `t${tid}_c0_p${idStr}`,
+          original_id: String(tid),
+          nome: tid === 'sem_tarefa' ? 'Demais' : (nomeTarefa[tid] || `Tarefa #${tid}`),
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      cli.tarefas = tarefasDoCliente;
     });
 
     // Processar responsaveis
@@ -2467,7 +2723,7 @@ async function detalhesProduto(req, res) {
     // Mapear tipoDetalhe para o array correto (produto tem: tarefas, clientes, responsaveis)
     const tipoMap = { tarefas: detalhesTarefas, clientes: detalhesClientes, responsaveis: detalhesResponsaveis };
     const data = tipoMap[tipoDetalhe] || [];
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: normalizarDataDetalhes(data) });
   } catch (error) {
     console.error('❌ [GESTAO-CAPACIDADE] detalhesProduto:', error);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
@@ -2515,9 +2771,15 @@ async function detalhesTarefa(req, res) {
     });
     
     if (!realizadoResult) {
-      realizadoResult = { breakdown: { produtos: {}, clientes: {}, responsaveis: {} } };
+      realizadoResult = { breakdown: { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} } };
     } else if (!realizadoResult.breakdown) {
-      realizadoResult.breakdown = { produtos: {}, clientes: {}, responsaveis: {} };
+      realizadoResult.breakdown = { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} };
+    }
+    if (!realizadoResult.breakdown.clienteTarefas) {
+      realizadoResult.breakdown.clienteTarefas = {};
+    }
+    if (!realizadoResult.breakdown.produtoClienteTarefas) {
+      realizadoResult.breakdown.produtoClienteTarefas = {};
     }
 
     // Coletar IDs únicos para buscar nomes
@@ -2627,6 +2889,25 @@ async function detalhesTarefa(req, res) {
       });
     });
 
+    // Adicionar clientes[].tarefas aninhados a cada produto (detalhesTarefa tipo=produtos): árvore Produto > Cliente > Tarefa > Registros
+    const produtoClienteTarefasTarefa = realizadoResult.breakdown.produtoClienteTarefas || {};
+    detalhesProdutos.forEach(prod => {
+      const clientesDoProduto = [];
+      Object.keys(produtoClienteTarefasTarefa).forEach(pctKey => {
+        if (!pctKey.startsWith(`${idStr}_${prod.id}_`)) return;
+        const cid = pctKey.split('_')[2];
+        const totalRealizadoMs = produtoClienteTarefasTarefa[pctKey] || 0;
+        clientesDoProduto.push({
+          id: String(cid),
+          nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+          total_estimado_ms: 0,
+          total_realizado_ms: totalRealizadoMs,
+          tarefas: [{ id: idStr, original_id: String(idStr), nome: tarefa.nome || `Tarefa #${idStr}`, total_estimado_ms: 0, total_realizado_ms: totalRealizadoMs }]
+        });
+      });
+      prod.clientes = clientesDoProduto;
+    });
+
     // Processar clientes
     Object.entries(detalhesEstimado.clientes || {}).forEach(([key, estimadoMs]) => {
       if (!key.startsWith(idStr + '_')) return;
@@ -2636,25 +2917,44 @@ async function detalhesTarefa(req, res) {
       const realizadoMs = realizadoResult.breakdown?.clientes?.[key] || 0;
       detalhesClientes.push({
         id: String(cid),
-        nome: nomeCliente[cid] || `Cliente #${cid}`,
+        nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
         total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoMs,
         custo_estimado: 0
       });
     });
-    // Adicionar clientes que só têm realizado
+    // Adicionar clientes que só têm realizado (ou que têm estimado no breakdown)
     Object.keys(realizadoResult.breakdown.clientes || {}).forEach(k => {
       if (!k.startsWith(idStr + '_')) return;
       const cid = k.split('_').slice(1).join('_');
       if (seenClientes.has(cid)) return;
       seenClientes.add(cid);
+      const estimadoMs = detalhesEstimado.clientes?.[k] || 0;
       detalhesClientes.push({
         id: String(cid),
-        nome: nomeCliente[cid] || `Cliente #${cid}`,
-        total_estimado_ms: 0,
+        nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+        total_estimado_ms: estimadoMs,
         total_realizado_ms: realizadoResult.breakdown.clientes[k] || 0,
         custo_estimado: 0
       });
+    });
+
+    // Adicionar tarefas aninhadas a cada cliente (detalhesTarefa)
+    const clienteTarefasTarefa = realizadoResult.breakdown.clienteTarefas || {};
+    detalhesClientes.forEach(cli => {
+      const tarefasDoCliente = [];
+      Object.keys(clienteTarefasTarefa).forEach(ctKey => {
+        if (!ctKey.startsWith(`${idStr}_${cli.id}_`)) return;
+        const totalRealizadoMs = clienteTarefasTarefa[ctKey] || 0;
+        tarefasDoCliente.push({
+          id: idStr,
+          original_id: String(idStr),
+          nome: tarefa.nome || `Tarefa #${idStr}`,
+          total_estimado_ms: 0,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      cli.tarefas = tarefasDoCliente;
     });
 
     // Processar responsaveis
@@ -2694,7 +2994,7 @@ async function detalhesTarefa(req, res) {
     // Mapear tipoDetalhe para o array correto (tarefa tem: produtos, clientes, responsaveis)
     const tipoMap = { produtos: detalhesProdutos, clientes: detalhesClientes, responsaveis: detalhesResponsaveis };
     const data = tipoMap[tipoDetalhe] || [];
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: normalizarDataDetalhes(data) });
   } catch (error) {
     console.error('❌ [GESTAO-CAPACIDADE] detalhesTarefa:', error);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });

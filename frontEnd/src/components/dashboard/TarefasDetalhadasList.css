@@ -12,15 +12,36 @@
   margin-bottom: 0;
 }
 
-.tarefa-detalhada-cliente-header {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0e3b6f;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #e2e8f0;
+.tarefa-detalhada-cliente-header-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tarefa-detalhada-cliente-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.tarefa-detalhada-cliente-header i {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tarefa-detalhada-cliente-tempo {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 .tarefa-detalhada-cliente-tarefas {
@@ -313,9 +334,9 @@
 }
 
 .tarefa-detalhada-registros {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
 }
 
 .tarefa-detalhada-registros-title {

@@ -96,9 +96,10 @@ const ResponsaveisDetalhadosList = ({
         newExpanded.delete(key);
       } else {
         newExpanded.add(key);
-        // Buscar registros individuais quando expandir
-        if (buscarRegistrosIndividuais && tarefa) {
-          buscarRegistrosIndividuais(tarefa);
+        // Buscar registros por tarefa+cliente (chave composta no DetailSideCard)
+        // Passar produtoId para o total dos registros bater com o realizado da tarefa (escopo Responsável > Produto > Cliente > Tarefa)
+        if (buscarRegistrosIndividuais && tarefa && clienteId) {
+          buscarRegistrosIndividuais(tarefa, clienteId, produtoId);
         }
       }
       return newExpanded;
@@ -352,12 +353,14 @@ const ResponsaveisDetalhadosList = ({
                                             const tarefaKey = `${responsavel.id}-${produto.id}-${cliente.id}-${tarefa.id}`;
                                             const isTarefaExpanded = tarefasExpandidas.has(tarefaKey);
 
-                                            // Tempo realizado: tentar buscar do mapa, depois tarefa diretamente
+                                            // Tempo realizado: tentar buscar do mapa, depois tarefa/clientes da API
                                             const tarefaKeyAlt = String(tarefa.id);
-                                            // Realizado da tarefa: apenas do mapa/cache (carregado ao abrir o card). Não usar registrosIndividuais para não interferir ao abrir "Registros de tempo".
+                                            const regKeyTarefaCliente = `${tarefa.id}-${cliente.id}`;
+                                            // Realizado da tarefa: mapa/cache ou tarefa.tempoRealizado ou tarefa.total_realizado_ms (API)
                                             let tempoRealizadoTarefaMs = temposRealizadosPorTarefa[tarefaKey]
                                               || temposRealizadosPorTarefa[tarefaKeyAlt]
                                               || tarefa.tempoRealizado
+                                              || tarefa.total_realizado_ms
                                               || 0;
 
                                             const tempoRealizadoTarefaFormatado = formatarTempoHMS
@@ -412,7 +415,7 @@ const ResponsaveisDetalhadosList = ({
                                                       </div>
                                                     </div>
                                                   </div>
-                                                  {tarefa.registros && tarefa.registros.length > 0 && (
+                                                  {((tarefa.id || tarefa.original_id) && cliente.id) ? (
                                                     <button
                                                       className="tarefa-detalhada-toggle"
                                                       onClick={() => toggleTarefa(responsavel.id, produto.id, cliente.id, tarefa.id, tarefa)}
@@ -422,20 +425,20 @@ const ResponsaveisDetalhadosList = ({
                                                         className={`fas fa-chevron-down ${isTarefaExpanded ? 'expanded' : ''}`}
                                                       ></i>
                                                     </button>
-                                                  )}
+                                                  ) : null}
                                                 </div>
                                                 {isTarefaExpanded && (
                                                   <div className="tarefa-detalhada-registros">
                                                     <div className="tarefa-detalhada-registros-title">
                                                       Registros de Tempo Realizado:
                                                     </div>
-                                                    {carregandoRegistros[tarefa.id] ? (
+                                                    {carregandoRegistros[regKeyTarefaCliente] ? (
                                                       <div className="tarefa-detalhada-loading">
                                                         <i className="fas fa-spinner fa-spin"></i>
                                                         <span>Carregando...</span>
                                                       </div>
                                                     ) : (() => {
-                                                      const registros = registrosIndividuais[tarefa.id] || [];
+                                                      const registros = (registrosIndividuais[regKeyTarefaCliente] || registrosIndividuais[tarefa.id] || []);
                                                       if (registros.length === 0) {
                                                         return (
                                                           <div className="tarefa-detalhada-empty-registros">

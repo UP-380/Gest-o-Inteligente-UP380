@@ -185,9 +185,9 @@ const ClientesDetalhadosList = ({
                 newExpanded.delete(key);
             } else {
                 newExpanded.add(key);
-                // Buscar registros individuais quando expandir
+                // Buscar registros individuais quando expandir (passar clienteId para busca por GET registro-tempo quando tarefa.registros vazio)
                 if (buscarRegistrosIndividuais && tarefa) {
-                    buscarRegistrosIndividuais(tarefa);
+                    buscarRegistrosIndividuais(tarefa, clienteId);
                 }
             }
             return newExpanded;
@@ -352,7 +352,7 @@ const ClientesDetalhadosList = ({
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {tarefa.registros && tarefa.registros.length > 0 && (
+                                                    {(tarefa.id || tarefa.original_id || tarefa.originalId) && buscarRegistrosIndividuais && (
                                                         <button
                                                             className="tarefa-detalhada-toggle"
                                                             onClick={() => toggleTarefa(cliente.id, tarefa.id, tarefa)}

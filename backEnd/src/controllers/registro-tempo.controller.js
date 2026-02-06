@@ -1268,6 +1268,7 @@ async function getRegistrosTempo(req, res) {
       usuario_id,
       cliente_id,
       tarefa_id,
+      produto_id,
       data_inicio,
       data_fim,
       ativo, // true/false para filtrar apenas ativos ou finalizados
@@ -1296,13 +1297,25 @@ async function getRegistrosTempo(req, res) {
     }
 
     // Compatibilidade: suporta tanto cliente_id quanto clienteId
+    // Match exato OU cliente_id em lista separada por vírgula (igual ao breakdown dos cards)
     const clienteIdFinal = cliente_id || req.query.clienteId;
     if (clienteIdFinal) {
-      query = query.eq('cliente_id', String(clienteIdFinal).trim());
+      const id = String(clienteIdFinal).trim();
+      const conditions = [
+        `cliente_id.eq.${id}`,
+        `cliente_id.like.${encodeURIComponent(id + ',%')}`,
+        `cliente_id.like.${encodeURIComponent('%,' + id + ',%')}`,
+        `cliente_id.like.${encodeURIComponent('%,' + id)}`
+      ];
+      query = query.or(conditions.join(','));
     }
 
     if (tarefa_id) {
       query = query.eq('tarefa_id', String(tarefa_id).trim());
+    }
+
+    if (produto_id) {
+      query = query.eq('produto_id', String(produto_id).trim());
     }
 
     // Filtro de status (ativo/finalizado)
