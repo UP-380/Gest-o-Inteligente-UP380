@@ -942,6 +942,31 @@ const GestaoUsuarios = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de confirmação de exclusão */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setUsuarioParaDeletar(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Deletar Usuário"
+        message={
+          usuarioParaDeletar ? (
+            <>
+              <p>
+                Tem certeza que deseja deletar o usuário <strong>{usuarioParaDeletar.nome_usuario}</strong> ({usuarioParaDeletar.email_usuario})?
+              </p>
+              <p style={{ color: '#b45309', marginTop: '8px' }}>Esta ação não pode ser desfeita.</p>
+            </>
+          ) : (
+            ''
+          )
+        }
+        confirmText="Deletar"
+        loading={deletando}
+      />
     </Layout>
   );
 };

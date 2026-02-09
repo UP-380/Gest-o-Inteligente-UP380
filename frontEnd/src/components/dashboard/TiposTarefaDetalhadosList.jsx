@@ -33,6 +33,7 @@ const TiposTarefaDetalhadosList = ({
     onToggleTipoTarefa,
     buscarRegistrosIndividuais,
     getNomeColaboradorPorUsuarioId = null,
+    getNomeTipoTarefa = null,
     temposRealizadosPorTipoTarefa = {},
     temposRealizadosPorTarefaPorTipoTarefa = {}
 }) => {
@@ -130,7 +131,7 @@ const TiposTarefaDetalhadosList = ({
                             <div className="tarefa-detalhada-info">
                                 <div className="tarefa-detalhada-nome">
                                     <i className="fas fa-tags" style={{ marginRight: '8px' }}></i>
-                                    {tipoT.nome}
+                                    {getNomeTipoTarefa ? (getNomeTipoTarefa(tipoId) || tipoT.nome) : tipoT.nome}
                                 </div>
                                 <div className="tarefa-detalhada-metrics">
                                     {/* Card Estimado */}

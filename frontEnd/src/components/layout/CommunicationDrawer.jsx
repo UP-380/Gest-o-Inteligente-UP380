@@ -401,6 +401,17 @@ const CommunicationDrawer = ({ user }) => {
 
     const messagesEndRef = useRef(null);
 
+    // Informar estado do drawer para outros componentes (ex.: não mostrar popup se chat já aberto)
+    useEffect(() => {
+        const payload = {
+            isOpen,
+            tab: activeTab,
+            interlocutorId: selectedChat?.id != null ? String(selectedChat.id) : null,
+            chamadoId: selectedChamado?.id != null ? String(selectedChamado.id) : null
+        };
+        window.dispatchEvent(new CustomEvent('communication-drawer-state', { detail: payload }));
+    }, [isOpen, activeTab, selectedChat?.id, selectedChamado?.id]);
+
     // Ouvir evento para abrir o drawer sem mudar de página
     useEffect(() => {
         const handleOpenDrawer = async (event) => {
@@ -464,7 +475,13 @@ const CommunicationDrawer = ({ user }) => {
         try {
             const response = await comunicacaoAPI.listarMensagensChat(userId);
             if (response.success) {
-                setMessages(response.data);
+                const list = response.data || [];
+                setMessages(list);
+                // Marcar como lidas as mensagens que o outro enviou (quem está vendo é o usuário atual)
+                const msgsDoOutro = list.filter(m => Number(m.criador_id) !== Number(user?.id));
+                msgsDoOutro.forEach((m) => {
+                    comunicacaoAPI.marcarMensagemLida(m.id).catch(() => {});
+                });
             }
         } catch (error) {
             console.error('Erro ao listar mensagens:', error);
@@ -509,11 +526,11 @@ const CommunicationDrawer = ({ user }) => {
         }
     }, [isOpen, activeTab, selectedChat, selectedChamado]);
 
-    // Polling para mensagens se o chat estiver aberto
+    // Polling para mensagens e status "visto" quando o chat estiver aberto
     useEffect(() => {
         let interval;
         if (isOpen && selectedChat) {
-            interval = setInterval(() => loadMessages(selectedChat.id, true), 5000);
+            interval = setInterval(() => loadMessages(selectedChat.id, true), 2500);
         }
         return () => clearInterval(interval);
     }, [isOpen, selectedChat]);
@@ -736,12 +753,19 @@ const CommunicationDrawer = ({ user }) => {
                 ) : (
                     conversas.map(c => (
                         <div key={c.usuario.id} className="comm-item chat-item" onClick={() => handleSelectChat(c.usuario)}>
-                            <div className="comm-item-avatar">
-                                <Avatar
-                                    avatarId={c.usuario.foto_perfil}
-                                    nomeUsuario={c.usuario.nome_usuario || c.usuario.nome}
-                                    size="normal"
-                                />
+                            <div className="comm-item-avatar-wrapper">
+                                <div className="comm-item-avatar">
+                                    <Avatar
+                                        avatarId={c.usuario.foto_perfil}
+                                        nomeUsuario={c.usuario.nome_usuario || c.usuario.nome}
+                                        size="normal"
+                                    />
+                                </div>
+                                {(c.nao_lidas_count || 0) > 0 && (
+                                    <span className="chat-unread-badge" aria-label={`${c.nao_lidas_count} não lidas`}>
+                                        {c.nao_lidas_count > 99 ? '99+' : c.nao_lidas_count}
+                                    </span>
+                                )}
                             </div>
                             <div className="comm-item-info">
                                 <div className="comm-item-name">{c.usuario.nome_usuario || c.usuario.nome}</div>
@@ -836,8 +860,17 @@ const CommunicationDrawer = ({ user }) => {
                                     )}
                                     <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'}`}>
                                         <div className="msg-content" onClick={handleImageClick} style={{ color: 'inherit', cursor: 'pointer' }} dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
-                                        <div className="msg-time">
+                                        <div className="msg-time msg-time-with-receipt">
                                             {formatTime(msg.created_at)}
+                                            {isMe && (
+                                                <span className="msg-read-receipt" title={msg.lida_por_destinatario === true || msg.lida_por_destinatario === 'true' ? 'Visto' : 'Enviado'}>
+                                                    {msg.lida_por_destinatario === true || msg.lida_por_destinatario === 'true' ? (
+                                                        <i className="fas fa-check-double msg-read" aria-hidden></i>
+                                                    ) : (
+                                                        <i className="fas fa-check msg-sent" aria-hidden></i>
+                                                    )}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </React.Fragment>

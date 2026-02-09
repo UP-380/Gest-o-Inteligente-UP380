@@ -1,6 +1,13 @@
-
 const supabase = require('../config/database');
 const { distribuirNotificacao } = require('./notificacoes.controller');
+const { resolveAvatarUrl } = require('../utils/storage');
+
+async function getChamadoRoot(sb, messageId) {
+    const { data: m } = await sb.from('comunicacao_mensagens').select('id, mensagem_pai_id').eq('id', messageId).single();
+    if (!m) return null;
+    if (!m.mensagem_pai_id) return m.id;
+    return getChamadoRoot(sb, m.mensagem_pai_id);
+}
 
 // =============================================================
 // === CONTROLLER DE COMUNICAÇÃO ===
@@ -52,13 +59,24 @@ async function enviarMensagem(req, res) {
 
             // Notificar apenas o destinatário (não falha o envio da mensagem se der erro)
             try {
+                let remetenteFoto = null;
+                try {
+                    remetenteFoto = req.session.usuario.foto_perfil
+                        ? await resolveAvatarUrl(req.session.usuario.foto_perfil, 'user')
+                        : null;
+                } catch (_) { /* ignora */ }
                 await distribuirNotificacao({
                     tipo: 'CHAT_MENSAGEM',
                     titulo: 'Nova mensagem',
-                    mensagem: `Você recebeu uma mensagem de ${req.session.usuario.nome_usuario}`,
+                    mensagem: (conteudo && String(conteudo).trim()) ? String(conteudo).trim().substring(0, 200) : 'Nova mensagem',
                     referencia_id: mensagem.id,
                     link: `/comunicacao?tab=chats&interlocutorId=${criador_id}`,
-                    usuario_id: destinatarioId
+                    usuario_id: destinatarioId,
+                    metadata: {
+                        remetente_id: criador_id,
+                        remetente_nome: req.session.usuario.nome_usuario || 'Usuário',
+                        remetente_foto: remetenteFoto || null
+                    }
                 });
             } catch (errNotif) {
                 console.error('[COMUNICACAO] Erro ao criar notificação de chat (mensagem já enviada):', errNotif?.message || errNotif);
@@ -105,13 +123,26 @@ async function enviarMensagem(req, res) {
                     .single();
 
                 if (pai && pai.criador_id !== criador_id) {
+                    let remetenteFoto = null;
+                    try {
+                        remetenteFoto = req.session.usuario.foto_perfil
+                            ? await resolveAvatarUrl(req.session.usuario.foto_perfil, 'user')
+                            : null;
+                    } catch (_) { /* ignora */ }
+                    const chamadoRootId = await getChamadoRoot(supabase, mensagem_pai_id);
                     await distribuirNotificacao({
                         tipo: 'CHAMADO_ATUALIZADO',
                         titulo: 'Resposta em seu Chamado',
-                        mensagem: `${req.session.usuario.nome_usuario} respondeu ao seu chamado.`,
+                        mensagem: (conteudo && String(conteudo).trim()) ? String(conteudo).trim().substring(0, 200) : `${req.session.usuario.nome_usuario} respondeu ao seu chamado.`,
                         referencia_id: mensagem.id,
                         link: '/comunicacao?tab=chamados',
-                        usuario_id: pai.criador_id
+                        usuario_id: pai.criador_id,
+                        metadata: {
+                            remetente_id: criador_id,
+                            remetente_nome: req.session.usuario.nome_usuario || 'Usuário',
+                            remetente_foto: remetenteFoto || null,
+                            chamado_id: chamadoRootId || mensagem_pai_id
+                        }
                     });
                 }
 
@@ -135,7 +166,7 @@ async function enviarMensagem(req, res) {
 }
 
 /**
- * Lista mensagens (Chat)
+ * Lista mensagens (Chat) com status de leitura para mensagens que eu enviei
  */
 async function listarMensagensChat(req, res) {
     try {
@@ -154,7 +185,34 @@ async function listarMensagensChat(req, res) {
 
         if (error) throw error;
 
-        return res.json({ success: true, data });
+        const mensagens = data || [];
+        const idsEnviadasPorMim = mensagens.filter(m => Number(m.criador_id) === Number(usuario_id)).map(m => m.id);
+        let leiturasMap = {};
+        const comUsuarioNum = Number(com_usuario) || com_usuario;
+        if (idsEnviadasPorMim.length > 0) {
+            const { data: leituras, error: errLeituras } = await supabase
+                .from('comunicacao_leituras')
+                .select('mensagem_id, lida')
+                .in('mensagem_id', idsEnviadasPorMim)
+                .eq('usuario_id', comUsuarioNum);
+            if (!errLeituras && leituras) {
+                leituras.forEach(l => {
+                    const lida = l.lida === true || l.lida === 't' || l.lida === 1 || String(l.lida || '').toLowerCase() === 'true';
+                    leiturasMap[l.mensagem_id] = { lida: !!lida };
+                });
+            }
+        }
+
+        const dataComLeitura = mensagens.map(m => {
+            const base = { ...m };
+            if (Number(m.criador_id) === Number(usuario_id)) {
+                const leitura = leiturasMap[m.id];
+                base.lida_por_destinatario = leitura ? leitura.lida : false;
+            }
+            return base;
+        });
+
+        return res.json({ success: true, data: dataComLeitura });
     } catch (error) {
         console.error('Erro ao listar chat:', error);
         return res.status(500).json({ success: false, error: 'Erro ao listar chat.' });
@@ -205,12 +263,32 @@ async function listarConversasRecentes(req, res) {
             }
         });
 
-        // Se a lista estiver vazia (ou para permitir iniciar novos), 
-        // poderíamos listar todos os outros usuários do sistema.
-        // Mas vamos retornar o histórico primeiro. 
-        // O frontend pode ter um botão "Nova Conversa" que lista todos.
+        // Contar mensagens não lidas por conversa (mensagens que eu recebi e ainda não marquei como lidas)
+        const idsMensagensRecebidas = (mensagens || [])
+            .filter(m => Number(m.destinatario_id) === Number(usuario_id))
+            .map(m => m.id);
+        let idsLidas = new Set();
+        if (idsMensagensRecebidas.length > 0) {
+            const { data: leituras } = await supabase
+                .from('comunicacao_leituras')
+                .select('mensagem_id')
+                .in('mensagem_id', idsMensagensRecebidas)
+                .eq('usuario_id', usuario_id)
+                .eq('lida', true);
+            (leituras || []).forEach(l => idsLidas.add(l.mensagem_id));
+        }
+        const naoLidasPorCriador = {};
+        mensagens.forEach(m => {
+            if (Number(m.destinatario_id) !== Number(usuario_id)) return;
+            if (idsLidas.has(m.id)) return;
+            const criador = Number(m.criador_id);
+            naoLidasPorCriador[criador] = (naoLidasPorCriador[criador] || 0) + 1;
+        });
 
-        const conversas = Array.from(conversasMap.values());
+        const conversas = Array.from(conversasMap.values()).map(c => ({
+            ...c,
+            nao_lidas_count: naoLidasPorCriador[Number(c.usuario.id)] || 0
+        }));
         return res.json({ success: true, data: conversas });
 
     } catch (error) {
