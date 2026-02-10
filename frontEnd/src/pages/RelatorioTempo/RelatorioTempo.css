@@ -2,6 +2,7 @@
 .relatorio-tempo-main {
     padding: 2rem;
     max-width: 100%;
+    overflow: visible;
 }
 
 /* Header */
@@ -39,6 +40,61 @@
     font-size: 14px;
     color: #64748b;
     margin: 0;
+}
+
+/* Filtros + Toolbar: Período visível (estilo PlanilhaHoras) - espaço para dropdowns */
+.relatorio-filters-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    z-index: 100;
+    overflow: visible;
+    min-height: 3.5rem;
+}
+
+/* Remove bottom margin from nested toolbar to align properly */
+.relatorio-filters-toolbar .relatorio-toolbar {
+    margin-bottom: 0;
+    overflow: visible;
+}
+
+.rt-periodo-wrapper {
+    display: flex;
+    flex-direction: column;
+    /* Removed gap since label is gone */
+}
+
+/* Red border on the INPUT field, not the wrapper */
+.rt-periodo-wrapper.rt-periodo-obrigatorio .periodo-select-display {
+    border: 2px solid #dc2626 !important;
+    background-color: #fef2f2 !important;
+    border-radius: 10px !important;
+}
+
+/* Override Periodo component styles to match toolbar icons */
+.rt-periodo-wrapper .periodo-select-display {
+    border-radius: 10px !important;
+}
+
+/* Fallback if structure is different (e.g. wrapper is the input) */
+/* .rt-periodo-wrapper.rt-periodo-obrigatorio {} - Removed empty rule */
+
+.rt-periodo-label {
+    display: none;
+    /* Ensure label is hidden if still present in DOM */
+}
+
+.relatorio-empty-periodo {
+    padding: 3rem 2rem;
+}
+
+.relatorio-empty-hint {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    margin-top: 0.5rem;
 }
 
 /* Filters */
@@ -82,6 +138,12 @@
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Área principal do relatório - fica abaixo do toolbar no stacking para não cortar dropdowns */
+.relatorio-main-area {
+    position: relative;
+    z-index: 1;
 }
 
 /* Content */
@@ -186,6 +248,17 @@
     background-color: #fef3c7;
 }
 
+/* Linha de cabeçalho por data (modo lista - registros agrupados por data) */
+.rt-table-row.rt-table-row-data-header {
+    background-color: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.5rem 1.5rem;
+}
+
+.rt-table-row.rt-table-row-data-header:hover {
+    background-color: #e2e8f0;
+}
+
 /* Column Alignments */
 .rt-col-estimado,
 .rt-col-realizado {
@@ -271,11 +344,13 @@
     gap: 1rem;
     margin-bottom: 2rem;
     position: relative;
-    z-index: 10;
+    z-index: 60;
+    overflow: visible;
 }
 
 .toolbar-item {
     position: relative;
+    overflow: visible;
 }
 
 .toolbar-icon {
@@ -306,6 +381,152 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+/* Wrapper do ícone Responsável: ícone + badge ao lado (quantidade selecionada) */
+.toolbar-icon-wrap-responsavel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px 0 0;
+    min-height: 42px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.toolbar-icon-wrap-responsavel:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+
+.toolbar-icon-wrap-responsavel.active {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.toolbar-icon-wrap-responsavel .toolbar-icon {
+    margin: 0;
+    border: none;
+    box-shadow: none;
+}
+
+.toolbar-icon-wrap-responsavel .toolbar-icon:hover,
+.toolbar-icon-wrap-responsavel.active .toolbar-icon:hover {
+    background: transparent;
+    border-color: transparent;
+}
+
+.toolbar-icon-badge {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 22px;
+    color: #fff;
+    background: linear-gradient(135deg, #0e3b6f 0%, #1e5a9e 100%);
+    border-radius: 11px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.toolbar-icon-wrap-responsavel.active .toolbar-icon-badge {
+    background: linear-gradient(135deg, #1e5a9e 0%, #3b82f6 100%);
+}
+
+.responsavel-card-option-check {
+    margin-left: auto;
+    color: #0e3b6f;
+    font-size: 0.875rem;
+}
+
+/* View Switcher: Lista | Toggle | Planilha */
+.rt-view-switcher {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rt-view-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.rt-view-option:hover {
+    color: #334155;
+    background: #f8fafc;
+}
+
+.rt-view-option.active {
+    color: #0e3b6f;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.rt-view-option i {
+    font-size: 1rem;
+    opacity: 0.9;
+}
+
+.rt-view-toggle {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.rt-view-toggle input {
+    width: 44px;
+    height: 24px;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #cbd5e1;
+    border-radius: 12px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0;
+}
+
+.rt-view-toggle input:checked {
+    background-color: #0e3b6f;
+}
+
+.rt-view-toggle-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #fff;
+    transition: transform 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+.rt-view-toggle input:checked+.rt-view-toggle-slider {
+    transform: translateX(20px);
+}
+
 .toolbar-popover {
     position: absolute;
     top: calc(100% + 8px);
@@ -331,17 +552,19 @@
     }
 }
 
-/* Responsavel Card Dropdown */
+/* Responsavel Card Dropdown - sempre visível por cima do conteúdo */
 .responsavel-card-dropdown {
     position: absolute;
     top: calc(100% + 8px);
     left: 0;
     width: 280px;
+    min-height: 120px;
+    max-height: 90vh;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
     border: 1px solid #e2e8f0;
-    z-index: 50;
+    z-index: 200;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -466,4 +689,133 @@
     color: #94a3b8;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+/* Planilha estilo "Todas as planilhas" - por responsável + expandir detalhe */
+.rt-spreadsheet-by-responsavel .rt-planilha-th-pessoas {
+    min-width: 240px;
+}
+
+.rt-planilha-th-abrir {
+    min-width: 90px !important;
+}
+
+.rt-planilha-pessoa-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rt-planilha-avatar {
+    flex-shrink: 0;
+}
+
+.rt-planilha-pessoa-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.rt-planilha-pessoa-nome {
+    font-weight: 500;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rt-planilha-pessoa-total {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.rt-planilha-td-abrir {
+    vertical-align: middle;
+}
+
+.rt-planilha-abrir-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #0e3b6f;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.rt-planilha-abrir-btn:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+
+.rt-planilha-abrir-btn.expanded {
+    background: #0e3b6f;
+    color: #fff;
+    border-color: #0e3b6f;
+}
+
+.rt-planilha-tr-detalhe .planilha-horas-td {
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+}
+
+.rt-planilha-td-detalhe-label {
+    padding-left: 2.5rem !important;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.rt-planilha-detalhe-indent {
+    display: inline-block;
+    width: 1rem;
+}
+
+/* Linha de tarefa (sob cliente/produto no modo planilha) */
+.rt-planilha-tr-tarefa .planilha-horas-td {
+    background: #fafbfc;
+    border-top: 1px solid #f1f5f9;
+}
+
+.rt-planilha-td-tarefa-label {
+    padding-left: 3rem !important;
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+/* Botão expandir cliente/produto para ver tarefas */
+.rt-planilha-sub-abrir-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin: 0 2px 0 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    vertical-align: middle;
+}
+
+.rt-planilha-sub-abrir-btn:hover {
+    background: #e2e8f0;
+    color: #0e3b6f;
+}
+
+.rt-planilha-sub-abrir-btn i {
+    font-size: 0.7rem;
+}
+
+.rt-planilha-sub-count {
+    margin-left: 6px;
+    font-size: 0.75rem;
+    color: #94a3b8;
 }

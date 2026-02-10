@@ -399,6 +399,8 @@ async function listarConfiguracoesExistentes(req, res) {
 /**
  * Lista pendentes para aprovação (Apenas GESTOR)
  */
+const MAX_PENDENTES_APROVACAO = 1000;
+
 async function listarPendentesParaAprovacao(req, res) {
     try {
         const { data: pendentes, error } = await supabase
@@ -406,7 +408,8 @@ async function listarPendentesParaAprovacao(req, res) {
             .from('atribuicoes_pendentes')
             .select('*')
             .eq('status', 'PENDENTE')
-            .order('criado_em', { ascending: true });
+            .order('criado_em', { ascending: true })
+            .limit(MAX_PENDENTES_APROVACAO);
 
         if (error) throw error;
 
