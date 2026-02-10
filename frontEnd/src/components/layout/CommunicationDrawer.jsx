@@ -8,18 +8,26 @@ import './CommunicationDrawer.css';
 // ==============================================================================
 // === HELPER: Markdown <-> HTML Converter for Rich Editor ===
 // ==============================================================================
+
 // Dentro do chat/aviso/chamado: exibe foto/vídeo de verdade
+
+// Substitui imagem/vídeo por labels "(imagem)" e "(video)" sem exibir o link
+
 const markdownToHtml = (text) => {
     if (!text) return '';
     let html = text
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
         .replace(/\n/g, '<br>') // Lines
-        .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rich-media-img" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin: 5px 0;">') // Images
-        .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="rich-media-video" style="max-width: 100%; border-radius: 8px; margin: 5px 0;"></video>'); // Videos
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="media-label">(imagem)</a>') // Images
+        .replace(/\[video\]\((.*?)\)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="media-label">(video)</a>'); // Videos
     return html;
 };
 
+
 // Para previews/listas (fora do chat): troca por labels (imagem) (video)
+
+// Para previews/listas: troca markdown de mídia por labels sem link
+
 const conteudoParaPreview = (text) => {
     if (!text) return '';
     return String(text)
@@ -49,6 +57,15 @@ const htmlToMarkdown = (html) => {
     videos.forEach(vid => {
         const markdown = `[video](${vid.src})`;
         vid.replaceWith(document.createTextNode(markdown));
+    });
+
+    // Process media-label links (imagem)/(video) - converter de volta para markdown
+    const mediaLinks = temp.querySelectorAll('a.media-label');
+    mediaLinks.forEach(a => {
+        const href = a.getAttribute('href') || '';
+        const text = (a.textContent || '').trim();
+        const markdown = text === '(video)' ? `[video](${href})` : `![imagem](${href})`;
+        a.replaceWith(document.createTextNode(markdown));
     });
 
     // Process Line Breaks

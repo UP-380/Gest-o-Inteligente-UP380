@@ -106,6 +106,7 @@ router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKa
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 // IMPORTANTE: Rota genérica (listar) deve vir ANTES da específica (por ID)
 router.get('/api/clientes', requireAuth, clientesController.getClientes);
+router.post('/api/clientes', requireAuth, clientesController.criarCliente);
 router.get('/api/clientes/:id/custom-avatar-path', requireAuth, clientesController.getClienteCustomAvatarPath);
 router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId);
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
