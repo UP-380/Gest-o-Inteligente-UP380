@@ -274,6 +274,7 @@ router.post('/api/gestao-capacidade/cards/responsavel/detalhes', requireAuth, ge
 router.post('/api/gestao-capacidade/cards/cliente/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesCliente);
 router.post('/api/gestao-capacidade/cards/produto/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesProduto);
 router.post('/api/gestao-capacidade/cards/tarefa/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesTarefa);
+router.post('/api/gestao-capacidade/cards/tipo-tarefa/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesTipoTarefa);
 
 // Rotas de Banco (CRUD completo)
 router.get('/api/bancos', requireAuth, bancoController.getBancos);

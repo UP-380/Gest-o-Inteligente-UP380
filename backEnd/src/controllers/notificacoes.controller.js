@@ -3,6 +3,7 @@
 // =============================================================
 
 const supabase = require('../config/database');
+const { NOTIFICATION_TYPES } = require('../constants/notificationTypes');
 
 // Conexões SSE por usuário (userId -> Set de res) para push em tempo real
 const sseConnections = new Map();
@@ -256,7 +257,7 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
 
                 .from('notificacoes')
                 .insert(row)
-                .select('id')
+                .select('id, criado_em')
                 .maybeSingle();
 
             if (errInsert) {
@@ -264,7 +265,23 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
                 throw errInsert;
             }
             console.log('🔔 Notificação criada id=', inserted?.id, 'usuario_id=', uid);
-            notificarClienteSSE(uid, { type: 'notification' });
+
+            const isToastType = tipo === NOTIFICATION_TYPES.CHAT_MENSAGEM || tipo === NOTIFICATION_TYPES.CHAMADO_ATUALIZADO;
+            const ssePayload = isToastType && inserted
+                ? {
+                    type: 'notification',
+                    payload: {
+                        id: inserted.id,
+                        tipo,
+                        titulo: row.titulo,
+                        mensagem: row.mensagem,
+                        link: row.link,
+                        referencia_id: row.referencia_id,
+                        criado_em: inserted.criado_em || new Date().toISOString()
+                    }
+                }
+                : { type: 'notification' };
+            notificarClienteSSE(uid, ssePayload);
             return;
         }
 

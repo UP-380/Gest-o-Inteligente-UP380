@@ -46,6 +46,7 @@ const GestaoCapacidade = () => {
   const [filtros, setFiltros] = useState({
     produto: false,
     atividade: false,
+    tipoTarefa: false,
     cliente: false,
     responsavel: false
   });
@@ -67,6 +68,7 @@ const GestaoCapacidade = () => {
   const [filtroProdutoSelecionado, setFiltroProdutoSelecionado] = useState(null);
   const [filtroTarefaSelecionado, setFiltroTarefaSelecionado] = useState(null);
   const [filtroResponsavelSelecionado, setFiltroResponsavelSelecionado] = useState(null);
+  const [filtroTipoTarefaSelecionado, setFiltroTipoTarefaSelecionado] = useState(null);
   const [filtroStatusCliente, setFiltroStatusCliente] = useState('ativo');
 
   // Estados para filtros adicionais (que não são o filtro pai)
@@ -81,9 +83,10 @@ const GestaoCapacidade = () => {
   const [filtroAdicionalTarefa, setFiltroAdicionalTarefa] = useState(null);
   const [filtroAdicionalProduto, setFiltroAdicionalProduto] = useState(null);
 
-  // Estados para carregar dados de produtos e tarefas (globais)
+  // Estados para carregar dados de produtos, tarefas e tipos de tarefa (globais)
   const [produtos, setProdutos] = useState([]);
   const [tarefas, setTarefas] = useState([]);
+  const [tiposTarefa, setTiposTarefa] = useState([]);
 
   // Estados para opções filtradas de filtros adicionais (baseadas nos filtros já aplicados)
   const [opcoesFiltradasTarefas, setOpcoesFiltradasTarefas] = useState([]);
@@ -312,9 +315,10 @@ const GestaoCapacidade = () => {
 
   // Handler genérico para abrir card (EXATAMENTE como handleOpenContas)
   const handleOpenCard = async (entidade, tipo, e, buscarDetalhesFn) => {
-    console.log(`🖱️ [CLICK] Abrindo card de detalhes (${tipo}) para: ${entidade.nome} (ID: ${entidade.id})`);
+    console.log(`🖱️ [CLICK] Abrindo card de detalhes (${tipo}) para: ${entidade.nome} (ID: ${entidade.id}), filtroPrincipal: ${filtroPrincipal}`);
 
     if (e) {
+      e.preventDefault();
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
@@ -378,19 +382,85 @@ const GestaoCapacidade = () => {
         return base;
       });
       setDetailCard({
-        entidadeId: entidade.id,
+        entidadeId: String(entidade.id),
         tipo,
         dados: { registros, preloaded: true }
       });
       return;
     }
 
-    // Detalhes sob demanda: chamar endpoint /api/gestao-capacidade/cards/{tipo}/detalhes (tarefas, clientes, produtos, responsaveis)
+    // Detalhes sob demanda: mesmo endpoint e lógica para todos os agrupadores.
+    // Com agrupador Tipo de Tarefa: POST tipo-tarefa/detalhes com tipo_detalhe = tarefas | clientes | produtos | responsaveis.
     const tipoDetalheParaApi = ['tarefas', 'clientes', 'produtos', 'responsaveis'].includes(tipo) ? tipo : null;
-    if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim) {
+    if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim && filtroPrincipal === 'tipoTarefa') {
+      setDetailCard({
+        entidadeId: String(entidade.id),
+        tipo,
+        dados: { registros: [], loading: true }
+      });
+      try {
+        const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/tipo-tarefa/detalhes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            id: entidade.id,
+            data_inicio: filtrosUltimosAplicados.periodoInicio,
+            data_fim: filtrosUltimosAplicados.periodoFim,
+            considerar_finais_semana: !!filtrosUltimosAplicados.habilitarFinaisSemana,
+            considerar_feriados: !!filtrosUltimosAplicados.habilitarFeriados,
+            filtros_adicionais: (() => {
+              const fa = filtrosUltimosAplicados.filtrosAdicionais || {};
+              const toArr = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+              return { cliente_id: toArr(fa.cliente), produto_id: toArr(fa.produto), tarefa_id: toArr(fa.tarefa) };
+            })(),
+            tipo_detalhe: tipoDetalheParaApi
+          })
+        });
+        const result = await res.json();
+        const arr = result?.data ?? [];
+        const registros = Array.isArray(arr) ? arr.map(item => {
+          const base = {
+            id: item.id,
+            originalId: item.original_id ?? item.id,
+            nome: item.nome,
+            total_estimado_ms: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            total_realizado_ms: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            tempoEstimado: item.total_estimado_ms ?? item.tempoEstimado ?? 0,
+            tempoRealizado: item.total_realizado_ms ?? item.tempoRealizado ?? 0,
+            custo_estimado: item.custo_estimado ?? 0
+          };
+          if (tipoDetalheParaApi === 'tarefas' && item.clientes && Array.isArray(item.clientes)) {
+            base.clientes = item.clientes.map(c => ({
+              id: c.id,
+              cliente_id: c.cliente_id ?? c.id,
+              nome: c.nome,
+              tempoRealizado: c.total_realizado_ms ?? 0,
+              total_realizado_ms: c.total_realizado_ms ?? 0,
+              registros: []
+            }));
+          }
+          return base;
+        }) : [];
+        setCardsPorEntidade(prev => ({
+          ...prev,
+          [String(entidade.id)]: {
+            ...prev[String(entidade.id)],
+            detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: arr }
+          }
+        }));
+        setDetailCard(prev => prev && String(prev.entidadeId) === String(entidade.id) ? { ...prev, dados: { registros, preloaded: true } } : prev);
+      } catch (err) {
+        console.error('Erro ao buscar detalhes do card (tipo-tarefa):', err);
+        setDetailCard(prev => prev && String(prev.entidadeId) === String(entidade.id) ? { ...prev, dados: { registros: [], loading: false } } : prev);
+      }
+      return;
+    }
+
+    if (tipoDetalheParaApi && filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim && filtroPrincipal !== 'tipoTarefa') {
       const endpointTipo = filtroPrincipal === 'atividade' ? 'tarefa' : filtroPrincipal;
       setDetailCard({
-        entidadeId: entidade.id,
+        entidadeId: String(entidade.id),
         tipo,
         dados: { registros: [], loading: true }
       });
@@ -446,15 +516,19 @@ const GestaoCapacidade = () => {
             detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: arr }
           }
         }));
-        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros, preloaded: true } } : prev);
+        setDetailCard(prev => prev && String(prev.entidadeId) === String(entidade.id) ? { ...prev, dados: { registros, preloaded: true } } : prev);
       } catch (err) {
         console.error('Erro ao buscar detalhes do card:', err);
-        setDetailCard(prev => prev && prev.entidadeId === entidade.id ? { ...prev, dados: { registros: [], loading: false } } : prev);
+        setDetailCard(prev => prev && String(prev.entidadeId) === String(entidade.id) ? { ...prev, dados: { registros: [], loading: false } } : prev);
       }
       return;
     }
 
     // Fallback: garantir que os detalhes das regras relacionadas estejam explodidos
+    // Mesma lógica dos outros detalhes: só carregar o que for necessário ao abrir. Para "Tipos de Tarefa", a lista de nomes (tiposTarefa) é carregada aqui sob demanda, não ao mudar o agrupador.
+    if (tipo === 'tipos_tarefa' && tiposTarefa.length === 0) {
+      loadTiposTarefa();
+    }
     // Filtrar agrupamentos que pertencem a esta entidade
     const agrupamentosRelacionados = registrosAgrupados.filter(agr => {
       const p = agr.primeiroRegistro;
@@ -465,6 +539,7 @@ const GestaoCapacidade = () => {
       }
       if (filtroPrincipal === 'produto') return String(p.produto_id) === String(entidade.id);
       if (filtroPrincipal === 'atividade') return String(p.tarefa_id) === String(entidade.id);
+      if (filtroPrincipal === 'tipoTarefa') return (agr.regras || [p]).some(r => r && String(r.tipo_tarefa_id) === String(entidade.id));
       return false;
     });
 
@@ -482,17 +557,38 @@ const GestaoCapacidade = () => {
     // Isso resolve a sensação de "travamento" ao clicar
 
     // Tentar buscar detalhes iniciais (se já existirem)
-    const detalhesIniciais = buscarDetalhesFn(entidade.id, filtroPrincipal, registrosAgrupados);
+    let detalhesIniciais = [];
+    try {
+      detalhesIniciais = buscarDetalhesFn(entidade.id, filtroPrincipal, registrosAgrupados) || [];
+      // Garantir que é um array
+      if (!Array.isArray(detalhesIniciais)) {
+        detalhesIniciais = [];
+      }
+    } catch (err) {
+      console.error('Erro ao buscar detalhes iniciais:', err);
+      detalhesIniciais = [];
+    }
 
-    // Abrir card já
+    // Abrir card já (mesmo padrão dos outros detalhes: abrir com dados iniciais e, se houver explosão, loading até concluir)
     setDetailCard({
-      entidadeId: entidade.id,
+      entidadeId: String(entidade.id),
       tipo: tipo,
       dados: {
-        registros: detalhesIniciais || [],
+        registros: detalhesIniciais,
         loading: promessasExplosao.length > 0 // Flag para mostrar spinner no card se necessário
       }
     });
+
+    // Seguir o mesmo padrão dos outros detalhes: cachear no cardsPorEntidade para próxima abertura usar listaPreloaded
+    if (tipo === 'tipos_tarefa' && Array.isArray(detalhesIniciais)) {
+      setCardsPorEntidade(prev => ({
+        ...prev,
+        [String(entidade.id)]: {
+          ...prev[String(entidade.id)],
+          detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: detalhesIniciais }
+        }
+      }));
+    }
 
     if (promessasExplosao.length > 0) {
       console.log(`⚡ [HANDLE-OPEN-CARD] Explodindo ${promessasExplosao.length} grupo(s) de dados em background...`);
@@ -535,11 +631,21 @@ const GestaoCapacidade = () => {
             // Mas como setDetailCard é local, fazemos update manual aqui
 
             // Recalcular detalhes COM OS DADOS FRESCOS QUE ACABAMOS DE CRIAR (novoArray)
-            const detalhesFrescos = buscarDetalhesFn(entidade.id, filtroPrincipal, novoArray);
+            let detalhesFrescos = [];
+            try {
+              detalhesFrescos = buscarDetalhesFn(entidade.id, filtroPrincipal, novoArray) || [];
+              // Garantir que é um array
+              if (!Array.isArray(detalhesFrescos)) {
+                detalhesFrescos = [];
+              }
+            } catch (err) {
+              console.error('Erro ao recalcular detalhes frescos:', err);
+              detalhesFrescos = [];
+            }
 
             setDetailCard(prevCard => {
-              // Só atualiza se o card ainda estiver aberto no mesmo ID
-              if (prevCard && prevCard.entidadeId === entidade.id) {
+              // Só atualiza se o card ainda estiver aberto no mesmo ID (comparação normalizada)
+              if (prevCard && String(prevCard.entidadeId) === String(entidade.id)) {
                 return {
                   ...prevCard,
                   dados: {
@@ -550,6 +656,17 @@ const GestaoCapacidade = () => {
               }
               return prevCard;
             });
+
+            // Atualizar cache de detalhes (mesmo padrão: ao obter dados frescos, guardar para próxima abertura)
+            if (tipo === 'tipos_tarefa' && Array.isArray(detalhesFrescos)) {
+              setCardsPorEntidade(prev => ({
+                ...prev,
+                [String(entidade.id)]: {
+                  ...prev[String(entidade.id)],
+                  detalhes: { ...(prev[String(entidade.id)]?.detalhes || {}), [tipo]: detalhesFrescos }
+                }
+              }));
+            }
 
             return novoArray;
           }
@@ -640,6 +757,7 @@ const GestaoCapacidade = () => {
       }
       if (tipoEntidade === 'produto') return String(primeiroRegistro.produto_id) === String(entidadeId);
       if (tipoEntidade === 'atividade') return String(primeiroRegistro.tarefa_id) === String(entidadeId);
+      if (tipoEntidade === 'tipoTarefa') return (agr.regras || [primeiroRegistro]).some(r => r && String(r.tipo_tarefa_id) === String(entidadeId));
       return false;
     });
 
@@ -647,6 +765,7 @@ const GestaoCapacidade = () => {
     const produtosUnicos = new Set();
     const clientesUnicos = new Set();
     const responsaveisUnicos = new Set();
+    const tiposTarefaUnicos = new Set();
 
     const filtrosAds = filtrosUltimosAplicados?.filtrosAdicionais || {};
     const fCliente = filtrosAds.cliente || filtroAdicionalCliente;
@@ -683,20 +802,29 @@ const GestaoCapacidade = () => {
           } else if (tipoEntidade === 'responsavel') pertence = String(reg.responsavel_id) === String(entidadeId);
           else if (tipoEntidade === 'produto') pertence = String(reg.produto_id) === String(entidadeId);
           else if (tipoEntidade === 'atividade') pertence = String(reg.tarefa_id) === String(entidadeId);
+          else if (tipoEntidade === 'tipoTarefa') pertence = String(reg.tipo_tarefa_id) === String(entidadeId);
 
           if (pertence) {
-            if (reg.tarefa_id) tarefasUnicas.add(`${reg.tarefa_id}_${reg.cliente_id || 'sem_cliente'}_${reg.produto_id || 'sem_produto'}`);
+            // Para tipoTarefa: contar apenas tarefa_id único (não combinação tarefa+cliente+produto)
+            if (reg.tarefa_id) {
+              if (tipoEntidade === 'tipoTarefa') {
+                tarefasUnicas.add(String(reg.tarefa_id));
+              } else {
+                tarefasUnicas.add(`${reg.tarefa_id}_${reg.cliente_id || 'sem_cliente'}_${reg.produto_id || 'sem_produto'}`);
+              }
+            }
             if (reg.produto_id) produtosUnicos.add(String(reg.produto_id));
             if (reg.cliente_id) {
               String(reg.cliente_id || '').split(',').map(id => id.trim()).filter(id => id.length > 0).forEach(id => clientesUnicos.add(id));
             }
             if (reg.responsavel_id) responsaveisUnicos.add(String(reg.responsavel_id));
+            if (reg.tipo_tarefa_id != null) tiposTarefaUnicos.add(String(reg.tipo_tarefa_id));
           }
         }
       });
     });
 
-    return { totalTarefas: tarefasUnicas.size, totalProdutos: produtosUnicos.size, totalClientes: clientesUnicos.size, totalResponsaveis: responsaveisUnicos.size };
+    return { totalTarefas: tarefasUnicas.size, totalProdutos: produtosUnicos.size, totalClientes: clientesUnicos.size, totalResponsaveis: responsaveisUnicos.size, totalTiposTarefa: tiposTarefaUnicos.size };
   }, [filtrosUltimosAplicados, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto, isDataNoPeriodoAplicado]);
 
   // Função para buscar detalhes por tipo
@@ -710,15 +838,17 @@ const GestaoCapacidade = () => {
       }
       if (tipoEntidade === 'produto') return String(p.produto_id) === String(entidadeId);
       if (tipoEntidade === 'atividade') return String(p.tarefa_id) === String(entidadeId);
+      if (tipoEntidade === 'tipoTarefa') return (agr.regras || [p]).some(r => r && String(r.tipo_tarefa_id) === String(entidadeId));
       return false;
     });
 
     if (tipoDetalhe === 'tarefas') {
       const tarefasMap = new Map();
       agrupamentosFiltrados.forEach(agr => {
-        const regs = (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim)
-          ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data))
-          : agr.registros;
+        let regs = (agr.registros && agr.registros.length > 0)
+          ? (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data)) : agr.registros)
+          : (agr.regras || []);
+        if (tipoEntidade === 'tipoTarefa') regs = regs.filter(reg => reg && String(reg.tipo_tarefa_id) === String(entidadeId));
 
         regs.forEach(reg => {
           if (!reg.tarefa_id) return;
@@ -746,9 +876,10 @@ const GestaoCapacidade = () => {
     if (tipoDetalhe === 'clientes') {
       const clientesMap = new Map();
       agrupamentosFiltrados.forEach(agr => {
-        const regs = (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim)
-          ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data))
-          : agr.registros;
+        let regs = (agr.registros && agr.registros.length > 0)
+          ? (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data)) : agr.registros)
+          : (agr.regras || []);
+        if (tipoEntidade === 'tipoTarefa') regs = regs.filter(reg => reg && String(reg.tipo_tarefa_id) === String(entidadeId));
 
         regs.forEach(reg => {
           if (!reg.cliente_id) return;
@@ -783,9 +914,10 @@ const GestaoCapacidade = () => {
       const produtosMap = new Map();
       const isFiltroPaiCliente = tipoEntidade === 'cliente';
       agrupamentosFiltrados.forEach(agr => {
-        const regs = (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim)
-          ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data))
-          : agr.registros;
+        let regs = (agr.registros && agr.registros.length > 0)
+          ? (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data)) : agr.registros)
+          : (agr.regras || []);
+        if (tipoEntidade === 'tipoTarefa') regs = regs.filter(reg => reg && String(reg.tipo_tarefa_id) === String(entidadeId));
         regs.forEach(reg => {
           if (!reg.produto_id) return;
           if (isFiltroPaiCliente) {
@@ -841,9 +973,10 @@ const GestaoCapacidade = () => {
       const respMap = new Map();
       const isFiltroPaiCliente = tipoEntidade === 'cliente';
       agrupamentosFiltrados.forEach(agr => {
-        const regs = (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim)
-          ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data))
-          : agr.registros;
+        let regs = (agr.registros && agr.registros.length > 0)
+          ? (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data)) : agr.registros)
+          : (agr.regras || []);
+        if (tipoEntidade === 'tipoTarefa') regs = regs.filter(reg => reg && String(reg.tipo_tarefa_id) === String(entidadeId));
         regs.forEach(reg => {
           if (!reg.responsavel_id) return;
           if (isFiltroPaiCliente) {
@@ -906,8 +1039,30 @@ const GestaoCapacidade = () => {
         }))
       }));
     }
+
+    if (tipoDetalhe === 'tiposTarefa') {
+      const tiposMap = new Map();
+      agrupamentosFiltrados.forEach(agr => {
+        let regs = (agr.registros && agr.registros.length > 0)
+          ? (filtrosUltimosAplicados?.periodoInicio && filtrosUltimosAplicados?.periodoFim ? agr.registros.filter(reg => isDataNoPeriodoAplicado(reg.data)) : agr.registros)
+          : (agr.regras || []);
+        regs.forEach(reg => {
+          const tipoId = reg.tipo_tarefa_id != null ? String(reg.tipo_tarefa_id) : null;
+          if (!tipoId) return;
+          const tipoNome = (tiposTarefa || []).find(t => String(t.id) === tipoId)?.nome || `Tipo #${tipoId}`;
+          if (!tiposMap.has(tipoId)) {
+            tiposMap.set(tipoId, { id: tipoId, nome: tipoNome, tempoEstimado: 0, tempoRealizado: 0, registros: [] });
+          }
+          const tipo = tiposMap.get(tipoId);
+          const tEstimado = reg.tempo_estimado_dia || agr.primeiroRegistro?.tempo_estimado_dia || 0;
+          tipo.tempoEstimado += Number(tEstimado) || 0;
+          tipo.registros.push({ ...reg, tempoRealizado: 0 });
+        });
+      });
+      return Array.from(tiposMap.values());
+    }
     return [];
-  }, [filtrosUltimosAplicados, isDataNoPeriodoAplicado]);
+  }, [filtrosUltimosAplicados, isDataNoPeriodoAplicado, tiposTarefa]);
 
   // Função para calcular tempo por entidade
   // Helper para converter HH:mm:ss para ms (Seguro para números e strings)
@@ -937,6 +1092,7 @@ const GestaoCapacidade = () => {
       }
       if (tipoEntidade === 'produto') return String(p.produto_id) === String(entidadeId);
       if (tipoEntidade === 'atividade') return String(p.tarefa_id) === String(entidadeId);
+      if (tipoEntidade === 'tipoTarefa') return (agr.regras || [p]).some(r => r && String(r.tipo_tarefa_id) === String(entidadeId));
       return false;
     });
 
@@ -995,6 +1151,8 @@ const GestaoCapacidade = () => {
             const cids = String(reg.cliente_id || '').split(',').map(id => id.trim());
             return cids.includes(String(entidadeId));
           });
+        } else if (tipoEntidade === 'tipoTarefa') {
+          regsFiltrados = regs.filter(reg => String(reg.tipo_tarefa_id) === String(entidadeId));
         }
 
         return acc + regsFiltrados.reduce((sum, reg) => {
@@ -1161,7 +1319,26 @@ const GestaoCapacidade = () => {
     }
   };
 
-
+  const loadTiposTarefa = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tipo-tarefa?limit=1000`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const tiposComDados = (result.data || []).map(t => ({
+            id: t.id,
+            nome: t.nome || `Tipo #${t.id}`
+          }));
+          setTiposTarefa(tiposComDados);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tipos de tarefa:', error);
+    }
+  };
 
   // Função genérica para buscar opções filtradas de QUALQUER filtro (pai ou adicional)
   // Considera TODOS os filtros já ativos, independente da ordem
@@ -1425,12 +1602,17 @@ const GestaoCapacidade = () => {
 
   useEffect(() => {
     // Carregar lista de tarefas quando filtro adicional atividade OU quando agrupamento principal é Por Atividade (para nomes nos cards)
-    if ((filtros.atividade || filtroPrincipal === 'atividade') && tarefas.length === 0) {
+    if ((filtros.atividade || filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && tarefas.length === 0) {
       loadTarefas();
     }
   }, [filtros.atividade, filtroPrincipal, tarefas.length]);
 
-
+  // Lista de tipos de tarefa: carregar só quando o filtro "Definir Tipo de Tarefa" está ativo (dropdown). Detalhes de "Tipos de Tarefa" seguem a mesma lógica dos outros: carregar apenas ao abrir o painel (em handleOpenCard).
+  useEffect(() => {
+    if (filtros.tipoTarefa && tiposTarefa.length === 0) {
+      loadTiposTarefa();
+    }
+  }, [filtros.tipoTarefa]);
 
   // Ref para debounce de busca de opções contextuais
   const debouncedBuscarOpcoesRef = useRef(null);
@@ -2505,6 +2687,7 @@ const GestaoCapacidade = () => {
                 cliente_id: regra.cliente_id,
                 produto_id: regra.produto_id,
                 tarefa_id: regra.tarefa_id,
+                tipo_tarefa_id: regra.tipo_tarefa_id ?? grupo.primeiroRegistro?.tipo_tarefa_id,
                 responsavel_id: regra.responsavel_id,
                 data: dataStr.includes('T') ? dataStr : `${dataStr}T00:00:00`,
                 tempo_estimado_dia: regra.tempo_estimado_dia,
@@ -2596,12 +2779,50 @@ const GestaoCapacidade = () => {
       };
 
       // Usar valores selecionados passados como parâmetro, ou os estados atuais
-      const valoresAUsar = valoresSelecionados || {
+      const valoresAUsar = valoresSelecionados ? { ...valoresSelecionados } : {
         cliente: filtroClienteSelecionado,
         produto: filtroProdutoSelecionado,
         tarefa: filtroTarefaSelecionado,
+        tipoTarefaId: filtroTipoTarefaSelecionado,
         responsavel: filtroResponsavelSelecionado
       };
+
+      // Resolver "Tipo de Tarefa" em lista de tarefa_id apenas quando um tipo foi selecionado
+      // Se nenhum tipo for selecionado, não filtramos por tarefa (mostra todos os dados)
+      if (filtrosAUsar.tipoTarefa && valoresAUsar.tipoTarefaId) {
+        try {
+          const tipoId = valoresAUsar.tipoTarefaId;
+          const resVinculados = await fetch(`${API_BASE_URL}/vinculados?tarefa_tipo_id=${tipoId}&limit=all`, {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+            signal: abortController.signal
+          });
+          if (resVinculados.ok) {
+            const jsonVinculados = await resVinculados.json();
+            const lista = jsonVinculados.data || jsonVinculados.vinculados || [];
+            const tarefaIdsUnicos = [...new Set(lista.map(v => v.tarefa_id ?? v.cp_tarefa).filter(Boolean))];
+            valoresAUsar.tarefa = tarefaIdsUnicos;
+            if (tarefaIdsUnicos.length === 0) {
+              console.warn(`⚠️ [TIPO-TAREFA] Nenhuma tarefa encontrada para o tipo ${tipoId}`);
+              setRegistrosAgrupados([]);
+              setTotalRegistros(0);
+              setTotalPages(1);
+              setDadosAuxiliaresCarregados(true);
+              // O finally sempre executa mesmo com return, então o loading será resetado corretamente
+              return;
+            }
+          } else {
+            valoresAUsar.tarefa = [];
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') showToast('error', 'Erro ao buscar tarefas do tipo selecionado');
+          valoresAUsar.tarefa = [];
+        }
+        delete valoresAUsar.tipoTarefaId;
+      } else if (filtrosAUsar.tipoTarefa && !valoresAUsar.tipoTarefaId) {
+        // Tipo de Tarefa ativo sem tipo selecionado: não filtrar por tarefa (mostrar todos)
+        delete valoresAUsar.tipoTarefaId;
+      }
 
       // DEBUG: Log dos parâmetros
       console.log('🔵 [LOAD-REGISTROS-TEMPO-ESTIMADO] Parâmetros:', {
@@ -2638,6 +2859,14 @@ const GestaoCapacidade = () => {
           if (valoresAUsar.tarefa) {
             const tarefaIds = Array.isArray(valoresAUsar.tarefa) ? valoresAUsar.tarefa : [valoresAUsar.tarefa];
             tarefaIds.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+          }
+        }
+        if (filtrosAUsar.tipoTarefa) {
+          p.append('filtro_atividade', 'true');
+          if (valoresAUsar.tarefa && Array.isArray(valoresAUsar.tarefa) && valoresAUsar.tarefa.length > 0) {
+            valoresAUsar.tarefa.forEach(id => { if (id) p.append('tarefa_id', String(id).trim()); });
+          } else if (valoresAUsar.tarefa && !Array.isArray(valoresAUsar.tarefa)) {
+            p.append('tarefa_id', String(valoresAUsar.tarefa).trim());
           }
         }
         if (filtrosAUsar.cliente) {
@@ -2680,7 +2909,14 @@ const GestaoCapacidade = () => {
         const arr = (v) => (Array.isArray(v) ? v : (v != null ? [v] : []));
         const merge = (a, b) => [...arr(a).map(String).filter(Boolean), ...arr(b).map(String).filter(Boolean)];
         if (filtrosAUsar.produto && valoresAUsar.produto) pl.produto_id = merge(valoresAUsar.produto, filtrosAdicionaisAUsar.produto);
-        if (filtrosAUsar.atividade && valoresAUsar.tarefa) pl.tarefa_id = merge(valoresAUsar.tarefa, filtrosAdicionaisAUsar.tarefa);
+        if (filtrosAUsar.atividade && valoresAUsar.tarefa) {
+          const tarefaIds = merge(valoresAUsar.tarefa, filtrosAdicionaisAUsar.tarefa);
+          if (tarefaIds.length > 0) pl.tarefa_id = tarefaIds;
+        }
+        if (filtrosAUsar.tipoTarefa && valoresAUsar.tarefa) {
+          const tarefaIds = merge(valoresAUsar.tarefa, filtrosAdicionaisAUsar.tarefa);
+          if (tarefaIds.length > 0) pl.tarefa_id = tarefaIds;
+        }
         if (filtrosAUsar.cliente && valoresAUsar.cliente) pl.cliente_id = merge(valoresAUsar.cliente, filtrosAdicionaisAUsar.cliente);
         if (filtrosAUsar.responsavel && valoresAUsar.responsavel) pl.responsavel_id = arr(valoresAUsar.responsavel).map(String).filter(Boolean);
         if (filtrosAdicionaisAUsar.cliente && !pl.cliente_id) pl.cliente_id = arr(filtrosAdicionaisAUsar.cliente).map(String).filter(Boolean);
@@ -2848,7 +3084,7 @@ const GestaoCapacidade = () => {
             let tipo = 'responsavel';
             if (filtrosAUsar.responsavel) tipo = 'responsavel';
             else if (filtrosAUsar.cliente) tipo = 'cliente';
-            else if (filtrosAUsar.atividade) tipo = 'atividade';
+            else if (filtrosAUsar.atividade || filtrosAUsar.tipoTarefa) tipo = 'atividade';
             else if (filtrosAUsar.produto) tipo = 'produto';
 
             const obterIds = () => {
@@ -2859,13 +3095,35 @@ const GestaoCapacidade = () => {
               return [];
             };
 
-            const ids = obterIds();
+            // Quando filtro é Tipo de Tarefa: mapa tipo_tarefa_id -> Set de tarefa_ids (para agregar resposta por tipo)
+            let tipoParaTarefas = null;
+            if (filtrosAUsar.tipoTarefa) {
+              tipoParaTarefas = new Map();
+              novosAgrupamentos.forEach(agr => {
+                (agr.regras || []).forEach(regra => {
+                  const tipoId = regra.tipo_tarefa_id != null ? String(regra.tipo_tarefa_id) : null;
+                  if (!tipoId || !regra.tarefa_id) return;
+                  if (!tipoParaTarefas.has(tipoId)) tipoParaTarefas.set(tipoId, new Set());
+                  tipoParaTarefas.get(tipoId).add(String(regra.tarefa_id));
+                });
+              });
+            }
+
+            let ids = obterIds();
+            // Para tipo de tarefa: enviar à API todos os tarefa_ids (agregação por tipo é feita no front após resposta)
+            if (filtrosAUsar.tipoTarefa && tipoParaTarefas && tipoParaTarefas.size > 0) {
+              ids = [...new Set([].concat(...[...tipoParaTarefas.values()].map(s => [...s])))];
+            } else if (filtrosAUsar.tipoTarefa && (!tipoParaTarefas || tipoParaTarefas.size === 0)) {
+              ids = [];
+            }
             if (ids.length === 0) {
               setDadosAuxiliaresCarregados(true);
               return;
             }
 
             const endpointTipo = tipo === 'atividade' ? 'tarefa' : tipo;
+            // Chave para estado deve bater com filtroPrincipal no render (tipoTarefa vs atividade)
+            const chaveTipoParaEstado = filtrosAUsar.tipoTarefa ? 'tipoTarefa' : tipo;
             const payload = {
               ids,
               data_inicio: periodoAUsar.inicio,
@@ -2880,23 +3138,128 @@ const GestaoCapacidade = () => {
               incluir_detalhes: false
             };
 
+            // Função auxiliar para preencher fallback (dados zerados) quando a API falha ou demora
+            const idsParaFallback = (filtrosAUsar.tipoTarefa && tipoParaTarefas && tipoParaTarefas.size > 0)
+              ? [...tipoParaTarefas.keys()]
+              : ids;
+            const preencherFallback = () => {
+              console.warn(`⚠️ [CARDS-GESTAO-CAPACIDADE] Preenchendo fallback para ${idsParaFallback.length} entidades (chave=${chaveTipoParaEstado})`);
+              const chaveRealizado = (id) => `${chaveTipoParaEstado}_${String(id)}`;
+              
+              // Preencher temposRealizadosPorEntidade com valores zerados
+              setTemposRealizadosPorEntidade(prev => {
+                const next = { ...prev };
+                idsParaFallback.forEach(id => {
+                  next[chaveRealizado(id)] = { realizado: 0, pendente: 0 };
+                });
+                return next;
+              });
+
+              // Preencher cardsPorEntidade com objetos zerados
+              const cardsFallback = {};
+              idsParaFallback.forEach(id => {
+                cardsFallback[String(id)] = {
+                  total_estimado_ms: 0,
+                  total_realizado_ms: 0,
+                  total_tarefas: 0,
+                  total_clientes: 0,
+                  total_produtos: 0,
+                  total_responsaveis: 0
+                };
+              });
+              setCardsPorEntidade(cardsFallback);
+
+              // Para responsável, também preencher outros estados
+              if (tipo === 'responsavel') {
+                setTempoEstimadoTotalPorResponsavel(prev => {
+                  const next = { ...prev };
+                  ids.forEach(id => {
+                    next[String(id)] = 0;
+                  });
+                  return next;
+                });
+              }
+
+              setDadosAuxiliaresCarregados(true);
+            };
+
+            console.log(`🔄 [CARDS-GESTAO-CAPACIDADE] Carregando cards para tipo=${tipo}, endpoint=${endpointTipo}, ids=${ids.length}`);
+
+            // Criar AbortController para timeout
+            const abortControllerCards = new AbortController();
+            const TIMEOUT_MS = 30000; // 30 segundos
+            const timeoutId = setTimeout(() => {
+              console.warn(`⏱️ [CARDS-GESTAO-CAPACIDADE] Timeout após ${TIMEOUT_MS}ms, abortando requisição`);
+              abortControllerCards.abort();
+            }, TIMEOUT_MS);
+
             try {
               const res = await fetch(`${API_BASE_URL}/gestao-capacidade/cards/${endpointTipo}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: abortControllerCards.signal
               });
-              const result = await res.json();
-              if (!result.success || !result.data) {
-                setDadosAuxiliaresCarregados(true);
+
+              clearTimeout(timeoutId);
+
+              if (!res.ok) {
+                console.error(`❌ [CARDS-GESTAO-CAPACIDADE] Resposta não-ok: ${res.status} ${res.statusText}`);
+                preencherFallback();
+                showToast('warning', 'Erro ao carregar métricas. Exibindo valores zerados.');
                 return;
               }
-              const data = result.data;
+
+              const result = await res.json();
+              if (!result.success || !result.data) {
+                console.warn(`⚠️ [CARDS-GESTAO-CAPACIDADE] Resposta sem dados válidos: success=${result.success}`);
+                preencherFallback();
+                return;
+              }
+
+              let data = result.data;
+              // Quando filtro é Tipo de Tarefa: agregar por tipo_tarefa_id (um card por tipo, com totais e contagens)
+              if (filtrosAUsar.tipoTarefa && tipoParaTarefas && tipoParaTarefas.size > 0) {
+                const aggregated = {};
+                tipoParaTarefas.forEach((tarefasSet, tipoId) => {
+                  aggregated[tipoId] = {
+                    total_estimado_ms: 0,
+                    total_realizado_ms: 0,
+                    total_tarefas: tarefasSet.size, // Contar tarefas únicas por tipo (não somar card.total_tarefas)
+                    total_clientes: 0,
+                    total_produtos: 0,
+                    total_responsaveis: 0
+                  };
+                  // Para clientes, produtos e responsáveis: usar máximo entre os cards (aproximação)
+                  // O cálculo correto será feito por calcularEstatisticasPorEntidade quando necessário
+                  let maxClientes = 0;
+                  let maxProdutos = 0;
+                  let maxResponsaveis = 0;
+                  tarefasSet.forEach(tid => {
+                    const card = data[tid];
+                    if (card) {
+                      aggregated[tipoId].total_estimado_ms += card.total_estimado_ms ?? 0;
+                      aggregated[tipoId].total_realizado_ms += card.total_realizado_ms ?? 0;
+                      // Usar máximo para aproximação (calcularEstatisticasPorEntidade fará o cálculo correto)
+                      maxClientes = Math.max(maxClientes, card.total_clientes ?? 0);
+                      maxProdutos = Math.max(maxProdutos, card.total_produtos ?? 0);
+                      maxResponsaveis = Math.max(maxResponsaveis, card.total_responsaveis ?? 0);
+                    }
+                  });
+                  aggregated[tipoId].total_clientes = maxClientes;
+                  aggregated[tipoId].total_produtos = maxProdutos;
+                  aggregated[tipoId].total_responsaveis = maxResponsaveis;
+                });
+                data = aggregated;
+                console.log(`✅ [CARDS-GESTAO-CAPACIDADE] Cards agregados por tipo de tarefa: ${Object.keys(data).length} tipos`);
+              } else {
+                console.log(`✅ [CARDS-GESTAO-CAPACIDADE] Cards carregados com sucesso: ${Object.keys(data).length} entidades`);
+              }
 
               setCardsPorEntidade(data);
 
-              const chaveRealizado = (id) => `${tipo}_${String(id)}`;
+              const chaveRealizado = (id) => `${chaveTipoParaEstado}_${String(id)}`;
               setTempoEstimadoTotalPorResponsavel(prev => {
                 const next = { ...prev };
                 Object.keys(data).forEach(id => {
@@ -2945,8 +3308,17 @@ const GestaoCapacidade = () => {
 
               setDadosAuxiliaresCarregados(true);
             } catch (err) {
-              console.error('Erro ao carregar cards gestão capacidade:', err);
-              setDadosAuxiliaresCarregados(true);
+              clearTimeout(timeoutId);
+              
+              if (err.name === 'AbortError') {
+                console.warn(`⏱️ [CARDS-GESTAO-CAPACIDADE] Requisição abortada (timeout ou cancelamento)`);
+                preencherFallback();
+                showToast('warning', 'Timeout ao carregar métricas. Exibindo valores zerados.');
+              } else {
+                console.error('❌ [CARDS-GESTAO-CAPACIDADE] Erro ao carregar cards gestão capacidade:', err);
+                preencherFallback();
+                showToast('warning', 'Erro ao carregar métricas. Exibindo valores zerados.');
+              }
             }
           };
 
@@ -2961,20 +3333,18 @@ const GestaoCapacidade = () => {
     } catch (error) {
       if (error.name === 'AbortError') {
         console.log('🔇 [LOAD] Requisição cancelada (AbortError)');
-        return; // Não fazer nada, apenas sair silenciosamente
+        // Não fazer nada, apenas sair silenciosamente
+        // O finally ainda será executado para resetar o loading
+      } else {
+        console.error('Erro ao carregar registros:', error);
+        showToast('error', 'Erro ao carregar registros de tempo estimado');
+        setDadosAuxiliaresCarregados(true);
       }
-      console.error('Erro ao carregar registros:', error);
-      showToast('error', 'Erro ao carregar registros de tempo estimado');
-      setDadosAuxiliaresCarregados(true);
     } finally {
-      // Só desliga o loading se não foi abortado (ou se chegamos aqui após um request completo)
-      // Se tivéssemos um check mais robusto de qual request é o "ativo", seria ideal.
-      // O AbortController garante que requests velhos morrem, mas o loading pode ficar "piscando" se não cuidarmos.
-      // Com o loadingRef, podemos garantir que desligamos apenas se formos o "dono" do lock? 
-      // Não exatamente, pois o ref é compartilhado.
-
-      // Simplificação: Se abortado, não desliga loading (pois o próximo request o manterá ligado)
-      if (!abortController.signal.aborted) {
+      // Sempre desligar o loading no finally, mesmo se foi abortado
+      // O AbortController garante que requests velhos morrem, mas precisamos resetar o loading
+      // para evitar que fique travado se a requisição foi cancelada
+      if (!abortController.signal.aborted || loadingRef.current) {
         setLoading(false);
         loadingRef.current = false;
       }
@@ -3620,7 +3990,7 @@ const GestaoCapacidade = () => {
           return clienteIds.includes(String(entidadeId));
         } else if (filtroPrincipal === 'produto') {
           return String(primeiroRegistro.produto_id) === String(entidadeId);
-        } else if (filtroPrincipal === 'atividade') {
+        } else if (filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') {
           return String(primeiroRegistro.tarefa_id) === String(entidadeId);
         }
         return false;
@@ -4017,6 +4387,7 @@ const GestaoCapacidade = () => {
     const filtrosLimpos = {
       produto: false,
       atividade: false,
+      tipoTarefa: false,
       cliente: false,
       responsavel: false
     };
@@ -4030,6 +4401,7 @@ const GestaoCapacidade = () => {
     setFiltroClienteSelecionado(null);
     setFiltroProdutoSelecionado(null);
     setFiltroTarefaSelecionado(null);
+    setFiltroTipoTarefaSelecionado(null);
     setFiltroResponsavelSelecionado(null);
 
     setFiltroStatusCliente('ativo'); // Resetar para valor padrão
@@ -4063,7 +4435,7 @@ const GestaoCapacidade = () => {
       // Período não conta como mudança pendente se não estiver completo
       // Valores selecionados (filtros "Definir") não contam como mudança pendente
       // pois eles só fazem sentido quando há filtros aplicados
-      const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+      const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.cliente || filtros.responsavel;
       const temPeriodoCompleto = periodoInicio && periodoFim;
       return temFiltroAtivo || temPeriodoCompleto;
     }
@@ -4071,6 +4443,7 @@ const GestaoCapacidade = () => {
     const filtrosMudaram = (
       filtros.produto !== filtrosUltimosAplicados.produto ||
       filtros.atividade !== filtrosUltimosAplicados.atividade ||
+      filtros.tipoTarefa !== filtrosUltimosAplicados.tipoTarefa ||
       filtros.cliente !== filtrosUltimosAplicados.cliente ||
       filtros.responsavel !== filtrosUltimosAplicados.responsavel
     );
@@ -4105,6 +4478,7 @@ const GestaoCapacidade = () => {
       const novoFiltros = {
         produto: false,
         atividade: false,
+        tipoTarefa: false,
         cliente: false,
         responsavel: false,
         [filtroKey]: true
@@ -4133,7 +4507,7 @@ const GestaoCapacidade = () => {
       return;
     }
 
-    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.cliente || filtros.responsavel;
+    const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.cliente || filtros.responsavel;
 
     if (!temFiltroAtivo) {
       showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
@@ -4168,6 +4542,7 @@ const GestaoCapacidade = () => {
       filtroClienteSelecionado,
       filtroProdutoSelecionado,
       filtroTarefaSelecionado,
+      filtroTipoTarefaSelecionado,
       filtroResponsavelSelecionado,
       filtroStatusCliente,
       filtrosAdicionais: {
@@ -4189,6 +4564,7 @@ const GestaoCapacidade = () => {
       cliente: filtroClienteSelecionado,
       produto: filtroProdutoSelecionado,
       tarefa: filtroTarefaSelecionado,
+      tipoTarefaId: filtroTipoTarefaSelecionado,
       responsavel: filtroResponsavelSelecionado
     };
 
@@ -4215,6 +4591,8 @@ const GestaoCapacidade = () => {
         return 'PRODUTO';
       case 'atividade':
         return 'TAREFA';
+      case 'tipoTarefa':
+        return 'TIPO DE TAREFA';
       case 'cliente':
         return 'CLIENTE';
       case 'responsavel':
@@ -4255,6 +4633,7 @@ const GestaoCapacidade = () => {
         cliente: filtroClienteSelecionado,
         produto: filtroProdutoSelecionado,
         tarefa: filtroTarefaSelecionado,
+        tipoTarefaId: filtroTipoTarefaSelecionado,
         responsavel: filtroResponsavelSelecionado
       };
 
@@ -4313,6 +4692,7 @@ const GestaoCapacidade = () => {
         cliente: filtroClienteSelecionado,
         produto: filtroProdutoSelecionado,
         tarefa: filtroTarefaSelecionado,
+        tipoTarefaId: filtroTipoTarefaSelecionado,
         responsavel: filtroResponsavelSelecionado
       };
 
@@ -4352,13 +4732,14 @@ const GestaoCapacidade = () => {
         filtroClienteSelecionado,
         filtroProdutoSelecionado,
         filtroTarefaSelecionado,
+        filtroTipoTarefaSelecionado,
         filtroResponsavelSelecionado,
         filtroStatusCliente,
         filtrosAdicionais
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
+  }, [filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroTipoTarefaSelecionado, filtroResponsavelSelecionado, filtroAdicionalCliente, filtroAdicionalTarefa, filtroAdicionalProduto]);
 
   // Efeito para inicializar a fila de processamento quando os registros agrupados mudam
   useEffect(() => {
@@ -4409,6 +4790,17 @@ const GestaoCapacidade = () => {
             entidadesUnicas.set(id, { id, tipo: 'produto' });
           }
         });
+      } else if (filtroPrincipal === 'tipoTarefa') {
+        // Tipo de Tarefa: um card por tipo (entidade = tipo_tarefa_id)
+        registrosAgrupados.forEach(agr => {
+          (agr.regras || [agr.primeiroRegistro]).forEach(r => {
+            if (!r || r.tipo_tarefa_id == null) return;
+            const id = String(r.tipo_tarefa_id);
+            if (id && estaNosFiltrosSelecionados(id, filtroTipoTarefaSelecionado)) {
+              entidadesUnicas.set(id, { id, tipo: 'tipoTarefa' });
+            }
+          });
+        });
       } else if (filtroPrincipal === 'atividade') {
         // Coletar tarefas dos registros agrupados
         registrosAgrupados.forEach(agr => {
@@ -4447,7 +4839,7 @@ const GestaoCapacidade = () => {
     };
 
     identificarEntidades();
-  }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, temposRealizadosPorEntidade, tempoEstimadoTotalPorResponsavel, horasContratadasPorResponsavel]);
+  }, [registrosAgrupados, filtroPrincipal, dadosAuxiliaresCarregados, membros, clientes, produtos, filtroResponsavelSelecionado, filtroClienteSelecionado, filtroProdutoSelecionado, filtroTarefaSelecionado, filtroTipoTarefaSelecionado, temposRealizadosPorEntidade, tempoEstimadoTotalPorResponsavel, horasContratadasPorResponsavel]);
 
   // Ref para debounce de recarga geral de opções
   const debouncedReloadOptionsRef = useRef(null);
@@ -4622,6 +5014,18 @@ const GestaoCapacidade = () => {
                   onMouseLeave={() => setFiltroHover(null)}
                 />
                 <FilterVinculacao
+                  filtroKey="tipoTarefa"
+                  checked={filtros.tipoTarefa}
+                  onChange={handleFilterChange}
+                  isFiltroPai={isFiltroPai('tipoTarefa')}
+                  title="Tipo de Tarefa"
+                  subtitle="Filtrar por"
+                  icon="fas fa-list-ul"
+                  filtroNome={getFiltroNome('tipoTarefa')}
+                  onMouseEnter={() => setFiltroHover('tipoTarefa')}
+                  onMouseLeave={() => setFiltroHover(null)}
+                />
+                <FilterVinculacao
                   filtroKey="cliente"
                   checked={filtros.cliente}
                   onChange={handleFilterChange}
@@ -4731,6 +5135,36 @@ const GestaoCapacidade = () => {
                       disabled={loading || carregandoOpcoesFiltradas.tarefa || (opcoesFiltradasTarefas.length === 0 && tarefas.length === 0)}
                       placeholder={carregandoOpcoesFiltradas.tarefa ? "Carregando..." : "Selecionar tarefas"}
                     />
+                  </div>
+                )}
+
+                {filtros.tipoTarefa && (
+                  <div className="filtro-pai-select-wrapper">
+                    <label className="filtro-pai-label">Definir Tipo de Tarefa:</label>
+                    <select
+                      value={filtroTipoTarefaSelecionado ?? ''}
+                      onChange={(e) => setFiltroTipoTarefaSelecionado(e.target.value ? Number(e.target.value) : null)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        fontSize: '14px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        backgroundColor: '#fff',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        transition: 'border-color 0.2s',
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = '#0e3b6f'}
+                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                      disabled={loading || tiposTarefa.length === 0}
+                    >
+                      <option value="">Selecionar tipo de tarefa</option>
+                      {tiposTarefa.map((t) => (
+                        <option key={t.id} value={t.id}>{t.nome}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
@@ -4889,7 +5323,7 @@ const GestaoCapacidade = () => {
                       <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
                       {filtroPrincipal === 'responsavel'
                         ? `Tempo Disponível vs Estimado por Responsável`
-                        : `Tempo Estimado vs Realizado por ${filtroPrincipal === 'cliente' ? 'Cliente' : filtroPrincipal === 'produto' ? 'Produto' : 'Atividade'}`
+                        : `Tempo Estimado vs Realizado por ${filtroPrincipal === 'cliente' ? 'Cliente' : filtroPrincipal === 'produto' ? 'Produto' : (filtroPrincipal === 'tipoTarefa' ? 'Tipo de Tarefa' : 'Atividade')}`
                       }
                     </h3>
                     <div className="tempo-disponivel-grid">
@@ -4975,6 +5409,31 @@ const GestaoCapacidade = () => {
                           } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
                             entidadeId = primeiroRegistro.tarefa_id;
                             nomeEntidade = getNomeTarefa(entidadeId);
+                          } else if (filtroPrincipal === 'tipoTarefa') {
+                            // Um card por tipo de tarefa: agrupar por tipo_tarefa_id (tratado no bloco abaixo).
+                            // Quando os registros foram "explodidos" (ex.: ao abrir Ver detalhes de clientes), cada item pode não ter tipo_tarefa_id;
+                            // usar fallback do grupo para não fazer o card do tipo sumir.
+                            const fonte = (agrupamento.registros && agrupamento.registros.length > 0) ? agrupamento.registros : (agrupamento.regras || [agrupamento.primeiroRegistro]).filter(Boolean);
+                            const tipoIdDoGrupo = agrupamento.primeiroRegistro?.tipo_tarefa_id != null ? String(agrupamento.primeiroRegistro.tipo_tarefa_id) : (agrupamento.regras?.[0]?.tipo_tarefa_id != null ? String(agrupamento.regras[0].tipo_tarefa_id) : null);
+                            fonte.forEach(item => {
+                              const tipoId = item.tipo_tarefa_id != null ? String(item.tipo_tarefa_id) : tipoIdDoGrupo;
+                              if (!tipoId) return;
+                              const tipoNome = (tiposTarefa || []).find(t => String(t.id) === tipoId)?.nome || `Tipo #${tipoId}`;
+                              if (!entidadesDosRegistros.has(tipoId)) {
+                                entidadesDosRegistros.set(tipoId, {
+                                  id: tipoId,
+                                  nome: tipoNome,
+                                  fotoPerfil: null,
+                                  fotoPerfilPath: null,
+                                  registros: []
+                                });
+                              }
+                              entidadesDosRegistros.get(tipoId).registros.push({
+                                ...item,
+                                quantidade: agrupamento.quantidade
+                              });
+                            });
+                            return;
                           }
 
                           if (entidadeId) {
@@ -5097,6 +5556,31 @@ const GestaoCapacidade = () => {
                               });
                             }
                           });
+                        } else if (filtroPrincipal === 'tipoTarefa') {
+                          // Para tipo de tarefa: mesma lógica dos outros agrupadores = ordem estável.
+                          // Usar a ordem da lista tiposTarefa quando existir, para o card não mudar de lugar ao abrir detalhes.
+                          if (tiposTarefa && tiposTarefa.length > 0) {
+                            tiposTarefa.forEach(tipo => {
+                              const key = String(tipo.id);
+                              if (!estaNosFiltrosSelecionados(tipo.id, filtroTipoTarefaSelecionado)) return;
+                              if (!entidadesDosRegistros.has(key)) return;
+                              const entidade = entidadesDosRegistros.get(key);
+                              todasEntidades.set(key, { ...entidade, nome: tipo.nome || entidade.nome });
+                            });
+                            // Incluir tipos que estão nos registros mas não na lista (ex.: tipo novo ainda não no combo)
+                            entidadesDosRegistros.forEach((entidade, key) => {
+                              if (todasEntidades.has(key)) return;
+                              if (!estaNosFiltrosSelecionados(entidade.id, filtroTipoTarefaSelecionado)) return;
+                              const tipoNome = (tiposTarefa || []).find(t => String(t.id) === key)?.nome || entidade.nome;
+                              todasEntidades.set(key, { ...entidade, nome: tipoNome });
+                            });
+                          } else {
+                            entidadesDosRegistros.forEach((entidade, key) => {
+                              if (!estaNosFiltrosSelecionados(entidade.id, filtroTipoTarefaSelecionado)) return;
+                              const tipoNome = (tiposTarefa || []).find(t => String(t.id) === key)?.nome || entidade.nome;
+                              todasEntidades.set(key, { ...entidade, nome: tipoNome });
+                            });
+                          }
                         } else {
                           // Para atividades, usar apenas as que estão nos registros (filtradas se houver seleção)
                           // Mesclar nome da lista tarefas quando existir (evita "Tarefa" genérico antes do cache)
@@ -5138,6 +5622,8 @@ const GestaoCapacidade = () => {
                                 pertence = String(primeiroRegistro.produto_id) === String(entidade.id);
                               } else if (filtroPrincipal === 'atividade') {
                                 pertence = String(primeiroRegistro.tarefa_id) === String(entidade.id);
+                              } else if (filtroPrincipal === 'tipoTarefa') {
+                                pertence = (agr.regras || [primeiroRegistro]).some(r => r && String(r.tipo_tarefa_id) === String(entidade.id));
                               }
 
                               if (pertence && primeiroRegistro.responsavel_id) {
@@ -5169,10 +5655,14 @@ const GestaoCapacidade = () => {
                           };
                         });
 
-                        // Ordenar alfabeticamente (Stable Sort)
-                        todosOrdenados.sort((a, b) =>
-                          a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR')
-                        );
+                        // Ordenar alfabeticamente (Stable Sort). Para tipo de tarefa, quando a ordem veio da lista tiposTarefa, não reordenar para o card não mudar de lugar.
+                        const manterOrdemTipoTarefa = filtroPrincipal === 'tipoTarefa' && tiposTarefa && tiposTarefa.length > 0;
+                        if (!manterOrdemTipoTarefa) {
+                          todosOrdenados.sort((a, b) => {
+                            const cmp = a.entidade.nome.localeCompare(b.entidade.nome, 'pt-BR');
+                            return cmp !== 0 ? cmp : String(a.entidade.id).localeCompare(String(b.entidade.id), 'pt-BR');
+                          });
+                        }
 
                         // Limitar a 4 inicialmente se não estiver expandido
                         const dashboardsParaExibir = dashboardsExpandidos
@@ -5207,7 +5697,7 @@ const GestaoCapacidade = () => {
                               // Se não estiver carregado, mostrar Skeleton/Loading unificado
                               if (!isFullyLoaded) {
                                 return (
-                                  <div key={entidade.id} className="tempo-disponivel-card" style={{ opacity: 0.7, pointerEvents: 'none' }}>
+                                  <div key={String(entidade.id)} className="tempo-disponivel-card" style={{ opacity: 0.7, pointerEvents: 'none' }}>
                                     <div className="tempo-disponivel-card-header">
                                       <div className="tempo-disponivel-card-nome-wrapper">
                                         <div className="skeleton-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#e0e0e0', marginRight: '12px' }}></div>
@@ -5233,12 +5723,20 @@ const GestaoCapacidade = () => {
                                   registrosAgrupados
                                 );
                                 const cardPayload = cardsPorEntidade[String(entidade.id)];
+                                // Para tipoTarefa, sempre usar calcularEstatisticasPorEntidade para totalTarefas (contagem correta)
+                                const estatisticasCalc = calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
                                 const estatisticas = cardPayload
-                                  ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
-                                  : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
+                                  ? { 
+                                      totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0), 
+                                      totalClientes: cardPayload.total_clientes ?? 0, 
+                                      totalProdutos: cardPayload.total_produtos ?? 0, 
+                                      totalResponsaveis: cardPayload.total_responsaveis ?? 0, 
+                                      totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0 
+                                    }
+                                  : estatisticasCalc;
 
                                 return (
-                                  <div key={entidade.id} className="tempo-disponivel-card">
+                                  <div key={String(entidade.id)} className="tempo-disponivel-card">
                                     <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
                                       <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
                                         {filtroPrincipal === 'responsavel' && (
@@ -5362,6 +5860,21 @@ const GestaoCapacidade = () => {
                                                 </span>
                                               </span>
                                             </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-tags"></i>
+                                              <span>Tipos de Tarefa: {estatisticas.totalTiposTarefa ?? 0}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${(estatisticas.totalTiposTarefa ?? 0) === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={(estatisticas.totalTiposTarefa ?? 0) > 0 ? "Ver detalhes de tipos de tarefa" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={(estatisticas.totalTiposTarefa ?? 0) > 0 ? (e) => handleOpenCard(entidade, 'tipos_tarefa', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'tiposTarefa', agrs)) : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
                                           </>
                                         )}
                                         {filtroPrincipal === 'produto' && (
@@ -5411,10 +5924,41 @@ const GestaoCapacidade = () => {
                                                 </span>
                                               </span>
                                             </div>
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-tags"></i>
+                                              <span>Tipos de Tarefa: {estatisticas.totalTiposTarefa ?? 0}</span>
+                                              <span
+                                                className={`resumo-arrow produtos-arrow ${(estatisticas.totalTiposTarefa ?? 0) === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={(estatisticas.totalTiposTarefa ?? 0) > 0 ? "Ver detalhes de tipos de tarefa" : undefined}
+                                              >
+                                                <span
+                                                  className="resumo-arrow-anchor"
+                                                  onClick={(estatisticas.totalTiposTarefa ?? 0) > 0 ? (e) => handleOpenCard(entidade, 'tipos_tarefa', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'tiposTarefa', agrs)) : undefined}
+                                                >
+                                                  &gt;
+                                                </span>
+                                              </span>
+                                            </div>
                                           </>
                                         )}
-                                        {filtroPrincipal === 'atividade' && (
+                                        {(filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && (
                                           <>
+                                            {filtroPrincipal === 'tipoTarefa' && (
+                                              <div className="tempo-disponivel-stat-item">
+                                                <i className="fas fa-list"></i>
+                                                <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                                <span
+                                                  role="button"
+                                                  tabIndex={0}
+                                                  className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                  title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
+                                                  onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                                  onKeyDown={estatisticas.totalTarefas > 0 ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleOpenTarefas(entidade, ev); } } : undefined}
+                                                >
+                                                  <span className="resumo-arrow-anchor">&gt;</span>
+                                                </span>
+                                              </div>
+                                            )}
                                             <div className="tempo-disponivel-stat-item">
                                               <i className="fas fa-box"></i>
                                               <span>Produtos: {estatisticas.totalProdutos}</span>
@@ -5480,12 +6024,20 @@ const GestaoCapacidade = () => {
 
                               // Usar totais do payload único (gestao-capacidade/cards) quando disponível
                               const cardPayload = cardsPorEntidade[String(entidade.id)];
+                              // Para tipoTarefa, sempre usar calcularEstatisticasPorEntidade para totalTarefas (contagem correta)
+                              const estatisticasCalc = calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
                               const estatisticas = cardPayload
-                                ? { totalTarefas: cardPayload.total_tarefas ?? 0, totalClientes: cardPayload.total_clientes ?? 0, totalProdutos: cardPayload.total_produtos ?? 0, totalResponsaveis: cardPayload.total_responsaveis ?? 0 }
-                                : calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
+                                ? { 
+                                    totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0), 
+                                    totalClientes: cardPayload.total_clientes ?? 0, 
+                                    totalProdutos: cardPayload.total_produtos ?? 0, 
+                                    totalResponsaveis: cardPayload.total_responsaveis ?? 0, 
+                                    totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0 
+                                  }
+                                : estatisticasCalc;
 
                               return (
-                                <div key={entidade.id} className="tempo-disponivel-card">
+                                <div key={String(entidade.id)} className="tempo-disponivel-card">
                                   <div className={`tempo-disponivel-card-header ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
                                     <div className={`tempo-disponivel-card-nome-wrapper ${filtroPrincipal !== 'responsavel' ? 'sem-avatar' : ''}`}>
                                       {filtroPrincipal === 'responsavel' && (
@@ -5548,6 +6100,17 @@ const GestaoCapacidade = () => {
                                               &gt;
                                             </span>
                                           </div>
+                                          <div className="tempo-disponivel-stat-item">
+                                            <i className="fas fa-tags"></i>
+                                            <span>Tipos de Tarefa: {estatisticas.totalTiposTarefa ?? 0}</span>
+                                            <span
+                                              className={`resumo-arrow produtos-arrow ${(estatisticas.totalTiposTarefa ?? 0) === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={(estatisticas.totalTiposTarefa ?? 0) > 0 ? (e) => handleOpenCard(entidade, 'tipos_tarefa', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'tiposTarefa', agrs)) : undefined}
+                                              title={(estatisticas.totalTiposTarefa ?? 0) > 0 ? "Ver detalhes de tipos de tarefa" : undefined}
+                                            >
+                                              &gt;
+                                            </span>
+                                          </div>
                                         </>
                                       )}
                                       {filtroPrincipal === 'cliente' && (
@@ -5581,6 +6144,17 @@ const GestaoCapacidade = () => {
                                               className={`resumo-arrow produtos-arrow ${estatisticas.totalResponsaveis === 0 ? 'resumo-arrow-placeholder' : ''}`}
                                               onClick={estatisticas.totalResponsaveis > 0 ? (e) => handleOpenCard(entidade, 'responsaveis', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'responsaveis', agrs)) : undefined}
                                               title={estatisticas.totalResponsaveis > 0 ? "Ver detalhes de responsáveis" : undefined}
+                                            >
+                                              &gt;
+                                            </span>
+                                          </div>
+                                          <div className="tempo-disponivel-stat-item">
+                                            <i className="fas fa-tags"></i>
+                                            <span>Tipos de Tarefa: {estatisticas.totalTiposTarefa ?? 0}</span>
+                                            <span
+                                              className={`resumo-arrow produtos-arrow ${(estatisticas.totalTiposTarefa ?? 0) === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={(estatisticas.totalTiposTarefa ?? 0) > 0 ? (e) => handleOpenCard(entidade, 'tipos_tarefa', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'tiposTarefa', agrs)) : undefined}
+                                              title={(estatisticas.totalTiposTarefa ?? 0) > 0 ? "Ver detalhes de tipos de tarefa" : undefined}
                                             >
                                               &gt;
                                             </span>
@@ -5622,10 +6196,37 @@ const GestaoCapacidade = () => {
                                               &gt;
                                             </span>
                                           </div>
+                                          <div className="tempo-disponivel-stat-item">
+                                            <i className="fas fa-tags"></i>
+                                            <span>Tipos de Tarefa: {estatisticas.totalTiposTarefa ?? 0}</span>
+                                            <span
+                                              className={`resumo-arrow produtos-arrow ${(estatisticas.totalTiposTarefa ?? 0) === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                              onClick={(estatisticas.totalTiposTarefa ?? 0) > 0 ? (e) => handleOpenCard(entidade, 'tipos_tarefa', e, (id, fP, agrs) => buscarDetalhesPorTipo(id, fP, 'tiposTarefa', agrs)) : undefined}
+                                              title={(estatisticas.totalTiposTarefa ?? 0) > 0 ? "Ver detalhes de tipos de tarefa" : undefined}
+                                            >
+                                              &gt;
+                                            </span>
+                                          </div>
                                         </>
                                       )}
-                                      {filtroPrincipal === 'atividade' && (
+                                      {(filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && (
                                         <>
+                                          {filtroPrincipal === 'tipoTarefa' && (
+                                            <div className="tempo-disponivel-stat-item">
+                                              <i className="fas fa-list"></i>
+                                              <span>Tarefas: {estatisticas.totalTarefas}</span>
+                                              <span
+                                                role="button"
+                                                tabIndex={0}
+                                                className={`resumo-arrow produtos-arrow ${estatisticas.totalTarefas === 0 ? 'resumo-arrow-placeholder' : ''}`}
+                                                title={estatisticas.totalTarefas > 0 ? "Ver detalhes de tarefas" : undefined}
+                                                onClick={estatisticas.totalTarefas > 0 ? (e) => handleOpenTarefas(entidade, e) : undefined}
+                                                onKeyDown={estatisticas.totalTarefas > 0 ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleOpenTarefas(entidade, ev); } } : undefined}
+                                              >
+                                                &gt;
+                                              </span>
+                                            </div>
+                                          )}
                                           <div className="tempo-disponivel-stat-item">
                                             <i className="fas fa-box"></i>
                                             <span>Produtos: {estatisticas.totalProdutos}</span>
@@ -5712,7 +6313,7 @@ const GestaoCapacidade = () => {
                       if (filtroPrincipal === 'produto' && primeiroRegistro.produto_id) {
                         chaveAgrupamento = `produto_${primeiroRegistro.produto_id}`;
                         nomeAgrupamento = getNomeProduto(primeiroRegistro.produto_id);
-                      } else if (filtroPrincipal === 'atividade' && primeiroRegistro.tarefa_id) {
+                      } else if ((filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && primeiroRegistro.tarefa_id) {
                         chaveAgrupamento = `atividade_${primeiroRegistro.tarefa_id}`;
                         nomeAgrupamento = getNomeTarefa(primeiroRegistro.tarefa_id);
                       } else if (filtroPrincipal === 'cliente' && primeiroRegistro.cliente_id) {
@@ -5805,7 +6406,7 @@ const GestaoCapacidade = () => {
                               <table className="atribuicoes-table">
                                 <thead>
                                   <tr>
-                                    {filtroPrincipal === 'atividade' && <th></th>}
+                                    {(filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && <th></th>}
                                     {filtroPrincipal !== 'atividade' && <th>Tarefas Agrupadas</th>}
                                     {filtroPrincipal !== 'produto' && <th className="atribuicoes-col-produto">Produto</th>}
                                     {filtroPrincipal !== 'cliente' && <th>Cliente</th>}
@@ -5821,7 +6422,7 @@ const GestaoCapacidade = () => {
                                     const produtosUnicos = [...new Set(agrupamento.registros.map(r => r.produto_id))];
                                     const tarefasUnicas = [...new Set(agrupamento.registros.map(r => r.tarefa_id))];
                                     const tempoEstimadoTotal = calcularTempoEstimadoTotalAgrupamento(agrupamento);
-                                    const chaveRealizadoAgrupamento = filtroPrincipal === 'responsavel' ? `responsavel_${primeiroRegistro?.responsavel_id}` : filtroPrincipal === 'cliente' ? `cliente_${String(primeiroRegistro?.cliente_id || '').split(',')[0]?.trim()}` : filtroPrincipal === 'produto' ? `produto_${primeiroRegistro?.produto_id}` : `atividade_${primeiroRegistro?.tarefa_id}`;
+                                    const chaveRealizadoAgrupamento = filtroPrincipal === 'responsavel' ? `responsavel_${primeiroRegistro?.responsavel_id}` : filtroPrincipal === 'cliente' ? `cliente_${String(primeiroRegistro?.cliente_id || '').split(',')[0]?.trim()}` : filtroPrincipal === 'produto' ? `produto_${primeiroRegistro?.produto_id}` : `${filtroPrincipal}_${primeiroRegistro?.tarefa_id}`;
                                     const dadosRealizadoAgrupamento = temposRealizadosPorEntidade[chaveRealizadoAgrupamento];
                                     const tempoRealizadoTotal = dadosRealizadoAgrupamento != null ? (typeof dadosRealizadoAgrupamento === 'number' ? dadosRealizadoAgrupamento : (dadosRealizadoAgrupamento.realizado ?? 0)) : 0;
                                     const isAgrupamentoTarefasExpanded = agrupamentosTarefasExpandidas.has(agrupamento.agrupador_id);
@@ -5834,7 +6435,7 @@ const GestaoCapacidade = () => {
                                     return (
                                       <React.Fragment key={agrupamento.agrupador_id}>
                                         <tr>
-                                          {filtroPrincipal === 'atividade' && (
+                                          {(filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && (
                                             <td>
                                               <button
                                                 type="button"
@@ -5979,7 +6580,7 @@ const GestaoCapacidade = () => {
                                           </td>
                                         </tr>
                                         {/* Tarefas expandidas quando filtro pai é "atividade" */}
-                                        {filtroPrincipal === 'atividade' && isAgrupamentoTarefasExpanded && (
+                                        {(filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa') && isAgrupamentoTarefasExpanded && (
                                           <tr className="atribuicoes-tarefa-detalhes">
                                             <td colSpan={7} className="atribuicoes-tarefa-detalhes-cell">
                                               <div className="atribuicoes-tarefa-detalhes-content">
@@ -6109,7 +6710,7 @@ const GestaoCapacidade = () => {
 
                                           return (
                                             <tr key={`detalhes_${tarefaKey}`} className="atribuicoes-tarefa-detalhes">
-                                              <td colSpan={7 - (filtroPrincipal === 'atividade' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
+                                              <td colSpan={7 - (filtroPrincipal === 'atividade' || filtroPrincipal === 'tipoTarefa' ? 1 : 0) - (filtroPrincipal === 'produto' ? 1 : 0) - (filtroPrincipal === 'cliente' ? 1 : 0) - (filtroPrincipal === 'responsavel' ? 1 : 0)} className="atribuicoes-tarefa-detalhes-cell">
                                                 <div className="atribuicoes-tarefa-detalhes-content">
                                                   <div className="atribuicoes-tarefa-detalhes-header">
                                                     <h4>{getNomeTarefa(tarefaId)} - Detalhes</h4>
@@ -6333,6 +6934,7 @@ const GestaoCapacidade = () => {
           calcularCustoPorTempo={calcularCustoPorTempo}
           formatarValorMonetario={formatarValorMonetario}
           getNomeCliente={getNomeCliente}
+          getNomeTipoTarefa={(tipoId) => (tiposTarefa || []).find(t => String(t.id) === String(tipoId))?.nome || `Tipo #${tipoId}`}
           periodoInicio={filtrosUltimosAplicados?.periodoInicio || periodoInicio}
           periodoFim={filtrosUltimosAplicados?.periodoFim || periodoFim}
           filtrosAdicionais={{

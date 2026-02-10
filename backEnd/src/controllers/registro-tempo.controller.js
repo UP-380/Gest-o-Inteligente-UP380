@@ -1333,10 +1333,18 @@ async function getRegistrosTempo(req, res) {
     } = req.query;
 
     // Usar colaboradorId se fornecido e usuario_id não foi fornecido (compatibilidade)
-    const usuarioIdFinal = usuario_id || colaboradorId;
+    const usuarioIdRaw = usuario_id || colaboradorId;
+    // Suportar múltiplos usuario_id: "id1,id2,id3"
+    const usuarioIds = usuarioIdRaw
+      ? String(usuarioIdRaw)
+        .split(',')
+        .map((id) => parseInt(String(id).trim(), 10))
+        .filter((n) => !isNaN(n))
+      : [];
 
     const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const MAX_LIMIT = 5000;
+    const limitNum = Math.min(Math.max(1, parseInt(limit, 10) || 50), MAX_LIMIT);
     const offset = (pageNum - 1) * limitNum;
 
     // Construir query base
@@ -1345,9 +1353,11 @@ async function getRegistrosTempo(req, res) {
       .from('registro_tempo')
       .select('*', { count: 'exact' });
 
-    // Aplicar filtros
-    if (usuarioIdFinal) {
-      query = query.eq('usuario_id', parseInt(usuarioIdFinal, 10));
+    // Aplicar filtros (um ou vários usuários)
+    if (usuarioIds.length > 0) {
+      query = usuarioIds.length === 1
+        ? query.eq('usuario_id', usuarioIds[0])
+        : query.in('usuario_id', usuarioIds);
     }
 
     // Compatibilidade: suporta tanto cliente_id quanto clienteId
