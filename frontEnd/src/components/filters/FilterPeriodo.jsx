@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import './FilterPeriodo.css';
 
-const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', uiVariant, showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange, datasIndividuais = [], onDatasIndividuaisChange }) => {
+const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disabled = false, size = 'default', uiVariant, showWeekendToggle = false, onWeekendToggleChange, showHolidayToggle = false, onHolidayToggleChange, datasIndividuais = [], onDatasIndividuaisChange, habilitarFinaisSemana: propHabilitarFinaisSemana, habilitarFeriados: propHabilitarFeriados, onClose }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localInicio, setLocalInicio] = useState(dataInicio || '');
   const [localFim, setLocalFim] = useState(dataFim || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectingStart, setSelectingStart] = useState(true);
-  const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(false);
-  const [habilitarFeriados, setHabilitarFeriados] = useState(false);
+  const [habilitarFinaisSemana, setHabilitarFinaisSemana] = useState(propHabilitarFinaisSemana !== undefined ? propHabilitarFinaisSemana : false);
+  const [habilitarFeriados, setHabilitarFeriados] = useState(propHabilitarFeriados !== undefined ? propHabilitarFeriados : false);
   const [feriados, setFeriados] = useState({}); // { "2026-01-01": "Confraternização mundial", ... }
   const [hoveredHoliday, setHoveredHoliday] = useState(null); // { date: "2026-01-01", name: "...", x: 100, y: 200 }
   const [datasIndividuaisLocal, setDatasIndividuaisLocal] = useState(new Set(datasIndividuais || []));
@@ -652,8 +652,9 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
     if (onFimChange) onFimChange({ target: { value: fimStr } });
     if (onDatasIndividuaisChange) onDatasIndividuaisChange([]);
 
-    // Opcional: fechar o menu rápido após seleção? 
-    // Por enquanto deixamos aberto para o usuário ver o que selecionou.
+    // Do NOT close automatically. User wants it to stay open (like GestaoCapacidade).
+    // setIsOpen(false); 
+    // if (onClose) onClose();
   };
 
   const renderCalendar = () => {
@@ -846,6 +847,7 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
             <div
               ref={dropdownRef}
               onClick={(e) => e.stopPropagation()}
+              className="periodo-portal-wrapper"
               style={{
                 position: 'fixed',
                 top: dropdownPos.placement === 'top' ? 'auto' : `${dropdownPos.top}px`,
@@ -1104,20 +1106,22 @@ const FilterPeriodo = ({ dataInicio, dataFim, onInicioChange, onFimChange, disab
 
               {/* Card Secundário - Seleção Rápida */}
               {showQuickSelect && (
-                <div style={{
-                  width: '140px',
-                  backgroundColor: '#fff',
-                  borderRadius: '12px',
-                  boxShadow: dropdownPos.placement === 'top'
-                    ? '0 -8px 24px rgba(0,0,0,0.2)'
-                    : '0 8px 24px rgba(0,0,0,0.2)',
-                  padding: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  maxHeight: '380px', // Altura similar ao calendário
-                  overflowY: 'auto'
-                }}>
+                <div
+                  className="periodo-quick-select"
+                  style={{
+                    width: '140px',
+                    backgroundColor: '#fff',
+                    borderRadius: '12px',
+                    boxShadow: dropdownPos.placement === 'top'
+                      ? '0 -8px 24px rgba(0,0,0,0.2)'
+                      : '0 8px 24px rgba(0,0,0,0.2)',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    maxHeight: '380px', // Altura similar ao calendário
+                    overflowY: 'auto'
+                  }}>
                   <div style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>
                     Agrupamento
                   </div>

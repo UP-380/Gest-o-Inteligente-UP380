@@ -754,11 +754,19 @@ async function getVinculados(req, res) {
     const {
       filtro_tarefa: fTarefaId,
       filtro_cliente: fClienteId,
-      filtro_produto: fProdutoId
+      filtro_produto: fProdutoId,
+      tarefa_tipo_id: fTarefaTipoId
     } = req.query;
 
     if (fTarefaId && fTarefaId !== 'true' && fTarefaId !== '1') {
       query = query.eq('tarefa_id', fTarefaId);
+    }
+
+    if (fTarefaTipoId != null && fTarefaTipoId !== '') {
+      const tipoId = parseInt(fTarefaTipoId, 10);
+      if (!isNaN(tipoId)) {
+        query = query.eq('tarefa_tipo_id', tipoId);
+      }
     }
 
     if (fClienteId && fClienteId !== 'true' && fClienteId !== '1') {

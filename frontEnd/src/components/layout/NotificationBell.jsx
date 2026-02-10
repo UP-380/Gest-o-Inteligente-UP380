@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { hasPermissionSync } from '../../utils/permissions';
+import { NOTIFICATION_TYPES } from '../../constants/notificationTypes';
+import { comunicacaoAPI } from '../../services/comunicacao.service';
 import './NotificationBell.css';
+import './NotificationToast.css';
 
 const API_BASE_URL = '/api';
 const SSE_STREAM_URL = `${API_BASE_URL}/notificacoes/stream`;
@@ -25,6 +29,12 @@ const NotificationBell = ({ user }) => {
         return stored ? parseInt(stored, 10) : 0;
     });
     const [shouldPulse, setShouldPulse] = useState(false);
+    const [toastItems, setToastItems] = useState([]);
+    const [replyTexts, setReplyTexts] = useState({});
+    const [sendingKey, setSendingKey] = useState(null);
+    const toastTimeoutsRef = useRef(new Map());
+    const shownToastIdsRef = useRef(new Set());
+    const drawerStateRef = useRef({ isOpen: false, tab: null, interlocutorId: null, chamadoId: null });
 
     const audioContextRef = useRef(null);
     const prevCountRef = useRef(prevCount);
@@ -62,6 +72,36 @@ const NotificationBell = ({ user }) => {
         }
     }, []);
 
+    const showPopupForNotification = useCallback((notif) => {
+        if (!notif || shownToastIdsRef.current.has(notif.id)) return;
+        const tipo = notif.tipo;
+        if (tipo !== NOTIFICATION_TYPES.CHAT_MENSAGEM && tipo !== NOTIFICATION_TYPES.CHAMADO_ATUALIZADO) return;
+
+        const meta = notif.metadata || {};
+        const drawer = drawerStateRef.current;
+        if (tipo === NOTIFICATION_TYPES.CHAT_MENSAGEM && drawer.isOpen && drawer.tab === 'chats') {
+            if (drawer.interlocutorId != null && String(meta.remetente_id) === String(drawer.interlocutorId)) return;
+        }
+        if (tipo === NOTIFICATION_TYPES.CHAMADO_ATUALIZADO && drawer.isOpen && drawer.tab === 'chamados') {
+            if (drawer.chamadoId != null && meta.chamado_id != null && String(drawer.chamadoId) === String(meta.chamado_id)) return;
+        }
+
+        shownToastIdsRef.current.add(notif.id);
+        const key = `toast-${notif.id}-${Date.now()}`;
+        const payload = {
+            id: notif.id,
+            tipo: notif.tipo,
+            titulo: notif.titulo,
+            mensagem: notif.mensagem,
+            link: notif.link,
+            referencia_id: notif.referencia_id,
+            criado_em: notif.criado_em ?? notif.created_at,
+            metadata: notif.metadata || {}
+        };
+        setToastItems((prev) => [...prev, { key, payload }]);
+        /* Fecha só ao clicar no X ou ao enviar mensagem pelo atalho */
+    }, []);
+
     const fetchCount = useCallback(async () => {
         if (!canSeeBell) return;
         try {
@@ -75,6 +115,14 @@ const NotificationBell = ({ user }) => {
                 playNotificationSound();
                 setTimeout(() => setShouldPulse(false), 2500);
                 if (isOpen) fetchNotifications();
+                // Buscar a última notificação e mostrar popup se for Chat ou Chamado
+                try {
+                    const listRes = await fetch(`${API_BASE_URL}/notificacoes?apenas_nao_lidas=true&limit=1`, { credentials: 'include' });
+                    const listJson = await listRes.json();
+                    if (listJson.success && listJson.data && listJson.data[0]) {
+                        showPopupForNotification(listJson.data[0]);
+                    }
+                } catch (_) { /* ignora */ }
             }
 
             setCount(newCount);
@@ -83,7 +131,7 @@ const NotificationBell = ({ user }) => {
         } catch (_) {
             setCount(0);
         }
-    }, [canSeeBell, isOpen, playNotificationSound]);
+    }, [canSeeBell, isOpen, playNotificationSound, showPopupForNotification]);
 
     const fetchNotifications = useCallback(async () => {
         setLoading(true);
@@ -251,6 +299,95 @@ const NotificationBell = ({ user }) => {
         }
     };
 
+    const openLinkFromToast = (item) => {
+        const { payload } = item;
+        if (payload.link && payload.link.includes('/comunicacao')) {
+            const url = new URL(payload.link, window.location.origin);
+            const tab = url.searchParams.get('tab') || 'chats';
+            const interlocutorId = url.searchParams.get('interlocutorId');
+            window.dispatchEvent(new CustomEvent('open-communication-drawer', {
+                detail: { tab, interlocutorId }
+            }));
+        } else if (payload.link) {
+            navigate(payload.link);
+        }
+        dismissToast(item.key);
+    };
+
+    const dismissToast = (key) => {
+        const entry = toastTimeoutsRef.current.get(key);
+        if (entry) {
+            if (entry.main) clearTimeout(entry.main);
+            if (entry.exit) clearTimeout(entry.exit);
+            toastTimeoutsRef.current.delete(key);
+        }
+        setToastItems((prev) => prev.filter((item) => item.key !== key));
+        setReplyTexts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    };
+
+    const setReplyText = (key, value) => {
+        setReplyTexts((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleSendReply = async (key, item) => {
+        const text = (replyTexts[key] || '').trim();
+        if (!text) return;
+        const { payload } = item;
+        const meta = payload.metadata || {};
+        setSendingKey(key);
+        try {
+            if (payload.tipo === NOTIFICATION_TYPES.CHAT_MENSAGEM) {
+                const res = await comunicacaoAPI.enviarMensagem({
+                    tipo: 'CHAT',
+                    destinatario_id: meta.remetente_id,
+                    conteudo: text
+                });
+                if (res && res.success) {
+                    setReplyText(key, '');
+                    dismissToast(key);
+                }
+            } else if (payload.tipo === NOTIFICATION_TYPES.CHAMADO_ATUALIZADO && meta.chamado_id) {
+                const res = await comunicacaoAPI.enviarMensagem({
+                    tipo: 'CHAMADO',
+                    mensagem_pai_id: meta.chamado_id,
+                    conteudo: text
+                });
+                if (res && res.success) {
+                    setReplyText(key, '');
+                    dismissToast(key);
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao enviar resposta rápida:', e);
+        } finally {
+            setSendingKey(null);
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            toastTimeoutsRef.current.forEach((entry) => {
+                if (entry.main) clearTimeout(entry.main);
+                if (entry.exit) clearTimeout(entry.exit);
+            });
+            toastTimeoutsRef.current.clear();
+        };
+    }, []);
+
+    useEffect(() => {
+        const handler = (e) => {
+            const d = e.detail || {};
+            drawerStateRef.current = {
+                isOpen: !!d.isOpen,
+                tab: d.tab ?? null,
+                interlocutorId: d.interlocutorId ?? null,
+                chamadoId: d.chamadoId ?? null
+            };
+        };
+        window.addEventListener('communication-drawer-state', handler);
+        return () => window.removeEventListener('communication-drawer-state', handler);
+    }, []);
+
     if (!canSeeBell) return null;
 
     return (
@@ -359,6 +496,81 @@ const NotificationBell = ({ user }) => {
                     </button>
                 </div>
             </div>
+
+            {/* Popup de aviso importante (portal no body) - estilo Teams/WhatsApp */}
+            {toastItems.length > 0 && createPortal(
+                <div className="notification-toast-backdrop" aria-hidden="true">
+                    <div className="notification-toast-container">
+                        {toastItems.map((item) => {
+                            const meta = item.payload.metadata || {};
+                            const remetenteNome = meta.remetente_nome || item.payload.titulo || 'Usuário';
+                            const remetenteFoto = meta.remetente_foto || null;
+                            const mensagemExibir = item.payload.mensagem || '';
+                            const mensagemTruncada = mensagemExibir.length > 120 ? mensagemExibir.slice(0, 117) + '...' : mensagemExibir;
+                            const isChat = item.payload.tipo === NOTIFICATION_TYPES.CHAT_MENSAGEM;
+                            const isSending = sendingKey === item.key;
+                            return (
+                                <div
+                                    key={item.key}
+                                    className={`notification-toast-card toast-${isChat ? 'chat' : 'chamado'} ${item.exit ? 'toast-exit' : ''}`}
+                                >
+                                    <button
+                                        type="button"
+                                        className="notification-toast-close"
+                                        onClick={() => dismissToast(item.key)}
+                                        aria-label="Fechar"
+                                    >
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                    <div
+                                        className="notification-toast-inner"
+                                        onClick={() => !item.exit && openLinkFromToast(item)}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(ev) => ev.key === 'Enter' && !item.exit && openLinkFromToast(item)}
+                                    >
+                                        <div className="notification-toast-avatar">
+                                            {remetenteFoto ? (
+                                                <img src={remetenteFoto} alt="" />
+                                            ) : (
+                                                <span className="notification-toast-iniciais">
+                                                    {(remetenteNome || 'U').slice(0, 2).toUpperCase()}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="notification-toast-body">
+                                            <p className="notification-toast-nome">{remetenteNome}</p>
+                                            <p className="notification-toast-message">{mensagemTruncada}</p>
+                                        </div>
+                                    </div>
+                                    {((isChat && meta.remetente_id) || (!isChat && meta.chamado_id)) ? (
+                                        <div className="notification-toast-reply" onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="text"
+                                                placeholder={isChat ? 'Responder...' : 'Responder ao chamado...'}
+                                                value={replyTexts[item.key] || ''}
+                                                onChange={(e) => setReplyText(item.key, e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendReply(item.key, item))}
+                                                disabled={isSending}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="notification-toast-send"
+                                                onClick={() => handleSendReply(item.key, item)}
+                                                disabled={isSending || !(replyTexts[item.key] || '').trim()}
+                                                aria-label="Enviar"
+                                            >
+                                                {isSending ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-paper-plane"></i>}
+                                            </button>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>,
+                document.body
+            )}
         </div>
     );
 };

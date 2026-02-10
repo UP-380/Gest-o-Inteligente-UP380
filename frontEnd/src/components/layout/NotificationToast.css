@@ -1,0 +1,281 @@
+/* Backdrop leve para destacar o popup (não bloqueia clique - só visual) */
+.notification-toast-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.notification-toast-backdrop .notification-toast-container {
+    pointer-events: auto;
+}
+
+/* Container do popup - canto inferior direito, estilo aviso importante */
+.notification-toast-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 400px;
+    width: 100%;
+}
+
+.notification-toast-card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 10px 20px -5px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 3px rgba(14, 59, 111, 0.25);
+    overflow: hidden;
+    animation: toast-pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 5px solid #0e3b6f;
+}
+
+.notification-toast-card:hover {
+    transform: scale(1.02);
+    box-shadow:
+        0 12px 24px -4px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 4px rgba(14, 59, 111, 0.35);
+}
+
+.notification-toast-card.toast-chat {
+    border-left-color: #2563eb;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 10px 20px -5px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 3px rgba(37, 99, 235, 0.3);
+}
+
+.notification-toast-card.toast-chat:hover {
+    box-shadow:
+        0 12px 24px -4px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 4px rgba(37, 99, 235, 0.4);
+}
+
+.notification-toast-card.toast-chamado {
+    border-left-color: #059669;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 10px 20px -5px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 3px rgba(5, 150, 105, 0.3);
+}
+
+.notification-toast-card.toast-chamado:hover {
+    box-shadow:
+        0 12px 24px -4px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        0 0 0 4px rgba(5, 150, 105, 0.4);
+}
+
+/* Animação de entrada - popup que chama atenção */
+@keyframes toast-pop-in {
+    0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    70% {
+        transform: translateY(-4px) scale(1.02);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.notification-toast-card.toast-exit {
+    animation: toast-pop-out 0.3s ease forwards;
+}
+
+@keyframes toast-pop-out {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+}
+
+.notification-toast-inner {
+    padding: 16px 44px 12px 18px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    cursor: pointer;
+}
+
+.notification-toast-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notification-toast-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.notification-toast-iniciais {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.notification-toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-toast-nome {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 4px 0;
+    line-height: 1.3;
+}
+
+.notification-toast-message {
+    font-size: 0.875rem;
+    color: #4b5563;
+    margin: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Área de resposta rápida (Teams/WhatsApp) */
+.notification-toast-reply {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px 14px;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.notification-toast-reply input {
+    flex: 1;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.notification-toast-reply input:focus {
+    border-color: #0e3b6f;
+}
+
+.notification-toast-card.toast-chat .notification-toast-reply input:focus {
+    border-color: #2563eb;
+}
+
+.notification-toast-card.toast-chamado .notification-toast-reply input:focus {
+    border-color: #059669;
+}
+
+.notification-toast-send {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #0e3b6f;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.notification-toast-send:hover:not(:disabled) {
+    background: #092a50;
+}
+
+.notification-toast-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.notification-toast-card.toast-chat .notification-toast-send {
+    background: #2563eb;
+}
+
+.notification-toast-card.toast-chat .notification-toast-send:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+
+.notification-toast-card.toast-chamado .notification-toast-send {
+    background: #059669;
+}
+
+.notification-toast-card.toast-chamado .notification-toast-send:hover:not(:disabled) {
+    background: #047857;
+}
+
+.notification-toast-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+}
+
+.notification-toast-close:hover {
+    color: #111827;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.notification-toast-card {
+    position: relative;
+    padding-right: 44px;
+}
+
+.notification-toast-inner {
+    padding-right: 10px;
+}
+
+.notification-toast-card {
+    cursor: default;
+}
+
+@media (max-width: 480px) {
+    .notification-toast-backdrop {
+        padding: 16px;
+        align-items: flex-end;
+    }
+    .notification-toast-container {
+        max-width: none;
+    }
+}

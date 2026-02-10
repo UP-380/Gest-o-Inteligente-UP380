@@ -597,6 +597,81 @@ async function getContagensDetalhesResponsavel(supabaseClient, opts) {
   return resultado;
 }
 
+// --- Detalhes estimado por tipo de tarefa (tarefas, clientes, produtos) a partir de regras ---
+async function getDetalhesEstimadoTipoTarefa(supabaseClient, opts) {
+  const {
+    tipoTarefaId,
+    dataInicioStr,
+    dataFimStr,
+    considerarFinaisSemana,
+    considerarFeriados,
+    filtrosAdicionais
+  } = opts;
+
+  const tipoIdStr = String(tipoTarefaId);
+
+  const criarQuery = () => {
+    let q = supabaseClient
+      .from('tempo_estimado_regra')
+      .select('id, responsavel_id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia, incluir_finais_semana')
+      .eq('tipo_tarefa_id', String(tipoTarefaId))
+      .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
+      .gte('data_fim', `${dataInicioStr}T00:00:00`)
+      .order('data_inicio', { ascending: false });
+    if (filtrosAdicionais?.cliente_id?.length) q = q.not('cliente_id', 'is', null);
+    if (filtrosAdicionais?.produto_id?.length) q = q.in('produto_id', filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    if (filtrosAdicionais?.tarefa_id?.length) q = q.in('tarefa_id', filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n)));
+    return q;
+  };
+
+  let regras;
+  try {
+    regras = await buscarTodosComPaginacao(criarQuery, { limit: PAGINATION_LIMIT, logProgress: true });
+  } catch (e) {
+    console.error('❌ [GESTAO-CAPACIDADE] Erro tempo_estimado_regra (tipo-tarefa):', e);
+    return { tarefas: {}, clientes: {}, produtos: {}, responsaveis: {} };
+  }
+
+  const detalhes = { tarefas: {}, clientes: {}, produtos: {}, responsaveis: {} };
+  const cacheFeriados = {};
+  const pInicio = `${dataInicioStr}T00:00:00`;
+  const pFim = `${dataFimStr}T23:59:59.999`;
+
+  for (const regra of regras) {
+    try {
+      const incluirFinais = considerarFinaisSemana && (regra.incluir_finais_semana !== false);
+      const expandidos = await calcularRegistrosDinamicos(regra, pInicio, pFim, cacheFeriados, incluirFinais, considerarFeriados);
+      const qtdDias = expandidos.length;
+      if (qtdDias === 0) continue;
+
+      let tempoMs = Number(regra.tempo_estimado_dia) || 0;
+      if (tempoMs > 0 && tempoMs < 1000) tempoMs = Math.round(tempoMs * 3600000);
+      const totalRegra = qtdDias * tempoMs;
+
+      if (regra.tarefa_id != null) {
+        const tk = `${tipoIdStr}_${regra.tarefa_id}`;
+        detalhes.tarefas[tk] = (detalhes.tarefas[tk] || 0) + totalRegra;
+      }
+      if (regra.cliente_id != null) {
+        const ck = `${tipoIdStr}_${String(regra.cliente_id).trim()}`;
+        detalhes.clientes[ck] = (detalhes.clientes[ck] || 0) + totalRegra;
+      }
+      if (regra.produto_id != null) {
+        const pk = `${tipoIdStr}_${regra.produto_id}`;
+        detalhes.produtos[pk] = (detalhes.produtos[pk] || 0) + totalRegra;
+      }
+      if (regra.responsavel_id != null) {
+        const rk = `${tipoIdStr}_${regra.responsavel_id}`;
+        detalhes.responsaveis[rk] = (detalhes.responsaveis[rk] || 0) + totalRegra;
+      }
+    } catch (e) {
+      console.warn('⚠️ Regra detalhe estimado (tipo-tarefa):', e.message);
+    }
+  }
+
+  return detalhes;
+}
+
 // --- Detalhes estimado por responsavel (tarefas, clientes, produtos) a partir de regras ---
 async function getDetalhesEstimadoResponsavel(supabaseClient, opts) {
   const {
@@ -3001,6 +3076,283 @@ async function detalhesTarefa(req, res) {
   }
 }
 
+// --- POST /api/gestao-capacidade/cards/tipo-tarefa/detalhes (mesmo contrato dos outros agrupadores: tarefas, clientes, produtos, responsaveis) ---
+async function detalhesTipoTarefa(req, res) {
+  try {
+    const params = validateDetalhesBody(req, res);
+    if (!params) return;
+    const { id, dataInicio, dataFim, considerarFinaisSemana, considerarFeriados, filtrosAdicionais, tipoDetalhe } = params;
+
+    const tipoTarefaId = parseInt(id, 10);
+    if (isNaN(tipoTarefaId)) {
+      return res.json({ success: true, data: [] });
+    }
+
+    if (!['tarefas', 'clientes', 'produtos', 'responsaveis'].includes(tipoDetalhe)) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const idStr = String(tipoTarefaId);
+
+    const detalhesObj = await getDetalhesEstimadoTipoTarefa(supabase, {
+      tipoTarefaId,
+      dataInicioStr: dataInicio,
+      dataFimStr: dataFim,
+      considerarFinaisSemana,
+      considerarFeriados,
+      filtrosAdicionais
+    });
+
+    let tarefaIds = [...new Set(Object.keys(detalhesObj.tarefas || {}).map(k => {
+      const parts = k.split('_');
+      return parts.length >= 2 ? parseInt(parts[1], 10) : null;
+    }).filter(n => !isNaN(n)))];
+
+    if (tarefaIds.length === 0) {
+      const { data: regrasTipo } = await supabase
+        .from('tempo_estimado_regra')
+        .select('tarefa_id')
+        .eq('tipo_tarefa_id', tipoTarefaId)
+        .not('tarefa_id', 'is', null)
+        .limit(500);
+      if (regrasTipo && regrasTipo.length > 0) {
+        tarefaIds = [...new Set(regrasTipo.map(r => parseInt(r.tarefa_id, 10)).filter(n => !isNaN(n)))];
+      }
+    }
+    if (tarefaIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    let realizadoResult = await getRealizadoPorTarefa(supabase, {
+      tarefaIds,
+      dataInicioStr: dataInicio,
+      dataFimStr: dataFim,
+      filtrosAdicionais,
+      withBreakdown: true
+    });
+
+    if (!realizadoResult || !realizadoResult.breakdown) {
+      realizadoResult = { porTarefa: {}, breakdown: { produtos: {}, clientes: {}, responsaveis: {}, clienteTarefas: {}, produtoClienteTarefas: {} } };
+    }
+    if (!realizadoResult.breakdown.clienteTarefas) {
+      realizadoResult.breakdown.clienteTarefas = {};
+    }
+    const idsRealizado = (Object.keys(realizadoResult.porTarefa || {}).map(x => parseInt(x, 10)).filter(n => !isNaN(n)));
+    tarefaIds = [...new Set([...tarefaIds, ...idsRealizado])];
+    const tarefaIdsSet = new Set(tarefaIds.map(String));
+
+    const clienteIds = new Set();
+    Object.keys(detalhesObj.clientes || {}).forEach(k => {
+      const parts = k.split('_');
+      if (parts.length >= 2) clienteIds.add(parts[1]);
+    });
+    Object.keys(realizadoResult.breakdown.clienteTarefas || {}).forEach(tcKey => {
+      const parts = tcKey.split('_');
+      if (parts.length >= 3) clienteIds.add(parts.slice(1, -1).join('_'));
+    });
+
+    const { data: tarefasNomes } = await supabase.from('cp_tarefa').select('id, nome').in('id', tarefaIds);
+    const { data: clientesNomes } = await supabase.from('cp_cliente').select('id, nome').in('id', [...clienteIds].filter(Boolean));
+    const nomeTarefa = {};
+    const nomeCliente = {};
+    (tarefasNomes || []).forEach(t => { nomeTarefa[String(t.id)] = t.nome; });
+    (clientesNomes || []).forEach(c => { nomeCliente[String(c.id)] = c.nome; });
+
+    // Agregar realizado por cliente/produto/responsavel (breakdown tem chave tid_entityId)
+    const realizadoPorCliente = {};
+    const realizadoPorProduto = {};
+    const realizadoPorResponsavel = {};
+    Object.entries(realizadoResult.breakdown.clientes || {}).forEach(([key, ms]) => {
+      const p = key.split('_');
+      if (p.length >= 2 && tarefaIdsSet.has(p[0])) {
+        const cid = p.slice(1).join('_');
+        realizadoPorCliente[cid] = (realizadoPorCliente[cid] || 0) + ms;
+      }
+    });
+    Object.entries(realizadoResult.breakdown.produtos || {}).forEach(([key, ms]) => {
+      const p = key.split('_');
+      if (p.length >= 2 && tarefaIdsSet.has(p[0])) {
+        const pid = p[1];
+        realizadoPorProduto[pid] = (realizadoPorProduto[pid] || 0) + ms;
+      }
+    });
+    Object.entries(realizadoResult.breakdown.responsaveis || {}).forEach(([key, ms]) => {
+      const p = key.split('_');
+      if (p.length >= 2 && tarefaIdsSet.has(p[0])) {
+        const rid = p[1];
+        realizadoPorResponsavel[rid] = (realizadoPorResponsavel[rid] || 0) + ms;
+      }
+    });
+
+    if (tipoDetalhe === 'clientes') {
+      const detalhesClientes = [];
+      const seen = new Set();
+      Object.entries(detalhesObj.clientes || {}).forEach(([key, totalEstimadoMs]) => {
+        if (!key.startsWith(idStr + '_')) return;
+        const cid = key.slice(idStr.length + 1);
+        if (seen.has(cid)) return;
+        seen.add(cid);
+        detalhesClientes.push({
+          id: String(cid),
+          nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: realizadoPorCliente[cid] || 0,
+          custo_estimado: 0
+        });
+      });
+      Object.keys(realizadoPorCliente).forEach(cid => {
+        if (seen.has(cid)) return;
+        seen.add(cid);
+        detalhesClientes.push({
+          id: String(cid),
+          nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+          total_estimado_ms: 0,
+          total_realizado_ms: realizadoPorCliente[cid] || 0,
+          custo_estimado: 0
+        });
+      });
+      return res.json({ success: true, data: normalizarDataDetalhes(detalhesClientes) });
+    }
+
+    if (tipoDetalhe === 'produtos') {
+      const produtoIds = new Set();
+      Object.keys(detalhesObj.produtos || {}).forEach(k => {
+        const p = k.split('_');
+        if (p.length >= 2) produtoIds.add(p[1]);
+      });
+      Object.keys(realizadoPorProduto).forEach(pid => produtoIds.add(pid));
+      const { data: produtosNomes } = await supabase.from('cp_produto').select('id, nome').in('id', [...produtoIds].map(x => parseInt(x, 10)).filter(n => !isNaN(n)));
+      const nomeProduto = {};
+      (produtosNomes || []).forEach(p => { nomeProduto[String(p.id)] = p.nome; });
+      const detalhesProdutos = [];
+      const seen = new Set();
+      Object.entries(detalhesObj.produtos || {}).forEach(([key, totalEstimadoMs]) => {
+        if (!key.startsWith(idStr + '_')) return;
+        const pid = key.split('_')[1];
+        if (!pid || seen.has(pid)) return;
+        seen.add(pid);
+        detalhesProdutos.push({
+          id: String(pid),
+          nome: nomeProduto[pid] || `Produto #${pid}`,
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: realizadoPorProduto[pid] || 0,
+          custo_estimado: 0
+        });
+      });
+      Object.keys(realizadoPorProduto).forEach(pid => {
+        if (seen.has(pid)) return;
+        seen.add(pid);
+        detalhesProdutos.push({
+          id: String(pid),
+          nome: nomeProduto[pid] || `Produto #${pid}`,
+          total_estimado_ms: 0,
+          total_realizado_ms: realizadoPorProduto[pid] || 0,
+          custo_estimado: 0
+        });
+      });
+      return res.json({ success: true, data: normalizarDataDetalhes(detalhesProdutos) });
+    }
+
+    if (tipoDetalhe === 'responsaveis') {
+      const respIds = new Set();
+      Object.keys(detalhesObj.responsaveis || {}).forEach(k => {
+        const p = k.split('_');
+        if (p.length >= 2) respIds.add(p[1]);
+      });
+      Object.keys(realizadoPorResponsavel).forEach(rid => respIds.add(rid));
+      const { data: membrosNomes } = await supabase.from('membro').select('id, nome').in('id', [...respIds].map(x => parseInt(x, 10)).filter(n => !isNaN(n)));
+      const nomeMembro = {};
+      (membrosNomes || []).forEach(m => { nomeMembro[String(m.id)] = m.nome; });
+      const detalhesResponsaveis = [];
+      const seen = new Set();
+      Object.entries(detalhesObj.responsaveis || {}).forEach(([key, totalEstimadoMs]) => {
+        if (!key.startsWith(idStr + '_')) return;
+        const rid = key.split('_')[1];
+        if (!rid || seen.has(rid)) return;
+        seen.add(rid);
+        detalhesResponsaveis.push({
+          id: String(rid),
+          nome: nomeMembro[rid] || `Responsável #${rid}`,
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: realizadoPorResponsavel[rid] || 0,
+          custo_estimado: 0
+        });
+      });
+      Object.keys(realizadoPorResponsavel).forEach(rid => {
+        if (seen.has(rid)) return;
+        seen.add(rid);
+        detalhesResponsaveis.push({
+          id: String(rid),
+          nome: nomeMembro[rid] || `Responsável #${rid}`,
+          total_estimado_ms: 0,
+          total_realizado_ms: realizadoPorResponsavel[rid] || 0,
+          custo_estimado: 0
+        });
+      });
+      return res.json({ success: true, data: normalizarDataDetalhes(detalhesResponsaveis) });
+    }
+
+    // tipoDetalhe === 'tarefas'
+    const detalhesTarefas = [];
+    const seenTarefas = new Set();
+
+    Object.entries(detalhesObj.tarefas || {}).forEach(([key, totalEstimadoMs]) => {
+      if (!key.startsWith(idStr + '_')) return;
+      const parts = key.split('_');
+      const tid = parts.length >= 2 ? parts[1] : null;
+      if (tid && !seenTarefas.has(tid)) {
+        seenTarefas.add(tid);
+        const rMs = realizadoResult.porTarefa[tid] || 0;
+        detalhesTarefas.push({
+          id: `t${tid}_c0_p0`,
+          original_id: String(tid),
+          nome: nomeTarefa[String(tid)] || `Tarefa #${tid}`,
+          total_estimado_ms: totalEstimadoMs,
+          total_realizado_ms: rMs,
+          custo_estimado: 0
+        });
+      }
+    });
+    Object.keys(realizadoResult.porTarefa || {}).forEach(tid => {
+      if (seenTarefas.has(tid)) return;
+      seenTarefas.add(tid);
+      detalhesTarefas.push({
+        id: `t${tid}_c0_p0`,
+        original_id: String(tid),
+        nome: nomeTarefa[String(tid)] || `Tarefa #${tid}`,
+        total_estimado_ms: 0,
+        total_realizado_ms: realizadoResult.porTarefa[tid] || 0,
+        custo_estimado: 0
+      });
+    });
+
+    const clienteTarefasResp = realizadoResult.breakdown.clienteTarefas || {};
+    detalhesTarefas.forEach(tar => {
+      const tid = tar.original_id || tar.id;
+      const clientesDaTarefa = [];
+      Object.keys(clienteTarefasResp).forEach(tcKey => {
+        const parts = tcKey.split('_');
+        if (parts.length < 3) return;
+        if (parts[0] !== tid || parts[parts.length - 1] !== tid) return;
+        const cid = parts.slice(1, -1).join('_');
+        const totalRealizadoMs = clienteTarefasResp[tcKey] || 0;
+        clientesDaTarefa.push({
+          id: String(cid),
+          nome: cid === 'sem_cliente' ? 'Demais' : (nomeCliente[cid] || `Cliente #${cid}`),
+          total_estimado_ms: 0,
+          total_realizado_ms: totalRealizadoMs
+        });
+      });
+      tar.clientes = clientesDaTarefa;
+    });
+
+    return res.json({ success: true, data: normalizarDataDetalhes(detalhesTarefas) });
+  } catch (error) {
+    console.error('❌ [GESTAO-CAPACIDADE] detalhesTipoTarefa:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno do servidor', details: error.message });
+  }
+}
+
 module.exports = {
   cardsResponsavel,
   cardsCliente,
@@ -3009,5 +3361,6 @@ module.exports = {
   detalhesResponsavel,
   detalhesCliente,
   detalhesProduto,
-  detalhesTarefa
+  detalhesTarefa,
+  detalhesTipoTarefa
 };

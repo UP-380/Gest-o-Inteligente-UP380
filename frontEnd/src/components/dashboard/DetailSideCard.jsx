@@ -1384,6 +1384,7 @@ const DetailSideCard = ({ entidadeId, cardTipo, tipo, dados, onClose, position, 
               onToggleTipoTarefa={toggleTipoTarefa}
               buscarRegistrosIndividuais={buscarRegistrosIndividuais}
               getNomeColaboradorPorUsuarioId={getNomeColaboradorPorUsuarioId}
+              getNomeTipoTarefa={getNomeTipoTarefa}
               temposRealizadosPorTipoTarefa={temposRealizadosPorTipoTarefa}
               temposRealizadosPorTarefaPorTipoTarefa={temposRealizadosPorTarefaPorTipoTarefa}
             />
