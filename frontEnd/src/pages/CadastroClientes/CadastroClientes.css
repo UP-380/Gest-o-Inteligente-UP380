@@ -24,6 +24,12 @@
   flex: 1;
 }
 
+.cadastro-listing-header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .cadastro-listing-header-icon {
   display: flex;
   align-items: center;

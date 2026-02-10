@@ -132,16 +132,28 @@ const CadastroCliente = () => {
   // Carregar dados do cliente
   const loadCliente = useCallback(async () => {
     if (!clienteId) {
-      // Se não tem clienteId, pode ser um novo cadastro ou erro
+      // Novo cadastro: inicializar formulário vazio com valores padrão
       const stateCliente = location.state?.cliente;
       if (stateCliente) {
         setCliente(stateCliente);
         return;
       }
-      // Se não tem ID, mostrar formulário vazio para novo cadastro
       setLoading(false);
       setCliente(null);
-      // Não carregar clientes Kamino aqui - será carregado quando o campo receber foco
+      setFormData({
+        id: null,
+        razao: '',
+        fantasia: '',
+        amigavel: '',
+        nome: '',
+        cnpj: '',
+        status: 'ativo',
+        kaminoNome: '',
+        kaminoId: '',
+        clickupNome: '',
+        foto_perfil: DEFAULT_AVATAR,
+        uploadedFotoPath: null
+      });
       return;
     }
 
@@ -422,10 +434,9 @@ const CadastroCliente = () => {
     }
   };
 
-  // Salvar edição de cliente
+  // Salvar cliente (criar ou editar)
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!formData.id) return;
 
     setSubmitting(true);
     setFormErrors({});
@@ -433,31 +444,59 @@ const CadastroCliente = () => {
     try {
       const sanitize = (val) => (val && String(val).trim() !== '' ? String(val).trim() : null);
 
-      // Garantir que foto_perfil tenha um valor válido (usar DEFAULT_AVATAR se não houver)
-      // IMPORTANTE: Não usar DEFAULT_AVATAR se formData.foto_perfil for null/undefined/empty
-      // Se o usuário selecionou um avatar, ele deve ser salvo
-      const fotoPerfilValue = (formData.foto_perfil && String(formData.foto_perfil).trim() !== '') 
-        ? String(formData.foto_perfil).trim() 
+      const fotoPerfilValue = (formData.foto_perfil && String(formData.foto_perfil).trim() !== '')
+        ? String(formData.foto_perfil).trim()
         : (cliente?.foto_perfil && String(cliente.foto_perfil).trim() !== '' ? String(cliente.foto_perfil).trim() : DEFAULT_AVATAR);
 
-      const payloadById = {
+      const payload = {
         razao_social: sanitize(formData.razao),
         nome_fantasia: sanitize(formData.fantasia),
         nome_amigavel: sanitize(formData.amigavel),
         nome: sanitize(formData.nome),
         cpf_cnpj: sanitize(formData.cnpj),
-        status: sanitize(formData.status),
+        status: sanitize(formData.status) || 'ativo',
         nome_cli_kamino: sanitize(formData.kaminoNome),
         id_cli_kamino: sanitize(formData.kaminoId),
         foto_perfil: fotoPerfilValue,
       };
 
-      const endpoint = `${API_BASE_URL}/clientes/${formData.id}`;
-      
-      const resp = await fetch(endpoint, {
+      const isNovo = !formData.id;
+
+      if (isNovo) {
+        // Criar novo cliente
+        const resp = await fetch(`${API_BASE_URL}/clientes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'include',
+        });
+
+        if (resp.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => null);
+          const msg = data?.details || data?.error || data?.message || 'Erro ao cadastrar cliente';
+          throw new Error(msg);
+        }
+
+        const result = await resp.json();
+        if (result.success && result.cliente?.id) {
+          showToast('success', 'Cliente cadastrado com sucesso!');
+          navigate(`/cadastro/cliente?id=${result.cliente.id}`, { state: { from: '/cadastro/clientes' } });
+        } else {
+          throw new Error(result.error || 'Erro ao cadastrar cliente');
+        }
+        return;
+      }
+
+      // Editar cliente existente
+      const resp = await fetch(`${API_BASE_URL}/clientes/${formData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadById),
+        body: JSON.stringify(payload),
         credentials: 'include',
       });
 
@@ -473,15 +512,12 @@ const CadastroCliente = () => {
 
       const result = await resp.json();
       if (result.success) {
-        // Atualizar estado do cliente com os dados retornados (sem recarregar tudo)
         if (result.cliente) {
           setCliente(prev => ({
             ...prev,
             ...result.cliente,
             foto_perfil: result.cliente.foto_perfil || prev?.foto_perfil
           }));
-          
-          // Atualizar formData também para manter sincronizado
           setFormData(prev => ({
             ...prev,
             razao: result.cliente.razao_social || prev.razao,
@@ -495,7 +531,6 @@ const CadastroCliente = () => {
             foto_perfil: result.cliente.foto_perfil || prev.foto_perfil
           }));
         }
-        
         showToast('success', 'Cliente atualizado com sucesso!');
       } else {
         throw new Error(result.error || 'Erro ao salvar cliente');
@@ -545,21 +580,74 @@ const CadastroCliente = () => {
     );
   }
 
-  // Se não tem cliente e não tem ID, pode ser novo cadastro
+  // Novo cadastro: exibir formulário completo
   if (!cliente && !clienteId) {
     return (
       <Layout>
         <div className="container">
           <main className="main-content">
             <CardContainer>
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                <p style={{ color: '#64748b' }}>Funcionalidade de novo cadastro em desenvolvimento.</p>
-                <button
-                  className="btn-secondary"
-                  onClick={() => navigate(-1)}
-                >
-                  Voltar
-                </button>
+              <div className="editar-cliente-container">
+                <div className="cadastro-cliente-header">
+                  <div className="cadastro-cliente-header-content">
+                    <div className="cadastro-cliente-header-left">
+                      <div className="cadastro-cliente-header-icon">
+                        <Avatar
+                          avatarId={formData.foto_perfil || DEFAULT_AVATAR}
+                          nomeUsuario={formData.amigavel || formData.fantasia || formData.razao || 'Novo Cliente'}
+                          size="large"
+                        />
+                      </div>
+                      <div>
+                        <h2 className="cadastro-cliente-title">Novo Cliente</h2>
+                        <p className="cadastro-cliente-subtitle">
+                          Preencha os dados para cadastrar um novo cliente
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn-secondary cadastro-cliente-back-btn"
+                        onClick={() => navigate('/cadastro/clientes')}
+                      >
+                        <i className="fas fa-arrow-left"></i>
+                        Voltar
+                      </button>
+                      <ButtonPrimary
+                        type="submit"
+                        form="cliente-form"
+                        disabled={submitting}
+                        icon={submitting ? 'fas fa-spinner fa-spin' : 'fas fa-save'}
+                      >
+                        {submitting ? 'Cadastrando...' : 'Cadastrar'}
+                      </ButtonPrimary>
+                    </div>
+                  </div>
+                </div>
+
+                <form id="cliente-form" onSubmit={handleSubmit}>
+                  <div className="editar-cliente-form-section">
+                    <div className="section-header">
+                      <div className="section-icon" style={{ backgroundColor: '#3b82f615', color: '#3b82f6' }}>
+                        <i className="fas fa-briefcase"></i>
+                      </div>
+                      <h2 className="section-title">Dados Básicos</h2>
+                    </div>
+                    <div className="section-content">
+                      <ClienteForm
+                        formData={formData}
+                        setFormData={setFormData}
+                        formErrors={formErrors}
+                        setFormErrors={setFormErrors}
+                        submitting={submitting}
+                        allClientesKamino={allClientesKaminoRef.current}
+                        clientesKaminoMap={clientesKaminoMapRef.current}
+                        onLoadKamino={loadClientesKamino}
+                      />
+                    </div>
+                  </div>
+                </form>
               </div>
             </CardContainer>
           </main>

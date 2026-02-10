@@ -6,6 +6,7 @@ const supabase = require('../config/database');
 const { clearCache } = require('../config/cache');
 const multer = require('multer');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 const { uploadImageToStorage, deleteImageFromStorage, resolveAvatarUrl } = require('../utils/storage');
 
 // ========================================
@@ -426,6 +427,110 @@ async function getClientes(req, res) {
 }
 
 // ========================================
+// === POST /api/clientes ===
+// ========================================
+async function criarCliente(req, res) {
+  try {
+    const {
+      razao_social,
+      nome_fantasia,
+      nome_amigavel,
+      nome,
+      cpf_cnpj,
+      status,
+      nome_cli_kamino,
+      id_cli_kamino,
+      foto_perfil
+    } = req.body;
+
+    if (!razao_social || !String(razao_social).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Razão social é obrigatória'
+      });
+    }
+    if (!nome_fantasia || !String(nome_fantasia).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Nome fantasia é obrigatório'
+      });
+    }
+
+    const trim = (v) => (v !== undefined && v !== null && String(v).trim() !== '' ? String(v).trim() : null);
+    const schema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+
+    // Nome: evitar null (muitas tabelas têm nome NOT NULL); fallback para nome_fantasia ou razao_social
+    const nomeVal = trim(nome) || trim(nome_fantasia) || trim(razao_social);
+    const fotoPerfilVal = trim(foto_perfil) || 'color-blue';
+
+    const dadosInsert = {
+      id: uuidv4(),
+      razao_social: trim(razao_social),
+      nome_fantasia: trim(nome_fantasia),
+      nome_amigavel: trim(nome_amigavel),
+      nome: nomeVal,
+      cpf_cnpj: trim(cpf_cnpj),
+      status: trim(status) || 'ativo',
+      nome_cli_kamino: trim(nome_cli_kamino),
+      id_cli_kamino: trim(id_cli_kamino),
+      foto_perfil: fotoPerfilVal
+    };
+
+    let result = await supabase
+      .schema(schema)
+      .from('cp_cliente')
+      .insert([dadosInsert])
+      .select()
+      .single();
+
+    if (result.error && result.error.message && result.error.message.includes('does not exist') && result.error.message.includes('nome')) {
+      const { nome: _n, ...dadosSemNome } = dadosInsert;
+      result = await supabase
+        .schema(schema)
+        .from('cp_cliente')
+        .insert([dadosSemNome])
+        .select()
+        .single();
+    }
+
+    const { data: clienteCriado, error } = result;
+
+    if (error) {
+      console.error('❌ Erro ao criar cliente:', error.message, error.code, error.details || error);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao criar cliente',
+        details: error.message || (error.details && String(error.details))
+      });
+    }
+
+    clearCache('clientes');
+
+    let processado;
+    try {
+      processado = await processarCliente(clienteCriado);
+    } catch (processErr) {
+      console.warn('Aviso ao processar cliente após insert:', processErr.message);
+      processado = { ...clienteCriado };
+    }
+    console.log('✅ Cliente criado com sucesso:', processado.nome_fantasia || processado.razao_social);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Cliente cadastrado com sucesso',
+      cliente: processado
+    });
+  } catch (err) {
+    console.error('❌ Erro inesperado ao criar cliente:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: err.message
+    });
+  }
+}
+
+// ========================================
 // === PUT /api/clientes/:id ===
 // ========================================
 async function atualizarClientePorId(req, res) {
@@ -435,6 +540,7 @@ async function atualizarClientePorId(req, res) {
       razao_social,
       nome_fantasia,
       nome_amigavel,
+      nome,
       cpf_cnpj,
       status,
       nome_cli_kamino,
@@ -485,6 +591,9 @@ async function atualizarClientePorId(req, res) {
     }
     if (nome_amigavel !== undefined && nome_amigavel !== null) {
       dadosUpdate.nome_amigavel = nome_amigavel.trim() || null;
+    }
+    if (nome !== undefined && nome !== null) {
+      dadosUpdate.nome = nome.trim() || null;
     }
     if (cpf_cnpj !== undefined && cpf_cnpj !== null) {
       dadosUpdate.cpf_cnpj = cpf_cnpj.trim() || null;
@@ -731,6 +840,7 @@ module.exports = {
   getClientesKamino,
   getClientesIncompletosCount,
   getClientes,
+  criarCliente,
   atualizarClientePorId,
   getClientePorId,
   deletarCliente,

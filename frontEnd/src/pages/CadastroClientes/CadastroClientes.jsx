@@ -520,6 +520,17 @@ const CadastroClientes = () => {
                     </p>
                   </div>
                 </div>
+                <div className="cadastro-listing-header-actions">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => navigate('/cadastro/cliente')}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <i className="fas fa-plus"></i>
+                    Novo Cliente
+                  </button>
+                </div>
               </div>
             </div>
 
