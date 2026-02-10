@@ -26,7 +26,7 @@ const ClienteForm = ({
     if (!allClientesKamino || !Array.isArray(allClientesKamino) || allClientesKamino.length === 0) {
       return [];
     }
-    
+
     return allClientesKamino.filter(c => {
       if (!c || !c.nome_fantasia) return false;
       if (!kaminoSearchTerm || kaminoSearchTerm.trim() === '') {
@@ -123,27 +123,6 @@ const ClienteForm = ({
           )}
         </div>
 
-        <div className="form-group">
-          <label className="form-label-small">
-            Nome
-          </label>
-          <input
-            type="text"
-            className={`form-input-small ${formErrors.nome ? 'error' : ''}`}
-            value={formData.nome || ''}
-            onChange={(e) => {
-              setFormData({ ...formData, nome: e.target.value });
-              if (formErrors.nome) {
-                setFormErrors({ ...formErrors, nome: '' });
-              }
-            }}
-            placeholder="Digite o nome"
-            disabled={submitting}
-          />
-          {formErrors.nome && (
-            <span className="error-message">{formErrors.nome}</span>
-          )}
-        </div>
       </div>
 
       <div className="form-row">
@@ -211,129 +190,129 @@ const ClienteForm = ({
               Cliente Kamino
             </label>
             <div className="select-wrapper searchable-select" style={{ position: 'relative', zIndex: showKaminoDropdown ? 1002 : 'auto' }}>
-            <input
-              type="text"
-              className={`form-input-small select-with-icon searchable-input ${formErrors.kaminoNome ? 'error' : ''}`}
-              value={kaminoSearchTerm}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                setKaminoSearchTerm(newValue);
-                setShowKaminoDropdown(true);
-                if (!newValue || newValue.trim() === '') {
-                  setFormData({
-                    ...formData,
-                    kaminoNome: '',
-                    kaminoId: '',
-                  });
-                }
-              }}
-              onFocus={async () => {
-                setShowKaminoDropdown(true);
-                // Carregar clientes Kamino apenas na primeira vez que o campo recebe foco
-                if (!kaminoLoaded && onLoadKamino) {
-                  setKaminoLoaded(true);
-                  await onLoadKamino();
-                }
-              }}
-              onBlur={(e) => {
-                const relatedTarget = e.relatedTarget;
-                if (!relatedTarget || !relatedTarget.closest('.dropdown-list')) {
-                  setTimeout(() => setShowKaminoDropdown(false), 200);
-                }
-              }}
-              placeholder="Digite para pesquisar..."
-              autoComplete="off"
-              disabled={submitting}
-            />
-            <i 
-              className="fas fa-chevron-down select-icon" 
-              onClick={() => {
-                setShowKaminoDropdown(!showKaminoDropdown);
-              }}
-              style={{ cursor: 'pointer' }}
-            ></i>
-            {showKaminoDropdown && (
-              <ul 
-                className="dropdown-list" 
-                style={{ 
-                  maxHeight: '200px', 
-                  overflowY: 'auto',
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  left: 'auto',
-                  width: '150%',
-                  minWidth: '300px',
-                  maxWidth: '500px',
-                  zIndex: 10000,
-                  backgroundColor: '#fff',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  marginTop: '4px',
-                  padding: 0,
-                  listStyle: 'none',
-                  display: 'block',
-                  visibility: 'visible',
-                  opacity: 1,
-                  textAlign: 'left',
-                  transform: 'translateX(0)'
+              <input
+                type="text"
+                className={`form-input-small select-with-icon searchable-input ${formErrors.kaminoNome ? 'error' : ''}`}
+                value={kaminoSearchTerm}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  setKaminoSearchTerm(newValue);
+                  setShowKaminoDropdown(true);
+                  if (!newValue || newValue.trim() === '') {
+                    setFormData({
+                      ...formData,
+                      kaminoNome: '',
+                      kaminoId: '',
+                    });
+                  }
                 }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                onFocus={async () => {
+                  setShowKaminoDropdown(true);
+                  // Carregar clientes Kamino apenas na primeira vez que o campo recebe foco
+                  if (!kaminoLoaded && onLoadKamino) {
+                    setKaminoLoaded(true);
+                    await onLoadKamino();
+                  }
                 }}
-              >
-                {filteredKamino.length > 0 ? (
-                  filteredKamino.slice(0, 100).map((c) => {
-                    const nomeExibicao = c.nome_fantasia || 'Cliente sem nome';
-                    return (
-                      <li
-                        key={c.id || nomeExibicao}
-                        className="dropdown-item"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const idMap = clientesKaminoMap?.get(c.nome_fantasia) || c.id;
-                          setFormData({
-                            ...formData,
-                            kaminoNome: nomeExibicao,
-                            kaminoId: idMap || c.id || '',
-                          });
-                          setKaminoSearchTerm(nomeExibicao);
-                          setShowKaminoDropdown(false);
-                        }}
-                        style={{ 
-                          cursor: 'pointer',
-                          padding: '8px 12px',
-                          borderBottom: '1px solid #f0f0f0',
-                          textAlign: 'left',
-                          justifyContent: 'flex-start',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
-                        onMouseLeave={(e) => e.target.style.backgroundColor = '#fff'}
-                      >
-                        {nomeExibicao}
-                      </li>
-                    );
-                  })
-                ) : allClientesKamino && allClientesKamino.length > 0 ? (
-                  <li className="dropdown-item" style={{ color: '#999', fontStyle: 'italic', padding: '8px 12px' }}>
-                    Nenhum cliente encontrado para "{kaminoSearchTerm}"
-                  </li>
-                ) : (
-                  <li className="dropdown-item" style={{ color: '#999', fontStyle: 'italic', padding: '8px 12px' }}>
-                    Carregando clientes...
-                  </li>
-                )}
-              </ul>
-            )}
+                onBlur={(e) => {
+                  const relatedTarget = e.relatedTarget;
+                  if (!relatedTarget || !relatedTarget.closest('.dropdown-list')) {
+                    setTimeout(() => setShowKaminoDropdown(false), 200);
+                  }
+                }}
+                placeholder="Digite para pesquisar..."
+                autoComplete="off"
+                disabled={submitting}
+              />
+              <i
+                className="fas fa-chevron-down select-icon"
+                onClick={() => {
+                  setShowKaminoDropdown(!showKaminoDropdown);
+                }}
+                style={{ cursor: 'pointer' }}
+              ></i>
+              {showKaminoDropdown && (
+                <ul
+                  className="dropdown-list"
+                  style={{
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    left: 'auto',
+                    width: '150%',
+                    minWidth: '300px',
+                    maxWidth: '500px',
+                    zIndex: 10000,
+                    backgroundColor: '#fff',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    marginTop: '4px',
+                    padding: 0,
+                    listStyle: 'none',
+                    display: 'block',
+                    visibility: 'visible',
+                    opacity: 1,
+                    textAlign: 'left',
+                    transform: 'translateX(0)'
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  {filteredKamino.length > 0 ? (
+                    filteredKamino.slice(0, 100).map((c) => {
+                      const nomeExibicao = c.nome_fantasia || 'Cliente sem nome';
+                      return (
+                        <li
+                          key={c.id || nomeExibicao}
+                          className="dropdown-item"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const idMap = clientesKaminoMap?.get(c.nome_fantasia) || c.id;
+                            setFormData({
+                              ...formData,
+                              kaminoNome: nomeExibicao,
+                              kaminoId: idMap || c.id || '',
+                            });
+                            setKaminoSearchTerm(nomeExibicao);
+                            setShowKaminoDropdown(false);
+                          }}
+                          style={{
+                            cursor: 'pointer',
+                            padding: '8px 12px',
+                            borderBottom: '1px solid #f0f0f0',
+                            textAlign: 'left',
+                            justifyContent: 'flex-start',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#fff'}
+                        >
+                          {nomeExibicao}
+                        </li>
+                      );
+                    })
+                  ) : allClientesKamino && allClientesKamino.length > 0 ? (
+                    <li className="dropdown-item" style={{ color: '#999', fontStyle: 'italic', padding: '8px 12px' }}>
+                      Nenhum cliente encontrado para "{kaminoSearchTerm}"
+                    </li>
+                  ) : (
+                    <li className="dropdown-item" style={{ color: '#999', fontStyle: 'italic', padding: '8px 12px' }}>
+                      Carregando clientes...
+                    </li>
+                  )}
+                </ul>
+              )}
             </div>
             {formErrors.kaminoNome && (
               <span className="error-message">{formErrors.kaminoNome}</span>

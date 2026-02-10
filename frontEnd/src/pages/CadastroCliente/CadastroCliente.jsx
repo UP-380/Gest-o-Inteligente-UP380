@@ -30,7 +30,7 @@ const CadastroCliente = () => {
 
   const [loading, setLoading] = useState(true);
   const [cliente, setCliente] = useState(null);
-  
+
   // Estados do formulário
   const [formData, setFormData] = useState({
     id: null,
@@ -62,7 +62,7 @@ const CadastroCliente = () => {
   const [showModalContas, setShowModalContas] = useState(false);
   const [showModalSistemas, setShowModalSistemas] = useState(false);
   const [showModalAdquirentes, setShowModalAdquirentes] = useState(false);
-  
+
   // Estado para vinculações
   const [vinculacoes, setVinculacoes] = useState([]);
   const [loadingVinculacoes, setLoadingVinculacoes] = useState(false);
@@ -77,7 +77,7 @@ const CadastroCliente = () => {
     if (allClientesKaminoRef.current && allClientesKaminoRef.current.length > 0) {
       return;
     }
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}/clientes-kamino`, {
         credentials: 'include',
@@ -222,7 +222,7 @@ const CadastroCliente = () => {
 
         // Limpar foto preview quando carregar dados do backend
         setFotoPreview(null);
-        
+
         // Atualizar formData com foto_perfil
         setFormData(prev => ({
           ...prev,
@@ -283,7 +283,7 @@ const CadastroCliente = () => {
   // Função para selecionar avatar colorido (não salva ainda, só atualiza estado)
   const handleSelectAvatar = (avatarId) => {
     if (submitting || savingAvatar) return;
-    
+
     setFormData(prev => ({
       ...prev,
       foto_perfil: avatarId || DEFAULT_AVATAR,
@@ -303,7 +303,7 @@ const CadastroCliente = () => {
 
     try {
       const fotoPerfilValue = formData.foto_perfil || DEFAULT_AVATAR;
-      
+
       // Se houver foto customizada (upload), já foi feito o upload no handleCropComplete
       // Agora só precisamos atualizar o foto_perfil no backend
       const payload = {
@@ -344,14 +344,14 @@ const CadastroCliente = () => {
             const getResult = await getResponse.json();
             if (getResult.success && getResult.data?.cliente) {
               const clienteAtualizado = getResult.data.cliente;
-              
+
               // Atualizar estado do cliente com dados completos
               setCliente(prev => ({
                 ...prev,
                 ...clienteAtualizado,
                 foto_perfil: clienteAtualizado.foto_perfil || fotoPerfilValue
               }));
-              
+
               // Atualizar formData também
               setFormData(prev => ({
                 ...prev,
@@ -363,23 +363,23 @@ const CadastroCliente = () => {
           console.error('Erro ao buscar dados atualizados do cliente:', getError);
           // Não falhar o salvamento se o GET falhar, apenas logar o erro
         }
-        
+
         // Atualizar também o estado baseado no resultado do PUT (fallback)
         if (result.cliente) {
           setCliente(prev => ({
             ...prev,
             foto_perfil: result.cliente.foto_perfil || fotoPerfilValue
           }));
-          
+
           setFormData(prev => ({
             ...prev,
             foto_perfil: result.cliente.foto_perfil || fotoPerfilValue
           }));
         }
-        
+
         // Limpar preview temporário
         setFotoPreview(null);
-        
+
         showToast('success', 'Avatar atualizado com sucesso!');
         setShowAvatarCard(false);
       } else {
@@ -400,24 +400,24 @@ const CadastroCliente = () => {
 
     try {
       const result = await clientesAPI.uploadClienteFoto(croppedFile, formData.id || clienteId);
-      
+
       if (result.success) {
         // foto_perfil já contém a URL completa do Supabase Storage
         setFotoPreview(URL.createObjectURL(croppedFile));
-        
+
         // Atualizar formData e cliente com a URL completa
         const fotoPerfilUrl = result.cliente.foto_perfil || result.imagePath || DEFAULT_AVATAR;
-        
+
         setFormData(prev => ({
           ...prev,
           foto_perfil: fotoPerfilUrl
         }));
-        
+
         setCliente(prev => ({
           ...prev,
           foto_perfil: fotoPerfilUrl
         }));
-        
+
         // Reabrir o card após upload para permitir salvar
         setShowAvatarCard(true);
         showToast('success', 'Foto carregada! Clique em "Salvar" para confirmar.');
@@ -452,7 +452,7 @@ const CadastroCliente = () => {
         razao_social: sanitize(formData.razao),
         nome_fantasia: sanitize(formData.fantasia),
         nome_amigavel: sanitize(formData.amigavel),
-        nome: sanitize(formData.nome),
+        nome: sanitize(formData.amigavel),
         cpf_cnpj: sanitize(formData.cnpj),
         status: sanitize(formData.status) || 'ativo',
         nome_cli_kamino: sanitize(formData.kaminoNome),
@@ -666,12 +666,12 @@ const CadastroCliente = () => {
               <div className="cadastro-cliente-header">
                 <div className="cadastro-cliente-header-content">
                   <div className="cadastro-cliente-header-left">
-                    <div 
+                    <div
                       ref={headerIconRef}
                       className="cadastro-cliente-header-icon-container"
                       style={{ position: 'relative' }}
                     >
-                      <div 
+                      <div
                         className="cadastro-cliente-header-icon"
                         style={{ cursor: 'pointer' }}
                         onClick={() => setShowAvatarCard(!showAvatarCard)}
@@ -683,7 +683,7 @@ const CadastroCliente = () => {
                           size="large"
                         />
                       </div>
-                      
+
                       {/* Card de Avatar */}
                       {showAvatarCard && (
                         <ClienteAvatarCard
@@ -768,7 +768,7 @@ const CadastroCliente = () => {
                           <i className="fas fa-spinner fa-spin" style={{ fontSize: '20px', color: '#6b7280' }}></i>
                         </div>
                       ) : (
-                        <VinculacoesContent 
+                        <VinculacoesContent
                           vinculacoes={vinculacoes}
                           clienteId={formData.id}
                           onObservacaoUpdated={() => {
@@ -865,8 +865,8 @@ const CadastroCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteContasBancariasList 
-                clienteId={formData.id || clienteId} 
+              <ClienteContasBancariasList
+                clienteId={formData.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
               />
             </div>
@@ -894,8 +894,8 @@ const CadastroCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteSistemasList 
-                clienteId={formData.id || clienteId} 
+              <ClienteSistemasList
+                clienteId={formData.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
               />
             </div>
@@ -923,8 +923,8 @@ const CadastroCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteAdquirentesList 
-                clienteId={formData.id || clienteId} 
+              <ClienteAdquirentesList
+                clienteId={formData.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
               />
             </div>
