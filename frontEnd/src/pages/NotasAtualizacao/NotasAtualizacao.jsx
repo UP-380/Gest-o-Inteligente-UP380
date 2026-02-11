@@ -40,7 +40,10 @@ const NotasAtualizacao = () => {
     // Estado do formulário
     const [titulo, setTitulo] = useState('');
     const [conteudo, setConteudo] = useState('');
-    const [dataPublicacao, setDataPublicacao] = useState(new Date().toISOString().split('T')[0]);
+    const [dataPublicacao, setDataPublicacao] = useState(new Date().toISOString());
+    const [showSchedPopover, setShowSchedPopover] = useState(false);
+    const [tempData, setTempData] = useState(new Date().toISOString().split('T')[0]);
+    const [tempHora, setTempHora] = useState(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
     const [salvando, setSalvando] = useState(false);
     const [excluindo, setExcluindo] = useState(false);
 
@@ -87,7 +90,10 @@ const NotasAtualizacao = () => {
             if (res.success && res.data) {
                 setTitulo(res.data.titulo);
                 setConteudo(res.data.conteudo || '');
-                setDataPublicacao(res.data.data_publicacao ? res.data.data_publicacao.split('T')[0] : new Date().toISOString().split('T')[0]);
+                setDataPublicacao(res.data.data_publicacao || new Date().toISOString());
+                const dateObj = new Date(res.data.data_publicacao || new Date());
+                setTempData(dateObj.toISOString().split('T')[0]);
+                setTempHora(dateObj.getHours().toString().padStart(2, '0') + ':' + dateObj.getMinutes().toString().padStart(2, '0'));
                 setIsEditing(false);
                 setIsCreating(false);
             } else {
@@ -125,9 +131,12 @@ const NotasAtualizacao = () => {
             setNotaSelecionadaId(null);
             setTitulo('');
             setConteudo('');
-            setDataPublicacao(new Date().toISOString().split('T')[0]);
+            setDataPublicacao(new Date().toISOString());
+            setTempData(new Date().toISOString().split('T')[0]);
+            setTempHora(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
             setIsCreating(false);
             setIsEditing(false);
+            setShowSchedPopover(false);
         } else {
             setIsEditing(false);
             // Recarregar dados originais
@@ -181,6 +190,25 @@ const NotasAtualizacao = () => {
             setSalvando(false);
         }
     }, [isAdmin, isCreating, notaSelecionadaId, titulo, conteudo, dataPublicacao, showToast, carregarNotas]);
+
+    const handleAplicarAgendamento = useCallback(() => {
+        try {
+            // Unir data e hora garantindo formato ISO local (YYYY-MM-DDTHH:mm:00)
+            // Usamos a string direta no construtor para evitar deslocamentos de timezone do navegador
+            const fullDate = new Date(`${tempData}T${tempHora}:00`);
+
+            if (isNaN(fullDate.getTime())) {
+                showToast('error', 'Data ou horário inválidos.');
+                return;
+            }
+
+            setDataPublicacao(fullDate.toISOString());
+            setShowSchedPopover(false);
+            showToast('info', `Agendado para: ${fullDate.toLocaleString('pt-BR')}`);
+        } catch (e) {
+            showToast('error', 'Erro ao formatar data/horário.');
+        }
+    }, [tempData, tempHora, showToast]);
 
     const handleExcluir = useCallback(async () => {
         if (!notaParaExcluir || !isAdmin) return;
@@ -384,15 +412,48 @@ const NotasAtualizacao = () => {
                                                 <div className="anexar-arquivo-doc-bar-actions">
                                                     {isEditing && (
                                                         <div className="notas-date-picker-container">
-                                                            <label htmlFor="nota-date-input" className="notas-calendar-btn" title="Definir data da nota">
+                                                            <button
+                                                                type="button"
+                                                                className={`notas-calendar-btn ${showSchedPopover ? 'active' : ''}`}
+                                                                onClick={() => setShowSchedPopover(!showSchedPopover)}
+                                                                title="Agendar publicação"
+                                                            >
                                                                 <i className="fas fa-calendar-alt"></i>
-                                                                <input
-                                                                    id="nota-date-input"
-                                                                    type="date"
-                                                                    value={dataPublicacao}
-                                                                    onChange={e => setDataPublicacao(e.target.value)}
-                                                                />
-                                                            </label>
+                                                            </button>
+
+                                                            {showSchedPopover && (
+                                                                <div className="notas-sched-popover">
+                                                                    <div className="notas-sched-popover-header">
+                                                                        <span>Agendar Publicação</span>
+                                                                        <button type="button" onClick={() => setShowSchedPopover(false)}>&times;</button>
+                                                                    </div>
+                                                                    <div className="notas-sched-popover-body">
+                                                                        <div className="notas-sched-field">
+                                                                            <label>Data</label>
+                                                                            <input
+                                                                                type="date"
+                                                                                value={tempData}
+                                                                                onChange={e => setTempData(e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="notas-sched-field">
+                                                                            <label>Horário</label>
+                                                                            <input
+                                                                                type="time"
+                                                                                value={tempHora}
+                                                                                onChange={e => setTempHora(e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="notas-sched-btn-apply"
+                                                                            onClick={handleAplicarAgendamento}
+                                                                        >
+                                                                            Aplicar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {isAdmin && !isEditing && (

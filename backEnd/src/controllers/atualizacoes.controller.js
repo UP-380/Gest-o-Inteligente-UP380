@@ -176,14 +176,8 @@ async function criarAtualizacao(req, res) {
         const agora = new Date();
         const dataPub = data_publicacao ? new Date(data_publicacao) : new Date();
 
-        // Se a data de publicação for posterior a hoje, truncar para as 08:00 da manhã
-        // Comparamos apenas a data (YYYY-MM-DD) para saber se é um dia futuro
-        const isAgendado = dataPub.getTime() > agora.getTime() &&
-            dataPub.toISOString().split('T')[0] !== agora.toISOString().split('T')[0];
-
-        if (isAgendado) {
-            dataPub.setHours(8, 0, 0, 0);
-        }
+        // Agendamento é ativado se a data for futura em relação ao momento atual
+        const isAgendado = dataPub.getTime() > agora.getTime();
 
         const { data, error } = await supabase
             .from('base_conhecimento_atualizacoes')
@@ -271,7 +265,12 @@ async function atualizarAtualizacao(req, res) {
         const updateData = {};
         if (titulo !== undefined) updateData.titulo = titulo.trim();
         if (conteudo !== undefined) updateData.conteudo = conteudo;
-        if (data_publicacao !== undefined) updateData.data_publicacao = data_publicacao;
+        if (data_publicacao !== undefined) {
+            updateData.data_publicacao = data_publicacao;
+            // Se mover para o futuro, vira rascunho (agendado). Se for passado/agora, vira publicado.
+            const dataPub = new Date(data_publicacao);
+            updateData.anunciado = dataPub.getTime() <= (new Date()).getTime();
+        }
         updateData.updated_at = new Date();
 
         const { data, error } = await supabase
