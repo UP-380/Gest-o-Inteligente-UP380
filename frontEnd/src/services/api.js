@@ -844,6 +844,15 @@ export const historicoAtribuicoesAPI = {
   },
 
   /**
+   * Deleta TODAS as regras órfãs
+   */
+  async deleteAllOrfas() {
+    return await request(`${API_BASE_URL}/historico-atribuicoes/orfas`, {
+      method: 'DELETE'
+    });
+  },
+
+  /**
    * Deleta um histórico de atribuição
    * @param {string} id
    */

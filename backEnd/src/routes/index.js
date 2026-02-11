@@ -238,6 +238,7 @@ router.put('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesCo
 router.delete('/api/historico-atribuicoes/:id', requireAuth, historicoAtribuicoesController.deletarHistoricoAtribuicao);
 router.post('/api/historico-atribuicoes/sincronizar-orfaos', requireAuth, historicoAtribuicoesController.sincronizarHistoricosOrfaos);
 router.delete('/api/historico-atribuicoes/orfas/:agrupador_id', requireAuth, historicoAtribuicoesController.deletarRegrasOrfas);
+router.delete('/api/historico-atribuicoes/orfas', requireAuth, historicoAtribuicoesController.deletarTodasRegrasOrfas);
 console.log('✅ Rotas de histórico de atribuições registradas:', {
   get: '/api/historico-atribuicoes',
   getById: '/api/historico-atribuicoes/:id',

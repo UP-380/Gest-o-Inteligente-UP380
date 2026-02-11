@@ -70,6 +70,8 @@ const HistoricoAtribuicoes = () => {
   const [showDeleteRegraOrfaModal, setShowDeleteRegraOrfaModal] = useState(false);
   const [regraOrfaParaDeletar, setRegraOrfaParaDeletar] = useState(null);
   const [deletandoRegraOrfa, setDeletandoRegraOrfa] = useState(false);
+  const [showDeleteAllOrfasModal, setShowDeleteAllOrfasModal] = useState(false);
+  const [deletandoTodasOrfas, setDeletandoTodasOrfas] = useState(false);
 
   // Carregar dados iniciais (Clientes e Colaboradores)
   useEffect(() => {
@@ -376,6 +378,25 @@ const HistoricoAtribuicoes = () => {
       setDeletandoRegraOrfa(false);
     }
   }, [regraOrfaParaDeletar, carregarRegrasOrfas, showToast]);
+
+  const handleDeletarTodasOrfas = async () => {
+    setDeletandoTodasOrfas(true);
+    try {
+      const result = await historicoAtribuicoesAPI.deleteAllOrfas();
+      if (result.success) {
+        showToast('success', result.message || 'Todas as regras órfãs foram deletadas com sucesso!');
+        setShowDeleteAllOrfasModal(false);
+        carregarRegrasOrfas(); // Recarregar lista (deve ficar vazia)
+      } else {
+        showToast('error', result.error || 'Erro ao deletar todas as regras órfãs');
+      }
+    } catch (error) {
+      console.error('Erro ao deletar todas as regras órfãs:', error);
+      showToast('error', `Erro ao deletar todas as regras órfãs: ${error.message}`);
+    } finally {
+      setDeletandoTodasOrfas(false);
+    }
+  };
 
   // Handlers de Filtros
   const handleResponsavelChange = (e) => {
@@ -742,24 +763,44 @@ const HistoricoAtribuicoes = () => {
                         Estas atribuições têm regras de tempo estimado mas não possuem histórico associado.
                       </p>
                     </div>
-                    <button
-                      className="btn-primary"
-                      onClick={sincronizarRegrasOrfas}
-                      disabled={sincronizandoOrfas}
-                      style={{ minWidth: '180px' }}
-                    >
-                      {sincronizandoOrfas ? (
-                        <>
-                          <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
-                          Sincronizando...
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-sync" style={{ marginRight: '8px' }}></i>
-                          Criar Históricos
-                        </>
-                      )}
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => setShowDeleteAllOrfasModal(true)}
+                        disabled={sincronizandoOrfas || deletandoTodasOrfas}
+                        style={{ minWidth: '140px', backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#b91c1c' }}
+                      >
+                        {deletandoTodasOrfas ? (
+                          <>
+                            <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                            Excluindo...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-trash-alt" style={{ marginRight: '8px' }}></i>
+                            Excluir Todas
+                          </>
+                        )}
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={sincronizarRegrasOrfas}
+                        disabled={sincronizandoOrfas || deletandoTodasOrfas}
+                        style={{ minWidth: '180px' }}
+                      >
+                        {sincronizandoOrfas ? (
+                          <>
+                            <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                            Sincronizando...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fas fa-sync" style={{ marginRight: '8px' }}></i>
+                            Criar Históricos
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #fde68a', borderRadius: '6px', backgroundColor: '#fffbeb' }}>
@@ -1210,6 +1251,24 @@ const HistoricoAtribuicoes = () => {
             confirmText="Deletar"
             confirmButtonClass="btn-danger"
             loading={deletandoRegraOrfa}
+          />
+
+          <ConfirmModal
+            isOpen={showDeleteAllOrfasModal}
+            onClose={() => setShowDeleteAllOrfasModal(false)}
+            onConfirm={handleDeletarTodasOrfas}
+            title="Confirmar Exclusão de TODAS as Regras"
+            message={
+              <>
+                <p>Tem certeza que deseja excluir <strong>todas as {regrasOrfas.length} atribuições sem histórico</strong>?</p>
+                <div style={{ marginTop: '12px', fontSize: '13px', color: '#b91c1c', padding: '10px', backgroundColor: '#fee2e2', borderRadius: '6px', border: '1px solid #fca5a5' }}>
+                  <i className="fas fa-exclamation-circle"></i> <strong>Atenção:</strong> Esta ação é irreversível e removerá permanentemente todas as regras listadas nesta seção.
+                </div>
+              </>
+            }
+            confirmText="Excluir Todas"
+            confirmButtonClass="btn-danger"
+            loading={deletandoTodasOrfas}
           />
 
           {calendarioVisualizacao.open && (

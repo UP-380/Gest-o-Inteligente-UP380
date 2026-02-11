@@ -18,8 +18,8 @@ const markdownToHtml = (text) => {
     let html = text
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
         .replace(/\n/g, '<br>') // Lines
-        .replace(/!\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="media-label">(imagem)</a>') // Images
-        .replace(/\[video\]\((.*?)\)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="media-label">(video)</a>'); // Videos
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="chat-media-img" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 5px; cursor: pointer;" />') // Images
+        .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="chat-media-video" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-top: 5px;"></video>'); // Videos
     return html;
 };
 
@@ -497,7 +497,7 @@ const CommunicationDrawer = ({ user }) => {
                 // Marcar como lidas as mensagens que o outro enviou (quem está vendo é o usuário atual)
                 const msgsDoOutro = list.filter(m => Number(m.criador_id) !== Number(user?.id));
                 msgsDoOutro.forEach((m) => {
-                    comunicacaoAPI.marcarMensagemLida(m.id).catch(() => {});
+                    comunicacaoAPI.marcarMensagemLida(m.id).catch(() => { });
                 });
             }
         } catch (error) {
