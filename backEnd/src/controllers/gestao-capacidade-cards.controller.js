@@ -529,7 +529,8 @@ async function getContagensDetalhesResponsavel(supabaseClient, opts) {
     responsavelIds,
     dataInicioStr,
     dataFimStr,
-    realizadoBreakdown
+    realizadoBreakdown,
+    filtrosAdicionais = {}
   } = opts;
 
   const contagens = {}; // { responsavelId: { tarefas: Set, clientes: Set, produtos: Set } }
@@ -566,15 +567,33 @@ async function getContagensDetalhesResponsavel(supabaseClient, opts) {
   }
 
   // Contagens do estimado (buscar regras mas só contar, não calcular totais)
-  const criarQuery = () => supabaseClient
-    .from('tempo_estimado_regra')
-    .select('responsavel_id, cliente_id, produto_id, tarefa_id')
-    .in('responsavel_id', responsavelIds)
-    .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
-    .gte('data_fim', `${dataInicioStr}T00:00:00`);
+  const criarQuery = () => {
+    let q = supabaseClient
+      .from('tempo_estimado_regra')
+      .select('responsavel_id, cliente_id, produto_id, tarefa_id')
+      .in('responsavel_id', responsavelIds)
+      .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
+      .gte('data_fim', `${dataInicioStr}T00:00:00`);
+    if (filtrosAdicionais.produto_id?.length) {
+      const ids = filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      if (ids.length) q = q.in('produto_id', ids);
+    }
+    if (filtrosAdicionais.tarefa_id?.length) {
+      const ids = filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      if (ids.length) q = q.in('tarefa_id', ids);
+    }
+    return q;
+  };
 
   try {
-    const regras = await buscarTodosComPaginacao(criarQuery, { limit: PAGINATION_LIMIT, logProgress: false });
+    let regras = await buscarTodosComPaginacao(criarQuery, { limit: PAGINATION_LIMIT, logProgress: false });
+    if (filtrosAdicionais.cliente_id?.length) {
+      const norm = filtrosAdicionais.cliente_id.map(c => String(c).trim().toLowerCase());
+      regras = regras.filter(regra => {
+        const ids = String(regra.cliente_id || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        return ids.some(id => norm.includes(id));
+      });
+    }
     regras.forEach(regra => {
       const rid = String(regra.responsavel_id);
       if (!contagens[rid]) return;
@@ -679,25 +698,43 @@ async function getDetalhesEstimadoResponsavel(supabaseClient, opts) {
     dataInicioStr,
     dataFimStr,
     considerarFinaisSemana,
-    considerarFeriados
+    considerarFeriados,
+    filtrosAdicionais = {}
   } = opts;
 
-  const criarQuery = () => supabaseClient
-    .from('tempo_estimado_regra')
-    .select('id, responsavel_id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia, incluir_finais_semana')
-    .in('responsavel_id', responsavelIds)
-    .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
-    .gte('data_fim', `${dataInicioStr}T00:00:00`)
-    .order('data_inicio', { ascending: false });
+  const criarQuery = () => {
+    let q = supabaseClient
+      .from('tempo_estimado_regra')
+      .select('id, responsavel_id, cliente_id, produto_id, tarefa_id, data_inicio, data_fim, tempo_estimado_dia, incluir_finais_semana')
+      .in('responsavel_id', responsavelIds)
+      .lte('data_inicio', `${dataFimStr}T23:59:59.999`)
+      .gte('data_fim', `${dataInicioStr}T00:00:00`)
+      .order('data_inicio', { ascending: false });
+    if (filtrosAdicionais.produto_id?.length) {
+      const ids = filtrosAdicionais.produto_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      if (ids.length) q = q.in('produto_id', ids);
+    }
+    if (filtrosAdicionais.tarefa_id?.length) {
+      const ids = filtrosAdicionais.tarefa_id.map(id => parseInt(id, 10)).filter(n => !isNaN(n));
+      if (ids.length) q = q.in('tarefa_id', ids);
+    }
+    return q;
+  };
 
   let regras;
   try {
-    // IMPORTANTE: Buscar TODAS as regras sem limite para garantir detalhes completos
-    // buscarTodosComPaginacao já faz paginação automática até buscar tudo
     regras = await buscarTodosComPaginacao(criarQuery, { limit: PAGINATION_LIMIT, logProgress: true });
   } catch (e) {
     console.error('❌ [GESTAO-CAPACIDADE] Erro tempo_estimado_regra:', e);
     return { tarefas: {}, clientes: {}, produtos: {} };
+  }
+
+  if (filtrosAdicionais.cliente_id?.length) {
+    const norm = filtrosAdicionais.cliente_id.map(c => String(c).trim().toLowerCase());
+    regras = regras.filter(regra => {
+      const ids = String(regra.cliente_id || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      return ids.some(id => norm.includes(id));
+    });
   }
 
   const detalhes = { tarefas: {}, clientes: {}, produtos: {} };
@@ -1034,14 +1071,16 @@ async function cardsResponsavel(req, res) {
         dataInicioStr: dataInicio,
         dataFimStr: dataFim,
         considerarFinaisSemana,
-        considerarFeriados
+        considerarFeriados,
+        filtrosAdicionais
       }));
     } else {
       promisesBase.push(getContagensDetalhesResponsavel(supabase, {
         responsavelIds: responsavelIdsStr,
         dataInicioStr: dataInicio,
         dataFimStr: dataFim,
-        realizadoBreakdown: realizadoResult.breakdown
+        realizadoBreakdown: realizadoResult.breakdown,
+        filtrosAdicionais
       }));
     }
 

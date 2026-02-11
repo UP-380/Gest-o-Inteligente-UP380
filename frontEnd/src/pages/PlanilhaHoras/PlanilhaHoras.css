@@ -677,3 +677,79 @@
     margin: 10px;
   }
 }
+/* Custom Content for Timesheet Cells */
+.planilha-horas-cell-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.planilha-horas-total {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.planilha-horas-start-times {
+  font-size: 0.65rem;
+  color: #6b7280;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+/* Ensure editable cell hover effect works on children */
+.planilha-horas-td-editavel:hover .planilha-horas-start-times {
+  color: #3b82f6 !important;
+  opacity: 1;
+}
+
+/* Expanded Rows Styling */
+.btn-expand-row {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 4px;
+}
+
+.btn-expand-row:hover {
+  background: #f1f5f9;
+  color: #3b82f6;
+}
+
+.btn-expand-row.expanded {
+  transform: rotate(90deg);
+  color: #3b82f6;
+}
+
+.planilha-horas-tr-expanded {
+  background-color: #f8fafc;
+}
+
+.planilha-horas-sub-tr {
+  background-color: #ffffff;
+}
+
+.planilha-horas-sub-td {
+  border-bottom: 1px dotted #e2e8f0;
+  padding: 0.5rem 1rem !important;
+  background-color: #fdfdfd;
+}
+
+/* Remove sticky behavior for sub-rows if needed, or adjust z-index */
+.planilha-horas-sub-tr .planilha-horas-td-cliente,
+.planilha-horas-sub-tr .planilha-horas-td-tarefa {
+  background-color: #fdfdfd; /* Match row bg */
+}

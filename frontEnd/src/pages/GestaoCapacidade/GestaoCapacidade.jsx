@@ -3124,6 +3124,7 @@ const GestaoCapacidade = () => {
             const endpointTipo = tipo === 'atividade' ? 'tarefa' : tipo;
             // Chave para estado deve bater com filtroPrincipal no render (tipoTarefa vs atividade)
             const chaveTipoParaEstado = filtrosAUsar.tipoTarefa ? 'tipoTarefa' : tipo;
+            const toArr = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
             const payload = {
               ids,
               data_inicio: periodoAUsar.inicio,
@@ -3131,9 +3132,9 @@ const GestaoCapacidade = () => {
               considerar_finais_semana: !!filtrosAUsar.habilitarFinaisSemana,
               considerar_feriados: !!filtrosAUsar.habilitarFeriados,
               filtros_adicionais: {
-                cliente_id: filtrosAdicionaisAUsar.cliente_id || null,
-                produto_id: filtrosAdicionaisAUsar.produto_id || null,
-                tarefa_id: filtrosAdicionaisAUsar.tarefa_id || null
+                cliente_id: toArr(filtrosAdicionaisAUsar.cliente_id ?? filtrosAdicionaisAUsar.cliente).length ? toArr(filtrosAdicionaisAUsar.cliente_id ?? filtrosAdicionaisAUsar.cliente) : null,
+                produto_id: toArr(filtrosAdicionaisAUsar.produto_id ?? filtrosAdicionaisAUsar.produto).length ? toArr(filtrosAdicionaisAUsar.produto_id ?? filtrosAdicionaisAUsar.produto) : null,
+                tarefa_id: toArr(filtrosAdicionaisAUsar.tarefa_id ?? filtrosAdicionaisAUsar.tarefa).length ? toArr(filtrosAdicionaisAUsar.tarefa_id ?? filtrosAdicionaisAUsar.tarefa) : null
               },
               incluir_detalhes: false
             };

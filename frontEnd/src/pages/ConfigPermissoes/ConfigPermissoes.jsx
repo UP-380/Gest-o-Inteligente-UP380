@@ -23,6 +23,9 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
   '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
+  '/cadastro/tipo-contratos': ['/cadastro/tipo-contrato'],
+  '/cadastro/colaboradores': ['/cadastro/colaborador', '/cadastro/vigencia', '/cadastro/colaborador/vigencias'],
+  '/cadastro/custo-colaborador': ['/cadastro/config-custo'],
   '/gestao-capacidade': [
     '/atribuicao/cliente',
     '/atribuicao/nova',
@@ -59,6 +62,7 @@ const TODAS_PAGINAS = [
   { path: '/relatorios-clientes', label: 'Relatórios de Clientes', categoria: 'Relatórios' },
   { path: '/relatorios-colaboradores', label: 'Relatórios de Colaboradores', categoria: 'Relatórios' },
   { path: '/planilha-horas', label: 'Planilha de Horas', categoria: 'Relatórios' },
+  { path: '/relatorio-tempo', label: 'Relatório de Tempo', categoria: 'Relatórios' },
   { path: '/relatorios/vigencias', label: 'Relatório de Vigências', categoria: 'Relatórios' },
 
   // Cadastros
@@ -67,6 +71,7 @@ const TODAS_PAGINAS = [
   { path: '/cadastro/tarefas', label: 'Tarefas', categoria: 'Cadastros' },
   { path: '/cadastro/subtarefas', label: 'Subtarefas', categoria: 'Cadastros' },
   { path: '/cadastro/tipo-tarefas', label: 'Tipos de Tarefa', categoria: 'Cadastros' },
+  { path: '/cadastro/tipo-contratos', label: 'Tipos de Contrato', categoria: 'Cadastros' },
   { path: '/cadastro/bancos', label: 'Bancos', categoria: 'Cadastros' },
   { path: '/cadastro/adquirentes', label: 'Adquirentes', categoria: 'Cadastros' },
   { path: '/cadastro/sistemas', label: 'Sistemas', categoria: 'Cadastros' },

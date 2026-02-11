@@ -2137,6 +2137,26 @@ const AtribuicaoCliente = () => {
       });
 
       // Agrupamento por período (por tarefa) ou período global
+      // Helper para gerar datas entre início e fim
+      const gerarDatasIntervalo = (inicioStr, fimStr) => {
+        const datas = [];
+        if (!inicioStr || !fimStr) return datas;
+        // Usar T12:00:00 para evitar problemas de timezone
+        const dataAtual = new Date(inicioStr + 'T12:00:00');
+        const dataFim = new Date(fimStr + 'T12:00:00');
+        const MAX_DAYS = 3660;
+        let count = 0;
+        while (dataAtual <= dataFim && count < MAX_DAYS) {
+          const ano = dataAtual.getFullYear();
+          const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+          const dia = String(dataAtual.getDate()).padStart(2, '0');
+          datas.push(`${ano}-${mes}-${dia}`);
+          dataAtual.setDate(dataAtual.getDate() + 1);
+          count++;
+        }
+        return datas;
+      };
+
       const obterPeriodoPara = (produtoId, tarefaId) => {
         const key = getPeriodoKey(produtoId, tarefaId);
         const p = periodosPorTarefa[key];
@@ -2146,6 +2166,24 @@ const AtribuicaoCliente = () => {
           const temDatasIndividuais = Array.isArray(p.datasIndividuais) && p.datasIndividuais.length > 0;
 
           if (temPeriodoCompleto || temDatasIndividuais) {
+
+            // CORREÇÃO: Se tem período completo E datas individuais (exceções marcadas com Ctrl),
+            // calular a lista exata de datas válidas (Range - Exceções) e enviar apenas essa lista.
+            if (temPeriodoCompleto && temDatasIndividuais) {
+              const todasDatas = gerarDatasIntervalo(p.inicio, p.fim);
+              const datasValidas = todasDatas.filter(d => !p.datasIndividuais.includes(d));
+
+              if (datasValidas.length > 0) {
+                return {
+                  inicio: null,
+                  fim: null,
+                  incluir_finais_semana: !!p.habilitarFinaisSemana,
+                  incluir_feriados: !!p.habilitarFeriados,
+                  datas_individuais: datasValidas
+                };
+              }
+            }
+
             let inicio = p.inicio;
             let fim = p.fim;
 
@@ -2167,12 +2205,30 @@ const AtribuicaoCliente = () => {
         }
 
         // Fallback para período global da tela
+        // Tenta usar datas individuais globais se disponíveis
+        const temPeriodoGlobal = dataInicio && dataFim;
+        const temDatasIndividuaisGlobal = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
+
+        if (temPeriodoGlobal && temDatasIndividuaisGlobal) {
+          const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
+          const datasValidas = todasDatas.filter(d => !periodoGlobal.datasIndividuais.includes(d));
+          if (datasValidas.length > 0) {
+            return {
+              inicio: null,
+              fim: null,
+              incluir_finais_semana: !!habilitarFinaisSemana,
+              incluir_feriados: !!habilitarFeriados,
+              datas_individuais: datasValidas
+            };
+          }
+        }
+
         return {
           inicio: dataInicio,
           fim: dataFim,
           incluir_finais_semana: !!habilitarFinaisSemana,
           incluir_feriados: !!habilitarFeriados,
-          datas_individuais: []
+          datas_individuais: Array.isArray(periodoGlobal.datasIndividuais) ? periodoGlobal.datasIndividuais : []
         };
       };
 
