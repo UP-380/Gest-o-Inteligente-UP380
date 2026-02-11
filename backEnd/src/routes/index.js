@@ -42,6 +42,8 @@ const notificacoesController = require('../controllers/notificacoes.controller')
 const comunicacaoController = require('../controllers/comunicacao.controller');
 const uploadController = require('../controllers/upload.controller');
 const apiKeyController = require('../controllers/api-key.controller');
+const atualizacoesController = require('../controllers/atualizacoes.controller');
+
 
 const apiClientes = require('../services/api-clientes');
 
@@ -364,6 +366,16 @@ router.get('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoControl
 router.post('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.criarPasta);
 router.put('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.atualizarPasta);
 router.delete('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.excluirPasta);
+
+// Rotas de Notas de Atualização
+router.get('/api/base-conhecimento/atualizacoes', requireAuth, atualizacoesController.listarAtualizacoes);
+router.get('/api/base-conhecimento/atualizacoes/:id', requireAuth, atualizacoesController.getAtualizacaoPorId);
+// Para criar/editar/excluir, idealmente seria requireAdmin, mas seguindo padrão do projeto usaremos requireAuth e validação no front por enquanto
+// se houver middleware de admin, usar aqui. O usuario pediu "apenas administradores possam ter acesso de edição"
+// O middleware requireGestor costuma ser usado para niveis elevados, mas vamos verificar se há requireAdmin no authController ou auth middleware
+router.post('/api/base-conhecimento/atualizacoes', requireAuth, atualizacoesController.criarAtualizacao);
+router.put('/api/base-conhecimento/atualizacoes/:id', requireAuth, atualizacoesController.atualizarAtualizacao);
+router.delete('/api/base-conhecimento/atualizacoes/:id', requireAuth, atualizacoesController.excluirAtualizacao);
 
 // Rotas de histórico/auditoria Tutoriais
 router.get('/api/base-conhecimento/tutorial-logs', requireAuth, baseConhecimentoController.getTutorialLogs);

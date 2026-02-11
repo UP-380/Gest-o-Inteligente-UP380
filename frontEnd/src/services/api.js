@@ -1074,6 +1074,15 @@ export const baseConhecimentoAPI = {
     api.delete(`/base-conhecimento/pastas/${id}${excluirAnexos ? '?excluir_anexos=true' : ''}`),
   getTutorialLogs: (limit = 100, pastaId = null) =>
     api.get(`/base-conhecimento/tutorial-logs?limit=${limit}${pastaId != null ? `&pasta_id=${pastaId}` : ''}`),
+
+  // Notas de Atualização
+  atualizacoes: {
+    listar: () => api.get('/base-conhecimento/atualizacoes'),
+    getPorId: (id) => api.get(`/base-conhecimento/atualizacoes/${id}`),
+    criar: (payload) => api.post('/base-conhecimento/atualizacoes', payload),
+    atualizar: (id, payload) => api.put(`/base-conhecimento/atualizacoes/${id}`, payload),
+    excluir: (id) => api.delete(`/base-conhecimento/atualizacoes/${id}`)
+  }
 };
 
 // Exportar URL base para uso externo se necessário

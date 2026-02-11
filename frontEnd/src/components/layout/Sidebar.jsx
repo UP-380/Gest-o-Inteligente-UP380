@@ -114,6 +114,7 @@ const Sidebar = () => {
   useEffect(() => {
     const isBaseConhecimentoActive = location.pathname === '/base-conhecimento/conteudos-clientes' ||
       location.pathname === '/base-conhecimento/tutoriais' ||
+      location.pathname === '/base-conhecimento/notas-atualizacao' ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
@@ -401,6 +402,12 @@ const Sidebar = () => {
         icon: 'fa-paperclip',
         label: 'Tutoriais',
         title: 'Tutoriais'
+      },
+      {
+        path: '/base-conhecimento/notas-atualizacao',
+        icon: 'fa-clipboard-check',
+        label: 'Notas de Atualização',
+        title: 'Notas de Atualização'
       }
     ];
     return allItems.filter(item => canAccessRoute(item.path));

@@ -5261,7 +5261,7 @@ const PainelUsuario = () => {
                     left: '50%',
                     transform: 'translateX(-50%)',
                     zIndex: 2000000,
-                    background: 'rgba(14, 59, 111, 0.98)',
+                    background: comunicadoDestaque.metadata?.origem === 'notas_atualizacao' ? 'rgba(14, 59, 111, 0.98)' : 'rgba(14, 59, 111, 0.98)',
                     color: 'white',
                     padding: '8px 16px',
                     borderRadius: '8px',
@@ -5274,7 +5274,7 @@ const PainelUsuario = () => {
                     maxWidth: '80vw',
                     animation: 'slideDownFade 0.3s ease-out'
                   }}>
-                    <i className="fas fa-bullhorn" style={{ color: '#fbbf24', fontSize: '13px' }}></i>
+                    <i className={comunicadoDestaque.metadata?.origem === 'notas_atualizacao' ? "fas fa-rocket" : "fas fa-bullhorn"} style={{ color: '#fbbf24', fontSize: '13px' }}></i>
                     <div style={{ fontSize: '0.85rem', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <span style={{ fontWeight: '800' }}>{comunicadoDestaque.titulo}</span>
                     </div>

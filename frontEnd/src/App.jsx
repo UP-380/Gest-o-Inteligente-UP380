@@ -38,6 +38,7 @@ import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil
 import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
 import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
 import AnexarArquivo from './pages/AnexarArquivo/AnexarArquivo';
+import NotasAtualizacao from './pages/NotasAtualizacao/NotasAtualizacao';
 import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConhecimentoCliente';
 import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
@@ -446,6 +447,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AnexarArquivo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/base-conhecimento/notas-atualizacao"
+          element={
+            <ProtectedRoute>
+              <NotasAtualizacao />
             </ProtectedRoute>
           }
         />
