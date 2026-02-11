@@ -32,6 +32,7 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   ],
   '/base-conhecimento': [
     '/base-conhecimento/conteudos-clientes',
+    '/base-conhecimento/tutoriais',
     '/base-conhecimento/cliente'
   ],
   // Adicionando página de edição de cliente explicitamente para UI
@@ -80,6 +81,7 @@ const TODAS_PAGINAS = [
   // Base de Conhecimento
   { path: '/base-conhecimento', label: 'Início', categoria: 'Base de Conhecimento' },
   { path: '/base-conhecimento/conteudos-clientes', label: 'Conteúdos Clientes', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/tutoriais', label: 'Tutoriais', categoria: 'Base de Conhecimento' },
   // Adicionando explicitamente a página de edição (que redireciona para cadastro, mas é acessada via base conhecimento)
   { path: '/cadastro/cliente', label: 'Edição de Cliente (Base Conhecimento)', categoria: 'Base de Conhecimento' },
 
@@ -190,6 +192,7 @@ const ConfigPermissoes = () => {
               '/notificacoes',
               '/base-conhecimento',
               '/base-conhecimento/conteudos-clientes',
+              '/base-conhecimento/tutoriais',
               '/configuracoes/perfil'
             ],
             notificacoes: [NOTIFICATION_TYPES.PLUG_RAPIDO]

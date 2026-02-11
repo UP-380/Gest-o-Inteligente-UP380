@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useToast } from '../../../hooks/useToast';
 import RichTextEditor from '../../common/RichTextEditor';
+import ConfirmModal from '../../common/ConfirmModal';
 
 const API_BASE_URL = '/api';
 
@@ -8,6 +9,147 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
   const showToast = useToast();
   const [expandedObservacao, setExpandedObservacao] = useState(null); // { subtarefaId: X }
   const [observacoesEditando, setObservacoesEditando] = useState({}); // { subtarefaId: { observacao: '', saving: false } }
+
+  // Estados para auto-save e controle de alterações não salvas
+  const [lastSavedValues, setLastSavedValues] = useState({}); // { subtarefaId: content }
+  const autoSaveTimerRef = useRef({}); // { subtarefaId: timerId }
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Estados para o modal de confirmação do sistema
+  const [showConfirmSair, setShowConfirmSair] = useState(false);
+  const [pendenteFecharSubtarefaId, setPendenteFecharSubtarefaId] = useState(null);
+  const [pendenteFecharObservacaoAtual, setPendenteFecharObservacaoAtual] = useState(null);
+
+  // Estados para o modal de confirmação de exclusão
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [pendenteDeleteSubtarefaId, setPendenteDeleteSubtarefaId] = useState(null);
+
+  // Inicializar lastSavedValues com as vinculações recebidas
+  useState(() => {
+    const saved = {};
+    vinculacoes.forEach(v => {
+      if (v.subtarefa?.id) {
+        saved[v.subtarefa.id] = v.subtarefa.observacaoParticular || '';
+      }
+    });
+    setLastSavedValues(saved);
+  }, [vinculacoes]);
+
+  // Efeito para monitorar alterações não salvas e configurar auto-save
+  useEffect(() => {
+    let unsaved = false;
+    Object.keys(observacoesEditando).forEach(id => {
+      const current = observacoesEditando[id]?.observacao || '';
+      const last = lastSavedValues[id] || '';
+      if (current !== last) {
+        unsaved = true;
+
+        // Configurar auto-save de 3 segundos se houver mudança e não estiver salvando
+        if (!observacoesEditando[id].saving) {
+          if (autoSaveTimerRef.current[id]) {
+            clearTimeout(autoSaveTimerRef.current[id]);
+          }
+          autoSaveTimerRef.current[id] = setTimeout(() => {
+            handleSalvarObservacao(null, id, 'Auto-save', true);
+          }, 3000);
+        }
+      }
+    });
+    setHasUnsavedChanges(unsaved);
+
+    return () => {
+      // Limpar todos os timers ao desmontar
+      Object.values(autoSaveTimerRef.current).forEach(t => clearTimeout(t));
+    };
+  }, [observacoesEditando, lastSavedValues]);
+
+  // Efeito para avisar antes de sair da página se houver alterações
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const confirmarDeleteObservacao = () => {
+    if (pendenteDeleteSubtarefaId) {
+      executarDeletarObservacao(pendenteDeleteSubtarefaId);
+      setPendenteDeleteSubtarefaId(null);
+    }
+    setShowConfirmDelete(false);
+  };
+
+  const handleDeletarObservacao = (e, subtarefaId) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setPendenteDeleteSubtarefaId(subtarefaId);
+    setShowConfirmDelete(true);
+  };
+
+  const executarDeletarObservacao = async (subtarefaId) => {
+    if (!clienteId || !subtarefaId) {
+      return;
+    }
+
+    setObservacoesEditando(prev => ({
+      ...prev,
+      [subtarefaId]: { ...prev[subtarefaId], saving: true }
+    }));
+
+    try {
+      const params = new URLSearchParams({
+        cliente_id: clienteId,
+        subtarefa_id: subtarefaId
+      });
+
+      const response = await fetch(`${API_BASE_URL}/cliente-subtarefa-observacao?${params}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        showToast('success', 'Observação removida com sucesso!');
+        setExpandedObservacao(null);
+        setObservacoesEditando(prev => {
+          const newState = { ...prev };
+          delete newState[subtarefaId];
+          return newState;
+        });
+        setLastSavedValues(prev => {
+          const newState = { ...prev };
+          delete newState[subtarefaId];
+          return newState;
+        });
+        if (onObservacaoUpdated) {
+          onObservacaoUpdated();
+        }
+      } else {
+        throw new Error(result.error || 'Erro ao remover observação');
+      }
+    } catch (error) {
+      console.error('Erro ao remover observação:', error);
+      showToast('error', error.message || 'Erro ao remover observação. Tente novamente.');
+    } finally {
+      setObservacoesEditando(prev => ({
+        ...prev,
+        [subtarefaId]: { ...prev[subtarefaId], saving: false }
+      }));
+    }
+  };
+
   // Agrupar vinculações por produto (ou sem produto)
   const vinculacoesAgrupadas = useMemo(() => {
     if (!vinculacoes || vinculacoes.length === 0) return [];
@@ -77,18 +219,29 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
   }, [vinculacoes]);
 
   // Função para salvar observação
-  const handleSalvarObservacao = async (e, subtarefaId, subtarefaNome) => {
+  const handleSalvarObservacao = async (e, subtarefaId, subtarefaNome, isAutoSave = false) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
+    // Limpar o timer de auto-save se existir
+    if (autoSaveTimerRef.current[subtarefaId]) {
+      clearTimeout(autoSaveTimerRef.current[subtarefaId]);
+      delete autoSaveTimerRef.current[subtarefaId];
+    }
+
     if (!clienteId || !subtarefaId) {
       showToast('error', 'ID do cliente e subtarefa são obrigatórios');
       return;
     }
 
     const observacao = observacoesEditando[subtarefaId]?.observacao || '';
+
+    // Se for auto-save e não mudou nada em relação ao último salvo, não faz nada
+    if (isAutoSave && observacao === (lastSavedValues[subtarefaId] || '')) {
+      return;
+    }
 
     setObservacoesEditando(prev => ({
       ...prev,
@@ -113,13 +266,45 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        showToast('success', observacao.trim() ? 'Observação salva com sucesso!' : 'Observação removida com sucesso!');
-        setExpandedObservacao(null);
-        setObservacoesEditando(prev => {
-          const newState = { ...prev };
-          delete newState[subtarefaId];
-          return newState;
-        });
+        if (!isAutoSave) {
+          showToast('success', observacao.trim() ? 'Observação salva com sucesso!' : 'Observação removida com sucesso!');
+          setExpandedObservacao(null);
+          setObservacoesEditando(prev => {
+            const newState = { ...prev };
+            delete newState[subtarefaId];
+            return newState;
+          });
+        } else {
+          // No auto-save, apenas marcamos como não salvando e atualizamos o lastSaved
+          setObservacoesEditando(prev => ({
+            ...prev,
+            [subtarefaId]: {
+              ...prev[subtarefaId],
+              saving: false,
+              lastAutoSave: true
+            }
+          }));
+
+          // Limpar o indicador de "Salvo automaticamente" após 5 segundos
+          setTimeout(() => {
+            setObservacoesEditando(prev => {
+              if (prev[subtarefaId]) {
+                return {
+                  ...prev,
+                  [subtarefaId]: { ...prev[subtarefaId], lastAutoSave: false }
+                };
+              }
+              return prev;
+            });
+          }, 5000);
+        }
+
+        // Atualizar lastSavedValues
+        setLastSavedValues(prev => ({
+          ...prev,
+          [subtarefaId]: observacao
+        }));
+
         if (onObservacaoUpdated) {
           onObservacaoUpdated();
         }
@@ -128,75 +313,19 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
       }
     } catch (error) {
       console.error('Erro ao salvar observação:', error);
-      showToast('error', error.message || 'Erro ao salvar observação. Tente novamente.');
-    } finally {
-      setObservacoesEditando(prev => ({
-        ...prev,
-        [subtarefaId]: { ...prev[subtarefaId], saving: false }
-      }));
-    }
-  };
-
-  // Função para deletar observação
-  const handleDeletarObservacao = async (e, subtarefaId) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
-    if (!clienteId || !subtarefaId) {
-      return;
-    }
-
-    if (!window.confirm('Deseja realmente remover esta observação particular?')) {
-      return;
-    }
-
-    setObservacoesEditando(prev => ({
-      ...prev,
-      [subtarefaId]: { ...prev[subtarefaId], saving: true }
-    }));
-
-    try {
-      const params = new URLSearchParams({
-        cliente_id: clienteId,
-        subtarefa_id: subtarefaId
-      });
-
-      const response = await fetch(`${API_BASE_URL}/cliente-subtarefa-observacao?${params}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        showToast('success', 'Observação removida com sucesso!');
-        setExpandedObservacao(null);
-        setObservacoesEditando(prev => {
-          const newState = { ...prev };
-          delete newState[subtarefaId];
-          return newState;
-        });
-        if (onObservacaoUpdated) {
-          onObservacaoUpdated();
-        }
-      } else {
-        throw new Error(result.error || 'Erro ao remover observação');
+      if (!isAutoSave) {
+        showToast('error', error.message || 'Erro ao salvar observação. Tente novamente.');
       }
-    } catch (error) {
-      console.error('Erro ao remover observação:', error);
-      showToast('error', error.message || 'Erro ao remover observação. Tente novamente.');
     } finally {
-      setObservacoesEditando(prev => ({
-        ...prev,
-        [subtarefaId]: { ...prev[subtarefaId], saving: false }
-      }));
+      if (!isAutoSave) {
+        setObservacoesEditando(prev => ({
+          ...prev,
+          [subtarefaId]: { ...prev[subtarefaId], saving: false }
+        }));
+      }
     }
   };
+
 
   // Função para expandir/colapsar formulário de observação
   const toggleExpandedObservacao = (e, subtarefaId, observacaoAtual) => {
@@ -204,8 +333,16 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     if (expandedObservacao === subtarefaId) {
+      // Se tiver alterações não salvas antes de fechar, perguntar ao usuário
+      if (observacoesEditando[subtarefaId]?.observacao !== lastSavedValues[subtarefaId]) {
+        setPendenteFecharSubtarefaId(subtarefaId);
+        setPendenteFecharObservacaoAtual(observacaoAtual);
+        setShowConfirmSair(true);
+        return;
+      }
+
       setExpandedObservacao(null);
       setObservacoesEditando(prev => {
         const newState = { ...prev };
@@ -218,8 +355,28 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
         ...prev,
         [subtarefaId]: { observacao: observacaoAtual || '', saving: false }
       }));
+      // Garantir que temos o valor inicial para comparação
+      setLastSavedValues(prev => ({
+        ...prev,
+        [subtarefaId]: observacaoAtual || ''
+      }));
     }
   };
+
+  const confirmarFecharEditor = () => {
+    if (pendenteFecharSubtarefaId) {
+      setExpandedObservacao(null);
+      setObservacoesEditando(prev => {
+        const newState = { ...prev };
+        delete newState[pendenteFecharSubtarefaId];
+        return newState;
+      });
+      setPendenteFecharSubtarefaId(null);
+      setPendenteFecharObservacaoAtual(null);
+    }
+    setShowConfirmSair(false);
+  };
+
 
   if (!vinculacoes || vinculacoes.length === 0) {
     return (
@@ -230,9 +387,9 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
   }
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
       gap: '32px',
       width: '100%'
     }}>
@@ -325,9 +482,9 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                   border: '1px solid #e5e7eb',
                                   marginLeft: '24px'
                                 }}>
-                                  <div style={{ 
-                                    fontSize: '12px', 
-                                    color: '#6b7280', 
+                                  <div style={{
+                                    fontSize: '12px',
+                                    color: '#6b7280',
                                     fontWeight: 600,
                                     marginBottom: '8px',
                                     textTransform: 'uppercase',
@@ -335,7 +492,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                   }}>
                                     Descrição das Tarefas
                                   </div>
-                                  <div 
+                                  <div
                                     style={{
                                       fontSize: '14px',
                                       color: '#374151',
@@ -362,9 +519,9 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                     <i className="fas fa-tasks" style={{ color: '#f59e0b', fontSize: '14px' }}></i>
                                     Subtarefas Checklist
                                   </div>
-                                  <ul style={{ 
-                                    listStyle: 'none', 
-                                    padding: 0, 
+                                  <ul style={{
+                                    listStyle: 'none',
+                                    padding: 0,
                                     margin: 0,
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -380,23 +537,23 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                         flexDirection: 'column',
                                         gap: '8px'
                                       }}>
-                                        <div style={{ 
-                                          fontWeight: 600, 
-                                          color: '#4b5563', 
+                                        <div style={{
+                                          fontWeight: 600,
+                                          color: '#4b5563',
                                           fontSize: '14px',
                                           display: 'flex',
                                           alignItems: 'center',
                                           gap: '8px'
                                         }}>
-                                          <i className="fas fa-circle" style={{ 
-                                            fontSize: '6px', 
+                                          <i className="fas fa-circle" style={{
+                                            fontSize: '6px',
                                             color: '#f59e0b'
                                           }}></i>
                                           {subtarefa.nome}
                                         </div>
                                         {/* Descrição Subtarefas */}
                                         {subtarefa.descricao && (
-                                          <div 
+                                          <div
                                             style={{
                                               padding: '10px',
                                               background: '#fafafa',
@@ -414,7 +571,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                         {clienteId && (
                                           <div style={{ marginLeft: '14px', marginTop: '12px' }}>
                                             {subtarefa.observacaoParticular && !expandedObservacao && (
-                                              <div 
+                                              <div
                                                 style={{
                                                   padding: '10px',
                                                   background: '#fff7ed',
@@ -458,7 +615,7 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                                     Editar
                                                   </button>
                                                 </div>
-                                                <div 
+                                                <div
                                                   style={{
                                                     fontSize: '13px',
                                                     color: '#4b5563',
@@ -529,7 +686,20 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                                                       Remover
                                                     </button>
                                                   )}
-                                                  <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                                                  <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
+                                                    {observacoesEditando[subtarefa.id]?.lastAutoSave && !observacoesEditando[subtarefa.id]?.saving && (
+                                                      <span style={{
+                                                        fontSize: '11px',
+                                                        color: '#10b981',
+                                                        marginRight: '8px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                      }}>
+                                                        <i className="fas fa-check-circle"></i>
+                                                        Salvo automaticamente
+                                                      </span>
+                                                    )}
                                                     <button
                                                       type="button"
                                                       onClick={(e) => toggleExpandedObservacao(e, subtarefa.id, subtarefa.observacaoParticular)}
@@ -628,10 +798,10 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
                         })}
                       </div>
                     ) : (
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: '#9ca3af', 
-                        fontStyle: 'italic', 
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#9ca3af',
+                        fontStyle: 'italic',
                         padding: '12px',
                         textAlign: 'center'
                       }}>
@@ -645,6 +815,37 @@ const VinculacoesContent = ({ vinculacoes, clienteId, onObservacaoUpdated }) => 
           </article>
         );
       })}
+
+      {/* Modal de confirmação do sistema para alterações não salvas */}
+      <ConfirmModal
+        isOpen={showConfirmSair}
+        onClose={() => {
+          setShowConfirmSair(false);
+          setPendenteFecharSubtarefaId(null);
+          setPendenteFecharObservacaoAtual(null);
+        }}
+        onConfirm={confirmarFecharEditor}
+        title="Alterações não salvas"
+        message="Existem alterações que ainda não foram salvas nesta observação. Se você fechar agora, as alterações recentes serão perdidas. Deseja fechar mesmo assim?"
+        confirmText="Sim, fechar e descartar"
+        cancelText="Continuar editando"
+        confirmButtonClass="btn-primary"
+      />
+
+      {/* Modal de confirmação do sistema para exclusão */}
+      <ConfirmModal
+        isOpen={showConfirmDelete}
+        onClose={() => {
+          setShowConfirmDelete(false);
+          setPendenteDeleteSubtarefaId(null);
+        }}
+        onConfirm={confirmarDeleteObservacao}
+        title="Confirmar exclusão"
+        message="Deseja realmente remover esta observação particular? Esta ação não pode ser desfeita."
+        confirmText="Sim, remover"
+        cancelText="Cancelar"
+        confirmButtonClass="btn-danger"
+      />
     </div>
   );
 };

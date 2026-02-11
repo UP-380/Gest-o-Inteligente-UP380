@@ -355,6 +355,18 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/bulk-summary', requireAuth, baseConhecimentoController.getBaseConhecimentoBulkSummary);
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
+router.get('/api/base-conhecimento/anexos', requireAuth, baseConhecimentoController.listarAnexosPorPasta);
+router.post('/api/base-conhecimento/anexo', requireAuth, baseConhecimentoController.criarAnexo);
+router.put('/api/base-conhecimento/anexo/:id', requireAuth, baseConhecimentoController.atualizarAnexo);
+
+// Rotas de Pastas da Base de Conhecimento
+router.get('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.listarPastas);
+router.post('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.criarPasta);
+router.put('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.atualizarPasta);
+router.delete('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.excluirPasta);
+
+// Rotas de histórico/auditoria Tutoriais
+router.get('/api/base-conhecimento/tutorial-logs', requireAuth, baseConhecimentoController.getTutorialLogs);
 
 // Rotas de Observações Particulares de Subtarefas por Cliente
 router.get('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.getObservacao);

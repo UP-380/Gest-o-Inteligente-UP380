@@ -57,6 +57,7 @@ const Sidebar = () => {
 
   const isBaseConhecimentoActive = () => {
     return isActive('/base-conhecimento/conteudos-clientes') ||
+      isActive('/base-conhecimento/tutoriais') ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
   };
 
@@ -112,6 +113,7 @@ const Sidebar = () => {
   // Expandir automaticamente o menu Base de Conhecimento se estiver em uma das páginas relacionadas
   useEffect(() => {
     const isBaseConhecimentoActive = location.pathname === '/base-conhecimento/conteudos-clientes' ||
+      location.pathname === '/base-conhecimento/tutoriais' ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
@@ -393,6 +395,12 @@ const Sidebar = () => {
         icon: 'fa-briefcase',
         label: 'Conteúdos Clientes',
         title: 'Conteúdos Clientes'
+      },
+      {
+        path: '/base-conhecimento/tutoriais',
+        icon: 'fa-paperclip',
+        label: 'Tutoriais',
+        title: 'Tutoriais'
       }
     ];
     return allItems.filter(item => canAccessRoute(item.path));

@@ -1,0 +1,490 @@
+/* Wrapper expande naturalmente; scroll fica no body (evita scroll duplicado/travado) */
+.anexar-arquivo-page-wrapper {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.anexar-arquivo-page-wrapper > .main-content {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.anexar-arquivo-page-wrapper .card-container {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.anexar-arquivo-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.anexar-arquivo-layout {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+  min-height: 0;
+}
+
+/* Coluna esquerda - Pastas */
+.anexar-arquivo-col-esq {
+  width: 280px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+}
+
+.anexar-arquivo-pastas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.anexar-arquivo-pastas-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.anexar-arquivo-btn-nova-pasta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #0f766e;
+  background: #ccfbf1;
+  border: 1px solid #99f6e4;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.anexar-arquivo-btn-nova-pasta:hover {
+  background: #99f6e4;
+  color: #0d9488;
+}
+
+.anexar-arquivo-empty-pastas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.anexar-arquivo-btn-nova-pasta-small {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: #0f766e;
+  background: #ccfbf1;
+  border: 1px solid #99f6e4;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.anexar-arquivo-btn-nova-pasta-small:hover {
+  background: #99f6e4;
+}
+
+.anexar-arquivo-pastas-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.anexar-arquivo-pasta-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 0;
+  border-bottom: 1px solid #cbd5e1;
+  transition: background 0.15s;
+}
+
+.anexar-arquivo-pasta-item:hover {
+  background: #f1f5f9;
+}
+
+.anexar-arquivo-pasta-item.active {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.anexar-arquivo-pasta-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.anexar-arquivo-pasta-nome-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 14px;
+  border: 1px solid #0e3b6f;
+  border-radius: 6px;
+  outline: none;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.anexar-arquivo-pasta-nome-input:focus {
+  border-color: #0e3b6f;
+  box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.2);
+}
+
+.anexar-arquivo-pasta-item-editing {
+  padding-right: 12px;
+}
+
+.anexar-arquivo-pasta-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.anexar-arquivo-btn-edit,
+.anexar-arquivo-btn-delete {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #64748b;
+  background: transparent;
+}
+
+.anexar-arquivo-btn-edit:hover {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.anexar-arquivo-btn-delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.anexar-arquivo-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.anexar-arquivo-loading-doc {
+  min-height: 300px;
+}
+
+/* Coluna direita - Documento (expande com conteúdo, sem scroll aninhado) */
+.anexar-arquivo-col-dir {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: visible;
+}
+
+.anexar-arquivo-empty-doc {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: #64748b;
+  text-align: center;
+}
+
+.anexar-arquivo-empty-doc p {
+  margin: 0 0 16px;
+  font-size: 15px;
+}
+
+.anexar-arquivo-btn-nova-pasta-primary {
+  padding: 10px 20px;
+  font-size: 14px;
+  color: #fff;
+  background: #0f766e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.anexar-arquivo-btn-nova-pasta-primary:hover {
+  background: #0d9488;
+}
+
+.anexar-arquivo-doc-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.anexar-arquivo-doc-bar-titulo {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.anexar-arquivo-doc-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.anexar-arquivo-btn-historico {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.anexar-arquivo-btn-historico:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.anexar-arquivo-btn-salvar {
+  min-width: 100px;
+}
+
+/* Área da folha: sem scroll aninhado; conteúdo expande e o body rola */
+.anexar-arquivo-doc-page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: visible;
+}
+
+/* Card da folha: acompanha em tamanho o conteúdo (ql-editor) — altura e largura pelo conteúdo */
+.anexar-arquivo-doc-page-inner {
+  width: 100%;
+  max-width: 960px;
+  min-height: 420px;
+  height: fit-content;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 24px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.anexar-arquivo-upload-input {
+  display: none;
+}
+
+.anexar-arquivo-doc-upload-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.anexar-arquivo-doc-upload-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.anexar-arquivo-doc-upload-btn:hover:not(:disabled) {
+  border-color: #0f766e;
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.anexar-arquivo-doc-upload-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* RichTextEditor: sem scroll interno; conteúdo cresce com imagem/vídeo; card acompanha altura */
+.anexar-arquivo-doc-page .rich-text-editor-wrapper {
+  height: fit-content;
+  min-height: 0;
+}
+
+.anexar-arquivo-doc-page .ql-container {
+  min-height: 360px;
+  overflow: visible !important;
+  height: fit-content;
+}
+
+.anexar-arquivo-doc-page .ql-editor {
+  min-height: 360px;
+  overflow: visible !important;
+  height: fit-content;
+}
+
+/* Imagens e vídeos usam a mesma largura da área de conteúdo (proporção igual) */
+.anexar-arquivo-doc-page .ql-editor img {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+.anexar-arquivo-doc-page .ql-editor video {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* Modais */
+.anexar-arquivo-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.anexar-arquivo-modal-content {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 440px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.anexar-arquivo-modal-content .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.anexar-arquivo-modal-content .modal-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.anexar-arquivo-modal-content .modal-body {
+  padding: 20px;
+}
+
+.anexar-arquivo-modal-content .form-group {
+  margin-bottom: 16px;
+}
+
+.anexar-arquivo-modal-content .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.anexar-arquivo-modal-content .form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.anexar-arquivo-modal-content .form-group .required {
+  color: #dc2626;
+}
+
+.anexar-arquivo-modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.anexar-arquivo-modal-content .modal-body p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.anexar-arquivo-empty-content {
+  padding: 40px 20px;
+  text-align: center;
+  color: #6b7280;
+}
+
+.anexar-arquivo-placeholder-hint {
+  font-size: 14px;
+  margin-top: 16px;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}

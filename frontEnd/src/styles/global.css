@@ -70,6 +70,7 @@
 
 html {
     overflow-x: hidden;
+    height: -webkit-fill-available;
     width: 100%;
     margin: 0 !important;
     padding: 0 !important;
@@ -85,29 +86,30 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     margin: 0 !important;
     padding: 0 !important;
     padding-top: 64px;
-    overflow-x: hidden;
-    overflow-y: auto;
     margin-left: 60px;
     width: calc(100% - 60px);
     box-sizing: border-box;
 }
 
-/* Container */
+/* Container - evita barra horizontal fantasma (não exceder 100vw) */
 .container {
     max-width: 100%;
+    width: calc(100vw - 120px);
     margin: 0;
     margin-left: 60px;
     margin-right: 60px;
     padding: 2rem;
     padding-top: 5rem;
-    width: calc(100vw - 120px); /* 60px esquerda + 60px direita */
     box-sizing: border-box;
 }
 
-/* Main Content */
+/* Main Content - overflow visible para scroll no body, sem conflito */
 .main-content {
     background: white;
     border-radius: 16px;
@@ -119,7 +121,8 @@ body {
     max-width: 100%;
     box-sizing: border-box;
     overflow-x: hidden;
-    min-width: 0; /* Permite que o card encolha */
+    overflow-y: visible;
+    min-width: 0;
 }
 
 /* Responsividade para main-content */
