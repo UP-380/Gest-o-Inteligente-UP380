@@ -92,23 +92,30 @@ async function getHistoricoAtribuicoes(req, res) {
       ...data.map(i => i.usuario_criador_id)
     ].filter(Boolean))];
 
-    // 2. Buscar dados em paralelo
-    const [clientesResponse, membrosResponse] = await Promise.all([
+    // 2. Buscar dados em paralelo de ambas as fontes (membro e usuarios) para compatibilidade
+    const [clientesResponse, membrosResponse, usuariosResponse] = await Promise.all([
       clienteIds.length > 0 ? supabase
-
         .from('cp_cliente')
         .select('id, nome')
         .in('id', clienteIds) : { data: [] },
       membroIds.length > 0 ? supabase
-
         .from('membro')
         .select('id, nome')
+        .in('id', membroIds) : { data: [] },
+      membroIds.length > 0 ? supabase
+        .from('usuarios')
+        .select('id, nome_usuario')
         .in('id', membroIds) : { data: [] }
     ]);
 
-    // 3. Criar Mapas para acesso O(1)
+    // 3. Criar Mapas para acesso O(1), unificando as fontes de nomes
     const clienteMap = new Map((clientesResponse.data || []).map(c => [String(c.id), c]));
-    const membroMap = new Map((membrosResponse.data || []).map(m => [String(m.id), m]));
+
+    // Mapa unificado: Prioriza nomes da tabela 'usuarios' se houver sobreposição de ID, 
+    // ou complementa com o que estiver em 'membro'
+    const responsavelMap = new Map();
+    (membrosResponse.data || []).forEach(m => responsavelMap.set(String(m.id), { id: m.id, nome: m.nome }));
+    (usuariosResponse.data || []).forEach(u => responsavelMap.set(String(u.id), { id: u.id, nome: u.nome_usuario }));
 
     // 4. Buscar contagem de regras para determinar se há dias específicos (segmentação)
     const agrupadorIds = data.map(i => i.agrupador_id).filter(Boolean);
@@ -179,8 +186,8 @@ async function getHistoricoAtribuicoes(req, res) {
       return {
         ...item,
         cliente: item.cliente_id ? clienteMap.get(String(item.cliente_id)) || null : null,
-        responsavel: item.responsavel_id ? membroMap.get(String(item.responsavel_id)) || null : null,
-        usuario_criador: item.usuario_criador_id ? membroMap.get(String(item.usuario_criador_id)) || null : null,
+        responsavel: item.responsavel_id ? responsavelMap.get(String(item.responsavel_id)) || null : null,
+        usuario_criador: item.usuario_criador_id ? responsavelMap.get(String(item.usuario_criador_id)) || null : null,
         tem_dias_especificos: temDiasEspecificos,
         tempo_total_estimado: tempoTotal,
         total_dias_calculado: mediaDias
@@ -246,32 +253,42 @@ async function getHistoricoAtribuicaoPorId(req, res) {
     }
 
     // Buscar dados relacionados
-    const [clienteData, responsavelData, usuarioCriadorData] = await Promise.all([
+    const [clienteData, responsavelData, responsavelUserData, usuarioCriadorData, usuarioCriadorUserData] = await Promise.all([
       supabase
-
         .from('cp_cliente')
         .select('id, nome')
         .eq('id', data.cliente_id)
         .maybeSingle(),
       supabase
-
         .from('membro')
         .select('id, nome')
         .eq('id', data.responsavel_id)
         .maybeSingle(),
       supabase
-
+        .from('usuarios')
+        .select('id, nome_usuario')
+        .eq('id', data.responsavel_id)
+        .maybeSingle(),
+      supabase
         .from('membro')
         .select('id, nome')
+        .eq('id', data.usuario_criador_id)
+        .maybeSingle(),
+      supabase
+        .from('usuarios')
+        .select('id, nome_usuario')
         .eq('id', data.usuario_criador_id)
         .maybeSingle()
     ]);
 
+    const responsavel = responsavelData.data || (responsavelUserData.data ? { id: responsavelUserData.data.id, nome: responsavelUserData.data.nome_usuario } : null);
+    const usuarioCriador = usuarioCriadorData.data || (usuarioCriadorUserData.data ? { id: usuarioCriadorUserData.data.id, nome: usuarioCriadorUserData.data.nome_usuario } : null);
+
     const historicoCompleto = {
       ...data,
       cliente: clienteData.data || null,
-      responsavel: responsavelData.data || null,
-      usuario_criador: usuarioCriadorData.data || null
+      responsavel,
+      usuario_criador: usuarioCriador
     };
 
     return res.json({
@@ -544,32 +561,42 @@ async function atualizarHistoricoAtribuicao(req, res) {
     console.log(`✅ ${regrasInseridas.length} regra(s) de tempo estimado atualizada(s) com sucesso`);
 
     // Buscar histórico atualizado com dados relacionados
-    const [clienteData, responsavelData, usuarioCriadorData] = await Promise.all([
+    const [clienteData, responsavelData, responsavelUserData, usuarioCriadorData, usuarioCriadorUserData] = await Promise.all([
       supabase
-
         .from('cp_cliente')
         .select('id, nome')
         .eq('id', historicoAtualizado.cliente_id)
         .maybeSingle(),
       supabase
-
         .from('membro')
         .select('id, nome')
         .eq('id', historicoAtualizado.responsavel_id)
         .maybeSingle(),
       supabase
-
+        .from('usuarios')
+        .select('id, nome_usuario')
+        .eq('id', historicoAtualizado.responsavel_id)
+        .maybeSingle(),
+      supabase
         .from('membro')
         .select('id, nome')
+        .eq('id', historicoAtualizado.usuario_criador_id)
+        .maybeSingle(),
+      supabase
+        .from('usuarios')
+        .select('id, nome_usuario')
         .eq('id', historicoAtualizado.usuario_criador_id)
         .maybeSingle()
     ]);
 
+    const responsavel = responsavelData.data || (responsavelUserData.data ? { id: responsavelUserData.data.id, nome: responsavelUserData.data.nome_usuario } : null);
+    const usuarioCriador = usuarioCriadorData.data || (usuarioCriadorUserData.data ? { id: usuarioCriadorUserData.data.id, nome: usuarioCriadorUserData.data.nome_usuario } : null);
+
     const historicoCompleto = {
       ...historicoAtualizado,
       cliente: clienteData.data || null,
-      responsavel: responsavelData.data || null,
-      usuario_criador: usuarioCriadorData.data || null
+      responsavel,
+      usuario_criador: usuarioCriador
     };
 
     return res.json({
