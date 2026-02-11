@@ -14,18 +14,18 @@ import html2canvas from 'html2canvas';
 import './AnexarArquivo.css';
 
 const MENSAGENS = {
-  SELECIONE_PASTA: 'Selecione uma pasta para editar o documento.',
-  CRIAR_PRIMEIRA_PASTA: 'Criar primeira pasta',
-  PASTA_NOME_OBRIGATORIO: 'Nome da pasta é obrigatório',
-  PASTA_CRIADA: 'Pasta criada com sucesso',
-  PASTA_ATUALIZADA: 'Pasta atualizada com sucesso',
-  PASTA_EXCLUIDA: 'Pasta excluída com sucesso',
-  ERRO_CARREGAR_PASTAS: 'Erro ao carregar pastas',
-  ERRO_CRIAR_PASTA: 'Erro ao criar pasta',
-  ERRO_ATUALIZAR_PASTA: 'Erro ao atualizar pasta',
-  ERRO_EXCLUIR_PASTA: 'Erro ao excluir pasta',
-  EXCLUIR_PASTA_TITULO: 'Excluir pasta',
-  EXCLUIR_PASTA_TEXTO: 'Excluir esta pasta e todo o conteúdo? Esta ação não pode ser desfeita.',
+  SELECIONE_PASTA: 'Selecione um item para editar o documento.',
+  CRIAR_PRIMEIRA_PASTA: 'Criar primeiro',
+  PASTA_NOME_OBRIGATORIO: 'Título é obrigatório',
+  PASTA_CRIADA: 'Criado com sucesso',
+  PASTA_ATUALIZADA: 'Atualizado com sucesso',
+  PASTA_EXCLUIDA: 'Excluído com sucesso',
+  ERRO_CARREGAR_PASTAS: 'Erro ao carregar itens',
+  ERRO_CRIAR_PASTA: 'Erro ao criar item',
+  ERRO_ATUALIZAR_PASTA: 'Erro ao atualizar item',
+  ERRO_EXCLUIR_PASTA: 'Erro ao excluir item',
+  EXCLUIR_PASTA_TITULO: 'Excluir item',
+  EXCLUIR_PASTA_TEXTO: 'Excluir este item e todo o conteúdo? Esta ação não pode ser desfeita.',
   CONTEUDO_VAZIO: 'Digite ou anexe algum conteúdo antes de salvar.',
   SUCESSO: 'Documento salvo com sucesso.',
   DOCUMENTOS_SALVO: 'Documento atualizado com sucesso.',
@@ -454,16 +454,15 @@ const AnexarArquivo = () => {
                 {/* Coluna esquerda: pastas */}
                 <div className="anexar-arquivo-col-esq">
                   <div className="anexar-arquivo-pastas-header">
-                    <h3>Pastas</h3>
-                    <button type="button" className="anexar-arquivo-btn-nova-pasta" onClick={handleAbrirFormNovaPasta} title="Nova pasta">
-                      <i className="fas fa-plus"></i> Nova pasta
+                    <button type="button" className="anexar-arquivo-btn-nova-pasta" onClick={handleAbrirFormNovaPasta} title="Novo">
+                      <i className="fas fa-plus"></i> Novo
                     </button>
                   </div>
                   {carregandoPastas ? (
                     <div className="anexar-arquivo-loading"><i className="fas fa-spinner fa-spin"></i> Carregando...</div>
                   ) : pastas.length === 0 ? (
                     <div className="anexar-arquivo-empty-pastas">
-                      <p>Nenhuma pasta</p>
+                      <p>Nenhum item</p>
                       <button type="button" className="anexar-arquivo-btn-nova-pasta-small" onClick={handleAbrirFormNovaPasta}>
                         {MENSAGENS.CRIAR_PRIMEIRA_PASTA}
                       </button>
@@ -492,8 +491,8 @@ const AnexarArquivo = () => {
                                 onBlur={handleSalvarRenomear}
                                 onClick={(e) => e.stopPropagation()}
                                 disabled={salvandoPasta}
-                                placeholder="Nome da pasta"
-                                aria-label="Novo nome da pasta"
+                                placeholder="Título"
+                                aria-label="Novo título"
                               />
                             ) : (
                               <span className="anexar-arquivo-pasta-nome">{pasta.nome}</span>
@@ -586,13 +585,13 @@ const AnexarArquivo = () => {
         <div className="modal-overlay anexar-arquivo-modal-overlay" onClick={handleFecharFormPasta}>
           <div className="modal-content anexar-arquivo-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{pastaEditando ? 'Editar pasta' : 'Nova pasta'}</h3>
+              <h3>{pastaEditando ? 'Editar título' : 'Novo'}</h3>
               <button type="button" className="btn-icon" onClick={handleFecharFormPasta} disabled={salvandoPasta} title="Fechar"><i className="fas fa-times"></i></button>
             </div>
             <form onSubmit={handleSalvarPasta} className="modal-body">
               <div className="form-group">
-                <label>Nome da pasta <span className="required">*</span></label>
-                <input type="text" value={formPastaNome} onChange={(e) => setFormPastaNome(e.target.value)} placeholder="Ex.: Manuais" disabled={salvandoPasta} autoFocus />
+                <label>Título <span className="required">*</span></label>
+                <input type="text" value={formPastaNome} onChange={(e) => setFormPastaNome(e.target.value)} placeholder="Ex.: Como utilizar..." disabled={salvandoPasta} autoFocus />
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={handleFecharFormPasta} disabled={salvandoPasta}>Cancelar</button>
@@ -634,8 +633,8 @@ const AnexarArquivo = () => {
         }}
         onConfirm={confirmarMudarPasta}
         title="Alterações não salvas"
-        message="Existem alterações que ainda não foram salvas. Se você mudar de pasta agora, as alterações recentes podem ser perdidas. Deseja continuar?"
-        confirmText="Sim, mudar de pasta"
+        message="Existem alterações que ainda não foram salvas. Se você mudar agora, as alterações recentes podem ser perdidas. Deseja continuar?"
+        confirmText="Sim, mudar"
         cancelText="Continuar editando"
         confirmButtonClass="btn-primary"
       />
