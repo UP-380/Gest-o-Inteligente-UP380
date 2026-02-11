@@ -48,6 +48,20 @@ const PlanilhaHoras = () => {
   const [nomesTarefas, setNomesTarefas] = useState({});
   const [nomesClientes, setNomesClientes] = useState({});
 
+  // Estado para controlar linhas expandidas
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+
+  const handleToggleGroup = (chave, e) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(chave)) {
+      newExpanded.delete(chave);
+    } else {
+      newExpanded.add(chave);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
   // Estados para edição/exclusão
   const [modalRegistroAberto, setModalRegistroAberto] = useState(false);
   const [celulaSelecionada, setCelulaSelecionada] = useState(null);
@@ -109,7 +123,25 @@ const PlanilhaHoras = () => {
   // Formatar data para exibição
   const formatarData = (dataStr) => {
     if (!dataStr) return '';
-    const data = new Date(dataStr);
+
+    // Se já for um objeto Date, usa diretamente
+    if (dataStr instanceof Date) {
+      return dataStr.toLocaleDateString('pt-BR', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit'
+      });
+    }
+
+    // Se for string YYYY-MM-DD, força interpretação local (adicionando T12:00)
+    // para evitar problemas de timezone com UTC midnight
+    let data;
+    if (typeof dataStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+      data = new Date(dataStr + 'T12:00:00');
+    } else {
+      data = new Date(dataStr);
+    }
+
     return data.toLocaleDateString('pt-BR', {
       weekday: 'short',
       day: '2-digit',
@@ -463,13 +495,23 @@ const PlanilhaHoras = () => {
     }
   }, [dataInicio, dataFim, buscarHistorico]);
 
+  // Helper para formatar data em YYYY-MM-DD usando componentes locais
+  const formatarDataLocalYMD = (data) => {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const dia = String(data.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+  };
+
   // Gerar array de datas do período
   const gerarDatasPeriodo = () => {
     if (!dataInicio || !dataFim) return [];
 
     const datas = [];
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
+    // Usar T12:00:00 para evitar problemas de timezone (fuso horário)
+    // Isso garante que a data esteja no meio do dia, evitando viradas de dia incorretas
+    const inicio = new Date(dataInicio + 'T12:00:00');
+    const fim = new Date(dataFim + 'T12:00:00');
 
     const dataAtual = new Date(inicio);
     while (dataAtual <= fim) {
@@ -509,7 +551,8 @@ const PlanilhaHoras = () => {
         fimDia.setHours(23, 59, 59, 999);
 
         if (inicioRegistro <= fimDia && fimRegistro >= inicioDia) {
-          const chaveData = data.toISOString().split('T')[0];
+          // Usar formatação local segura
+          const chaveData = formatarDataLocalYMD(data);
 
           if (!grupos[chave].dias[chaveData]) {
             grupos[chave].dias[chaveData] = 0;
@@ -540,7 +583,8 @@ const PlanilhaHoras = () => {
     const totais = {};
 
     datas.forEach(data => {
-      const chaveData = data.toISOString().split('T')[0];
+      // Usar formatação local segura
+      const chaveData = formatarDataLocalYMD(data);
       totais[chaveData] = 0;
 
       Object.values(grupos).forEach(grupo => {
@@ -617,10 +661,10 @@ const PlanilhaHoras = () => {
                   <thead>
                     <tr>
                       <th className="planilha-horas-th planilha-horas-th-cliente">Cliente</th>
-                      <th className="planilha-horas-th planilha-horas-th-tarefa">Tarefa</th>
+                      <th className="planilha-horas-th planilha-horas-th-tarefa">Tarefa / Detalhes</th>
                       {datas.map((data, index) => (
                         <th key={index} className="planilha-horas-th planilha-horas-th-data">
-                          {formatarData(data.toISOString().split('T')[0])}
+                          {formatarData(data)}
                         </th>
                       ))}
                       <th className="planilha-horas-th planilha-horas-th-total">Total</th>
@@ -637,31 +681,119 @@ const PlanilhaHoras = () => {
 
                       const totalLinha = Object.values(grupo.dias).reduce((acc, tempo) => acc + tempo, 0);
 
-                      return (
-                        <tr key={index} className="planilha-horas-tr">
-                          <td className="planilha-horas-td planilha-horas-td-cliente">{clienteNome}</td>
-                          <td className="planilha-horas-td planilha-horas-td-tarefa">{tarefaNome}</td>
-                          {datas.map((data, dataIndex) => {
-                            const chaveData = data.toISOString().split('T')[0];
-                            const tempo = grupo.dias[chaveData] || 0;
-                            const temRegistros = (grupo.registrosPorDia[chaveData] || []).length > 0;
+                      const chaveGrupo = `${grupo.clienteId}-${grupo.tarefaId}`;
+                      const isExpanded = expandedGroups.has(chaveGrupo);
 
-                            const temPendentes = temRegistros && (grupo.registrosPorDia[chaveData] || []).some(r => r.is_pendente);
+                      // Coletar todos os registros individuais para as linhas expandidas
+                      const todosRegistros = Object.values(grupo.registrosPorDia)
+                        .flat()
+                        .sort((a, b) => new Date(a.data_inicio) - new Date(b.data_inicio));
+
+                      return (
+                        <React.Fragment key={index}>
+                          <tr className={`planilha-horas-tr ${isExpanded ? 'planilha-horas-tr-expanded' : ''}`} onClick={(e) => handleToggleGroup(chaveGrupo, e)}>
+                            <td className="planilha-horas-td planilha-horas-td-cliente">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                  className={`btn-expand-row ${isExpanded ? 'expanded' : ''}`}
+                                  onClick={(e) => handleToggleGroup(chaveGrupo, e)}
+                                >
+                                  <i className="fas fa-chevron-right"></i>
+                                </button>
+                                {clienteNome}
+                              </div>
+                            </td>
+                            <td className="planilha-horas-td planilha-horas-td-tarefa">
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontWeight: '600' }}>{tarefaNome}</span>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'normal' }}>
+                                  {todosRegistros.length} entradas
+                                </span>
+                              </div>
+                            </td>
+                            {datas.map((data, dataIndex) => {
+                              const chaveData = formatarDataLocalYMD(data);
+                              const tempo = grupo.dias[chaveData] || 0;
+                              const registrosDoDia = grupo.registrosPorDia[chaveData] || [];
+                              const temRegistros = registrosDoDia.length > 0;
+                              const temPendentes = temRegistros && registrosDoDia.some(r => r.is_pendente);
+
+                              return (
+                                <td
+                                  key={dataIndex}
+                                  className={`planilha-horas-td planilha-horas-td-tempo ${temRegistros ? 'planilha-horas-td-editavel' : ''} ${temPendentes ? 'planilha-horas-td-pendente' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (temRegistros) handleCellClick(grupo, chaveData);
+                                  }}
+                                  title={temRegistros ? (temPendentes ? 'Clique para ver registros (há pendentes de aprovação)' : 'Clique para ver detalhes') : ''}
+                                >
+                                  {tempo > 0 ? formatarTempoHMS(tempo) : '—'}
+                                </td>
+                              );
+                            })}
+                            <td className="planilha-horas-td planilha-horas-td-total">
+                              {formatarTempoHMS(totalLinha)}
+                            </td>
+                          </tr>
+
+                          {/* Linhas Expandidas - Detalhes */}
+                          {isExpanded && todosRegistros.map((reg, regIndex) => {
+                            // Workaround simples: usar a string da data para extrair o dia local
+                            const dataInicioObj = new Date(reg.data_inicio);
+                            const chaveDataRegistro = formatarDataLocalYMD(dataInicioObj);
+
+                            const horaInicioStr = new Date(reg.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                            const horaFimStr = new Date(reg.data_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
                             return (
-                              <td
-                                key={dataIndex}
-                                className={`planilha-horas-td planilha-horas-td-tempo ${temRegistros ? 'planilha-horas-td-editavel' : ''} ${temPendentes ? 'planilha-horas-td-pendente' : ''}`}
-                                onClick={() => temRegistros && handleCellClick(grupo, chaveData)}
-                                title={temRegistros ? (temPendentes ? 'Clique para ver registros (há pendentes de aprovação)' : 'Clique para ver/editar registros') : ''}
-                              >
-                                {tempo > 0 ? formatarTempoHMS(tempo) : '—'}
-                              </td>
+                              <tr key={`${chaveGrupo}-sub-${reg.id}`} className="planilha-horas-sub-tr">
+                                <td className="planilha-horas-td planilha-horas-td-cliente planilha-horas-sub-td">
+                                  {/* Espaço vazio para indentação */}
+                                </td>
+                                <td className="planilha-horas-td planilha-horas-td-tarefa planilha-horas-sub-td">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '24px', color: '#64748b' }}>
+                                    <i className="far fa-clock" style={{ fontSize: '0.8rem' }}></i>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                                      {horaInicioStr} - {horaFimStr}
+                                    </span>
+                                    {reg.justificativa && (
+                                      <i className="fas fa-comment-alt" title={reg.justificativa} style={{ fontSize: '0.8rem', marginLeft: '8px', opacity: 0.5 }}></i>
+                                    )}
+                                  </div>
+                                </td>
+                                {datas.map((data, dIndex) => {
+                                  const chaveDataColuna = formatarDataLocalYMD(data);
+                                  // O registro pertence a esta coluna?
+                                  // Precisamos garantir que a comparação considere o fuso local
+
+                                  // Recalcular chave do registro
+                                  // Nota: reg.data_inicio é UTC string geralmente. 
+                                  // O backend provavelmente salvou em UTC. 
+                                  // AgruparRegistros usa "new Date(reg.data_inicio)" que converte para local.
+                                  // Então aqui tb usamos new Date()
+
+                                  const isSameDay = chaveDataRegistro === chaveDataColuna;
+
+                                  return (
+                                    <td key={dIndex} className="planilha-horas-td planilha-horas-td-tempo planilha-horas-sub-td">
+                                      {isSameDay ? (
+                                        <span style={{ color: '#475569', fontSize: '0.85rem' }}>
+                                          {formatarTempoHMS(reg.tempo_realizado)}
+                                        </span>
+                                      ) : ''}
+                                    </td>
+                                  );
+                                })}
+                                <td className="planilha-horas-td planilha-horas-td-total planilha-horas-sub-td">
+                                  <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                                    {formatarTempoHMS(reg.tempo_realizado)}
+                                  </span>
+                                </td>
+                              </tr>
                             );
                           })}
-                          <td className="planilha-horas-td planilha-horas-td-total">
-                            {formatarTempoHMS(totalLinha)}
-                          </td>
-                        </tr>
+                        </React.Fragment>
                       );
                     })}
                     <tr className="planilha-horas-tr planilha-horas-tr-total">

@@ -1436,12 +1436,11 @@ async function getRegistrosTempo(req, res) {
     let countFinal = count || 0;
 
     // Quando buscar finalizados (ativo=false), incluir também registros pendentes (Plug Rápido)
-    if (ativo === 'false' && usuarioIdFinal) {
-      const usuarioIdInt = parseInt(usuarioIdFinal, 10);
+    if (ativo === 'false' && usuarioIds.length > 0) {
       let queryPendentes = supabase
         .from('registro_tempo_pendente')
         .select('id, usuario_id, atribuicao_pendente_id, data_inicio, data_fim')
-        .eq('usuario_id', usuarioIdInt)
+        .in('usuario_id', usuarioIds)
         .not('data_fim', 'is', null);
 
       const periodoInicio = data_inicio || req.query.dataInicio;

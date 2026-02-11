@@ -332,77 +332,42 @@ async function getcp_clientesIdNome(req, res) {
 //===================== ENDPOINTS HTTP - MEMBROS =====================
 async function getMembrosIdNome(req, res) {
   try {
-    const { data, error } = await supabase
-
-      .from('membro')
-      .select('id, nome, status, usuario_id')
-      .not('id', 'is', null)
-      .not('usuario_id', 'is', null) // Filtrar apenas membros com usuários vinculados
-      .order('nome', { ascending: true });
+    // [MOD] Agora buscamos diretamente da tabela de usuários para que o campo "Responsável" 
+    // reflita os usuários reais do sistema, não dependendo mais do vínculo obrigatório com a tabela 'membro'
+    const { data: usuarios, error } = await supabase
+      .from('usuarios')
+      .select('id, nome_usuario, foto_perfil')
+      .order('nome_usuario', { ascending: true });
 
     if (error) {
+      console.error('Erro ao buscar usuários para responsáveis:', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar membros'
+        error: 'Erro ao buscar usuários'
       });
     }
 
-    // Buscar foto_perfil dos usuários vinculados aos membros
-    const membros = (data || []).map(row => ({
-      id: row.id,
-      nome: row.nome,
-      status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
-      usuario_id: row.usuario_id, // Incluir usuario_id para permitir busca por usuario_id
-      foto_perfil: null // Será preenchido abaixo
-    }));
+    // Mapear para o formato que o frontend espera
+    const { resolveAvatarUrl } = require('../utils/storage');
 
-    // Buscar fotos de perfil dos usuários e resolver avatares customizados
-    if (membros.length > 0) {
-      const usuarioIds = [...new Set(membros.map(m => m.usuario_id).filter(Boolean))];
+    // Preparar lista de membros (baseada em usuários)
+    const membros = await Promise.all((usuarios || []).map(async (u) => {
+      let fotoUrl = u.foto_perfil;
 
-      if (usuarioIds.length > 0) {
-        const { data: usuarios, error: usuariosError } = await supabase
-
-          .from('usuarios')
-          .select('id, foto_perfil')
-          .in('id', usuarioIds);
-
-        if (!usuariosError && usuarios && usuarios.length > 0) {
-          const { resolveAvatarUrl } = require('../utils/storage');
-          const usuarioMap = new Map();
-          usuarios.forEach(usuario => {
-            usuarioMap.set(String(usuario.id), usuario.foto_perfil);
-          });
-
-          // Adicionar foto_perfil a cada membro e resolver avatares customizados
-          const avataresParaResolver = [];
-          membros.forEach((membro, index) => {
-            if (membro.usuario_id) {
-              const fotoPerfil = usuarioMap.get(String(membro.usuario_id));
-              if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
-                avataresParaResolver.push({ membro, fotoPerfil, index });
-              } else if (fotoPerfil) {
-                membro.foto_perfil = fotoPerfil;
-              } else {
-                membro.foto_perfil = null;
-              }
-            } else {
-              membro.foto_perfil = null;
-            }
-          });
-
-          // Resolver todas as URLs customizadas em paralelo
-          if (avataresParaResolver.length > 0) {
-            await Promise.all(
-              avataresParaResolver.map(async ({ membro, fotoPerfil }) => {
-                const resolvedUrl = await resolveAvatarUrl(fotoPerfil, 'user');
-                membro.foto_perfil = resolvedUrl || fotoPerfil;
-              })
-            );
-          }
-        }
+      // Resolver avatar se for customizado
+      if (fotoUrl && fotoUrl.startsWith('custom-')) {
+        const resolved = await resolveAvatarUrl(fotoUrl, 'user');
+        fotoUrl = resolved || fotoUrl;
       }
-    }
+
+      return {
+        id: u.id, // O ID agora é o ID do usuário no sistema
+        nome: u.nome_usuario || 'Usuário sem nome',
+        status: 'ativo',
+        usuario_id: u.id,
+        foto_perfil: fotoUrl
+      };
+    }));
 
     return res.json({
       success: true,
@@ -410,6 +375,7 @@ async function getMembrosIdNome(req, res) {
       count: membros.length
     });
   } catch (e) {
+    console.error('Erro inesperado em getMembrosIdNome:', e);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
@@ -417,29 +383,28 @@ async function getMembrosIdNome(req, res) {
   }
 }
 
-// Função para buscar TODOS os membros (incluindo os sem usuário vinculado)
+// Função para buscar TODOS os membros (agora baseado na tabela de usuários para consistência)
 async function getMembrosIdNomeTodos(req, res) {
   try {
     const { data, error } = await supabase
-
-      .from('membro')
-      .select('id, nome, status, usuario_id')
-      .not('id', 'is', null)
-      // NÃO filtrar por usuario_id - retornar todos os membros
-      .order('nome', { ascending: true });
+      .from('usuarios')
+      .select('id, nome_usuario, foto_perfil')
+      .order('nome_usuario', { ascending: true });
 
     if (error) {
+      console.error('Erro ao buscar usuários (todos):', error);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar membros'
+        error: 'Erro ao buscar membros/usuários'
       });
     }
 
     const membros = (data || []).map(row => ({
       id: row.id,
-      nome: row.nome,
-      status: row.status || 'ativo', // Incluir status, assumir 'ativo' se não estiver definido
-      usuario_id: row.usuario_id // Incluir usuario_id (pode ser null)
+      nome: row.nome_usuario || 'Usuário sem nome',
+      status: 'ativo',
+      usuario_id: row.id,
+      foto_perfil: row.foto_perfil
     }));
 
     return res.json({
@@ -448,6 +413,7 @@ async function getMembrosIdNomeTodos(req, res) {
       count: membros.length
     });
   } catch (e) {
+    console.error('Erro inesperado em getMembrosIdNomeTodos:', e);
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'
@@ -897,117 +863,41 @@ async function getMembrosPorIds(membroIds) {
   let membros = [];
 
   try {
-    // Tentar com .in() usando números (se todos forem números)
-    const todosNumeros = idsParaBuscar.every(id => typeof id === 'number' || !isNaN(parseInt(String(id), 10)));
+    // 1. Tentar buscar na tabela membro
+    const { data: membrosDb, error: errorMembro } = await supabase
+      .from('membro')
+      .select('id, nome, status')
+      .in('id', idsParaBuscar);
 
-    if (todosNumeros) {
-      // Converter todos para números
-      const idsNumeros = idsParaBuscar.map(id => typeof id === 'number' ? id : parseInt(String(id), 10)).filter(id => !isNaN(id));
-
-      if (idsNumeros.length > 0) {
-        const { data, error } = await supabase
-
-          .from('membro')
-          .select('id, nome, status')
-          .in('id', idsNumeros);
-
-        if (!error && data && data.length > 0) {
-          membros = data.map(m => ({
-            ...m,
-            status: m.status || 'ativo'
-          }));
-        }
-      }
-    }
-
-    // Se não encontrou todos ou não são todos números, buscar também como string
-    if (membros.length < idsParaBuscar.length) {
-      const idsStrings = idsParaBuscar.map(id => String(id).trim());
-      const { data, error } = await supabase
-
-        .from('membro')
-        .select('id, nome, status')
-        .in('id', idsStrings);
-
-      if (!error && data) {
-        // Combinar resultados, evitando duplicatas
-        const membrosMap = new Map();
-        membros.forEach(m => membrosMap.set(String(m.id).trim(), m));
-        data.forEach(m => {
-          const key = String(m.id).trim();
-          if (!membrosMap.has(key)) {
-            membrosMap.set(key, {
-              ...m,
-              status: m.status || 'ativo'
-            });
-          }
+    if (!errorMembro && membrosDb) {
+      membrosDb.forEach(m => {
+        membros.push({
+          ...m,
+          status: m.status || 'ativo'
         });
-        membros = Array.from(membrosMap.values());
-      }
-    }
-
-    // Se ainda faltar membros, buscar individualmente (fallback robusto)
-    if (membros.length < idsParaBuscar.length) {
-      const membrosEncontrados = new Map();
-      membros.forEach(m => membrosEncontrados.set(String(m.id).trim(), m));
-
-      const membrosFaltantes = idsParaBuscar.filter(id => {
-        const idStr = String(id).trim();
-        const idNum = parseInt(idStr, 10);
-        return !membrosEncontrados.has(idStr) &&
-          !membrosEncontrados.has(String(idNum)) &&
-          !Array.from(membrosEncontrados.keys()).some(key => String(key) === idStr || String(key) === String(idNum));
       });
+    }
 
-      if (membrosFaltantes.length > 0) {
-        const membrosPromises = membrosFaltantes.map(async (id) => {
-          const idStr = String(id).trim();
-          const idNum = parseInt(idStr, 10);
+    // 2. Tentar buscar na tabela usuários por ID (para identificar quem não é membro mas é responsável)
+    const { data: usuariosDb, error: errorUser } = await supabase
+      .from('usuarios')
+      .select('id, nome_usuario')
+      .in('id', idsParaBuscar);
 
-          // Tentar como número primeiro
-          if (!isNaN(idNum)) {
-            const { data, error } = await supabase
-
-              .from('membro')
-              .select('id, nome, status')
-              .eq('id', idNum)
-              .maybeSingle();
-            if (!error && data) {
-              return {
-                ...data,
-                status: data.status || 'ativo'
-              };
-            }
-          }
-
-          // Tentar como string
-          const { data, error } = await supabase
-
-            .from('membro')
-            .select('id, nome, status')
-            .eq('id', idStr)
-            .maybeSingle();
-          if (error) return null;
-          return data ? {
-            ...data,
-            status: data.status || 'ativo'
-          } : null;
-        });
-
-        const resultados = await Promise.all(membrosPromises);
-        resultados.filter(Boolean).forEach(m => {
-          const key = String(m.id).trim();
-          if (!membrosEncontrados.has(key)) {
-            membrosEncontrados.set(key, m);
-          }
-        });
-
-        membros = Array.from(membrosEncontrados.values());
-      }
+    if (!errorUser && usuariosDb) {
+      usuariosDb.forEach(u => {
+        // Apenas adicionar se não estiver já na lista de membros (para evitar duplicatas se ID for igual)
+        if (!membros.some(m => String(m.id) === String(u.id))) {
+          membros.push({
+            id: u.id,
+            nome: u.nome_usuario,
+            status: 'ativo'
+          });
+        }
+      });
     }
   } catch (err) {
     console.error('Erro ao buscar membros por IDs:', err);
-    return [];
   }
 
   // Criar map com múltiplos formatos de ID para matching robusto
@@ -1018,7 +908,6 @@ async function getMembrosPorIds(membroIds) {
     const membroIdStr = String(membroId).trim();
     const membroIdNum = parseInt(membroIdStr, 10);
 
-    // Armazenar em todos os formatos possíveis
     membrosMap[membroId] = membro;
     membrosMap[membroIdStr] = membro;
     if (!isNaN(membroIdNum)) {
