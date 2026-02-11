@@ -106,7 +106,6 @@ router.get('/api/clientes-kamino', requireAuth, clientesController.getClientesKa
 router.get('/api/clientes-incompletos-count', requireAuth, clientesController.getClientesIncompletosCount);
 // IMPORTANTE: Rota genérica (listar) deve vir ANTES da específica (por ID)
 router.get('/api/clientes', requireAuth, clientesController.getClientes);
-router.post('/api/clientes', requireAuth, clientesController.criarCliente);
 router.get('/api/clientes/:id/custom-avatar-path', requireAuth, clientesController.getClienteCustomAvatarPath);
 router.get('/api/clientes/:id', requireAuth, clientesController.getClientePorId);
 router.put('/api/clientes/:id', requireAuth, clientesController.atualizarClientePorId);
@@ -274,7 +273,6 @@ router.post('/api/gestao-capacidade/cards/responsavel/detalhes', requireAuth, ge
 router.post('/api/gestao-capacidade/cards/cliente/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesCliente);
 router.post('/api/gestao-capacidade/cards/produto/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesProduto);
 router.post('/api/gestao-capacidade/cards/tarefa/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesTarefa);
-router.post('/api/gestao-capacidade/cards/tipo-tarefa/detalhes', requireAuth, gestaoCapacidadeCardsController.detalhesTipoTarefa);
 
 // Rotas de Banco (CRUD completo)
 router.get('/api/bancos', requireAuth, bancoController.getBancos);
@@ -357,6 +355,18 @@ router.delete('/api/clientes-adquirentes/:id', requireAuth, clienteAdquirenteCon
 // Rotas de Base de Conhecimento
 router.get('/api/base-conhecimento/bulk-summary', requireAuth, baseConhecimentoController.getBaseConhecimentoBulkSummary);
 router.get('/api/base-conhecimento/cliente/:cliente_id', requireAuth, baseConhecimentoController.getBaseConhecimentoCliente);
+router.get('/api/base-conhecimento/anexos', requireAuth, baseConhecimentoController.listarAnexosPorPasta);
+router.post('/api/base-conhecimento/anexo', requireAuth, baseConhecimentoController.criarAnexo);
+router.put('/api/base-conhecimento/anexo/:id', requireAuth, baseConhecimentoController.atualizarAnexo);
+
+// Rotas de Pastas da Base de Conhecimento
+router.get('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.listarPastas);
+router.post('/api/base-conhecimento/pastas', requireAuth, baseConhecimentoController.criarPasta);
+router.put('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.atualizarPasta);
+router.delete('/api/base-conhecimento/pastas/:id', requireAuth, baseConhecimentoController.excluirPasta);
+
+// Rotas de histórico/auditoria Tutoriais
+router.get('/api/base-conhecimento/tutorial-logs', requireAuth, baseConhecimentoController.getTutorialLogs);
 
 // Rotas de Observações Particulares de Subtarefas por Cliente
 router.get('/api/cliente-subtarefa-observacao', requireAuth, clienteSubtarefaObservacaoController.getObservacao);

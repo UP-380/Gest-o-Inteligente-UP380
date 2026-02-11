@@ -1059,6 +1059,23 @@ export const api = {
   request // para casos avançados
 };
 
+// ============================================
+// BASE DE CONHECIMENTO
+// ============================================
+
+export const baseConhecimentoAPI = {
+  getAnexosPorPasta: (pastaId) => api.get(`/base-conhecimento/anexos?pasta_id=${pastaId}`),
+  criarAnexo: (payload) => api.post('/base-conhecimento/anexo', payload),
+  atualizarAnexo: (id, payload) => api.put(`/base-conhecimento/anexo/${id}`, payload),
+  getPastas: () => api.get('/base-conhecimento/pastas'),
+  criarPasta: (payload) => api.post('/base-conhecimento/pastas', payload),
+  atualizarPasta: (id, payload) => api.put(`/base-conhecimento/pastas/${id}`, payload),
+  excluirPasta: (id, excluirAnexos = false) =>
+    api.delete(`/base-conhecimento/pastas/${id}${excluirAnexos ? '?excluir_anexos=true' : ''}`),
+  getTutorialLogs: (limit = 100, pastaId = null) =>
+    api.get(`/base-conhecimento/tutorial-logs?limit=${limit}${pastaId != null ? `&pasta_id=${pastaId}` : ''}`),
+};
+
 // Exportar URL base para uso externo se necessário
 export { getApiBaseUrl };
 

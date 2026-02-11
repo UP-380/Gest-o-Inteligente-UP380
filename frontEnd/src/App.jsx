@@ -37,6 +37,7 @@ import HistoricoAtribuicoes from './pages/HistoricoAtribuicoes/HistoricoAtribuic
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
 import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
+import AnexarArquivo from './pages/AnexarArquivo/AnexarArquivo';
 import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConhecimentoCliente';
 import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
@@ -44,7 +45,6 @@ import AtribuicaoCliente from './pages/AtribuicaoCliente/AtribuicaoCliente';
 import GestaoUsuarios from './pages/GestaoUsuarios/GestaoUsuarios';
 import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
-import RelatorioTempo from './pages/RelatorioTempo/RelatorioTempo';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
@@ -442,6 +442,14 @@ function App() {
           }
         />
         <Route
+          path="/base-conhecimento/tutoriais"
+          element={
+            <ProtectedRoute>
+              <AnexarArquivo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/base-conhecimento/cliente/:clienteId"
           element={
             <ProtectedRoute>
@@ -537,14 +545,6 @@ function App() {
           element={
             <ProtectedRoute>
               <PlanilhaHoras />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/relatorio-tempo"
-          element={
-            <ProtectedRoute>
-              <RelatorioTempo />
             </ProtectedRoute>
           }
         />
