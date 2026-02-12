@@ -105,11 +105,21 @@ const NotasAtualizacao = () => {
     }, [showToast]);
 
     const handleSelecionarNota = useCallback((id) => {
-        if (salvando) return; // Evitar troca enquanto salva
-        // Se estiver editando e mudar, verificar alterações? (Simplificado por enquanto)
+        if (salvando) return;
         setNotaSelecionadaId(id);
-        carregarDetalhesNota(id);
-    }, [salvando, carregarDetalhesNota]);
+
+        if (!isEditing) {
+            const element = document.getElementById(`nota-card-${id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                // If not rendered yet or in different view, load details
+                carregarDetalhesNota(id);
+            }
+        } else {
+            carregarDetalhesNota(id);
+        }
+    }, [salvando, carregarDetalhesNota, isEditing]);
 
     const handleNovaNota = useCallback(() => {
         if (!isAdmin) return;
@@ -458,12 +468,9 @@ const NotasAtualizacao = () => {
                                                     )}
                                                     {isAdmin && !isEditing && (
                                                         <>
-                                                            <button type="button" className="anexar-arquivo-btn-edit" onClick={handleEditarNota} title="Editar">
-                                                                <i className="fas fa-edit"></i> Editar
-                                                            </button>
-                                                            <button type="button" className="anexar-arquivo-btn-delete" onClick={() => setNotaParaExcluir({ id: notaSelecionadaId })} title="Excluir">
-                                                                <i className="fas fa-trash"></i>
-                                                            </button>
+                                                            <ButtonPrimary onClick={handleNovaNota} icon="fas fa-plus">
+                                                                Novo
+                                                            </ButtonPrimary>
                                                         </>
                                                     )}
 
@@ -499,8 +506,52 @@ const NotasAtualizacao = () => {
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        /* Modo Leitura */
-                                                        <div className="notas-visualizacao-content" dangerouslySetInnerHTML={{ __html: conteudo }} />
+                                                        /* Modo Leitura: Todas as notas em cascata */
+                                                        <div className="notas-list-cascading">
+                                                            {notas.map((nota) => (
+                                                                <div
+                                                                    key={nota.id}
+                                                                    id={`nota-card-${nota.id}`}
+                                                                    className={`nota-card-item ${notaSelecionadaId === nota.id ? 'active' : ''}`}
+                                                                >
+                                                                    <div className="nota-card-header">
+                                                                        <div className="nota-card-title-group">
+                                                                            <h3>{nota.titulo}</h3>
+                                                                            <span className="nota-card-date">
+                                                                                {new Date(nota.data_publicacao).toLocaleDateString('pt-BR')}
+                                                                            </span>
+                                                                        </div>
+                                                                        {isAdmin && (
+                                                                            <div className="nota-card-actions">
+                                                                                <button
+                                                                                    className="nota-action-btn edit"
+                                                                                    onClick={() => {
+                                                                                        setNotaSelecionadaId(nota.id);
+                                                                                        carregarDetalhesNota(nota.id).then(() => {
+                                                                                            setIsEditing(true);
+                                                                                        });
+                                                                                    }}
+                                                                                    title="Editar"
+                                                                                >
+                                                                                    <i className="fas fa-edit"></i>
+                                                                                </button>
+                                                                                <button
+                                                                                    className="nota-action-btn delete"
+                                                                                    onClick={() => setNotaParaExcluir(nota)}
+                                                                                    title="Excluir"
+                                                                                >
+                                                                                    <i className="fas fa-trash"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div
+                                                                        className="notas-visualizacao-content"
+                                                                        dangerouslySetInnerHTML={{ __html: nota.conteudo }}
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

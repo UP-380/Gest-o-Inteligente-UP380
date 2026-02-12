@@ -334,3 +334,106 @@
     align-items: center;
     width: 100%;
 }
+
+/* Cascading list view */
+.notas-list-cascading {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding-bottom: 5rem;
+}
+
+.nota-card-item {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.3s ease;
+    scroll-margin-top: 2rem;
+}
+
+.nota-card-item.active {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.1);
+}
+
+.nota-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    border-radius: 12px 12px 0 0;
+}
+
+.nota-card-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.nota-card-title-group h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.nota-card-date {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.nota-card-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.nota-action-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nota-action-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.nota-action-btn.edit:hover {
+    color: #2563eb;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+
+.nota-action-btn.delete:hover {
+    color: #dc2626;
+    border-color: #fee2e2;
+    background: #fef2f2;
+}
+
+/* Sidebar behavior */
+.anexar-arquivo-pasta-item {
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.anexar-arquivo-pasta-item.active {
+    background: #f1f5f9;
+    border-left-color: #0e3b6f;
+    color: #0e3b6f;
+    font-weight: 600;
+}
+
+.notas-visualizacao-content {
+    padding: 1.5rem;
+}
