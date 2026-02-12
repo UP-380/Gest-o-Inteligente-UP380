@@ -14,6 +14,7 @@ const Sidebar = () => {
   const [cadastrosClientesExpanded, setCadastrosClientesExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
   const [baseConhecimentoExpanded, setBaseConhecimentoExpanded] = useState(false);
+  const [equipamentosExpanded, setEquipamentosExpanded] = useState(false); // Novo estado
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     // Verificar se está no cliente (browser) antes de acessar window
@@ -53,6 +54,10 @@ const Sidebar = () => {
       isActive('/cadastro/vinculacoes') ||
       isActive('/documentacao-api') ||
       isActive('/gestao/usuarios');
+  };
+
+  const isEquipamentosActive = () => {
+    return isActive('/equipamentos');
   };
 
   const isBaseConhecimentoActive = () => {
@@ -112,9 +117,14 @@ const Sidebar = () => {
   // Expandir automaticamente o menu Base de Conhecimento se estiver em uma das páginas relacionadas
   useEffect(() => {
     const isBaseConhecimentoActive = location.pathname === '/base-conhecimento/conteudos-clientes' ||
-      location.pathname.startsWith('/base-conhecimento/cliente/');
+      location.pathname.startsWith('/base-conhecimento/cliente/') ||
+      location.pathname === '/equipamentos'; // Expandir também para equipamentos
+
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
+      if (location.pathname === '/equipamentos') {
+        setEquipamentosExpanded(true); // Expandir o sub-menu equipamentos também
+      }
     }
   }, [location.pathname]);
 
@@ -198,6 +208,11 @@ const Sidebar = () => {
   const toggleConfiguracoes = (e) => {
     e.preventDefault();
     setConfiguracoesExpanded(!configuracoesExpanded);
+  };
+
+  const toggleEquipamentos = (e) => {
+    e.preventDefault();
+    setEquipamentosExpanded(!equipamentosExpanded);
   };
 
   const toggleBaseConhecimento = (e) => {
@@ -359,6 +374,8 @@ const Sidebar = () => {
     });
   }, [canAccessRoute]);
 
+
+
   const configuracoesSubItems = useMemo(() => {
     const allItems = [
       {
@@ -399,9 +416,27 @@ const Sidebar = () => {
         icon: 'fa-briefcase',
         label: 'Conteúdos Clientes',
         title: 'Conteúdos Clientes'
+      },
+      {
+        label: 'Equipamentos',
+        icon: 'fa-laptop',
+        title: 'Equipamentos',
+        subItems: [
+          {
+            path: '/equipamentos',
+            icon: 'fa-laptop-medical',
+            label: 'Cadastrar Equipamentos',
+            title: 'Cadastrar Equipamentos'
+          }
+        ]
       }
     ];
-    return allItems.filter(item => canAccessRoute(item.path));
+    return allItems.filter(item => {
+      if (item.subItems) {
+        return item.subItems.some(sub => canAccessRoute(sub.path));
+      }
+      return canAccessRoute(item.path);
+    });
   }, [canAccessRoute]);
 
   return (
@@ -638,6 +673,8 @@ const Sidebar = () => {
               </div>
             )}
 
+
+
             {/* Menu Base de Conhecimento com Submenu - Só exibir se houver itens */}
             {baseConhecimentoSubItems.length > 0 && (
               <div className="sidebar-menu-group">
@@ -654,17 +691,56 @@ const Sidebar = () => {
                 </button>
 
                 <div className={`sidebar-submenu ${baseConhecimentoExpanded ? 'open' : ''}`}>
-                  {baseConhecimentoSubItems.map((subItem) => (
-                    <Link
-                      key={subItem.path}
-                      to={subItem.path}
-                      className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                      title={subItem.title}
-                    >
-                      <i className={`fas ${subItem.icon}`}></i>
-                      <span className="sidebar-text">{subItem.label}</span>
-                    </Link>
-                  ))}
+                  {baseConhecimentoSubItems.map((subItem) => {
+                    // Logica para itens aninhados (ex: Equipamentos)
+                    if (subItem.subItems) {
+                      const isEquipamentos = subItem.label === 'Equipamentos';
+                      const isExpanded = isEquipamentos ? equipamentosExpanded : false;
+                      const toggleFunction = isEquipamentos ? toggleEquipamentos : null;
+
+                      return (
+                        <div key={subItem.label} className="sidebar-nested-menu-group">
+                          <button
+                            type="button"
+                            className={`sidebar-item sidebar-submenu-item sidebar-nested-toggle ${isExpanded ? 'expanded' : ''}`}
+                            title={subItem.title}
+                            onClick={toggleFunction}
+                            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                          >
+                            <i className={`fas ${subItem.icon}`}></i>
+                            <span className="sidebar-text">{subItem.label}</span>
+                            <i className={`fas fa-chevron-right sidebar-chevron ${isExpanded ? 'expanded' : ''}`}></i>
+                          </button>
+                          <div className={`sidebar-nested-submenu ${isExpanded ? 'open' : ''}`}>
+                            {subItem.subItems.map((nestedItem) => (
+                              <Link
+                                key={nestedItem.path}
+                                to={nestedItem.path}
+                                className={`sidebar-item sidebar-submenu-item sidebar-nested-item ${isActive(nestedItem.path) ? 'active' : ''}`}
+                                title={nestedItem.title}
+                              >
+                                <i className={`fas ${nestedItem.icon}`}></i>
+                                <span className="sidebar-text">{nestedItem.label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Item normal
+                    return (
+                      <Link
+                        key={subItem.path}
+                        to={subItem.path}
+                        className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                        title={subItem.title}
+                      >
+                        <i className={`fas ${subItem.icon}`}></i>
+                        <span className="sidebar-text">{subItem.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}

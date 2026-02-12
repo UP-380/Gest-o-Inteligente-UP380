@@ -42,6 +42,7 @@ const notificacoesController = require('../controllers/notificacoes.controller')
 const comunicacaoController = require('../controllers/comunicacao.controller');
 const uploadController = require('../controllers/upload.controller');
 const apiKeyController = require('../controllers/api-key.controller');
+const equipamentosController = require('../controllers/equipamentos.controller');
 
 const apiClientes = require('../services/api-clientes');
 
@@ -296,6 +297,13 @@ router.get('/api/sistemas/:id', requireAuth, sistemaController.getSistemaPorId);
 router.post('/api/sistemas', requireAuth, sistemaController.criarSistema);
 router.put('/api/sistemas/:id', requireAuth, sistemaController.atualizarSistema);
 router.delete('/api/sistemas/:id', requireAuth, sistemaController.deletarSistema);
+
+// Rotas de Equipamentos (CRUD completo)
+router.get('/api/equipamentos', requireAuth, equipamentosController.getEquipamentos);
+router.get('/api/equipamentos/:id', requireAuth, equipamentosController.getEquipamentoPorId);
+router.post('/api/equipamentos', requireAuth, equipamentosController.criarEquipamento);
+router.put('/api/equipamentos/:id', requireAuth, equipamentosController.atualizarEquipamento);
+router.delete('/api/equipamentos/:id', requireAuth, equipamentosController.deletarEquipamento);
 
 // Rotas de Tarefa (cp_tarefa) (CRUD completo)
 router.get('/api/tarefas', requireAuth, tarefaController.getTarefas); // Alias plural (padrão REST)
