@@ -64,8 +64,10 @@ const NotasAtualizacao = () => {
             const res = await baseConhecimentoAPI.atualizacoes.listar();
             if (res.success) {
                 setNotas(res.data || []);
-                // Se houver notas e nenhuma selecionada, não seleciona automaticamente para dar visão geral?
-                // Ou seleciona a primeira? Vamos deixar o usuário selecionar.
+                // Se houver notas e nenhuma selecionada por URL, seleciona a primeira apenas internamente para o estado
+                if (res.data && res.data.length > 0 && !notaSelecionadaId) {
+                    // Não forçamos o scroll, apenas definimos qual está "ativa" no estado se necessário
+                }
             } else {
                 showToast('error', MENSAGENS.ERRO_CARREGAR);
             }
@@ -246,14 +248,15 @@ const NotasAtualizacao = () => {
     }, [notaParaExcluir, notaSelecionadaId, isAdmin, showToast, carregarNotas]);
 
     // Função para extrair headers do conteúdo HTML
-    const extractHeaders = useCallback((html) => {
+    const extractHeaders = useCallback((html, notaId) => {
         if (!html) return [];
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const headers = Array.from(doc.querySelectorAll('h1, h2, h3'));
 
         return headers.map((h, index) => ({
-            id: `header-${index}`,
+            id: `header-${notaId}-${index}`,
+            notaId: notaId,
             text: h.innerText || h.textContent,
             level: parseInt(h.tagName.substring(1)),
             tagName: h.tagName
@@ -261,14 +264,26 @@ const NotasAtualizacao = () => {
     }, []);
 
     // Função para rolar até o header
-    const scrollToHeader = useCallback((text) => {
-        const contentArea = document.querySelector('.notas-visualizacao-content');
-        if (!contentArea) return;
+    // Função para rolar até o header
+    const scrollToHeader = useCallback((text, notaId) => {
+        let container = null;
 
-        const headers = Array.from(contentArea.querySelectorAll('h1, h2, h3'));
-        const target = headers.find(h => (h.innerText || h.textContent) === text);
+        if (notaId) {
+            container = document.getElementById(`nota-card-${notaId}`);
+        }
+
+        if (!container) {
+            container = document.querySelector('.notas-list-cascading') || document.querySelector('.notas-visualizacao-content');
+        }
+
+        if (!container) return;
+
+        const headers = Array.from(container.querySelectorAll('h1, h2, h3'));
+        const target = headers.find(h => (h.innerText || h.textContent).trim() === text.trim());
 
         if (target) {
+            // Adicionar uma margem de rolagem para não ficar colado no topo (atrás do header fixo)
+            target.style.scrollMarginTop = '100px';
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     }, []);
@@ -351,7 +366,7 @@ const NotasAtualizacao = () => {
                                     ) : (
                                         <ul className="anexar-arquivo-pastas-list">
                                             {notas.map(nota => {
-                                                const subOptions = notaSelecionadaId === nota.id && !isEditing ? extractHeaders(nota.conteudo) : [];
+                                                const subOptions = extractHeaders(nota.conteudo, nota.id);
                                                 const isDraft = !nota.anunciado;
 
                                                 return (
@@ -377,7 +392,7 @@ const NotasAtualizacao = () => {
                                                                         className={`nota-sub-option level-${header.level}`}
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            scrollToHeader(header.text);
+                                                                            scrollToHeader(header.text, nota.id);
                                                                         }}
                                                                     >
                                                                         {header.text}
@@ -394,7 +409,7 @@ const NotasAtualizacao = () => {
 
                                 {/* Coluna Direita: Editor/Visualizador */}
                                 <div className="anexar-arquivo-col-dir">
-                                    {!notaSelecionadaId ? (
+                                    {notas.length === 0 && !isCreating ? (
                                         <div className="anexar-arquivo-empty-doc">
                                             <p>{MENSAGENS.SELECIONE_ITEM}</p>
                                         </div>
@@ -412,10 +427,14 @@ const NotasAtualizacao = () => {
                                                     />
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <h3 className="anexar-arquivo-doc-bar-titulo">{titulo}</h3>
-                                                        <span className="notas-data-badge" style={{ fontSize: '0.85rem' }}>
-                                                            {new Date(dataPublicacao).toLocaleDateString()}
-                                                        </span>
+                                                        <h3 className="anexar-arquivo-doc-bar-titulo">
+                                                            {isCreating ? "Nova Atualização" : "Registro de Alterações"}
+                                                        </h3>
+                                                        {!isCreating && notas.length > 0 && (
+                                                            <span className="notas-data-badge" style={{ fontSize: '0.85rem' }}>
+                                                                {notas.length} nota(s)
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
 
