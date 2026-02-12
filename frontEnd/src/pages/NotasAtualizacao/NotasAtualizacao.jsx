@@ -370,8 +370,8 @@ const NotasAtualizacao = () => {
                                                 const isDraft = !nota.anunciado;
 
                                                 return (
-                                                    <React.Fragment key={nota.id}>
-                                                        <li
+                                                    <li key={nota.id} className="nota-sidebar-group">
+                                                        <div
                                                             className={`anexar-arquivo-pasta-item ${notaSelecionadaId === nota.id ? 'active' : ''} ${isDraft ? 'nota-draft' : ''}`}
                                                             onClick={() => handleSelecionarNota(nota.id)}
                                                         >
@@ -382,7 +382,7 @@ const NotasAtualizacao = () => {
                                                                 </span>
                                                                 <span className="notas-data-badge">{new Date(nota.data_publicacao || nota.created_at).toLocaleDateString()}</span>
                                                             </div>
-                                                        </li>
+                                                        </div>
 
                                                         {subOptions.length > 0 && (
                                                             <div className="nota-sub-options">
@@ -400,7 +400,7 @@ const NotasAtualizacao = () => {
                                                                 ))}
                                                             </div>
                                                         )}
-                                                    </React.Fragment>
+                                                    </li>
                                                 );
                                             })}
                                         </ul>

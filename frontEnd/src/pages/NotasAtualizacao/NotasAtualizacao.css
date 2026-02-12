@@ -264,51 +264,89 @@
     border-color: #93c5fd;
 }
 
-/* Sub-options Table of Contents in Sidebar */
+/* Sub-options Table of Contents in Sidebar (Tree Branch Style) */
 .nota-sub-options {
-    background: #ffffff;
-    border-left: 2px solid #e2e8f0;
-    margin-left: 1.5rem;
+    background: transparent;
+    border-left: none;
+    margin-left: 22px;
     margin-top: -5px;
-    margin-bottom: 0.8rem;
-    padding: 2px 0;
+    margin-bottom: 10px;
+    padding: 0;
+    position: relative;
+}
+
+/* Linha vertical principal da árvore */
+.nota-sub-options::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: -10px;
+    /* Sobe um pouco para ligar com o título pai */
+    bottom: 12px;
+    /* Para no meio do último item */
+    width: 2px;
+    background: #e2e8f0;
 }
 
 .nota-sub-option {
-    padding: 6px 14px;
-    font-size: 0.78rem;
+    padding: 5px 12px 5px 22px;
+    font-size: 0.76rem;
     color: #64748b;
     cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 0 6px 6px 0;
+    transition: all 0.2s ease;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
     line-height: 1.4;
+    position: relative;
+    border-radius: 4px;
+}
+
+/* Galho horizontal */
+.nota-sub-option::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 16px;
+    height: 2px;
+    background: #e2e8f0;
+    transform: translateY(-50%);
+    transition: background 0.2s;
 }
 
 .nota-sub-option:hover {
-    background: #f1f5f9;
+    background: rgba(14, 59, 111, 0.04);
     color: #0e3b6f;
-    padding-left: 18px;
+    padding-left: 26px;
+}
+
+.nota-sub-option:hover::before {
+    background: #0e3b6f;
+    width: 20px;
 }
 
 .nota-sub-option.level-1 {
-    font-weight: 600;
-    padding-left: 14px;
-    color: #334155;
+    font-weight: 500;
+    color: #475569;
 }
 
 .nota-sub-option.level-2 {
-    padding-left: 26px;
-    opacity: 0.9;
+    padding-left: 30px;
+}
+
+.nota-sub-option.level-2::before {
+    width: 24px;
 }
 
 .nota-sub-option.level-3 {
     padding-left: 38px;
-    font-size: 0.74rem;
-    opacity: 0.8;
+    font-size: 0.72rem;
+}
+
+.nota-sub-option.level-3::before {
+    width: 32px;
 }
 
 /* Draft Styling */
@@ -422,12 +460,22 @@
 }
 
 /* Sidebar behavior */
-.anexar-arquivo-pasta-item {
-    transition: all 0.2s ease;
-    border-left: 3px solid transparent;
+.nota-sidebar-group {
+    border-bottom: 1px solid #cbd5e1;
 }
 
-.anexar-arquivo-pasta-item.active {
+.nota-sidebar-group:last-child {
+    border-bottom: none;
+}
+
+.nota-sidebar-group .anexar-arquivo-pasta-item {
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    border-bottom: none !important;
+    /* Removemos a borda individual */
+}
+
+.nota-sidebar-group .anexar-arquivo-pasta-item.active {
     background: #f1f5f9;
     border-left-color: #0e3b6f;
     color: #0e3b6f;
