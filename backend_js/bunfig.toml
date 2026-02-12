@@ -1,0 +1,17 @@
+[install]
+# Dependências de produção por padrão
+production = false
+
+[run]
+# Executar com hot reload em dev
+watch = false
+preload = []
+
+[test]
+# Configuração dos testes
+coverage = false
+watch = false
+
+[install.lockfile]
+# Manter lockfile atualizado
+save = true

@@ -411,7 +411,7 @@
 }
 
 /* Não rotacionar quando expandido - o JSX já muda o ícone de right para down */
-.atribuicoes-group-header.expanded .atribuicoes-group-header-left > i:first-child {
+.atribuicoes-group-header.expanded .atribuicoes-group-header-left>i:first-child {
   transform: none;
 }
 
@@ -468,15 +468,15 @@
   .atribuicoes-group-header {
     padding: 16px 20px;
   }
-  
+
   .atribuicoes-group-header-left {
     gap: 12px;
   }
-  
+
   .atribuicoes-group-header-info {
     gap: 8px;
   }
-  
+
   .atribuicoes-group-tempo-badge,
   .atribuicoes-group-count {
     font-size: 10px;
@@ -897,7 +897,8 @@
 }
 
 .atribuicoes-tempo-label-estimado i {
-  color: #0e3b6f !important; /* Azul padrão do sistema - mesma cor do painel */
+  color: #0e3b6f !important;
+  /* Azul padrão do sistema - mesma cor do painel */
   font-size: 11px;
 }
 
@@ -1053,12 +1054,12 @@
   .atribuicoes-table {
     font-size: 12px;
   }
-  
+
   .atribuicoes-table th,
   .atribuicoes-table td {
     padding: 10px 8px;
   }
-  
+
   .atribuicoes-group-header {
     padding: 12px 16px;
   }
@@ -1066,11 +1067,14 @@
 
 /* Seção de Tempo Disponível vs Estimado por Responsável */
 .tempo-disponivel-section {
-  margin-bottom: 22.4px; /* 32px * 0.7 = 22.4px */
-  padding: 14px; /* 20px * 0.7 = 14px */
+  margin-bottom: 22.4px;
+  /* 32px * 0.7 = 22.4px */
+  padding: 14px;
+  /* 20px * 0.7 = 14px */
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8.4px; /* 12px * 0.7 = 8.4px */
+  border-radius: 8.4px;
+  /* 12px * 0.7 = 8.4px */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   width: 100%;
   box-sizing: border-box;
@@ -1078,36 +1082,45 @@
 }
 
 .tempo-disponivel-title {
-  font-size: 16px; /* Mantido tamanho original */
+  font-size: 16px;
+  /* Mantido tamanho original */
   font-weight: 600;
   color: #0e3b6f;
-  margin: 0 0 14px 0; /* 20px * 0.7 = 14px */
+  margin: 0 0 14px 0;
+  /* 20px * 0.7 = 14px */
   display: flex;
   align-items: center;
 }
 
 .tempo-disponivel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 290px); /* Tamanho fixo de 290px (tamanho perfeito quando há 4 colunas) */
-  gap: 14px; /* Aumentado de 8.4px para 14px para mais espaçamento entre dashboards */
+  grid-template-columns: repeat(auto-fill, 290px);
+  /* Tamanho fixo de 290px (tamanho perfeito quando há 4 colunas) */
+  gap: 14px;
+  /* Aumentado de 8.4px para 14px para mais espaçamento entre dashboards */
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
-  justify-content: start; /* Alinhar cards à esquerda */
+  justify-content: start;
+  /* Alinhar cards à esquerda */
 }
 
 @media (min-width: 1200px) {
   .tempo-disponivel-grid {
-    grid-template-columns: repeat(auto-fill, 290px); /* Tamanho fixo de 290px */
+    grid-template-columns: repeat(auto-fill, 290px);
+    /* Tamanho fixo de 290px */
     max-width: 100%;
-    justify-content: start; /* Alinhar cards à esquerda */
+    justify-content: start;
+    /* Alinhar cards à esquerda */
   }
 }
 
 .tempo-disponivel-card {
   background: #ffffff;
-  border-radius: 7px; /* 10px * 0.7 = 7px */
-  padding: 9.8px; /* 14px * 0.7 = 9.8px */
+  border-radius: 7px;
+  /* 10px * 0.7 = 7px */
+  padding: 9.8px;
+  /* 14px * 0.7 = 9.8px */
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 0;
@@ -1117,33 +1130,42 @@
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
-  min-width: 0; /* Permite que o card encolha abaixo do minmax */
+  min-width: 0;
+  /* Permite que o card encolha abaixo do minmax */
 }
 
 .tempo-disponivel-card-header {
   margin-bottom: 0;
   display: flex;
   align-items: flex-start;
-  gap: 4.2px; /* 6px * 0.7 = 4.2px */
-  padding-bottom: 7px; /* 10px * 0.7 = 7px */
+  gap: 4.2px;
+  /* 6px * 0.7 = 4.2px */
+  padding-bottom: 7px;
+  /* 10px * 0.7 = 7px */
   border-bottom: 1px solid rgba(255, 152, 0, 0.2);
-  min-height: 39.2px; /* 56px * 0.7 = 39.2px - mudado de height para min-height */
-  margin-bottom: 8.4px; /* 12px * 0.7 = 8.4px */
+  min-height: 39.2px;
+  /* 56px * 0.7 = 39.2px - mudado de height para min-height */
+  margin-bottom: 8.4px;
+  /* 12px * 0.7 = 8.4px */
 }
 
 /* Quando não há avatar, reduzir altura do header */
 .tempo-disponivel-card-header.sem-avatar {
   min-height: auto;
   height: auto;
-  padding-bottom: 4px; /* Reduzir padding quando não há avatar */
+  padding-bottom: 4px;
+  /* Reduzir padding quando não há avatar */
 }
 
 .tempo-disponivel-card-nome-wrapper {
   display: flex;
-  align-items: center; /* Mudado de flex-start para center */
-  gap: 5.6px; /* 8px * 0.7 = 5.6px */
+  align-items: center;
+  /* Mudado de flex-start para center */
+  gap: 5.6px;
+  /* 8px * 0.7 = 5.6px */
   width: 100%;
-  min-height: 28px; /* Altura mínima quando há avatar */
+  min-height: 28px;
+  /* Altura mínima quando há avatar */
 }
 
 /* Quando não há avatar, reduzir altura e gap */
@@ -1154,9 +1176,11 @@
 }
 
 .tempo-disponivel-card-nome {
-  font-size: 13px; /* Mantido tamanho original */
+  font-size: 13px;
+  /* Mantido tamanho original */
   font-weight: 600;
-  color: #0e3b6f; /* Mesma cor do título do grupo de atribuições */
+  color: #0e3b6f;
+  /* Mesma cor do título do grupo de atribuições */
   flex: 1;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -1171,9 +1195,12 @@
 }
 
 .tempo-disponivel-card-avatar-placeholder {
-  width: 28px; /* Aumentado de 24px para 28px */
-  height: 28px; /* Aumentado de 24px para 28px */
-  min-width: 28px; /* Aumentado de 24px para 28px */
+  width: 28px;
+  /* Aumentado de 24px para 28px */
+  height: 28px;
+  /* Aumentado de 24px para 28px */
+  min-width: 28px;
+  /* Aumentado de 24px para 28px */
   flex-shrink: 0;
 }
 
@@ -1200,7 +1227,8 @@
   color: #475569;
   padding: 4px 0;
   position: relative;
-  padding-right: 28px; /* Espaço reservado para a setinha alinhada */
+  padding-right: 28px;
+  /* Espaço reservado para a setinha alinhada */
 }
 
 .tempo-disponivel-stat-item i {
@@ -1214,7 +1242,8 @@
   color: #334155;
   font-weight: 500;
   line-height: 1.2;
-  flex: 0 1 auto; /* Não expandir, apenas ocupar o espaço necessário */
+  flex: 0 1 auto;
+  /* Não expandir, apenas ocupar o espaço necessário */
 }
 
 /* Seta de ver detalhes */
@@ -1230,26 +1259,35 @@
 /* Estilo específico para produtos-arrow - área clicável limitada como na referência */
 .resumo-arrow.produtos-arrow {
   display: inline-block;
-  margin-left: 8px; /* Espaçamento menor entre o texto e a setinha */
-  margin-right: 0; /* Sem margem à direita */
+  margin-left: 8px;
+  /* Espaçamento menor entre o texto e a setinha */
+  margin-right: 0;
+  /* Sem margem à direita */
   padding: 2px 6px;
   border-radius: 3px;
   transition: all 0.2s ease;
   width: auto;
   min-width: 20px;
   max-width: 20px;
-  flex-shrink: 0; /* Não encolher */
-  position: relative; /* Para não ser afetado pelo flex do pai */
+  flex-shrink: 0;
+  /* Não encolher */
+  position: relative;
+  /* Para não ser afetado pelo flex do pai */
 }
 
 /* Quando produtos-arrow está dentro de tempo-disponivel-stat-item, alinhar à direita */
 .tempo-disponivel-stat-item .resumo-arrow.produtos-arrow {
   position: absolute !important;
-  right: 0 !important; /* Alinhar todas as setinhas na mesma posição */
-  top: 50% !important; /* Centralizar verticalmente */
-  transform: translateY(-50%) !important; /* Centralizar verticalmente */
-  margin-left: 0 !important; /* Remover margem esquerda */
-  margin-right: 0 !important; /* Remover margem direita */
+  right: 0 !important;
+  /* Alinhar todas as setinhas na mesma posição */
+  top: 50% !important;
+  /* Centralizar verticalmente */
+  transform: translateY(-50%) !important;
+  /* Centralizar verticalmente */
+  margin-left: 0 !important;
+  /* Remover margem esquerda */
+  margin-right: 0 !important;
+  /* Remover margem direita */
   display: inline-block !important;
 }
 
@@ -1298,16 +1336,23 @@
 
 /* Avatar no card de tempo disponível */
 .tempo-disponivel-card .user-avatar {
-  width: 28px !important; /* Aumentado de 24px para 28px */
-  height: 28px !important; /* Aumentado de 24px para 28px */
-  min-width: 28px !important; /* Aumentado de 24px para 28px */
-  min-height: 28px !important; /* Aumentado de 24px para 28px */
-  font-size: 11px !important; /* Mantido tamanho original */
+  width: 28px !important;
+  /* Aumentado de 24px para 28px */
+  height: 28px !important;
+  /* Aumentado de 24px para 28px */
+  min-width: 28px !important;
+  /* Aumentado de 24px para 28px */
+  min-height: 28px !important;
+  /* Aumentado de 24px para 28px */
+  font-size: 11px !important;
+  /* Mantido tamanho original */
 }
 
 .tempo-disponivel-card .user-avatar img {
-  width: 28px !important; /* Aumentado de 24px para 28px */
-  height: 28px !important; /* Aumentado de 24px para 28px */
+  width: 28px !important;
+  /* Aumentado de 24px para 28px */
+  height: 28px !important;
+  /* Aumentado de 24px para 28px */
 }
 
 /* Barra de expansão com degradê branco */
@@ -1344,7 +1389,8 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8.4px; /* 12px * 0.7 = 8.4px */
+  gap: 8.4px;
+  /* 12px * 0.7 = 8.4px */
   margin-top: 0;
   position: relative;
   top: 0;
@@ -1357,24 +1403,29 @@
 .barra-progresso-tempo-principal {
   display: flex;
   flex-direction: column;
-  gap: 2.1px; /* 3px * 0.7 = 2.1px */
-  margin-bottom: 7px; /* 10px * 0.7 = 7px */
+  gap: 2.1px;
+  /* 3px * 0.7 = 2.1px */
+  margin-bottom: 7px;
+  /* 10px * 0.7 = 7px */
   align-items: flex-start;
 }
 
 .barra-progresso-tempo-valor {
-  font-size: 18px; /* Mantido tamanho original */
+  font-size: 18px;
+  /* Mantido tamanho original */
   line-height: 1.2;
   font-weight: 700;
   text-align: left;
 }
 
 .barra-progresso-tempo-valor.estimado {
-  color: #0e3b6f; /* Azul padrão do sistema */
+  color: #0e3b6f;
+  /* Azul padrão do sistema */
 }
 
 .barra-progresso-tempo-valor.realizado {
-  color: #f97316; /* Laranja padrão do sistema */
+  color: #f97316;
+  /* Laranja padrão do sistema */
 }
 
 .barra-progresso-tempo-custo {
@@ -1384,20 +1435,25 @@
   text-align: center;
   line-height: 1.2;
   margin-top: 2px;
-  min-height: 14px; /* Garante altura mínima mesmo quando vazio */
+  min-height: 14px;
+  /* Garante altura mínima mesmo quando vazio */
 }
 
 .barra-progresso-tempo-custo.estimado {
-  color: #0e3b6f; /* Azul padrão do sistema */
+  color: #0e3b6f;
+  /* Azul padrão do sistema */
 }
 
 .barra-progresso-tempo-custo.realizado {
-  color: #f97316; /* Laranja padrão do sistema */
+  color: #f97316;
+  /* Laranja padrão do sistema */
 }
 
 .barra-progresso-tempo-custo-placeholder {
-  visibility: hidden; /* Oculta o conteúdo, mas mantém o espaço */
-  height: 14px; /* Garante altura mesmo quando invisível */
+  visibility: hidden;
+  /* Oculta o conteúdo, mas mantém o espaço */
+  height: 14px;
+  /* Garante altura mesmo quando invisível */
 }
 
 .barra-progresso-tempo-badge-tempo {
@@ -1410,7 +1466,8 @@
   display: block;
   font-size: 0.75em;
   font-weight: 700;
-  color: #dc2626; /* Vermelho mais intenso para o excedido */
+  color: #dc2626;
+  /* Vermelho mais intenso para o excedido */
   line-height: 1.2;
   white-space: nowrap;
   opacity: 0.9;
@@ -1426,12 +1483,16 @@
 
 .barra-progresso-tempo-range {
   position: relative;
-  background-color: #e5e7eb; /* Cinza da barra base do painel */
+  background-color: #e5e7eb;
+  /* Cinza da barra base do painel */
   width: 100%;
-  height: 4.2px; /* 6px * 0.7 = 4.2px */
-  border-radius: 2.1px; /* 3px * 0.7 = 2.1px */
+  height: 4.2px;
+  /* 6px * 0.7 = 4.2px */
+  border-radius: 2.1px;
+  /* 3px * 0.7 = 2.1px */
   overflow: hidden;
-  margin: 2.1px 0; /* 3px * 0.7 = 2.1px */
+  margin: 2.1px 0;
+  /* 3px * 0.7 = 2.1px */
 }
 
 .barra-progresso-tempo-fill {
@@ -1444,83 +1505,106 @@
 }
 
 .barra-progresso-tempo-fill.estimado {
-  background-color: #0e3b6f; /* Azul padrão do sistema */
+  background-color: #0e3b6f;
+  /* Azul padrão do sistema */
   z-index: 2;
 }
 
 .barra-progresso-tempo-fill.realizado {
-  background-color: #f97316; /* Laranja padrão do sistema */
+  background-color: #f97316;
+  /* Laranja padrão do sistema */
   z-index: 3;
 }
 
 .barra-progresso-tempo-fill.pendente {
-  background-color: #ef4444; /* Vermelho alinhado à legenda Pendente */
+  background-color: #ef4444;
+  /* Vermelho alinhado à legenda Pendente */
   z-index: 4;
 }
 
 .barra-progresso-tempo-legenda {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 5.6px; /* 8px * 0.7 = 5.6px */
-  margin-top: 7px; /* 10px * 0.7 = 7px */
+  gap: 5.6px;
+  /* 8px * 0.7 = 5.6px */
+  margin-top: 7px;
+  /* 10px * 0.7 = 7px */
 }
 
 .barra-progresso-tempo-item {
   display: flex;
   flex-direction: column;
-  gap: 2.8px; /* 4px * 0.7 = 2.8px */
-  align-items: flex-start; /* Alinhar à esquerda para alinhar títulos e badges */
-  width: 100%; /* Ocupar toda a largura disponível do grid */
+  gap: 2.8px;
+  /* 4px * 0.7 = 2.8px */
+  align-items: flex-start;
+  /* Alinhar à esquerda para alinhar títulos e badges */
+  width: 100%;
+  /* Ocupar toda a largura disponível do grid */
 }
 
 .barra-progresso-tempo-item-content {
   display: flex;
   flex-direction: column;
-  gap: 2.8px; /* 4px * 0.7 = 2.8px */
-  align-items: flex-start; /* Alinhar títulos à esquerda */
-  width: 100%; /* Ocupar toda a largura disponível do grid */
+  gap: 2.8px;
+  /* 4px * 0.7 = 2.8px */
+  align-items: flex-start;
+  /* Alinhar títulos à esquerda */
+  width: 100%;
+  /* Ocupar toda a largura disponível do grid */
 }
 
 .barra-progresso-tempo-item-header {
   display: flex;
   align-items: center;
-  gap: 2.8px; /* 4px * 0.7 = 2.8px */
-  width: 100%; /* Ocupar toda a largura para alinhar à esquerda */
-  justify-content: flex-start; /* Alinhar conteúdo à esquerda */
+  gap: 2.8px;
+  /* 4px * 0.7 = 2.8px */
+  width: 100%;
+  /* Ocupar toda a largura para alinhar à esquerda */
+  justify-content: flex-start;
+  /* Alinhar conteúdo à esquerda */
 }
 
 .barra-progresso-tempo-item-header i {
-  font-size: 12px; /* Mantido tamanho original */
+  font-size: 12px;
+  /* Mantido tamanho original */
   flex-shrink: 0;
 }
 
 .barra-progresso-tempo-item-header .painel-colaborador-estimado-icon-inline {
-  color: #0e3b6f !important; /* Azul padrão do sistema - mesma cor do painel */
+  color: #0e3b6f !important;
+  /* Azul padrão do sistema - mesma cor do painel */
 }
 
 .barra-progresso-tempo-item-header .painel-colaborador-realizado-icon-inline {
-  color: #f97316 !important; /* Laranja padrão do sistema - mesma cor do painel */
+  color: #f97316 !important;
+  /* Laranja padrão do sistema - mesma cor do painel */
 }
 
 .barra-progresso-tempo-indicador {
-  width: 7px; /* 10px * 0.7 = 7px */
-  height: 7px; /* 10px * 0.7 = 7px */
-  border-radius: 1.4px; /* 2px * 0.7 = 1.4px */
+  width: 7px;
+  /* 10px * 0.7 = 7px */
+  height: 7px;
+  /* 10px * 0.7 = 7px */
+  border-radius: 1.4px;
+  /* 2px * 0.7 = 1.4px */
   flex-shrink: 0;
 }
 
 .barra-progresso-tempo-indicador.estimado {
-  background: #0e3b6f; /* Azul padrão do sistema */
+  background: #0e3b6f;
+  /* Azul padrão do sistema */
   box-shadow: 0 1px 3px rgba(14, 59, 111, 0.3);
 }
 
 .barra-progresso-tempo-indicador.realizado {
-  background: #f97316; /* Laranja padrão do sistema */
+  background: #f97316;
+  /* Laranja padrão do sistema */
   box-shadow: 0 1px 3px rgba(249, 115, 22, 0.3);
 }
 
 .barra-progresso-tempo-indicador.sobrando {
-  background: #e5e7eb; /* Cinza da barra base do painel */
+  background: #e5e7eb;
+  /* Cinza da barra base do painel */
   border: 1px solid #d1d5db;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
@@ -1528,41 +1612,53 @@
 .barra-progresso-tempo-label {
   color: #6b7280;
   font-weight: 500;
-  font-size: 10px; /* Mantido tamanho original */
+  font-size: 10px;
+  /* Mantido tamanho original */
   text-transform: uppercase;
-  letter-spacing: 0.2px; /* Mantido tamanho original */
+  letter-spacing: 0.2px;
+  /* Mantido tamanho original */
 }
 
 .barra-progresso-tempo-badge-wrapper {
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* Alinhar à esquerda para alinhar com o título */
+  align-items: flex-start;
+  /* Alinhar à esquerda para alinhar com o título */
   gap: 2px;
-  min-height: 44px; /* Altura do badge (28px) + altura do custo (~14px) + gap (2px) */
+  min-height: 44px;
+  /* Altura do badge (28px) + altura do custo (~14px) + gap (2px) */
   justify-content: flex-start;
-  width: 128px; /* Largura fixa para garantir espaçamento uniforme */
+  width: 128px;
+  /* Largura fixa para garantir espaçamento uniforme */
 }
 
 .barra-progresso-tempo-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4.2px 7px; /* 6px 10px * 0.7 = 4.2px 7px */
-  border-radius: 3.5px; /* 5px * 0.7 = 3.5px */
-  font-size: 11px; /* Mantido tamanho original */
+  padding: 4.2px 7px;
+  /* 6px 10px * 0.7 = 4.2px 7px */
+  border-radius: 3.5px;
+  /* 5px * 0.7 = 3.5px */
+  font-size: 11px;
+  /* Mantido tamanho original */
   font-weight: 600;
   text-align: center;
   background: #ffffff;
   color: #374151;
   border: 1px solid #e5e7eb;
-  min-height: 28px; /* 40px * 0.7 = 28px */
-  width: 128px; /* Largura fixa para garantir espaçamento uniforme */
+  min-height: 28px;
+  /* 40px * 0.7 = 28px */
+  width: 128px;
+  /* Largura fixa para garantir espaçamento uniforme */
   box-sizing: border-box;
 }
 
 .barra-progresso-tempo-badge.estimado {
-  background: #eef2ff; /* Mesma cor do painel */
-  color: #0e3b6f; /* Azul padrão do sistema */
+  background: #eef2ff;
+  /* Mesma cor do painel */
+  color: #0e3b6f;
+  /* Azul padrão do sistema */
   border: 1px solid #c7d2fe;
   flex-direction: column;
   align-items: center;
@@ -1571,8 +1667,10 @@
 }
 
 .barra-progresso-tempo-badge.estimado.excedido {
-  background: #fef2f2; /* Vermelho claro para indicar excedido */
-  color: #991b1b; /* Vermelho escuro */
+  background: #fef2f2;
+  /* Vermelho claro para indicar excedido */
+  color: #991b1b;
+  /* Vermelho escuro */
   border: 1px solid #fecaca;
 }
 
@@ -1583,10 +1681,12 @@
 }
 
 .barra-progresso-tempo-badge.disponivel {
-  background: #e5e7eb; /* Cinza da barra base do painel */
+  background: #e5e7eb;
+  /* Cinza da barra base do painel */
   color: #374151;
   border: 1px solid #d1d5db;
-  min-height: 28px; /* 40px * 0.7 = 28px */
+  min-height: 28px;
+  /* 40px * 0.7 = 28px */
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -1594,7 +1694,8 @@
 }
 
 .barra-progresso-tempo-badge.contratadas {
-  min-height: 28px; /* 40px * 0.7 = 28px */
+  min-height: 28px;
+  /* 40px * 0.7 = 28px */
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -1780,3 +1881,254 @@
   color: #334155;
 }
 
+/* ============================================================= */
+/* === HIERARCHY NODE — Renderização recursiva da nova API    === */
+/* ============================================================= */
+
+.hierarchy-node {
+  margin-bottom: 10px;
+  transition: margin-left 0.2s ease;
+}
+
+.hierarchy-node .tempo-disponivel-card {
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.hierarchy-node .tempo-disponivel-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Header clicável para expandir/colapsar */
+.hierarchy-node-header.clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.hierarchy-node-header.clickable:hover {
+  background-color: rgba(14, 59, 111, 0.04);
+  border-radius: 4px;
+}
+
+.hierarchy-node-header.clickable:focus-visible {
+  outline: 2px solid #0e3b6f;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Chevron */
+.hierarchy-node-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* Container dos filhos */
+.hierarchy-node-children {
+  padding-top: 4px;
+  border-left: 2px solid #e5e7eb;
+  margin-left: 6px;
+  padding-left: 4px;
+  animation: hierarchy-slide-in 0.2s ease-out;
+}
+
+@keyframes hierarchy-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Profundidades — suavizar cards mais internos */
+.hierarchy-node-depth-1 .tempo-disponivel-card {
+  background: #fafbfc;
+}
+
+.hierarchy-node-depth-2 .tempo-disponivel-card {
+  background: #f8f9fa;
+}
+
+.hierarchy-node-depth-3 .tempo-disponivel-card {
+  background: #f3f4f6;
+}
+
+.hierarchy-node-depth-4 .tempo-disponivel-card {
+  background: #f0f1f3;
+}
+
+/* Grid para hierarquia — apenas nível raiz (depth 0) */
+.hierarchy-root-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 290px);
+  gap: 14px;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: start;
+}
+
+/* Mensagem quando não há dados */
+.hierarchy-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+}
+
+.hierarchy-empty i {
+  margin-right: 8px;
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+/* ============================================================= */
+/* === HIERARCHY ORDER BUILDER — Cards no estilo FilterVinculacao */
+/* ============================================================= */
+
+/* Container principal */
+.hob-container {
+  margin-bottom: 4px;
+}
+
+/* Card base */
+.hob-card {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Forçar título em uma linha */
+.hob-card .filtro-card-title {
+  white-space: nowrap;
+}
+
+/* Card NÃO selecionado — mesmo visual que FilterVinculacao desmarcado */
+.hob-card-inactive .filtro-card-click-indicator {
+  display: flex !important;
+  opacity: 0.6;
+}
+
+
+
+/* Forçar estado "ativo" (mesmo visual que input:checked + filtro-card-content) */
+.hob-card .filtro-card-content.hob-card-active {
+  border-color: #0e3b6f;
+  background: linear-gradient(135deg, rgba(14, 59, 111, 0.05) 0%, rgba(20, 69, 119, 0.03) 100%);
+  box-shadow: 0 4px 12px rgba(14, 59, 111, 0.15);
+}
+
+.hob-card .filtro-card-content.hob-card-active::before {
+  transform: scaleY(1);
+}
+
+.hob-card .filtro-card-content.hob-card-active .filtro-card-icon {
+  background: linear-gradient(135deg, #0e3b6f 0%, #144577 100%);
+  transform: scale(1.05);
+}
+
+.hob-card .filtro-card-content.hob-card-active .filtro-card-icon i {
+  color: white;
+}
+
+.hob-card .filtro-card-content.hob-card-active .filtro-card-title {
+  color: #0e3b6f;
+}
+
+/* Card raiz — estilo laranja (igual ao filtro-pai) */
+.hob-card-root .filtro-card-content.hob-card-active {
+  border-color: #f97316;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.03) 100%);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
+}
+
+.hob-card-root .filtro-card-content.hob-card-active::before {
+  background: #f97316;
+}
+
+.hob-card-root .filtro-card-content.hob-card-active .filtro-card-icon {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.hob-card-root .filtro-card-content.hob-card-active .filtro-card-title {
+  color: #f97316;
+}
+
+/* Drag visual */
+.hob-card-dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
+}
+
+/* Badge de profundidade — grande e legível */
+.hob-depth-badge {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  background: #0e3b6f;
+  border-radius: 8px;
+  padding: 4px 10px;
+  min-width: 28px;
+  text-align: center;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.hob-depth-root {
+  background: #f97316;
+}
+
+/* Override indicador de click para cards selecionados */
+.hob-card:not(.hob-card-inactive) .filtro-card-click-indicator {
+  display: none !important;
+}
+
+/* Seção de níveis inativos */
+.hob-inativos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.hob-inativos-label {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.hob-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hob-add-btn:hover {
+  border-color: #0e3b6f;
+  color: #0e3b6f;
+  background: #eff6ff;
+  border-style: solid;
+}
+
+.hob-add-btn i {
+  font-size: 12px;
+}

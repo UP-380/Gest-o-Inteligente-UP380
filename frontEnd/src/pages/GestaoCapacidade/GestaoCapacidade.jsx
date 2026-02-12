@@ -25,6 +25,12 @@ import '../../pages/CadastroVinculacoes/CadastroVinculacoes.css';
 import './GestaoCapacidade.css';
 import { debounce } from '../../utils/debounce';
 
+// === Nova API Hierárquica (v2) ===
+import useGestaoCapacidade from '../../hooks/useGestaoCapacidade';
+import HierarchyNode from './components/HierarchyNode';
+import HierarchyOrderBuilder from './components/HierarchyOrderBuilder';
+import { FILTRO_PARA_NIVEL, NIVEL_PARA_FILTRO } from '../../services/gestaoCapacidadeAPI';
+
 const API_BASE_URL = '/api';
 
 const GestaoCapacidade = () => {
@@ -36,6 +42,21 @@ const GestaoCapacidade = () => {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRegistros, setTotalRegistros] = useState(0);
+
+  // === Nova API Hierárquica (v2) ===
+  const [useNovaAPI, setUseNovaAPI] = useState(true); // Toggle: true = nova API, false = legada
+  const [estadoHierarquiaUsuario, setEstadoHierarquiaUsuario] = useState([]); // Ordem dos níveis controlada 100% pelo usuário (começa vazio)
+  const {
+    hierarquia,
+    resumo: resumoHierarquia,
+    periodo: periodoHierarquia,
+    resumosPorNivel,
+    ordemNiveis: ordemNiveisAPI,
+    loading: loadingHierarquia,
+    error: errorHierarquia,
+    carregarDados: carregarDadosHierarquia,
+    limpar: limparHierarquia,
+  } = useGestaoCapacidade();
 
   // Estados para modais de confirmação
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
@@ -3146,7 +3167,7 @@ const GestaoCapacidade = () => {
             const preencherFallback = () => {
               console.warn(`⚠️ [CARDS-GESTAO-CAPACIDADE] Preenchendo fallback para ${idsParaFallback.length} entidades (chave=${chaveTipoParaEstado})`);
               const chaveRealizado = (id) => `${chaveTipoParaEstado}_${String(id)}`;
-              
+
               // Preencher temposRealizadosPorEntidade com valores zerados
               setTemposRealizadosPorEntidade(prev => {
                 const next = { ...prev };
@@ -3310,7 +3331,7 @@ const GestaoCapacidade = () => {
               setDadosAuxiliaresCarregados(true);
             } catch (err) {
               clearTimeout(timeoutId);
-              
+
               if (err.name === 'AbortError') {
                 console.warn(`⏱️ [CARDS-GESTAO-CAPACIDADE] Requisição abortada (timeout ou cancelamento)`);
                 preencherFallback();
@@ -4510,7 +4531,8 @@ const GestaoCapacidade = () => {
 
     const temFiltroAtivo = filtros.produto || filtros.atividade || filtros.tipoTarefa || filtros.cliente || filtros.responsavel;
 
-    if (!temFiltroAtivo) {
+    // Se a hierarquia do usuário está definida, não exigir filtro legado
+    if (!temFiltroAtivo && estadoHierarquiaUsuario.length === 0) {
       showToast('warning', 'Selecione pelo menos um filtro para aplicar.');
       return;
     }
@@ -4583,6 +4605,26 @@ const GestaoCapacidade = () => {
     };
 
     loadRegistrosTempoEstimado(filtros, configuracaoPeriodo, valoresSelecionados, filtrosAdicionais);
+
+    // === Disparar nova API hierárquica (v2) — ordem 100% definida pelo usuário ===
+    if (useNovaAPI) {
+      const filtrosNovaAPI = {};
+      if (filtroResponsavelSelecionado?.length > 0) filtrosNovaAPI.colaborador_id = filtroResponsavelSelecionado;
+      if (filtroClienteSelecionado?.length > 0) filtrosNovaAPI.cliente_id = filtroClienteSelecionado;
+      if (filtroProdutoSelecionado?.length > 0) filtrosNovaAPI.produto_id = filtroProdutoSelecionado;
+      if (filtroTipoTarefaSelecionado?.length > 0) filtrosNovaAPI.tipo_tarefa_id = filtroTipoTarefaSelecionado;
+      if (filtroTarefaSelecionado?.length > 0) filtrosNovaAPI.tarefa_id = filtroTarefaSelecionado;
+
+      // Enviar ordem_niveis EXATAMENTE como definido pelo usuário (sem auto-gerar)
+      carregarDadosHierarquia({
+        dataInicio: periodoInicio,
+        dataFim: periodoFim,
+        ordemNiveis: estadoHierarquiaUsuario,
+        filtros: filtrosNovaAPI,
+        ignorarFinaisSemana: !habilitarFinaisSemana,
+        ignorarFeriados: !habilitarFeriados,
+      });
+    }
   };
 
   // Obter nome do filtro para o tooltip
@@ -4987,71 +5029,13 @@ const GestaoCapacidade = () => {
               loading={loading}
               hasPendingChanges={hasPendingChanges()}
               showInfoMessage={true}
+              infoMessage="A ordem em que você clicar nos cards abaixo definirá a estrutura da hierarquia dos resultados."
             >
-              {/* Primeira linha: Apenas os filtros FilterVinculacao */}
-              <div className="filtros-vinculacao-row">
-                <FilterVinculacao
-                  filtroKey="produto"
-                  checked={filtros.produto}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('produto')}
-                  title="Produto"
-                  subtitle="Filtrar por"
-                  icon="fas fa-box"
-                  filtroNome={getFiltroNome('produto')}
-                  onMouseEnter={() => setFiltroHover('produto')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-                <FilterVinculacao
-                  filtroKey="atividade"
-                  checked={filtros.atividade}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('atividade')}
-                  title="Tarefa"
-                  subtitle="Filtrar por"
-                  icon="fas fa-list"
-                  filtroNome={getFiltroNome('atividade')}
-                  onMouseEnter={() => setFiltroHover('atividade')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-                <FilterVinculacao
-                  filtroKey="tipoTarefa"
-                  checked={filtros.tipoTarefa}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('tipoTarefa')}
-                  title="Tipo de Tarefa"
-                  subtitle="Filtrar por"
-                  icon="fas fa-list-ul"
-                  filtroNome={getFiltroNome('tipoTarefa')}
-                  onMouseEnter={() => setFiltroHover('tipoTarefa')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-                <FilterVinculacao
-                  filtroKey="cliente"
-                  checked={filtros.cliente}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('cliente')}
-                  title="Cliente"
-                  subtitle="Filtrar por"
-                  icon="fas fa-briefcase"
-                  filtroNome={getFiltroNome('cliente')}
-                  onMouseEnter={() => setFiltroHover('cliente')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-                <FilterVinculacao
-                  filtroKey="responsavel"
-                  checked={filtros.responsavel}
-                  onChange={handleFilterChange}
-                  isFiltroPai={isFiltroPai('responsavel')}
-                  title="Responsável"
-                  subtitle="Filtrar por"
-                  icon="fas fa-user-tie"
-                  filtroNome={getFiltroNome('responsavel')}
-                  onMouseEnter={() => setFiltroHover('responsavel')}
-                  onMouseLeave={() => setFiltroHover(null)}
-                />
-
-              </div>
+              {/* Primeira linha: Ordem Hierárquica (substitui os filtros agrupadores) */}
+              <HierarchyOrderBuilder
+                ordemNiveis={estadoHierarquiaUsuario}
+                onChange={setEstadoHierarquiaUsuario}
+              />
 
               {/* Segunda linha: FilterPeriodo e campos "Definir X" */}
               <div className="filtros-detalhados-row">
@@ -5072,8 +5056,8 @@ const GestaoCapacidade = () => {
                   />
                 </div>
 
-                {/* Componentes de seleção para filtros pai */}
-                {filtros.cliente && (
+                {/* Componentes de seleção — apenas para o nível raiz (1º da hierarquia) */}
+                {estadoHierarquiaUsuario[0] === 'cliente' && (
                   <>
                     <div className="filtro-pai-select-wrapper">
                       <label className="filtro-pai-label">Definir Clientes:</label>
@@ -5113,7 +5097,7 @@ const GestaoCapacidade = () => {
                   </>
                 )}
 
-                {filtros.produto && (
+                {estadoHierarquiaUsuario[0] === 'produto' && (
                   <div className="filtro-pai-select-wrapper">
                     <label className="filtro-pai-label">Definir Produtos:</label>
                     <FilterGeneric
@@ -5126,7 +5110,7 @@ const GestaoCapacidade = () => {
                   </div>
                 )}
 
-                {filtros.atividade && (
+                {estadoHierarquiaUsuario[0] === 'tarefa' && (
                   <div className="filtro-pai-select-wrapper">
                     <label className="filtro-pai-label">Definir Tarefas:</label>
                     <FilterGeneric
@@ -5139,7 +5123,7 @@ const GestaoCapacidade = () => {
                   </div>
                 )}
 
-                {filtros.tipoTarefa && (
+                {estadoHierarquiaUsuario[0] === 'tipo_tarefa' && (
                   <div className="filtro-pai-select-wrapper">
                     <label className="filtro-pai-label">Definir Tipo de Tarefa:</label>
                     <select
@@ -5169,7 +5153,7 @@ const GestaoCapacidade = () => {
                   </div>
                 )}
 
-                {filtros.responsavel && (
+                {estadoHierarquiaUsuario[0] === 'colaborador' && (
                   <div className="filtro-pai-select-wrapper">
                     <label className="filtro-pai-label">Definir Responsáveis:</label>
                     <FilterMembro
@@ -5187,7 +5171,7 @@ const GestaoCapacidade = () => {
               </div>
 
               {/* Terceira linha: Botão "Adicionar filtros" e componentes de seleção para filtros adicionais */}
-              {(filtroPrincipal || ordemFiltros.length > 0) && (
+              {estadoHierarquiaUsuario.length > 0 && (
                 <div className="filtros-adicionais-row">
                   <div className="filtro-adicionar-wrapper">
                     <label className="filtro-pai-label">Adicionar filtros:</label>
@@ -5315,6 +5299,98 @@ const GestaoCapacidade = () => {
               />
             ) : (
               <div className="atribuicoes-list-container">
+                {/* === Toggle Nova API / Legada === */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '8px 12px', background: '#f0f8ff', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#0e3b6f' }}>
+                    <i className="fas fa-flask" style={{ marginRight: '6px' }}></i>
+                    Visualização:
+                  </span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: '#334155' }}>
+                    <input
+                      type="radio"
+                      name="apiMode"
+                      checked={useNovaAPI}
+                      onChange={() => setUseNovaAPI(true)}
+                    />
+                    Nova API (Hierárquica)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', color: '#334155' }}>
+                    <input
+                      type="radio"
+                      name="apiMode"
+                      checked={!useNovaAPI}
+                      onChange={() => setUseNovaAPI(false)}
+                    />
+                    API Legada
+                  </label>
+                  {errorHierarquia && (
+                    <span style={{ fontSize: '11px', color: '#dc2626', marginLeft: 'auto' }}>
+                      <i className="fas fa-exclamation-triangle" style={{ marginRight: '4px' }}></i>
+                      {errorHierarquia}
+                    </span>
+                  )}
+                </div>
+
+
+                {/* === Renderização Hierárquica (Nova API) === */}
+                {useNovaAPI && filtrosAplicados && (
+                  <div className="tempo-disponivel-section">
+                    <h3 className="tempo-disponivel-title">
+                      <i className="fas fa-chart-line" style={{ marginRight: '8px' }}></i>
+                      Gestão de Capacidade — Visão Hierárquica
+                    </h3>
+
+                    {loadingHierarquia ? (
+                      <div className="loading-container" style={{ padding: '40px' }}>
+                        <i className="fas fa-spinner fa-spin"></i>
+                        <span>Carregando dados hierárquicos...</span>
+                      </div>
+                    ) : hierarquia && Object.keys(hierarquia).length > 0 ? (
+                      <div className="hierarchy-root-grid">
+                        {Object.entries(hierarquia).map(([nodeId, nodeData]) => (
+                          <HierarchyNode
+                            key={nodeId}
+                            nodeId={nodeId}
+                            nodeData={nodeData}
+                            nivelAtual={ordemNiveisAPI[0] || 'colaborador'}
+                            proximosNiveis={ordemNiveisAPI.slice(1)}
+                            depth={0}
+                            iniciarExpandido={false}
+                          />
+                        ))}
+                      </div>
+                    ) : !loadingHierarquia && hierarquia !== null ? (
+                      <div className="hierarchy-empty">
+                        <i className="fas fa-inbox"></i>
+                        <span>Nenhum resultado encontrado para os filtros selecionados.</span>
+                      </div>
+                    ) : null}
+
+                    {/* Resumo global */}
+                    {resumoHierarquia && (
+                      <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
+                        {resumoHierarquia.total_tarefas != null && (
+                          <span style={{ fontSize: '12px', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
+                            <i className="fas fa-list" style={{ marginRight: '4px', color: '#64748b' }}></i>
+                            Total Tarefas: <strong>{resumoHierarquia.total_tarefas}</strong>
+                          </span>
+                        )}
+                        {resumoHierarquia.total_produtos != null && (
+                          <span style={{ fontSize: '12px', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
+                            <i className="fas fa-box" style={{ marginRight: '4px', color: '#64748b' }}></i>
+                            Total Produtos: <strong>{resumoHierarquia.total_produtos}</strong>
+                          </span>
+                        )}
+                        {resumoHierarquia.total_colaboradores != null && (
+                          <span style={{ fontSize: '12px', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
+                            <i className="fas fa-user-tie" style={{ marginRight: '4px', color: '#64748b' }}></i>
+                            Total Responsáveis: <strong>{resumoHierarquia.total_colaboradores}</strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Seção de tempo disponível vs estimado - dinâmica baseada no filtro pai */}
                 {/* IMPORTANTE: Só exibir dashboards quando dados auxiliares (horas contratadas, tempo estimado total) estiverem 100% carregados */}
                 {/* Isso previne exibição de valores parciais (ex: 40h em vez de 100h) */}
@@ -5727,13 +5803,13 @@ const GestaoCapacidade = () => {
                                 // Para tipoTarefa, sempre usar calcularEstatisticasPorEntidade para totalTarefas (contagem correta)
                                 const estatisticasCalc = calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
                                 const estatisticas = cardPayload
-                                  ? { 
-                                      totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0), 
-                                      totalClientes: cardPayload.total_clientes ?? 0, 
-                                      totalProdutos: cardPayload.total_produtos ?? 0, 
-                                      totalResponsaveis: cardPayload.total_responsaveis ?? 0, 
-                                      totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0 
-                                    }
+                                  ? {
+                                    totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0),
+                                    totalClientes: cardPayload.total_clientes ?? 0,
+                                    totalProdutos: cardPayload.total_produtos ?? 0,
+                                    totalResponsaveis: cardPayload.total_responsaveis ?? 0,
+                                    totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0
+                                  }
                                   : estatisticasCalc;
 
                                 return (
@@ -6028,13 +6104,13 @@ const GestaoCapacidade = () => {
                               // Para tipoTarefa, sempre usar calcularEstatisticasPorEntidade para totalTarefas (contagem correta)
                               const estatisticasCalc = calcularEstatisticasPorEntidade(entidade.id, filtroPrincipal, registrosAgrupados);
                               const estatisticas = cardPayload
-                                ? { 
-                                    totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0), 
-                                    totalClientes: cardPayload.total_clientes ?? 0, 
-                                    totalProdutos: cardPayload.total_produtos ?? 0, 
-                                    totalResponsaveis: cardPayload.total_responsaveis ?? 0, 
-                                    totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0 
-                                  }
+                                ? {
+                                  totalTarefas: filtroPrincipal === 'tipoTarefa' ? estatisticasCalc.totalTarefas : (cardPayload.total_tarefas ?? 0),
+                                  totalClientes: cardPayload.total_clientes ?? 0,
+                                  totalProdutos: cardPayload.total_produtos ?? 0,
+                                  totalResponsaveis: cardPayload.total_responsaveis ?? 0,
+                                  totalTiposTarefa: estatisticasCalc.totalTiposTarefa ?? 0
+                                }
                                 : estatisticasCalc;
 
                               return (
