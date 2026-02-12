@@ -31,8 +31,13 @@ const markdownToHtml = (text) => {
 const conteudoParaPreview = (text) => {
     if (!text) return '';
     return String(text)
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]*>?/gm, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
         .replace(/!\[(.*?)\]\((.*?)\)/g, '(imagem)')
-        .replace(/\[video\]\((.*?)\)/g, '(video)');
+        .replace(/\[video\]\((.*?)\)/g, '(video)')
+        .trim();
 };
 
 const htmlToMarkdown = (html) => {
@@ -82,10 +87,10 @@ const htmlToMarkdown = (html) => {
     return decoder.value;
 };
 
-const getPreviewText = (text) => {
+const getPreviewText = (text, maxLength = 100) => {
     if (!text) return '';
-    const cleaned = conteudoParaPreview(text).replace(/<br>/g, ' ');
-    return cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '');
+    const cleaned = conteudoParaPreview(text);
+    return cleaned.substring(0, maxLength) + (cleaned.length > maxLength ? '...' : '');
 };
 
 const formatTime = (dateString) => {
@@ -962,16 +967,9 @@ const CommunicationDrawer = ({ user }) => {
                                 </div>
 
                                 <h4 className="comm-card-title">{com.titulo}</h4>
-                                <div
-                                    className="comm-card-content"
-                                    style={{
-                                        maxHeight: '120px',
-                                        overflow: 'hidden',
-                                        position: 'relative',
-                                        maskImage: com.conteudo?.length > 200 ? 'linear-gradient(to bottom, black 70%, transparent 100%)' : 'none'
-                                    }}
-                                    dangerouslySetInnerHTML={{ __html: markdownToHtml(com.conteudo) }}
-                                />
+                                <div className="comm-card-content">
+                                    {getPreviewText(com.conteudo, 150)}
+                                </div>
 
                                 <div className="comm-card-footer" style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                                     {isUpdateNote && notaId && (

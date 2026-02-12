@@ -29,6 +29,24 @@ async function publicarNotasAgendadas() {
 
         for (const nota of notasPendentes) {
             try {
+                // 0. Evitar processamento duplicado se outra requisição já estiver tratando esta nota
+                // Verificamos se já existe um comunicado para esta nota_id
+                const { data: existente } = await supabase
+                    .from('comunicacao_mensagens')
+                    .select('id')
+                    .filter('metadata->>origem', 'eq', 'notas_atualizacao')
+                    .filter('metadata->>nota_id', 'eq', String(nota.id))
+                    .maybeSingle();
+
+                if (existente) {
+                    console.log(`[SCHEDULE] Nota ${nota.id} já possui comunicado. Marcando como anunciada.`);
+                    await supabase
+                        .from('base_conhecimento_atualizacoes')
+                        .update({ anunciado: true })
+                        .eq('id', nota.id);
+                    continue;
+                }
+
                 // 1. Criar Comunicado
                 const { data: mensagem, error: errorComunicado } = await supabase
                     .from('comunicacao_mensagens')
@@ -287,17 +305,17 @@ async function atualizarAtualizacao(req, res) {
 
         // --- ATUALIZAR AVISO/CHAT ---
         try {
-            // Se o título ou conteúdo mudou, atualizar o comunicado correspondente
-            if (titulo !== undefined || conteudo !== undefined) {
-                // Buscar mensagem vinculada
-                const { data: mensagem } = await supabase
-                    .from('comunicacao_mensagens')
-                    .select('id, metadata')
-                    .filter('metadata->>origem', 'eq', 'notas_atualizacao')
-                    .filter('metadata->>nota_id', 'eq', String(id))
-                    .maybeSingle();
+            // Buscar mensagem vinculada
+            const { data: mensagem } = await supabase
+                .from('comunicacao_mensagens')
+                .select('id, metadata')
+                .filter('metadata->>origem', 'eq', 'notas_atualizacao')
+                .filter('metadata->>nota_id', 'eq', String(id))
+                .maybeSingle();
 
-                if (mensagem) {
+            // Se o comunicado já existe, apenas atualiza título/conteúdo
+            if (mensagem) {
+                if (titulo !== undefined || conteudo !== undefined) {
                     const updateMensagem = {};
                     if (titulo !== undefined) updateMensagem.titulo = `Atualização: ${titulo.trim()}`;
                     if (conteudo !== undefined) updateMensagem.conteudo = conteudo;
@@ -306,6 +324,45 @@ async function atualizarAtualizacao(req, res) {
                         .from('comunicacao_mensagens')
                         .update(updateMensagem)
                         .eq('id', mensagem.id);
+                }
+            }
+            // Se não existe comunicado e a nota ESTÁ anunciada agora (ou acaba de ser), cria o comunicado pela primeira vez
+            else if (data.anunciado) {
+                const { data: novaMensagem, error: errorComunicado } = await supabase
+                    .from('comunicacao_mensagens')
+                    .insert({
+                        tipo: 'COMUNICADO',
+                        criador_id: data.usuario_id,
+                        titulo: `Atualização: ${data.titulo}`,
+                        conteudo: data.conteudo || '',
+                        metadata: {
+                            destacado: true,
+                            origem: 'notas_atualizacao',
+                            nota_id: data.id
+                        }
+                    })
+                    .select()
+                    .single();
+
+                if (!errorComunicado && novaMensagem) {
+                    const { data: usuarios } = await supabase.from('usuarios').select('id');
+                    if (usuarios && usuarios.length > 0) {
+                        const leituras = usuarios.map(u => ({
+                            mensagem_id: novaMensagem.id,
+                            usuario_id: u.id,
+                            lida: false
+                        }));
+                        await supabase.from('comunicacao_leituras').insert(leituras);
+
+                        const { distribuirNotificacao } = require('./notificacoes.controller');
+                        await distribuirNotificacao({
+                            tipo: 'COMUNICADO_NOVO',
+                            titulo: 'Nova Atualização do Sistema',
+                            mensagem: data.titulo,
+                            referencia_id: novaMensagem.id,
+                            link: '/base-conhecimento/notas-atualizacao'
+                        });
+                    }
                 }
             }
         } catch (errAviso) {
