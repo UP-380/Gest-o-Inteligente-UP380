@@ -320,6 +320,20 @@ async function atribuirEquipamento(req, res) {
             return res.status(404).json({ success: false, error: 'Equipamento não encontrado' });
         }
 
+        if (equip.status === 'manutencao') {
+            return res.status(400).json({
+                success: false,
+                error: 'Este equipamento está em manutenção e não pode ser atribuído no momento.'
+            });
+        }
+
+        if (equip.status === 'em uso') {
+            return res.status(400).json({
+                success: false,
+                error: 'Este equipamento já está em uso.'
+            });
+        }
+
         // 2. Criar atribuição
         const { data: atribuicao, error: atrError } = await supabase
             .from('cp_equipamento_atribuicoes')
@@ -327,14 +341,17 @@ async function atribuirEquipamento(req, res) {
                 equipamento_id,
                 colaborador_id,
                 observacoes,
-                criado_por: admin_id
+                criado_por: admin_id || null
             }])
             .select()
             .single();
 
         if (atrError) {
             console.error('Erro ao criar atribuição:', atrError);
-            return res.status(500).json({ success: false, error: 'Erro ao atribuir equipamento' });
+            return res.status(500).json({
+                success: false,
+                error: `Erro ao atribuir equipamento: ${atrError.message || 'Erro desconhecido'}`
+            });
         }
 
         // 3. Atualizar status do equipamento
@@ -512,11 +529,33 @@ async function getDashboardStats(req, res) {
             .order('data_ocorrencia', { ascending: false })
             .limit(5);
 
+        if (errorRec) throw errorRec;
+
+        // Buscar nomes dos colaboradores para as atividades recentes
+        let atividadesComNomes = recentes || [];
+        const colabIds = [...new Set(recentes?.map(r => r.colaborador_id).filter(Boolean))];
+
+        if (colabIds.length > 0) {
+            const { data: membros, error: mErr } = await supabase
+                .schema('up_gestaointeligente_dev')
+                .from('membro')
+                .select('id, nome')
+                .in('id', colabIds);
+
+            if (!mErr && membros) {
+                const membrosMap = Object.fromEntries(membros.map(m => [m.id, m.nome]));
+                atividadesComNomes = recentes.map(r => ({
+                    ...r,
+                    colaborador_nome: membrosMap[r.colaborador_id] || 'N/A'
+                }));
+            }
+        }
+
         return res.json({
             success: true,
             data: {
                 stats,
-                atividades: recentes || []
+                atividades: atividadesComNomes
             }
         });
     } catch (error) {

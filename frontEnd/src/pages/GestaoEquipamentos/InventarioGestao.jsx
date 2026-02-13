@@ -32,7 +32,11 @@ const InventarioGestao = () => {
     const fetchOperadores = async () => {
         try {
             const response = await equipamentosAPI.getOperadores();
-            if (response.success) setOperadores(response.data);
+            if (response.success) {
+                // Filtrar para mostrar apenas operadores ativos
+                const ativos = response.data.filter(op => op.status === 'ativo' || !op.status);
+                setOperadores(ativos);
+            }
         } catch (error) {
             console.error('Erro ao buscar operadores:', error);
         }
@@ -61,9 +65,12 @@ const InventarioGestao = () => {
                 Swal.fire('Sucesso', 'Equipamento atribuído!', 'success');
                 setShowAssignModal(false);
                 fetchEquipamentos();
+            } else {
+                Swal.fire('Erro', response.error || 'Falha ao atribuir equip.', 'error');
             }
         } catch (error) {
-            Swal.fire('Erro', 'Falha ao atribuir equip.', 'error');
+            console.error('Erro ao atribuir:', error);
+            Swal.fire('Erro', error.message || 'Falha ao atribuir equip.', 'error');
         }
     };
 
@@ -117,6 +124,10 @@ const InventarioGestao = () => {
                                     {equip.status === 'em uso' ? (
                                         <button className="btn-return" onClick={() => handleOpenReturn(equip)}>
                                             <i className="fas fa-undo"></i> Receber devolução
+                                        </button>
+                                    ) : equip.status === 'manutencao' ? (
+                                        <button className="btn-assign disabled" disabled title="Item em manutenção não pode ser atribuído">
+                                            <i className="fas fa-tools"></i> Em manutenção
                                         </button>
                                     ) : (
                                         <button className="btn-assign" onClick={() => handleOpenAssign(equip)}>

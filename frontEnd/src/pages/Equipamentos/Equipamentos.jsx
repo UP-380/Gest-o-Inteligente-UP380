@@ -150,6 +150,7 @@ const Equipamentos = () => {
             case 'ativo': return 'status-ativo';
             case 'inativo': return 'status-inativo';
             case 'manutencao': return 'status-manutencao';
+            case 'em uso': return 'status-em-uso';
             default: return '';
         }
     };
@@ -226,8 +227,9 @@ const Equipamentos = () => {
                                     <thead>
                                         <tr>
                                             <th>EQUIPAMENTO</th>
-                                            <th>MARCA</th>
-                                            <th>MODELO</th>
+                                            <th>TIPO</th>
+                                            <th>STATUS</th>
+                                            <th>MARCA/MODELO</th>
                                             <th>NÚMERO DE SÉRIE</th>
                                             <th className="actions-column" style={{ textAlign: 'right' }}>AÇÕES</th>
                                         </tr>
@@ -252,8 +254,17 @@ const Equipamentos = () => {
                                                         <span style={{ fontWeight: '500', color: '#1e293b' }}>{item.nome}</span>
                                                     </div>
                                                 </td>
-                                                <td style={{ color: '#475569' }}>{item.marca || '-'}</td>
-                                                <td style={{ color: '#475569' }}>{item.modelo || '-'}</td>
+                                                <td style={{ color: '#475569' }}>{item.tipo}</td>
+                                                <td>
+                                                    <span className={`status-badge ${getStatusClass(item.status || 'ativo')}`}>
+                                                        {item.status === 'em uso' ? 'Em Uso' :
+                                                            item.status === 'manutencao' ? 'Manutenção' :
+                                                                item.status === 'inativo' ? 'Inativo' : 'Ativo'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ color: '#475569' }}>
+                                                    {item.marca} {item.modelo}
+                                                </td>
                                                 <td style={{ color: '#64748b', fontFamily: 'monospace' }}>{item.numero_serie || '-'}</td>
                                                 <td className="actions-column" style={{ textAlign: 'right' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

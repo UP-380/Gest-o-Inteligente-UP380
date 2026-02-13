@@ -71,7 +71,10 @@ const DashboardEquipamentos = () => {
                                 </div>
                                 <div className="activity-details">
                                     <p><strong>{act.cp_equipamentos?.nome}</strong> ({act.cp_equipamentos?.tipo})</p>
-                                    <span>{act.descricao}</span>
+                                    <span className="activity-desc">
+                                        {act.colaborador_nome && <span className="operator-tag">{act.colaborador_nome}</span>}
+                                        {act.descricao}
+                                    </span>
                                 </div>
                                 <div className="activity-time">
                                     {new Date(act.data_ocorrencia).toLocaleDateString('pt-BR')}

@@ -428,16 +428,35 @@ async function getTiposContrato(req, res) {
 // GET - Listar colaboradores com contagem de equipamentos ativos (para Gestão)
 async function getColaboradoresComEquipamentos(req, res) {
   try {
-    const { schema = 'up_gestaointeligente' } = req.query; // Fallback para schema
+    const defaultSchema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+    const { schema = defaultSchema } = req.query;
 
     // 1. Buscar todos os colaboradores
     const { data: membros, error: memError } = await supabase
       .schema(schema)
       .from('membro')
-      .select('id, nome, cargo, departamento, status')
+      .select('id, nome, status, usuario_id')
       .order('nome', { ascending: true });
 
-    if (memError) throw memError;
+    if (memError) {
+      throw memError;
+    }
+
+    // 2. Buscar fotos de perfil dos usuários vinculados
+    const usuarioIds = [...new Set(membros.map(m => m.usuario_id).filter(Boolean))];
+    const usuarioMap = new Map();
+
+    if (usuarioIds.length > 0) {
+      const { data: usuarios, error: uError } = await supabase
+        .schema(schema)
+        .from('usuarios')
+        .select('id, foto_perfil')
+        .in('id', usuarioIds);
+
+      if (!uError && usuarios) {
+        usuarios.forEach(u => usuarioMap.set(String(u.id), u.foto_perfil));
+      }
+    }
 
     // 2. Buscar contagem de equipamentos ativos para todos
     const { data: atribuicoes, error: atrError } = await supabase
@@ -453,9 +472,21 @@ async function getColaboradoresComEquipamentos(req, res) {
       counts[a.colaborador_id] = (counts[a.colaborador_id] || 0) + 1;
     });
 
-    const result = membros.map(m => ({
-      ...m,
-      qtd_equipamentos: counts[m.id] || 0
+    const result = await Promise.all(membros.map(async (m) => {
+      let fotoPerfil = m.usuario_id ? usuarioMap.get(String(m.usuario_id)) : null;
+
+      // Resolver avatar customizado se necessário
+      if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
+        const resolvedUrl = await resolveAvatarUrl(fotoPerfil, 'user');
+        fotoPerfil = resolvedUrl || fotoPerfil;
+      }
+
+      return {
+        ...m,
+        status: m.status || 'ativo',
+        foto_perfil: fotoPerfil,
+        qtd_equipamentos: counts[m.id] || 0
+      };
     }));
 
     return res.json({ success: true, data: result });
@@ -469,7 +500,8 @@ async function getColaboradoresComEquipamentos(req, res) {
 async function getPerfilColaboradorEquipamentos(req, res) {
   try {
     const { id } = req.params;
-    const { schema = 'up_gestaointeligente' } = req.query;
+    const defaultSchema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+    const { schema = defaultSchema } = req.query;
 
     // 1. Dados do colaborador
     const { data: membro, error: memError } = await supabase

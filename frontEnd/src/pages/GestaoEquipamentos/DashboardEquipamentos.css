@@ -145,7 +145,26 @@
     color: #333;
 }
 
-.activity-details span {
+.activity-desc {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.operator-tag {
+    display: inline-block;
+    background: #f0f0f0;
+    color: #555;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    width: fit-content;
+    border: 1px solid #e0e0e0;
+}
+
+.activity-details span:not(.operator-tag) {
     font-size: 13px;
     color: #777;
 }
