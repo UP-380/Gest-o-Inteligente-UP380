@@ -354,15 +354,27 @@ const Equipamentos = () => {
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Tipo (Categoria) *</label>
-                                            <input
-                                                type="text"
+                                            <select
                                                 name="tipo"
-                                                className="form-input"
+                                                className="form-select"
                                                 value={formData.tipo}
                                                 onChange={handleInputChange}
                                                 required
-                                                placeholder="Ex: Notebook"
-                                            />
+                                            >
+                                                <option value="">Selecione...</option>
+                                                <option value="Notebook">Notebook</option>
+                                                <option value="Monitor">Monitor</option>
+                                                <option value="Teclado">Teclado</option>
+                                                <option value="Fone/Headset">Fone/Headset</option>
+                                                <option value="Mouse">Mouse</option>
+                                                <option value="Mousepad">Mousepad</option>
+                                                <option value="Carregador Notebook">Carregador Notebook</option>
+                                                <option value="Fonte Monitor">Fonte Monitor</option>
+                                                <option value="Adaptador HDMI">Adaptador HDMI</option>
+                                                <option value="Suporte Notebook">Suporte Notebook</option>
+                                                <option value="Carregador Monitor">Carregador Monitor</option>
+                                                <option value="Outros">Outros</option>
+                                            </select>
                                         </div>
                                         <div className="form-group">
                                             <label className="form-label">Status</label>
