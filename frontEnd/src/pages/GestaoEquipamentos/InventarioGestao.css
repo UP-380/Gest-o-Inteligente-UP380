@@ -92,6 +92,71 @@ tbody td {
     color: white;
 }
 
+.inventory-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.search-box input:focus {
+    border-color: #007bff;
+}
+
+.filter-box select {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    outline: none;
+    background: white;
+    cursor: pointer;
+}
+
+.btn-assign.disabled {
+    background: #f8f9fa;
+    color: #adb5bd;
+    cursor: not-allowed;
+}
+
+.empty-inventory {
+    padding: 48px;
+    text-align: center;
+    color: #adb5bd;
+}
+
+.empty-inventory i {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-inventory p {
+    font-size: 16px;
+}
+
 /* Modal Styles */
 .modal-overlay {
     position: fixed;
@@ -161,6 +226,10 @@ tbody td {
     font-weight: 600;
 }
 
+.btn-cancel:hover {
+    background: #e0e0e0;
+}
+
 .btn-confirm {
     background: #007bff;
     color: white;
@@ -169,8 +238,17 @@ tbody td {
     border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-confirm:hover {
+    background: #0056b3;
 }
 
 .btn-confirm.secondary {
     background: #f57c00;
+}
+
+.btn-confirm.secondary:hover {
+    background: #e67600;
 }

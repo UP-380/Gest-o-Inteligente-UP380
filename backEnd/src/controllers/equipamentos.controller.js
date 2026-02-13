@@ -527,7 +527,7 @@ async function getDashboardStats(req, res) {
                 cp_equipamentos (nome, tipo)
             `)
             .order('data_ocorrencia', { ascending: false })
-            .limit(5);
+            .limit(20);
 
         if (errorRec) throw errorRec;
 

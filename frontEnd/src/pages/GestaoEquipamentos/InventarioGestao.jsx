@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { equipamentosAPI } from '../../services/equipamentos.service';
 import Swal from 'sweetalert2';
 import './InventarioGestao.css';
 
 const InventarioGestao = () => {
+    const [searchParams] = useSearchParams();
     const [equipamentos, setEquipamentos] = useState([]);
+    const [filteredEquipamentos, setFilteredEquipamentos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+    const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'todos');
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [selectedEquip, setSelectedEquip] = useState(null);
@@ -17,6 +22,19 @@ const InventarioGestao = () => {
         fetchEquipamentos();
         fetchOperadores();
     }, []);
+
+    useEffect(() => {
+        applyFilters();
+    }, [equipamentos, searchTerm, statusFilter]);
+
+    useEffect(() => {
+        const filterFromUrl = searchParams.get('filter');
+        const searchFromUrl = searchParams.get('search');
+        if (filterFromUrl !== null || searchFromUrl !== null) {
+            setStatusFilter(filterFromUrl || 'todos');
+            setSearchTerm(searchFromUrl || '');
+        }
+    }, [searchParams]);
 
     const fetchEquipamentos = async () => {
         try {
@@ -33,13 +51,31 @@ const InventarioGestao = () => {
         try {
             const response = await equipamentosAPI.getOperadores();
             if (response.success) {
-                // Filtrar para mostrar apenas operadores ativos
                 const ativos = response.data.filter(op => op.status === 'ativo' || !op.status);
                 setOperadores(ativos);
             }
         } catch (error) {
             console.error('Erro ao buscar operadores:', error);
         }
+    };
+
+    const applyFilters = () => {
+        let result = [...equipamentos];
+
+        if (statusFilter !== 'todos') {
+            result = result.filter(e => e.status === statusFilter);
+        }
+
+        if (searchTerm.trim()) {
+            const search = searchTerm.toLowerCase();
+            result = result.filter(e =>
+                e.nome?.toLowerCase().includes(search) ||
+                e.marca?.toLowerCase().includes(search) ||
+                e.modelo?.toLowerCase().includes(search)
+            );
+        }
+
+        setFilteredEquipamentos(result);
     };
 
     const handleOpenAssign = (equip) => {
@@ -95,6 +131,27 @@ const InventarioGestao = () => {
 
     return (
         <div className="inventario-gestao">
+            <div className="inventory-controls">
+                <div className="search-box">
+                    <i className="fas fa-search"></i>
+                    <input
+                        type="text"
+                        placeholder="Buscar equipamento..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="filter-box">
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                        <option value="todos">Todos os Status</option>
+                        <option value="ativo">Disponíveis</option>
+                        <option value="em uso">Em Uso</option>
+                        <option value="manutencao">Em Manutenção</option>
+                        <option value="inativo">Inativos</option>
+                    </select>
+                </div>
+            </div>
+
             <div className="table-responsive">
                 <table>
                     <thead>
@@ -106,7 +163,7 @@ const InventarioGestao = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {equipamentos.map(equip => (
+                        {filteredEquipamentos.map(equip => (
                             <tr key={equip.id}>
                                 <td>
                                     <div className="equip-name-cell">
@@ -139,6 +196,12 @@ const InventarioGestao = () => {
                         ))}
                     </tbody>
                 </table>
+                {filteredEquipamentos.length === 0 && (
+                    <div className="empty-inventory">
+                        <i className="fas fa-search"></i>
+                        <p>Nenhum equipamento encontrado com estes filtros.</p>
+                    </div>
+                )}
             </div>
 
             {/* Modal Atribuição */}
