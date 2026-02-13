@@ -252,3 +252,56 @@ tbody td {
 .btn-confirm.secondary:hover {
     background: #e67600;
 }
+
+/* Avaria Cell */
+.avaria-cell {
+    display: flex;
+    justify-content: center;
+}
+
+.avaria-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+}
+
+.avaria-status.no-damage i {
+    color: #10b981;
+}
+
+.avaria-status.has-damage i.fa-times-circle {
+    color: #ef4444;
+}
+
+.btn-view-damage {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0284c7;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-view-damage:hover {
+    background: #0284c7;
+    color: white;
+}
+
+.damage-preview-modal {
+    max-width: 700px;
+    width: 90%;
+}
+
+.rich-text-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

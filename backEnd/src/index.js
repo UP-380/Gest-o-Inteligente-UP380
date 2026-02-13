@@ -80,8 +80,8 @@ app.use(cors({
   maxAge: 86400 // Cache preflight por 24 horas
 }));
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configurar sessões
 // Gerar SESSION_SECRET automaticamente se não estiver definida (apenas em produção)

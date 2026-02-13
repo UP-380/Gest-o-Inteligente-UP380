@@ -346,3 +346,17 @@
     justify-content: flex-end;
     gap: 12px;
 }
+
+/* Rich Text Preview Styles */
+.rich-text-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    margin: 15px 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f1f5f9;
+}
+
+.rich-text-preview p {
+    margin-bottom: 12px;
+}

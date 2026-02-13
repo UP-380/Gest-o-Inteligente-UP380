@@ -17,6 +17,7 @@ const InventarioGestao = () => {
     const [operadores, setOperadores] = useState([]);
     const [assignmentData, setAssignmentData] = useState({ colaborador_id: '', observacoes: '' });
     const [returnData, setReturnData] = useState({ descricao_estado: '' });
+    const [previewDamage, setPreviewDamage] = useState(null); // For showing damage rich text
 
     useEffect(() => {
         fetchEquipamentos();
@@ -158,7 +159,8 @@ const InventarioGestao = () => {
                         <tr>
                             <th>Equipamento</th>
                             <th>Tipo</th>
-                            <th>Status/Usuário Atual</th>
+                            <th>Status / Usuário</th>
+                            <th>Avaria</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -175,6 +177,28 @@ const InventarioGestao = () => {
                                 <td>
                                     <div className={`status-chip ${equip.status?.replace(' ', '-')}`}>
                                         {equip.status === 'em uso' ? 'Ocupado' : (equip.status || 'Ativo')}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div className="avaria-cell">
+                                        {equip.tem_avaria ? (
+                                            <div className="avaria-status has-damage">
+                                                <i className="fas fa-times-circle" title="Com avaria"></i>
+                                                {equip.descricao && equip.descricao !== '<p><br></p>' && (
+                                                    <button
+                                                        className="btn-view-damage"
+                                                        onClick={() => setPreviewDamage(equip)}
+                                                        title="Ver detalhes/fotos da avaria"
+                                                    >
+                                                        <i className="fas fa-image"></i>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="avaria-status no-damage">
+                                                <i className="fas fa-check-circle" title="Sem avaria"></i>
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
                                 <td>
@@ -253,6 +277,26 @@ const InventarioGestao = () => {
                         <div className="modal-actions">
                             <button onClick={() => setShowReturnModal(false)} className="btn-cancel">Cancelar</button>
                             <button onClick={handleReturn} className="btn-confirm secondary">Confirmar Devolução</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {previewDamage && (
+                <div className="modal-overlay" onClick={() => setPreviewDamage(null)}>
+                    <div className="gestao-modal damage-preview-modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0 }}>Detalhes da Avaria: {previewDamage.nome}</h2>
+                            <button className="btn-close-modal" onClick={() => setPreviewDamage(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>&times;</button>
+                        </div>
+                        <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <div
+                                className="rich-text-content"
+                                dangerouslySetInnerHTML={{ __html: previewDamage.descricao }}
+                            />
+                        </div>
+                        <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setPreviewDamage(null)} className="btn-confirm" style={{ padding: '10px 24px', borderRadius: '8px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: '600', cursor: 'pointer' }}>Fechar</button>
                         </div>
                     </div>
                 </div>

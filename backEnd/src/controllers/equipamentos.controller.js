@@ -108,6 +108,7 @@ async function getEquipamentoPorId(req, res) {
 // POST - Criar novo equipamento
 async function criarEquipamento(req, res) {
     try {
+        console.log('📦 Recebendo requisição para criar equipamento. Body size:', JSON.stringify(req.body).length);
         const {
             nome,
             tipo,
@@ -116,7 +117,9 @@ async function criarEquipamento(req, res) {
             numero_serie,
             data_aquisicao,
             foto,
-            status
+            status,
+            descricao,
+            tem_avaria
         } = req.body;
 
         // Validação básica
@@ -144,7 +147,9 @@ async function criarEquipamento(req, res) {
             numero_serie: cleanValue(numero_serie),
             data_aquisicao: cleanValue(data_aquisicao),
             foto: cleanValue(foto),
-            status: cleanValue(status) || 'ativo'
+            status: cleanValue(status) || 'ativo',
+            descricao: cleanValue(descricao),
+            tem_avaria: !!tem_avaria
         };
 
         const { data, error } = await supabase
@@ -181,6 +186,7 @@ async function criarEquipamento(req, res) {
 async function atualizarEquipamento(req, res) {
     try {
         const { id } = req.params;
+        console.log(`📦 Recebendo requisição para atualizar equipamento ${id}. Body size:`, JSON.stringify(req.body).length);
         const {
             nome,
             tipo,
@@ -189,7 +195,9 @@ async function atualizarEquipamento(req, res) {
             numero_serie,
             data_aquisicao,
             foto,
-            status
+            status,
+            descricao,
+            tem_avaria
         } = req.body;
 
         if (!id) {
@@ -217,6 +225,8 @@ async function atualizarEquipamento(req, res) {
         if (data_aquisicao !== undefined) dadosUpdate.data_aquisicao = cleanValue(data_aquisicao);
         if (foto !== undefined) dadosUpdate.foto = cleanValue(foto);
         if (status !== undefined) dadosUpdate.status = cleanValue(status);
+        if (descricao !== undefined) dadosUpdate.descricao = cleanValue(descricao);
+        if (tem_avaria !== undefined) dadosUpdate.tem_avaria = !!tem_avaria;
 
         if (Object.keys(dadosUpdate).length === 0) {
             return res.status(400).json({

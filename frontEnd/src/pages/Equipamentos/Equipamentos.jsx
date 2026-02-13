@@ -3,6 +3,7 @@ import './Equipamentos.css';
 import { equipamentosAPI } from '../../services/equipamentos.service';
 import Swal from 'sweetalert2';
 import Layout from '../../components/layout/Layout';
+import RichTextEditor from '../../components/common/RichTextEditor';
 
 const Equipamentos = () => {
     const [equipamentos, setEquipamentos] = useState([]);
@@ -12,6 +13,7 @@ const Equipamentos = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [currentItem, setCurrentItem] = useState(null); // Null for new, object for edit
+    const [previewDamage, setPreviewDamage] = useState(null); // For viewing damage details/photos
 
     // Form state
     const [formData, setFormData] = useState({
@@ -21,7 +23,9 @@ const Equipamentos = () => {
         modelo: '',
         numero_serie: '',
         data_aquisicao: '',
-        status: 'ativo'
+        status: 'ativo',
+        descricao: '',
+        tem_avaria: false
     });
 
     const ITEMS_PER_PAGE = 5;
@@ -67,7 +71,9 @@ const Equipamentos = () => {
                 modelo: item.modelo || '',
                 numero_serie: item.numero_serie || '',
                 data_aquisicao: item.data_aquisicao || '',
-                status: item.status || 'ativo'
+                status: item.status || 'ativo',
+                descricao: item.descricao || '',
+                tem_avaria: !!item.tem_avaria
             });
         } else {
             setCurrentItem(null);
@@ -78,7 +84,9 @@ const Equipamentos = () => {
                 modelo: '',
                 numero_serie: '',
                 data_aquisicao: '',
-                status: 'ativo'
+                status: 'ativo',
+                descricao: '',
+                tem_avaria: false
             });
         }
         setShowModal(true);
@@ -90,10 +98,10 @@ const Equipamentos = () => {
     };
 
     const handleInputChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: type === 'checkbox' ? checked : value
         }));
     };
 
@@ -116,7 +124,7 @@ const Equipamentos = () => {
             }
         } catch (error) {
             console.error("Erro ao salvar equipamento:", error);
-            Swal.fire('Erro', 'Não foi possível salvar o equipamento.', 'error');
+            Swal.fire('Erro', error.message || 'Não foi possível salvar o equipamento.', 'error');
         }
     };
 
@@ -231,6 +239,7 @@ const Equipamentos = () => {
                                             <th>STATUS</th>
                                             <th>MARCA/MODELO</th>
                                             <th>NÚMERO DE SÉRIE</th>
+                                            <th style={{ textAlign: 'center' }}>AVARIA</th>
                                             <th className="actions-column" style={{ textAlign: 'right' }}>AÇÕES</th>
                                         </tr>
                                     </thead>
@@ -266,6 +275,34 @@ const Equipamentos = () => {
                                                     {item.marca} {item.modelo}
                                                 </td>
                                                 <td style={{ color: '#64748b', fontFamily: 'monospace' }}>{item.numero_serie || '-'}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                        {item.tem_avaria ? (
+                                                            <>
+                                                                <i className="fas fa-times-circle" style={{ color: '#ef4444', fontSize: '18px' }} title="Com avaria"></i>
+                                                                {item.descricao && item.descricao !== '<p><br></p>' && (
+                                                                    <button
+                                                                        onClick={() => setPreviewDamage(item)}
+                                                                        style={{
+                                                                            background: '#f0f9ff',
+                                                                            border: '1px solid #bae6fd',
+                                                                            color: '#0284c7',
+                                                                            borderRadius: '6px',
+                                                                            padding: '4px 8px',
+                                                                            cursor: 'pointer',
+                                                                            fontSize: '12px'
+                                                                        }}
+                                                                        title="Ver detalhes/fotos"
+                                                                    >
+                                                                        <i className="fas fa-image"></i>
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <i className="fas fa-check-circle" style={{ color: '#10b981', fontSize: '18px' }} title="Sem avaria"></i>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="actions-column" style={{ textAlign: 'right' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                                         <button
@@ -426,6 +463,44 @@ const Equipamentos = () => {
                                                 onChange={handleInputChange}
                                             />
                                         </div>
+                                        <div className="form-group full-width" style={{ marginTop: '30px', display: 'flex', justifyContent: 'flex-end', paddingRight: '10px' }}>
+                                            <label className="checkbox-label" style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                cursor: 'pointer',
+                                                fontWeight: 'bold',
+                                                color: '#0e3b6f',
+                                                background: '#f1f5f9',
+                                                padding: '12px 24px',
+                                                borderRadius: '30px',
+                                                border: '2px solid #e2e8f0',
+                                                transition: 'all 0.2s',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    name="tem_avaria"
+                                                    checked={formData.tem_avaria}
+                                                    onChange={handleInputChange}
+                                                    style={{ width: '20px', height: '20px', accentColor: '#0e3b6f' }}
+                                                />
+                                                Este equipamento possui avaria?
+                                            </label>
+                                        </div>
+
+                                        {formData.tem_avaria && (
+                                            <div className="form-group full-width" style={{ marginTop: '15px' }}>
+                                                <label className="form-label">Descrição da Avaria (Opcional - pode conter fotos)</label>
+                                                <RichTextEditor
+                                                    value={formData.descricao}
+                                                    onChange={(value) => setFormData(prev => ({ ...prev, descricao: value }))}
+                                                    placeholder="Descreva o problema e anexe fotos se necessário..."
+                                                    minHeight={150}
+                                                    simple={true}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="modal-footer">
                                         <button type="button" className="btn-cancel" onClick={closeModal}>Cancelar</button>
@@ -437,6 +512,50 @@ const Equipamentos = () => {
                     )
                     }
                 </main>
+                {/* Modal de Visualização de Avaria */}
+                {previewDamage && (
+                    <div className="modal-overlay" style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', zIndex: 2000
+                    }} onClick={() => setPreviewDamage(null)}>
+                        <div style={{
+                            background: 'white', width: '90%', maxWidth: '700px',
+                            borderRadius: '16px', padding: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>
+                                    <i className="fas fa-exclamation-triangle" style={{ color: '#f59e0b', marginRight: '10px' }}></i>
+                                    Detalhes da Avaria: {previewDamage.nome}
+                                </h2>
+                                <button onClick={() => setPreviewDamage(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>&times;</button>
+                            </div>
+
+                            <div style={{
+                                maxHeight: '60vh', overflowY: 'auto', padding: '16px',
+                                background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0',
+                                lineHeight: '1.6'
+                            }}>
+                                <div
+                                    className="rich-text-preview"
+                                    dangerouslySetInnerHTML={{ __html: previewDamage.descricao }}
+                                />
+                            </div>
+
+                            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setPreviewDamage(null)}
+                                    style={{
+                                        padding: '10px 24px', borderRadius: '8px', background: '#0e3b6f',
+                                        color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer'
+                                    }}
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div >
         </Layout>
     );
