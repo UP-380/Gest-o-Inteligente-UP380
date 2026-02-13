@@ -57,7 +57,7 @@ const Sidebar = () => {
   };
 
   const isEquipamentosActive = () => {
-    return isActive('/equipamentos');
+    return isActive('/equipamentos') || location.pathname.startsWith('/gestao-equipamentos');
   };
 
   const isBaseConhecimentoActive = () => {
@@ -122,7 +122,7 @@ const Sidebar = () => {
 
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
-      if (location.pathname === '/equipamentos') {
+      if (location.pathname === '/equipamentos' || location.pathname.startsWith('/gestao-equipamentos')) {
         setEquipamentosExpanded(true); // Expandir o sub-menu equipamentos também
       }
     }
@@ -424,9 +424,15 @@ const Sidebar = () => {
         subItems: [
           {
             path: '/equipamentos',
-            icon: 'fa-laptop-medical',
-            label: 'Cadastrar Equipamentos',
-            title: 'Cadastrar Equipamentos'
+            icon: 'fa-plus-circle',
+            label: 'Cadastro de Equipamentos',
+            title: 'Cadastro de Equipamentos'
+          },
+          {
+            path: '/gestao-equipamentos',
+            icon: 'fa-tasks',
+            label: 'Gestão de Equipamentos',
+            title: 'Gestão de Equipamentos'
           }
         ]
       }

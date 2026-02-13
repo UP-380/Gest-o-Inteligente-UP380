@@ -46,6 +46,11 @@ import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import RelatorioTempo from './pages/RelatorioTempo/RelatorioTempo';
 import Equipamentos from './pages/Equipamentos/Equipamentos';
+import GestaoEquipamentosLayout from './pages/GestaoEquipamentos/GestaoEquipamentosLayout';
+import DashboardEquipamentos from './pages/GestaoEquipamentos/DashboardEquipamentos';
+import InventarioGestao from './pages/GestaoEquipamentos/InventarioGestao';
+import Operadores from './pages/GestaoEquipamentos/Operadores';
+import PerfilOperador from './pages/GestaoEquipamentos/PerfilOperador';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
@@ -385,6 +390,19 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/gestao-equipamentos"
+          element={
+            <ProtectedRoute>
+              <GestaoEquipamentosLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardEquipamentos />} />
+          <Route path="inventario" element={<InventarioGestao />} />
+          <Route path="operadores" element={<Operadores />} />
+          <Route path="operadores/:id" element={<PerfilOperador />} />
+        </Route>
         <Route
           path="/gestao-capacidade"
           element={

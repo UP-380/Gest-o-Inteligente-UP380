@@ -1,0 +1,176 @@
+.inventario-gestao {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+}
+
+.equip-name-cell {
+    display: flex;
+    flex-direction: column;
+}
+
+.equip-name-cell span {
+    font-size: 12px;
+    color: #888;
+}
+
+.status-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-chip.ativo {
+    background: #e0f2f1;
+    color: #00897b;
+}
+
+.status-chip.em-uso {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.status-chip.manutencao {
+    background: #ffebee;
+    color: #e53935;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    padding: 16px;
+    border-bottom: 2px solid #f0f0f0;
+    color: #444;
+}
+
+tbody tr {
+    border-bottom: 1px solid #f8f8f8;
+}
+
+tbody td {
+    padding: 16px;
+}
+
+.btn-assign,
+.btn-return {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-assign {
+    background: #ebf5ff;
+    color: #007bff;
+}
+
+.btn-assign:hover {
+    background: #007bff;
+    color: white;
+}
+
+.btn-return {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.btn-return:hover {
+    background: #f57c00;
+    color: white;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.gestao-modal {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.gestao-modal h2 {
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-size: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+}
+
+.form-group select,
+.form-group textarea {
+    padding: 12px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-cancel {
+    background: #f5f5f5;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-confirm {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-confirm.secondary {
+    background: #f57c00;
+}

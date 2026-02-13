@@ -143,9 +143,11 @@ router.delete('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroCo
 // Rota antiga mantida para compatibilidade (retorna apenas id e nome)
 router.get('/api/tipos-contrato', requireAuth, colaboradoresController.getTiposContrato);
 
-// Rotas de Colaboradores (CRUD completo)
+// Rotas de Colaboradores (CRUD e Gestão de Equipamentos)
+router.get('/api/colaboradores/equipamentos', requireAuth, colaboradoresController.getColaboradoresComEquipamentos);
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);
+router.get('/api/colaboradores/:id/equipamentos', requireAuth, colaboradoresController.getPerfilColaboradorEquipamentos);
 router.post('/api/colaboradores', requireAuth, colaboradoresController.criarColaborador);
 router.put('/api/colaboradores/:id', requireAuth, colaboradoresController.atualizarColaborador);
 router.delete('/api/colaboradores/:id', requireAuth, colaboradoresController.deletarColaborador);
@@ -298,10 +300,15 @@ router.post('/api/sistemas', requireAuth, sistemaController.criarSistema);
 router.put('/api/sistemas/:id', requireAuth, sistemaController.atualizarSistema);
 router.delete('/api/sistemas/:id', requireAuth, sistemaController.deletarSistema);
 
-// Rotas de Equipamentos (CRUD completo)
+// Rotas de Equipamentos (Gestão e CRUD)
+router.get('/api/equipamentos/dashboard/stats', requireAuth, equipamentosController.getDashboardStats);
 router.get('/api/equipamentos', requireAuth, equipamentosController.getEquipamentos);
 router.get('/api/equipamentos/:id', requireAuth, equipamentosController.getEquipamentoPorId);
+router.get('/api/equipamentos/:id/historico', requireAuth, equipamentosController.getHistoricoEquipamento);
 router.post('/api/equipamentos', requireAuth, equipamentosController.criarEquipamento);
+router.post('/api/equipamentos/atribuir', requireAuth, equipamentosController.atribuirEquipamento);
+router.post('/api/equipamentos/devolver', requireAuth, equipamentosController.devolverEquipamento);
+router.post('/api/equipamentos/ocorrencia', requireAuth, equipamentosController.registrarOcorrencia);
 router.put('/api/equipamentos/:id', requireAuth, equipamentosController.atualizarEquipamento);
 router.delete('/api/equipamentos/:id', requireAuth, equipamentosController.deletarEquipamento);
 

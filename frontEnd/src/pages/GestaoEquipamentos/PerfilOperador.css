@@ -1,0 +1,157 @@
+.perfil-operador {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.btn-back {
+    background: none;
+    border: none;
+    color: #007bff;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.perfil-header-card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    margin-bottom: 24px;
+}
+
+.perfil-info {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.big-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: #eef2ff;
+    color: #4f46e5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 800;
+}
+
+.perfil-info h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #1a1a1a;
+}
+
+.perfil-info p {
+    margin: 4px 0 0 0;
+    color: #666;
+    font-size: 16px;
+}
+
+.perfil-main-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 900px) {
+    .perfil-main-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.atuais-section,
+.historico-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+}
+
+.atuais-section h2,
+.historico-section h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.atuais-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.equip-item-card {
+    padding: 16px;
+    border-radius: 12px;
+    background: #f8fbff;
+    border: 1px solid #e1e9f5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.item-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.item-main strong {
+    font-size: 16px;
+    color: #1a1a1a;
+}
+
+.item-main span {
+    font-size: 13px;
+    color: #666;
+}
+
+.item-meta {
+    font-size: 13px;
+    color: #888;
+}
+
+.historico-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.hist-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #fcfcfc;
+}
+
+.hist-icon {
+    color: #10b981;
+    margin-top: 3px;
+}
+
+.hist-content p {
+    margin: 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.hist-content span {
+    font-size: 12px;
+    color: #999;
+}
+
+.empty {
+    color: #ccc;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}

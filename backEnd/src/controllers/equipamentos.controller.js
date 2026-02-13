@@ -296,10 +296,244 @@ async function deletarEquipamento(req, res) {
     }
 }
 
+// POST - Atribuir equipamento a um colaborador
+async function atribuirEquipamento(req, res) {
+    try {
+        const { equipamento_id, colaborador_id, observacoes } = req.body;
+        const admin_id = req.session?.usuario?.id; // Usando o id da sessão
+
+        if (!equipamento_id || !colaborador_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'Equipamento e Colaborador são obrigatórios'
+            });
+        }
+
+        // 1. Verificar se o equipamento está disponível
+        const { data: equip, error: equipError } = await supabase
+            .from('cp_equipamentos')
+            .select('status')
+            .eq('id', equipamento_id)
+            .single();
+
+        if (equipError || !equip) {
+            return res.status(404).json({ success: false, error: 'Equipamento não encontrado' });
+        }
+
+        // 2. Criar atribuição
+        const { data: atribuicao, error: atrError } = await supabase
+            .from('cp_equipamento_atribuicoes')
+            .insert([{
+                equipamento_id,
+                colaborador_id,
+                observacoes,
+                criado_por: admin_id
+            }])
+            .select()
+            .single();
+
+        if (atrError) {
+            console.error('Erro ao criar atribuição:', atrError);
+            return res.status(500).json({ success: false, error: 'Erro ao atribuir equipamento' });
+        }
+
+        // 3. Atualizar status do equipamento
+        await supabase
+            .from('cp_equipamentos')
+            .update({ status: 'em uso' })
+            .eq('id', equipamento_id);
+
+        // 4. Registrar ocorrência de entrega automaticamente
+        await supabase
+            .from('cp_equipamento_ocorrencias')
+            .insert([{
+                equipamento_id,
+                colaborador_id,
+                tipo: 'ENTREGA',
+                descricao: `Equipamento atribuído. Obs: ${observacoes || 'Nenhuma'}`
+            }]);
+
+        return res.status(201).json({
+            success: true,
+            message: 'Equipamento atribuído com sucesso',
+            data: atribuicao
+        });
+    } catch (error) {
+        console.error('Erro inesperado ao atribuir equipamento:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+    }
+}
+
+// POST - Devolver equipamento (Check-in)
+async function devolverEquipamento(req, res) {
+    try {
+        const { equipamento_id, descricao_estado, fotos } = req.body;
+
+        if (!equipamento_id) {
+            return res.status(400).json({ success: false, error: 'ID do equipamento é obrigatório' });
+        }
+
+        // 1. Finalizar atribuição ativa
+        const { data: atrAtiva, error: atrError } = await supabase
+            .from('cp_equipamento_atribuicoes')
+            .update({ data_devolucao: new Date().toISOString() })
+            .eq('equipamento_id', equipamento_id)
+            .is('data_devolucao', null)
+            .select()
+            .maybeSingle();
+
+        // 2. Atualizar status do equipamento para 'ativo' (estoque)
+        await supabase
+            .from('cp_equipamentos')
+            .update({ status: 'ativo' })
+            .eq('id', equipamento_id);
+
+        // 3. Registrar ocorrência de devolução com estado
+        await supabase
+            .from('cp_equipamento_ocorrencias')
+            .insert([{
+                equipamento_id,
+                colaborador_id: atrAtiva?.colaborador_id,
+                tipo: 'DEVOLUCAO',
+                descricao: descricao_estado || 'Equipamento devolvido ao estoque.',
+                fotos: fotos || []
+            }]);
+
+        return res.json({
+            success: true,
+            message: 'Equipamento devolvido com sucesso'
+        });
+    } catch (error) {
+        console.error('Erro inesperado ao devolver equipamento:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+    }
+}
+
+// POST - Registrar nova ocorrência (Danos, Observação, etc)
+async function registrarOcorrencia(req, res) {
+    try {
+        const { equipamento_id, tipo, descricao, fotos, colaborador_id } = req.body;
+
+        if (!equipamento_id || !tipo) {
+            return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes' });
+        }
+
+        const { data, error } = await supabase
+            .from('cp_equipamento_ocorrencias')
+            .insert([{
+                equipamento_id,
+                tipo,
+                descricao,
+                fotos: fotos || [],
+                colaborador_id
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Erro ao registrar ocorrência:', error);
+            return res.status(500).json({ success: false, error: 'Erro ao registrar ocorrência' });
+        }
+
+        // Se o tipo for 'DANOS' ou 'MANUTENCAO', talvez queira mudar o status do equipamento
+        if (tipo === 'MANUTENCAO') {
+            await supabase
+                .from('cp_equipamentos')
+                .update({ status: 'manutencao' })
+                .eq('id', equipamento_id);
+        }
+
+        return res.status(201).json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        console.error('Erro inesperado ao registrar ocorrência:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno do servidor' });
+    }
+}
+
+// GET - Buscar histórico (Atribuições e Ocorrências)
+async function getHistoricoEquipamento(req, res) {
+    try {
+        const { id } = req.params;
+
+        // Buscar atribuições
+        const { data: atribuicoes, error: errAtr } = await supabase
+            .from('cp_equipamento_atribuicoes')
+            .select('*')
+            .eq('equipamento_id', id)
+            .order('data_retirada', { ascending: false });
+
+        // Buscar ocorrências
+        const { data: ocorrencias, error: errOco } = await supabase
+            .from('cp_equipamento_ocorrencias')
+            .select('*')
+            .eq('equipamento_id', id)
+            .order('data_ocorrencia', { ascending: false });
+
+        return res.json({
+            success: true,
+            data: {
+                atribuicoes: atribuicoes || [],
+                ocorrencias: ocorrencias || []
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar histórico:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno' });
+    }
+}
+
+// GET - Estatísticas para o Dashboard
+async function getDashboardStats(req, res) {
+    try {
+        // Totais por status
+        const { data: statusCounts, error: errorStatus } = await supabase
+            .from('cp_equipamentos')
+            .select('status');
+
+        if (errorStatus) throw errorStatus;
+
+        const stats = {
+            total: statusCounts.length,
+            em_uso: statusCounts.filter(e => e.status === 'em uso').length,
+            manutencao: statusCounts.filter(e => e.status === 'manutencao').length,
+            estoque: statusCounts.filter(e => e.status === 'ativo' || !e.status).length
+        };
+
+        // Atividades recentes (últimas 5 ocorrências)
+        const { data: recentes, error: errorRec } = await supabase
+            .from('cp_equipamento_ocorrencias')
+            .select(`
+                *,
+                cp_equipamentos (nome, tipo)
+            `)
+            .order('data_ocorrencia', { ascending: false })
+            .limit(5);
+
+        return res.json({
+            success: true,
+            data: {
+                stats,
+                atividades: recentes || []
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar estatísticas:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno' });
+    }
+}
+
 module.exports = {
     getEquipamentos,
     getEquipamentoPorId,
     criarEquipamento,
     atualizarEquipamento,
-    deletarEquipamento
+    deletarEquipamento,
+    atribuirEquipamento,
+    devolverEquipamento,
+    registrarOcorrencia,
+    getHistoricoEquipamento,
+    getDashboardStats
 };
