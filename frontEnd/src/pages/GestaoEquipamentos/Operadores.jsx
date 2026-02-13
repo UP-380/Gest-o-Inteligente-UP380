@@ -7,6 +7,48 @@ import Avatar from '../../components/user/Avatar';
 import FiltersCard from '../../components/filters/FiltersCard';
 import './Operadores.css';
 
+const KNOWN_TYPES = [
+    { type: 'notebook', icon: 'fa-laptop', label: 'Notebook' },
+    { type: 'monitor', icon: 'fa-desktop', label: 'Monitor' },
+    { type: 'teclado', icon: 'fa-keyboard', label: 'Teclado' },
+    { type: 'mouse', icon: 'fa-mouse', label: 'Mouse' },
+    { type: 'headset', icon: 'fa-headphones', label: 'Headset' }
+];
+
+const getEquipmentIcon = (item) => {
+    const text = ((item.tipo || '') + ' ' + (item.nome || '')).toLowerCase();
+
+    // 1. Acessórios e Componentes Específicos (Prioridade ALTA)
+    if (text.includes('carregador') || text.includes('fonte')) return 'fa-plug';
+    if (text.includes('suporte') || text.includes('base')) return 'fa-layer-group';
+    if (text.includes('mousepad') || text.includes('mouse pad')) return 'fa-square';
+    if (text.includes('cabo') || text.includes('fio') || text.includes('hdmi') || text.includes('vga')) return 'fa-code-branch';
+    if (text.includes('adaptador')) return 'fa-random';
+    if (text.includes('hub') || text.includes('dock')) return 'fa-network-wired';
+    if (text.includes('mochila') || text.includes('bag') || text.includes('mala')) return 'fa-briefcase';
+    if (text.includes('filtro') || text.includes('linha')) return 'fa-grip-lines';
+
+    // 2. Equipamentos Principais
+    if (text.includes('notebook') || text.includes('laptop')) return 'fa-laptop';
+    if (text.includes('monitor') || text.includes('tela') || text.includes('display')) return 'fa-desktop';
+    if (text.includes('teclado')) return 'fa-keyboard';
+
+    // Mouse (Cuidado para não pegar mousepad de novo se a lógica acima falhar, mas a ordem garante)
+    if (text.includes('mouse')) return 'fa-mouse';
+
+    if (text.includes('headset') || text.includes('fone') || text.includes('auricular')) return 'fa-headphones';
+    if (text.includes('webcam') || text.includes('camera')) return 'fa-camera';
+    if (text.includes('celular') || text.includes('smartphone') || text.includes('iphone') || text.includes('android')) return 'fa-mobile-alt';
+    if (text.includes('tablet') || text.includes('ipad')) return 'fa-tablet-alt';
+
+    // 3. Outros
+    if (text.includes('cadeira')) return 'fa-chair';
+    if (text.includes('mesa')) return 'fa-table';
+
+    // 4. Fallback
+    return 'fa-box-open';
+};
+
 const Operadores = () => {
     const navigate = useNavigate();
     const [operadores, setOperadores] = useState([]);
@@ -132,13 +174,6 @@ const Operadores = () => {
                             key: 'equipamentos',
                             label: 'Equipamentos',
                             render: (op) => {
-                                const KNOWN_TYPES = [
-                                    { type: 'notebook', icon: 'fa-laptop', label: 'Notebook' },
-                                    { type: 'monitor', icon: 'fa-desktop', label: 'Monitor' },
-                                    { type: 'teclado', icon: 'fa-keyboard', label: 'Teclado' },
-                                    { type: 'mouse', icon: 'fa-mouse', label: 'Mouse' },
-                                    { type: 'headset', icon: 'fa-headphones', label: 'Headset' }
-                                ];
 
                                 const getEquipmentsByType = (userEquipments, typeStr) => {
                                     if (!userEquipments || !Array.isArray(userEquipments)) return [];
@@ -250,6 +285,7 @@ const Operadores = () => {
                                     }}
                                     title="Ver no Inventário"
                                 >
+                                    <i className={`fas ${getEquipmentIcon(item)}`} style={{ marginRight: '6px', color: '#6b7280', fontSize: '11px' }}></i>
                                     {item.nome} <i className="fas fa-external-link-alt" style={{ fontSize: '10px', marginLeft: '4px', color: '#3b82f6' }}></i>
                                 </div>
                                 <div className="equip-popup-item-detail">

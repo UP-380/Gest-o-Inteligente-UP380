@@ -46,7 +46,7 @@ async function getEquipamentos(req, res) {
         if (equipIds.length > 0) {
             const { data: atribuicoes, error: atrError } = await supabase
                 .from('cp_equipamento_atribuicoes')
-                .select('equipamento_id, colaborador_id, data_retirada')
+                .select('equipamento_id, colaborador_id, data_retirada, horario_trabalho_inicio, horario_trabalho_fim')
                 .in('equipamento_id', equipIds)
                 .is('data_devolucao', null);
 
@@ -61,11 +61,36 @@ async function getEquipamentos(req, res) {
                     .in('id', colabIds);
 
                 if (!mErr && membros) {
-                    const membrosMap = Object.fromEntries(membros.map(m => [m.id, m.nome]));
-                    const atrMap = Object.fromEntries(atribuicoes.map(a => [
-                        a.equipamento_id,
-                        { id: a.colaborador_id, nome: membrosMap[a.colaborador_id] || 'Desconhecido' }
-                    ]));
+                    const membrosMap = Object.fromEntries(membros.map(m => {
+                        // MOCK: Simular horários de trabalho (Isso deve vir do banco futuramente)
+                        // Ex: IDs pares = 08:00 - 14:00 (Como pedido no exemplo)
+                        // Ex: IDs ímpares = 09:00 - 18:00
+                        const isMorningShift = m.id % 2 === 0;
+                        return [m.id, {
+                            nome: m.nome,
+                            horario_entrada: isMorningShift ? '08:00' : '09:00',
+                            horario_saida: isMorningShift ? '14:00' : '18:00'
+                        }];
+                    }));
+
+                    const atrMap = Object.fromEntries(atribuicoes.map(a => {
+                        const membro = membrosMap[a.colaborador_id] || { nome: 'Desconhecido' };
+                        // Priorizar horários do registro de atribuição, senão usar mock (fallback)
+                        // Mock apenas para IDs de exemplo se não houver no banco
+                        const isMorningShift = a.colaborador_id % 2 === 0;
+                        const mockEntrada = isMorningShift ? '08:00' : '09:00';
+                        const mockSaida = isMorningShift ? '14:00' : '18:00';
+
+                        return [
+                            a.equipamento_id,
+                            {
+                                id: a.colaborador_id,
+                                nome: membro.nome,
+                                horario_entrada: a.horario_trabalho_inicio || mockEntrada,
+                                horario_saida: a.horario_trabalho_fim || mockSaida
+                            }
+                        ];
+                    }));
 
                     equipamentosComUsuario = data.map(e => ({
                         ...e,
@@ -345,7 +370,7 @@ async function deletarEquipamento(req, res) {
 // POST - Atribuir equipamento a um colaborador
 async function atribuirEquipamento(req, res) {
     try {
-        const { equipamento_id, colaborador_id, observacoes } = req.body;
+        const { equipamento_id, colaborador_id, observacoes, horario_entrada, horario_saida } = req.body;
         const admin_id = req.session?.usuario?.id; // Usando o id da sessão
 
         if (!equipamento_id || !colaborador_id) {
@@ -387,6 +412,8 @@ async function atribuirEquipamento(req, res) {
                 equipamento_id,
                 colaborador_id,
                 observacoes,
+                horario_trabalho_inicio: horario_entrada || null,
+                horario_trabalho_fim: horario_saida || null,
                 criado_por: admin_id || null
             }])
             .select()

@@ -20,7 +20,7 @@ const InventarioGestao = () => {
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [selectedEquip, setSelectedEquip] = useState(null);
     const [operadores, setOperadores] = useState([]);
-    const [assignmentData, setAssignmentData] = useState({ colaborador_id: '', observacoes: '' });
+    const [assignmentData, setAssignmentData] = useState({ colaborador_id: '', observacoes: '', horario_entrada: '', horario_saida: '' });
     const [returnData, setReturnData] = useState({ descricao_estado: '' });
     const [previewDamage, setPreviewDamage] = useState(null); // For showing damage rich text
 
@@ -209,31 +209,74 @@ const InventarioGestao = () => {
                                 </td>
                                 <td>{equip.tipo}</td>
                                 <td>
-                                    <div className={`status-chip ${equip.status?.replace(' ', '-')}`}>
-                                        {equip.status === 'em uso' ? 'Ocupado' :
-                                            equip.status === 'inativo' ? 'Indisponível' :
-                                                (equip.status === 'ativo' ? 'Disponível' : (equip.status || 'Disponível'))}
-                                    </div>
-                                    {equip.status === 'em uso' && equip.usuario_atual && (
-                                        <div
-                                            onClick={() => navigate(`/gestao-equipamentos/operadores/${equip.usuario_atual.id}`)}
-                                            style={{
-                                                fontSize: '11px',
-                                                marginTop: '6px',
-                                                color: '#0e3b6f',
-                                                cursor: 'pointer',
-                                                textDecoration: 'underline',
-                                                fontWeight: '600',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px'
-                                            }}
-                                            title="Ver perfil do colaborador"
-                                        >
-                                            <i className="fas fa-user" style={{ fontSize: '10px' }}></i>
-                                            {equip.usuario_atual.nome}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        let statusText = equip.status === 'ativo' ? 'Disponível' : (equip.status || 'Disponível');
+                                        let statusClass = equip.status?.replace(' ', '-') || 'disponivel';
+                                        let scheduleInfo = null;
+
+                                        if (equip.status === 'inativo') {
+                                            statusText = 'Indisponível';
+                                        } else if (equip.status === 'em uso' && equip.usuario_atual) {
+                                            // Lógica de disponibilidade por horário
+                                            const user = equip.usuario_atual;
+                                            if (user.horario_entrada && user.horario_saida) {
+                                                const now = new Date();
+                                                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                                                const [startH, startM] = user.horario_entrada.split(':').map(Number);
+                                                const [endH, endM] = user.horario_saida.split(':').map(Number);
+
+                                                const startMinutes = startH * 60 + startM;
+                                                const endMinutes = endH * 60 + endM;
+
+                                                const isWorking = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+
+                                                statusText = isWorking ? 'Ocupado' : 'Disponível (Fora de horário)';
+                                                statusClass = isWorking ? 'em-uso' : 'ativo'; // 'ativo' geralmente é verde/disponível
+                                                scheduleInfo = `${user.horario_entrada} às ${user.horario_saida}`;
+                                            } else {
+                                                statusText = 'Ocupado';
+                                                statusClass = 'em-uso';
+                                            }
+                                        } else if (equip.status === 'em uso') {
+                                            statusText = 'Ocupado';
+                                        }
+
+                                        return (
+                                            <>
+                                                <div className={`status-chip ${statusClass}`}>
+                                                    {statusText}
+                                                </div>
+                                                {equip.status === 'em uso' && equip.usuario_atual && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', marginTop: '6px', gap: '2px' }}>
+                                                        <div
+                                                            onClick={() => navigate(`/gestao-equipamentos/operadores/${equip.usuario_atual.id}`)}
+                                                            style={{
+                                                                fontSize: '11px',
+                                                                color: '#0e3b6f',
+                                                                cursor: 'pointer',
+                                                                textDecoration: 'underline',
+                                                                fontWeight: '600',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '4px'
+                                                            }}
+                                                            title="Ver perfil do colaborador"
+                                                        >
+                                                            <i className="fas fa-user" style={{ fontSize: '10px' }}></i>
+                                                            {equip.usuario_atual.nome}
+                                                        </div>
+                                                        {scheduleInfo && (
+                                                            <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                                                <i className="far fa-clock" style={{ marginRight: '3px' }}></i>
+                                                                {scheduleInfo}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </td>
                                 <td>
                                     <div className="avaria-cell">
@@ -339,6 +382,24 @@ const InventarioGestao = () => {
                                     <option key={op.id} value={op.id}>{op.nome}</option>
                                 ))}
                             </select>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div className="form-group">
+                                <label>Horário Início</label>
+                                <input
+                                    type="time"
+                                    value={assignmentData.horario_entrada}
+                                    onChange={(e) => setAssignmentData({ ...assignmentData, horario_entrada: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Horário Fim</label>
+                                <input
+                                    type="time"
+                                    value={assignmentData.horario_saida}
+                                    onChange={(e) => setAssignmentData({ ...assignmentData, horario_saida: e.target.value })}
+                                />
+                            </div>
                         </div>
                         <div className="form-group">
                             <label>Observações de entrega</label>
