@@ -15,7 +15,9 @@ const Operadores = () => {
 
     // Filtros
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('ativo'); // Padrão ativos
+    const [statusFilter, setStatusFilter] = useState('ativo'); // Filtrar apenas ativos por padrão
+    const [activePopup, setActivePopup] = useState(null); // { opId: string, type: string }
+    const popupRef = useRef(null);
     const searchTimeoutRef = useRef(null);
 
     useEffect(() => {
@@ -25,6 +27,20 @@ const Operadores = () => {
     useEffect(() => {
         applyFilters();
     }, [operadores, searchTerm, statusFilter]);
+
+    // Close popup on click outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (popupRef.current && !popupRef.current.contains(event.target)) {
+                setActivePopup(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const fetchOperadores = async () => {
         setLoading(true);
@@ -68,7 +84,7 @@ const Operadores = () => {
 
     const limparFiltros = () => {
         setSearchTerm('');
-        setStatusFilter('ativo');
+        setStatusFilter('todos');
     };
 
     if (loading) return <LoadingState message="Carregando colaboradores..." />;
@@ -76,18 +92,6 @@ const Operadores = () => {
     return (
         <div className="operadores-page-content">
             <FiltersCard onClear={limparFiltros} showActions={true}>
-                <div className="filter-group" style={{ flex: '0 0 200px' }}>
-                    <label className="filter-label">Status</label>
-                    <select
-                        className="filter-select"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                        <option value="todos">Todos</option>
-                        <option value="ativo">Ativos</option>
-                        <option value="inativo">Inativos</option>
-                    </select>
-                </div>
                 <div className="filter-group" style={{ flex: 1 }}>
                     <label className="filter-label">Buscar Colaborador</label>
                     <div className="search-input-wrapper">
@@ -95,7 +99,7 @@ const Operadores = () => {
                         <input
                             type="text"
                             className="search-input"
-                            placeholder="Nome, cargo ou departamento..."
+                            placeholder="Buscar por nome..."
                             value={searchTerm}
                             onChange={handleSearchChange}
                         />
@@ -125,34 +129,78 @@ const Operadores = () => {
                             )
                         },
                         {
-                            key: 'cargo',
-                            label: 'Cargo / Departamento',
-                            render: (op) => (
-                                <div className="op-cell-dept">
-                                    <span className="op-cargo">{op.cargo || '-'}</span>
-                                    <span className="op-dept">{op.departamento || '-'}</span>
-                                </div>
-                            )
+                            key: 'equipamentos',
+                            label: 'Equipamentos',
+                            render: (op) => {
+                                const KNOWN_TYPES = [
+                                    { type: 'notebook', icon: 'fa-laptop', label: 'Notebook' },
+                                    { type: 'monitor', icon: 'fa-desktop', label: 'Monitor' },
+                                    { type: 'teclado', icon: 'fa-keyboard', label: 'Teclado' },
+                                    { type: 'mouse', icon: 'fa-mouse', label: 'Mouse' },
+                                    { type: 'headset', icon: 'fa-headphones', label: 'Headset' }
+                                ];
+
+                                const getEquipmentsByType = (userEquipments, typeStr) => {
+                                    if (!userEquipments || !Array.isArray(userEquipments)) return [];
+                                    return userEquipments.filter(eq => (eq.tipo || '').toLowerCase().includes(typeStr));
+                                };
+
+                                const getOtherEquipments = (userEquipments) => {
+                                    if (!userEquipments || !Array.isArray(userEquipments)) return [];
+                                    return userEquipments.filter(eq => {
+                                        const type = (eq.tipo || '').toLowerCase();
+                                        return !KNOWN_TYPES.some(k => type.includes(k.type));
+                                    });
+                                };
+
+                                // Combine known types with "Outros"
+                                const ALL_TYPES = [
+                                    ...KNOWN_TYPES,
+                                    { type: 'outros', icon: 'fa-ellipsis-h', label: 'Outros' }
+                                ];
+
+                                const handleIconClick = (e, opId, type, equipments, icon) => {
+                                    e.stopPropagation();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const position = {
+                                        top: rect.bottom + 10,
+                                        left: rect.left + (rect.width / 2)
+                                    };
+
+                                    if (activePopup && activePopup.opId === opId && activePopup.type === type) {
+                                        setActivePopup(null);
+                                    } else {
+                                        setActivePopup({ opId, type, equipments, position, icon });
+                                    }
+                                };
+
+                                return (
+                                    <div className="op-equip-row">
+                                        {ALL_TYPES.map((eq) => {
+                                            const equipments = eq.type === 'outros'
+                                                ? getOtherEquipments(op.equipamentos)
+                                                : getEquipmentsByType(op.equipamentos, eq.type);
+
+                                            // Ensure uniqueness and non-repetition of known types in 'outros' is handled by getOtherEquipments logic
+                                            const isActive = equipments.length > 0;
+                                            const isPopupOpen = activePopup && activePopup.opId === op.id && activePopup.type === eq.type;
+
+                                            return (
+                                                <div
+                                                    key={eq.type}
+                                                    className={`op-equip-icon ${isActive ? 'active' : ''} ${isPopupOpen ? 'popup-open' : ''}`}
+                                                    title={isActive ? `${eq.label} (Em posse)` : `${eq.label} (Não possui)`}
+                                                    onClick={(e) => isActive && handleIconClick(e, op.id, eq.type, equipments, eq.icon)}
+                                                    style={{ cursor: isActive ? 'pointer' : 'default' }}
+                                                >
+                                                    <i className={`fas ${eq.icon}`}></i>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            }
                         },
-                        {
-                            key: 'qtd_equipamentos',
-                            label: 'Equipamentos em Posse',
-                            render: (op) => (
-                                <div className={`op-count-badge ${op.qtd_equipamentos > 0 ? 'active' : ''}`}>
-                                    <i className="fas fa-laptop"></i>
-                                    <strong>{op.qtd_equipamentos}</strong>
-                                </div>
-                            )
-                        },
-                        {
-                            key: 'status',
-                            label: 'Status',
-                            render: (op) => (
-                                <span className={`status-badge ${op.status}`}>
-                                    {op.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                                </span>
-                            )
-                        }
                     ]}
                     data={filteredOperadores}
                     renderActions={(op) => (
@@ -168,6 +216,57 @@ const Operadores = () => {
                     emptyIcon="fa-users-slash"
                 />
             </div>
+
+            {/* Render Popup outside the table to avoid clipping/z-index issues */}
+            {activePopup && (
+                <div
+                    className="equip-popup"
+                    ref={popupRef}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        position: 'fixed',
+                        top: activePopup.position.top,
+                        left: activePopup.position.left,
+                        transform: 'translateX(-50%)',
+                        zIndex: 9999,
+                        marginTop: 0
+                    }}
+                >
+                    <div className="equip-popup-header">
+                        <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <i className={`fas ${activePopup.icon}`} style={{ color: '#3b82f6' }}></i>
+                            {activePopup.type.charAt(0).toUpperCase() + activePopup.type.slice(1)}s
+                        </strong>
+                        <button className="equip-popup-close" onClick={() => setActivePopup(null)}>&times;</button>
+                    </div>
+                    <div className="equip-popup-content">
+                        {activePopup.equipments.map((item, idx) => (
+                            <div key={item.id} className="equip-popup-item">
+                                <div
+                                    className="equip-popup-item-name clickable"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/gestao-equipamentos/inventario?search=${encodeURIComponent(item.nome)}`);
+                                    }}
+                                    title="Ver no Inventário"
+                                >
+                                    {item.nome} <i className="fas fa-external-link-alt" style={{ fontSize: '10px', marginLeft: '4px', color: '#3b82f6' }}></i>
+                                </div>
+                                <div className="equip-popup-item-detail">
+                                    <span className="label">Marca:</span> {item.marca} {item.modelo}
+                                </div>
+                                <div className="equip-popup-item-detail">
+                                    <span className="label">Série:</span> {item.numero_serie || 'N/A'}
+                                </div>
+                                <div className="equip-popup-item-detail">
+                                    <span className="label">Aquisição:</span> {item.data_aquisicao ? new Date(item.data_aquisicao).toLocaleDateString() : 'N/A'}
+                                </div>
+                                {idx < activePopup.equipments.length - 1 && <div className="equip-popup-divider"></div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

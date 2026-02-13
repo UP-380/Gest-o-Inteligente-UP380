@@ -39,10 +39,46 @@ async function getEquipamentos(req, res) {
             });
         }
 
+        // 5. Buscar atribuições ativas para os equipamentos listados
+        let equipamentosComUsuario = data || [];
+        const equipIds = data?.map(e => e.id) || [];
+
+        if (equipIds.length > 0) {
+            const { data: atribuicoes, error: atrError } = await supabase
+                .from('cp_equipamento_atribuicoes')
+                .select('equipamento_id, colaborador_id, data_retirada')
+                .in('equipamento_id', equipIds)
+                .is('data_devolucao', null);
+
+            if (!atrError && atribuicoes?.length > 0) {
+                // Pegar os IDs dos colaboradores para buscar os nomes
+                const colabIds = [...new Set(atribuicoes.map(a => a.colaborador_id))];
+
+                const { data: membros, error: mErr } = await supabase
+                    .schema('up_gestaointeligente_dev')
+                    .from('membro')
+                    .select('id, nome')
+                    .in('id', colabIds);
+
+                if (!mErr && membros) {
+                    const membrosMap = Object.fromEntries(membros.map(m => [m.id, m.nome]));
+                    const atrMap = Object.fromEntries(atribuicoes.map(a => [
+                        a.equipamento_id,
+                        { id: a.colaborador_id, nome: membrosMap[a.colaborador_id] || 'Desconhecido' }
+                    ]));
+
+                    equipamentosComUsuario = data.map(e => ({
+                        ...e,
+                        usuario_atual: atrMap[e.id] || null
+                    }));
+                }
+            }
+        }
+
         return res.json({
             success: true,
-            data: data || [],
-            count: data?.length || 0,
+            data: equipamentosComUsuario,
+            count: equipamentosComUsuario.length,
             total: count || 0,
             page: pageNum,
             limit: limitNum

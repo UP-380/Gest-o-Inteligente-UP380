@@ -458,18 +458,41 @@ async function getColaboradoresComEquipamentos(req, res) {
       }
     }
 
-    // 2. Buscar contagem de equipamentos ativos para todos
+    // 2. Buscar equipamentos ativos para todos
     const { data: atribuicoes, error: atrError } = await supabase
       .from('cp_equipamento_atribuicoes')
-      .select('colaborador_id')
+      .select(`
+        colaborador_id, 
+        cp_equipamentos (
+            id,
+            nome,
+            tipo,
+            marca,
+            modelo,
+            numero_serie,
+            status,
+            data_aquisicao,
+            foto
+        )
+      `)
       .is('data_devolucao', null);
 
     if (atrError) throw atrError;
 
-    // 3. Mapear contagens
+    // 3. Mapear contagens e equipamentos
     const counts = {};
+    const equipamentosPorColaborador = {};
+
     atribuicoes.forEach(a => {
-      counts[a.colaborador_id] = (counts[a.colaborador_id] || 0) + 1;
+      const colabId = a.colaborador_id;
+      counts[colabId] = (counts[colabId] || 0) + 1;
+
+      if (a.cp_equipamentos) {
+        if (!equipamentosPorColaborador[colabId]) {
+          equipamentosPorColaborador[colabId] = [];
+        }
+        equipamentosPorColaborador[colabId].push(a.cp_equipamentos);
+      }
     });
 
     const result = await Promise.all(membros.map(async (m) => {
@@ -485,7 +508,8 @@ async function getColaboradoresComEquipamentos(req, res) {
         ...m,
         status: m.status || 'ativo',
         foto_perfil: fotoPerfil,
-        qtd_equipamentos: counts[m.id] || 0
+        qtd_equipamentos: counts[m.id] || 0,
+        equipamentos: equipamentosPorColaborador[m.id] || []
       };
     }));
 

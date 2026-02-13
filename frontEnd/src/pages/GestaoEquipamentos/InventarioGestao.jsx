@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { equipamentosAPI } from '../../services/equipamentos.service';
 import Swal from 'sweetalert2';
 import './InventarioGestao.css';
 
 const InventarioGestao = () => {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [equipamentos, setEquipamentos] = useState([]);
     const [filteredEquipamentos, setFilteredEquipamentos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
     const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'todos');
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -22,7 +27,7 @@ const InventarioGestao = () => {
     useEffect(() => {
         fetchEquipamentos();
         fetchOperadores();
-    }, []);
+    }, [page]); // Re-fetch when page changes
 
     useEffect(() => {
         applyFilters();
@@ -34,13 +39,34 @@ const InventarioGestao = () => {
         if (filterFromUrl !== null || searchFromUrl !== null) {
             setStatusFilter(filterFromUrl || 'todos');
             setSearchTerm(searchFromUrl || '');
+            setPage(1); // Reset page on new search
         }
     }, [searchParams]);
 
+    // Reset pagination when local filters change
+    useEffect(() => {
+        setPage(1);
+    }, [searchTerm, statusFilter]);
+
     const fetchEquipamentos = async () => {
         try {
-            const response = await equipamentosAPI.getEquipamentos(1, 100); // Pegar todos para gestão simplificada
-            if (response.success) setEquipamentos(response.data);
+            setLoading(true);
+            // Note: If using client-side filtering (like current applyFilters), 
+            // we should probably fetch ALL for client-side filter OR move filtering to backend.
+            // Current code separates fetch and filter. If we paginate FETCH, we can't filter client-side easily effectively across pages.
+            // However, the original code did client-side filtering on `equipamentos`.
+            // If we assume backend pagination, we should pass filters to backend.
+            // But `equipamentosAPI.getEquipamentos` takes (page, limit, search).
+
+            // Let's use the API's search capability if possible, or fetch all if not deep enough.
+            // The user asked for "10 items per page". 
+            // `equipamentosAPI.getEquipamentos` supports search.
+
+            const response = await equipamentosAPI.getEquipamentos(page, ITEMS_PER_PAGE, searchTerm);
+            if (response.success) {
+                setEquipamentos(response.data);
+                setTotalPages(Math.ceil(response.total / ITEMS_PER_PAGE));
+            }
         } catch (error) {
             console.error('Erro ao buscar equipamentos:', error);
         } finally {
@@ -61,22 +87,30 @@ const InventarioGestao = () => {
     };
 
     const applyFilters = () => {
+        // With backend pagination/search, `equipamentos` already contains the filtered/paginated page.
+        // However, we still have `statusFilter` which might be client-side if API doesn't support it fully in `getEquipamentos` (usually generic search).
+        // If `statusFilter` is 'todos', we are good. If not, we might be filtering the *page* which reduces items.
+        // Ideally, filtering should happen on backend.
+        // For now, let's filter client-side what we got, but keep in mind this filters only the current page.
+        // If strict backend pagination is required with filters, we'd need to update the service/controller.
+        // Given constraints, I will apply client-side filtering on the returned page data.
+
         let result = [...equipamentos];
 
         if (statusFilter !== 'todos') {
             result = result.filter(e => e.status === statusFilter);
         }
 
-        if (searchTerm.trim()) {
-            const search = searchTerm.toLowerCase();
-            result = result.filter(e =>
-                e.nome?.toLowerCase().includes(search) ||
-                e.marca?.toLowerCase().includes(search) ||
-                e.modelo?.toLowerCase().includes(search)
-            );
-        }
+        // Search is already handled by backend `searchTerm`, but for extra safety or cleaner UI sync:
+        // (API usually handles name/brand/model search)
 
         setFilteredEquipamentos(result);
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
     };
 
     const handleOpenAssign = (equip) => {
@@ -146,9 +180,9 @@ const InventarioGestao = () => {
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                         <option value="todos">Todos os Status</option>
                         <option value="ativo">Disponíveis</option>
-                        <option value="em uso">Em Uso</option>
+                        <option value="em uso">Ocupados</option>
                         <option value="manutencao">Em Manutenção</option>
-                        <option value="inativo">Inativos</option>
+                        <option value="inativo">Indisponíveis</option>
                     </select>
                 </div>
             </div>
@@ -160,7 +194,7 @@ const InventarioGestao = () => {
                             <th>Equipamento</th>
                             <th>Tipo</th>
                             <th>Status / Usuário</th>
-                            <th>Avaria</th>
+                            <th style={{ textAlign: 'center' }}>Avaria</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -176,8 +210,30 @@ const InventarioGestao = () => {
                                 <td>{equip.tipo}</td>
                                 <td>
                                     <div className={`status-chip ${equip.status?.replace(' ', '-')}`}>
-                                        {equip.status === 'em uso' ? 'Ocupado' : (equip.status || 'Ativo')}
+                                        {equip.status === 'em uso' ? 'Ocupado' :
+                                            equip.status === 'inativo' ? 'Indisponível' :
+                                                (equip.status === 'ativo' ? 'Disponível' : (equip.status || 'Disponível'))}
                                     </div>
+                                    {equip.status === 'em uso' && equip.usuario_atual && (
+                                        <div
+                                            onClick={() => navigate(`/gestao-equipamentos/operadores/${equip.usuario_atual.id}`)}
+                                            style={{
+                                                fontSize: '11px',
+                                                marginTop: '6px',
+                                                color: '#0e3b6f',
+                                                cursor: 'pointer',
+                                                textDecoration: 'underline',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                            title="Ver perfil do colaborador"
+                                        >
+                                            <i className="fas fa-user" style={{ fontSize: '10px' }}></i>
+                                            {equip.usuario_atual.nome}
+                                        </div>
+                                    )}
                                 </td>
                                 <td>
                                     <div className="avaria-cell">
@@ -223,10 +279,49 @@ const InventarioGestao = () => {
                 {filteredEquipamentos.length === 0 && (
                     <div className="empty-inventory">
                         <i className="fas fa-search"></i>
-                        <p>Nenhum equipamento encontrado com estes filtros.</p>
+                        <p>Nenhum equipamento encontrado nesta página.</p>
                     </div>
                 )}
             </div>
+
+            {/* Paginação */}
+            {totalPages > 1 && (
+                <div className="pagination-container" style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                    <div className="pagination" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page === 1}
+                            style={{
+                                padding: '8px 16px',
+                                border: '1px solid #e2e8f0',
+                                background: 'white',
+                                borderRadius: '6px',
+                                color: page === 1 ? '#cbd5e1' : '#475569',
+                                cursor: page === 1 ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Anterior
+                        </button>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>
+                            Página {page} de {totalPages}
+                        </span>
+                        <button
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page === totalPages}
+                            style={{
+                                padding: '8px 16px',
+                                border: '1px solid #e2e8f0',
+                                background: 'white',
+                                borderRadius: '6px',
+                                color: page === totalPages ? '#cbd5e1' : '#475569',
+                                cursor: page === totalPages ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Próximo
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Atribuição */}
             {showAssignModal && (

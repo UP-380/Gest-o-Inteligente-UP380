@@ -268,7 +268,7 @@ const Equipamentos = () => {
                                                     <span className={`status-badge ${getStatusClass(item.status || 'ativo')}`}>
                                                         {item.status === 'em uso' ? 'Em Uso' :
                                                             item.status === 'manutencao' ? 'Manutenção' :
-                                                                item.status === 'inativo' ? 'Inativo' : 'Ativo'}
+                                                                item.status === 'inativo' ? 'Indisponível' : 'Disponível'}
                                                     </span>
                                                 </td>
                                                 <td style={{ color: '#475569' }}>
@@ -416,8 +416,8 @@ const Equipamentos = () => {
                                         <div className="form-group">
                                             <label className="form-label">Status</label>
                                             <select name="status" className="form-select" value={formData.status} onChange={handleInputChange}>
-                                                <option value="ativo">Ativo</option>
-                                                <option value="inativo">Inativo</option>
+                                                <option value="ativo">Disponível</option>
+                                                <option value="inativo">Indisponível</option>
                                                 <option value="manutencao">Em Manutenção</option>
                                             </select>
                                         </div>

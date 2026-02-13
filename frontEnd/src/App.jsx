@@ -383,7 +383,7 @@ function App() {
           }
         />
         <Route
-          path="/equipamentos"
+          path="/cadastro/equipamentos"
           element={
             <ProtectedRoute>
               <Equipamentos />

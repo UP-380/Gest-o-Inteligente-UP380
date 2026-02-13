@@ -46,7 +46,8 @@ const Sidebar = () => {
       isActive('/cadastro/bancos') ||
       isActive('/cadastro/banco') ||
       isActive('/cadastro/adquirentes') ||
-      isActive('/cadastro/sistemas') || location.pathname.startsWith('/cadastro/sistema');
+      isActive('/cadastro/sistemas') || location.pathname.startsWith('/cadastro/sistema') ||
+      isActive('/cadastro/equipamentos');
   };
 
   const isConfiguracoesActive = () => {
@@ -56,9 +57,6 @@ const Sidebar = () => {
       isActive('/gestao/usuarios');
   };
 
-  const isEquipamentosActive = () => {
-    return isActive('/equipamentos') || location.pathname.startsWith('/gestao-equipamentos');
-  };
 
   const isBaseConhecimentoActive = () => {
     return isActive('/base-conhecimento/conteudos-clientes') ||
@@ -85,7 +83,8 @@ const Sidebar = () => {
       location.pathname === '/cadastro/bancos' ||
       location.pathname === '/cadastro/banco' ||
       (location.pathname === '/cadastro/adquirentes' || location.pathname.startsWith('/cadastro/adquirente')) ||
-      (location.pathname === '/cadastro/sistemas' || location.pathname.startsWith('/cadastro/sistema'));
+      (location.pathname === '/cadastro/sistemas' || location.pathname.startsWith('/cadastro/sistema')) ||
+      location.pathname === '/cadastro/equipamentos';
     if (isCadastrosActive) {
       setCadastrosExpanded(true);
       // Se for uma página de tarefas, expandir também o submenu Tarefas
@@ -117,14 +116,10 @@ const Sidebar = () => {
   // Expandir automaticamente o menu Base de Conhecimento se estiver em uma das páginas relacionadas
   useEffect(() => {
     const isBaseConhecimentoActive = location.pathname === '/base-conhecimento/conteudos-clientes' ||
-      location.pathname.startsWith('/base-conhecimento/cliente/') ||
-      location.pathname === '/equipamentos'; // Expandir também para equipamentos
+      location.pathname.startsWith('/base-conhecimento/cliente/');
 
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
-      if (location.pathname === '/equipamentos' || location.pathname.startsWith('/gestao-equipamentos')) {
-        setEquipamentosExpanded(true); // Expandir o sub-menu equipamentos também
-      }
     }
   }, [location.pathname]);
 
@@ -210,10 +205,6 @@ const Sidebar = () => {
     setConfiguracoesExpanded(!configuracoesExpanded);
   };
 
-  const toggleEquipamentos = (e) => {
-    e.preventDefault();
-    setEquipamentosExpanded(!equipamentosExpanded);
-  };
 
   const toggleBaseConhecimento = (e) => {
     e.preventDefault();
@@ -350,6 +341,12 @@ const Sidebar = () => {
         icon: 'fa-server',
         label: 'Sistemas',
         title: 'Cadastro de Sistemas'
+      },
+      {
+        path: '/cadastro/equipamentos',
+        icon: 'fa-laptop',
+        label: 'Cadastro de Equipamentos',
+        title: 'Cadastro de Equipamentos'
       }
     ];
     // Filtrar itens: se tiver path, verificar permissão; se tiver subItems, filtrar subItems e manter se houver algum acessível
@@ -418,23 +415,10 @@ const Sidebar = () => {
         title: 'Conteúdos Clientes'
       },
       {
-        label: 'Equipamentos',
-        icon: 'fa-laptop',
-        title: 'Equipamentos',
-        subItems: [
-          {
-            path: '/equipamentos',
-            icon: 'fa-plus-circle',
-            label: 'Cadastro de Equipamentos',
-            title: 'Cadastro de Equipamentos'
-          },
-          {
-            path: '/gestao-equipamentos',
-            icon: 'fa-tasks',
-            label: 'Gestão de Equipamentos',
-            title: 'Gestão de Equipamentos'
-          }
-        ]
+        path: '/gestao-equipamentos',
+        icon: 'fa-tasks',
+        label: 'Gestão de Equipamentos',
+        title: 'Gestão de Equipamentos'
       }
     ];
     return allItems.filter(item => {
