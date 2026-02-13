@@ -73,28 +73,35 @@ async function getEquipamentos(req, res) {
                         }];
                     }));
 
-                    const atrMap = Object.fromEntries(atribuicoes.map(a => {
-                        const membro = membrosMap[a.colaborador_id] || { nome: 'Desconhecido' };
-                        // Priorizar horários do registro de atribuição, senão usar mock (fallback)
-                        // Mock apenas para IDs de exemplo se não houver no banco
+                    const atrMap = {};
+
+                    atribuicoes.forEach(a => {
+                        const membro = membros.find(m => m.id === a.colaborador_id);
+                        const nomeMembro = membro ? membro.nome : 'Desconhecido';
+
+                        // Fake schedule logic (mock) - keep consistent with previous logic
+                        // In real production, this should come from 'membro' record or 'atribuicao' record 
                         const isMorningShift = a.colaborador_id % 2 === 0;
                         const mockEntrada = isMorningShift ? '08:00' : '09:00';
                         const mockSaida = isMorningShift ? '14:00' : '18:00';
 
-                        return [
-                            a.equipamento_id,
-                            {
-                                id: a.colaborador_id,
-                                nome: membro.nome,
-                                horario_entrada: a.horario_trabalho_inicio || mockEntrada,
-                                horario_saida: a.horario_trabalho_fim || mockSaida
-                            }
-                        ];
-                    }));
+                        const userObj = {
+                            id: a.colaborador_id,
+                            nome: nomeMembro,
+                            horario_entrada: a.horario_trabalho_inicio || mockEntrada,
+                            horario_saida: a.horario_trabalho_fim || mockSaida
+                        };
+
+                        if (!atrMap[a.equipamento_id]) {
+                            atrMap[a.equipamento_id] = [];
+                        }
+                        atrMap[a.equipamento_id].push(userObj);
+                    });
 
                     equipamentosComUsuario = data.map(e => ({
                         ...e,
-                        usuario_atual: atrMap[e.id] || null
+                        usuarios_atuais: atrMap[e.id] || [],
+                        usuario_atual: atrMap[e.id]?.[0] || null
                     }));
                 }
             }
@@ -398,11 +405,55 @@ async function atribuirEquipamento(req, res) {
             });
         }
 
-        if (equip.status === 'em uso') {
-            return res.status(400).json({
-                success: false,
-                error: 'Este equipamento já está em uso.'
-            });
+        // VERIFICAR CONFLITOS DE HORÁRIO
+        // Buscar todas as atribuições ativas deste equipamento
+        const { data: activeAssignments, error: activeErr } = await supabase
+            .from('cp_equipamento_atribuicoes')
+            .select('*')
+            .eq('equipamento_id', equipamento_id)
+            .is('data_devolucao', null);
+
+        if (!activeErr && activeAssignments && activeAssignments.length > 0) {
+            // Se já existe atribuição, precisamos validar horários
+
+            // 1. Se o NOVO pedido não tem horário definido (uso integral), e já tem gente usando -> CONFLITO
+            if (!horario_entrada || !horario_saida) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Este equipamento já está em uso parcial. Para compartilhar, defina horário de início e fim.'
+                });
+            }
+
+            // Helper para converter tempo em minutos e evitar problemas com HH:MM vs HH:MM:SS
+            const timeToMinutes = (str) => {
+                if (!str) return 0;
+                const [h, m] = str.split(':').map(Number);
+                return (h || 0) * 60 + (m || 0);
+            };
+
+            const novoStart = timeToMinutes(horario_entrada);
+            const novoEnd = timeToMinutes(horario_saida);
+
+            for (const assign of activeAssignments) {
+                // 2. Se a atribuição EXISTENTE não tem horário (uso integral) -> CONFLITO
+                if (!assign.horario_trabalho_inicio || !assign.horario_trabalho_fim) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Este equipamento está em uso integral por outro colaborador.'
+                    });
+                }
+
+                const existStart = timeToMinutes(assign.horario_trabalho_inicio);
+                const existEnd = timeToMinutes(assign.horario_trabalho_fim);
+
+                // 3. Verificar sobreposição (Overlap)
+                if (novoStart < existEnd && novoEnd > existStart) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Conflito de horário! Já reservado por outro colaborador das ${assign.horario_trabalho_inicio} às ${assign.horario_trabalho_fim}.`
+                    });
+                }
+            }
         }
 
         // 2. Criar atribuição
@@ -457,26 +508,50 @@ async function atribuirEquipamento(req, res) {
 // POST - Devolver equipamento (Check-in)
 async function devolverEquipamento(req, res) {
     try {
-        const { equipamento_id, descricao_estado, fotos } = req.body;
+        const { equipamento_id, colaborador_id, descricao_estado, fotos } = req.body;
 
         if (!equipamento_id) {
             return res.status(400).json({ success: false, error: 'ID do equipamento é obrigatório' });
         }
 
-        // 1. Finalizar atribuição ativa
-        const { data: atrAtiva, error: atrError } = await supabase
+        // 1. Finalizar atribuição ativa (Do colaborador específico ou genérica se não informado)
+        let query = supabase
             .from('cp_equipamento_atribuicoes')
             .update({ data_devolucao: new Date().toISOString() })
             .eq('equipamento_id', equipamento_id)
-            .is('data_devolucao', null)
-            .select()
-            .maybeSingle();
+            .is('data_devolucao', null);
 
-        // 2. Atualizar status do equipamento para 'ativo' (estoque)
-        await supabase
-            .from('cp_equipamentos')
-            .update({ status: 'ativo' })
-            .eq('id', equipamento_id);
+        if (colaborador_id) {
+            query = query.eq('colaborador_id', colaborador_id);
+        }
+
+        const { data: fechadas, error: atrError } = await query.select();
+        const atrAtiva = fechadas?.[0];
+
+        if (atrError) {
+            console.error('Erro ao finalizar atribuição:', atrError);
+        }
+
+        // 2. Verificar se ainda existem outras atribuições ativas para este equipamento
+        const { count: ativosCount, error: countError } = await supabase
+            .from('cp_equipamento_atribuicoes')
+            .select('*', { count: 'exact', head: true })
+            .eq('equipamento_id', equipamento_id)
+            .is('data_devolucao', null);
+
+        // 3. Se não houver mais ninguém usando, voltar status para 'ativo'
+        if (ativosCount === 0) {
+            await supabase
+                .from('cp_equipamentos')
+                .update({ status: 'ativo' })
+                .eq('id', equipamento_id);
+        } else {
+            // Se ainda tem gente usando, garante que está 'em uso'
+            await supabase
+                .from('cp_equipamentos')
+                .update({ status: 'em uso' })
+                .eq('id', equipamento_id);
+        }
 
         // 3. Registrar ocorrência de devolução com estado
         await supabase

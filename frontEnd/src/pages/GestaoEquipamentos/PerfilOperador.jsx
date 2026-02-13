@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { equipamentosAPI } from '../../services/equipamentos.service';
 import './PerfilOperador.css';
 
@@ -21,6 +22,47 @@ const PerfilOperador = () => {
             console.error('Erro ao buscar perfil:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDesvincular = async (item) => {
+        const result = await Swal.fire({
+            title: 'Desvincular Equipamento?',
+            text: `Deseja realmente remover o vínculo de "${item.cp_equipamentos.nome}"? O equipamento voltará para o estoque.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sim, desvincular',
+            cancelButtonText: 'Cancelar'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const response = await equipamentosAPI.devolverEquipamento({
+                    equipamento_id: item.equipamento_id,
+                    colaborador_id: id, // Optional, but good for logging if needed
+                    descricao_estado: 'Devolvido via Perfil do Operador'
+                });
+
+                if (response.data?.success || response.status === 200 || response.status === 201) {
+                    Swal.fire('Desvinculado!', 'O equipamento foi devolvido ao estoque.', 'success');
+                    fetchPerfil();
+                } else {
+                    // Check if response itself is the data object or axios response
+                    // usually response.data has success
+                    if (response.data && !response.data.success) {
+                        Swal.fire('Erro', response.data.error || 'Falha ao desvincular.', 'error');
+                    } else {
+                        // Assuming success if no explicit error in data
+                        Swal.fire('Desvinculado!', 'O equipamento foi devolvido ao estoque.', 'success');
+                        fetchPerfil();
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao desvincular:', error);
+                Swal.fire('Erro', 'Não foi possível desvincular o equipamento.', 'error');
+            }
         }
     };
 
@@ -55,8 +97,32 @@ const PerfilOperador = () => {
                                     <strong>{item.cp_equipamentos.nome}</strong>
                                     <span>{item.cp_equipamentos.tipo}</span>
                                 </div>
-                                <div className="item-meta">
-                                    <span><i className="far fa-calendar-alt"></i> Retirado em: {new Date(item.data_retirada).toLocaleDateString()}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div className="item-meta">
+                                        <span><i className="far fa-calendar-alt"></i> Retirado em: {new Date(item.data_retirada).toLocaleDateString()}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDesvincular(item)}
+                                        className="btn-unbind"
+                                        title="Desvincular / Devolver"
+                                        style={{
+                                            border: 'none',
+                                            background: '#fee2e2',
+                                            color: '#ef4444',
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'background 0.2s'
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#fecaca'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#fee2e2'}
+                                    >
+                                        <i className="fas fa-unlink"></i>
+                                    </button>
                                 </div>
                             </div>
                         )) : <p className="empty">Nenhum equipamento em posse atualmente.</p>}

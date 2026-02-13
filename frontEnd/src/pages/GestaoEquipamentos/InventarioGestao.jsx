@@ -86,23 +86,82 @@ const InventarioGestao = () => {
         }
     };
 
-    const applyFilters = () => {
-        // With backend pagination/search, `equipamentos` already contains the filtered/paginated page.
-        // However, we still have `statusFilter` which might be client-side if API doesn't support it fully in `getEquipamentos` (usually generic search).
-        // If `statusFilter` is 'todos', we are good. If not, we might be filtering the *page* which reduces items.
-        // Ideally, filtering should happen on backend.
-        // For now, let's filter client-side what we got, but keep in mind this filters only the current page.
-        // If strict backend pagination is required with filters, we'd need to update the service/controller.
-        // Given constraints, I will apply client-side filtering on the returned page data.
+    const checkAvailability = (equip) => {
+        let isAvailable = false;
+        let statusText = 'Disponível';
+        let statusClass = 'ativo';
+        let scheduleInfo = null;
 
+        if (equip.status === 'inativo') {
+            statusText = 'Indisponível';
+            statusClass = 'inativo';
+            isAvailable = false;
+        } else if (equip.status === 'manutencao') {
+            statusText = 'Em Manutenção';
+            statusClass = 'manutencao';
+            isAvailable = false;
+        } else if (equip.status === 'em uso') {
+            const users = equip.usuarios_atuais && equip.usuarios_atuais.length > 0
+                ? equip.usuarios_atuais
+                : (equip.usuario_atual ? [equip.usuario_atual] : []);
+
+            if (users.length === 0) {
+                statusText = 'Ocupado';
+                statusClass = 'em-uso';
+                isAvailable = false;
+            } else {
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                let isAnyoneWorking = false;
+                let schedules = [];
+
+                for (const user of users) {
+                    if (user.horario_entrada && user.horario_saida) {
+                        const [startH, startM] = user.horario_entrada.split(':').map(Number);
+                        const [endH, endM] = user.horario_saida.split(':').map(Number);
+
+                        const startMinutes = startH * 60 + startM;
+                        const endMinutes = endH * 60 + endM;
+
+                        const isWorking = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+                        if (isWorking) isAnyoneWorking = true;
+
+                        schedules.push(`${user.horario_entrada} às ${user.horario_saida}`);
+                    } else {
+                        // Se não tem horário definido, assume ocupação total
+                        isAnyoneWorking = true;
+                        schedules.push('Total');
+                    }
+                }
+
+                if (isAnyoneWorking) {
+                    statusText = 'Ocupado';
+                    statusClass = 'em-uso';
+                    isAvailable = false;
+                } else {
+                    statusText = 'Disponível (Fora de horário)';
+                    statusClass = 'ativo';
+                    isAvailable = true;
+                }
+                scheduleInfo = schedules.join(', ');
+            }
+        } else {
+            isAvailable = true;
+        }
+
+        return { isAvailable, statusText, statusClass, scheduleInfo };
+    };
+
+    const applyFilters = () => {
         let result = [...equipamentos];
 
         if (statusFilter !== 'todos') {
-            result = result.filter(e => e.status === statusFilter);
+            if (statusFilter === 'ativo') {
+                result = result.filter(e => checkAvailability(e).isAvailable);
+            } else {
+                result = result.filter(e => e.status === statusFilter);
+            }
         }
-
-        // Search is already handled by backend `searchTerm`, but for extra safety or cleaner UI sync:
-        // (API usually handles name/brand/model search)
 
         setFilteredEquipamentos(result);
     };
@@ -114,6 +173,7 @@ const InventarioGestao = () => {
     };
 
     const handleOpenAssign = (equip) => {
+        setAssignmentData({ colaborador_id: '', observacoes: '', horario_entrada: '', horario_saida: '' });
         setSelectedEquip(equip);
         setShowAssignModal(true);
     };
@@ -125,6 +185,11 @@ const InventarioGestao = () => {
 
     const handleAssign = async () => {
         if (!assignmentData.colaborador_id) return Swal.fire('Erro', 'Selecione um operador', 'error');
+
+        // Validation for shared equipment
+        if (selectedEquip.status === 'em uso' && (!assignmentData.horario_entrada || !assignmentData.horario_saida)) {
+            return Swal.fire('Atenção', 'Este equipamento já possui um vínculo. Para compartilhá-lo, é obrigatório informar o Horário de Início e Fim para o novo operador.', 'warning');
+        }
 
         try {
             const response = await equipamentosAPI.atribuirEquipamento({
@@ -301,17 +366,17 @@ const InventarioGestao = () => {
                                     </div>
                                 </td>
                                 <td>
-                                    {equip.status === 'em uso' ? (
-                                        <button className="btn-return" onClick={() => handleOpenReturn(equip)}>
-                                            <i className="fas fa-undo"></i> Receber devolução
-                                        </button>
-                                    ) : equip.status === 'manutencao' ? (
+                                    {equip.status === 'manutencao' ? (
                                         <button className="btn-assign disabled" disabled title="Item em manutenção não pode ser atribuído">
                                             <i className="fas fa-tools"></i> Em manutenção
                                         </button>
+                                    ) : !checkAvailability(equip).isAvailable ? (
+                                        <button className="btn-return" onClick={() => handleOpenReturn(equip)}>
+                                            <i className="fas fa-undo"></i> Receber devolução
+                                        </button>
                                     ) : (
                                         <button className="btn-assign" onClick={() => handleOpenAssign(equip)}>
-                                            <i className="fas fa-user-plus"></i> Atribuir a alguém
+                                            <i className="fas fa-user-plus"></i> Atribuir
                                         </button>
                                     )}
                                 </td>
@@ -371,6 +436,32 @@ const InventarioGestao = () => {
                 <div className="modal-overlay">
                     <div className="gestao-modal">
                         <h2>Atribuir {selectedEquip?.nome}</h2>
+
+                        {selectedEquip?.status === 'em uso' && (
+                            <div style={{
+                                background: '#fff7ed',
+                                border: '1px solid #ffedd5',
+                                padding: '10px',
+                                borderRadius: '6px',
+                                marginBottom: '15px',
+                                fontSize: '13px',
+                                color: '#9a3412'
+                            }}>
+                                <strong style={{ display: 'block', marginBottom: '8px' }}>
+                                    <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }}></i>
+                                    Equipamento em uso compartilhado
+                                </strong>
+                                <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                                    {(selectedEquip.usuarios_atuais || (selectedEquip.usuario_atual ? [selectedEquip.usuario_atual] : [])).map((u, idx) => (
+                                        <div key={u.id || idx} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed #fdba74' }}>
+                                            Ocupado por: <strong>{u.nome}</strong><br />
+                                            Horário reservado: <strong>{u.horario_entrada} às {u.horario_saida}</strong>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="form-group">
                             <label>Operador</label>
                             <select
