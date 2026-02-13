@@ -11,13 +11,14 @@
     max-height: 50vh;
     background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 12px;
+    border-radius: 7px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
     z-index: 2000;
     padding: 12px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
+    /* Permitir que tooltips e elementos flutuantes apareçam fora do card */
     opacity: 0;
     transform: scale(0.95);
     transition: opacity 0.2s ease, transform 0.2s ease;
@@ -67,7 +68,7 @@
 .detail-side-card-body {
     padding: 0;
     flex: 1;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
 }
@@ -101,3 +102,34 @@
     color: #ff9800;
 }
 
+/* Ajustes específicos para o botão de cópia no header */
+.detail-side-card-header .apply-btn-wrapper .detail-side-card-close {
+    color: #9ca3af;
+    font-size: 16px;
+}
+
+/* Ajustes específicos para o tooltip do botão de cópia no header */
+.detail-side-card-header .apply-btn-wrapper .filter-tooltip {
+    left: auto;
+    right: 0;
+    transform: translateY(10px);
+    bottom: auto;
+    top: 100%;
+    min-width: auto;
+    width: max-content;
+    padding: 6px 12px;
+    white-space: nowrap;
+}
+
+.detail-side-card-header .apply-btn-wrapper .filter-tooltip::before {
+    bottom: 100%;
+    left: auto;
+    right: 15px;
+    transform: none;
+    border-bottom-color: #1f2937;
+    border-top-color: transparent;
+}
+
+.detail-side-card-header .apply-btn-wrapper:hover .filter-tooltip {
+    transform: translateY(10px) !important;
+}

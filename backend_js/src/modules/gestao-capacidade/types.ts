@@ -56,6 +56,7 @@ export interface Vigencia {
   horascontratadasdia?: number;
   custo_hora?: string | number;
   custohora?: string | number;
+  tipocontratoid?: number;
 }
 
 // ============================================================================

@@ -74,13 +74,15 @@ function tempoEstimadoDiaParaMs(tempo_estimado_dia: number): number {
 
 /** Converte ms em "hh:mm:ss". */
 function msParaHms(ms: number): string {
-  if (ms == null || !Number.isFinite(ms) || ms < 0) return '00:00:00';
-  const totalSegundos = Math.round(ms / 1000);
+  if (ms == null || !Number.isFinite(ms)) return '00:00:00';
+  const absMs = Math.abs(ms);
+  const totalSegundos = Math.round(absMs / 1000);
   const h = Math.floor(totalSegundos / 3600);
   const m = Math.floor((totalSegundos % 3600) / 60);
   const s = totalSegundos % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  const sinal = ms < 0 ? '-' : '';
+  return `${sinal}${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
 /** Converte ms em horas decimais (ex.: 9000000 -> 2.5). */
@@ -180,6 +182,9 @@ function calcularResumoPorNivel({
   horas_contratadas_ms?: number;
   horas_contratadas_hms?: string;
   horas_contratadas_h?: number;
+  diferenca_ms?: number;
+  diferenca_hms?: string;
+  diferenca_h?: number;
   total_estimado_ms: number;
   total_estimado_hms: string;
   total_estimado_h: number;
@@ -188,6 +193,10 @@ function calcularResumoPorNivel({
   total_realizado_h: number;
   custo_hora?: number;
   custo_estimado?: number;
+  total_tarefas?: number;
+  total_produtos?: number;
+  total_clientes?: number;
+  total_colaboradores?: number;
 }> {
   const resumo: Record<string, any> = {};
 
@@ -294,6 +303,12 @@ function calcularResumoPorNivel({
         itemResumo.horas_contratadas_h = msParaHorasDecimal(horasDisponiveis);
         itemResumo.custo_hora = custoHoraNum(vigencia);
         itemResumo.horas_contratadas_dia = vigencia?.horascontratadasdia != null ? Number(vigencia.horascontratadasdia) : 0;
+
+        // Calcular diferença (Contratadas - Realizadas)
+        const diferencaMs = horasDisponiveis - totalRealizadoMs;
+        itemResumo.diferenca_ms = diferencaMs;
+        itemResumo.diferenca_hms = msParaHms(diferencaMs);
+        itemResumo.diferenca_h = msParaHorasDecimal(diferencaMs);
       }
       // Totais de clientes, produtos e tarefas distintos para o colaborador (mobile card)
       const clientesIds = new Set<string>();
@@ -638,7 +653,8 @@ function adicionarCustoNaHierarquia(
   data_inicio: string,
   data_fim: string,
   ignorar_finais_semana: boolean,
-  feriados: string[]
+  feriados: string[],
+  nomeTipoContrato: NomeMap
 ): void {
   if (!obj || typeof obj !== 'object' || nivelIndex >= ordem_niveis.length) return;
   const nivel = ordem_niveis[nivelIndex];
@@ -655,9 +671,41 @@ function adicionarCustoNaHierarquia(
       const vigencia = vigenciaPorMembro.get(membroId);
       node.custo_hora = custoHoraNum(vigencia);
       node.horas_contratadas_dia = vigencia?.horascontratadasdia != null ? Number(vigencia.horascontratadasdia) : 0;
+
+      // Adicionar tipo de contrato se disponível
+      if (vigencia?.tipocontratoid) {
+        node.tipo_contrato_id = vigencia.tipocontratoid;
+        node.tipo_contrato_nome = nomeTipoContrato[String(vigencia.tipocontratoid)] || null;
+      }
+
+      // Calcular horas contratadas no período
+      const horasDisponiveis = calcularHorasDisponiveis({
+        data_inicio,
+        data_fim,
+        vigencia,
+        ignorar_finais_semana,
+        feriados,
+        ignorar_folgas: false
+      });
+
+      node.horas_contratadas_ms = horasDisponiveis;
+      node.horas_contratadas_hms = msParaHms(horasDisponiveis);
+      node.horas_contratadas_h = msParaHorasDecimal(horasDisponiveis);
+
+      // Calcular custos para Contratadas e Saldo
+      const custoContratado = (horasDisponiveis / (1000 * 60 * 60)) * (node.custo_hora || 0);
+      node.custo_contratado = custoContratado;
+
+      const diferencaMs = horasDisponiveis - node.total_realizado_ms;
+      node.diferenca_ms = diferencaMs;
+      node.diferenca_hms = msParaHms(diferencaMs);
+      node.diferenca_h = msParaHorasDecimal(diferencaMs);
+
+      const custoDiferenca = custoContratado - (node.custo_realizado || 0);
+      node.custo_diferenca = custoDiferenca;
     }
     if (node.detalhes && typeof node.detalhes === 'object') {
-      adicionarCustoNaHierarquia(node.detalhes, ordem_niveis, nivelIndex + 1, pathAteAqui, registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados);
+      adicionarCustoNaHierarquia(node.detalhes, ordem_niveis, nivelIndex + 1, pathAteAqui, registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados, nomeTipoContrato);
     }
   }
 }
@@ -674,7 +722,12 @@ const ORDEM_KEYS_NODE_DATA = [
   'custo_estimado',
   'custo_realizado',
   'custo_hora',
-  'horas_contratadas_dia',
+  'horas_contratadas_ms',
+  'horas_contratadas_hms',
+  'horas_contratadas_h',
+  'diferenca_ms',
+  'diferenca_hms',
+  'diferenca_h',
   'total_tarefas',
   'total_produtos',
   'total_clientes',
@@ -711,7 +764,7 @@ function reordenarResumoAntesDeDetalhes(obj: Record<string, any>): void {
 export async function cardsHandler(c: Context) {
   try {
     const body = await c.req.json() as GestaoCapacidadeBody;
-    
+
     const parseResult = gestaoCapacidadeBodySchema.safeParse(body);
     if (!parseResult.success) {
       const issues = parseResult.error.flatten();
@@ -746,7 +799,7 @@ export async function cardsHandler(c: Context) {
       .from('membro')
       .select('id, usuario_id, nome');
     if (colaborador_id != null && colaborador_id.length > 0) {
-      queryMembros = colaborador_id.length === 1 
+      queryMembros = colaborador_id.length === 1
         ? queryMembros.eq('id', colaborador_id[0])
         : queryMembros.in('id', colaborador_id);
     }
@@ -780,22 +833,22 @@ export async function cardsHandler(c: Context) {
       .in('usuario_id', usuarioIds.length ? usuarioIds : [-1]);
 
     if (cliente_id && cliente_id.length > 0) {
-      queryTempo = cliente_id.length === 1 
+      queryTempo = cliente_id.length === 1
         ? queryTempo.eq('cliente_id', cliente_id[0])
         : queryTempo.in('cliente_id', cliente_id);
     }
     if (produto_id && produto_id.length > 0) {
-      queryTempo = produto_id.length === 1 
+      queryTempo = produto_id.length === 1
         ? queryTempo.eq('produto_id', produto_id[0])
         : queryTempo.in('produto_id', produto_id);
     }
     if (tipo_tarefa_id && tipo_tarefa_id.length > 0) {
-      queryTempo = tipo_tarefa_id.length === 1 
+      queryTempo = tipo_tarefa_id.length === 1
         ? queryTempo.eq('tipo_tarefa_id', tipo_tarefa_id[0])
         : queryTempo.in('tipo_tarefa_id', tipo_tarefa_id);
     }
     if (tarefa_id && tarefa_id.length > 0) {
-      queryTempo = tarefa_id.length === 1 
+      queryTempo = tarefa_id.length === 1
         ? queryTempo.eq('tarefa_id', tarefa_id[0])
         : queryTempo.in('tarefa_id', tarefa_id);
     }
@@ -815,22 +868,22 @@ export async function cardsHandler(c: Context) {
       .in('responsavel_id', membroIds);
 
     if (cliente_id && cliente_id.length > 0) {
-      queryEstimado = cliente_id.length === 1 
+      queryEstimado = cliente_id.length === 1
         ? queryEstimado.eq('cliente_id', cliente_id[0])
         : queryEstimado.in('cliente_id', cliente_id);
     }
     if (produto_id && produto_id.length > 0) {
-      queryEstimado = produto_id.length === 1 
+      queryEstimado = produto_id.length === 1
         ? queryEstimado.eq('produto_id', produto_id[0])
         : queryEstimado.in('produto_id', produto_id);
     }
     if (tipo_tarefa_id && tipo_tarefa_id.length > 0) {
-      queryEstimado = tipo_tarefa_id.length === 1 
+      queryEstimado = tipo_tarefa_id.length === 1
         ? queryEstimado.eq('tipo_tarefa_id', tipo_tarefa_id[0])
         : queryEstimado.in('tipo_tarefa_id', tipo_tarefa_id);
     }
     if (tarefa_id && tarefa_id.length > 0) {
-      queryEstimado = tarefa_id.length === 1 
+      queryEstimado = tarefa_id.length === 1
         ? queryEstimado.eq('tarefa_id', tarefa_id[0])
         : queryEstimado.in('tarefa_id', tarefa_id);
     }
@@ -897,6 +950,13 @@ export async function cardsHandler(c: Context) {
       });
     }
 
+    // 5.1️⃣ Buscar nomes dos tipos de contrato
+    const nomeTipoContrato: NomeMap = {};
+    const { data: tiposContratoData } = await supabase.schema(SCHEMA).from('cp_tipo_contrato_membro').select('id, nome');
+    tiposContratoData?.forEach((tc: { id: number; nome: string }) => {
+      nomeTipoContrato[String(tc.id)] = tc.nome;
+    });
+
     // 6️⃣ Feriados
     const feriados = ignorar_feriados ? await getFeriados(data_inicio, data_fim) : [];
 
@@ -919,7 +979,7 @@ export async function cardsHandler(c: Context) {
 
     adicionarFormatosNaHierarquia(hierarquia);
     adicionarTotalizadoresNaHierarquia(hierarquia, ordem_niveis, 0, [], registros, estimados, usuarioParaMembro);
-    adicionarCustoNaHierarquia(hierarquia, ordem_niveis, 0, [], registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados);
+    adicionarCustoNaHierarquia(hierarquia, ordem_niveis, 0, [], registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados, nomeTipoContrato);
     reordenarResumoAntesDeDetalhes(hierarquia);
 
     // Totalizadores globais (distintos no período)
