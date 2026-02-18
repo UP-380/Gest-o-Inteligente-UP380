@@ -24,7 +24,7 @@ const TarefaModal = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '600px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 style={{ fontSize: '16px' }}>{editingId ? 'Editar Tarefa' : 'Nova Tarefa'}</h3>

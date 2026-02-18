@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import BankLogo from '../../bancos/BankLogo';
 
-const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
+const ContasBancariasContent = ({ contasBancarias, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -20,7 +20,7 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
   const copyToClipboard = async (text, fieldId, e) => {
     if (e) e.stopPropagation();
     if (!text || text === '-') return;
-    
+
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldId);
@@ -43,8 +43,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
     if (isPassword) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-          <span style={{ 
-            color: '#111827', 
+          <span style={{
+            color: '#111827',
             fontWeight: 600,
             fontFamily: 'monospace',
             fontSize: '13px',
@@ -132,18 +132,40 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
               background: '#fff'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <BankLogo 
-                codigo={banco.codigo} 
-                nome={banco.nome} 
-                size={32}
-                className="bank-logo-card"
-              />
-              <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
-                {bancoNome}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <BankLogo
+                  codigo={banco.codigo}
+                  nome={banco.nome}
+                  size={32}
+                  className="bank-logo-card"
+                />
+                <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
+                  {bancoNome}
+                </span>
+              </div>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={() => onClone(conta)}
+                  title="Clonar esta conta"
+                  style={{
+                    backgroundColor: '#f3f4f6',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#6b7280',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <i className="fas fa-copy" style={{ fontSize: '12px' }}></i>
+                </button>
+              )}
             </div>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Dados Bancários - Ordem: Agência, Conta, Operador, Chave de Acesso */}
               {(conta.agencia || conta.conta || conta.operador || conta.chave_acesso) && (
@@ -169,8 +191,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                   {conta.chave_acesso && (
                     <div>
                       <span style={{ color: '#6b7280', fontWeight: 500 }}>Chave Acesso: </span>
-                      <ValueWithCopy 
-                        value={conta.chave_acesso} 
+                      <ValueWithCopy
+                        value={conta.chave_acesso}
                         fieldId={`conta-chave-acesso-${conta.id}`}
                       />
                     </div>
@@ -191,8 +213,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                     {conta.senha && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ color: '#6b7280', fontWeight: 500 }}>Senha: </span>
-                        <ValueWithCopy 
-                          value={conta.senha} 
+                        <ValueWithCopy
+                          value={conta.senha}
                           fieldId={`conta-senha-${conta.id}`}
                           isPassword={true}
                           isHidden={!isPasswordVisible}
@@ -227,8 +249,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                     {conta.senha_4digitos && (
                       <div>
                         <span style={{ color: '#6b7280', fontWeight: 500 }}>4 Dígitos: </span>
-                        <ValueWithCopy 
-                          value={conta.senha_4digitos} 
+                        <ValueWithCopy
+                          value={conta.senha_4digitos}
                           fieldId={`conta-senha4-${conta.id}`}
                           isPassword={true}
                           isHidden={!isPasswordVisible}
@@ -238,8 +260,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                     {conta.senha_6digitos && (
                       <div>
                         <span style={{ color: '#6b7280', fontWeight: 500 }}>6 Dígitos: </span>
-                        <ValueWithCopy 
-                          value={conta.senha_6digitos} 
+                        <ValueWithCopy
+                          value={conta.senha_6digitos}
                           fieldId={`conta-senha6-${conta.id}`}
                           isPassword={true}
                           isHidden={!isPasswordVisible}
@@ -249,8 +271,8 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                     {conta.senha_8digitos && (
                       <div>
                         <span style={{ color: '#6b7280', fontWeight: 500 }}>8 Dígitos: </span>
-                        <ValueWithCopy 
-                          value={conta.senha_8digitos} 
+                        <ValueWithCopy
+                          value={conta.senha_8digitos}
                           fieldId={`conta-senha8-${conta.id}`}
                           isPassword={true}
                           isHidden={!isPasswordVisible}
@@ -283,12 +305,12 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                     {conta.link_acesso && (
                       <div style={{ gridColumn: 'span 2' }}>
                         <span style={{ color: '#6b7280', fontWeight: 500 }}>Link Acesso: </span>
-                        <a 
-                          href={conta.link_acesso} 
-                          target="_blank" 
+                        <a
+                          href={conta.link_acesso}
+                          target="_blank"
                           rel="noopener noreferrer"
-                          style={{ 
-                            color: '#3b82f6', 
+                          style={{
+                            color: '#3b82f6',
                             textDecoration: 'underline',
                             wordBreak: 'break-all',
                             cursor: 'pointer',
@@ -332,9 +354,9 @@ const ContasBancariasContent = ({ contasBancarias, maxHeight }) => {
                   <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af', fontWeight: 600 }}>
                     OBSERVAÇÕES
                   </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#374151', 
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#374151',
                     padding: '8px',
                     background: '#f9fafb',
                     borderRadius: '6px',

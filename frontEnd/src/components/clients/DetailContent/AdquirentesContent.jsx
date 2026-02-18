@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const AdquirentesContent = ({ adquirentes, maxHeight }) => {
+const AdquirentesContent = ({ adquirentes, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -19,7 +19,7 @@ const AdquirentesContent = ({ adquirentes, maxHeight }) => {
   const copyToClipboard = async (text, fieldId, e) => {
     if (e) e.stopPropagation();
     if (!text || text === '-') return;
-    
+
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldId);
@@ -42,8 +42,8 @@ const AdquirentesContent = ({ adquirentes, maxHeight }) => {
     if (isPassword) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-          <span style={{ 
-            color: '#111827', 
+          <span style={{
+            color: '#111827',
             fontWeight: 600,
             fontFamily: 'monospace',
             fontSize: '13px',
@@ -134,8 +134,28 @@ const AdquirentesContent = ({ adquirentes, maxHeight }) => {
               <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
                 {adquirenteNome}
               </span>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={() => onClone(adquirente)}
+                  title="Clonar este adquirente"
+                  style={{
+                    backgroundColor: '#f3f4f6',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#6b7280',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <i className="fas fa-copy" style={{ fontSize: '12px' }}></i>
+                </button>
+              )}
             </div>
-            
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px', color: '#374151' }}>
               {adquirente['e-mail'] && (
                 <div>
@@ -152,8 +172,8 @@ const AdquirentesContent = ({ adquirentes, maxHeight }) => {
               {adquirente.senha && (
                 <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#6b7280', fontWeight: 500 }}>Senha: </span>
-                  <ValueWithCopy 
-                    value={adquirente.senha} 
+                  <ValueWithCopy
+                    value={adquirente.senha}
                     fieldId={`adquirente-senha-${adquirente.id}`}
                     isPassword={true}
                     isHidden={!isPasswordVisible}

@@ -83,7 +83,7 @@ const BaseConhecimentoCliente = () => {
   const [contaToClone, setContaToClone] = useState(null);
   const [sistemaToClone, setSistemaToClone] = useState(null);
   const [adquirenteToClone, setAdquirenteToClone] = useState(null);
-  
+
   // Estado para controlar expansão das seções
   const [sistemasExpanded, setSistemasExpanded] = useState(false);
   const [contasBancariasExpanded, setContasBancariasExpanded] = useState(false);
@@ -107,10 +107,10 @@ const BaseConhecimentoCliente = () => {
 
   // Sincronizar estado allExpanded quando seções individuais mudarem
   useEffect(() => {
-    const allCurrentlyExpanded = sistemasExpanded && 
-                                  contasBancariasExpanded && 
-                                  adquirentesExpanded && 
-                                  fluxoOperacaoExpanded;
+    const allCurrentlyExpanded = sistemasExpanded &&
+      contasBancariasExpanded &&
+      adquirentesExpanded &&
+      fluxoOperacaoExpanded;
     setAllExpanded(allCurrentlyExpanded);
   }, [sistemasExpanded, contasBancariasExpanded, adquirentesExpanded, fluxoOperacaoExpanded]);
 
@@ -126,7 +126,7 @@ const BaseConhecimentoCliente = () => {
   const copyToClipboard = async (text, fieldId, e) => {
     if (e) e.stopPropagation();
     if (!text || text === '-') return;
-    
+
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldId);
@@ -455,7 +455,7 @@ const BaseConhecimentoCliente = () => {
 
               {/* Acessos de Sistema */}
               <div className="knowledge-section">
-                <div 
+                <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
                   onClick={() => setSistemasExpanded(!sistemasExpanded)}
@@ -473,20 +473,6 @@ const BaseConhecimentoCliente = () => {
                   />
                   <span className="section-badge">{sistemas.length}</span>
                   <div className="section-header-actions">
-                    {sistemasExpanded && (
-                      <button
-                        type="button"
-                        className="btn-icon btn-expand-section"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Por enquanto sem funcionalidade específica, mas mantém consistência visual
-                        }}
-                        title="Expandir tudo nesta seção"
-                        style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                      >
-                        <i className="fas fa-expand-alt" style={{ fontSize: '11px' }}></i>
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="section-expand-toggle"
@@ -506,7 +492,7 @@ const BaseConhecimentoCliente = () => {
                 </div>
                 {sistemasExpanded && (
                   <div className="section-content">
-                    <SistemasContent 
+                    <SistemasContent
                       sistemas={sistemas}
                       onClone={(sistema) => {
                         setSistemaToClone(sistema);
@@ -519,7 +505,7 @@ const BaseConhecimentoCliente = () => {
 
               {/* Contas Bancárias */}
               <div className="knowledge-section">
-                <div 
+                <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
                   onClick={() => setContasBancariasExpanded(!contasBancariasExpanded)}
@@ -537,20 +523,6 @@ const BaseConhecimentoCliente = () => {
                   />
                   <span className="section-badge">{contasBancarias.length}</span>
                   <div className="section-header-actions">
-                    {contasBancariasExpanded && (
-                      <button
-                        type="button"
-                        className="btn-icon btn-expand-section"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Por enquanto sem funcionalidade específica, mas mantém consistência visual
-                        }}
-                        title="Expandir tudo nesta seção"
-                        style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                      >
-                        <i className="fas fa-expand-alt" style={{ fontSize: '11px' }}></i>
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="section-expand-toggle"
@@ -570,7 +542,7 @@ const BaseConhecimentoCliente = () => {
                 </div>
                 {contasBancariasExpanded && (
                   <div className="section-content">
-                    <ContasBancariasContent 
+                    <ContasBancariasContent
                       contasBancarias={contasBancarias}
                       onClone={(conta) => {
                         setContaToClone(conta);
@@ -583,7 +555,7 @@ const BaseConhecimentoCliente = () => {
 
               {/* Adquirentes */}
               <div className="knowledge-section">
-                <div 
+                <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
                   onClick={() => setAdquirentesExpanded(!adquirentesExpanded)}
@@ -601,20 +573,6 @@ const BaseConhecimentoCliente = () => {
                   />
                   <span className="section-badge">{adquirentes.length}</span>
                   <div className="section-header-actions">
-                    {adquirentesExpanded && (
-                      <button
-                        type="button"
-                        className="btn-icon btn-expand-section"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Por enquanto sem funcionalidade específica, mas mantém consistência visual
-                        }}
-                        title="Expandir tudo nesta seção"
-                        style={{ opacity: 0.5, cursor: 'not-allowed' }}
-                      >
-                        <i className="fas fa-expand-alt" style={{ fontSize: '11px' }}></i>
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="section-expand-toggle"
@@ -635,19 +593,19 @@ const BaseConhecimentoCliente = () => {
                 {adquirentesExpanded && (
                   <div className="section-content">
                     <AdquirentesContent
-                        adquirentes={adquirentes}
-                        onClone={(adquirente) => {
-                          setAdquirenteToClone(adquirente);
-                          setShowModalAdquirentes(true);
-                        }}
-                      />
+                      adquirentes={adquirentes}
+                      onClone={(adquirente) => {
+                        setAdquirenteToClone(adquirente);
+                        setShowModalAdquirentes(true);
+                      }}
+                    />
                   </div>
                 )}
               </div>
 
               {/* Fluxo da Operação */}
               <div className="knowledge-section">
-                <div 
+                <div
                   className="section-header section-header-collapsible"
                   style={{ cursor: 'pointer' }}
                   onClick={() => setFluxoOperacaoExpanded(!fluxoOperacaoExpanded)}
@@ -696,8 +654,8 @@ const BaseConhecimentoCliente = () => {
                 </div>
                 {fluxoOperacaoExpanded && (
                   <div className="section-content">
-                    <VinculacoesContent 
-                      vinculacoes={vinculacoes} 
+                    <VinculacoesContent
+                      vinculacoes={vinculacoes}
                       clienteId={clienteId}
                       onObservacaoUpdated={loadDadosCliente}
                       expandAll={vinculacoesExpandAll}
@@ -737,8 +695,8 @@ const BaseConhecimentoCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteSistemasList 
-                clienteId={cliente?.id || clienteId} 
+              <ClienteSistemasList
+                clienteId={cliente?.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
                 initialData={sistemaToClone}
                 onDataUsed={() => setSistemaToClone(null)}
@@ -774,8 +732,8 @@ const BaseConhecimentoCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteContasBancariasList 
-                clienteId={cliente?.id || clienteId} 
+              <ClienteContasBancariasList
+                clienteId={cliente?.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
                 initialData={contaToClone}
                 onDataUsed={() => setContaToClone(null)}
@@ -809,8 +767,8 @@ const BaseConhecimentoCliente = () => {
               </button>
             </div>
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
-              <ClienteAdquirentesList 
-                clienteId={cliente?.id || clienteId} 
+              <ClienteAdquirentesList
+                clienteId={cliente?.id || clienteId}
                 clienteNome={cliente?.fantasia || cliente?.razao || cliente?.nome_amigavel || ''}
                 initialData={adquirenteToClone}
                 onDataUsed={() => setAdquirenteToClone(null)}

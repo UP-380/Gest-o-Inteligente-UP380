@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const SistemasContent = ({ sistemas, maxHeight }) => {
+const SistemasContent = ({ sistemas, maxHeight, onClone }) => {
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
   const [copiedField, setCopiedField] = useState(null);
 
@@ -20,7 +20,7 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
   const copyToClipboard = async (text, fieldId, e) => {
     if (e) e.stopPropagation();
     if (!text || text === '-') return;
-    
+
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldId);
@@ -43,8 +43,8 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
     if (isPassword) {
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-          <span style={{ 
-            color: '#111827', 
+          <span style={{
+            color: '#111827',
             fontWeight: 600,
             fontFamily: 'monospace',
             fontSize: '13px',
@@ -137,6 +137,26 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
               <span style={{ fontWeight: 700, color: '#111827', fontSize: '14px', letterSpacing: '.2px' }}>
                 {sistemaNome}
               </span>
+              {onClone && (
+                <button
+                  className="btn-icon"
+                  onClick={() => onClone(sistema)}
+                  title="Clonar este acesso"
+                  style={{
+                    backgroundColor: '#f3f4f6',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#6b7280',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <i className="fas fa-copy" style={{ fontSize: '12px' }}></i>
+                </button>
+              )}
             </div>
 
             {/* Informações do Servidor - Ordem: Servidor, Usuário, Senha */}
@@ -164,8 +184,8 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
                       <span style={{ color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Senha: </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <ValueWithCopy 
-                            value={sistema.senha_servidor} 
+                          <ValueWithCopy
+                            value={sistema.senha_servidor}
                             fieldId={`sistema-senha-servidor-${sistema.id}`}
                             isPassword={true}
                             isHidden={!isServidorPasswordVisible}
@@ -221,8 +241,8 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
                       <span style={{ color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Senha VPN: </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <ValueWithCopy 
-                            value={sistema.senha_vpn} 
+                          <ValueWithCopy
+                            value={sistema.senha_vpn}
                             fieldId={`sistema-senha-vpn-${sistema.id}`}
                             isPassword={true}
                             isHidden={!isVpnPasswordVisible}
@@ -272,8 +292,8 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
                       <span style={{ color: '#6b7280', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Senha: </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <ValueWithCopy 
-                            value={sistema.senha_sistema} 
+                          <ValueWithCopy
+                            value={sistema.senha_sistema}
                             fieldId={`sistema-senha-sistema-${sistema.id}`}
                             isPassword={true}
                             isHidden={!isSistemaPasswordVisible}
@@ -315,12 +335,12 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
                   {sistema.link_acesso && (
                     <div style={{ gridColumn: 'span 2' }}>
                       <span style={{ color: '#6b7280', fontWeight: 500 }}>Link Acesso: </span>
-                      <a 
-                        href={sistema.link_acesso} 
-                        target="_blank" 
+                      <a
+                        href={sistema.link_acesso}
+                        target="_blank"
                         rel="noopener noreferrer"
-                        style={{ 
-                          color: '#3b82f6', 
+                        style={{
+                          color: '#3b82f6',
                           textDecoration: 'underline',
                           wordBreak: 'break-all',
                           cursor: 'pointer',
@@ -355,10 +375,10 @@ const SistemasContent = ({ sistemas, maxHeight }) => {
                     </div>
                   )}
                   {sistema.observacoes && (
-                    <div style={{ 
+                    <div style={{
                       gridColumn: 'span 2',
-                      fontSize: '12px', 
-                      color: '#374151', 
+                      fontSize: '12px',
+                      color: '#374151',
                       padding: '8px',
                       background: '#f9fafb',
                       borderRadius: '6px',

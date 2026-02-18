@@ -98,13 +98,13 @@ const ClienteSistemaModal = ({
   // Função para salvar novo sistema
   const handleSalvarSistema = async (e) => {
     e.preventDefault();
-    
+
     // Validações
     const errors = {};
     if (!sistemaFormData.nome || !sistemaFormData.nome.trim()) {
       errors.nome = 'Nome do sistema é obrigatório';
     }
-    
+
     if (Object.keys(errors).length > 0) {
       setSistemaFormErrors(errors);
       return;
@@ -137,25 +137,25 @@ const ClienteSistemaModal = ({
         // Adicionar o novo sistema à lista
         const novoSistema = result.data;
         setSistemasList([...sistemasList, novoSistema]);
-        
+
         // Selecionar automaticamente o sistema criado
         setFormData({ ...formData, sistema_id: novoSistema.id });
         if (formErrors.sistema_id) {
           setFormErrors({ ...formErrors, sistema_id: '' });
         }
-        
+
         // Fechar os campos de novo sistema
         setShowNovoSistema(false);
         setSistemaFormData({ nome: '' });
       } else {
-        setSistemaFormErrors({ 
-          nome: result.error || 'Erro ao salvar sistema. Tente novamente.' 
+        setSistemaFormErrors({
+          nome: result.error || 'Erro ao salvar sistema. Tente novamente.'
         });
       }
     } catch (error) {
       console.error('Erro ao salvar sistema:', error);
-      setSistemaFormErrors({ 
-        nome: 'Erro ao salvar sistema. Tente novamente.' 
+      setSistemaFormErrors({
+        nome: 'Erro ao salvar sistema. Tente novamente.'
       });
     } finally {
       setSistemaSubmitting(false);
@@ -165,20 +165,20 @@ const ClienteSistemaModal = ({
   const canSave = formData.sistema_id && !submitting;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ 
-        maxWidth: '1000px', 
-        width: '95%', 
+    <div className="modal-overlay">
+      <div className="modal-content" style={{
+        maxWidth: '1000px',
+        width: '95%',
         maxHeight: '95vh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '18px 24px', 
+        <div className="modal-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '18px 24px',
           borderBottom: '1px solid #eee',
           flexShrink: 0
         }}>
@@ -198,8 +198,8 @@ const ClienteSistemaModal = ({
             <i className="fas fa-times"></i>
           </button>
         </div>
-        <div className="modal-body" style={{ 
-          padding: '20px 24px', 
+        <div className="modal-body" style={{
+          padding: '20px 24px',
           overflowY: 'auto',
           overflowX: 'hidden',
           flex: 1,
@@ -301,10 +301,10 @@ const ClienteSistemaModal = ({
                 </button>
               </div>
               {formErrors.sistema_id && (
-                <span className="error-message" style={{ 
-                  color: '#ef4444', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span className="error-message" style={{
+                  color: '#ef4444',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -314,10 +314,10 @@ const ClienteSistemaModal = ({
                 </span>
               )}
               {!formErrors.sistema_id && formData.sistema_id && (
-                <span style={{ 
-                  color: '#10b981', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span style={{
+                  color: '#10b981',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -326,7 +326,7 @@ const ClienteSistemaModal = ({
                   Sistema selecionado
                 </span>
               )}
-              
+
               {/* Campos para adicionar novo sistema */}
               {showNovoSistema && (
                 <div style={{
@@ -368,11 +368,11 @@ const ClienteSistemaModal = ({
                       maxLength={100}
                     />
                     {sistemaFormErrors.nome && (
-                      <span className="error-message" style={{ 
-                        color: '#ef4444', 
-                        fontSize: '11px', 
-                        marginTop: '4px', 
-                        display: 'block' 
+                      <span className="error-message" style={{
+                        color: '#ef4444',
+                        fontSize: '11px',
+                        marginTop: '4px',
+                        display: 'block'
                       }}>
                         {sistemaFormErrors.nome}
                       </span>
@@ -436,10 +436,10 @@ const ClienteSistemaModal = ({
             {/* Campos de Servidor */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#3b82f6', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#3b82f6',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -448,14 +448,14 @@ const ClienteSistemaModal = ({
                   Informações do Servidor
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Servidor
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -480,11 +480,11 @@ const ClienteSistemaModal = ({
                     }}
                   />
                   {formErrors.servidor && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.servidor}
@@ -495,9 +495,9 @@ const ClienteSistemaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Usuário do Servidor
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -522,11 +522,11 @@ const ClienteSistemaModal = ({
                     }}
                   />
                   {formErrors.usuario_servidor && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario_servidor}
@@ -537,9 +537,9 @@ const ClienteSistemaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha do Servidor
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -591,11 +591,11 @@ const ClienteSistemaModal = ({
                     </button>
                   </div>
                   {formErrors.senha_servidor && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_servidor}
@@ -608,10 +608,10 @@ const ClienteSistemaModal = ({
             {/* Campos de VPN */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#8b5cf6', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#8b5cf6',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -620,14 +620,14 @@ const ClienteSistemaModal = ({
                   Informações de VPN
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Servidor VPN
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -652,11 +652,11 @@ const ClienteSistemaModal = ({
                     }}
                   />
                   {formErrors.vpn && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.vpn}
@@ -667,9 +667,9 @@ const ClienteSistemaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Usuário VPN
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -694,11 +694,11 @@ const ClienteSistemaModal = ({
                     }}
                   />
                   {formErrors.usuario_vpn && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario_vpn}
@@ -709,9 +709,9 @@ const ClienteSistemaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha VPN
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -763,11 +763,11 @@ const ClienteSistemaModal = ({
                     </button>
                   </div>
                   {formErrors.senha_vpn && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_vpn}
@@ -780,10 +780,10 @@ const ClienteSistemaModal = ({
             {/* Campos de Sistema */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#10b981', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#10b981',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -792,14 +792,14 @@ const ClienteSistemaModal = ({
                   Credenciais do Sistema
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Usuário do Sistema
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -824,11 +824,11 @@ const ClienteSistemaModal = ({
                     }}
                   />
                   {formErrors.usuario_sistema && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario_sistema}
@@ -839,9 +839,9 @@ const ClienteSistemaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha do Sistema
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -893,11 +893,11 @@ const ClienteSistemaModal = ({
                     </button>
                   </div>
                   {formErrors.senha_sistema && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_sistema}
@@ -910,10 +910,10 @@ const ClienteSistemaModal = ({
             {/* Campos de Acesso e Informações Adicionais */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#6b7280', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#6b7280',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -922,15 +922,15 @@ const ClienteSistemaModal = ({
                   Informações Adicionais
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px', marginBottom: '14px' }}>
                 {/* Link de Acesso */}
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Link de Acesso
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -956,11 +956,11 @@ const ClienteSistemaModal = ({
                     maxLength={500}
                   />
                   {formErrors.link_acesso && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.link_acesso}
@@ -968,14 +968,14 @@ const ClienteSistemaModal = ({
                   )}
                 </div>
               </div>
-              
+
               {/* Observações */}
               <div style={{ marginBottom: '0' }}>
                 <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                   Observações
-                  <span style={{ 
-                    fontSize: '11px', 
-                    color: '#9ca3af', 
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#9ca3af',
                     marginLeft: '4px',
                     fontWeight: 'normal'
                   }}>
@@ -989,8 +989,8 @@ const ClienteSistemaModal = ({
                   placeholder="Informações adicionais sobre o sistema..."
                   disabled={submitting}
                   rows="3"
-                  style={{ 
-                    resize: 'vertical', 
+                  style={{
+                    resize: 'vertical',
                     minHeight: '80px',
                     width: '100%',
                     padding: '9px 12px',
@@ -1003,11 +1003,11 @@ const ClienteSistemaModal = ({
                   }}
                 ></textarea>
                 {formErrors.observacoes && (
-                  <span className="error-message" style={{ 
-                    color: '#ef4444', 
-                    fontSize: '11px', 
-                    marginTop: '3px', 
-                    display: 'block' 
+                  <span className="error-message" style={{
+                    color: '#ef4444',
+                    fontSize: '11px',
+                    marginTop: '3px',
+                    display: 'block'
                   }}>
                     <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                     {formErrors.observacoes}
@@ -1017,8 +1017,8 @@ const ClienteSistemaModal = ({
             </div>
           </form>
         </div>
-        <div className="modal-footer" style={{ 
-          padding: '14px 24px', 
+        <div className="modal-footer" style={{
+          padding: '14px 24px',
           borderTop: '1px solid #eee',
           display: 'flex',
           justifyContent: 'flex-end',

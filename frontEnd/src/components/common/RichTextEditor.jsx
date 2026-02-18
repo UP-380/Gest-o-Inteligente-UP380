@@ -85,8 +85,6 @@ const RichTextEditor = ({
   const [floatingToolbarPosition, setFloatingToolbarPosition] = useState({ top: 0, left: 0 });
   const floatingToolbarRef = useRef(null);
   const wrapperId = useMemo(() => id || `rich-editor-${Math.random().toString(36).substr(2, 9)}`, [id]);
-  const lastClickTargetRef = useRef(null);
-  const allowFocusRef = useRef(false);
   const editorWrapperRef = useRef(null);
 
   // Função para aumentar o tamanho da fonte
@@ -99,11 +97,11 @@ const RichTextEditor = ({
 
     const format = quill.getFormat(range);
     let currentSize = 14; // Tamanho padrão
-    
+
     if (format.size) {
       currentSize = parseInt(format.size);
     }
-    
+
     // Encontrar índice atual no array de opções
     let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
     if (currentIndex === -1) {
@@ -112,7 +110,7 @@ const RichTextEditor = ({
       if (currentIndex === -1) currentIndex = fontSizeOptions.length - 1;
       else if (currentIndex > 0) currentIndex = currentIndex - 1;
     }
-    
+
     const nextIndex = currentIndex < fontSizeOptions.length - 1 ? currentIndex + 1 : currentIndex;
     const newSize = fontSizeOptions[nextIndex];
     quill.format('size', newSize, 'user');
@@ -128,11 +126,11 @@ const RichTextEditor = ({
 
     const format = quill.getFormat(range);
     let currentSize = 14; // Tamanho padrão
-    
+
     if (format.size) {
       currentSize = parseInt(format.size);
     }
-    
+
     // Encontrar índice atual no array de opções
     let currentIndex = fontSizeOptions.findIndex(size => parseInt(size) === currentSize);
     if (currentIndex === -1) {
@@ -141,7 +139,7 @@ const RichTextEditor = ({
       if (currentIndex === -1) currentIndex = 0;
       else if (currentIndex > 0) currentIndex = currentIndex - 1;
     }
-    
+
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
     const newSize = fontSizeOptions[prevIndex];
     quill.format('size', newSize, 'user');
@@ -182,205 +180,16 @@ const RichTextEditor = ({
     onChange(cleanedContent);
   };
 
-  // Efeito para prevenir que o editor roube foco de outros elementos
+  // Efeito para garantir que o editor tenha tabindex correto
   useEffect(() => {
     const quill = quillRef.current?.getEditor();
     if (!quill) return;
 
-    const wrapperElement = document.getElementById(wrapperId);
-    if (!wrapperElement) return;
     const editorRoot = quill.root;
-    const editorElement = editorRoot;
-
-    // Desabilitar foco automático do Quill
-    if (editorElement) {
-      editorElement.setAttribute('tabindex', '-1');
+    if (editorRoot) {
+      editorRoot.setAttribute('tabindex', '0');
     }
-
-    const handleMouseDown = (e) => {
-      const target = e.target;
-      lastClickTargetRef.current = target;
-      
-      // Verificar se o clique foi dentro do wrapper do editor (incluindo toolbar)
-      const clickedInsideEditor = wrapperElement.contains(target);
-      
-      // Permitir foco apenas se o clique foi diretamente no editor ou seus elementos filhos
-      allowFocusRef.current = clickedInsideEditor;
-      
-      // Se o clique foi fora, garantir que o editor não ganhe foco
-      if (!clickedInsideEditor && editorElement) {
-        // Bloquear qualquer tentativa de foco no editor
-        editorElement.blur();
-        // Resetar a flag imediatamente para cliques fora
-        setTimeout(() => {
-          allowFocusRef.current = false;
-        }, 0);
-      } else {
-        // Se clicou dentro, manter a flag ativa por um tempo maior
-        setTimeout(() => {
-          // Manter a flag ativa por 500ms para permitir que o foco seja processado
-        }, 500);
-      }
-    };
-
-    const handleFocusIn = (e) => {
-      const target = e.target;
-      const wrapperElement = document.getElementById(wrapperId);
-      if (!wrapperElement) return;
-      
-      // Verificar se o foco está indo para dentro do editor
-      const isFocusingEditor = wrapperElement.contains(target);
-      
-      // Se o foco está indo para o editor
-      if (isFocusingEditor) {
-        // Se não foi permitido o foco (clique foi fora), prevenir AGressivamente
-        if (!allowFocusRef.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          
-          // Focar no elemento que foi realmente clicado
-          const clickedElement = lastClickTargetRef.current;
-          if (clickedElement && 
-              clickedElement !== document.body && 
-              clickedElement !== document.documentElement &&
-              clickedElement.tagName !== 'BODY' &&
-              clickedElement.tagName !== 'HTML' &&
-              !wrapperElement.contains(clickedElement)) {
-            
-            // Tentar focar no elemento clicado
-            if (typeof clickedElement.focus === 'function') {
-              // Usar múltiplos métodos para garantir que o foco aconteça
-              setTimeout(() => {
-                try {
-                  clickedElement.focus();
-                } catch (err) {
-                  // Se não conseguir focar, tentar clicar no elemento
-                  try {
-                    clickedElement.click();
-                  } catch (err2) {
-                    // Ignorar erros
-                  }
-                }
-              }, 0);
-            } else if (clickedElement.tagName === 'INPUT' || clickedElement.tagName === 'TEXTAREA' || clickedElement.tagName === 'SELECT') {
-              // Para inputs, textareas e selects, tentar focar diretamente
-              setTimeout(() => {
-                try {
-                  clickedElement.focus();
-                } catch (err) {
-                  // Ignorar erros
-                }
-              }, 0);
-            }
-          }
-          
-          // Bloquear o foco no editor imediatamente
-          if (editorElement) {
-            editorElement.blur();
-            // Remover o foco programaticamente
-            if (document.activeElement === editorElement) {
-              editorElement.blur();
-            }
-          }
-        }
-      }
-    };
-
-    // Handler direto no elemento do editor para bloquear foco não autorizado
-    const handleEditorFocus = (e) => {
-      if (!allowFocusRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        editorElement.blur();
-        
-        // Tentar focar no elemento que foi clicado
-        const clickedElement = lastClickTargetRef.current;
-        if (clickedElement && typeof clickedElement.focus === 'function' && 
-            !wrapperElement.contains(clickedElement)) {
-          setTimeout(() => {
-            try {
-              clickedElement.focus();
-            } catch (err) {
-              // Ignorar erros
-            }
-          }, 0);
-        }
-      }
-    };
-
-    // Adicionar handler direto no elemento do editor
-    if (editorElement) {
-      editorElement.addEventListener('focus', handleEditorFocus, true);
-      editorElement.addEventListener('focusin', handleEditorFocus, true);
-    }
-
-    // Interceptar mousedown ANTES do Quill processar (capture phase)
-    document.addEventListener('mousedown', handleMouseDown, true);
-    
-    // Interceptar focusin na fase de captura (antes do Quill)
-    document.addEventListener('focusin', handleFocusIn, true);
-    
-    // Interceptar também focus (para garantir)
-    document.addEventListener('focus', handleFocusIn, true);
-    
-    // Interceptar também click para garantir
-    const handleClick = (e) => {
-      const target = e.target;
-      const wrapperElement = document.getElementById(wrapperId);
-      if (!wrapperElement) return;
-      
-      // Se o clique foi fora do editor, garantir que não ganhe foco
-      if (!wrapperElement.contains(target) && editorElement && document.activeElement === editorElement) {
-        editorElement.blur();
-      }
-    };
-    
-    document.addEventListener('click', handleClick, true);
-    
-    // Monitorar mudanças no activeElement para bloquear foco não autorizado
-    let lastActiveElement = document.activeElement;
-    const checkActiveElement = () => {
-      const currentActive = document.activeElement;
-      const wrapperElement = document.getElementById(wrapperId);
-      
-      // Se o editor ganhou foco sem permissão
-      if (currentActive && wrapperElement && wrapperElement.contains(currentActive) && !allowFocusRef.current) {
-        // Se o elemento ativo anterior não era o editor, bloquear
-        if (lastActiveElement && !wrapperElement.contains(lastActiveElement)) {
-          currentActive.blur();
-          // Tentar restaurar o foco no elemento anterior
-          if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
-            setTimeout(() => {
-              try {
-                lastActiveElement.focus();
-              } catch (err) {
-                // Ignorar erros
-              }
-            }, 0);
-          }
-        }
-      }
-      
-      lastActiveElement = currentActive;
-    };
-    
-    // Verificar periodicamente o activeElement
-    const activeElementInterval = setInterval(checkActiveElement, 50);
-    
-    return () => {
-      clearInterval(activeElementInterval);
-      document.removeEventListener('mousedown', handleMouseDown, true);
-      document.removeEventListener('focusin', handleFocusIn, true);
-      document.removeEventListener('focus', handleFocusIn, true);
-      document.removeEventListener('click', handleClick, true);
-      if (editorElement) {
-        editorElement.removeEventListener('focus', handleEditorFocus, true);
-        editorElement.removeEventListener('focusin', handleEditorFocus, true);
-      }
-    };
-  }, [wrapperId]);
+  }, []);
 
   // Efeito para controlar a toolbar flutuante
   useEffect(() => {
@@ -389,19 +198,19 @@ const RichTextEditor = ({
 
     const updateFloatingToolbar = () => {
       const range = quill.getSelection(true);
-      
+
       if (range && range.length > 0) {
         try {
           // Obter a posição do texto selecionado
           const bounds = quill.getBounds(range);
           const editorBounds = quill.container.getBoundingClientRect();
-          
+
           // Calcular posição da toolbar flutuante no início do texto selecionado
           // Posicionar logo abaixo do texto, com apenas 2px de espaçamento
           const top = editorBounds.top + bounds.top + bounds.height + 2;
           // Posicionar no início da seleção (esquerda)
           const left = editorBounds.left + bounds.left;
-          
+
           setFloatingToolbarPosition({ top, left });
           if (showFloatingToolbar) {
             setShowFloatingToolbarState(true);
@@ -417,41 +226,55 @@ const RichTextEditor = ({
 
     // Atualizar posição ao scrollar ou redimensionar
     const handleScroll = () => {
-      const range = quill.getSelection(true);
-      if (range && range.length > 0) {
-        updateFloatingToolbar();
-      }
+      if (!showFloatingToolbarState) return;
+
+      requestAnimationFrame(() => {
+        const quill = quillRef.current?.getEditor();
+        if (!quill) return;
+
+        // getSelection(true) rouba o foco. Para scroll, queremos apenas verificar se há seleção sem focar.
+        const range = quill.getSelection();
+        if (range && range.length > 0) {
+          updateFloatingToolbar();
+        }
+      });
     };
 
     const handleResize = () => {
-      updateFloatingToolbar();
+      requestAnimationFrame(updateFloatingToolbar);
     };
 
     // Event listeners para seleção de texto
-    quill.on('selection-change', updateFloatingToolbar);
+    quill.on('selection-change', (range) => {
+      if (range && range.length > 0) {
+        updateFloatingToolbar();
+      } else {
+        setShowFloatingToolbarState(false);
+      }
+    });
     quill.on('text-change', updateFloatingToolbar);
 
     const editorContainer = quill.container.parentElement;
     if (editorContainer) {
-      editorContainer.addEventListener('scroll', handleScroll);
+      editorContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
 
-    window.addEventListener('scroll', handleScroll, true);
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize, { passive: true });
 
     return () => {
-      quill.off('selection-change', updateFloatingToolbar);
+      quill.off('selection-change');
       quill.off('text-change', updateFloatingToolbar);
       if (editorContainer) {
         editorContainer.removeEventListener('scroll', handleScroll);
       }
-      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
-  }, [value]);
+  }, [showFloatingToolbar, showFloatingToolbarState]); // Dependências ajustadas
 
   return (
-    <div 
+    <div
       id={wrapperId}
       className={`rich-text-editor-wrapper ${error ? 'error' : ''} ${disabled ? 'disabled' : ''} ${className}`.trim()}
       style={{
@@ -495,19 +318,9 @@ const RichTextEditor = ({
         <button className="ql-code-block"></button>
         <button className="ql-clean"></button>
       </div>
-      
+
       <div
         ref={editorWrapperRef}
-        onMouseDown={(e) => {
-          // Marcar que o clique foi dentro do wrapper do editor
-          allowFocusRef.current = true;
-          // Garantir que o evento não propague para outros handlers
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          // Permitir foco quando clicar diretamente no wrapper
-          allowFocusRef.current = true;
-        }}
         style={{ position: 'relative' }}
       >
         <ReactQuill
@@ -519,28 +332,9 @@ const RichTextEditor = ({
           formats={formats}
           placeholder={placeholder}
           readOnly={disabled}
-          onFocus={(e) => {
-            // Só permitir foco se foi explicitamente permitido
-            if (!allowFocusRef.current) {
-              e.preventDefault();
-              e.stopPropagation();
-              const clickedElement = lastClickTargetRef.current;
-              if (clickedElement && typeof clickedElement.focus === 'function' && 
-                  !document.getElementById(wrapperId)?.contains(clickedElement)) {
-                setTimeout(() => {
-                  try {
-                    clickedElement.focus();
-                  } catch (err) {
-                    // Ignorar erros
-                  }
-                }, 0);
-              }
-              return;
-            }
-            if (onFocus) onFocus(e);
-          }}
+          onFocus={onFocus}
           onBlur={onBlur}
-          tabIndex={-1}
+          tabIndex={0}
         />
       </div>
 
@@ -557,16 +351,16 @@ const RichTextEditor = ({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button 
-            className="floating-btn floating-increase-font" 
+          <button
+            className="floating-btn floating-increase-font"
             type="button"
             title="Aumentar fonte"
             onClick={increaseFontSize}
           >
             <span style={{ fontSize: '16px', fontWeight: 'bold' }}>A+</span>
           </button>
-          <button 
-            className="floating-btn floating-decrease-font" 
+          <button
+            className="floating-btn floating-decrease-font"
             type="button"
             title="Diminuir fonte"
             onClick={decreaseFontSize}
@@ -574,8 +368,8 @@ const RichTextEditor = ({
             <span style={{ fontSize: '14px', fontWeight: 'bold' }}>A-</span>
           </button>
           <div className="floating-color-picker">
-            <input 
-              type="color" 
+            <input
+              type="color"
               onChange={(e) => {
                 const quill = quillRef.current?.getEditor();
                 if (quill) {
@@ -588,8 +382,8 @@ const RichTextEditor = ({
               title="Cor do texto"
             />
           </div>
-          <button 
-            className="floating-btn floating-bold" 
+          <button
+            className="floating-btn floating-bold"
             type="button"
             title="Negrito"
             onClick={() => {
@@ -605,8 +399,8 @@ const RichTextEditor = ({
           >
             <strong>B</strong>
           </button>
-          <button 
-            className="floating-btn floating-italic" 
+          <button
+            className="floating-btn floating-italic"
             type="button"
             title="Itálico"
             onClick={() => {
@@ -622,8 +416,8 @@ const RichTextEditor = ({
           >
             <em>I</em>
           </button>
-          <button 
-            className="floating-btn floating-link" 
+          <button
+            className="floating-btn floating-link"
             type="button"
             title="Link"
             onClick={(e) => {
@@ -633,15 +427,15 @@ const RichTextEditor = ({
               if (quill) {
                 let range = quill.getSelection(true);
                 if (!range || range.length === 0) return;
-                
+
                 // Manter a seleção ativa
                 quill.setSelection(range, 'user');
                 range = quill.getSelection(true);
                 if (!range) return;
-                
+
                 const format = quill.getFormat(range);
                 let url = format.link || '';
-                
+
                 url = prompt('Digite a URL do link:', url);
                 if (url !== null) {
                   if (url.trim()) {

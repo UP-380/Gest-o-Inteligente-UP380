@@ -15,9 +15,9 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de sistemas do cliente
  */
-const ClienteSistemasList = ({ clienteId, clienteNome }) => {
+const ClienteSistemasList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
-  
+
   // Estados principais
   const [sistemas, setSistemas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +44,32 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
 
   // Estado para controlar visibilidade de senhas
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
+
+  // Efeito para lidar com clonagem (initialData)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        sistema_id: initialData.sistema_id || '',
+        servidor: initialData.servidor || '',
+        usuario_servidor: initialData.usuario_servidor || '',
+        senha_servidor: initialData.senha_servidor || '',
+        vpn: initialData.vpn || '',
+        usuario_vpn: initialData.usuario_vpn || '',
+        senha_vpn: initialData.senha_vpn || '',
+        usuario_sistema: initialData.usuario_sistema || '',
+        senha_sistema: initialData.senha_sistema || '',
+        link_acesso: initialData.link_acesso || '',
+        observacoes: initialData.observacoes || ''
+      });
+      setEditingId(null); // Garante que é uma nova entrada ao clonar
+      setShowForm(true);
+      setFormErrors({});
+
+      if (onDataUsed) {
+        onDataUsed();
+      }
+    }
+  }, [initialData, onDataUsed]);
 
   // Carregar sistemas disponíveis
   const loadSistemasOptions = useCallback(async () => {
@@ -183,12 +209,12 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
         observacoes: formData.observacoes || null
       };
 
-      const url = editingId 
+      const url = editingId
         ? `${API_BASE_URL}/clientes-sistemas/${editingId}`
         : `${API_BASE_URL}/clientes-sistemas`;
-      
+
       const method = editingId ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -214,7 +240,7 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
       if (result.success) {
         showToast(
           'success',
-          editingId 
+          editingId
             ? 'Sistema atualizado com sucesso!'
             : 'Sistema vinculado com sucesso!'
         );
@@ -343,8 +369,8 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
 
   // Definir colunas da tabela
   const tableColumns = [
-    { 
-      key: 'sistema', 
+    {
+      key: 'sistema',
       label: 'Sistema',
       render: (item) => {
         const sistema = item.cp_sistema || (item.sistema_id && sistemasOptions.find(s => s.id === item.sistema_id));
@@ -355,18 +381,18 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
     { key: 'usuario_servidor', label: 'Usuário do Servidor', render: (item) => item.usuario_servidor || '-' },
     { key: 'vpn', label: 'VPN', render: (item) => item.vpn || '-' },
     { key: 'usuario_vpn', label: 'Usuário VPN', render: (item) => item.usuario_vpn || '-' },
-    { 
-      key: 'senha_vpn', 
-      label: 'Senha VPN', 
+    {
+      key: 'senha_vpn',
+      label: 'Senha VPN',
       render: (item) => {
         if (!item.senha_vpn) return '-';
         return visiblePasswords.has(item.id) ? item.senha_vpn : '••••••••';
       }
     },
     { key: 'usuario_sistema', label: 'Usuário do Sistema', render: (item) => item.usuario_sistema || '-' },
-    { 
-      key: 'senha_sistema', 
-      label: 'Senha do Sistema', 
+    {
+      key: 'senha_sistema',
+      label: 'Senha do Sistema',
       render: (item) => {
         if (!item.senha_sistema) return '-';
         return visiblePasswords.has(item.id) ? item.senha_sistema : '••••••••';
@@ -377,7 +403,7 @@ const ClienteSistemasList = ({ clienteId, clienteNome }) => {
   // Renderizar ações da tabela
   const renderTableActions = (sistema) => {
     const isPasswordVisible = visiblePasswords.has(sistema.id);
-    
+
     return (
       <>
         <button

@@ -21,7 +21,7 @@ async function getContasBancarias(req, res) {
     }
 
     let query = supabase
-      
+
       .from('cliente_conta_bancaria')
       .select(`
         id,
@@ -104,7 +104,7 @@ async function getContaBancariaPorId(req, res) {
     }
 
     const { data, error } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .select(`
         *,
@@ -150,13 +150,13 @@ async function getContaBancariaPorId(req, res) {
 // POST - Criar nova conta bancária
 async function criarContaBancaria(req, res) {
   try {
-    const { 
-      cliente_id, 
-      banco_id, 
-      agencia, 
-      conta, 
-      operador, 
-      usuario, 
+    const {
+      cliente_id,
+      banco_id,
+      agencia,
+      conta,
+      operador,
+      usuario,
       senha,
       status_cadastro,
       status_acesso,
@@ -220,23 +220,23 @@ async function criarContaBancaria(req, res) {
       if (value === undefined || value === null) {
         return null;
       }
-      
+
       // Se for string vazia, retorna null
       if (typeof value === 'string' && value.trim() === '') {
         return null;
       }
-      
+
       // Se for número 0, preserva (pode ser um valor válido)
       if (typeof value === 'number') {
         return value;
       }
-      
+
       // Para strings, retorna trim() mas preserva se não estiver vazia
       if (typeof value === 'string') {
         const trimmed = value.trim();
         return trimmed === '' ? null : trimmed;
       }
-      
+
       // Para outros tipos, retorna como está
       return value;
     };
@@ -278,7 +278,7 @@ async function criarContaBancaria(req, res) {
       { nome: 'senha_8digitos', original: senha_8digitos ? '***' : senha_8digitos, processado: dadosInsert.senha_8digitos ? '***' : dadosInsert.senha_8digitos },
       { nome: 'link_acesso', original: link_acesso, processado: dadosInsert.link_acesso }
     ];
-    
+
     campos.forEach(campo => {
       if (campo.original !== campo.processado) {
         console.log(`   ⚠️  ${campo.nome}: "${campo.original}" → "${campo.processado}"`);
@@ -306,7 +306,7 @@ async function criarContaBancaria(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .insert([dadosInsert])
       .select(`
@@ -321,10 +321,19 @@ async function criarContaBancaria(req, res) {
 
     if (insertError) {
       console.error('❌ Erro ao criar conta bancária:', insertError);
-      console.error('   Código:', insertError.code);
+
+      // Tratar erro de duplicidade (23505)
+      if (insertError.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Já existe uma conta bancária com exatamente esses mesmos dados (Banco, Agência, Conta e Operador). Verifique se você não está tentando duplicar um registro existente.',
+          details: insertError.message,
+          code: insertError.code
+        });
+      }
+
       console.error('   Mensagem:', insertError.message);
       console.error('   Detalhes:', insertError.details);
-      console.error('   Hint:', insertError.hint);
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar conta bancária',
@@ -370,12 +379,12 @@ async function criarContaBancaria(req, res) {
 async function atualizarContaBancaria(req, res) {
   try {
     const { id } = req.params;
-    const { 
-      banco_id, 
-      agencia, 
-      conta, 
-      operador, 
-      usuario, 
+    const {
+      banco_id,
+      agencia,
+      conta,
+      operador,
+      usuario,
       senha,
       status_cadastro,
       status_acesso,
@@ -396,7 +405,7 @@ async function atualizarContaBancaria(req, res) {
 
     // Verificar se conta existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .select('id, cliente_id')
       .eq('id', id)
@@ -474,7 +483,7 @@ async function atualizarContaBancaria(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .update(dadosUpdate)
       .eq('id', id)
@@ -490,10 +499,22 @@ async function atualizarContaBancaria(req, res) {
 
     if (error) {
       console.error('Erro ao atualizar conta bancária:', error);
+
+      // Tratar erro de duplicidade (23505)
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Esta atualização resultaria em uma duplicata já existente',
+          details: error.message,
+          code: error.code
+        });
+      }
+
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar conta bancária',
-        details: error.message
+        details: error.message,
+        code: error.code
       });
     }
 
@@ -526,7 +547,7 @@ async function deletarContaBancaria(req, res) {
 
     // Verificar se conta existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .select('id, cliente_id')
       .eq('id', id)
@@ -550,7 +571,7 @@ async function deletarContaBancaria(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      
+
       .from('cliente_conta_bancaria')
       .delete()
       .eq('id', id);

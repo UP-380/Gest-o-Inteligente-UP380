@@ -21,7 +21,7 @@ async function getAdquirentesCliente(req, res) {
     }
 
     let query = supabase
-      
+
       .from('cliente_adquirente')
       .select(`
         *,
@@ -80,7 +80,7 @@ async function getAdquirenteClientePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      
+
       .from('cliente_adquirente')
       .select(`
         *,
@@ -125,8 +125,8 @@ async function getAdquirenteClientePorId(req, res) {
 // POST - Criar novo adquirente para cliente
 async function criarAdquirenteCliente(req, res) {
   try {
-    const { 
-      cliente_id, 
+    const {
+      cliente_id,
       adquirente_id,
       email,
       usuario,
@@ -149,6 +149,7 @@ async function criarAdquirenteCliente(req, res) {
       });
     }
 
+    /*
     // Verificar se já existe a combinação cliente + adquirente
     const { data: existente, error: errorCheck } = await supabase
       
@@ -173,20 +174,30 @@ async function criarAdquirenteCliente(req, res) {
         error: 'Este adquirente já está vinculado a este cliente'
       });
     }
+    */
+
+    // Função auxiliar para limpar valores
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
 
     // Preparar dados para inserção
     const dadosInsert = {
-      cliente_id: cliente_id,
+      cliente_id: String(cliente_id).trim(),
       adquirente_id: parseInt(adquirente_id, 10),
-      'e-mail': email ? String(email).trim() : null,
-      usuario: usuario ? String(usuario).trim() : null,
-      senha: senha ? String(senha).trim() : null,
-      estabelecimento: estabelecimento ? String(estabelecimento).trim() : null
+      'e-mail': cleanValue(email),
+      usuario: cleanValue(usuario),
+      senha: cleanValue(senha),
+      estabelecimento: cleanValue(estabelecimento)
     };
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      
+
       .from('cliente_adquirente')
       .insert([dadosInsert])
       .select(`
@@ -200,6 +211,16 @@ async function criarAdquirenteCliente(req, res) {
 
     if (insertError) {
       console.error('Erro ao criar adquirente do cliente:', insertError);
+
+      // Tratar erro de duplicidade (23505)
+      if (insertError.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Este adquirente já está vinculado a este cliente',
+          details: insertError.message
+        });
+      }
+
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar adquirente do cliente',
@@ -226,7 +247,7 @@ async function criarAdquirenteCliente(req, res) {
 async function atualizarAdquirenteCliente(req, res) {
   try {
     const { id } = req.params;
-    const { 
+    const {
       adquirente_id,
       email,
       usuario,
@@ -243,7 +264,7 @@ async function atualizarAdquirenteCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_adquirente')
       .select('id, cliente_id, adquirente_id')
       .eq('id', id)
@@ -265,10 +286,11 @@ async function atualizarAdquirenteCliente(req, res) {
       });
     }
 
+    /*
     // Verificar se já existe outra combinação cliente + adquirente (se adquirente_id foi alterado)
     if (adquirente_id !== undefined && existente.adquirente_id !== parseInt(adquirente_id, 10)) {
       const { data: outroExistente, error: errorOutro } = await supabase
-        
+
         .from('cliente_adquirente')
         .select('id')
         .eq('cliente_id', existente.cliente_id)
@@ -292,6 +314,16 @@ async function atualizarAdquirenteCliente(req, res) {
         });
       }
     }
+    */
+
+    // Função auxiliar para limpar valores
+    const cleanValue = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return null;
+      }
+      const trimmed = String(value).trim();
+      return trimmed === '' ? null : trimmed;
+    };
 
     // Preparar dados para atualização
     const dadosUpdate = {};
@@ -300,16 +332,16 @@ async function atualizarAdquirenteCliente(req, res) {
       dadosUpdate.adquirente_id = parseInt(adquirente_id, 10);
     }
     if (email !== undefined) {
-      dadosUpdate['e-mail'] = email ? String(email).trim() : null;
+      dadosUpdate['e-mail'] = cleanValue(email);
     }
     if (usuario !== undefined) {
-      dadosUpdate.usuario = usuario ? String(usuario).trim() : null;
+      dadosUpdate.usuario = cleanValue(usuario);
     }
     if (senha !== undefined) {
-      dadosUpdate.senha = senha ? String(senha).trim() : null;
+      dadosUpdate.senha = cleanValue(senha);
     }
     if (estabelecimento !== undefined) {
-      dadosUpdate.estabelecimento = estabelecimento ? String(estabelecimento).trim() : null;
+      dadosUpdate.estabelecimento = cleanValue(estabelecimento);
     }
 
     // Se não há nada para atualizar
@@ -322,7 +354,7 @@ async function atualizarAdquirenteCliente(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      
+
       .from('cliente_adquirente')
       .update(dadosUpdate)
       .eq('id', id)
@@ -337,6 +369,16 @@ async function atualizarAdquirenteCliente(req, res) {
 
     if (error) {
       console.error('Erro ao atualizar adquirente do cliente:', error);
+
+      // Tratar erro de duplicidade (23505)
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Esta atualização resultaria em uma duplicata já existente',
+          details: error.message
+        });
+      }
+
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar adquirente do cliente',
@@ -373,7 +415,7 @@ async function deletarAdquirenteCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_adquirente')
       .select('id, cliente_id')
       .eq('id', id)
@@ -397,7 +439,7 @@ async function deletarAdquirenteCliente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      
+
       .from('cliente_adquirente')
       .delete()
       .eq('id', id);

@@ -14,7 +14,8 @@ const ClienteContaBancariaModal = ({
   submitting,
   editingId,
   clienteId,
-  bancos = []
+  bancos = [],
+  submitError
 }) => {
   const bancoSelectRef = useRef(null);
   const [bancosList, setBancosList] = useState(bancos);
@@ -84,13 +85,13 @@ const ClienteContaBancariaModal = ({
   // Função para salvar novo banco
   const handleSalvarBanco = async (e) => {
     e.preventDefault();
-    
+
     // Validações
     const errors = {};
     if (!bancoFormData.nome || !bancoFormData.nome.trim()) {
       errors.nome = 'Nome do banco é obrigatório';
     }
-    
+
     if (Object.keys(errors).length > 0) {
       setBancoFormErrors(errors);
       return;
@@ -124,25 +125,25 @@ const ClienteContaBancariaModal = ({
         // Adicionar o novo banco à lista
         const novoBanco = result.data;
         setBancosList([...bancosList, novoBanco]);
-        
+
         // Selecionar automaticamente o banco criado
         setFormData({ ...formData, banco_id: novoBanco.id });
         if (formErrors.banco_id) {
           setFormErrors({ ...formErrors, banco_id: '' });
         }
-        
+
         // Fechar os campos de novo banco
         setShowNovoBanco(false);
         setBancoFormData({ nome: '', codigo: '' });
       } else {
-        setBancoFormErrors({ 
-          nome: result.error || 'Erro ao salvar banco. Tente novamente.' 
+        setBancoFormErrors({
+          nome: result.error || 'Erro ao salvar banco. Tente novamente.'
         });
       }
     } catch (error) {
       console.error('Erro ao salvar banco:', error);
-      setBancoFormErrors({ 
-        nome: 'Erro ao salvar banco. Tente novamente.' 
+      setBancoFormErrors({
+        nome: 'Erro ao salvar banco. Tente novamente.'
       });
     } finally {
       setBancoSubmitting(false);
@@ -153,19 +154,19 @@ const ClienteContaBancariaModal = ({
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" style={{ 
-        maxWidth: '900px', 
-        width: '95%', 
+      <div className="modal-content" style={{
+        maxWidth: '900px',
+        width: '95%',
         maxHeight: '95vh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '18px 24px', 
+        <div className="modal-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '18px 24px',
           borderBottom: '1px solid #eee',
           flexShrink: 0
         }}>
@@ -185,8 +186,26 @@ const ClienteContaBancariaModal = ({
             <i className="fas fa-times"></i>
           </button>
         </div>
-        <div className="modal-body" style={{ 
-          padding: '20px 24px', 
+
+        {submitError && (
+          <div style={{
+            padding: '12px 16px',
+            backgroundColor: '#fee2e2',
+            borderBottom: '1px solid #fecaca',
+            color: '#b91c1c',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '14px',
+            lineHeight: '1.4',
+            flexShrink: 0
+          }}>
+            <i className="fas fa-exclamation-triangle" style={{ marginRight: '10px', fontSize: '16px' }}></i>
+            <div>{submitError}</div>
+          </div>
+        )}
+
+        <div className="modal-body" style={{
+          padding: '20px 24px',
           overflowY: 'auto',
           overflowX: 'hidden',
           flex: 1,
@@ -288,10 +307,10 @@ const ClienteContaBancariaModal = ({
                 </button>
               </div>
               {formErrors.banco_id && (
-                <span className="error-message" style={{ 
-                  color: '#ef4444', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span className="error-message" style={{
+                  color: '#ef4444',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -301,10 +320,10 @@ const ClienteContaBancariaModal = ({
                 </span>
               )}
               {!formErrors.banco_id && formData.banco_id && (
-                <span style={{ 
-                  color: '#10b981', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span style={{
+                  color: '#10b981',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -313,7 +332,7 @@ const ClienteContaBancariaModal = ({
                   Banco selecionado
                 </span>
               )}
-              
+
               {/* Campos para adicionar novo banco */}
               {showNovoBanco && (
                 <div style={{
@@ -356,11 +375,11 @@ const ClienteContaBancariaModal = ({
                         maxLength={100}
                       />
                       {bancoFormErrors.nome && (
-                        <span className="error-message" style={{ 
-                          color: '#ef4444', 
-                          fontSize: '11px', 
-                          marginTop: '4px', 
-                          display: 'block' 
+                        <span className="error-message" style={{
+                          color: '#ef4444',
+                          fontSize: '11px',
+                          marginTop: '4px',
+                          display: 'block'
                         }}>
                           {bancoFormErrors.nome}
                         </span>
@@ -369,9 +388,9 @@ const ClienteContaBancariaModal = ({
                     <div style={{ flex: '0 0 150px' }}>
                       <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '12px' }}>
                         Código
-                        <span style={{ 
-                          fontSize: '10px', 
-                          color: '#6b7280', 
+                        <span style={{
+                          fontSize: '10px',
+                          color: '#6b7280',
                           marginLeft: '4px',
                           fontWeight: 'normal'
                         }}>
@@ -402,11 +421,11 @@ const ClienteContaBancariaModal = ({
                         maxLength={10}
                       />
                       {bancoFormErrors.codigo && (
-                        <span className="error-message" style={{ 
-                          color: '#ef4444', 
-                          fontSize: '11px', 
-                          marginTop: '4px', 
-                          display: 'block' 
+                        <span className="error-message" style={{
+                          color: '#ef4444',
+                          fontSize: '11px',
+                          marginTop: '4px',
+                          display: 'block'
                         }}>
                           {bancoFormErrors.codigo}
                         </span>
@@ -471,10 +490,10 @@ const ClienteContaBancariaModal = ({
             {/* Campos de Dados Bancários */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#3b82f6', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#3b82f6',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -483,14 +502,14 @@ const ClienteContaBancariaModal = ({
                   Dados Bancários
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Agencia/coperativa
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -516,11 +535,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={10}
                   />
                   {formErrors.agencia && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.agencia}
@@ -531,9 +550,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Conta/Convenio
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -559,11 +578,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={20}
                   />
                   {formErrors.conta && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.conta}
@@ -574,9 +593,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Operador
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -602,11 +621,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={10}
                   />
                   {formErrors.operador && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.operador}
@@ -617,9 +636,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Chave de Acesso
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -645,11 +664,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={200}
                   />
                   {formErrors.chave_acesso && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.chave_acesso}
@@ -662,10 +681,10 @@ const ClienteContaBancariaModal = ({
             {/* Campos de Credenciais */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#10b981', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#10b981',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -674,14 +693,14 @@ const ClienteContaBancariaModal = ({
                   Credenciais de Acesso
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Usuário
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -707,11 +726,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={100}
                   />
                   {formErrors.usuario && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario}
@@ -722,9 +741,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -777,11 +796,11 @@ const ClienteContaBancariaModal = ({
                     </button>
                   </div>
                   {formErrors.senha && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha}
@@ -794,10 +813,10 @@ const ClienteContaBancariaModal = ({
             {/* Campos de Senhas Adicionais */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#8b5cf6', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#8b5cf6',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -806,14 +825,14 @@ const ClienteContaBancariaModal = ({
                   Senhas Adicionais
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha 4 Dígitos
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -839,11 +858,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={4}
                   />
                   {formErrors.senha_4digitos && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_4digitos}
@@ -854,9 +873,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha 6 Dígitos
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -882,11 +901,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={6}
                   />
                   {formErrors.senha_6digitos && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_6digitos}
@@ -897,9 +916,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha 8 Dígitos
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -925,11 +944,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={8}
                   />
                   {formErrors.senha_8digitos && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha_8digitos}
@@ -942,10 +961,10 @@ const ClienteContaBancariaModal = ({
             {/* Campos de Status e Acesso */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#f59e0b', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#f59e0b',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -954,14 +973,14 @@ const ClienteContaBancariaModal = ({
                   Status e Informações Adicionais
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Status Cadastro
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -987,11 +1006,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={50}
                   />
                   {formErrors.status_cadastro && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.status_cadastro}
@@ -1002,9 +1021,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Status Acesso
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -1030,11 +1049,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={50}
                   />
                   {formErrors.status_acesso && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.status_acesso}
@@ -1047,9 +1066,9 @@ const ClienteContaBancariaModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Link de Acesso
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -1075,11 +1094,11 @@ const ClienteContaBancariaModal = ({
                     maxLength={500}
                   />
                   {formErrors.link_acesso && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.link_acesso}
@@ -1091,9 +1110,9 @@ const ClienteContaBancariaModal = ({
               <div style={{ marginTop: '14px' }}>
                 <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                   Observações
-                  <span style={{ 
-                    fontSize: '11px', 
-                    color: '#9ca3af', 
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#9ca3af',
                     marginLeft: '4px',
                     fontWeight: 'normal'
                   }}>
@@ -1121,11 +1140,11 @@ const ClienteContaBancariaModal = ({
                   maxLength={1000}
                 />
                 {formErrors.observacoes && (
-                  <span className="error-message" style={{ 
-                    color: '#ef4444', 
-                    fontSize: '11px', 
-                    marginTop: '3px', 
-                    display: 'block' 
+                  <span className="error-message" style={{
+                    color: '#ef4444',
+                    fontSize: '11px',
+                    marginTop: '3px',
+                    display: 'block'
                   }}>
                     <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                     {formErrors.observacoes}
@@ -1135,8 +1154,8 @@ const ClienteContaBancariaModal = ({
             </div>
           </form>
         </div>
-        <div className="modal-footer" style={{ 
-          padding: '14px 24px', 
+        <div className="modal-footer" style={{
+          padding: '14px 24px',
           borderTop: '1px solid #eee',
           display: 'flex',
           justifyContent: 'flex-end',
