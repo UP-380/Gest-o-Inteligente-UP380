@@ -344,7 +344,17 @@ const NotasAtualizacao = () => {
                 <main className="main-content">
                     <CardContainer>
                         <div className="anexar-arquivo-container"> {/* Reusing CSS class for layout structure */}
-                            <PageHeader title="Notas de Atualização" subtitle="Registro de alterações e melhorias do sistema" />
+                            <div className="notas-atualizacao-header-content">
+                                <div className="notas-atualizacao-header-left">
+                                    <div className="notas-atualizacao-header-icon">
+                                        <i className="fas fa-clipboard-check" style={{ fontSize: '32px', color: 'rgb(14, 59, 111)' }}></i>
+                                    </div>
+                                    <div>
+                                        <h1 className="notas-atualizacao-title">Notas de Atualização</h1>
+                                        <p className="notas-atualizacao-subtitle">Registro de alterações e melhorias do sistema</p>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="anexar-arquivo-layout">
                                 {/* Coluna Esquerda: Lista */}

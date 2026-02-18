@@ -116,11 +116,11 @@ const RichTextEditor = forwardRef(({
   onBlur
 }, ref) => {
   const quillRef = useRef(null);
-  const toolbarId = useMemo(() => id ? `toolbar - ${id} ` : `toolbar - ${Math.random().toString(36).substr(2, 9)} `, [id]);
+  const toolbarId = useMemo(() => id ? `toolbar-${id}` : `toolbar-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const [showFloatingToolbarState, setShowFloatingToolbarState] = useState(false);
   const [floatingToolbarPosition, setFloatingToolbarPosition] = useState({ top: 0, left: 0 });
   const floatingToolbarRef = useRef(null);
-  const wrapperId = useMemo(() => id || `rich - editor - ${Math.random().toString(36).substr(2, 9)} `, [id]);
+  const wrapperId = useMemo(() => id || `rich-editor-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const editorWrapperRef = useRef(null);
 
   // Refs para controle de foco e scroll (adicionados durante merge para suportar lógica da branch incoming)
@@ -221,7 +221,7 @@ const RichTextEditor = forwardRef(({
   // Configuração dos módulos do editor
   const modules = useMemo(() => ({
     toolbar: {
-      container: `#${toolbarId} `,
+      container: `#${toolbarId}`,
       handlers: {
         'increaseFontSize': increaseFontSize,
         'decreaseFontSize': decreaseFontSize
@@ -539,9 +539,9 @@ const RichTextEditor = forwardRef(({
   return (
     <div
       id={wrapperId}
-      className={`rich - text - editor - wrapper ${error ? 'error' : ''} ${disabled ? 'disabled' : ''} ${className} `.trim()}
+      className={`rich-text-editor-wrapper ${error ? 'error' : ''} ${disabled ? 'disabled' : ''} ${className} `.trim()}
       style={{
-        '--editor-min-height': `${minHeight} px`
+        '--editor-min-height': `${minHeight}px`
       }}
     >
       {/* Toolbar fixa no topo */}

@@ -1,88 +1,72 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { equipamentosAPI } from '../../services/equipamentos.service';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { equipamentosAPI } from '../../services/equipamentos.service';
+import { colaboradoresAPI } from '../../services/api'; // Import colaboradoresAPI to match Assignments page source
+import ResponsavelCard from '../../components/atribuicoes/ResponsavelCard';
+import '../../components/atribuicoes/ResponsavelCard.css';
 import './InventarioGestao.css';
 
 const InventarioGestao = () => {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const [equipamentos, setEquipamentos] = useState([]);
     const [filteredEquipamentos, setFilteredEquipamentos] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [responsaveis, setResponsaveis] = useState([]);
+    const [loading, setLoading] = useState(false); // Default to false to avoid immediate return if useEffect hasn't run
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('todos');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const ITEMS_PER_PAGE = 10;
 
-    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-    const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'todos');
+    // Modals
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showReturnModal, setShowReturnModal] = useState(false);
     const [selectedEquip, setSelectedEquip] = useState(null);
-    const [operadores, setOperadores] = useState([]);
-    const [assignmentData, setAssignmentData] = useState({ colaborador_id: '', observacoes: '', horario_entrada: '', horario_saida: '' });
-    const [returnData, setReturnData] = useState({ descricao_estado: '' });
-    const [previewDamage, setPreviewDamage] = useState(null); // For showing damage rich text
+    const [previewDamage, setPreviewDamage] = useState(null);
 
-    useEffect(() => {
-        fetchEquipamentos();
-        fetchOperadores();
-    }, [page]); // Re-fetch when page changes
-
-    useEffect(() => {
-        applyFilters();
-    }, [equipamentos, searchTerm, statusFilter]);
-
-    useEffect(() => {
-        const filterFromUrl = searchParams.get('filter');
-        const searchFromUrl = searchParams.get('search');
-        if (filterFromUrl !== null || searchFromUrl !== null) {
-            setStatusFilter(filterFromUrl || 'todos');
-            setSearchTerm(searchFromUrl || '');
-            setPage(1); // Reset page on new search
-        }
-    }, [searchParams]);
-
-    // Reset pagination when local filters change
-    useEffect(() => {
-        setPage(1);
-    }, [searchTerm, statusFilter]);
+    // Form data
+    const [assignmentData, setAssignmentData] = useState({
+        colaborador_id: '',
+        observacoes: '',
+        horario_entrada: '',
+        horario_saida: ''
+    });
+    const [returnData, setReturnData] = useState({
+        descricao_estado: ''
+    });
 
     const fetchEquipamentos = async () => {
+        setLoading(true);
         try {
-            setLoading(true);
-            // Note: If using client-side filtering (like current applyFilters), 
-            // we should probably fetch ALL for client-side filter OR move filtering to backend.
-            // Current code separates fetch and filter. If we paginate FETCH, we can't filter client-side easily effectively across pages.
-            // However, the original code did client-side filtering on `equipamentos`.
-            // If we assume backend pagination, we should pass filters to backend.
-            // But `equipamentosAPI.getEquipamentos` takes (page, limit, search).
-
-            // Let's use the API's search capability if possible, or fetch all if not deep enough.
-            // The user asked for "10 items per page". 
-            // `equipamentosAPI.getEquipamentos` supports search.
-
-            const response = await equipamentosAPI.getEquipamentos(page, ITEMS_PER_PAGE, searchTerm);
+            const response = await equipamentosAPI.getEquipamentos(page, 10, searchTerm);
             if (response.success) {
-                setEquipamentos(response.data);
-                setTotalPages(Math.ceil(response.total / ITEMS_PER_PAGE));
+                const list = response.data.equipamentos || response.data; // Handle potential API structure variations
+                setEquipamentos(list);
+                setTotalPages(response.data.totalPages || 1);
             }
         } catch (error) {
             console.error('Erro ao buscar equipamentos:', error);
+            Swal.fire('Erro', 'Erro ao carregar equipamentos.', 'error');
         } finally {
             setLoading(false);
         }
     };
-
-    const fetchOperadores = async () => {
+    const fetchResponsaveis = async () => {
         try {
-            const response = await equipamentosAPI.getOperadores();
-            if (response.success) {
-                const ativos = response.data.filter(op => op.status === 'ativo' || !op.status);
-                setOperadores(ativos);
+            // Using colaboradoresAPI.getAll() to fetch all potential responsibles, consistent with Assignments page
+            const response = await colaboradoresAPI.getAll(false);
+            if (response.success && response.data) {
+                const ativos = response.data
+                    .filter(u => u.status === 'ativo' || !u.status)
+                    .map(u => ({
+                        id: u.id,
+                        nome: u.nome,
+                        foto_perfil: u.foto_perfil || null
+                    }));
+                setResponsaveis(ativos);
             }
         } catch (error) {
-            console.error('Erro ao buscar operadores:', error);
+            console.error('Erro ao buscar responsáveis:', error);
         }
     };
 
@@ -184,11 +168,11 @@ const InventarioGestao = () => {
     };
 
     const handleAssign = async () => {
-        if (!assignmentData.colaborador_id) return Swal.fire('Erro', 'Selecione um operador', 'error');
+        if (!assignmentData.colaborador_id) return Swal.fire('Erro', 'Selecione um responsável', 'error');
 
         // Validation for shared equipment
         if (selectedEquip.status === 'em uso' && (!assignmentData.horario_entrada || !assignmentData.horario_saida)) {
-            return Swal.fire('Atenção', 'Este equipamento já possui um vínculo. Para compartilhá-lo, é obrigatório informar o Horário de Início e Fim para o novo operador.', 'warning');
+            return Swal.fire('Atenção', 'Este equipamento já possui um vínculo. Para compartilhá-lo, é obrigatório informar o Horário de Início e Fim para o novo responsável.', 'warning');
         }
 
         try {
@@ -227,10 +211,23 @@ const InventarioGestao = () => {
         }
     };
 
+    useEffect(() => {
+        fetchEquipamentos();
+    }, [page, searchTerm]);
+
+    useEffect(() => {
+        fetchResponsaveis();
+    }, []);
+
+    useEffect(() => {
+        applyFilters();
+    }, [equipamentos, statusFilter]);
+
     if (loading) return <div>Carregando lista...</div>;
 
     return (
         <div className="inventario-gestao">
+            {/* ... component JSX ... */}
             <div className="inventory-controls">
                 <div className="search-box">
                     <i className="fas fa-search"></i>
@@ -463,16 +460,23 @@ const InventarioGestao = () => {
                         )}
 
                         <div className="form-group">
-                            <label>Operador</label>
-                            <select
-                                value={assignmentData.colaborador_id}
-                                onChange={(e) => setAssignmentData({ ...assignmentData, colaborador_id: e.target.value })}
-                            >
-                                <option value="">Selecione um operador...</option>
-                                {operadores.map(op => (
-                                    <option key={op.id} value={op.id}>{op.nome}</option>
-                                ))}
-                            </select>
+                            <label>Responsável</label>
+                            <div style={{ position: 'relative' }}>
+                                <ResponsavelCard
+                                    value={assignmentData.colaborador_id}
+                                    onChange={(e) => setAssignmentData({ ...assignmentData, colaborador_id: e.target.value })}
+                                    colaboradores={responsaveis.map(op => ({
+                                        id: op.id,
+                                        nome: op.nome,
+                                        foto_perfil: op.foto_perfil
+                                    }))}
+                                    options={responsaveis.map(op => ({
+                                        value: op.id,
+                                        label: op.nome
+                                    }))}
+                                    placeholder="Selecione um responsável..."
+                                />
+                            </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                             <div className="form-group">

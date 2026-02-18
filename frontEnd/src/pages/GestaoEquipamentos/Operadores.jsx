@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { equipamentosAPI } from '../../services/equipamentos.service';
+import { colaboradoresAPI } from '../../services/api';
 import DataTable from '../../components/common/DataTable';
 import LoadingState from '../../components/common/LoadingState';
 import Avatar from '../../components/user/Avatar';
@@ -87,10 +88,34 @@ const Operadores = () => {
     const fetchOperadores = async () => {
         setLoading(true);
         try {
-            const response = await equipamentosAPI.getOperadores();
-            if (response.success) {
-                setOperadores(response.data);
-            }
+            // Fetch all collaborators to match the assignment dropdown list
+            const colabResponse = await colaboradoresAPI.getAll();
+            const allCollaborators = (colabResponse.success && colabResponse.data)
+                ? colabResponse.data.filter(u => u.status === 'ativo' || !u.status)
+                : [];
+
+            // Fetch equipment data (collaborators with equipment)
+            const equipResponse = await equipamentosAPI.getOperadores();
+            const collaboratorsWithEquip = (equipResponse.success && equipResponse.data) ? equipResponse.data : [];
+
+            // Create a map of equipment data for easy lookup by ID
+            const equipMap = new Map(collaboratorsWithEquip.map(c => [String(c.id), c]));
+
+            // Merge lists: Use ALL collaborators as base, attaching equipment info if available
+            const mergedList = allCollaborators.map(colab => {
+                const equipData = equipMap.get(String(colab.id));
+                return {
+                    ...colab,
+                    // If equipment data exists, use it; otherwise empty array
+                    equipamentos: equipData ? equipData.equipamentos : [],
+                    // Preserve or merge other fields if needed, e.g. details that might only exist in one API
+                    cargo: colab.cargo || (equipData ? equipData.cargo : ''),
+                    departamento: colab.departamento || (equipData ? equipData.departamento : ''),
+                    email: colab.email || (equipData ? equipData.email : '')
+                };
+            });
+
+            setOperadores(mergedList);
         } catch (error) {
             console.error('Erro ao buscar operadores:', error);
         } finally {
@@ -198,8 +223,8 @@ const Operadores = () => {
                                     e.stopPropagation();
                                     const rect = e.currentTarget.getBoundingClientRect();
                                     const position = {
-                                        top: rect.bottom + 10,
-                                        left: rect.left + (rect.width / 2)
+                                        top: rect.bottom + window.scrollY + 10,
+                                        left: rect.left + window.scrollX + (rect.width / 2)
                                     };
 
                                     if (activePopup && activePopup.opId === opId && activePopup.type === type) {
@@ -259,7 +284,7 @@ const Operadores = () => {
                     ref={popupRef}
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                        position: 'fixed',
+                        position: 'absolute',
                         top: activePopup.position.top,
                         left: activePopup.position.left,
                         transform: 'translateX(-50%)',

@@ -42,7 +42,7 @@ const PerfilOperador = () => {
                 const response = await equipamentosAPI.devolverEquipamento({
                     equipamento_id: item.equipamento_id,
                     colaborador_id: id, // Optional, but good for logging if needed
-                    descricao_estado: 'Devolvido via Perfil do Operador'
+                    descricao_estado: 'Devolvido via Perfil do Responsável'
                 });
 
                 if (response.data?.success || response.status === 200 || response.status === 201) {
@@ -67,7 +67,7 @@ const PerfilOperador = () => {
     };
 
     if (loading) return <div>Carregando perfil...</div>;
-    if (!data) return <div>Operador não encontrado.</div>;
+    if (!data) return <div>Responsável não encontrado.</div>;
 
     const { membro, atuais, historico } = data;
 

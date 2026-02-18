@@ -48,6 +48,7 @@ import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import RelatorioTempo from './pages/RelatorioTempo/RelatorioTempo';
 import Equipamentos from './pages/Equipamentos/Equipamentos';
+import CadastroEquipamento from './pages/Equipamentos/CadastroEquipamento';
 import GestaoEquipamentosLayout from './pages/GestaoEquipamentos/GestaoEquipamentosLayout';
 import DashboardEquipamentos from './pages/GestaoEquipamentos/DashboardEquipamentos';
 import InventarioGestao from './pages/GestaoEquipamentos/InventarioGestao';
@@ -393,6 +394,14 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/equipamento"
+          element={
+            <ProtectedRoute>
+              <CadastroEquipamento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/gestao-equipamentos"
           element={
             <ProtectedRoute>
@@ -504,6 +513,15 @@ function App() {
         />
         <Route
           path="/atribuicao/nova"
+          element={
+            <ProtectedRoute>
+              <AtribuicaoCliente />
+            </ProtectedRoute>
+          }
+        />
+        {/* Adicionando rota no plural para compatibilidade */}
+        <Route
+          path="/atribuicoes/nova"
           element={
             <ProtectedRoute>
               <AtribuicaoCliente />

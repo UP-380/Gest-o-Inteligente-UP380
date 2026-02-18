@@ -1,8 +1,11 @@
+/* Inventory Table */
 .inventario-gestao {
     background: white;
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    /* System standard shadow */
+    border: 1px solid #e2e8f0;
 }
 
 .equip-name-cell {
@@ -11,33 +14,43 @@
 }
 
 .equip-name-cell span {
-    font-size: 12px;
-    color: #888;
+    font-size: 13px;
+    color: #64748b;
+    /* gray-500 */
 }
 
+/* Status Chips */
 .status-chip {
     padding: 6px 12px;
-    border-radius: 20px;
+    border-radius: 6px;
     font-size: 12px;
     font-weight: 600;
     display: inline-block;
+    text-transform: capitalize;
 }
 
 .status-chip.ativo {
-    background: #e0f2f1;
-    color: #00897b;
+    background: #dcfce7;
+    /* green-100 */
+    color: #166534;
+    /* green-700 */
 }
 
 .status-chip.em-uso {
-    background: #fff3e0;
-    color: #f57c00;
+    background: #e0f2fe;
+    /* sky-100 */
+    color: #0369a1;
+    /* sky-700 */
 }
 
 .status-chip.manutencao {
-    background: #ffebee;
-    color: #e53935;
+    background: #fee2e2;
+    /* red-100 */
+    color: #991b1b;
+    /* red-700 */
 }
 
+/* Table Styles - Align with global table styles if possible */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -46,25 +59,34 @@ table {
 thead th {
     text-align: left;
     padding: 16px;
-    border-bottom: 2px solid #f0f0f0;
-    color: #444;
+    border-bottom: 2px solid #e2e8f0;
+    color: #64748b;
+    /* gray-500 */
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
 }
 
 tbody tr {
-    border-bottom: 1px solid #f8f8f8;
+    border-bottom: 1px solid #f1f5f9;
 }
 
 tbody td {
     padding: 16px;
+    vertical-align: middle;
+    color: #1e293b;
+    /* gray-800 */
+    font-size: 14px;
 }
 
+/* Action Buttons */
 .btn-assign,
 .btn-return {
     padding: 8px 16px;
-    border-radius: 8px;
-    border: none;
+    border-radius: 6px;
+    border: 1px solid transparent;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -73,25 +95,37 @@ tbody td {
 }
 
 .btn-assign {
-    background: #ebf5ff;
-    color: #007bff;
+    background: #f0f9ff;
+    color: #0e3b6f;
+    border-color: #bae6fd;
 }
 
 .btn-assign:hover {
-    background: #007bff;
+    background: #0e3b6f;
     color: white;
+    border-color: #0e3b6f;
 }
 
 .btn-return {
-    background: #fff3e0;
-    color: #f57c00;
+    background: #fff7ed;
+    color: #ea580c;
+    border-color: #fed7aa;
 }
 
 .btn-return:hover {
-    background: #f57c00;
+    background: #ea580c;
     color: white;
+    border-color: #ea580c;
 }
 
+.btn-assign.disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+/* Controls */
 .inventory-controls {
     display: flex;
     justify-content: space-between;
@@ -111,46 +145,49 @@ tbody td {
     left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: #888;
+    color: #94a3b8;
 }
 
 .search-box input {
     width: 100%;
     padding: 10px 12px 10px 36px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     outline: none;
     transition: border 0.2s;
+    color: #1e293b;
 }
 
 .search-box input:focus {
-    border-color: #007bff;
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
 }
 
 .filter-box select {
     padding: 10px 16px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     outline: none;
     background: white;
     cursor: pointer;
+    color: #1e293b;
 }
 
-.btn-assign.disabled {
-    background: #f8f9fa;
-    color: #adb5bd;
-    cursor: not-allowed;
+.filter-box select:focus {
+    border-color: #0e3b6f;
 }
 
+/* Empty State */
 .empty-inventory {
     padding: 48px;
     text-align: center;
-    color: #adb5bd;
+    color: #94a3b8;
 }
 
 .empty-inventory i {
     font-size: 48px;
     margin-bottom: 16px;
+    color: #cbd5e1;
 }
 
 .empty-inventory p {
@@ -169,13 +206,14 @@ tbody td {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    backdrop-filter: blur(2px);
 }
 
 .gestao-modal {
     background: white;
     width: 90%;
     max-width: 500px;
-    border-radius: 16px;
+    border-radius: 12px;
     padding: 32px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
@@ -184,6 +222,8 @@ tbody td {
     margin-top: 0;
     margin-bottom: 24px;
     font-size: 20px;
+    color: #1e293b;
+    font-weight: 600;
 }
 
 .form-group {
@@ -194,15 +234,25 @@ tbody td {
 }
 
 .form-group label {
-    font-weight: 600;
+    font-weight: 500;
+    color: #334155;
+    font-size: 14px;
 }
 
 .form-group select,
 .form-group textarea {
-    padding: 12px;
-    border: 1.5px solid #e0e0e0;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     font-family: inherit;
+    color: #1e293b;
+    outline: none;
+}
+
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
 }
 
 .form-group textarea {
@@ -218,39 +268,49 @@ tbody td {
 }
 
 .btn-cancel {
-    background: #f5f5f5;
-    border: none;
-    padding: 12px 24px;
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    padding: 10px 20px;
     border-radius: 8px;
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-    background: #e0e0e0;
+    background: #e2e8f0;
+    color: #475569;
 }
 
 .btn-confirm {
-    background: #007bff;
+    background: #0e3b6f;
+    /* primary-blue */
     color: white;
-    border: none;
-    padding: 12px 24px;
+    border: 1px solid #0e3b6f;
+    padding: 10px 20px;
     border-radius: 8px;
     cursor: pointer;
-    font-weight: 600;
-    transition: background 0.2s;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s;
 }
 
 .btn-confirm:hover {
-    background: #0056b3;
+    background: #0c325e;
+    border-color: #0c325e;
+    box-shadow: 0 4px 6px -1px rgba(14, 59, 111, 0.2);
 }
 
 .btn-confirm.secondary {
-    background: #f57c00;
+    background: #ea580c;
+    border-color: #ea580c;
 }
 
 .btn-confirm.secondary:hover {
-    background: #e67600;
+    background: #c2410c;
+    border-color: #c2410c;
 }
 
 /* Avaria Cell */

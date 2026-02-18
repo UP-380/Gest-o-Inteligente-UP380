@@ -452,7 +452,17 @@ const AnexarArquivo = () => {
         <main className="main-content">
           <CardContainer>
             <div className="anexar-arquivo-container">
-              <PageHeader title="Tutoriais" subtitle="Organize e salve tutoriais em texto e mídia" />
+              <div className="anexar-arquivo-header-content">
+                <div className="anexar-arquivo-header-left">
+                  <div className="anexar-arquivo-header-icon">
+                    <i className="fas fa-paperclip" style={{ fontSize: '32px', color: 'rgb(14, 59, 111)' }}></i>
+                  </div>
+                  <div>
+                    <h1 className="anexar-arquivo-title">Tutoriais</h1>
+                    <p className="anexar-arquivo-subtitle">Organize e salve tutoriais em texto e mídia</p>
+                  </div>
+                </div>
+              </div>
               <div className="anexar-arquivo-layout">
                 {/* Coluna esquerda: pastas */}
                 <div className="anexar-arquivo-col-esq">

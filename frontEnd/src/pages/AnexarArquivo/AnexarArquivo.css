@@ -6,10 +6,52 @@
   overflow: visible;
 }
 
-.anexar-arquivo-page-wrapper > .main-content {
+.anexar-arquivo-page-wrapper>.main-content {
   display: flex;
   flex-direction: column;
   overflow: visible;
+}
+
+/* Header da Página - Padrão "Conteúdos dos Clientes" */
+.anexar-arquivo-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.anexar-arquivo-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex: 1;
+}
+
+.anexar-arquivo-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: #e6f0ff;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.anexar-arquivo-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.anexar-arquivo-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
 }
 
 .anexar-arquivo-page-wrapper .card-container {
