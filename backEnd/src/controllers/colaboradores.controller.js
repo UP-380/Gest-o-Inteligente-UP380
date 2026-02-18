@@ -20,7 +20,7 @@ async function getColaboradores(req, res) {
       .schema('up_gestaointeligente')
       .from('membro')
       .select('id, nome, usuario_id', { count: 'exact' });
-    
+
     // Filtro por IDs (quando fornecido como array de query params)
     if (ids) {
       const idsArray = Array.isArray(ids) ? ids : [ids];
@@ -29,7 +29,7 @@ async function getColaboradores(req, res) {
         query = query.in('id', idsNumericos);
       }
     }
-    
+
     // Filtro de status: 'todos' (ou não informado) = todos, 'ativo' = apenas ativos, 'inativo' = apenas inativos
     // IMPORTANTE: Quando status for 'todos' ou não informado, NÃO aplicar nenhum filtro de status
     // Isso permite mostrar TODOS os colaboradores (ativos e inativos)
@@ -41,14 +41,14 @@ async function getColaboradores(req, res) {
       }
     }
     // Se status for 'todos', undefined, null ou vazio, não aplicar filtro (mostrar TODOS - ativos e inativos)
-    
+
     query = query.order('nome', { ascending: true });
 
     // Busca por nome ou CPF (apenas se não houver filtro por IDs)
     if (!ids && search && search.trim()) {
       const searchTerm = search.trim();
       const ilikePattern = `%${searchTerm}%`;
-      
+
       // Buscar apenas por nome
       query = query.ilike('nome', ilikePattern);
     }
@@ -425,12 +425,161 @@ async function getTiposContrato(req, res) {
   }
 }
 
+// GET - Listar colaboradores com contagem de equipamentos ativos (para Gestão)
+async function getColaboradoresComEquipamentos(req, res) {
+  try {
+    const defaultSchema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+    const { schema = defaultSchema } = req.query;
+
+    // 1. Buscar todos os colaboradores
+    const { data: membros, error: memError } = await supabase
+      .schema(schema)
+      .from('membro')
+      .select('id, nome, status, usuario_id')
+      .order('nome', { ascending: true });
+
+    if (memError) {
+      throw memError;
+    }
+
+    // 2. Buscar fotos de perfil dos usuários vinculados
+    const usuarioIds = [...new Set(membros.map(m => m.usuario_id).filter(Boolean))];
+    const usuarioMap = new Map();
+
+    if (usuarioIds.length > 0) {
+      const { data: usuarios, error: uError } = await supabase
+        .schema(schema)
+        .from('usuarios')
+        .select('id, foto_perfil')
+        .in('id', usuarioIds);
+
+      if (!uError && usuarios) {
+        usuarios.forEach(u => usuarioMap.set(String(u.id), u.foto_perfil));
+      }
+    }
+
+    // 2. Buscar equipamentos ativos para todos
+    const { data: atribuicoes, error: atrError } = await supabase
+      .from('cp_equipamento_atribuicoes')
+      .select(`
+        colaborador_id, 
+        cp_equipamentos (
+            id,
+            nome,
+            tipo,
+            marca,
+            modelo,
+            numero_serie,
+            status,
+            data_aquisicao,
+            foto
+        )
+      `)
+      .is('data_devolucao', null);
+
+    if (atrError) throw atrError;
+
+    // 3. Mapear contagens e equipamentos
+    const counts = {};
+    const equipamentosPorColaborador = {};
+
+    atribuicoes.forEach(a => {
+      const colabId = a.colaborador_id;
+      counts[colabId] = (counts[colabId] || 0) + 1;
+
+      if (a.cp_equipamentos) {
+        if (!equipamentosPorColaborador[colabId]) {
+          equipamentosPorColaborador[colabId] = [];
+        }
+        equipamentosPorColaborador[colabId].push(a.cp_equipamentos);
+      }
+    });
+
+    const result = await Promise.all(membros.map(async (m) => {
+      let fotoPerfil = m.usuario_id ? usuarioMap.get(String(m.usuario_id)) : null;
+
+      // Resolver avatar customizado se necessário
+      if (fotoPerfil && fotoPerfil.startsWith('custom-')) {
+        const resolvedUrl = await resolveAvatarUrl(fotoPerfil, 'user');
+        fotoPerfil = resolvedUrl || fotoPerfil;
+      }
+
+      return {
+        ...m,
+        status: m.status || 'ativo',
+        foto_perfil: fotoPerfil,
+        qtd_equipamentos: counts[m.id] || 0,
+        equipamentos: equipamentosPorColaborador[m.id] || []
+      };
+    }));
+
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Erro ao buscar colaboradores com equipamentos:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+}
+
+// GET - Perfil do colaborador com detalhes de equipamentos
+async function getPerfilColaboradorEquipamentos(req, res) {
+  try {
+    const { id } = req.params;
+    const defaultSchema = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
+    const { schema = defaultSchema } = req.query;
+
+    // 1. Dados do colaborador
+    const { data: membro, error: memError } = await supabase
+      .schema(schema)
+      .from('membro')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (memError) throw memError;
+
+    // 2. Equipamentos vinculados (Atuais)
+    const { data: atuais, error: errAtu } = await supabase
+      .from('cp_equipamento_atribuicoes')
+      .select(`
+        *,
+        cp_equipamentos (*)
+      `)
+      .eq('colaborador_id', id)
+      .is('data_devolucao', null);
+
+    // 3. Histórico (Devolvidos)
+    const { data: historico, error: errHis } = await supabase
+      .from('cp_equipamento_atribuicoes')
+      .select(`
+        *,
+        cp_equipamentos (*)
+      `)
+      .eq('colaborador_id', id)
+      .not('data_devolucao', 'is', null)
+      .order('data_retirada', { ascending: false });
+
+    return res.json({
+      success: true,
+      data: {
+        membro,
+        atuais: atuais || [],
+        historico: historico || []
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao buscar perfil do operador:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+}
+
 module.exports = {
   getTiposContrato,
   getColaboradores,
   getColaboradorPorId,
   criarColaborador,
   atualizarColaborador,
-  deletarColaborador
+  deletarColaborador,
+  getColaboradoresComEquipamentos,
+  getPerfilColaboradorEquipamentos
 };
 

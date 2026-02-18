@@ -1,3 +1,4 @@
+
 import React, { useMemo, useRef, useCallback, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -108,17 +109,18 @@ const RichTextEditor = forwardRef(({
   error = false,
   minHeight = 300,
   showFloatingToolbar = true,
+  simple = false,
   className = '',
   id,
   onFocus,
   onBlur
 }, ref) => {
   const quillRef = useRef(null);
-  const toolbarId = useMemo(() => id ? `toolbar-${id}` : `toolbar-${Math.random().toString(36).substr(2, 9)}`, [id]);
+  const toolbarId = useMemo(() => id ? `toolbar - ${id} ` : `toolbar - ${Math.random().toString(36).substr(2, 9)} `, [id]);
   const [showFloatingToolbarState, setShowFloatingToolbarState] = useState(false);
   const [floatingToolbarPosition, setFloatingToolbarPosition] = useState({ top: 0, left: 0 });
   const floatingToolbarRef = useRef(null);
-  const wrapperId = useMemo(() => id || `rich-editor-${Math.random().toString(36).substr(2, 9)}`, [id]);
+  const wrapperId = useMemo(() => id || `rich - editor - ${Math.random().toString(36).substr(2, 9)} `, [id]);
   const editorWrapperRef = useRef(null);
 
   // Refs para controle de foco e scroll (adicionados durante merge para suportar lógica da branch incoming)
@@ -219,7 +221,7 @@ const RichTextEditor = forwardRef(({
   // Configuração dos módulos do editor
   const modules = useMemo(() => ({
     toolbar: {
-      container: `#${toolbarId}`,
+      container: `#${toolbarId} `,
       handlers: {
         'increaseFontSize': increaseFontSize,
         'decreaseFontSize': decreaseFontSize
@@ -472,6 +474,9 @@ const RichTextEditor = forwardRef(({
         try {
           const bounds = quill.getBounds(range);
           const editorBounds = quill.container.getBoundingClientRect();
+
+          // Calcular posição da toolbar flutuante no início do texto selecionado
+          // Posicionar logo abaixo do texto, com apenas 2px de espaçamento
           const top = editorBounds.top + bounds.top + bounds.height + 2;
           const left = editorBounds.left + bounds.left;
 
@@ -534,47 +539,53 @@ const RichTextEditor = forwardRef(({
   return (
     <div
       id={wrapperId}
-      className={`rich-text-editor-wrapper ${error ? 'error' : ''} ${disabled ? 'disabled' : ''} ${className}`.trim()}
+      className={`rich - text - editor - wrapper ${error ? 'error' : ''} ${disabled ? 'disabled' : ''} ${className} `.trim()}
       style={{
-        '--editor-min-height': `${minHeight}px`
+        '--editor-min-height': `${minHeight} px`
       }}
     >
       {/* Toolbar fixa no topo */}
       <div id={toolbarId}>
-        <select className="ql-font" defaultValue="">
-          {fontFamilyOptions.map(font => (
-            <option key={font} value={font}>{font}</option>
-          ))}
-        </select>
-        <button className="ql-increaseFontSize" type="button" title="Aumentar fonte">
-          <span style={{ fontSize: '16px', fontWeight: 'bold' }}>A+</span>
-        </button>
-        <button className="ql-decreaseFontSize" type="button" title="Diminuir fonte">
-          <span style={{ fontSize: '14px', fontWeight: 'bold' }}>A-</span>
-        </button>
-        <select className="ql-header" defaultValue="">
-          <option value="">Normal</option>
-          <option value="1">Título 1</option>
-          <option value="2">Título 2</option>
-          <option value="3">Título 3</option>
-        </select>
-        <button className="ql-bold"></button>
-        <button className="ql-italic"></button>
-        <button className="ql-underline"></button>
-        <button className="ql-strike"></button>
-        <button className="ql-list" value="ordered"></button>
-        <button className="ql-list" value="bullet"></button>
-        <button className="ql-script" value="sub"></button>
-        <button className="ql-script" value="super"></button>
-        <button className="ql-indent" value="-1"></button>
-        <button className="ql-indent" value="+1"></button>
-        <select className="ql-color"></select>
-        <select className="ql-background"></select>
-        <select className="ql-align"></select>
-        <button className="ql-link"></button>
-        <button className="ql-blockquote"></button>
-        <button className="ql-code-block"></button>
-        <button className="ql-clean"></button>
+        {!simple && (
+          <>
+            <select className="ql-font" defaultValue="">
+              {fontFamilyOptions.map(font => (
+                <option key={font} value={font}>{font}</option>
+              ))}
+            </select>
+            <button className="ql-increaseFontSize" type="button" title="Aumentar fonte">
+              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>A+</span>
+            </button>
+            <button className="ql-decreaseFontSize" type="button" title="Diminuir fonte">
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>A-</span>
+            </button>
+            <select className="ql-header" defaultValue="">
+              <option value="">Normal</option>
+              <option value="1">Título 1</option>
+              <option value="2">Título 2</option>
+              <option value="3">Título 3</option>
+            </select>
+            <button className="ql-bold"></button>
+            <button className="ql-italic"></button>
+            <button className="ql-underline"></button>
+            <button className="ql-strike"></button>
+            <button className="ql-list" value="ordered"></button>
+            <button className="ql-list" value="bullet"></button>
+            <button className="ql-script" value="sub"></button>
+            <button className="ql-script" value="super"></button>
+            <button className="ql-indent" value="-1"></button>
+            <button className="ql-indent" value="+1"></button>
+            <select className="ql-color"></select>
+            <select className="ql-background"></select>
+            <select className="ql-align"></select>
+          </>
+        )}
+        {!simple && <button className="ql-link"></button>}
+        <button className="ql-image"></button>
+        {!simple && <button className="ql-video"></button>}
+        {!simple && <button className="ql-blockquote"></button>}
+        {!simple && <button className="ql-code-block"></button>}
+        {!simple && <button className="ql-clean"></button>}
       </div>
 
       <div
@@ -616,14 +627,14 @@ const RichTextEditor = forwardRef(({
       </div>
 
       {/* Toolbar flutuante */}
-      {showFloatingToolbar && showFloatingToolbarState && !disabled && (
+      {showFloatingToolbar && showFloatingToolbarState && !disabled && !simple && (
         <div
           ref={floatingToolbarRef}
           className="rich-text-editor-floating-toolbar"
           style={{
             position: 'fixed',
-            top: `${floatingToolbarPosition.top}px`,
-            left: `${floatingToolbarPosition.left}px`,
+            top: `${floatingToolbarPosition.top} px`,
+            left: `${floatingToolbarPosition.left} px`,
             zIndex: 10000
           }}
           onClick={(e) => e.stopPropagation()}

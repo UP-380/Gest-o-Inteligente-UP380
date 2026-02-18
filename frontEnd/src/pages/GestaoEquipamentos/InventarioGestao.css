@@ -1,0 +1,307 @@
+.inventario-gestao {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+}
+
+.equip-name-cell {
+    display: flex;
+    flex-direction: column;
+}
+
+.equip-name-cell span {
+    font-size: 12px;
+    color: #888;
+}
+
+.status-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-chip.ativo {
+    background: #e0f2f1;
+    color: #00897b;
+}
+
+.status-chip.em-uso {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.status-chip.manutencao {
+    background: #ffebee;
+    color: #e53935;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    padding: 16px;
+    border-bottom: 2px solid #f0f0f0;
+    color: #444;
+}
+
+tbody tr {
+    border-bottom: 1px solid #f8f8f8;
+}
+
+tbody td {
+    padding: 16px;
+}
+
+.btn-assign,
+.btn-return {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-assign {
+    background: #ebf5ff;
+    color: #007bff;
+}
+
+.btn-assign:hover {
+    background: #007bff;
+    color: white;
+}
+
+.btn-return {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.btn-return:hover {
+    background: #f57c00;
+    color: white;
+}
+
+.inventory-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.search-box input:focus {
+    border-color: #007bff;
+}
+
+.filter-box select {
+    padding: 10px 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    outline: none;
+    background: white;
+    cursor: pointer;
+}
+
+.btn-assign.disabled {
+    background: #f8f9fa;
+    color: #adb5bd;
+    cursor: not-allowed;
+}
+
+.empty-inventory {
+    padding: 48px;
+    text-align: center;
+    color: #adb5bd;
+}
+
+.empty-inventory i {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-inventory p {
+    font-size: 16px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.gestao-modal {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.gestao-modal h2 {
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-size: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+}
+
+.form-group select,
+.form-group textarea {
+    padding: 12px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-cancel {
+    background: #f5f5f5;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-cancel:hover {
+    background: #e0e0e0;
+}
+
+.btn-confirm {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-confirm:hover {
+    background: #0056b3;
+}
+
+.btn-confirm.secondary {
+    background: #f57c00;
+}
+
+.btn-confirm.secondary:hover {
+    background: #e67600;
+}
+
+/* Avaria Cell */
+.avaria-cell {
+    display: flex;
+    justify-content: center;
+}
+
+.avaria-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+}
+
+.avaria-status.no-damage i {
+    color: #10b981;
+}
+
+.avaria-status.has-damage i.fa-times-circle {
+    color: #ef4444;
+}
+
+.btn-view-damage {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0284c7;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-view-damage:hover {
+    background: #0284c7;
+    color: white;
+}
+
+.damage-preview-modal {
+    max-width: 700px;
+    width: 90%;
+}
+
+.rich-text-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

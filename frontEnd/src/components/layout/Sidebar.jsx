@@ -14,6 +14,7 @@ const Sidebar = () => {
   const [cadastrosClientesExpanded, setCadastrosClientesExpanded] = useState(false);
   const [configuracoesExpanded, setConfiguracoesExpanded] = useState(false);
   const [baseConhecimentoExpanded, setBaseConhecimentoExpanded] = useState(false);
+  const [equipamentosExpanded, setEquipamentosExpanded] = useState(false); // Novo estado
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     // Verificar se está no cliente (browser) antes de acessar window
@@ -45,7 +46,8 @@ const Sidebar = () => {
       isActive('/cadastro/bancos') ||
       isActive('/cadastro/banco') ||
       isActive('/cadastro/adquirentes') ||
-      isActive('/cadastro/sistemas') || location.pathname.startsWith('/cadastro/sistema');
+      isActive('/cadastro/sistemas') || location.pathname.startsWith('/cadastro/sistema') ||
+      isActive('/cadastro/equipamentos');
   };
 
   const isConfiguracoesActive = () => {
@@ -54,6 +56,7 @@ const Sidebar = () => {
       isActive('/documentacao-api') ||
       isActive('/gestao/usuarios');
   };
+
 
   const isBaseConhecimentoActive = () => {
     return isActive('/base-conhecimento/conteudos-clientes') ||
@@ -81,7 +84,8 @@ const Sidebar = () => {
       location.pathname === '/cadastro/bancos' ||
       location.pathname === '/cadastro/banco' ||
       (location.pathname === '/cadastro/adquirentes' || location.pathname.startsWith('/cadastro/adquirente')) ||
-      (location.pathname === '/cadastro/sistemas' || location.pathname.startsWith('/cadastro/sistema'));
+      (location.pathname === '/cadastro/sistemas' || location.pathname.startsWith('/cadastro/sistema')) ||
+      location.pathname === '/cadastro/equipamentos';
     if (isCadastrosActive) {
       setCadastrosExpanded(true);
       // Se for uma página de tarefas, expandir também o submenu Tarefas
@@ -116,6 +120,7 @@ const Sidebar = () => {
       location.pathname === '/base-conhecimento/tutoriais' ||
       location.pathname === '/base-conhecimento/notas-atualizacao' ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
+
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
     }
@@ -202,6 +207,7 @@ const Sidebar = () => {
     e.preventDefault();
     setConfiguracoesExpanded(!configuracoesExpanded);
   };
+
 
   const toggleBaseConhecimento = (e) => {
     e.preventDefault();
@@ -332,6 +338,12 @@ const Sidebar = () => {
         icon: 'fa-server',
         label: 'Sistemas',
         title: 'Cadastro de Sistemas'
+      },
+      {
+        path: '/cadastro/equipamentos',
+        icon: 'fa-laptop',
+        label: 'Cadastro de Equipamentos',
+        title: 'Cadastro de Equipamentos'
       }
     ];
     // Filtrar itens: se tiver path, verificar permissão; se tiver subItems, filtrar subItems e manter se houver algum acessível
@@ -355,6 +367,8 @@ const Sidebar = () => {
       return true; // Item com subItems já foi filtrado acima
     });
   }, [canAccessRoute]);
+
+
 
   const configuracoesSubItems = useMemo(() => {
     const allItems = [
@@ -408,9 +422,20 @@ const Sidebar = () => {
         icon: 'fa-clipboard-check',
         label: 'Notas de Atualização',
         title: 'Notas de Atualização'
+      },
+      {
+        path: '/gestao-equipamentos',
+        icon: 'fa-tasks',
+        label: 'Gestão de Equipamentos',
+        title: 'Gestão de Equipamentos'
       }
     ];
-    return allItems.filter(item => canAccessRoute(item.path));
+    return allItems.filter(item => {
+      if (item.subItems) {
+        return item.subItems.some(sub => canAccessRoute(sub.path));
+      }
+      return canAccessRoute(item.path);
+    });
   }, [canAccessRoute]);
 
   return (
@@ -647,6 +672,8 @@ const Sidebar = () => {
               </div>
             )}
 
+
+
             {/* Menu Base de Conhecimento com Submenu - Só exibir se houver itens */}
             {baseConhecimentoSubItems.length > 0 && (
               <div className="sidebar-menu-group">
@@ -663,17 +690,56 @@ const Sidebar = () => {
                 </button>
 
                 <div className={`sidebar-submenu ${baseConhecimentoExpanded ? 'open' : ''}`}>
-                  {baseConhecimentoSubItems.map((subItem) => (
-                    <Link
-                      key={subItem.path}
-                      to={subItem.path}
-                      className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
-                      title={subItem.title}
-                    >
-                      <i className={`fas ${subItem.icon}`}></i>
-                      <span className="sidebar-text">{subItem.label}</span>
-                    </Link>
-                  ))}
+                  {baseConhecimentoSubItems.map((subItem) => {
+                    // Logica para itens aninhados (ex: Equipamentos)
+                    if (subItem.subItems) {
+                      const isEquipamentos = subItem.label === 'Equipamentos';
+                      const isExpanded = isEquipamentos ? equipamentosExpanded : false;
+                      const toggleFunction = isEquipamentos ? toggleEquipamentos : null;
+
+                      return (
+                        <div key={subItem.label} className="sidebar-nested-menu-group">
+                          <button
+                            type="button"
+                            className={`sidebar-item sidebar-submenu-item sidebar-nested-toggle ${isExpanded ? 'expanded' : ''}`}
+                            title={subItem.title}
+                            onClick={toggleFunction}
+                            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                          >
+                            <i className={`fas ${subItem.icon}`}></i>
+                            <span className="sidebar-text">{subItem.label}</span>
+                            <i className={`fas fa-chevron-right sidebar-chevron ${isExpanded ? 'expanded' : ''}`}></i>
+                          </button>
+                          <div className={`sidebar-nested-submenu ${isExpanded ? 'open' : ''}`}>
+                            {subItem.subItems.map((nestedItem) => (
+                              <Link
+                                key={nestedItem.path}
+                                to={nestedItem.path}
+                                className={`sidebar-item sidebar-submenu-item sidebar-nested-item ${isActive(nestedItem.path) ? 'active' : ''}`}
+                                title={nestedItem.title}
+                              >
+                                <i className={`fas ${nestedItem.icon}`}></i>
+                                <span className="sidebar-text">{nestedItem.label}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Item normal
+                    return (
+                      <Link
+                        key={subItem.path}
+                        to={subItem.path}
+                        className={`sidebar-item sidebar-submenu-item ${isActive(subItem.path) ? 'active' : ''}`}
+                        title={subItem.title}
+                      >
+                        <i className={`fas ${subItem.icon}`}></i>
+                        <span className="sidebar-text">{subItem.label}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             )}
