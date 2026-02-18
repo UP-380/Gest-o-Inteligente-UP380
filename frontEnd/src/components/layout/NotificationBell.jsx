@@ -499,7 +499,7 @@ const NotificationBell = ({ user }) => {
 
             {/* Popup de aviso importante (portal no body) - estilo Teams/WhatsApp */}
             {toastItems.length > 0 && createPortal(
-                <div className="notification-toast-backdrop" aria-hidden="true">
+                <div className="notification-toast-backdrop">
                     <div className="notification-toast-container">
                         {toastItems.map((item) => {
                             const meta = item.payload.metadata || {};

@@ -312,8 +312,11 @@ const AnexarArquivo = () => {
   }, [pastaParaExcluir, pastaSelecionada, showToast, carregarPastas]);
 
   const handleSalvar = useCallback(async (isAutoSave = false) => {
+    // Garantir que isAutoSave seja booleano, pois onClick passa um evento
+    const isAutoSaveBool = typeof isAutoSave === 'boolean' ? isAutoSave : false;
+
     if (!pastaSelecionada) {
-      if (!isAutoSave) showToast('warning', 'Selecione uma pasta.');
+      if (!isAutoSaveBool) showToast('warning', 'Selecione uma pasta.');
       return;
     }
 
@@ -326,12 +329,12 @@ const AnexarArquivo = () => {
     const trim = (conteudo || '').trim();
 
     // Se for auto-save e não mudou nada em relação ao último salvo, não faz nada
-    if (isAutoSave && trim === (lastSavedConteudo || '').trim()) {
+    if (isAutoSaveBool && trim === (lastSavedConteudo || '').trim()) {
       return;
     }
 
     if (!trim) {
-      if (!isAutoSave) showToast('warning', MENSAGENS.CONTEUDO_VAZIO);
+      if (!isAutoSaveBool) showToast('warning', MENSAGENS.CONTEUDO_VAZIO);
       return;
     }
 
@@ -339,7 +342,7 @@ const AnexarArquivo = () => {
     try {
       if (currentAnexoId) {
         let snapshotBeforeUrl = null;
-        if (!isAutoSave && docPageRef.current) {
+        if (!isAutoSaveBool && docPageRef.current) {
           try {
             const canvas = await html2canvas(docPageRef.current, {
               useCORS: true,
@@ -365,30 +368,30 @@ const AnexarArquivo = () => {
           snapshot_before_url: snapshotBeforeUrl || undefined
         });
         if (res.success) {
-          if (!isAutoSave) showToast('success', MENSAGENS.DOCUMENTOS_SALVO);
+          if (!isAutoSaveBool) showToast('success', MENSAGENS.DOCUMENTOS_SALVO);
           else setLastAutoSaveTime(new Date());
 
           setLastSavedConteudo(trim);
           setHasUnsavedChanges(false);
         } else {
-          if (!isAutoSave) showToast('error', res.error || MENSAGENS.ERRO_ATUALIZAR);
+          if (!isAutoSaveBool) showToast('error', res.error || MENSAGENS.ERRO_ATUALIZAR);
         }
       } else {
         const res = await baseConhecimentoAPI.criarAnexo({ titulo: null, conteudo: trim, pasta_id: pastaSelecionada });
         if (res.success) {
-          if (!isAutoSave) showToast('success', MENSAGENS.SUCESSO);
+          if (!isAutoSaveBool) showToast('success', MENSAGENS.SUCESSO);
           setLastSavedConteudo(trim);
           setHasUnsavedChanges(false);
           await carregarAnexosDaPasta(pastaSelecionada);
         }
       }
     } catch (err) {
-      if (!isAutoSave) showToast('error', err.message || MENSAGENS.ERRO_SALVAR);
+      if (!isAutoSaveBool) showToast('error', err.message || MENSAGENS.ERRO_SALVAR);
     } finally {
       setSalvando(false);
 
       // Se for auto-save, limpar o tempo de feedback após 5 segundos
-      if (isAutoSave) {
+      if (isAutoSaveBool) {
         setTimeout(() => setLastAutoSaveTime(null), 5000);
       }
     }
@@ -545,7 +548,7 @@ const AnexarArquivo = () => {
                           <button type="button" className="anexar-arquivo-btn-historico" onClick={() => setMostrarHistorico(true)} title="Histórico de edições">
                             <i className="fas fa-history"></i> Histórico
                           </button>
-                          <ButtonPrimary onClick={handleSalvar} disabled={salvando} className="anexar-arquivo-btn-salvar" icon={salvando ? 'fas fa-spinner fa-spin' : 'fas fa-save'}>
+                          <ButtonPrimary onClick={() => handleSalvar(false)} disabled={salvando} className="anexar-arquivo-btn-salvar" icon={salvando ? 'fas fa-spinner fa-spin' : 'fas fa-save'}>
                             {salvando ? 'Salvando...' : 'Salvar'}
                           </ButtonPrimary>
                         </div>
