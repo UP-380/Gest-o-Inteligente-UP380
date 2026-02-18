@@ -1,0 +1,263 @@
+/**
+ * CSS Customizado para Swagger UI
+ * Melhora o layout e design do componente scheme-container e outros elementos
+ */
+
+/* ============================================================================
+   Scheme Container (Seleção de Servidores)
+   ============================================================================ */
+
+.scheme-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.scheme-container:hover {
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.15), 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.scheme-container label {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scheme-container select {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 8px !important;
+  padding: 10px 16px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #1a202c !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  max-width: 100%;
+}
+
+.scheme-container select:hover {
+  background: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.scheme-container select:focus {
+  outline: none;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================================
+   Melhorias Gerais do Swagger UI
+   ============================================================================ */
+
+/* Header da API */
+.swagger-ui .info {
+  margin-bottom: 30px;
+}
+
+.swagger-ui .info .title {
+  color: #1a202c;
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.swagger-ui .info .description {
+  color: #4a5568;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* Tags */
+.swagger-ui .opblock-tag {
+  background: #f7fafc;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid #667eea;
+  transition: all 0.2s ease;
+}
+
+.swagger-ui .opblock-tag:hover {
+  background: #edf2f7;
+  transform: translateX(4px);
+}
+
+.swagger-ui .opblock-tag-section {
+  padding-left: 0;
+}
+
+/* Botões de Operação */
+.swagger-ui .opblock.opblock-get {
+  border-color: #61affe;
+  background: rgba(97, 175, 254, 0.1);
+}
+
+.swagger-ui .opblock.opblock-post {
+  border-color: #49cc90;
+  background: rgba(73, 204, 144, 0.1);
+}
+
+.swagger-ui .opblock.opblock-put {
+  border-color: #fca130;
+  background: rgba(252, 161, 48, 0.1);
+}
+
+.swagger-ui .opblock.opblock-delete {
+  border-color: #f93e3e;
+  background: rgba(249, 62, 62, 0.1);
+}
+
+.swagger-ui .opblock {
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.swagger-ui .opblock:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Botão Try it out */
+.swagger-ui .btn.try-out__btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.swagger-ui .btn.try-out__btn:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* Botão Execute */
+.swagger-ui .btn.execute {
+  background: linear-gradient(135deg, #49cc90 0%, #38a169 100%);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 10px 24px;
+  transition: all 0.2s ease;
+}
+
+.swagger-ui .btn.execute:hover {
+  background: linear-gradient(135deg, #38a169 0%, #49cc90 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(73, 204, 144, 0.3);
+}
+
+/* Inputs e Textareas */
+.swagger-ui input[type="text"],
+.swagger-ui input[type="password"],
+.swagger-ui input[type="search"],
+.swagger-ui input[type="email"],
+.swagger-ui textarea {
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.swagger-ui input[type="text"]:focus,
+.swagger-ui input[type="password"]:focus,
+.swagger-ui input[type="search"]:focus,
+.swagger-ui input[type="email"]:focus,
+.swagger-ui textarea:focus {
+  border-color: #667eea;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Respostas */
+.swagger-ui .response-col_status {
+  font-weight: 600;
+}
+
+.swagger-ui .response-col_status[data-code="200"] {
+  color: #38a169;
+}
+
+.swagger-ui .response-col_status[data-code="400"],
+.swagger-ui .response-col_status[data-code="401"],
+.swagger-ui .response-col_status[data-code="403"],
+.swagger-ui .response-col_status[data-code="404"] {
+  color: #e53e3e;
+}
+
+.swagger-ui .response-col_status[data-code="500"] {
+  color: #c53030;
+}
+
+/* Scrollbar customizada */
+.swagger-ui ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.swagger-ui ::-webkit-scrollbar-track {
+  background: #f7fafc;
+  border-radius: 4px;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Badge de versão */
+.swagger-ui .info .version {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 12px;
+  display: inline-block;
+  margin-left: 12px;
+}
+
+/* Melhorias no layout geral */
+.swagger-ui .wrapper {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Cards de exemplo */
+.swagger-ui .model-example {
+  background: #f7fafc;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+/* Loading spinner */
+.swagger-ui .loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+}

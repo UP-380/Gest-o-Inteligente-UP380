@@ -26,24 +26,25 @@ const FiltersCard = ({
   applyLabel = 'Aplicar Filtros',
   clearLabel = 'Limpar Filtros',
   className = '',
-  showInfoMessage = false
+  showInfoMessage = false,
+  infoMessage = 'Selecione um filtro para agrupar os resultados.'
 }) => {
   return (
     <div className={`exposed-filters-section ${className}`}>
       {showInfoMessage && (
         <div className="filter-info-message">
-          Selecione um filtro para agrupar os resultados.
+          {infoMessage}
         </div>
       )}
       <div className="filters-row">
         {children}
       </div>
-      
+
       {showActions && (onApply || onClear) && (
         <div className="filter-actions">
           {onApply && (
             <div className={hasPendingChanges ? 'apply-btn-wrapper has-tooltip' : 'apply-btn-wrapper'}>
-              <button 
+              <button
                 className={`apply-filters-btn ${hasPendingChanges ? 'has-pending-changes' : ''}`}
                 onClick={onApply}
                 disabled={loading}
@@ -61,8 +62,8 @@ const FiltersCard = ({
             </div>
           )}
           {onClear && (
-            <button 
-              className="clear-filters-btn" 
+            <button
+              className="clear-filters-btn"
               onClick={onClear}
             >
               {clearLabel}

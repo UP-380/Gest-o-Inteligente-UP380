@@ -574,5 +574,41 @@ router.post('/api/upload/chamado',
 );
 
 
+// =============================================================
+// === PROXY PARA NOVA API BUN (Gestão de Capacidade v2) ===
+// =============================================================
+// Redireciona POST /api/gestao-capacidade-v2 para o backend Bun (porta 3001).
+// A autenticação é feita aqui (requireAuth via session cookie).
+// O Bun recebe a requisição já validada, sem precisar de JWT.
+
+const BUN_API_BASE = process.env.BUN_API_URL || 'http://localhost:3001';
+
+router.post('/api/gestao-capacidade-v2', requireAuth, async (req, res) => {
+  try {
+    // Montar headers — enviar userId para o Bun saber quem é o usuário
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-User-Id': String(req.session.usuario.id),
+      // Enviar Authorization fake para o Bun auth middleware não bloquear
+      // O Bun gerará token internamente ou aceitará X-User-Id
+    };
+
+    const response = await fetch(`${BUN_API_BASE}/gestao-capacidade`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(req.body),
+    });
+
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[PROXY-BUN] Erro ao redirecionar para Bun:', error.message);
+    return res.status(502).json({
+      success: false,
+      error: `Erro ao conectar com o serviço de capacidade: ${error.message}`
+    });
+  }
+});
+
 module.exports = router;
 
