@@ -501,6 +501,7 @@
     font-style: italic;
     opacity: 0.85;
 }
+
 .media-label:hover {
     text-decoration: underline;
 }
@@ -510,6 +511,45 @@
     justify-content: center;
     padding: 60px;
     color: #cbd5e1;
+}
+
+/* Update Note Specific Styles */
+.update-note-card {
+    border-left: 4px solid #0e3b6f !important;
+    background: linear-gradient(to right, #f8fafc, #ffffff) !important;
+}
+
+.update-note-badge {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: #0e3b6f;
+    color: white;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    box-shadow: 0 2px 5px rgba(14, 59, 111, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+}
+
+.action-link-btn:hover {
+    background: #e0f2fe !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.update-note-card .comm-card-title {
+    color: #0e3b6f;
+    margin-top: 5px;
+}
+
+.comm-card-content p {
+    margin: 0;
 }
 
 @media (max-width: 480px) {

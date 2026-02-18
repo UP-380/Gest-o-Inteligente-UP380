@@ -1,0 +1,603 @@
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import Layout from '../../components/layout/Layout';
+import CardContainer from '../../components/common/CardContainer';
+import PageHeader from '../../components/common/PageHeader';
+import ButtonPrimary from '../../components/common/ButtonPrimary';
+import RichTextEditor from '../../components/common/RichTextEditor';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import { useToast } from '../../hooks/useToast';
+import { baseConhecimentoAPI } from '../../services/api';
+import { comunicacaoAPI } from '../../services/comunicacao.service';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useLocation } from 'react-router-dom';
+import './NotasAtualizacao.css';
+
+const MENSAGENS = {
+    SELECIONE_ITEM: 'Selecione uma nota de atualização para visualizar.',
+    CRIAR_PRIMEIRO: 'Criar primeira nota',
+    TITULO_OBRIGATORIO: 'Título é obrigatório',
+    CRIADO_SUCESSO: 'Nota criada com sucesso.',
+    ATUALIZADO_SUCESSO: 'Nota atualizada com sucesso.',
+    EXCLUIDO_SUCESSO: 'Nota excluída com sucesso.',
+    ERRO_CARREGAR: 'Erro ao carregar notas.',
+    ERRO_SALVAR: 'Erro ao salvar nota.',
+    ERRO_EXCLUIR: 'Erro ao excluir nota.',
+    EXCLUIR_TITULO: 'Excluir Nota',
+    EXCLUIR_TEXTO: 'Tem certeza que deseja excluir esta nota de atualização? Esta ação não pode ser desfeita.',
+    CONTEUDO_VAZIO: 'O conteúdo não pode estar vazio.',
+    SEM_PERMISSAO: 'Você não tem permissão para realizar esta ação.',
+};
+
+const NotasAtualizacao = () => {
+    const showToast = useToast();
+    const { isAdmin } = usePermissions();
+    const { search } = useLocation();
+
+    const [notas, setNotas] = useState([]);
+    const [notaSelecionadaId, setNotaSelecionadaId] = useState(null);
+    const [carregandoListagem, setCarregandoListagem] = useState(false);
+
+    // Estado do formulário
+    const [titulo, setTitulo] = useState('');
+    const [conteudo, setConteudo] = useState('');
+    const [dataPublicacao, setDataPublicacao] = useState(new Date().toISOString());
+    const [showSchedPopover, setShowSchedPopover] = useState(false);
+    const [tempData, setTempData] = useState(new Date().toISOString().split('T')[0]);
+    const [tempHora, setTempHora] = useState(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
+    const [salvando, setSalvando] = useState(false);
+    const [excluindo, setExcluindo] = useState(false);
+
+    // Controle de edição
+    const [isEditing, setIsEditing] = useState(false); // True se estiver criando ou editando
+    const [isCreating, setIsCreating] = useState(false); // True apenas se estiver criando nova
+
+    const [notaParaExcluir, setNotaParaExcluir] = useState(null);
+
+    // Upload
+    const fileInputRef = useRef(null);
+    const richEditorRef = useRef(null);
+    const [uploadingMidia, setUploadingMidia] = useState(false);
+
+    const carregarNotas = useCallback(async () => {
+        setCarregandoListagem(true);
+        try {
+            const res = await baseConhecimentoAPI.atualizacoes.listar();
+            if (res.success) {
+                setNotas(res.data || []);
+                // Se houver notas e nenhuma selecionada por URL, seleciona a primeira apenas internamente para o estado
+                if (res.data && res.data.length > 0 && !notaSelecionadaId) {
+                    // Não forçamos o scroll, apenas definimos qual está "ativa" no estado se necessário
+                }
+            } else {
+                showToast('error', MENSAGENS.ERRO_CARREGAR);
+            }
+        } catch (err) {
+            showToast('error', err.message || MENSAGENS.ERRO_CARREGAR);
+        } finally {
+            setCarregandoListagem(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => {
+        carregarNotas();
+    }, [carregarNotas]);
+
+    // Carregar detalhes da nota selecionada
+    const carregarDetalhesNota = useCallback(async (id) => {
+        if (!id) return;
+        try {
+            // Se já temos o conteúdo na listagem (idealmente listagem é leve, detalhes pesado)
+            // Mas o endpoint de detalhes busca tudo. Vamos buscar detalhes.
+            const res = await baseConhecimentoAPI.atualizacoes.getPorId(id);
+            if (res.success && res.data) {
+                setTitulo(res.data.titulo);
+                setConteudo(res.data.conteudo || '');
+                setDataPublicacao(res.data.data_publicacao || new Date().toISOString());
+                const dateObj = new Date(res.data.data_publicacao || new Date());
+                setTempData(dateObj.toISOString().split('T')[0]);
+                setTempHora(dateObj.getHours().toString().padStart(2, '0') + ':' + dateObj.getMinutes().toString().padStart(2, '0'));
+                setIsEditing(false);
+                setIsCreating(false);
+            } else {
+                showToast('error', 'Erro ao carregar detalhes.');
+            }
+        } catch (error) {
+            showToast('error', 'Erro ao carregar detalhes.');
+        }
+    }, [showToast]);
+
+    const handleSelecionarNota = useCallback((id) => {
+        if (salvando) return;
+        setNotaSelecionadaId(id);
+
+        if (!isEditing) {
+            const element = document.getElementById(`nota-card-${id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                // If not rendered yet or in different view, load details
+                carregarDetalhesNota(id);
+            }
+        } else {
+            carregarDetalhesNota(id);
+        }
+    }, [salvando, carregarDetalhesNota, isEditing]);
+
+    const handleNovaNota = useCallback(() => {
+        if (!isAdmin) return;
+        setNotaSelecionadaId('novo');
+        setTitulo('');
+        setConteudo('');
+        setDataPublicacao(new Date().toISOString().split('T')[0]);
+        setIsCreating(true);
+        setIsEditing(true);
+    }, [isAdmin]);
+
+    const handleEditarNota = useCallback(() => {
+        if (!isAdmin) return;
+        setIsEditing(true);
+    }, [isAdmin]);
+
+    const handleCancelarEdicao = useCallback(() => {
+        if (isCreating) {
+            setNotaSelecionadaId(null);
+            setTitulo('');
+            setConteudo('');
+            setDataPublicacao(new Date().toISOString());
+            setTempData(new Date().toISOString().split('T')[0]);
+            setTempHora(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
+            setIsCreating(false);
+            setIsEditing(false);
+            setShowSchedPopover(false);
+        } else {
+            setIsEditing(false);
+            // Recarregar dados originais
+            if (notaSelecionadaId) carregarDetalhesNota(notaSelecionadaId);
+        }
+    }, [isCreating, notaSelecionadaId, carregarDetalhesNota]);
+
+    const handleSalvar = useCallback(async () => {
+        if (!isAdmin) {
+            showToast('error', MENSAGENS.SEM_PERMISSAO);
+            return;
+        }
+
+        if (!titulo.trim()) {
+            showToast('warning', MENSAGENS.TITULO_OBRIGATORIO);
+            return;
+        }
+
+        // Conteúdo opcional? Pode ser. Mas aviso se vazio.
+        if (!conteudo.trim()) {
+            showToast('warning', MENSAGENS.CONTEUDO_VAZIO);
+            return;
+        }
+
+        setSalvando(true);
+        try {
+            if (isCreating) {
+                const res = await baseConhecimentoAPI.atualizacoes.criar({ titulo, conteudo, data_publicacao: dataPublicacao });
+                if (res.success) {
+                    showToast('success', MENSAGENS.CRIADO_SUCESSO);
+                    await carregarNotas();
+                    setNotaSelecionadaId(res.data.id);
+                    setIsCreating(false);
+                    setIsEditing(false);
+                } else {
+                    showToast('error', res.error || MENSAGENS.ERRO_SALVAR);
+                }
+            } else {
+                const res = await baseConhecimentoAPI.atualizacoes.atualizar(notaSelecionadaId, { titulo, conteudo, data_publicacao: dataPublicacao });
+                if (res.success) {
+                    showToast('success', MENSAGENS.ATUALIZADO_SUCESSO);
+                    await carregarNotas(); // Atualizar lista para refletir titulo novo
+                    setIsEditing(false);
+                } else {
+                    showToast('error', res.error || MENSAGENS.ERRO_SALVAR);
+                }
+            }
+        } catch (err) {
+            showToast('error', err.message || MENSAGENS.ERRO_SALVAR);
+        } finally {
+            setSalvando(false);
+        }
+    }, [isAdmin, isCreating, notaSelecionadaId, titulo, conteudo, dataPublicacao, showToast, carregarNotas]);
+
+    const handleAplicarAgendamento = useCallback(() => {
+        try {
+            // Unir data e hora garantindo formato ISO local (YYYY-MM-DDTHH:mm:00)
+            // Usamos a string direta no construtor para evitar deslocamentos de timezone do navegador
+            const fullDate = new Date(`${tempData}T${tempHora}:00`);
+
+            if (isNaN(fullDate.getTime())) {
+                showToast('error', 'Data ou horário inválidos.');
+                return;
+            }
+
+            setDataPublicacao(fullDate.toISOString());
+            setShowSchedPopover(false);
+            showToast('info', `Agendado para: ${fullDate.toLocaleString('pt-BR')}`);
+        } catch (e) {
+            showToast('error', 'Erro ao formatar data/horário.');
+        }
+    }, [tempData, tempHora, showToast]);
+
+    const handleExcluir = useCallback(async () => {
+        if (!notaParaExcluir || !isAdmin) return;
+        setExcluindo(true);
+        try {
+            const res = await baseConhecimentoAPI.atualizacoes.excluir(notaParaExcluir.id);
+            if (res.success) {
+                showToast('success', MENSAGENS.EXCLUIDO_SUCESSO);
+                if (notaParaExcluir.id === notaSelecionadaId) {
+                    setNotaSelecionadaId(null);
+                    setTitulo('');
+                    setConteudo('');
+                    setIsEditing(false);
+                }
+                setNotaParaExcluir(null);
+                await carregarNotas();
+            } else {
+                showToast('error', res.error || MENSAGENS.ERRO_EXCLUIR);
+            }
+        } catch (err) {
+            showToast('error', err.message || MENSAGENS.ERRO_EXCLUIR);
+        } finally {
+            setExcluindo(false);
+        }
+    }, [notaParaExcluir, notaSelecionadaId, isAdmin, showToast, carregarNotas]);
+
+    // Função para extrair headers do conteúdo HTML
+    const extractHeaders = useCallback((html, notaId) => {
+        if (!html) return [];
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const headers = Array.from(doc.querySelectorAll('h1, h2, h3'));
+
+        return headers.map((h, index) => ({
+            id: `header-${notaId}-${index}`,
+            notaId: notaId,
+            text: h.innerText || h.textContent,
+            level: parseInt(h.tagName.substring(1)),
+            tagName: h.tagName
+        }));
+    }, []);
+
+    // Função para rolar até o header
+    // Função para rolar até o header
+    const scrollToHeader = useCallback((text, notaId) => {
+        let container = null;
+
+        if (notaId) {
+            container = document.getElementById(`nota-card-${notaId}`);
+        }
+
+        if (!container) {
+            container = document.querySelector('.notas-list-cascading') || document.querySelector('.notas-visualizacao-content');
+        }
+
+        if (!container) return;
+
+        const headers = Array.from(container.querySelectorAll('h1, h2, h3'));
+        const target = headers.find(h => (h.innerText || h.textContent).trim() === text.trim());
+
+        if (target) {
+            // Adicionar uma margem de rolagem para não ficar colado no topo (atrás do header fixo)
+            target.style.scrollMarginTop = '100px';
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, []);
+
+    const initialSelectionDone = useRef(false);
+
+    // Auto-select note from URL
+    useEffect(() => {
+        if (initialSelectionDone.current) return;
+        const queryParams = new URLSearchParams(search);
+        const id = queryParams.get('id');
+        if (id) {
+            handleSelecionarNota(id);
+            initialSelectionDone.current = true;
+        }
+    }, [search, handleSelecionarNota]);
+
+    // Upload Logic (reused)
+    const handleUploadTrigger = useCallback(() => fileInputRef.current?.click(), []);
+    const handleFileSelect = useCallback(async (e) => {
+        const files = e.target.files;
+        if (!files?.length) return;
+        const file = files[0];
+
+        setUploadingMidia(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await comunicacaoAPI.uploadMedia(formData);
+            if (res?.success && res?.data?.url) {
+                const url = res.data.url;
+                const isVideo = file.type.startsWith('video/');
+                if (isVideo && richEditorRef.current?.insertVideoAtEnd) {
+                    richEditorRef.current.insertVideoAtEnd(url);
+                } else if (!isVideo && richEditorRef.current?.insertImageAtEnd) {
+                    richEditorRef.current.insertImageAtEnd(url);
+                } else if (richEditorRef.current?.insertHtmlAtEnd) {
+                    const html = isVideo
+                        ? `<p><video src="${url}" controls style="max-width:100%;"></video></p>`
+                        : `<p><img src="${url}" alt="imagem" style="max-width:100%;" /></p>`;
+                    richEditorRef.current.insertHtmlAtEnd(html);
+                }
+                // Atualizar conteudo state via onChange do editor, mas podemos forçar aqui se precisar
+            } else {
+                showToast('error', 'Falha no upload.');
+            }
+        } catch (err) {
+            showToast('error', 'Falha no upload.');
+        } finally {
+            setUploadingMidia(false);
+            e.target.value = '';
+        }
+    }, [showToast]);
+
+    return (
+        <Layout>
+            <div className="container notas-atualizacao-page-wrapper">
+                <main className="main-content">
+                    <CardContainer>
+                        <div className="anexar-arquivo-container"> {/* Reusing CSS class for layout structure */}
+                            <PageHeader title="Notas de Atualização" subtitle="Registro de alterações e melhorias do sistema" />
+
+                            <div className="anexar-arquivo-layout">
+                                {/* Coluna Esquerda: Lista */}
+                                <div className="anexar-arquivo-col-esq">
+                                    <div className="anexar-arquivo-pastas-header">
+                                        {isAdmin && (
+                                            <button type="button" className="anexar-arquivo-btn-nova-pasta" onClick={handleNovaNota} disabled={isCreating}>
+                                                <i className="fas fa-plus"></i> Novo
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {carregandoListagem ? (
+                                        <div className="anexar-arquivo-loading"><i className="fas fa-spinner fa-spin"></i> Carregando...</div>
+                                    ) : notas.length === 0 ? (
+                                        <div className="anexar-arquivo-empty-pastas">
+                                            <p>Nenhuma nota encontrada.</p>
+                                        </div>
+                                    ) : (
+                                        <ul className="anexar-arquivo-pastas-list">
+                                            {notas.map(nota => {
+                                                const subOptions = extractHeaders(nota.conteudo, nota.id);
+                                                const isDraft = !nota.anunciado;
+
+                                                return (
+                                                    <li key={nota.id} className="nota-sidebar-group">
+                                                        <div
+                                                            className={`anexar-arquivo-pasta-item ${notaSelecionadaId === nota.id ? 'active' : ''} ${isDraft ? 'nota-draft' : ''}`}
+                                                            onClick={() => handleSelecionarNota(nota.id)}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '8px' }}>
+                                                                <span className="anexar-arquivo-pasta-nome" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    {isDraft && <i className="fas fa-clock" style={{ fontSize: '10px', color: '#f59e0b' }} title="Agendado"></i>}
+                                                                    {nota.titulo}
+                                                                </span>
+                                                                <span className="notas-data-badge">{new Date(nota.data_publicacao || nota.created_at).toLocaleDateString()}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {subOptions.length > 0 && (
+                                                            <div className="nota-sub-options">
+                                                                {subOptions.map((header, idx) => (
+                                                                    <div
+                                                                        key={idx}
+                                                                        className={`nota-sub-option level-${header.level}`}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            scrollToHeader(header.text, nota.id);
+                                                                        }}
+                                                                    >
+                                                                        {header.text}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                {/* Coluna Direita: Editor/Visualizador */}
+                                <div className="anexar-arquivo-col-dir">
+                                    {notas.length === 0 && !isCreating ? (
+                                        <div className="anexar-arquivo-empty-doc">
+                                            <p>{MENSAGENS.SELECIONE_ITEM}</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="anexar-arquivo-doc-bar">
+                                                {isEditing ? (
+                                                    <input
+                                                        type="text"
+                                                        className="notas-titulo-input"
+                                                        value={titulo}
+                                                        onChange={e => setTitulo(e.target.value)}
+                                                        placeholder="Título da Versão/Atualização"
+                                                        autoFocus
+                                                    />
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <h3 className="anexar-arquivo-doc-bar-titulo">
+                                                            {isCreating ? "Nova Atualização" : "Registro de Alterações"}
+                                                        </h3>
+                                                        {!isCreating && notas.length > 0 && (
+                                                            <span className="notas-data-badge" style={{ fontSize: '0.85rem' }}>
+                                                                {notas.length} nota(s)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                <div className="anexar-arquivo-doc-bar-actions">
+                                                    {isEditing && (
+                                                        <div className="notas-date-picker-container">
+                                                            <button
+                                                                type="button"
+                                                                className={`notas-calendar-btn ${showSchedPopover ? 'active' : ''}`}
+                                                                onClick={() => setShowSchedPopover(!showSchedPopover)}
+                                                                title="Agendar publicação"
+                                                            >
+                                                                <i className="fas fa-calendar-alt"></i>
+                                                            </button>
+
+                                                            {showSchedPopover && (
+                                                                <div className="notas-sched-popover">
+                                                                    <div className="notas-sched-popover-header">
+                                                                        <span>Agendar Publicação</span>
+                                                                        <button type="button" onClick={() => setShowSchedPopover(false)}>&times;</button>
+                                                                    </div>
+                                                                    <div className="notas-sched-popover-body">
+                                                                        <div className="notas-sched-field">
+                                                                            <label>Data</label>
+                                                                            <input
+                                                                                type="date"
+                                                                                value={tempData}
+                                                                                onChange={e => setTempData(e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="notas-sched-field">
+                                                                            <label>Horário</label>
+                                                                            <input
+                                                                                type="time"
+                                                                                value={tempHora}
+                                                                                onChange={e => setTempHora(e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="notas-sched-btn-apply"
+                                                                            onClick={handleAplicarAgendamento}
+                                                                        >
+                                                                            Aplicar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {isAdmin && !isEditing && (
+                                                        <>
+                                                            <ButtonPrimary onClick={handleNovaNota} icon="fas fa-plus">
+                                                                Novo
+                                                            </ButtonPrimary>
+                                                        </>
+                                                    )}
+
+                                                    {isEditing && (
+                                                        <>
+                                                            <button type="button" className="btn-secondary margin-right-sm" onClick={handleCancelarEdicao} disabled={salvando}>
+                                                                Cancelar
+                                                            </button>
+                                                            <ButtonPrimary onClick={handleSalvar} disabled={salvando} icon={salvando ? 'fas fa-spinner fa-spin' : 'fas fa-save'}>
+                                                                {salvando ? 'Salvando...' : 'Salvar'}
+                                                            </ButtonPrimary>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="anexar-arquivo-doc-page">
+                                                <div className="anexar-arquivo-doc-page-inner">
+                                                    {isEditing ? (
+                                                        <>
+                                                            <RichTextEditor
+                                                                ref={richEditorRef}
+                                                                value={conteudo}
+                                                                onChange={setConteudo}
+                                                                placeholder="Descreva as atualizações aqui..."
+                                                                minHeight={420}
+                                                            />
+                                                            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="anexar-arquivo-upload-input" onChange={handleFileSelect} />
+                                                            <div className="anexar-arquivo-doc-upload-wrap">
+                                                                <button type="button" className="anexar-arquivo-doc-upload-btn" onClick={handleUploadTrigger} disabled={uploadingMidia} title="Anexar imagem ou vídeo">
+                                                                    {uploadingMidia ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-cloud-upload-alt" />}
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        /* Modo Leitura: Todas as notas em cascata */
+                                                        <div className="notas-list-cascading">
+                                                            {notas.map((nota) => (
+                                                                <div
+                                                                    key={nota.id}
+                                                                    id={`nota-card-${nota.id}`}
+                                                                    className={`nota-card-item ${notaSelecionadaId === nota.id ? 'active' : ''}`}
+                                                                >
+                                                                    <div className="nota-card-header">
+                                                                        <div className="nota-card-title-group">
+                                                                            <h3>{nota.titulo}</h3>
+                                                                            <span className="nota-card-date">
+                                                                                {new Date(nota.data_publicacao).toLocaleDateString('pt-BR')}
+                                                                            </span>
+                                                                        </div>
+                                                                        {isAdmin && (
+                                                                            <div className="nota-card-actions">
+                                                                                <button
+                                                                                    className="nota-action-btn edit"
+                                                                                    onClick={() => {
+                                                                                        setNotaSelecionadaId(nota.id);
+                                                                                        carregarDetalhesNota(nota.id).then(() => {
+                                                                                            setIsEditing(true);
+                                                                                        });
+                                                                                    }}
+                                                                                    title="Editar"
+                                                                                >
+                                                                                    <i className="fas fa-edit"></i>
+                                                                                </button>
+                                                                                <button
+                                                                                    className="nota-action-btn delete"
+                                                                                    onClick={() => setNotaParaExcluir(nota)}
+                                                                                    title="Excluir"
+                                                                                >
+                                                                                    <i className="fas fa-trash"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div
+                                                                        className="notas-visualizacao-content"
+                                                                        dangerouslySetInnerHTML={{ __html: nota.conteudo }}
+                                                                    />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </CardContainer>
+                </main>
+            </div>
+
+            {/* Modal Confirmar Excluir */}
+            {notaParaExcluir && (
+                <ConfirmModal
+                    isOpen={true}
+                    onClose={() => setNotaParaExcluir(null)}
+                    onConfirm={handleExcluir}
+                    title={MENSAGENS.EXCLUIR_TITULO}
+                    message={MENSAGENS.EXCLUIR_TEXTO}
+                    confirmText="Excluir"
+                    confirmButtonClass="btn-danger" // Assuming you have red button style
+                    isLoading={excluindo}
+                />
+            )}
+        </Layout>
+    );
+};
+
+export default NotasAtualizacao;

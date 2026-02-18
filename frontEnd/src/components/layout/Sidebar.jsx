@@ -31,7 +31,7 @@ const Sidebar = () => {
   };
 
   const isRelatoriosActive = () => {
-    return isActive('/relatorios-clientes') || isActive('/relatorios-colaboradores') || isActive('/planilha-horas') || isActive('/relatorio-tempo') || isActive('/relatorios/vigencias');
+    return isActive('/relatorios-clientes') || isActive('/relatorios-colaboradores') || isActive('/planilha-horas') || isActive('/relatorios/vigencias');
   };
 
   const isCadastrosActive = () => {
@@ -57,12 +57,13 @@ const Sidebar = () => {
 
   const isBaseConhecimentoActive = () => {
     return isActive('/base-conhecimento/conteudos-clientes') ||
+      isActive('/base-conhecimento/tutoriais') ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
   };
 
   // Expandir automaticamente o menu Relatórios se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas' || location.pathname === '/relatorio-tempo' || location.pathname === '/relatorios/vigencias';
+    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas' || location.pathname === '/relatorios/vigencias';
     if (isRelatoriosActive) {
       setRelatoriosExpanded(true);
     }
@@ -112,6 +113,8 @@ const Sidebar = () => {
   // Expandir automaticamente o menu Base de Conhecimento se estiver em uma das páginas relacionadas
   useEffect(() => {
     const isBaseConhecimentoActive = location.pathname === '/base-conhecimento/conteudos-clientes' ||
+      location.pathname === '/base-conhecimento/tutoriais' ||
+      location.pathname === '/base-conhecimento/notas-atualizacao' ||
       location.pathname.startsWith('/base-conhecimento/cliente/');
     if (isBaseConhecimentoActive) {
       setBaseConhecimentoExpanded(true);
@@ -243,12 +246,6 @@ const Sidebar = () => {
         icon: 'fa-calendar-alt',
         label: 'Planilha de Horas',
         title: 'Planilha de Horas'
-      },
-      {
-        path: '/relatorio-tempo',
-        icon: 'fa-chart-pie',
-        label: 'Relatório de Tempo',
-        title: 'Relatório de Tempo'
       },
       {
         path: '/relatorios/vigencias',
@@ -399,6 +396,18 @@ const Sidebar = () => {
         icon: 'fa-briefcase',
         label: 'Conteúdos Clientes',
         title: 'Conteúdos Clientes'
+      },
+      {
+        path: '/base-conhecimento/tutoriais',
+        icon: 'fa-paperclip',
+        label: 'Tutoriais',
+        title: 'Tutoriais'
+      },
+      {
+        path: '/base-conhecimento/notas-atualizacao',
+        icon: 'fa-clipboard-check',
+        label: 'Notas de Atualização',
+        title: 'Notas de Atualização'
       }
     ];
     return allItems.filter(item => canAccessRoute(item.path));

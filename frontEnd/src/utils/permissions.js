@@ -57,6 +57,7 @@ async function fetchPermissoesConfig() {
       '/notificacoes',
       '/base-conhecimento',
       '/base-conhecimento/conteudos-clientes',
+      '/base-conhecimento/tutoriais',
       '/base-conhecimento/cliente',
       '/configuracoes/perfil',
     ],
@@ -100,6 +101,7 @@ let LEVEL_PAGES = {
     '/notificacoes',
     '/base-conhecimento',
     '/base-conhecimento/conteudos-clientes',
+    '/base-conhecimento/tutoriais',
     '/base-conhecimento/cliente',
     '/configuracoes/perfil',
   ],
@@ -119,6 +121,7 @@ export async function initPermissoesConfig() {
         '/notificacoes',
         '/base-conhecimento',
         '/base-conhecimento/conteudos-clientes',
+        '/base-conhecimento/tutoriais',
         '/base-conhecimento/cliente',
         '/configuracoes/perfil',
       ],
@@ -202,6 +205,7 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   ],
   '/base-conhecimento': [
     '/base-conhecimento/conteudos-clientes',
+    '/base-conhecimento/tutoriais',
     '/base-conhecimento/cliente'
   ],
   // Adicionando página de edição de cliente explicitamente

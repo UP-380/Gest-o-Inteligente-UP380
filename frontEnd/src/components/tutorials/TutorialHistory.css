@@ -1,0 +1,242 @@
+.tutorial-history-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.tutorial-history-modal {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  max-width: 900px;
+  width: 95%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tutorial-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tutorial-history-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.tutorial-history-close {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 18px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.tutorial-history-close:hover {
+  color: #1f2937;
+  background: #f3f4f6;
+}
+
+.tutorial-history-body {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px;
+}
+
+.tutorial-history-loading,
+.tutorial-history-error {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.tutorial-history-error {
+  color: #dc2626;
+}
+
+.tutorial-history-table-wrap {
+  overflow-x: auto;
+}
+
+.tutorial-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tutorial-history-table th,
+.tutorial-history-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tutorial-history-table th {
+  font-weight: 600;
+  color: #374151;
+  background: #f9fafb;
+}
+
+.tutorial-history-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.tutorial-history-empty {
+  color: #9ca3af;
+  font-style: italic;
+  text-align: center;
+  padding: 24px !important;
+}
+
+/* Célula de alteração: texto + botão de preview */
+.tutorial-history-alteracao-text {
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.tutorial-history-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tutorial-history-preview-btn:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.tutorial-history-preview-btn i {
+  font-size: 11px;
+}
+
+/* Linha expandida (destaque sutil) */
+.tutorial-history-table tbody tr.tutorial-history-row-expanded {
+  background: #f0f9ff;
+}
+
+/* Linha de detalhe (preview) */
+.tutorial-history-detail-row td {
+  vertical-align: top;
+  padding: 0 12px 12px !important;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.tutorial-history-preview-cell {
+  padding-left: 12px !important;
+}
+
+.tutorial-history-preview-box {
+  margin-top: 8px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tutorial-history-preview-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tutorial-history-preview-screenshot {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 12px;
+}
+
+.tutorial-history-preview-doc-title {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.tutorial-history-preview-content {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+/* Preview visual: documento renderizado como no editor (imagens, parágrafos, etc.) */
+.tutorial-history-preview-content-visual {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.tutorial-history-preview-content-visual p {
+  margin: 0 0 10px 0;
+}
+
+.tutorial-history-preview-content-visual p:last-child {
+  margin-bottom: 0;
+}
+
+.tutorial-history-preview-content-visual img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.tutorial-history-preview-content-visual video {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.tutorial-history-preview-content br {
+  display: block;
+  content: '';
+  margin-top: 4px;
+}
+
+.tutorial-history-preview-content .media-label {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.tutorial-history-preview-content .media-label:hover {
+  text-decoration: underline;
+}

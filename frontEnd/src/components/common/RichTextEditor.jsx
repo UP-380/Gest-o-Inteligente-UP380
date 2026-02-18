@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useCallback, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import ReactQuill, { Quill } from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './RichTextEditor.css';
@@ -31,6 +31,24 @@ const fontFamilyOptions = [
 Font.whitelist = fontFamilyOptions;
 Quill.register(Font, true);
 
+// Registrar blot de vídeo para que vídeos não sejam removidos pelo editor
+const BlockEmbed = Quill.import('blots/block/embed');
+class VideoBlot extends BlockEmbed {
+  static create(url) {
+    const node = super.create();
+    node.setAttribute('src', url);
+    node.setAttribute('controls', true);
+    node.setAttribute('style', 'max-width:100%;');
+    return node;
+  }
+  static value(node) {
+    return node.getAttribute('src');
+  }
+}
+VideoBlot.blotName = 'video';
+VideoBlot.tagName = 'VIDEO';
+Quill.register(VideoBlot);
+
 /**
  * Componente de editor de texto rico reutilizável usando React Quill
  * 
@@ -45,6 +63,7 @@ Quill.register(Font, true);
  * @param {string} id - ID único para o componente (opcional)
  * @param {function} onFocus - Callback chamado quando o editor recebe foco
  * @param {function} onBlur - Callback chamado quando o editor perde foco
+ * @param {React.Ref} ref - Ref opcional; use ref.current.insertHtmlAtEnd(html) para inserir HTML no final do documento
  * 
  * @example
  * // Uso básico
@@ -66,7 +85,7 @@ Quill.register(Font, true);
  *   onFocus={() => console.log('Editor focado')}
  * />
  */
-const RichTextEditor = ({
+const RichTextEditor = forwardRef(({
   value,
   onChange,
   placeholder = 'Digite o texto...',
@@ -78,7 +97,7 @@ const RichTextEditor = ({
   id,
   onFocus,
   onBlur
-}) => {
+}, ref) => {
   const quillRef = useRef(null);
   const toolbarId = useMemo(() => id ? `toolbar-${id}` : `toolbar-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const [showFloatingToolbarState, setShowFloatingToolbarState] = useState(false);
@@ -86,6 +105,43 @@ const RichTextEditor = ({
   const floatingToolbarRef = useRef(null);
   const wrapperId = useMemo(() => id || `rich-editor-${Math.random().toString(36).substr(2, 9)}`, [id]);
   const editorWrapperRef = useRef(null);
+
+  // Refs para controle de foco e scroll (adicionados durante merge para suportar lógica da branch incoming)
+  const lastClickTargetRef = useRef(null);
+  const allowFocusRef = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    insertHtmlAtEnd(html) {
+      const quill = quillRef.current?.getEditor();
+      if (!quill || typeof html !== 'string' || !html.trim()) return;
+      try {
+        const index = quill.getLength();
+        quill.clipboard.dangerouslyPasteHTML(index, html);
+      } catch (e) {
+        console.warn('RichTextEditor.insertHtmlAtEnd:', e);
+      }
+    },
+    insertImageAtEnd(url) {
+      const quill = quillRef.current?.getEditor();
+      if (!quill || !url) return;
+      try {
+        quill.insertEmbed(quill.getLength(), 'image', url);
+        quill.insertText(quill.getLength(), '\n');
+      } catch (e) {
+        console.warn('RichTextEditor.insertImageAtEnd:', e);
+      }
+    },
+    insertVideoAtEnd(url) {
+      const quill = quillRef.current?.getEditor();
+      if (!quill || !url) return;
+      try {
+        quill.insertEmbed(quill.getLength(), 'video', url);
+        quill.insertText(quill.getLength(), '\n');
+      } catch (e) {
+        console.warn('RichTextEditor.insertVideoAtEnd:', e);
+      }
+    }
+  }), []);
 
   // Função para aumentar o tamanho da fonte
   const increaseFontSize = useCallback(() => {
@@ -160,7 +216,7 @@ const RichTextEditor = ({
     }
   }), [toolbarId, increaseFontSize, decreaseFontSize]);
 
-  // Formatos permitidos
+  // Formatos permitidos (inclui image e video para exibir mídia anexada)
   const formats = [
     'font', 'size',
     'header',
@@ -170,7 +226,8 @@ const RichTextEditor = ({
     'indent',
     'color', 'background',
     'align',
-    'link', 'blockquote', 'code-block'
+    'link', 'blockquote', 'code-block',
+    'image', 'video'
   ];
 
   const handleChange = (content) => {
@@ -186,29 +243,221 @@ const RichTextEditor = ({
     if (!quill) return;
 
     const editorRoot = quill.root;
+    // Definir editorElement e wrapperElement para uso nos handlers de foco
+    const editorElement = editorRoot;
+    const wrapperElement = document.getElementById(wrapperId);
+
     if (editorRoot) {
       editorRoot.setAttribute('tabindex', '0');
     }
-  }, []);
 
-  // Efeito para controlar a toolbar flutuante
+    if (!wrapperElement) return;
+
+    const handleMouseDown = (e) => {
+      const target = e.target;
+      lastClickTargetRef.current = target;
+
+      // Verificar se o clique foi dentro do wrapper do editor (incluindo toolbar)
+      const clickedInsideEditor = wrapperElement.contains(target);
+
+      // Permitir foco apenas se o clique foi diretamente no editor ou seus elementos filhos
+      allowFocusRef.current = clickedInsideEditor;
+
+      // Se o clique foi fora, garantir que o editor não ganhe foco
+      if (!clickedInsideEditor && editorElement) {
+        // Bloquear qualquer tentativa de foco no editor
+        editorElement.blur();
+        // Resetar a flag imediatamente para cliques fora
+        setTimeout(() => {
+          allowFocusRef.current = false;
+        }, 0);
+      } else {
+        // Se clicou dentro, manter a flag ativa por um tempo maior
+        setTimeout(() => {
+          // Manter a flag ativa por 500ms para permitir que o foco seja processado
+        }, 500);
+      }
+    };
+
+    const handleFocusIn = (e) => {
+      const target = e.target;
+      // Re-obter wrapper para garantir (embora tenhamos no scope)
+      const wrapperElement = document.getElementById(wrapperId);
+      if (!wrapperElement) return;
+
+      // Verificar se o foco está indo para dentro do editor
+      const isFocusingEditor = wrapperElement.contains(target);
+
+      // Se o foco está indo para o editor
+      if (isFocusingEditor) {
+        // Se não foi permitido o foco (clique foi fora), prevenir AGressivamente
+        if (!allowFocusRef.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+
+          // Focar no elemento que foi realmente clicado
+          const clickedElement = lastClickTargetRef.current;
+          if (clickedElement &&
+            clickedElement !== document.body &&
+            clickedElement !== document.documentElement &&
+            clickedElement.tagName !== 'BODY' &&
+            clickedElement.tagName !== 'HTML' &&
+            !wrapperElement.contains(clickedElement)) {
+
+            // Tentar focar no elemento clicado
+            if (typeof clickedElement.focus === 'function') {
+              // Usar múltiplos métodos para garantir que o foco aconteça
+              setTimeout(() => {
+                try {
+                  clickedElement.focus();
+                } catch (err) {
+                  // Se não conseguir focar, tentar clicar no elemento
+                  try {
+                    clickedElement.click();
+                  } catch (err2) {
+                    // Ignorar erros
+                  }
+                }
+              }, 0);
+            } else if (clickedElement.tagName === 'INPUT' || clickedElement.tagName === 'TEXTAREA' || clickedElement.tagName === 'SELECT') {
+              // Para inputs, textareas e selects, tentar focar diretamente
+              setTimeout(() => {
+                try {
+                  clickedElement.focus();
+                } catch (err) {
+                  // Ignorar erros
+                }
+              }, 0);
+            }
+          }
+
+          // Bloquear o foco no editor imediatamente
+          if (editorElement) {
+            editorElement.blur();
+            // Remover o foco programaticamente
+            if (document.activeElement === editorElement) {
+              editorElement.blur();
+            }
+          }
+        }
+      }
+    };
+
+    // Handler direto no elemento do editor para bloquear foco não autorizado
+    const handleEditorFocus = (e) => {
+      if (!allowFocusRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        editorElement.blur();
+
+        // Tentar focar no elemento que foi clicado
+        const clickedElement = lastClickTargetRef.current;
+        if (clickedElement && typeof clickedElement.focus === 'function' &&
+          !wrapperElement.contains(clickedElement)) {
+          setTimeout(() => {
+            try {
+              clickedElement.focus();
+            } catch (err) {
+              // Ignorar erros
+            }
+          }, 0);
+        }
+      }
+    };
+
+    // Adicionar handler direto no elemento do editor
+    if (editorElement) {
+      editorElement.addEventListener('focus', handleEditorFocus, true);
+      editorElement.addEventListener('focusin', handleEditorFocus, true);
+    }
+
+    // Interceptar mousedown ANTES do Quill processar (capture phase)
+    document.addEventListener('mousedown', handleMouseDown, true);
+
+    // Interceptar focusin na fase de captura (antes do Quill)
+    document.addEventListener('focusin', handleFocusIn, true);
+
+    // Interceptar também focus (para garantir)
+    document.addEventListener('focus', handleFocusIn, true);
+
+    // Interceptar também click para garantir
+    const handleClick = (e) => {
+      const target = e.target;
+      const wrapperElement = document.getElementById(wrapperId);
+      if (!wrapperElement) return;
+
+      // Se o clique foi fora do editor, garantir que não ganhe foco
+      if (!wrapperElement.contains(target) && editorElement && document.activeElement === editorElement) {
+        editorElement.blur();
+      }
+    };
+
+    document.addEventListener('click', handleClick, true);
+
+    // Monitorar mudanças no activeElement para bloquear foco não autorizado
+    let lastActiveElement = document.activeElement;
+    const checkActiveElement = () => {
+      const currentActive = document.activeElement;
+      const wrapperElement = document.getElementById(wrapperId);
+
+      // Se o editor ganhou foco sem permissão
+      if (currentActive && wrapperElement && wrapperElement.contains(currentActive) && !allowFocusRef.current) {
+        // Se o elemento ativo anterior não era o editor, bloquear
+        if (lastActiveElement && !wrapperElement.contains(lastActiveElement)) {
+          currentActive.blur();
+          // Tentar restaurar o foco no elemento anterior
+          if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
+            setTimeout(() => {
+              try {
+                lastActiveElement.focus();
+              } catch (err) {
+                // Ignorar erros
+              }
+            }, 0);
+          }
+        }
+      }
+
+      lastActiveElement = currentActive;
+    };
+
+    // Verificar periodicamente o activeElement
+    const activeElementInterval = setInterval(checkActiveElement, 50);
+
+    return () => {
+      clearInterval(activeElementInterval);
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('focusin', handleFocusIn, true);
+      document.removeEventListener('focus', handleFocusIn, true);
+      document.removeEventListener('click', handleClick, true);
+      if (editorElement) {
+        editorElement.removeEventListener('focus', handleEditorFocus, true);
+        editorElement.removeEventListener('focusin', handleEditorFocus, true);
+      }
+    };
+  }, [wrapperId]);
+
+  // Efeito para controlar a visibilidade da toolbar flutuante (baseado em seleção)
   useEffect(() => {
     const quill = quillRef.current?.getEditor();
     if (!quill) return;
 
     const updateFloatingToolbar = () => {
-      const range = quill.getSelection(true);
+      // Se o editor não estiver focado, escondemos a toolbar
+      if (!quill.hasFocus()) {
+        setShowFloatingToolbarState(false);
+        return;
+      }
+
+      const range = quill.getSelection();
 
       if (range && range.length > 0) {
         try {
-          // Obter a posição do texto selecionado
           const bounds = quill.getBounds(range);
           const editorBounds = quill.container.getBoundingClientRect();
-
-          // Calcular posição da toolbar flutuante no início do texto selecionado
-          // Posicionar logo abaixo do texto, com apenas 2px de espaçamento
           const top = editorBounds.top + bounds.top + bounds.height + 2;
-          // Posicionar no início da seleção (esquerda)
           const left = editorBounds.left + bounds.left;
 
           setFloatingToolbarPosition({ top, left });
@@ -216,7 +465,6 @@ const RichTextEditor = ({
             setShowFloatingToolbarState(true);
           }
         } catch (error) {
-          // Se houver erro ao obter bounds, ocultar toolbar
           setShowFloatingToolbarState(false);
         }
       } else {
@@ -224,54 +472,49 @@ const RichTextEditor = ({
       }
     };
 
-    // Atualizar posição ao scrollar ou redimensionar
-    const handleScroll = () => {
-      if (!showFloatingToolbarState) return;
-
-      requestAnimationFrame(() => {
-        const quill = quillRef.current?.getEditor();
-        if (!quill) return;
-
-        // getSelection(true) rouba o foco. Para scroll, queremos apenas verificar se há seleção sem focar.
-        const range = quill.getSelection();
-        if (range && range.length > 0) {
-          updateFloatingToolbar();
-        }
-      });
-    };
-
-    const handleResize = () => {
-      requestAnimationFrame(updateFloatingToolbar);
-    };
-
-    // Event listeners para seleção de texto
-    quill.on('selection-change', (range) => {
-      if (range && range.length > 0) {
-        updateFloatingToolbar();
-      } else {
-        setShowFloatingToolbarState(false);
-      }
-    });
+    quill.on('selection-change', updateFloatingToolbar);
     quill.on('text-change', updateFloatingToolbar);
-
-    const editorContainer = quill.container.parentElement;
-    if (editorContainer) {
-      editorContainer.addEventListener('scroll', handleScroll, { passive: true });
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleResize, { passive: true });
 
     return () => {
       quill.off('selection-change');
       quill.off('text-change', updateFloatingToolbar);
-      if (editorContainer) {
-        editorContainer.removeEventListener('scroll', handleScroll);
-      }
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
     };
-  }, [showFloatingToolbar, showFloatingToolbarState]); // Dependências ajustadas
+  }, [showFloatingToolbar]);
+
+  // Efeito para atualizar APENAS a posição da toolbar durante scroll ou resize
+  useEffect(() => {
+    const quill = quillRef.current?.getEditor();
+    if (!quill || !showFloatingToolbarState) return;
+
+    const updatePosition = () => {
+      const range = quill.getSelection();
+      if (range && range.length > 0) {
+        try {
+          const bounds = quill.getBounds(range);
+          const editorBounds = quill.container.getBoundingClientRect();
+          const top = editorBounds.top + bounds.top + bounds.height + 2;
+          const left = editorBounds.left + bounds.left;
+          setFloatingToolbarPosition({ top, left });
+        } catch (e) { }
+      }
+    };
+
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    const editorContainer = quill.container.parentElement;
+    if (editorContainer) {
+      editorContainer.addEventListener('scroll', updatePosition);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      if (editorContainer) {
+        editorContainer.removeEventListener('scroll', updatePosition);
+      }
+    };
+  }, [showFloatingToolbarState]);
 
   return (
     <div
@@ -332,7 +575,26 @@ const RichTextEditor = ({
           formats={formats}
           placeholder={placeholder}
           readOnly={disabled}
-          onFocus={onFocus}
+          onFocus={(e) => {
+            // Só permitir foco se foi explicitamente permitido
+            if (!allowFocusRef.current) {
+              e.preventDefault();
+              e.stopPropagation();
+              const clickedElement = lastClickTargetRef.current;
+              if (clickedElement && typeof clickedElement.focus === 'function' &&
+                !document.getElementById(wrapperId)?.contains(clickedElement)) {
+                setTimeout(() => {
+                  try {
+                    clickedElement.focus();
+                  } catch (err) {
+                    // Ignorar erros
+                  }
+                }, 0);
+              }
+              return;
+            }
+            if (onFocus) onFocus(e);
+          }}
           onBlur={onBlur}
           tabIndex={0}
         />
@@ -458,7 +720,9 @@ const RichTextEditor = ({
       )}
     </div>
   );
-};
+});
+
+RichTextEditor.displayName = 'RichTextEditor';
 
 export default RichTextEditor;
 
