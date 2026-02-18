@@ -96,13 +96,13 @@ const ClienteAdquirenteModal = ({
   // Função para salvar novo adquirente
   const handleSalvarAdquirente = async (e) => {
     e.preventDefault();
-    
+
     // Validações
     const errors = {};
     if (!adquirenteFormData.nome || !adquirenteFormData.nome.trim()) {
       errors.nome = 'Nome do adquirente é obrigatório';
     }
-    
+
     if (Object.keys(errors).length > 0) {
       setAdquirenteFormErrors(errors);
       return;
@@ -135,25 +135,25 @@ const ClienteAdquirenteModal = ({
         // Adicionar o novo adquirente à lista
         const novoAdquirente = result.data;
         setAdquirentesList([...adquirentesList, novoAdquirente]);
-        
+
         // Selecionar automaticamente o adquirente criado
         setFormData({ ...formData, adquirente_id: novoAdquirente.id });
         if (formErrors.adquirente_id) {
           setFormErrors({ ...formErrors, adquirente_id: '' });
         }
-        
+
         // Fechar os campos de novo adquirente
         setShowNovoAdquirente(false);
         setAdquirenteFormData({ nome: '' });
       } else {
-        setAdquirenteFormErrors({ 
-          nome: result.error || 'Erro ao salvar adquirente. Tente novamente.' 
+        setAdquirenteFormErrors({
+          nome: result.error || 'Erro ao salvar adquirente. Tente novamente.'
         });
       }
     } catch (error) {
       console.error('Erro ao salvar adquirente:', error);
-      setAdquirenteFormErrors({ 
-        nome: 'Erro ao salvar adquirente. Tente novamente.' 
+      setAdquirenteFormErrors({
+        nome: 'Erro ao salvar adquirente. Tente novamente.'
       });
     } finally {
       setAdquirenteSubmitting(false);
@@ -163,20 +163,20 @@ const ClienteAdquirenteModal = ({
   const canSave = formData.adquirente_id && !submitting;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ 
-        maxWidth: '900px', 
-        width: '95%', 
+    <div className="modal-overlay">
+      <div className="modal-content" style={{
+        maxWidth: '900px',
+        width: '95%',
         maxHeight: '95vh',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '18px 24px', 
+        <div className="modal-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '18px 24px',
           borderBottom: '1px solid #eee',
           flexShrink: 0
         }}>
@@ -196,8 +196,8 @@ const ClienteAdquirenteModal = ({
             <i className="fas fa-times"></i>
           </button>
         </div>
-        <div className="modal-body" style={{ 
-          padding: '20px 24px', 
+        <div className="modal-body" style={{
+          padding: '20px 24px',
           overflowY: 'auto',
           overflowX: 'hidden',
           flex: 1,
@@ -299,10 +299,10 @@ const ClienteAdquirenteModal = ({
                 </button>
               </div>
               {formErrors.adquirente_id && (
-                <span className="error-message" style={{ 
-                  color: '#ef4444', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span className="error-message" style={{
+                  color: '#ef4444',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -312,10 +312,10 @@ const ClienteAdquirenteModal = ({
                 </span>
               )}
               {!formErrors.adquirente_id && formData.adquirente_id && (
-                <span style={{ 
-                  color: '#10b981', 
-                  fontSize: '11px', 
-                  marginTop: '4px', 
+                <span style={{
+                  color: '#10b981',
+                  fontSize: '11px',
+                  marginTop: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
@@ -324,7 +324,7 @@ const ClienteAdquirenteModal = ({
                   Adquirente selecionado
                 </span>
               )}
-              
+
               {/* Campos para adicionar novo adquirente */}
               {showNovoAdquirente && (
                 <div style={{
@@ -366,11 +366,11 @@ const ClienteAdquirenteModal = ({
                       maxLength={100}
                     />
                     {adquirenteFormErrors.nome && (
-                      <span className="error-message" style={{ 
-                        color: '#ef4444', 
-                        fontSize: '11px', 
-                        marginTop: '4px', 
-                        display: 'block' 
+                      <span className="error-message" style={{
+                        color: '#ef4444',
+                        fontSize: '11px',
+                        marginTop: '4px',
+                        display: 'block'
                       }}>
                         {adquirenteFormErrors.nome}
                       </span>
@@ -434,10 +434,10 @@ const ClienteAdquirenteModal = ({
             {/* Campos de Credenciais */}
             <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '2px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-                <div style={{ 
-                  width: '4px', 
-                  height: '20px', 
-                  backgroundColor: '#3b82f6', 
+                <div style={{
+                  width: '4px',
+                  height: '20px',
+                  backgroundColor: '#3b82f6',
                   borderRadius: '2px',
                   marginRight: '12px'
                 }}></div>
@@ -446,14 +446,14 @@ const ClienteAdquirenteModal = ({
                   Credenciais do Adquirente
                 </h4>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '0' }}>
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     E-mail
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -478,11 +478,11 @@ const ClienteAdquirenteModal = ({
                     }}
                   />
                   {formErrors.email && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.email}
@@ -493,9 +493,9 @@ const ClienteAdquirenteModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Usuário
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -520,11 +520,11 @@ const ClienteAdquirenteModal = ({
                     }}
                   />
                   {formErrors.usuario && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.usuario}
@@ -537,9 +537,9 @@ const ClienteAdquirenteModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Senha
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -591,11 +591,11 @@ const ClienteAdquirenteModal = ({
                     </button>
                   </div>
                   {formErrors.senha && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.senha}
@@ -606,9 +606,9 @@ const ClienteAdquirenteModal = ({
                 <div>
                   <label className="form-label" style={{ marginBottom: '6px', display: 'block', fontWeight: '500', fontSize: '13px' }}>
                     Estabelecimento
-                    <span style={{ 
-                      fontSize: '11px', 
-                      color: '#9ca3af', 
+                    <span style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
                       marginLeft: '4px',
                       fontWeight: 'normal'
                     }}>
@@ -633,11 +633,11 @@ const ClienteAdquirenteModal = ({
                     }}
                   />
                   {formErrors.estabelecimento && (
-                    <span className="error-message" style={{ 
-                      color: '#ef4444', 
-                      fontSize: '11px', 
-                      marginTop: '3px', 
-                      display: 'block' 
+                    <span className="error-message" style={{
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      marginTop: '3px',
+                      display: 'block'
                     }}>
                       <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                       {formErrors.estabelecimento}
@@ -648,8 +648,8 @@ const ClienteAdquirenteModal = ({
             </div>
           </form>
         </div>
-        <div className="modal-footer" style={{ 
-          padding: '14px 24px', 
+        <div className="modal-footer" style={{
+          padding: '14px 24px',
           borderTop: '1px solid #eee',
           display: 'flex',
           justifyContent: 'flex-end',

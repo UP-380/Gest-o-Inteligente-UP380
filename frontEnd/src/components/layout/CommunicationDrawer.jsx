@@ -31,8 +31,13 @@ const markdownToHtml = (text) => {
 const conteudoParaPreview = (text) => {
     if (!text) return '';
     return String(text)
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]*>?/gm, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
         .replace(/!\[(.*?)\]\((.*?)\)/g, '(imagem)')
-        .replace(/\[video\]\((.*?)\)/g, '(video)');
+        .replace(/\[video\]\((.*?)\)/g, '(video)')
+        .trim();
 };
 
 const htmlToMarkdown = (html) => {
@@ -82,10 +87,10 @@ const htmlToMarkdown = (html) => {
     return decoder.value;
 };
 
-const getPreviewText = (text) => {
+const getPreviewText = (text, maxLength = 100) => {
     if (!text) return '';
-    const cleaned = conteudoParaPreview(text).replace(/<br>/g, ' ');
-    return cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '');
+    const cleaned = conteudoParaPreview(text);
+    return cleaned.substring(0, maxLength) + (cleaned.length > maxLength ? '...' : '');
 };
 
 const formatTime = (dateString) => {
@@ -434,7 +439,15 @@ const CommunicationDrawer = ({ user }) => {
         const handleOpenDrawer = async (event) => {
             const { tab, interlocutorId } = event.detail || {};
             setIsOpen(true);
-            if (tab) setActiveTab(tab);
+            if (tab) {
+                setActiveTab(tab);
+                // Reset internal views when switching tabs externally
+                setSelectedChat(null);
+                setSelectedChamado(null);
+                setShowNewAvisoForm(false);
+                setShowNewChamadoForm(false);
+                setShowNewChatList(false);
+            }
 
             if (tab === 'chats' && interlocutorId) {
                 // Tentar encontrar nas conversas já carregadas
@@ -930,28 +943,62 @@ const CommunicationDrawer = ({ user }) => {
                 ) : (comunicados || []).length === 0 ? (
                     <div className="comm-empty">Nenhum comunicado</div>
                 ) : (
-                    comunicados.map(com => (
-                        <div key={com.id} className="comm-card comunicado-card" style={{ cursor: 'default' }}>
-                            <div className="comm-card-header">
-                                <span className="author">
-                                    <i className="fas fa-user-circle" style={{ marginRight: '5px', opacity: 0.5 }}></i>
-                                    {com.criador?.nome_usuario}
-                                </span>
-                                <span className="date">{formatDate(com.created_at)}</span>
-                            </div>
+                    comunicados.map(com => {
+                        const isUpdateNote = com.metadata?.origem === 'notas_atualizacao';
+                        const notaId = com.metadata?.nota_id;
 
-                            <h4 className="comm-card-title" style={{ fontSize: '15px', color: '#0e3b6f', marginBottom: '8px' }}>{com.titulo}</h4>
-                            <p className="comm-card-content" style={{
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                                fontSize: '13px',
-                                color: '#475569',
-                                lineHeight: '1.5'
-                            }}>
-                                {conteudoParaPreview(com.conteudo)}
-                            </p>
-                        </div>
-                    ))
+                        return (
+                            <div
+                                key={com.id}
+                                className={`comm-card comunicado-card ${isUpdateNote ? 'update-note-card' : ''}`}
+                                style={{ position: 'relative' }}
+                            >
+                                {isUpdateNote && (
+                                    <div className="update-note-badge">
+                                        <i className="fas fa-rocket"></i> Nova Versão
+                                    </div>
+                                )}
+                                <div className="comm-card-header">
+                                    <span className="author">
+                                        <i className="fas fa-user-circle" style={{ marginRight: '5px', opacity: 0.5 }}></i>
+                                        {com.criador?.nome_usuario || 'Sistema'}
+                                    </span>
+                                    <span className="date">{formatDate(com.created_at)}</span>
+                                </div>
+
+                                <h4 className="comm-card-title">{com.titulo}</h4>
+                                <div className="comm-card-content">
+                                    {getPreviewText(com.conteudo, 150)}
+                                </div>
+
+                                <div className="comm-card-footer" style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                    {isUpdateNote && notaId && (
+                                        <button
+                                            onClick={() => {
+                                                window.location.href = `/base-conhecimento/notas-atualizacao?id=${notaId}`;
+                                            }}
+                                            className="action-link-btn"
+                                            style={{
+                                                background: '#f0f9ff',
+                                                color: '#0369a1',
+                                                border: '1px solid #bae6fd',
+                                                padding: '4px 10px',
+                                                borderRadius: '6px',
+                                                fontSize: '11px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px'
+                                            }}
+                                        >
+                                            <i className="fas fa-book-open"></i> Ver Nota Completa
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })
                 )}
             </div>
         </div>

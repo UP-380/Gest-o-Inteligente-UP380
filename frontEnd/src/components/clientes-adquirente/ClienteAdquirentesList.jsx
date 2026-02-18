@@ -15,9 +15,9 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de adquirentes do cliente
  */
-const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
+const ClienteAdquirentesList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
-  
+
   // Estados principais
   const [adquirentes, setAdquirentes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -48,6 +48,26 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
 
   // Estado para controlar visibilidade de senhas
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
+
+  // Efeito para lidar com clonagem (initialData)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        adquirente_id: initialData.adquirente_id || '',
+        email: initialData['e-mail'] || '',
+        usuario: initialData.usuario || '',
+        senha: initialData.senha || '',
+        estabelecimento: initialData.estabelecimento || ''
+      });
+      setEditingId(null); // Garante que é uma nova entrada ao clonar
+      setShowForm(true);
+      setFormErrors({});
+
+      if (onDataUsed) {
+        onDataUsed();
+      }
+    }
+  }, [initialData, onDataUsed]);
 
   // Carregar adquirentes disponíveis
   const loadAdquirentesOptions = useCallback(async () => {
@@ -175,12 +195,12 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
         estabelecimento: formData.estabelecimento || null
       };
 
-      const url = editingId 
+      const url = editingId
         ? `${API_BASE_URL}/clientes-adquirentes/${editingId}`
         : `${API_BASE_URL}/clientes-adquirentes`;
-      
+
       const method = editingId ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -206,7 +226,7 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
       if (result.success) {
         showToast(
           'success',
-          editingId 
+          editingId
             ? 'Adquirente atualizado com sucesso!'
             : 'Adquirente vinculado com sucesso!'
         );
@@ -329,8 +349,8 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
 
   // Definir colunas da tabela
   const tableColumns = [
-    { 
-      key: 'adquirente', 
+    {
+      key: 'adquirente',
       label: 'Adquirente',
       render: (item) => {
         const adquirente = item.cp_adquirente || (item.adquirente_id && adquirentesOptions.find(a => a.id === item.adquirente_id));
@@ -339,9 +359,9 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
     },
     { key: 'email', label: 'E-mail', render: (item) => item['e-mail'] || '-' },
     { key: 'usuario', label: 'Usuário', render: (item) => item.usuario || '-' },
-    { 
-      key: 'senha', 
-      label: 'Senha', 
+    {
+      key: 'senha',
+      label: 'Senha',
       render: (item) => {
         if (!item.senha) return '-';
         return visiblePasswords.has(item.id) ? item.senha : '••••••••';
@@ -353,7 +373,7 @@ const ClienteAdquirentesList = ({ clienteId, clienteNome }) => {
   // Renderizar ações da tabela
   const renderTableActions = (adquirente) => {
     const isPasswordVisible = visiblePasswords.has(adquirente.id);
-    
+
     return (
       <>
         <button

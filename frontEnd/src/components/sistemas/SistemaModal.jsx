@@ -56,7 +56,7 @@ const SistemaModal = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '600px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid #eee' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -105,30 +105,30 @@ const SistemaModal = ({
                 }}
               />
               {formErrors.nome && (
-                <span className="error-message" style={{ 
-                  color: '#e74c3c', 
-                  fontSize: '12px', 
-                  marginTop: '4px', 
-                  display: 'block' 
+                <span className="error-message" style={{
+                  color: '#e74c3c',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  display: 'block'
                 }}>
                   <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>
                   {formErrors.nome}
                 </span>
               )}
               {!formErrors.nome && formData.nome && (
-                <span style={{ 
-                  color: '#27ae60', 
-                  fontSize: '12px', 
-                  marginTop: '4px', 
-                  display: 'block' 
+                <span style={{
+                  color: '#27ae60',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  display: 'block'
                 }}>
                   <i className="fas fa-check-circle" style={{ marginRight: '4px' }}></i>
                   Nome válido
                 </span>
               )}
-              <div style={{ 
-                fontSize: '11px', 
-                color: '#666', 
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
                 marginTop: '6px',
                 fontStyle: 'italic'
               }}>
@@ -138,8 +138,8 @@ const SistemaModal = ({
             </div>
           </form>
         </div>
-        <div className="modal-footer" style={{ 
-          padding: '16px 24px', 
+        <div className="modal-footer" style={{
+          padding: '16px 24px',
           borderTop: '1px solid #eee',
           display: 'flex',
           justifyContent: 'flex-end',

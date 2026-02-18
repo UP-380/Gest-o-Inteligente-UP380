@@ -15,9 +15,9 @@ const API_BASE_URL = '/api';
 /**
  * Componente de lista de contas bancárias do cliente
  */
-const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
+const ClienteContasBancariasList = ({ clienteId, clienteNome, initialData, onDataUsed }) => {
   const showToast = useToast();
-  
+
   // Estados principais
   const [contas, setContas] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -49,6 +49,39 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
 
   // Estado para controlar visibilidade de senhas
   const [visiblePasswords, setVisiblePasswords] = useState(new Set());
+
+  // Estado para erro de submissão (duplicidade)
+  const [submitError, setSubmitError] = useState(null);
+
+  // Efeito para lidar com clonagem (initialData)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        banco_id: initialData.banco_id || '',
+        agencia: initialData.agencia || '',
+        conta: initialData.conta || '',
+        operador: initialData.operador || '',
+        usuario: initialData.usuario || '',
+        senha: initialData.senha || '',
+        status_cadastro: initialData.status_cadastro || '',
+        status_acesso: initialData.status_acesso || '',
+        observacoes: initialData.observacoes || '',
+        chave_acesso: initialData.chave_acesso || '',
+        senha_4digitos: initialData.senha_4digitos || '',
+        senha_6digitos: initialData.senha_6digitos || '',
+        senha_8digitos: initialData.senha_8digitos || '',
+        link_acesso: initialData.link_acesso || ''
+      });
+      setEditingId(null); // Garante que é uma nova entrada ao clonar
+      setShowForm(true);
+      setFormErrors({});
+      setSubmitError(null);
+
+      if (onDataUsed) {
+        onDataUsed();
+      }
+    }
+  }, [initialData, onDataUsed]);
 
   // Carregar bancos
   const loadBancos = useCallback(async () => {
@@ -158,6 +191,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
         setEditingId(id);
         setShowForm(true);
         setFormErrors({});
+        setSubmitError(null);
       } else {
         throw new Error(result.error || 'Erro ao carregar conta bancária');
       }
@@ -178,6 +212,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
 
     setSubmitting(true);
     setFormErrors({});
+    setSubmitError(null);
 
     try {
       // Função auxiliar para limpar campos vazios
@@ -209,12 +244,12 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
 
       console.log('📤 Enviando payload:', { ...payload, senha: payload.senha ? '***' : null });
 
-      const url = editingId 
+      const url = editingId
         ? `${API_BASE_URL}/clientes-contas-bancarias/${editingId}`
         : `${API_BASE_URL}/clientes-contas-bancarias`;
-      
+
       const method = editingId ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -235,6 +270,14 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       if (!response.ok) {
         const errorMsg = result.error || result.details || `Erro HTTP ${response.status}`;
         console.error('❌ Erro na resposta:', { status: response.status, error: errorMsg, result });
+
+        // Se for erro de duplicidade (409), define mensagem específica para o modal
+        if (response.status === 409) {
+          setSubmitError('Duplicidade detectada: Já existe uma conta com estes dados. Altere algum campo (ex: observações) para salvar, ou verifique se este registro já existe.');
+        } else {
+          setSubmitError(errorMsg);
+        }
+
         showToast('error', errorMsg);
         return;
       }
@@ -242,7 +285,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       if (result.success) {
         showToast(
           'success',
-          editingId 
+          editingId
             ? 'Conta bancária atualizada com sucesso!'
             : 'Conta bancária criada com sucesso!'
         );
@@ -255,6 +298,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
       }
     } catch (error) {
       console.error('❌ Erro ao salvar conta bancária:', error);
+      setSubmitError(error.message || 'Erro ao salvar conta bancária. Verifique sua conexão e tente novamente.');
       showToast('error', error.message || 'Erro ao salvar conta bancária. Verifique sua conexão e tente novamente.');
     } finally {
       setSubmitting(false);
@@ -320,6 +364,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
     setEditingId(null);
     setShowForm(false);
     setFormErrors({});
+    setSubmitError(null);
   };
 
   // Abrir formulário para nova conta
@@ -375,8 +420,8 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
 
   // Definir colunas da tabela
   const tableColumns = [
-    { 
-      key: 'banco', 
+    {
+      key: 'banco',
       label: 'Banco',
       render: (item) => {
         const banco = item.cp_banco || (item.banco_id && bancos.find(b => b.id === item.banco_id));
@@ -387,8 +432,8 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
     { key: 'conta', label: 'Conta', render: (item) => item.conta || '-' },
     { key: 'operador', label: 'Operador', render: (item) => item.operador || '-' },
     { key: 'usuario', label: 'Usuário', render: (item) => item.usuario || '-' },
-    { 
-      key: 'senha', 
+    {
+      key: 'senha',
       label: 'Senha',
       render: (item) => {
         if (!item.senha) return '-';
@@ -400,7 +445,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
   // Renderizar ações da tabela
   const renderTableActions = (conta) => {
     const isPasswordVisible = visiblePasswords.has(conta.id);
-    
+
     return (
       <>
         <button
@@ -499,6 +544,7 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
         editingId={editingId}
         clienteId={clienteId}
         bancos={bancos}
+        submitError={submitError}
       />
 
       {/* Modal de confirmação de exclusão */}
@@ -532,4 +578,3 @@ const ClienteContasBancariasList = ({ clienteId, clienteNome }) => {
 };
 
 export default ClienteContasBancariasList;
-

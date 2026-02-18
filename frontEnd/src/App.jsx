@@ -37,6 +37,8 @@ import HistoricoAtribuicoes from './pages/HistoricoAtribuicoes/HistoricoAtribuic
 import ConfiguracoesPerfil from './pages/ConfiguracoesPerfil/ConfiguracoesPerfil';
 import BaseConhecimento from './pages/BaseConhecimento/BaseConhecimento';
 import ConteudosClientes from './pages/ConteudosClientes/ConteudosClientes';
+import AnexarArquivo from './pages/AnexarArquivo/AnexarArquivo';
+import NotasAtualizacao from './pages/NotasAtualizacao/NotasAtualizacao';
 import BaseConhecimentoCliente from './pages/BaseConhecimentoCliente/BaseConhecimentoCliente';
 import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
@@ -45,6 +47,13 @@ import GestaoUsuarios from './pages/GestaoUsuarios/GestaoUsuarios';
 import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import RelatorioTempo from './pages/RelatorioTempo/RelatorioTempo';
+import Equipamentos from './pages/Equipamentos/Equipamentos';
+import CadastroEquipamento from './pages/Equipamentos/CadastroEquipamento';
+import GestaoEquipamentosLayout from './pages/GestaoEquipamentos/GestaoEquipamentosLayout';
+import DashboardEquipamentos from './pages/GestaoEquipamentos/DashboardEquipamentos';
+import InventarioGestao from './pages/GestaoEquipamentos/InventarioGestao';
+import Operadores from './pages/GestaoEquipamentos/Operadores';
+import PerfilOperador from './pages/GestaoEquipamentos/PerfilOperador';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
@@ -377,6 +386,35 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/equipamentos"
+          element={
+            <ProtectedRoute>
+              <Equipamentos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/equipamento"
+          element={
+            <ProtectedRoute>
+              <CadastroEquipamento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao-equipamentos"
+          element={
+            <ProtectedRoute>
+              <GestaoEquipamentosLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardEquipamentos />} />
+          <Route path="inventario" element={<InventarioGestao />} />
+          <Route path="operadores" element={<Operadores />} />
+          <Route path="operadores/:id" element={<PerfilOperador />} />
+        </Route>
+        <Route
           path="/gestao-capacidade"
           element={
             <ProtectedRoute>
@@ -442,6 +480,22 @@ function App() {
           }
         />
         <Route
+          path="/base-conhecimento/tutoriais"
+          element={
+            <ProtectedRoute>
+              <AnexarArquivo />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/base-conhecimento/notas-atualizacao"
+          element={
+            <ProtectedRoute>
+              <NotasAtualizacao />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/base-conhecimento/cliente/:clienteId"
           element={
             <ProtectedRoute>
@@ -459,6 +513,15 @@ function App() {
         />
         <Route
           path="/atribuicao/nova"
+          element={
+            <ProtectedRoute>
+              <AtribuicaoCliente />
+            </ProtectedRoute>
+          }
+        />
+        {/* Adicionando rota no plural para compatibilidade */}
+        <Route
+          path="/atribuicoes/nova"
           element={
             <ProtectedRoute>
               <AtribuicaoCliente />
@@ -537,14 +600,6 @@ function App() {
           element={
             <ProtectedRoute>
               <PlanilhaHoras />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/relatorio-tempo"
-          element={
-            <ProtectedRoute>
-              <RelatorioTempo />
             </ProtectedRoute>
           }
         />

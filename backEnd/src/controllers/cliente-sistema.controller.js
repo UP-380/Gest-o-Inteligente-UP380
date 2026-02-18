@@ -21,7 +21,7 @@ async function getSistemasCliente(req, res) {
     }
 
     let query = supabase
-      
+
       .from('cliente_sistema')
       .select(`
         id,
@@ -93,7 +93,7 @@ async function getSistemaClientePorId(req, res) {
     }
 
     const { data, error } = await supabase
-      
+
       .from('cliente_sistema')
       .select(`
         *,
@@ -138,8 +138,8 @@ async function getSistemaClientePorId(req, res) {
 // POST - Criar novo sistema para cliente
 async function criarSistemaCliente(req, res) {
   try {
-    const { 
-      cliente_id, 
+    const {
+      cliente_id,
       sistema_id,
       servidor,
       usuario_servidor,
@@ -168,6 +168,7 @@ async function criarSistemaCliente(req, res) {
       });
     }
 
+    /* 
     // Verificar se já existe a combinação cliente + sistema
     const { data: existente, error: errorCheck } = await supabase
       
@@ -192,6 +193,7 @@ async function criarSistemaCliente(req, res) {
         error: 'Este sistema já está vinculado a este cliente'
       });
     }
+    */
 
     // Função auxiliar para limpar valores
     const cleanValue = (value) => {
@@ -220,7 +222,7 @@ async function criarSistemaCliente(req, res) {
 
     // Inserir no banco
     const { data, error: insertError } = await supabase
-      
+
       .from('cliente_sistema')
       .insert([dadosInsert])
       .select(`
@@ -234,6 +236,16 @@ async function criarSistemaCliente(req, res) {
 
     if (insertError) {
       console.error('Erro ao criar sistema do cliente:', insertError);
+
+      // Tratar erro de duplicidade (23505)
+      if (insertError.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Este sistema já está vinculado a este cliente',
+          details: insertError.message
+        });
+      }
+
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar sistema do cliente',
@@ -260,7 +272,7 @@ async function criarSistemaCliente(req, res) {
 async function atualizarSistemaCliente(req, res) {
   try {
     const { id } = req.params;
-    const { 
+    const {
       sistema_id,
       servidor,
       usuario_servidor,
@@ -283,7 +295,7 @@ async function atualizarSistemaCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_sistema')
       .select('id, cliente_id, sistema_id')
       .eq('id', id)
@@ -305,10 +317,11 @@ async function atualizarSistemaCliente(req, res) {
       });
     }
 
+    /*
     // Verificar se já existe outra combinação cliente + sistema (se sistema_id foi alterado)
     if (sistema_id !== undefined && existente.sistema_id !== parseInt(sistema_id, 10)) {
       const { data: outroExistente, error: errorOutro } = await supabase
-        
+
         .from('cliente_sistema')
         .select('id')
         .eq('cliente_id', existente.cliente_id)
@@ -332,6 +345,7 @@ async function atualizarSistemaCliente(req, res) {
         });
       }
     }
+    */
 
     // Função auxiliar para limpar valores
     const cleanValue = (value) => {
@@ -389,7 +403,7 @@ async function atualizarSistemaCliente(req, res) {
 
     // Atualizar no banco
     const { data, error } = await supabase
-      
+
       .from('cliente_sistema')
       .update(dadosUpdate)
       .eq('id', id)
@@ -404,6 +418,16 @@ async function atualizarSistemaCliente(req, res) {
 
     if (error) {
       console.error('Erro ao atualizar sistema do cliente:', error);
+
+      // Tratar erro de duplicidade (23505)
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'Esta atualização resultaria em uma duplicata já existente',
+          details: error.message
+        });
+      }
+
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar sistema do cliente',
@@ -440,7 +464,7 @@ async function deletarSistemaCliente(req, res) {
 
     // Verificar se registro existe
     const { data: existente, error: errorCheck } = await supabase
-      
+
       .from('cliente_sistema')
       .select('id, cliente_id')
       .eq('id', id)
@@ -464,7 +488,7 @@ async function deletarSistemaCliente(req, res) {
 
     // Deletar do banco
     const { error } = await supabase
-      
+
       .from('cliente_sistema')
       .delete()
       .eq('id', id);

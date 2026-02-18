@@ -1,0 +1,367 @@
+/* Inventory Table */
+.inventario-gestao {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    /* System standard shadow */
+    border: 1px solid #e2e8f0;
+}
+
+.equip-name-cell {
+    display: flex;
+    flex-direction: column;
+}
+
+.equip-name-cell span {
+    font-size: 13px;
+    color: #64748b;
+    /* gray-500 */
+}
+
+/* Status Chips */
+.status-chip {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+    text-transform: capitalize;
+}
+
+.status-chip.ativo {
+    background: #dcfce7;
+    /* green-100 */
+    color: #166534;
+    /* green-700 */
+}
+
+.status-chip.em-uso {
+    background: #e0f2fe;
+    /* sky-100 */
+    color: #0369a1;
+    /* sky-700 */
+}
+
+.status-chip.manutencao {
+    background: #fee2e2;
+    /* red-100 */
+    color: #991b1b;
+    /* red-700 */
+}
+
+/* Table Styles - Align with global table styles if possible */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    padding: 16px;
+    border-bottom: 2px solid #e2e8f0;
+    color: #64748b;
+    /* gray-500 */
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+tbody tr {
+    border-bottom: 1px solid #f1f5f9;
+}
+
+tbody td {
+    padding: 16px;
+    vertical-align: middle;
+    color: #1e293b;
+    /* gray-800 */
+    font-size: 14px;
+}
+
+/* Action Buttons */
+.btn-assign,
+.btn-return {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-assign {
+    background: #f0f9ff;
+    color: #0e3b6f;
+    border-color: #bae6fd;
+}
+
+.btn-assign:hover {
+    background: #0e3b6f;
+    color: white;
+    border-color: #0e3b6f;
+}
+
+.btn-return {
+    background: #fff7ed;
+    color: #ea580c;
+    border-color: #fed7aa;
+}
+
+.btn-return:hover {
+    background: #ea580c;
+    color: white;
+    border-color: #ea580c;
+}
+
+.btn-assign.disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+/* Controls */
+.inventory-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    outline: none;
+    transition: border 0.2s;
+    color: #1e293b;
+}
+
+.search-box input:focus {
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.filter-box select {
+    padding: 10px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    outline: none;
+    background: white;
+    cursor: pointer;
+    color: #1e293b;
+}
+
+.filter-box select:focus {
+    border-color: #0e3b6f;
+}
+
+/* Empty State */
+.empty-inventory {
+    padding: 48px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.empty-inventory i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #cbd5e1;
+}
+
+.empty-inventory p {
+    font-size: 16px;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.gestao-modal {
+    background: white;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.gestao-modal h2 {
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-size: 20px;
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #334155;
+    font-size: 14px;
+}
+
+.form-group select,
+.form-group textarea {
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: inherit;
+    color: #1e293b;
+    outline: none;
+}
+
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.form-group textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-cancel {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.btn-confirm {
+    background: #0e3b6f;
+    /* primary-blue */
+    color: white;
+    border: 1px solid #0e3b6f;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-confirm:hover {
+    background: #0c325e;
+    border-color: #0c325e;
+    box-shadow: 0 4px 6px -1px rgba(14, 59, 111, 0.2);
+}
+
+.btn-confirm.secondary {
+    background: #ea580c;
+    border-color: #ea580c;
+}
+
+.btn-confirm.secondary:hover {
+    background: #c2410c;
+    border-color: #c2410c;
+}
+
+/* Avaria Cell */
+.avaria-cell {
+    display: flex;
+    justify-content: center;
+}
+
+.avaria-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+}
+
+.avaria-status.no-damage i {
+    color: #10b981;
+}
+
+.avaria-status.has-damage i.fa-times-circle {
+    color: #ef4444;
+}
+
+.btn-view-damage {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0284c7;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-view-damage:hover {
+    background: #0284c7;
+    color: white;
+}
+
+.damage-preview-modal {
+    max-width: 700px;
+    width: 90%;
+}
+
+.rich-text-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 10px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

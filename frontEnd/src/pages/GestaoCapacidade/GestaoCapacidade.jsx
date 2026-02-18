@@ -114,7 +114,7 @@ const GestaoCapacidade = () => {
 
   const loadMembros = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/membros/ativos`, {
+      const response = await fetch(`${API_BASE_URL}/colaboradores?status=ativo`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
@@ -276,7 +276,16 @@ const GestaoCapacidade = () => {
       });
 
       if (result.success && result.data) {
-        const opcoes = result.data.map(item => ({
+        // Garantir que result.data seja um array
+        let dadosArray = [];
+        if (Array.isArray(result.data)) {
+          dadosArray = result.data;
+        } else if (typeof result.data === 'object') {
+          // Se for objeto, tentar converter para array usando Object.values
+          dadosArray = Object.values(result.data);
+        }
+
+        const opcoes = dadosArray.map(item => ({
           id: isNaN(parseInt(item.id)) ? item.id : parseInt(item.id),
           nome: item.nome || (LABEL_POR_NIVEL[nivelAPI] + ' #' + item.id)
         }));
