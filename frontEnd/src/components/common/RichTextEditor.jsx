@@ -4,12 +4,16 @@ import 'react-quill/dist/quill.snow.css';
 import './RichTextEditor.css';
 
 // Registrar tamanhos de fonte personalizados
+// Registrar tamanhos de fonte personalizados apenas se ainda não estiverem registrados
 const Size = Quill.import('attributors/style/size');
 const fontSizeOptions = ['8px', '10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px', '60px', '72px'];
 Size.whitelist = fontSizeOptions;
-Quill.register(Size, true);
+if (!Quill.imports['attributors/style/size'] || Quill.imports['attributors/style/size'].whitelist !== fontSizeOptions) {
+  Quill.register(Size, true);
+}
 
 // Registrar famílias de fonte personalizadas
+// Registrar famílias de fonte personalizadas apenas se necessário
 const Font = Quill.import('formats/font');
 const fontFamilyOptions = [
   'Arial',
@@ -29,10 +33,17 @@ const fontFamilyOptions = [
   'Roboto'
 ];
 Font.whitelist = fontFamilyOptions;
-Quill.register(Font, true);
+if (!Quill.imports['formats/font'] || Quill.imports['formats/font'].whitelist !== fontFamilyOptions) {
+  Quill.register(Font, true);
+}
 
 // Registrar blot de vídeo para que vídeos não sejam removidos pelo editor
+// Registrar blot de vídeo apenas se ainda não for o customizado
 const BlockEmbed = Quill.import('blots/block/embed');
+// Verificamos se já existe um VideoBlot registrado e se é nossa classe customizada (via propriedade estática)
+const existingVideo = Quill.imports['formats/video'];
+const needsRegistration = !existingVideo || !existingVideo.isCustomVideoBlot;
+
 class VideoBlot extends BlockEmbed {
   static create(url) {
     const node = super.create();
@@ -47,7 +58,11 @@ class VideoBlot extends BlockEmbed {
 }
 VideoBlot.blotName = 'video';
 VideoBlot.tagName = 'VIDEO';
-Quill.register(VideoBlot);
+VideoBlot.isCustomVideoBlot = true; // Flag para identificar nossa implementação
+
+if (needsRegistration) {
+  Quill.register(VideoBlot, true);
+}
 
 /**
  * Componente de editor de texto rico reutilizável usando React Quill
