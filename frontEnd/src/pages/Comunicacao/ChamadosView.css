@@ -80,5 +80,96 @@
 }
 
 .badge.status {
-    /* Color injected inline */
+    min-width: 80px;
+    text-align: center;
+}
+
+/* New styles */
+.operator-hint {
+    display: block;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #004085;
+    /* Dark blue */
+    margin-top: 5px;
+}
+
+.description-group .textarea-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.textarea-wrapper textarea {
+    width: 100%;
+    resize: vertical;
+    padding-right: 40px;
+    /* Make space for icon */
+}
+
+.upload-icon {
+    display: none;
+    /* Hide old icon */
+}
+
+.attach-file-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2.5' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    background-color: #f8fafc;
+    color: #0e3b6f;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+
+.attach-file-btn:hover {
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e");
+    color: #0e3b6f;
+    background-color: #eff6ff;
+}
+
+.attach-file-btn i {
+    font-size: 1rem;
+}
+
+.chamado-category {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+    font-weight: 500;
+}
+
+.file-preview {
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: #495057;
+}
+
+.file-preview span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-preview .remove-file {
+    color: #dc3545;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 4px;
+}
+
+.file-preview .remove-file:hover {
+    color: #bd2130;
 }

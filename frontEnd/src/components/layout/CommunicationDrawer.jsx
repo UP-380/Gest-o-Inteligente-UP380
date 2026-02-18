@@ -157,7 +157,7 @@ const getDateLabel = (dateString) => {
 // ==============================================================================
 // === COMPONENT: Rich Editor (Teams-like) ===
 // ==============================================================================
-const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '100px', autoFocus = false }) => {
+const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '100px', autoFocus = false, showUploadIcon = true }) => {
     const editorRef = useRef(null);
     const [uploading, setUploading] = useState(false);
 
@@ -318,6 +318,15 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
         }
     };
 
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            handleUpload(e.target.files[0]);
+            e.target.value = ''; // Reset input
+        }
+    };
+
+    const fileInputRef = useRef(null);
+
     return (
         <div
             className="rich-editor-wrapper"
@@ -359,6 +368,33 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
                     <i className="fas fa-spinner fa-spin" style={{ color: '#0e3b6f' }}></i>
                 </div>
             )}
+            {showUploadIcon && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        right: '10px',
+                        bottom: '10px',
+                        opacity: 0.5,
+                        cursor: 'pointer',
+                        fontSize: '1.2rem',
+                        color: '#64748b',
+                        zIndex: 5
+                    }}
+                    title="Anexar imagem/vídeo"
+                    onClick={() => fileInputRef.current?.click()}
+                    onMouseEnter={(e) => e.target.style.opacity = 1}
+                    onMouseLeave={(e) => e.target.style.opacity = 0.5}
+                >
+                    <i className="fas fa-folder-open"></i>
+                </div>
+            )}
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+                accept="image/*,video/*"
+            />
         </div>
     );
 };
@@ -405,14 +441,22 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria: '' });
     const [isSaving, setIsSaving] = useState(false);
+
+    const OPERADORES_POR_CATEGORIA = {
+        'Hardware': 'Carlos Ferreira',
+        'Software': 'Ana Clara',
+        'Rede': 'Roberto Mendes',
+        'Acesso': 'Fernanda Lima',
+        'Outros': 'Suporte Geral'
+    };
 
     // Edit & Upload States
     const [editingMessageId, setEditingMessageId] = useState(null);
     const [editContent, setEditContent] = useState('');
     const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef(null);
+    const drawerFileInputRef = useRef(null);
     // Para identificar onde inserir a mídia (novo chamado, resposta ou edição)
     const [uploadTarget, setUploadTarget] = useState(null); // 'NEW_CHAMADO', 'REPLY', 'EDIT_MSG'
 
@@ -497,7 +541,7 @@ const CommunicationDrawer = ({ user }) => {
                 // Marcar como lidas as mensagens que o outro enviou (quem está vendo é o usuário atual)
                 const msgsDoOutro = list.filter(m => Number(m.criador_id) !== Number(user?.id));
                 msgsDoOutro.forEach((m) => {
-                    comunicacaoAPI.marcarMensagemLida(m.id).catch(() => {});
+                    comunicacaoAPI.marcarMensagemLida(m.id).catch(() => { });
                 });
             }
         } catch (error) {
@@ -688,13 +732,19 @@ const CommunicationDrawer = ({ user }) => {
             alert(msg);
         } finally {
             setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (drawerFileInputRef.current) drawerFileInputRef.current.value = '';
         }
     };
 
     const triggerUpload = (target) => {
+        console.log('[Drawer] triggerUpload target:', target);
         setUploadTarget(target);
-        if (fileInputRef.current) fileInputRef.current.click();
+        if (drawerFileInputRef.current) {
+            console.log('[Drawer] Clicking hidden input');
+            drawerFileInputRef.current.click();
+        } else {
+            console.warn('[Drawer] drawerFileInputRef.current is NULL');
+        }
     };
 
     // Edit Handlers
@@ -734,11 +784,13 @@ const CommunicationDrawer = ({ user }) => {
                 conteudo: formData.conteudo,
                 metadata: tipo === 'COMUNICADO' ? {
                     destacado: formData.destacado
-                } : {}
+                } : (tipo === 'CHAMADO' ? {
+                    categoria: formData.categoria
+                } : {})
             });
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false });
+                setFormData({ titulo: '', conteudo: '', destacado: false, categoria: '' });
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
                 if (tipo === 'COMUNICADO') loadComunicados();
@@ -1066,6 +1118,7 @@ const CommunicationDrawer = ({ user }) => {
                                             onContentChange={setEditContent}
                                             placeholder="Digite sua mensagem..."
                                             minHeight="80px"
+                                            showUploadIcon={true}
                                         />
                                         <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', marginTop: '5px' }}>
                                             <button onClick={handleCancelEdit} style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
@@ -1156,25 +1209,90 @@ const CommunicationDrawer = ({ user }) => {
                 <div style={{ marginBottom: '15px', color: '#64748b', fontSize: '12px' }}>
                     <i className="fas fa-info-circle"></i> Todos os campos marcados com * são obrigatórios.
                 </div>
-                <div className="form-group" style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Título *</label>
-                    <input
-                        type="text"
-                        placeholder="Digite o título..."
-                        value={formData.titulo}
-                        onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                    />
-                </div>
-                <div className="form-group" style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Descrição *</label>
-                    <RichEditor
-                        initialValue={formData.conteudo}
-                        onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
-                        placeholder={tipo === 'COMUNICADO' ? "Digite o aviso..." : "Descreva o chamado..."}
-                        minHeight="150px"
-                    />
-                </div>
+
+                {tipo === 'CHAMADO' && (
+                    <div className="form-group" style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Categoria *</label>
+                        <select
+                            value={formData.categoria}
+                            onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                        >
+                            <option value="">Selecione uma categoria</option>
+                            {Object.keys(OPERADORES_POR_CATEGORIA).map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                        {formData.categoria && (
+                            <small style={{
+                                display: 'block',
+                                fontSize: '0.85rem',
+                                fontStyle: 'italic',
+                                color: '#0e3b6f',
+                                marginTop: '5px'
+                            }}>
+                                Responsável: {OPERADORES_POR_CATEGORIA[formData.categoria]}
+                            </small>
+                        )}
+                    </div>
+                )}
+
+                {(tipo === 'COMUNICADO' || formData.categoria) && (
+                    <>
+                        <div className="form-group" style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Título *</label>
+                            <input
+                                type="text"
+                                placeholder="Digite o título..."
+                                value={formData.titulo}
+                                onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
+                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Descrição *</label>
+                            <RichEditor
+                                initialValue={formData.conteudo}
+                                onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
+                                placeholder={tipo === 'COMUNICADO' ? "Digite o aviso..." : "Descreva o chamado..."}
+                                minHeight="150px"
+                                showUploadIcon={false}
+                            />
+                            {tipo === 'CHAMADO' && (
+                                <button
+                                    type="button"
+                                    className="attach-file-btn"
+                                    style={{
+                                        width: '100%',
+                                        padding: '14px',
+                                        border: 'none',
+                                        backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2.5' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e")`,
+                                        backgroundColor: '#f8fafc',
+                                        color: '#0e3b6f',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        marginTop: '10px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        fontWeight: '600',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onClick={() => triggerUpload('NEW_CHAMADO')}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#f8fafc';
+                                    }}
+                                >
+                                    <i className="fas fa-paperclip"></i> Anexar arquivo
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
                 {tipo === 'COMUNICADO' && (
                     <div className="form-group" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <input
@@ -1197,12 +1315,12 @@ const CommunicationDrawer = ({ user }) => {
                     style={{
                         width: '100%',
                         padding: '12px',
-                        backgroundColor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim()) ? '#cbd5e1' : '#0e3b6f',
+                        backgroundColor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria)) ? '#cbd5e1' : '#0e3b6f',
                         color: 'white',
                         borderRadius: '8px',
                         border: 'none',
                         fontWeight: 'bold',
-                        cursor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim()) ? 'not-allowed' : 'pointer'
+                        cursor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria)) ? 'not-allowed' : 'pointer'
                     }}
                 >
                     {isSaving ? 'Salvando...' : (tipo === 'COMUNICADO' ? 'Publicar Aviso' : 'Abrir Chamado')}
@@ -1309,6 +1427,15 @@ const CommunicationDrawer = ({ user }) => {
                     />
                 </div>
             )}
+
+            {/* Hidden Input for Global Uploads (Chamados/Avisos/Respostas) */}
+            <input
+                type="file"
+                ref={drawerFileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleUploadFile}
+                accept="image/*,video/*"
+            />
         </div>
     );
 };

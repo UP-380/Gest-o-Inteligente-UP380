@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
 import './ChamadosView.css';
 
@@ -6,7 +6,22 @@ const ChamadosView = () => {
     const [chamados, setChamados] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
-    const [newChamado, setNewChamado] = useState({ titulo: '', conteudo: '', metadata: { prioridade: 'media' } });
+    const [newChamado, setNewChamado] = useState({
+        titulo: '',
+        conteudo: '',
+        categoria: '',
+        metadata: { prioridade: 'media' }
+    });
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = useRef(null);
+
+    const OPERADORES_POR_CATEGORIA = {
+        'Hardware': 'Carlos Ferreira',
+        'Software': 'Ana Clara',
+        'Rede': 'Roberto Mendes',
+        'Acesso': 'Fernanda Lima',
+        'Outros': 'Suporte Geral'
+    };
 
     useEffect(() => {
         loadChamados();
@@ -26,20 +41,54 @@ const ChamadosView = () => {
         }
     };
 
+    const handleFileSelect = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
+            let anexos = [];
+
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                const uploadResponse = await comunicacaoAPI.uploadMedia(formData);
+
+                if (uploadResponse.data && uploadResponse.data.url) {
+                    anexos.push({
+                        url: uploadResponse.data.url,
+                        nome: selectedFile.name,
+                        tipo: selectedFile.type
+                    });
+                }
+            }
+
             const payload = {
                 tipo: 'CHAMADO',
                 titulo: newChamado.titulo,
                 conteudo: newChamado.conteudo,
                 status_chamado: 'ABERTO',
-                metadata: newChamado.metadata
+                metadata: {
+                    ...newChamado.metadata,
+                    categoria: newChamado.categoria,
+                    anexos: anexos
+                }
             };
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {
                 setShowModal(false);
-                setNewChamado({ titulo: '', conteudo: '', metadata: { prioridade: 'media' } });
+                setNewChamado({ titulo: '', conteudo: '', categoria: '', metadata: { prioridade: 'media' } });
+                setSelectedFile(null);
                 loadChamados();
             }
         } catch (error) {
@@ -84,6 +133,11 @@ const ChamadosView = () => {
                                     <span className="chamado-date">
                                         Criado em: {new Date(chamado.created_at).toLocaleDateString()}
                                     </span>
+                                    {chamado.metadata?.categoria && (
+                                        <span className="chamado-category">
+                                            Categoria: {chamado.metadata.categoria}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="chamado-meta">
                                     <span className="badge status" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}>
@@ -105,23 +159,76 @@ const ChamadosView = () => {
                         <h3>Novo Chamado</h3>
                         <form onSubmit={handleCreate}>
                             <div className="form-group">
-                                <label>Assunto</label>
-                                <input
-                                    type="text"
-                                    value={newChamado.titulo}
-                                    onChange={e => setNewChamado({ ...newChamado, titulo: e.target.value })}
+                                <label>Categoria</label>
+                                <select
+                                    value={newChamado.categoria}
+                                    onChange={e => setNewChamado({ ...newChamado, categoria: e.target.value })}
                                     required
-                                />
+                                >
+                                    <option value="">Selecione uma categoria</option>
+                                    {Object.keys(OPERADORES_POR_CATEGORIA).map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                                {newChamado.categoria && (
+                                    <small className="operator-hint">
+                                        Responsável: {OPERADORES_POR_CATEGORIA[newChamado.categoria]}
+                                    </small>
+                                )}
                             </div>
-                            <div className="form-group">
-                                <label>Descrição do Problema/Solicitação</label>
-                                <textarea
-                                    rows="5"
-                                    value={newChamado.conteudo}
-                                    onChange={e => setNewChamado({ ...newChamado, conteudo: e.target.value })}
-                                    required
-                                ></textarea>
-                            </div>
+
+                            {newChamado.categoria && (
+                                <>
+                                    <div className="form-group">
+                                        <label>Assunto</label>
+                                        <input
+                                            type="text"
+                                            value={newChamado.titulo}
+                                            onChange={e => setNewChamado({ ...newChamado, titulo: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="form-group description-group">
+                                        <label>Descrição do Problema/Solicitação *</label>
+                                        <div className="textarea-wrapper">
+                                            <textarea
+                                                rows="5"
+                                                value={newChamado.conteudo}
+                                                onChange={e => setNewChamado({ ...newChamado, conteudo: e.target.value })}
+                                                required
+                                            ></textarea>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="attach-file-btn"
+                                            onClick={() => {
+                                                console.log('[ChamadosView] Button clicked, ref:', fileInputRef.current);
+                                                fileInputRef.current?.click();
+                                            }}
+                                        >
+                                            <i className="fas fa-paperclip"></i> Anexar arquivo
+                                        </button>
+
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            style={{ display: 'none' }}
+                                            onChange={handleFileSelect}
+                                            accept="image/*,video/*"
+                                        />
+
+                                        {selectedFile && (
+                                            <div className="file-preview">
+                                                <span><i className="fas fa-paperclip"></i> {selectedFile.name}</span>
+                                                <i className="fas fa-times remove-file" onClick={handleRemoveFile} title="Remover anexo"></i>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
                             <div className="form-group">
                                 <label>Prioridade</label>
                                 <select
@@ -133,6 +240,7 @@ const ChamadosView = () => {
                                     <option value="alta">Alta</option>
                                 </select>
                             </div>
+
                             <div className="modal-actions">
                                 <button type="button" onClick={() => setShowModal(false)}>Cancelar</button>
                                 <button type="submit" className="confirm-btn">Abrir Chamado</button>
