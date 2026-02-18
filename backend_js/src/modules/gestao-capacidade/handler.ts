@@ -419,12 +419,15 @@ function contarTotalizadores(
 /**
  * Monta resumo aninhado dinamicamente por ordem_niveis: cada nó tem totais do nível + totalizadores (excluindo o próprio nível) + detalhes (próximo nível).
  */
+/**
+ * Monta resumo aninhado dinamicamente por ordem_niveis: cada nó tem totais do nível + totalizadores (excluindo o próprio nível) + detalhes (próximo nível).
+ * OTIMIZADO: Recebe listas já filtradas do nível pai.
+ */
 function montarResumoAninhado(
   ordem_niveis: Nivel[],
   nivelIndex: number,
   registros: RegistroTempo[],
   estimados: EstimadoRegra[],
-  parentPath: Array<{ nivel: Nivel; id: string | number }>,
   ctx: {
     membros: Membro[];
     usuarioParaMembro: Map<number, number>;
@@ -443,7 +446,10 @@ function montarResumoAninhado(
 ): Record<string, any> {
   if (nivelIndex >= ordem_niveis.length) return {};
   const nivel = ordem_niveis[nivelIndex];
-  const { registros: regs, estimados: ests } = filtrarPorParentPath(registros, estimados, ordem_niveis, parentPath, ctx.usuarioParaMembro);
+
+  // Registros e Estimados já vêm filtrados do PAI
+  const regs = registros;
+  const ests = estimados;
 
   const resumo = calcularResumoPorNivel({
     nivel,
@@ -466,9 +472,11 @@ function montarResumoAninhado(
 
   const ehPrimeiroNivel = nivelIndex === 0;
   const resultado: Record<string, any> = {};
+
   for (const idStr of Object.keys(resumo)) {
     const item = resumo[idStr];
-    const idVal = item.id;
+
+    // Filtrar subset para este nó específico a partir da lista do pai
     const registrosNivel = regs.filter((r) => {
       const id = getIdParaNivel(r, nivel, ctx.usuarioParaMembro);
       return id != null && String(id) === String(idStr);
@@ -477,8 +485,19 @@ function montarResumoAninhado(
       const id = getIdParaNivel(e, nivel, ctx.usuarioParaMembro);
       return id != null && String(id) === String(idStr);
     });
+
+    // Totais são calculados apenas no primeiro nível (contexto global de contagem)
     const totais = ehPrimeiroNivel ? contarTotalizadores(registrosNivel, estimadosNivel, ctx.usuarioParaMembro) : {};
-    const detalhes = montarResumoAninhado(ordem_niveis, nivelIndex + 1, registros, estimados, parentPath.concat({ nivel, id: idVal }), ctx);
+
+    // Recurso com subset filtrado
+    const detalhes = montarResumoAninhado(
+      ordem_niveis,
+      nivelIndex + 1,
+      registrosNivel, // Passa subset para filhos
+      estimadosNivel,
+      ctx
+    );
+
     const itemSemTotaisSeDetalhe = ehPrimeiroNivel ? item : (() => {
       const { total_tarefas, total_produtos, total_clientes, total_colaboradores, ...resto } = item;
       return resto;
@@ -608,11 +627,14 @@ function adicionarFormatosNaHierarquia(obj: Record<string, any>): void {
  * Adiciona total_tarefas, total_produtos, total_clientes, total_colaboradores em cada nó de "data",
  * no mesmo formato para qualquer primeiro nível (colaborador, cliente, produto, etc.).
  */
+/**
+ * Adiciona total_tarefas, total_produtos, total_clientes, total_colaboradores em cada nó de "data".
+ * OTIMIZADO: Recebe listas já filtradas do nível pai, evitando re-scan global.
+ */
 function adicionarTotalizadoresNaHierarquia(
   obj: Record<string, any>,
   ordem_niveis: Nivel[],
   nivelIndex: number,
-  parentPath: Array<{ nivel: Nivel; id: string | number }>,
   registros: RegistroTempo[],
   estimados: EstimadoRegra[],
   usuarioParaMembro: Map<number, number>
@@ -620,32 +642,50 @@ function adicionarTotalizadoresNaHierarquia(
   if (!obj || typeof obj !== 'object' || nivelIndex >= ordem_niveis.length) return;
   const nivel = ordem_niveis[nivelIndex];
   const ehPrimeiroNivel = nivelIndex === 0;
+
   for (const chave of Object.keys(obj)) {
     const node = obj[chave];
     if (!node || typeof node !== 'object') continue;
-    const pathAteAqui = parentPath.concat({ nivel, id: chave });
+
+    // Filtrar apenas o subset deste nó a partir da lista do pai
+    const registrosNode = registros.filter(r => {
+      const id = getIdParaNivel(r, nivel, usuarioParaMembro);
+      return id != null && String(id) === String(chave);
+    });
+    const estimadosNode = estimados.filter(e => {
+      const id = getIdParaNivel(e, nivel, usuarioParaMembro);
+      return id != null && String(id) === String(chave);
+    });
+
     if (ehPrimeiroNivel) {
-      const { registros: regs, estimados: ests } = filtrarPorParentPath(registros, estimados, ordem_niveis, pathAteAqui, usuarioParaMembro);
-      const totais = contarTotalizadores(regs, ests, usuarioParaMembro);
+      const totais = contarTotalizadores(registrosNode, estimadosNode, usuarioParaMembro);
       node.total_tarefas = totais.total_tarefas;
       node.total_produtos = totais.total_produtos;
       node.total_clientes = totais.total_clientes;
       node.total_colaboradores = totais.total_colaboradores;
     }
+
     if (node.detalhes && typeof node.detalhes === 'object') {
-      adicionarTotalizadoresNaHierarquia(node.detalhes, ordem_niveis, nivelIndex + 1, pathAteAqui, registros, estimados, usuarioParaMembro);
+      adicionarTotalizadoresNaHierarquia(
+        node.detalhes,
+        ordem_niveis,
+        nivelIndex + 1,
+        registrosNode, // Passar subset para os filhos
+        estimadosNode,
+        usuarioParaMembro
+      );
     }
   }
 }
 
 /**
- * Adiciona custo_estimado e custo_realizado em cada nó de "data" (resumo e todos os níveis).
+ * Adiciona custo_estimado e custo_realizado em cada nó de "data".
+ * OTIMIZADO: Recebe listas já filtradas do nível pai.
  */
 function adicionarCustoNaHierarquia(
   obj: Record<string, any>,
   ordem_niveis: Nivel[],
   nivelIndex: number,
-  parentPath: Array<{ nivel: Nivel; id: string | number }>,
   registros: RegistroTempo[],
   estimados: EstimadoRegra[],
   usuarioParaMembro: Map<number, number>,
@@ -658,14 +698,35 @@ function adicionarCustoNaHierarquia(
 ): void {
   if (!obj || typeof obj !== 'object' || nivelIndex >= ordem_niveis.length) return;
   const nivel = ordem_niveis[nivelIndex];
+
   for (const chave of Object.keys(obj)) {
     const node = obj[chave];
     if (!node || typeof node !== 'object') continue;
-    const pathAteAqui = parentPath.concat({ nivel, id: chave });
-    const { registros: regs, estimados: ests } = filtrarPorParentPath(registros, estimados, ordem_niveis, pathAteAqui, usuarioParaMembro);
-    const { custo_estimado, custo_realizado } = calcularCusto(regs, ests, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados);
+
+    // Filtrar apenas o subset deste nó a partir da lista do pai
+    const registrosNode = registros.filter(r => {
+      const id = getIdParaNivel(r, nivel, usuarioParaMembro);
+      return id != null && String(id) === String(chave);
+    });
+    const estimadosNode = estimados.filter(e => {
+      const id = getIdParaNivel(e, nivel, usuarioParaMembro);
+      return id != null && String(id) === String(chave);
+    });
+
+    const { custo_estimado, custo_realizado } = calcularCusto(
+      registrosNode,
+      estimadosNode,
+      usuarioParaMembro,
+      vigenciaPorMembro,
+      data_inicio,
+      data_fim,
+      ignorar_finais_semana,
+      feriados
+    );
+
     node.custo_estimado = custo_estimado;
     node.custo_realizado = custo_realizado;
+
     if (nivel === 'colaborador') {
       const membroId = typeof chave === 'string' && /^\d+$/.test(chave) ? parseInt(chave, 10) : Number(chave);
       const vigencia = vigenciaPorMembro.get(membroId);
@@ -704,8 +765,22 @@ function adicionarCustoNaHierarquia(
       const custoDiferenca = custoContratado - (node.custo_realizado || 0);
       node.custo_diferenca = custoDiferenca;
     }
+
     if (node.detalhes && typeof node.detalhes === 'object') {
-      adicionarCustoNaHierarquia(node.detalhes, ordem_niveis, nivelIndex + 1, pathAteAqui, registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados, nomeTipoContrato);
+      adicionarCustoNaHierarquia(
+        node.detalhes,
+        ordem_niveis,
+        nivelIndex + 1,
+        registrosNode, // Passar subset para os filhos
+        estimadosNode,
+        usuarioParaMembro,
+        vigenciaPorMembro,
+        data_inicio,
+        data_fim,
+        ignorar_finais_semana,
+        feriados,
+        nomeTipoContrato
+      );
     }
   }
 }
@@ -978,8 +1053,8 @@ export async function cardsHandler(c: Context) {
     });
 
     adicionarFormatosNaHierarquia(hierarquia);
-    adicionarTotalizadoresNaHierarquia(hierarquia, ordem_niveis, 0, [], registros, estimados, usuarioParaMembro);
-    adicionarCustoNaHierarquia(hierarquia, ordem_niveis, 0, [], registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados, nomeTipoContrato);
+    adicionarTotalizadoresNaHierarquia(hierarquia, ordem_niveis, 0, registros, estimados, usuarioParaMembro);
+    adicionarCustoNaHierarquia(hierarquia, ordem_niveis, 0, registros, estimados, usuarioParaMembro, vigenciaPorMembro, data_inicio, data_fim, ignorar_finais_semana, feriados, nomeTipoContrato);
     reordenarResumoAntesDeDetalhes(hierarquia);
 
     // Totalizadores globais (distintos no período)
@@ -1009,7 +1084,7 @@ export async function cardsHandler(c: Context) {
     };
 
     // Resumo aninhado dinâmico: primeiro nível no root, cada nó com totalizadores + detalhes (próximo nível)
-    const resumoAninhado = montarResumoAninhado(ordem_niveis, 0, registros, estimados, [], {
+    const resumoAninhado = montarResumoAninhado(ordem_niveis, 0, registros, estimados, {
       membros,
       usuarioParaMembro,
       vigenciaPorMembro,
