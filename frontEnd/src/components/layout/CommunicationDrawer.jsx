@@ -18,8 +18,8 @@ const markdownToHtml = (text) => {
     let html = text
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
         .replace(/\n/g, '<br>') // Lines
-        .replace(/!\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="media-label">(imagem)</a>') // Images
-        .replace(/\[video\]\((.*?)\)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="media-label">(video)</a>'); // Videos
+        .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="media-preview" title="Clique para ampliar" />') // Images
+        .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="media-preview"></video>'); // Videos
     return html;
 };
 
@@ -993,15 +993,17 @@ const CommunicationDrawer = ({ user }) => {
                             </div>
 
                             <h4 className="comm-card-title" style={{ fontSize: '15px', color: '#0e3b6f', marginBottom: '8px' }}>{com.titulo}</h4>
-                            <p className="comm-card-content" style={{
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word',
-                                fontSize: '13px',
-                                color: '#475569',
-                                lineHeight: '1.5'
-                            }}>
-                                {conteudoParaPreview(com.conteudo)}
-                            </p>
+                            <div
+                                className="comm-card-content"
+                                onClick={handleImageClick}
+                                style={{
+                                    fontSize: '13px',
+                                    color: '#475569',
+                                    lineHeight: '1.5',
+                                    cursor: 'pointer'
+                                }}
+                                dangerouslySetInnerHTML={{ __html: markdownToHtml(com.conteudo) }}
+                            />
                         </div>
                     ))
                 )}
