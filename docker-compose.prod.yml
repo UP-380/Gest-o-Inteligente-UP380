@@ -8,6 +8,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
+      - BUN_API_URL=http://bun-service:3001
     env_file:
       - .env.production
     volumes:
@@ -15,6 +16,8 @@ services:
       - upgi-uploads:/app/frontEnd/public/assets/images/avatars/custom
     networks:
       - upgi-network
+    depends_on:
+      - bun-service
     restart: always
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
@@ -30,6 +33,38 @@ services:
         reservations:
           memory: 512M
           cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bun-service:
+    build:
+      context: ./backend_js
+      dockerfile: Dockerfile
+    container_name: upgi-bun-prod
+    environment:
+      - PORT=3001
+      - HOST=0.0.0.0
+    env_file:
+      - .env.production
+    networks:
+      - upgi-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "bun", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
     logging:
       driver: "json-file"
       options:

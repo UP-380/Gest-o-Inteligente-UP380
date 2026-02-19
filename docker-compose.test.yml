@@ -50,7 +50,7 @@ services:
       - PORT=3001
       - HOST=0.0.0.0
     env_file:
-      - ./backend_js/.env
+      - .env.test
     networks:
       - upgi-network-test
     restart: always
