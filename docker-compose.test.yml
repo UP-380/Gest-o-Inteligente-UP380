@@ -8,8 +8,11 @@ services:
     environment:
       - NODE_ENV=production # Still production build but with test config
       - PORT=4000
+      - BUN_API_URL=http://host.docker.internal:3001
     env_file:
       - .env.test
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - upgi-logs-test:/app/logs
       - upgi-uploads-test:/app/frontEnd/public/assets/images/avatars/custom
