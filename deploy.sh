@@ -66,7 +66,9 @@ NODE_ENV=production
 PORT=4000
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
+SUPABASE_DB_SCHEMA=up_gestaointeligente
 SESSION_SECRET=
+BUN_API_URL=http://bun-service:3001
 EOF
     echo -e "${RED}❌ ERRO: Configure as variáveis obrigatórias no arquivo .env.production:${NC}"
     echo -e "${RED}   - SUPABASE_URL${NC}"
@@ -115,6 +117,16 @@ else
     echo -e "${RED}❌ BackEnd não está respondendo corretamente${NC}"
     echo "Logs do backEnd:"
     docker logs upgi-prod --tail 50
+    exit 1
+fi
+
+# Verificar bun-service
+if docker exec upgi-bun-prod bun --version 2>/dev/null; then
+    echo -e "${GREEN}✅ Bun Backend está saudável${NC}"
+else
+    echo -e "${RED}❌ Bun Backend não está respondendo corretamente${NC}"
+    echo "Logs do Bun Backend:"
+    docker logs upgi-bun-prod --tail 50
     exit 1
 fi
 

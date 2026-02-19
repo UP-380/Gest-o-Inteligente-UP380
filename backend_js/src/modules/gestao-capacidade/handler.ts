@@ -14,7 +14,7 @@ import type {
   NomeMap,
 } from './types.js';
 
-const SCHEMA = 'up_gestaointeligente';
+const SCHEMA = process.env.SUPABASE_DB_SCHEMA || 'up_gestaointeligente';
 
 // Cache global para cálculo de dias úteis (reduz processamento em loops recursivos)
 const diasInterseccaoCache = new Map<string, number>();

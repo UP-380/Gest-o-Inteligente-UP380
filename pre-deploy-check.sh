@@ -26,7 +26,9 @@ NODE_ENV=production
 PORT=4000
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
+SUPABASE_DB_SCHEMA=up_gestaointeligente
 SESSION_SECRET=
+BUN_API_URL=http://bun-service:3001
 EOF
     echo -e "${RED}❌ Configure as variáveis obrigatórias no arquivo .env.production${NC}"
     ERRORS=$((ERRORS + 1))
