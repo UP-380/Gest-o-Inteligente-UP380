@@ -613,8 +613,8 @@ export async function cardsHandler(c: Context) {
 
     // Aplicar regra de default seguro e limite de profundidade
     const ordem_niveis: Nivel[] = hasOrdemNiveis ? (ordemNiveisRaw as Nivel[] || []) : ['colaborador' as Nivel];
-    if (ordem_niveis.length > 3) {
-      throw new Error("Hierarquia acima do limite seguro (max 3 níveis)");
+    if (ordem_niveis.length > 6) {
+      throw new Error("Hierarquia acima do limite seguro (max 6 níveis)");
     }
 
     console.time('SupabaseQueries');
