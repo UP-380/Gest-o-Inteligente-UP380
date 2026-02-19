@@ -50,7 +50,6 @@ const AtribuicaoCliente = () => {
   const [tarefasSelecionadasParaTempo, setTarefasSelecionadasParaTempo] = useState(new Set());
   const [modoSelecionarVarios, setModoSelecionarVarios] = useState(false);
   const [colaboradores, setColaboradores] = useState([]);
-  const [responsavelSelecionado, setResponsavelSelecionado] = useState(null);
   const [horasContratadasDia, setHorasContratadasDia] = useState(null);
   const [erroTempoEstimado, setErroTempoEstimado] = useState(null);
   const [erroDuplicata, setErroDuplicata] = useState(null);
@@ -161,25 +160,14 @@ const AtribuicaoCliente = () => {
     }
   }, []);
 
-  // Normalizar horas contratadas para número (pode vir como objeto do backend)
-  const horasDisponiveisDia = (() => {
-    if (horasContratadasDia == null) return null;
-    if (typeof horasContratadasDia === 'object') {
-      const v = horasContratadasDia.horascontratadasdia;
-      const num = typeof v === 'number' ? v : Number(v);
-      return Number.isFinite(num) ? num : null;
-    }
-    const num = typeof horasContratadasDia === 'number' ? horasContratadasDia : Number(horasContratadasDia);
-    return Number.isFinite(num) ? num : null;
-  })();
 
   // Períodos por tarefa (por produto+tarefa) e modo de período em lote
   const [periodosPorTarefa, setPeriodosPorTarefa] = useState({}); // { "produtoId_tarefaId": { inicio, fim, datasIndividuais, habilitarFinaisSemana, habilitarFeriados } }
   const [modoPeriodoParaMuitos, setModoPeriodoParaMuitos] = useState(false);
 
   // Responsáveis por tarefa (por produto+tarefa)
-  const [responsaveisPorTarefa, setResponsaveisPorTarefa] = useState({}); // { "produtoId_tarefaId": responsavelId }
-  const [responsavelGlobal, setResponsavelGlobal] = useState(null); // Responsável global para aplicar em lote
+  const [responsaveisPorTarefa, setResponsaveisPorTarefa] = useState({}); // { "produtoId_tarefaId": [responsavelId, ...] }
+  const [responsaveisGlobais, setResponsaveisGlobais] = useState([]); // Responsáveis globais para aplicar em lote
   const [tempoGlobal, setTempoGlobal] = useState(0); // Tempo global para aplicar em lote (em milissegundos)
   const [periodoGlobal, setPeriodoGlobal] = useState({
     inicio: null,
@@ -192,13 +180,23 @@ const AtribuicaoCliente = () => {
   // Valores aplicados pela última vez (para comparar e desabilitar botão após aplicar)
   const [valoresAplicados, setValoresAplicados] = useState({
     periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false },
-    responsavel: null,
+    responsaveis: [],
     tempo: 0
   });
 
   // Estados para tempo disponível
   const [horasContratadasPorResponsavel, setHorasContratadasPorResponsavel] = useState({}); // { responsavelId: horas }
   const [tempoDisponivelGlobal, setTempoDisponivelGlobal] = useState(0); // em milissegundos
+
+  // Horas disponíveis por dia com base no primeiro responsável global selecionado
+  const horasDisponiveisDia = (() => {
+    const firstResponsavelId = Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0 ? String(responsaveisGlobais[0]) : null;
+    if (!firstResponsavelId) return null;
+    const v = horasContratadasPorResponsavel[firstResponsavelId];
+    if (v == null) return null;
+    const num = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(num) ? num : null;
+  })();
 
   const getPeriodoKey = (produtoId, tarefaId) => `${String(produtoId).trim()}_${String(tarefaId).trim()}`;
 
@@ -250,31 +248,34 @@ const AtribuicaoCliente = () => {
   };
 
   const podePreencherTempo = () => {
-    // Permitir se há período completo OU datas individuais, E há responsável selecionado
+    // Permitir se há período completo OU datas individuais, E há responsáveis selecionados
     const temPeriodoCompleto = !!(periodoGlobal.inicio && periodoGlobal.fim);
     const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
-    return (temPeriodoCompleto || temDatasIndividuais) && !!responsavelGlobal;
+    return (temPeriodoCompleto || temDatasIndividuais) && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0;
   };
 
-  // Função para obter responsável de uma tarefa
+  // Função para obter responsáveis de uma tarefa
   const getResponsavelTarefa = (produtoId, tarefaId) => {
     const key = getResponsavelKey(produtoId, tarefaId);
-    const responsavelId = responsaveisPorTarefa[key];
-    // Retornar null se não existir ou se for string vazia
-    if (!responsavelId || (typeof responsavelId === 'string' && responsavelId.trim() === '')) {
-      return null;
+    const responsaveisIds = responsaveisPorTarefa[key];
+    // Retornar array vazio se não existir
+    if (!responsaveisIds || !Array.isArray(responsaveisIds)) {
+      return [];
     }
-    return String(responsavelId).trim();
+    return responsaveisIds.map(id => String(id).trim());
   };
 
   // Função para atualizar responsável de uma tarefa
-  const handleResponsavelTarefaChange = (produtoId, tarefaId, responsavelId) => {
+  const handleResponsavelTarefaChange = (produtoId, tarefaId, responsaveisIds) => {
     const key = getResponsavelKey(produtoId, tarefaId);
-    // Normalizar responsavelId para string (pode vir como número ou string)
-    const responsavelIdNormalizado = responsavelId ? String(responsavelId).trim() : null;
+    // Garantir que responsaveisIds seja um array
+    const novosResponsaveis = Array.isArray(responsaveisIds)
+      ? responsaveisIds.map(id => String(id).trim())
+      : (responsaveisIds ? [String(responsaveisIds).trim()] : []);
+
     setResponsaveisPorTarefa(prev => {
-      if (responsavelIdNormalizado) {
-        return { ...prev, [key]: responsavelIdNormalizado };
+      if (novosResponsaveis.length > 0) {
+        return { ...prev, [key]: novosResponsaveis };
       } else {
         const novo = { ...prev };
         delete novo[key];
@@ -308,7 +309,7 @@ const AtribuicaoCliente = () => {
       habilitarFeriados: false,
       datasIndividuais: []
     });
-    setResponsavelGlobal(null);
+    setResponsaveisGlobais([]);
     setTempoGlobal(0);
     setTempoGlobalParaAplicar(0);
     showToast('info', 'Campos globais limpos');
@@ -356,8 +357,8 @@ const AtribuicaoCliente = () => {
       });
     }
 
-    // Aplicar responsável global se preenchido
-    if (responsavelGlobal) {
+    // Aplicar responsáveis globais se preenchido
+    if (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) {
       setResponsaveisPorTarefa(prev => {
         const next = { ...prev };
         let changed = false;
@@ -367,7 +368,7 @@ const AtribuicaoCliente = () => {
             if (dadosTarefa?.selecionada !== true) return;
             const key = getResponsavelKey(produtoId, tarefaId);
 
-            next[key] = String(responsavelGlobal).trim();
+            next[key] = responsaveisGlobais.map(id => String(id).trim());
             changed = true;
           });
         });
@@ -428,11 +429,11 @@ const AtribuicaoCliente = () => {
           habilitarFinaisSemana: !!periodoGlobal.habilitarFinaisSemana,
           habilitarFeriados: !!periodoGlobal.habilitarFeriados
         },
-        responsavel: responsavelGlobal ? String(responsavelGlobal).trim() : null,
+        responsaveis: Array.isArray(responsaveisGlobais) ? [...responsaveisGlobais] : [],
         tempo: tempoGlobal !== undefined && tempoGlobal !== null ? tempoGlobal : null
       });
     } else {
-      showToast('warning', 'Preencha pelo menos o período, responsável ou tempo');
+      showToast('warning', 'Preencha pelo menos o período, responsáveis ou tempo');
     }
   };
 
@@ -656,7 +657,7 @@ const AtribuicaoCliente = () => {
           if (typeof setDataFim === 'function') setDataFim(dataFimGeral);
 
           // Carregar tempos e responsáveis por tarefa (Agrupando dados primeiro)
-          const dadosPorTarefa = {}; // key -> { tempo, responsavel, datas: Set }
+          const dadosPorTarefa = {}; // key -> { tempo, responsaveis: Set, datas: Set }
 
           registros.forEach(reg => {
             const produtoId = String(reg.produto_id);
@@ -666,10 +667,11 @@ const AtribuicaoCliente = () => {
             if (!dadosPorTarefa[key]) {
               dadosPorTarefa[key] = {
                 tempo: reg.tempo_estimado_dia,
-                responsavel: reg.responsavel_id,
+                responsaveis: new Set(),
                 datas: new Set()
               };
             }
+            if (reg.responsavel_id) dadosPorTarefa[key].responsaveis.add(String(reg.responsavel_id).trim());
             if (reg.data) dadosPorTarefa[key].datas.add(reg.data.split('T')[0]);
           });
 
@@ -682,7 +684,9 @@ const AtribuicaoCliente = () => {
             temposPorTarefa[key] = dados.tempo || 0;
             temposPorTarefa[tarId] = dados.tempo || 0; // fallback compatibilidade
 
-            if (dados.responsavel) responsaveisPorTarefaCarregado[key] = String(dados.responsavel).trim();
+            if (dados.responsaveis.size > 0) {
+              responsaveisPorTarefaCarregado[key] = Array.from(dados.responsaveis);
+            }
 
             const datasTarefa = [...dados.datas].sort();
             if (datasTarefa.length > 0) {
@@ -709,7 +713,7 @@ const AtribuicaoCliente = () => {
           setPeriodosPorTarefa(periodosPorTarefaCarregado);
 
           // Buscar horas contratadas para todos os responsáveis únicos
-          const responsaveisUnicos = [...new Set(Object.values(responsaveisPorTarefaCarregado))];
+          const responsaveisUnicos = [...new Set(Object.values(responsaveisPorTarefaCarregado).flat())];
           if (responsaveisUnicos.length > 0) {
             // Usar o primeiro responsável para buscar horas (pode ser melhorado depois)
             await buscarHorasContratadasPorResponsavel(responsaveisUnicos[0]);
@@ -737,7 +741,7 @@ const AtribuicaoCliente = () => {
     setTarefasSelecionadasParaTempo(new Set());
     setModoSelecionarVarios(false);
     setResponsaveisPorTarefa({});
-    setResponsavelGlobal(null);
+    setResponsaveisGlobais([]);
     setTempoGlobal(0);
     setProdutos([]);
     setTarefas([]);
@@ -770,8 +774,8 @@ const AtribuicaoCliente = () => {
     Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
       Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
         if (dadosTarefa.selecionada === true) {
-          const responsavelId = getResponsavelTarefa(produtoId, tarefaId);
-          if (!responsavelId) {
+          const responsaveisIds = getResponsavelTarefa(produtoId, tarefaId);
+          if (!responsaveisIds || responsaveisIds.length === 0) {
             temTarefasSemResponsavel = true;
             return;
           }
@@ -811,8 +815,8 @@ const AtribuicaoCliente = () => {
         for (const [tarefaId, dadosTarefa] of Object.entries(tarefasDoProduto)) {
           if (!dadosTarefa.selecionada) continue;
 
-          const responsavelId = getResponsavelTarefa(produtoId, tarefaId);
-          if (!responsavelId) continue;
+          const responsaveisIds = getResponsavelTarefa(produtoId, tarefaId);
+          if (!Array.isArray(responsaveisIds) || responsaveisIds.length === 0) continue;
 
           const periodoKey = getPeriodoKey(produtoId, tarefaId);
           const periodo = periodosPorTarefa[periodoKey];
@@ -833,36 +837,40 @@ const AtribuicaoCliente = () => {
             dataFim = datasOrdenadas[datasOrdenadas.length - 1];
           }
 
-          const params = new URLSearchParams({
-            cliente_id: String(clienteSelecionado),
-            responsavel_id: String(responsavelId),
-            produto_id: String(produtoId),
-            tarefa_id: String(tarefaId),
-            data_inicio: dataInicio,
-            data_fim: dataFim
-          });
+          // Verificar cada responsável individualmente
+          for (const responsavelId of responsaveisIds) {
+            const params = new URLSearchParams({
+              cliente_id: String(clienteSelecionado),
+              responsavel_id: String(responsavelId),
+              produto_id: String(produtoId),
+              tarefa_id: String(tarefaId),
+              data_inicio: dataInicio,
+              data_fim: dataFim
+            });
 
-          const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-          });
+            const response = await fetch(`${API_BASE_URL}/tempo-estimado?${params}`, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
 
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data && result.data.length > 0) {
-              // Verificar se há registros no mesmo período
-              const datasExistentes = result.data.map(r => r.data).sort();
-              if (datasExistentes.length > 0) {
-                const inicioExistente = datasExistentes[0].split('T')[0];
-                const fimExistente = datasExistentes[datasExistentes.length - 1].split('T')[0];
-                const tarefaEncontrada = tarefas.find(t => String(t.id) === String(tarefaId));
-                const tarefaNome = tarefaEncontrada ? (tarefaEncontrada.nome || `Tarefa #${tarefaId}`) : `Tarefa #${tarefaId}`;
-                temDuplicata = true;
-                mensagemDuplicata = `Já existe uma atribuição para a tarefa "${tarefaNome}" com o mesmo responsável, produto, cliente e período (${inicioExistente} até ${fimExistente}). Não é possível criar duplicatas.`;
-                break;
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data && result.data.length > 0) {
+                // Verificar se há registros no mesmo período
+                const datasExistentes = result.data.map(r => r.data).sort();
+                if (datasExistentes.length > 0) {
+                  const inicioExistente = datasExistentes[0].split('T')[0];
+                  const fimExistente = datasExistentes[datasExistentes.length - 1].split('T')[0];
+                  const tarefaEncontrada = tarefas.find(t => String(t.id) === String(tarefaId));
+                  const tarefaNome = tarefaEncontrada ? (tarefaEncontrada.nome || `Tarefa #${tarefaId}`) : `Tarefa #${tarefaId}`;
+                  temDuplicata = true;
+                  mensagemDuplicata = `Já existe uma atribuição para a tarefa "${tarefaNome}" com o mesmo responsável, produto, cliente e período (${inicioExistente} até ${fimExistente}). Não é possível criar duplicatas.`;
+                  break;
+                }
               }
             }
           }
+          if (temDuplicata) break;
         }
         if (temDuplicata) break;
       }
@@ -937,8 +945,9 @@ const AtribuicaoCliente = () => {
             [String(responsavelId)]: horasValidas
           }));
 
-          // Manter compatibilidade com estado antigo (para não quebrar código existente)
-          if (responsavelId === responsavelSelecionado || responsavelId === responsavelGlobal) {
+          // Manter compatibilidade com estado antigo se necessário, ou atualizar primeiro responsável global
+          const firstGlobalId = Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0 ? String(responsaveisGlobais[0]) : null;
+          if (responsavelId === firstGlobalId) {
             setHorasContratadasDia(horasValidas);
           }
         } else {
@@ -969,7 +978,7 @@ const AtribuicaoCliente = () => {
   // Considera TODAS as tarefas que já têm período, responsável e tempo definidos
   // Funciona tanto no modo "Preencher vários" quanto sem ele
   // excluirTarefa: { produtoId, tarefaId } - opcional, tarefa a ser excluída do cálculo
-  const calcularTempoJaAtribuido = useCallback((responsavelId, periodo, tempoEstimadoDiaObj, tarefasSelecionadasObj, responsaveisPorTarefaObj, periodosPorTarefaObj, responsavelGlobalRef, periodoGlobalRef, excluirTarefa = null) => {
+  const calcularTempoJaAtribuido = useCallback((responsavelId, periodo, tempoEstimadoDiaObj, tarefasSelecionadasObj, responsaveisPorTarefaObj, periodosPorTarefaObj, responsaveisGlobaisRef, periodoGlobalRef, excluirTarefa = null) => {
     if (!responsavelId || !periodo) {
       return 0;
     }
@@ -1067,12 +1076,17 @@ const AtribuicaoCliente = () => {
         return; // Esta é a tarefa que estamos calculando, não contar
       }
 
-      // Verificar se a tarefa tem o mesmo responsável
+      // Verificar se a tarefa tem o mesmo responsável (agora pode ser um array)
       const keyResponsavel = getResponsavelKey(produtoId, tarefaId);
-      const responsavelTarefa = responsaveisPorTarefaObj[keyResponsavel] || responsavelGlobalRef || null;
+      const responsaveisTarefa = responsaveisPorTarefaObj[keyResponsavel] || responsaveisGlobaisRef || [];
 
-      if (!responsavelTarefa || String(responsavelTarefa).trim() !== String(responsavelId).trim()) {
-        return; // Responsável diferente, não contar
+      // Verificar se o responsavelId atual está na lista de responsáveis da tarefa
+      const isResponsavelPelaTarefa = Array.isArray(responsaveisTarefa)
+        ? responsaveisTarefa.some(id => String(id).trim() === String(responsavelId).trim())
+        : (responsaveisTarefa && String(responsaveisTarefa).trim() === String(responsavelId).trim());
+
+      if (!isResponsavelPelaTarefa) {
+        return; // Responsável não está nesta tarefa, não contar
       }
 
       // Verificar se o período da tarefa se sobrepõe ou é igual ao período fornecido
@@ -1307,7 +1321,7 @@ const AtribuicaoCliente = () => {
       tarefasSelecionadasObj,
       responsaveisPorTarefa,
       periodosPorTarefa,
-      responsavelGlobal,
+      responsaveisGlobais,
       periodoGlobal,
       excluirTarefa // Excluir a tarefa especificada se fornecida
     );
@@ -1318,7 +1332,7 @@ const AtribuicaoCliente = () => {
     const tempoDisponivel = tempoDisponivelTotal - tempoEstimadoTotalNoPeriodo - tempoJaAtribuidoNaInterface;
 
     return tempoDisponivel;
-  }, [responsaveisPorTarefa, periodosPorTarefa, responsavelGlobal, periodoGlobal, calcularTempoJaAtribuido, tempoEstimadoTotalPorResponsavel]);
+  }, [responsaveisPorTarefa, periodosPorTarefa, responsaveisGlobais, periodoGlobal, calcularTempoJaAtribuido, tempoEstimadoTotalPorResponsavel]);
 
   // Calcular tempo estimado total por responsável quando os períodos e responsáveis mudarem
   useEffect(() => {
@@ -1350,21 +1364,23 @@ const AtribuicaoCliente = () => {
         }
       });
 
-      // Adicionar responsável global (se houver)
-      if (responsavelGlobal && periodoGlobal) {
+      // Adicionar responsáveis globais (se houver)
+      if (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0 && periodoGlobal) {
         const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
         const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
 
-        // Aceitar se tiver período completo ou apenas datas individuais
+        // Aceitar se tiver período completo ou apenas das individuais
         if (temPeriodoCompleto || temDatasIndividuais) {
-          const responsavelIdStr = String(responsavelGlobal);
-          if (!responsaveisComPeriodos.has(responsavelIdStr)) {
-            responsaveisComPeriodos.set(responsavelIdStr, {
-              responsavelId: responsavelIdStr,
-              periodos: []
-            });
-          }
-          responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodoGlobal);
+          responsaveisGlobais.forEach(respId => {
+            const responsavelIdStr = String(respId);
+            if (!responsaveisComPeriodos.has(responsavelIdStr)) {
+              responsaveisComPeriodos.set(responsavelIdStr, {
+                responsavelId: responsavelIdStr,
+                periodos: []
+              });
+            }
+            responsaveisComPeriodos.get(responsavelIdStr).periodos.push(periodoGlobal);
+          });
         }
       }
 
@@ -1412,7 +1428,7 @@ const AtribuicaoCliente = () => {
 
     calcularTemposEstimadosTotais();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [responsaveisPorTarefa, periodosPorTarefa, responsavelGlobal, periodoGlobal, buscarTempoEstimadoTotalPorResponsavel]);
+  }, [responsaveisPorTarefa, periodosPorTarefa, responsaveisGlobais, periodoGlobal, buscarTempoEstimadoTotalPorResponsavel]);
 
   // Removido: useEffect que buscava horas contratadas quando responsavelSelecionado mudava
   // Agora cada tarefa tem seu próprio responsável, então não há mais um responsável global
@@ -1731,7 +1747,7 @@ const AtribuicaoCliente = () => {
   // Limpar estado global quando o modo "Preencher vários" for desativado
   useEffect(() => {
     if (!modoPeriodoParaMuitos) {
-      setResponsavelGlobal(null);
+      setResponsaveisGlobais([]);
       setTempoGlobal(0);
       setPeriodoGlobal({
         inicio: null,
@@ -1743,7 +1759,7 @@ const AtribuicaoCliente = () => {
       // Resetar valores aplicados quando o modo for desativado
       setValoresAplicados({
         periodo: { inicio: null, fim: null, datasIndividuais: [], habilitarFinaisSemana: false, habilitarFeriados: false },
-        responsavel: null,
+        responsaveis: [],
         tempo: 0
       });
       // Limpar tempo disponível
@@ -1751,9 +1767,9 @@ const AtribuicaoCliente = () => {
     }
   }, [modoPeriodoParaMuitos]);
 
-  // Buscar horas contratadas quando responsável global mudar e período estiver preenchido
+  // Buscar horas contratadas quando responsáveis globais mudarem e período estiver preenchido
   useEffect(() => {
-    if (responsavelGlobal) {
+    if (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) {
       const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
       const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
 
@@ -1766,25 +1782,24 @@ const AtribuicaoCliente = () => {
           dataParaBuscar = datasOrdenadas[0];
         }
 
-        buscarHorasContratadasPorResponsavel(responsavelGlobal, dataParaBuscar);
+        // Buscar para cada responsável
+        responsaveisGlobais.forEach(id => {
+          buscarHorasContratadasPorResponsavel(id, dataParaBuscar);
+        });
       }
     } else {
-      // Limpar horas contratadas quando responsável for removido
-      setHorasContratadasPorResponsavel(prev => {
-        const novo = { ...prev };
-        delete novo[String(responsavelGlobal)];
-        return novo;
-      });
+      // Limpar horas contratadas quando responsáveis forem removidos? 
+      // Geralmente melhor manter o cache ou limpar seletivamente
     }
-  }, [responsavelGlobal, periodoGlobal.inicio, periodoGlobal.fim, periodoGlobal.datasIndividuais]);
+  }, [responsaveisGlobais, periodoGlobal.inicio, periodoGlobal.fim, periodoGlobal.datasIndividuais]);
 
   // Buscar horas contratadas para tarefas individuais quando responsável e período forem definidos
   useEffect(() => {
     // Coletar todos os pares únicos de (responsavelId, dataInicio) das tarefas individuais
     const responsaveisEPeriodos = new Set();
 
-    Object.entries(responsaveisPorTarefa || {}).forEach(([key, responsavelId]) => {
-      if (!responsavelId) return;
+    Object.entries(responsaveisPorTarefa || {}).forEach(([key, responsaveisIds]) => {
+      if (!Array.isArray(responsaveisIds) || responsaveisIds.length === 0) return;
 
       // Extrair produtoId e tarefaId da chave
       const partes = key.split('_');
@@ -1810,9 +1825,11 @@ const AtribuicaoCliente = () => {
             dataInicio = datasOrdenadas[0];
           }
 
-          // Criar chave única para (responsavelId, dataInicio)
-          const chaveUnica = `${String(responsavelId).trim()}_${dataInicio}`;
-          responsaveisEPeriodos.add(chaveUnica);
+          // Criar chaves únicas para cada responsável (responsavelId, dataInicio)
+          responsaveisIds.forEach(id => {
+            const chaveUnica = `${String(id).trim()}_${dataInicio}`;
+            responsaveisEPeriodos.add(chaveUnica);
+          });
         }
       }
     });
@@ -1836,11 +1853,11 @@ const AtribuicaoCliente = () => {
   // Inclui dependências de tarefas individuais para que o cálculo seja atualizado
   // quando tarefas são preenchidas individualmente (modo "Preencher vários" desativado)
   const tempoDisponivelCalculado = useMemo(() => {
-    if (!responsavelGlobal) {
+    if (!Array.isArray(responsaveisGlobais) || responsaveisGlobais.length === 0) {
       return 0;
     }
 
-    // Verificar se há período completo ou apenas datas individuais
+    // Verificar se há período completo ou apenas das individuais
     const temPeriodoCompleto = periodoGlobal.inicio && periodoGlobal.fim;
     const temDatasIndividuais = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
 
@@ -1849,21 +1866,23 @@ const AtribuicaoCliente = () => {
       return 0;
     }
 
+    // No modo multi-responsável, mostraríamos o tempo do PRIMEIRO selecionado
+    // Ou uma média? Mostrar do primeiro parece mais simples por enquanto
     return calcularTempoDisponivelGlobal(
-      responsavelGlobal,
+      responsaveisGlobais[0],
       periodoGlobal,
       horasContratadasPorResponsavel,
       tempoEstimadoDia,
       tarefasSelecionadasPorProduto
     );
   }, [
-    responsavelGlobal,
+    responsaveisGlobais,
     periodoGlobal,
     horasContratadasPorResponsavel,
     tempoEstimadoDia,
     tarefasSelecionadasPorProduto,
-    responsaveisPorTarefa,  // Incluir para atualizar quando tarefas individuais são preenchidas
-    periodosPorTarefa,      // Incluir para atualizar quando tarefas individuais são preenchidas
+    responsaveisPorTarefa,
+    periodosPorTarefa,
     calcularTempoDisponivelGlobal
   ]);
 
@@ -1881,7 +1900,7 @@ const AtribuicaoCliente = () => {
     const temValoresPreenchidos =
       (periodoGlobal.inicio && periodoGlobal.fim) ||
       temDatasIndividuais ||
-      responsavelGlobal ||
+      (Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) ||
       (tempoGlobal !== undefined && tempoGlobal !== null);
 
     if (!temValoresPreenchidos) {
@@ -1895,7 +1914,7 @@ const AtribuicaoCliente = () => {
     const temValoresAplicados =
       (valoresAplicados.periodo.inicio && valoresAplicados.periodo.fim) ||
       temDatasIndividuaisAplicadas ||
-      valoresAplicados.responsavel ||
+      (Array.isArray(valoresAplicados.responsaveis) && valoresAplicados.responsaveis.length > 0) ||
       (valoresAplicados.tempo !== undefined && valoresAplicados.tempo !== null);
 
     // Se não há valores aplicados, qualquer valor preenchido habilita o botão
@@ -1926,17 +1945,17 @@ const AtribuicaoCliente = () => {
       periodoAtual.habilitarFinaisSemana !== periodoAplicado.habilitarFinaisSemana ||
       periodoAtual.habilitarFeriados !== periodoAplicado.habilitarFeriados;
 
-    // Verificar responsável
-    const responsavelAtual = responsavelGlobal ? String(responsavelGlobal).trim() : null;
-    const responsavelAplicado = valoresAplicados.responsavel;
-    const responsavelMudou = responsavelAtual !== responsavelAplicado;
+    // Verificar responsáveis
+    const responsaveisAtuais = Array.isArray(responsaveisGlobais) ? responsaveisGlobais.map(id => String(id).trim()).sort().join(',') : '';
+    const responsaveisAplicados = Array.isArray(valoresAplicados.responsaveis) ? valoresAplicados.responsaveis.map(id => String(id).trim()).sort().join(',') : '';
+    const responsaveisMudaram = responsaveisAtuais !== responsaveisAplicados;
 
     // Verificar tempo (considera 0 como valor válido)
     const tempoAtual = tempoGlobal !== undefined && tempoGlobal !== null ? tempoGlobal : null;
-    const tempoAplicado = valoresAplicados.tempo !== undefined && valoresAplicados.tempo !== null ? valoresAplicados.tempo : null;
+    const tempoAplicado = valoresAplicados.tempo !== undefined && tempoGlobal !== null ? valoresAplicados.tempo : null;
     const tempoMudou = tempoAtual !== tempoAplicado;
 
-    return periodoMudou || responsavelMudou || tempoMudou;
+    return periodoMudou || responsaveisMudaram || tempoMudou;
   };
 
   const handleSelectAllTarefas = () => {
@@ -2250,24 +2269,28 @@ const AtribuicaoCliente = () => {
             }
             const tempoInt = Math.round(Number(tempo));
             const periodo = obterPeriodoPara(produtoIdStr, tarefaId);
-            const responsavelId = getResponsavelTarefa(produtoIdStr, tarefaId);
+            const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
             const keyPeriodo = stringifyPeriodo(periodo);
-            const keyGrupo = `${keyPeriodo}_${responsavelId || 'sem-responsavel'}`;
 
-            if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
-              gruposPorPeriodoEResponsavel[keyGrupo] = {
-                periodo,
-                responsavel_id: responsavelId ? String(responsavelId).trim() : null,
-                produtos_com_tarefas: {}
-              };
-            }
-            if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
-              gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
-            }
-            gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
-              tarefa_id: String(tarefaId).trim(),
-              tempo_estimado_dia: tempoInt,
-              responsavel_id: responsavelId ? String(responsavelId).trim() : null
+            // Se tem múltiplos responsáveis, criar registros para cada um
+            responsaveisIds.forEach(responsavelId => {
+              const keyGrupo = `${keyPeriodo}_${responsavelId || 'sem-responsavel'}`;
+
+              if (!gruposPorPeriodoEResponsavel[keyGrupo]) {
+                gruposPorPeriodoEResponsavel[keyGrupo] = {
+                  periodo,
+                  responsavel_id: responsavelId ? String(responsavelId).trim() : null,
+                  produtos_com_tarefas: {}
+                };
+              }
+              if (!gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr]) {
+                gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr] = [];
+              }
+              gruposPorPeriodoEResponsavel[keyGrupo].produtos_com_tarefas[produtoIdStr].push({
+                tarefa_id: String(tarefaId).trim(),
+                tempo_estimado_dia: tempoInt,
+                responsavel_id: responsavelId ? String(responsavelId).trim() : null
+              });
             });
           }
         });
@@ -2578,9 +2601,10 @@ const AtribuicaoCliente = () => {
                           <div style={{ minWidth: '182px', position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }} className="responsavel-card-global-wrapper">
                             <div style={{ width: '100%', flex: '1 1 auto', minWidth: 0 }}>
                               <ResponsavelCard
-                                value={responsavelGlobal || ''}
-                                onChange={(e) => setResponsavelGlobal(e.target.value || null)}
-                                placeholder="Selecione responsável"
+                                isMulti={true}
+                                selectedValues={responsaveisGlobais}
+                                onChange={(e) => setResponsaveisGlobais(e.target.value || [])}
+                                placeholder="Selecione responsáveis"
                                 disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || !podePreencherResponsavel()}
                                 options={colaboradores.map(c => ({
                                   value: c.id,
@@ -2594,7 +2618,7 @@ const AtribuicaoCliente = () => {
                                 Preencha o período ou selecione dias específicos primeiro
                               </div>
                             )}
-                            {podePreencherResponsavel() && responsavelGlobal && tempoDisponivelGlobal !== undefined && tempoDisponivelGlobal !== null && (
+                            {podePreencherResponsavel() && Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0 && tempoDisponivelGlobal !== undefined && tempoDisponivelGlobal !== null && (
                               (() => {
                                 const isExcedido = tempoDisponivelGlobal < 0;
                                 return (
@@ -2652,7 +2676,7 @@ const AtribuicaoCliente = () => {
                               loading ||
                               submitting ||
                               tarefasSelecionadas.length === 0 ||
-                              (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                              (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !(Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) && (!tempoGlobal || tempoGlobal <= 0)) ||
                               !temAlteracoes()
                             }
                             style={{
@@ -2668,21 +2692,21 @@ const AtribuicaoCliente = () => {
                                 loading ||
                                 submitting ||
                                 tarefasSelecionadas.length === 0 ||
-                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !(Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) && (!tempoGlobal || tempoGlobal <= 0)) ||
                                 !temAlteracoes()
                               ) ? 0.5 : 1,
                               cursor: (
                                 loading ||
                                 submitting ||
                                 tarefasSelecionadas.length === 0 ||
-                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0)) ||
+                                (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !(Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) && (!tempoGlobal || tempoGlobal <= 0)) ||
                                 !temAlteracoes()
                               ) ? 'not-allowed' : 'pointer'
                             }}
                             title={
                               tarefasSelecionadas.length === 0
                                 ? "Selecione pelo menos uma tarefa para aplicar"
-                                : (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !responsavelGlobal && (!tempoGlobal || tempoGlobal <= 0))
+                                : (!periodoGlobal.inicio && !periodoGlobal.fim && !(Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0) && !(Array.isArray(responsaveisGlobais) && responsaveisGlobais.length > 0) && (!tempoGlobal || tempoGlobal <= 0))
                                   ? "Preencha pelo menos um campo (período, dias específicos, responsável ou tempo) para aplicar"
                                   : !temAlteracoes()
                                     ? "Não há alterações para aplicar. Modifique algum campo para habilitar o botão."

@@ -61,6 +61,12 @@ const SelecaoTarefasPorProduto = ({
   const [carregandoSubtarefas, setCarregandoSubtarefas] = useState({}); // { tarefaId: boolean } - estado de carregamento de subtarefas
   const [tarefasExpandidas, setTarefasExpandidas] = useState({}); // { tarefaId: boolean } - quais tarefas estão expandidas para mostrar subtarefas
   const [tarefaSelecionadaParaAdicionar, setTarefaSelecionadaParaAdicionar] = useState({}); // { produtoId: string } - Valor do CustomSelect para adicionar tarefa por produto
+  // Função auxiliar para buscar responsáveis de uma tarefa
+  const getResponsavelTarefa = (pId, tId) => {
+    const key = `${String(pId).trim()}_${String(tId).trim()}`;
+    const resps = responsaveisPorTarefa[key];
+    return Array.isArray(resps) ? resps : [];
+  };
 
   // Normalizar horas contratadas por dia para evitar renderizar objeto no JSX
   const horasDisponiveisDia = (() => {
@@ -1154,18 +1160,19 @@ const SelecaoTarefasPorProduto = ({
                                 >
                                   <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
                                     <ResponsavelCard
-                                      value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                      isMulti={true}
+                                      selectedValues={getResponsavelTarefa(produtoIdNum, tarefa.id)}
                                       options={colaboradores.map(c => ({
                                         value: String(c.id),
                                         label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
                                       }))}
                                       onChange={(e) => {
-                                        const responsavelId = e.target.value || null;
+                                        const responsaveisIds = e.target.value || [];
                                         if (onResponsavelChange) {
-                                          onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                          onResponsavelChange(produtoIdNum, tarefa.id, responsaveisIds);
                                         }
                                       }}
-                                      placeholder="Selecione responsável"
+                                      placeholder="Selecione responsáveis"
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
                                       colaboradores={colaboradores}
                                     />
@@ -1175,10 +1182,11 @@ const SelecaoTarefasPorProduto = ({
                                       Preencha o período primeiro
                                     </div>
                                   )}
-                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && getResponsavelTarefa(produtoIdNum, tarefa.id).length > 0 && calcularTempoDisponivel && formatarTempoEstimado && (() => {
                                     const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                                    const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                                    if (!periodo || !responsavelId) return null;
+                                    const responsaveisTarefa = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                    if (!periodo || responsaveisTarefa.length === 0) return null;
+                                    const responsavelId = responsaveisTarefa[0];
                                     const temPeriodoCompleto = periodo.inicio && periodo.fim;
                                     const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
                                     if (!temPeriodoCompleto && !temDatasIndividuais) return null;
@@ -1551,18 +1559,19 @@ const SelecaoTarefasPorProduto = ({
                                 >
                                   <div style={{ width: '117px', minWidth: '117px', maxWidth: '117px', flexShrink: 0 }}>
                                     <ResponsavelCard
-                                      value={responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] || ''}
+                                      isMulti={true}
+                                      selectedValues={getResponsavelTarefa(produtoIdNum, tarefa.id)}
                                       options={colaboradores.map(c => ({
                                         value: String(c.id),
                                         label: c.cpf ? `${c.nome} (${c.cpf})` : c.nome
                                       }))}
                                       onChange={(e) => {
-                                        const responsavelId = e.target.value || null;
+                                        const responsaveisIds = e.target.value || [];
                                         if (onResponsavelChange) {
-                                          onResponsavelChange(produtoIdNum, tarefa.id, responsavelId);
+                                          onResponsavelChange(produtoIdNum, tarefa.id, responsaveisIds);
                                         }
                                       }}
-                                      placeholder="Selecione responsável"
+                                      placeholder="Selecione responsáveis"
                                       disabled={disabledTempo || (ordemPreenchimento && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id))}
                                       colaboradores={colaboradores}
                                     />
@@ -1572,10 +1581,11 @@ const SelecaoTarefasPorProduto = ({
                                       Preencha o período primeiro
                                     </div>
                                   )}
-                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`] && calcularTempoDisponivel && formatarTempoEstimado && (() => {
+                                  {ordemPreenchimento && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && getResponsavelTarefa(produtoIdNum, tarefa.id).length > 0 && calcularTempoDisponivel && formatarTempoEstimado && (() => {
                                     const periodo = periodosPorTarefa[`${produtoIdNum}_${tarefa.id}`] || null;
-                                    const responsavelId = responsaveisPorTarefa[`${produtoIdNum}_${tarefa.id}`];
-                                    if (!periodo || !responsavelId) return null;
+                                    const responsaveisTarefa = getResponsavelTarefa(produtoIdNum, tarefa.id);
+                                    if (!periodo || responsaveisTarefa.length === 0) return null;
+                                    const responsavelId = responsaveisTarefa[0];
                                     const temPeriodoCompleto = periodo.inicio && periodo.fim;
                                     const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
                                     if (!temPeriodoCompleto && !temDatasIndividuais) return null;
