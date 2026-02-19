@@ -617,10 +617,15 @@ router.post('/api/upload/chamado',
 // A autenticação é feita aqui (requireAuth via session cookie).
 // O Bun recebe a requisição já validada, sem precisar de JWT.
 
-const BUN_API_BASE = process.env.BUN_API_URL || 'http://localhost:3001';
+const BUN_API_BASE = process.env.BUN_API_URL;
+
+if (!BUN_API_BASE) {
+  throw new Error('❌ ERRO CRÍTICO: Variável de ambiente BUN_API_URL não definida no startup!');
+}
 
 router.post('/api/gestao-capacidade-v2', requireAuth, async (req, res) => {
   try {
+    console.log('[PROXY-BUN] chamando:', BUN_API_BASE);
     // Montar headers — enviar userId para o Bun saber quem é o usuário
     const headers = {
       'Content-Type': 'application/json',
