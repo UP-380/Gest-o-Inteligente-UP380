@@ -44,6 +44,7 @@ function registroTempoParaMs(r: RegistroTempo): number {
 }
 
 /** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). */
+/** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). OTIMIZADO. */
 function diasNaInterseccao(
   regraInicio: string,
   regraFim: string,
@@ -52,15 +53,41 @@ function diasNaInterseccao(
   ignorarFinaisSemana: boolean,
   feriados: string[]
 ): number {
-  const start = new Date(Math.max(new Date(regraInicio).getTime(), new Date(periodoInicio).getTime()));
-  const end = new Date(Math.min(new Date(regraFim).getTime(), new Date(periodoFim).getTime()));
-  if (start > end) return 0;
+  const startMs = Math.max(new Date(regraInicio).getTime(), new Date(periodoInicio).getTime());
+  const endMs = Math.min(new Date(regraFim).getTime(), new Date(periodoFim).getTime());
+
+  if (startMs > endMs) return 0;
+
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+
+  // Normalizar para meia-noite para evitar problemas de fuso/hora
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  const feriadosSet = new Set(feriados);
   let dias = 0;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const diaStr = d.toISOString().slice(0, 10);
-    if (ignorarFinaisSemana && (d.getDay() === 0 || d.getDay() === 6)) continue;
-    if (feriados.includes(diaStr)) continue;
-    dias++;
+  const current = new Date(start);
+
+  while (current <= end) {
+    const dayOfWeek = current.getDay();
+    // 0 = Domingo, 6 = Sábado
+    if (ignorarFinaisSemana && (dayOfWeek === 0 || dayOfWeek === 6)) {
+      current.setDate(current.getDate() + 1);
+      continue;
+    }
+
+    // Formatação YYYY-MM-DD manual para evitar toISOString lento
+    const year = current.getFullYear();
+    const month = current.getMonth() + 1;
+    const day = current.getDate();
+    const diaStr = `${year}-${month < 10 ? '0' : ''}${month}-${day < 10 ? '0' : ''}${day}`;
+
+    if (!feriadosSet.has(diaStr)) {
+      dias++;
+    }
+
+    current.setDate(current.getDate() + 1);
   }
   return dias;
 }
@@ -846,6 +873,7 @@ function reordenarResumoAntesDeDetalhes(obj: Record<string, any>): void {
 // ============================================================================
 
 export async function cardsHandler(c: Context) {
+  console.time('TotalRequest');
   try {
     const body = await c.req.json() as GestaoCapacidadeBody;
 
@@ -878,6 +906,7 @@ export async function cardsHandler(c: Context) {
       tarefa_id,
     } = validatedBody;
 
+    console.time('SupabaseQueries');
     // 1️⃣ Buscar colaboradores
     let queryMembros = supabase.schema(SCHEMA)
       .from('membro')
@@ -1043,7 +1072,10 @@ export async function cardsHandler(c: Context) {
 
     // 6️⃣ Feriados
     const feriados = ignorar_feriados ? await getFeriados(data_inicio, data_fim) : [];
+    console.timeEnd('SupabaseQueries');
+    console.log(`[CARDS-ENDPOINT] Fetched ${registros.length} registros and ${estimados.length} estimados.`);
 
+    console.time('ProcessingHierarchy');
     // 7️⃣ Hierarquia global
     const hierarquia = montarHierarquia({
       registros,
@@ -1108,6 +1140,8 @@ export async function cardsHandler(c: Context) {
       feriados,
       ignorar_folgas
     });
+    console.timeEnd('ProcessingHierarchy');
+    console.timeEnd('TotalRequest');
 
     return c.json({
       success: true,
@@ -1118,7 +1152,8 @@ export async function cardsHandler(c: Context) {
     });
 
   } catch (error: unknown) {
-    console.error('[CARDS-ENDPOINT]', error);
+    console.error('[CARDS-ENDPOINT] Critical Error:', error);
+    console.timeEnd('TotalRequest');
     const message = extrairMensagemErro(error);
     return c.json({ success: false, error: message }, 500 as const);
   }
