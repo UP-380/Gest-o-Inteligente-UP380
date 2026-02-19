@@ -1072,10 +1072,7 @@ export async function cardsHandler(c: Context) {
 
     // 6️⃣ Feriados
     const feriados = ignorar_feriados ? await getFeriados(data_inicio, data_fim) : [];
-    console.timeEnd('SupabaseQueries');
-    console.log(`[CARDS-ENDPOINT] Fetched ${registros.length} registros and ${estimados.length} estimados.`);
 
-    console.time('ProcessingHierarchy');
     // 7️⃣ Hierarquia global
     const hierarquia = montarHierarquia({
       registros,
@@ -1140,8 +1137,6 @@ export async function cardsHandler(c: Context) {
       feriados,
       ignorar_folgas
     });
-    console.timeEnd('ProcessingHierarchy');
-    console.timeEnd('TotalRequest');
 
     return c.json({
       success: true,
@@ -1152,8 +1147,7 @@ export async function cardsHandler(c: Context) {
     });
 
   } catch (error: unknown) {
-    console.error('[CARDS-ENDPOINT] Critical Error:', error);
-    console.timeEnd('TotalRequest');
+    console.error('[CARDS-ENDPOINT] Error:', error);
     const message = extrairMensagemErro(error);
     return c.json({ success: false, error: message }, 500 as const);
   }
