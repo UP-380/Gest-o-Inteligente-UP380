@@ -8,16 +8,16 @@ services:
     environment:
       - NODE_ENV=production # Still production build but with test config
       - PORT=4000
-      - BUN_API_URL=http://host.docker.internal:3001
+      - BUN_API_URL=http://bun-service:3001
     env_file:
       - .env.test
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - upgi-logs-test:/app/logs
       - upgi-uploads-test:/app/frontEnd/public/assets/images/avatars/custom
     networks:
       - upgi-network-test
+    depends_on:
+      - bun-service
     restart: always
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
@@ -33,6 +33,32 @@ services:
         reservations:
           memory: 512M
           cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bun-service:
+    build:
+      context: ./backend_js
+      dockerfile: Dockerfile
+    container_name: upgi-bun-test
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend_js/.env
+    networks:
+      - upgi-network-test
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
     logging:
       driver: "json-file"
       options:
