@@ -42,6 +42,7 @@ import CadastroCliente from './pages/CadastroCliente/CadastroCliente';
 import DocumentacaoAPI from './pages/DocumentacaoAPI/DocumentacaoAPI';
 import AtribuicaoCliente from './pages/AtribuicaoCliente/AtribuicaoCliente';
 import GestaoUsuarios from './pages/GestaoUsuarios/GestaoUsuarios';
+import GestaoDepartamentos from './pages/GestaoDepartamentos/GestaoDepartamentos';
 import ConfigPermissoes from './pages/ConfigPermissoes/ConfigPermissoes';
 import PlanilhaHoras from './pages/PlanilhaHoras/PlanilhaHoras';
 import RelatorioTempo from './pages/RelatorioTempo/RelatorioTempo';
@@ -529,6 +530,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ConfigPermissoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/gestao/departamentos"
+          element={
+            <ProtectedRoute>
+              <GestaoDepartamentos />
             </ProtectedRoute>
           }
         />
