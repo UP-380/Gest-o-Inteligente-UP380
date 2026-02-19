@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import { useToast } from '../../hooks/useToast';
 import './GestaoDepartamentos.css';
+
+// Ícones disponíveis para seleção
+const AVAILABLE_ICONS = [
+    'fa-bullhorn', 'fa-wallet', 'fa-id-card', 'fa-laptop-code', 'fa-chart-line',
+    'fa-users', 'fa-building', 'fa-handshake', 'fa-briefcase', 'fa-headset',
+    'fa-cog', 'fa-shield-alt', 'fa-brain', 'fa-database', 'fa-globe'
+];
 
 // Dados mockados para exemplo
 const MOCK_DEPARTAMENTOS = [
@@ -17,10 +24,14 @@ const MOCK_DEPARTAMENTOS = [
 const GestaoDepartamentos = () => {
     const navigate = useNavigate();
     const showToast = useToast();
+    const menuRef = useRef(null);
 
     const [departamentos, setDepartamentos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showIconModal, setShowIconModal] = useState(false);
+    const [deptEditando, setDeptEditando] = useState(null);
+    const [activeMenuId, setActiveMenuId] = useState(null);
     const [formData, setFormData] = useState({ nome: '', descricao: '' });
 
     // Simular carregamento
@@ -31,27 +42,78 @@ const GestaoDepartamentos = () => {
         }, 800);
     }, []);
 
+    // Fechar menu ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setActiveMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleSave = () => {
         if (!formData.nome) {
             showToast('error', 'Nome do departamento é obrigatório');
             return;
         }
 
-        const novoDepartamento = {
-            id: departamentos.length + 1,
-            nome: formData.nome,
-            descricao: formData.descricao || 'Nova divisão corporativa',
-            colaboradores: 0,
-            status: 'Ativo',
-            icon: 'fa-building',
-            color: '#f1f5f9',
-            iconColor: '#475569'
-        };
+        if (deptEditando) {
+            // Edição
+            setDepartamentos(departamentos.map(d =>
+                d.id === deptEditando.id ? { ...d, ...formData } : d
+            ));
+            showToast('success', 'Departamento atualizado com sucesso!');
+        } else {
+            // Criação
+            const novoDepartamento = {
+                id: Math.max(0, ...departamentos.map(d => d.id)) + 1,
+                nome: formData.nome,
+                descricao: formData.descricao || 'Nova divisão corporativa',
+                colaboradores: 0,
+                status: 'Ativo',
+                icon: 'fa-building',
+                color: '#f1f5f9',
+                iconColor: '#475569'
+            };
+            setDepartamentos([...departamentos, novoDepartamento]);
+            showToast('success', 'Departamento criado com sucesso!');
+        }
 
-        setDepartamentos([...departamentos, novoDepartamento]);
         setShowModal(false);
+        setDeptEditando(null);
         setFormData({ nome: '', descricao: '' });
-        showToast('success', 'Departamento criado com sucesso!');
+    };
+
+    const handleEdit = (dept) => {
+        setDeptEditando(dept);
+        setFormData({ nome: dept.nome, descricao: dept.descricao });
+        setShowModal(true);
+        setActiveMenuId(null);
+    };
+
+    const handleDelete = (id) => {
+        if (window.confirm('Tem certeza que deseja excluir este departamento?')) {
+            setDepartamentos(departamentos.filter(d => d.id !== id));
+            showToast('success', 'Departamento excluído com sucesso!');
+        }
+        setActiveMenuId(null);
+    };
+
+    const handleOpenIconModal = (dept) => {
+        setDeptEditando(dept);
+        setShowIconModal(true);
+        setActiveMenuId(null);
+    };
+
+    const handleSelectIcon = (icon) => {
+        setDepartamentos(departamentos.map(d =>
+            d.id === deptEditando.id ? { ...d, icon: icon } : d
+        ));
+        setShowIconModal(false);
+        setDeptEditando(null);
+        showToast('success', 'Ícone atualizado!');
     };
 
     const totalColaboradores = departamentos.reduce((acc, curr) => acc + curr.colaboradores, 0);
@@ -82,7 +144,11 @@ const GestaoDepartamentos = () => {
                                 </div>
                                 <button
                                     className="add-dept-btn"
-                                    onClick={() => setShowModal(true)}
+                                    onClick={() => {
+                                        setDeptEditando(null);
+                                        setFormData({ nome: '', descricao: '' });
+                                        setShowModal(true);
+                                    }}
                                 >
                                     <i className="fas fa-plus"></i>
                                     Adicionar Departamento
@@ -124,11 +190,24 @@ const GestaoDepartamentos = () => {
                                         {departamentos.map(dept => (
                                             <div key={dept.id} className="department-item">
                                                 <div className="dept-info">
-                                                    <div className="dept-icon" style={{ background: dept.color, color: dept.iconColor }}>
+                                                    <div
+                                                        className="dept-icon clickable"
+                                                        style={{ background: dept.color, color: dept.iconColor }}
+                                                        onClick={() => handleOpenIconModal(dept)}
+                                                        title="Clique para mudar o ícone"
+                                                    >
                                                         <i className={`fas ${dept.icon}`}></i>
+                                                        <div className="icon-overlay">
+                                                            <i className="fas fa-sync-alt"></i>
+                                                        </div>
                                                     </div>
-                                                    <div className="dept-name">
-                                                        <h4>{dept.nome}</h4>
+                                                    <div
+                                                        className="dept-name clickable"
+                                                        onClick={() => navigate(`/gestao/departamentos/${dept.id}`)}
+                                                        title="Ver detalhes do departamento"
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        <h4 style={{ color: '#3b82f6' }}>{dept.nome}</h4>
                                                         <p>{dept.descricao}</p>
                                                     </div>
                                                 </div>
@@ -141,10 +220,30 @@ const GestaoDepartamentos = () => {
                                                         {dept.status}
                                                     </span>
                                                 </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <button className="btn-icon" title="Editar">
+                                                <div style={{ textAlign: 'right', position: 'relative' }}>
+                                                    <button
+                                                        className={`btn-icon ${activeMenuId === dept.id ? 'active' : ''}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveMenuId(activeMenuId === dept.id ? null : dept.id);
+                                                        }}
+                                                    >
                                                         <i className="fas fa-ellipsis-v"></i>
                                                     </button>
+
+                                                    {activeMenuId === dept.id && (
+                                                        <div className="dept-action-menu" ref={menuRef}>
+                                                            <button onClick={() => handleEdit(dept)}>
+                                                                <i className="fas fa-edit"></i> Editar
+                                                            </button>
+                                                            <button
+                                                                className="delete"
+                                                                onClick={() => handleDelete(dept.id)}
+                                                            >
+                                                                <i className="fas fa-trash"></i> Excluir
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -165,19 +264,56 @@ const GestaoDepartamentos = () => {
                 </main>
             </div>
 
-            {/* Modal Criar Departamento */}
+            {/* Modal Editar/Criar Departamento */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <div style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, fontSize: '18px' }}>Novo Departamento</h3>
-                                <button className="btn-icon" onClick={() => setShowModal(false)}><i className="fas fa-times"></i></button>
+                    <div
+                        className="modal-content"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            maxWidth: '800px',
+                            width: '90%',
+                            minHeight: '400px',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        <div className="modal-header" style={{ position: 'relative' }}>
+                            <div style={{ padding: '20px 24px' }}>
+                                <h3 style={{ margin: 0, fontSize: '18px' }}>
+                                    {deptEditando ? 'Editar Departamento' : 'Novo Departamento'}
+                                </h3>
                             </div>
+                            <button
+                                className="btn-icon"
+                                onClick={() => setShowModal(false)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    right: '24px',
+                                    transform: 'translateY(-50%)',
+                                    fontSize: '20px',
+                                    color: '#94a3b8',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    transition: 'background 0.2s'
+                                }}
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
                         </div>
-                        <div className="modal-body">
+                        <div className="modal-body" style={{ flex: 1 }}>
                             <p style={{ color: '#64748b', marginBottom: '24px' }}>
-                                Preencha as informações para criar uma nova divisão corporativa.
+                                {deptEditando
+                                    ? 'Atualize as informações do departamento selecionado.'
+                                    : 'Preencha as informações para criar uma nova divisão corporativa.'}
                             </p>
 
                             <div className="form-group">
@@ -206,7 +342,15 @@ const GestaoDepartamentos = () => {
                             <button
                                 className="btn-secondary"
                                 onClick={() => setShowModal(false)}
-                                style={{ padding: '10px 20px', borderRadius: '6px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer' }}
+                                style={{
+                                    padding: '10px 20px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    background: 'white',
+                                    color: '#64748b',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
                             >
                                 Cancelar
                             </button>
@@ -215,8 +359,58 @@ const GestaoDepartamentos = () => {
                                 style={{ margin: 0 }}
                                 onClick={handleSave}
                             >
-                                Salvar Departamento
+                                {deptEditando ? 'Salvar Alterações' : 'Salvar Departamento'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Seleção de Ícones */}
+            {showIconModal && (
+                <div className="modal-overlay" onClick={() => setShowIconModal(false)}>
+                    <div className="modal-content" style={{ maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header" style={{ position: 'relative' }}>
+                            <div style={{ padding: '20px 24px' }}>
+                                <h3 style={{ margin: 0, fontSize: '18px' }}>Selecionar Ícone</h3>
+                            </div>
+                            <button
+                                className="btn-icon"
+                                onClick={() => setShowIconModal(false)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    right: '24px',
+                                    transform: 'translateY(-50%)',
+                                    fontSize: '20px',
+                                    color: '#94a3b8',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    transition: 'background 0.2s'
+                                }}
+                            >
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="icon-selector-grid">
+                                {AVAILABLE_ICONS.map(icon => (
+                                    <div
+                                        key={icon}
+                                        className={`icon-option ${deptEditando?.icon === icon ? 'selected' : ''}`}
+                                        onClick={() => handleSelectIcon(icon)}
+                                    >
+                                        <i className={`fas ${icon}`}></i>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

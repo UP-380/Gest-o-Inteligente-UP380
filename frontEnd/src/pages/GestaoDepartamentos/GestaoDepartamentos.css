@@ -290,3 +290,214 @@ textarea.form-control {
     min-height: 100px;
     resize: vertical;
 }
+
+/* Estilos para o ícone clicável */
+.dept-icon.clickable {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.dept-icon.clickable:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.icon-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    font-size: 14px;
+}
+
+.dept-icon.clickable:hover .icon-overlay {
+    opacity: 1;
+}
+
+/* Menu de Ações (Três Pontos) */
+.dept-action-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    min-width: 140px;
+    margin-top: 4px;
+    overflow: hidden;
+    animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dept-action-menu button {
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: #475569;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.dept-action-menu button:hover {
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+.dept-action-menu button.delete {
+    color: #ef4444;
+}
+
+.dept-action-menu button.delete:hover {
+    background: #fef2f2;
+}
+
+/* Seletor de Ícones no Modal */
+.icon-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    padding: 8px;
+}
+
+.icon-option {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    font-size: 20px;
+    color: #64748b;
+    transition: all 0.2s;
+}
+
+.icon-option:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #1e293b;
+    transform: translateY(-2px);
+}
+
+.icon-option.selected {
+    background: #fff7ed;
+    border-color: #fd7e14;
+    color: #fd7e14;
+    box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.2);
+}
+
+/* Outros ajustes */
+.btn-icon.active {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+/* =====================================================
+   RESPONSIVIDADE
+   ===================================================== */
+
+/* Telas médias: tablet/janela menor */
+@media (max-width: 900px) {
+    .gestao-departamentos-section {
+        padding: 16px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .form-header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    /* Oculta coluna de Colaboradores na lista */
+    .list-header,
+    .department-item {
+        grid-template-columns: 2fr 1fr 100px;
+    }
+
+    /* Esconde a coluna de colaboradores no header */
+    .list-header span:nth-child(2),
+    .department-item>div:nth-child(2) {
+        display: none;
+    }
+}
+
+/* Telas pequenas: mobile */
+@media (max-width: 600px) {
+    .gestao-departamentos-section {
+        padding: 12px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Simplifica a lista para mobile: só nome + ações */
+    .list-header,
+    .department-item {
+        grid-template-columns: 1fr 80px;
+    }
+
+    /* Esconde colaboradores e status no mobile */
+    .list-header span:nth-child(2),
+    .list-header span:nth-child(3),
+    .department-item>div:nth-child(2),
+    .department-item>div:nth-child(3) {
+        display: none;
+    }
+
+    .stat-value {
+        font-size: 24px;
+    }
+
+    .add-dept-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Modal em tela cheia no mobile */
+    .modal-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 16px;
+        border-radius: 12px;
+    }
+
+    .dept-name p {
+        display: none;
+    }
+}
