@@ -13,13 +13,30 @@ import './CommunicationDrawer.css';
 
 // Substitui imagem/vídeo por labels "(imagem)" e "(video)" sem exibir o link
 
-const markdownToHtml = (text) => {
+const markdownToHtml = (text, isEditable = false) => {
     if (!text) return '';
     let html = text
         .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // Sanitize
-        .replace(/\n/g, '<br>') // Lines
-        .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="media-preview" title="Clique para ampliar" />') // Images
-        .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="media-preview"></video>'); // Videos
+        .replace(/\n/g, '<br>'); // Lines
+
+    if (isEditable) {
+        // No editor, renderizamos com wrappers de remoção
+        html = html
+            .replace(/!\[(.*?)\]\((.*?)\)/g,
+                '<span class="media-preview-wrapper" contenteditable="false">' +
+                '<img src="$2" alt="$1" class="media-preview" />' +
+                '<span class="media-remove-btn">&times;</span>' +
+                '</span>')
+            .replace(/\[video\]\((.*?)\)/g,
+                '<span class="media-preview-wrapper" contenteditable="false">' +
+                '<video src="$1" controls class="media-preview"></video>' +
+                '<span class="media-remove-btn">&times;</span>' +
+                '</span>');
+    } else {
+        html = html
+            .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="media-preview" title="Clique para ampliar" />')
+            .replace(/\[video\]\((.*?)\)/g, '<video src="$1" controls class="media-preview"></video>');
+    }
     return html;
 };
 
@@ -157,19 +174,22 @@ const getDateLabel = (dateString) => {
 // ==============================================================================
 // === COMPONENT: Rich Editor (Teams-like) ===
 // ==============================================================================
-const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '100px', autoFocus = false, showUploadIcon = true }) => {
+const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '100px', autoFocus = false, showUploadIcon = true, onImageClick = null }) => {
     const editorRef = useRef(null);
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         if (editorRef.current) {
-            // Initial setup
-            if (!editorRef.current.innerHTML && initialValue) {
-                editorRef.current.innerHTML = markdownToHtml(initialValue);
-            }
-            // Reset if parent clears value (e.g. after send)
-            if (initialValue === '' && editorRef.current.innerHTML !== '') {
-                editorRef.current.innerHTML = '';
+            const currentMarkdown = htmlToMarkdown(editorRef.current.innerHTML);
+            // Atualiza apenas se o markdown mudou externamente (ex: botão de anexo ou envio)
+            if (currentMarkdown !== initialValue) {
+                // Se o valor estiver vazio, limpamos
+                if (initialValue === '') {
+                    editorRef.current.innerHTML = '';
+                } else {
+                    // Renderizamos com modo editável para ter os botões de X
+                    editorRef.current.innerHTML = markdownToHtml(initialValue, true);
+                }
             }
         }
     }, [initialValue]);
@@ -178,6 +198,20 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
         if (editorRef.current) {
             const markdown = htmlToMarkdown(editorRef.current.innerHTML);
             onContentChange(markdown);
+        }
+    };
+
+    const handleEditorClick = (e) => {
+        if (e.target.classList.contains('media-remove-btn')) {
+            e.stopPropagation();
+            const wrapper = e.target.closest('.media-preview-wrapper');
+            if (wrapper) {
+                wrapper.remove();
+                handleInput();
+            }
+        } else if (e.target.tagName === 'IMG' && onImageClick) {
+            e.stopPropagation();
+            onImageClick(e.target.src);
         }
     };
 
@@ -344,6 +378,7 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
                 ref={editorRef}
                 contentEditable={true}
                 onInput={handleInput}
+                onClick={handleEditorClick}
                 onPaste={handlePaste}
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -957,6 +992,7 @@ const CommunicationDrawer = ({ user }) => {
                             onContentChange={setNewMessage}
                             placeholder="Digite aqui... Cole imagens ou vídeos"
                             minHeight="40px"
+                            onImageClick={setExpandedImage}
                         />
                     </div>
                     <button type="submit" disabled={!newMessage.trim()} style={{ height: '40px', alignSelf: 'flex-end', marginBottom: '1px' }}>
@@ -1121,6 +1157,7 @@ const CommunicationDrawer = ({ user }) => {
                                             placeholder="Digite sua mensagem..."
                                             minHeight="80px"
                                             showUploadIcon={true}
+                                            onImageClick={setExpandedImage}
                                         />
                                         <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', marginTop: '5px' }}>
                                             <button onClick={handleCancelEdit} style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
@@ -1259,6 +1296,7 @@ const CommunicationDrawer = ({ user }) => {
                                 placeholder={tipo === 'COMUNICADO' ? "Digite o aviso..." : "Descreva o chamado..."}
                                 minHeight="150px"
                                 showUploadIcon={false}
+                                onImageClick={setExpandedImage}
                             />
                             {tipo === 'CHAMADO' && (
                                 <button
