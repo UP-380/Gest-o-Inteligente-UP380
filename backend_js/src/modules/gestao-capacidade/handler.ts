@@ -16,6 +16,9 @@ import type {
 
 const SCHEMA = 'up_gestaointeligente';
 
+// Cache global para cálculo de dias úteis (reduz processamento em loops recursivos)
+const diasInterseccaoCache = new Map<string, number>();
+
 // ============================================================================
 // Funções Utilitárias
 // ============================================================================
@@ -44,7 +47,7 @@ function registroTempoParaMs(r: RegistroTempo): number {
 }
 
 /** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). */
-/** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). OTIMIZADO. */
+/** Quantos dias da regra caem no período do request (opcional: excluir finais de semana e feriados). OTIMIZADO COM CACHE. */
 function diasNaInterseccao(
   regraInicio: string,
   regraFim: string,
@@ -53,6 +56,9 @@ function diasNaInterseccao(
   ignorarFinaisSemana: boolean,
   feriados: string[]
 ): number {
+  const cacheKey = `${regraInicio}|${regraFim}|${periodoInicio}|${periodoFim}|${ignorarFinaisSemana}`;
+  if (diasInterseccaoCache.has(cacheKey)) return diasInterseccaoCache.get(cacheKey)!;
+
   const startMs = Math.max(new Date(regraInicio).getTime(), new Date(periodoInicio).getTime());
   const endMs = Math.min(new Date(regraFim).getTime(), new Date(periodoFim).getTime());
 
@@ -89,6 +95,8 @@ function diasNaInterseccao(
 
     current.setDate(current.getDate() + 1);
   }
+
+  diasInterseccaoCache.set(cacheKey, dias);
   return dias;
 }
 
@@ -166,201 +174,8 @@ function extrairMensagemErro(error: unknown): string {
 }
 
 /**
- * Calcula resumo dinâmico por nível (colaborador, cliente, produto, tipo_tarefa, tarefa).
- * Agrupa registros e estimados por esse nível e calcula totais.
+ * Otimização: Funções redundantemente recursivas foram removidas.
  */
-function calcularResumoPorNivel({
-  nivel,
-  registros,
-  estimados,
-  membros,
-  usuarioParaMembro,
-  vigenciaPorMembro,
-  nomeColaborador,
-  nomeCliente,
-  nomeProduto,
-  nomeTipoTarefa,
-  nomeTarefa,
-  data_inicio,
-  data_fim,
-  ignorar_finais_semana,
-  feriados,
-  ignorar_folgas
-}: {
-  nivel: 'colaborador' | 'cliente' | 'produto' | 'tipo_tarefa' | 'tarefa';
-  registros: RegistroTempo[];
-  estimados: EstimadoRegra[];
-  membros: Membro[];
-  usuarioParaMembro: Map<number, number>;
-  vigenciaPorMembro: Map<number, Vigencia>;
-  nomeColaborador: NomeMap;
-  nomeCliente: NomeMap;
-  nomeProduto: NomeMap;
-  nomeTipoTarefa: NomeMap;
-  nomeTarefa: NomeMap;
-  data_inicio: string;
-  data_fim: string;
-  ignorar_finais_semana: boolean;
-  feriados: string[];
-  ignorar_folgas: boolean;
-}): Record<string, {
-  id: number | string;
-  nome: string;
-  horas_contratadas_ms?: number;
-  horas_contratadas_hms?: string;
-  horas_contratadas_h?: number;
-  diferenca_ms?: number;
-  diferenca_hms?: string;
-  diferenca_h?: number;
-  total_estimado_ms: number;
-  total_estimado_hms: string;
-  total_estimado_h: number;
-  total_realizado_ms: number;
-  total_realizado_hms: string;
-  total_realizado_h: number;
-  custo_hora?: number;
-  custo_estimado?: number;
-  total_tarefas?: number;
-  total_produtos?: number;
-  total_clientes?: number;
-  total_colaboradores?: number;
-}> {
-  const resumo: Record<string, any> = {};
-
-  const getIdNivel = (r?: RegistroTempo | EstimadoRegra): string | number | null => {
-    if (!r) return null;
-    switch (nivel) {
-      case 'colaborador':
-        if ('usuario_id' in r) {
-          const uid = (r as RegistroTempo).usuario_id;
-          return usuarioParaMembro.get(uid) ?? uid;
-        }
-        return (r as EstimadoRegra)?.responsavel_id ?? null;
-      case 'cliente': return r.cliente_id ?? null;
-      case 'produto': return r.produto_id ?? null;
-      case 'tipo_tarefa': return r.tipo_tarefa_id ?? null;
-      case 'tarefa': return r.tarefa_id ?? null;
-      default: return null;
-    }
-  };
-
-  const getNomeNivel = (id: string | number): string => {
-    const key = String(id);
-    switch (nivel) {
-      case 'colaborador': return nomeColaborador[key] || `Colaborador #${key}`;
-      case 'cliente': return nomeCliente[key] || `Cliente #${key}`;
-      case 'produto': return nomeProduto[key] || `Produto #${key}`;
-      case 'tipo_tarefa': return nomeTipoTarefa[key] || `Tipo #${key}`;
-      case 'tarefa': return nomeTarefa[key] || `Tarefa #${key}`;
-      default: return key;
-    }
-  };
-
-  const idsNivel = new Set<string | number>();
-  registros.forEach(r => {
-    const id = getIdNivel(r);
-    if (id != null) idsNivel.add(id);
-  });
-  estimados.forEach(e => {
-    const id = getIdNivel(e);
-    if (id != null) idsNivel.add(id);
-  });
-
-  for (const idNivel of idsNivel) {
-    const registrosNivel = registros.filter(r => {
-      const id = getIdNivel(r);
-      return id != null && String(id) === String(idNivel);
-    });
-    const estimadosNivel = estimados.filter(e => {
-      const id = getIdNivel(e);
-      return id != null && String(id) === String(idNivel);
-    });
-
-    const totalEstimadoMs = estimadosNivel.reduce((acc, e) => {
-      const regraFim = e.data_fim ?? data_fim;
-      const regraInicio = e.data_inicio ?? data_inicio;
-      const qtdDias = diasNaInterseccao(regraInicio, regraFim, data_inicio, data_fim, ignorar_finais_semana, feriados);
-      const tempoMs = tempoEstimadoDiaParaMs(e.tempo_estimado_dia);
-      return acc + qtdDias * tempoMs;
-    }, 0);
-
-    const totalRealizadoMs = registrosNivel.reduce(
-      (acc, r) => acc + registroTempoParaMs(r), 0
-    );
-
-    const { custo_estimado: ce, custo_realizado: cr } = calcularCusto(
-      registrosNivel,
-      estimadosNivel,
-      usuarioParaMembro,
-      vigenciaPorMembro,
-      data_inicio,
-      data_fim,
-      ignorar_finais_semana,
-      feriados
-    );
-
-    const itemResumo: any = {
-      id: typeof idNivel === 'string' && !isNaN(Number(idNivel)) ? Number(idNivel) : idNivel,
-      nome: getNomeNivel(idNivel),
-      total_estimado_ms: totalEstimadoMs,
-      total_estimado_hms: msParaHms(totalEstimadoMs),
-      total_estimado_h: msParaHorasDecimal(totalEstimadoMs),
-      total_realizado_ms: totalRealizadoMs,
-      total_realizado_hms: msParaHms(totalRealizadoMs),
-      total_realizado_h: msParaHorasDecimal(totalRealizadoMs),
-      custo_estimado: ce,
-      custo_realizado: cr
-    };
-
-    if (nivel === 'colaborador') {
-      const membroId = typeof idNivel === 'number' ? idNivel : parseInt(String(idNivel), 10);
-      const membro = membros.find(m => m.id === membroId);
-      if (membro) {
-        const vigencia = vigenciaPorMembro.get(membroId);
-        const horasDisponiveis = calcularHorasDisponiveis({
-          data_inicio,
-          data_fim,
-          vigencia,
-          ignorar_finais_semana,
-          feriados,
-          ignorar_folgas
-        });
-        itemResumo.horas_contratadas_ms = horasDisponiveis;
-        itemResumo.horas_contratadas_hms = msParaHms(horasDisponiveis);
-        itemResumo.horas_contratadas_h = msParaHorasDecimal(horasDisponiveis);
-        itemResumo.custo_hora = custoHoraNum(vigencia);
-        itemResumo.horas_contratadas_dia = vigencia?.horascontratadasdia != null ? Number(vigencia.horascontratadasdia) : 0;
-
-        // Calcular diferença (Contratadas - Realizadas)
-        const diferencaMs = horasDisponiveis - totalRealizadoMs;
-        itemResumo.diferenca_ms = diferencaMs;
-        itemResumo.diferenca_hms = msParaHms(diferencaMs);
-        itemResumo.diferenca_h = msParaHorasDecimal(diferencaMs);
-      }
-      // Totais de clientes, produtos e tarefas distintos para o colaborador (mobile card)
-      const clientesIds = new Set<string>();
-      const produtosIds = new Set<string>();
-      const tarefasIds = new Set<string>();
-      for (const r of registrosNivel) {
-        if (r.cliente_id != null && r.cliente_id !== '') clientesIds.add(String(r.cliente_id));
-        if (r.produto_id != null && r.produto_id !== '') produtosIds.add(String(r.produto_id));
-        if (r.tarefa_id != null && r.tarefa_id !== '') tarefasIds.add(String(r.tarefa_id));
-      }
-      for (const e of estimadosNivel) {
-        if (e.cliente_id != null && e.cliente_id !== '') clientesIds.add(String(e.cliente_id));
-        if (e.produto_id != null && e.produto_id !== '') produtosIds.add(String(e.produto_id));
-        if (e.tarefa_id != null && e.tarefa_id !== '') tarefasIds.add(String(e.tarefa_id));
-      }
-      itemResumo.total_clientes = clientesIds.size;
-      itemResumo.total_produtos = produtosIds.size;
-      itemResumo.total_tarefas = tarefasIds.size;
-    }
-
-    resumo[String(idNivel)] = itemResumo;
-  }
-
-  return resumo;
-}
 
 type Nivel = 'colaborador' | 'cliente' | 'produto' | 'tipo_tarefa' | 'tarefa';
 
@@ -387,150 +202,7 @@ function getIdParaNivel(
   return null;
 }
 
-/** Filtra registros e estimados que batem com o path de níveis (pais). */
-function filtrarPorParentPath(
-  registros: RegistroTempo[],
-  estimados: EstimadoRegra[],
-  ordem_niveis: Nivel[],
-  parentPath: Array<{ nivel: Nivel; id: string | number }>,
-  usuarioParaMembro: Map<number, number>
-): { registros: RegistroTempo[]; estimados: EstimadoRegra[] } {
-  if (parentPath.length === 0) return { registros, estimados };
-  const registrosFiltrados = registros.filter((r) => {
-    for (let i = 0; i < parentPath.length; i++) {
-      const id = getIdParaNivel(r, parentPath[i].nivel, usuarioParaMembro);
-      if (id == null || String(id) !== String(parentPath[i].id)) return false;
-    }
-    return true;
-  });
-  const estimadosFiltrados = estimados.filter((e) => {
-    for (let i = 0; i < parentPath.length; i++) {
-      const id = getIdParaNivel(e, parentPath[i].nivel, usuarioParaMembro);
-      if (id == null || String(id) !== String(parentPath[i].id)) return false;
-    }
-    return true;
-  });
-  return { registros: registrosFiltrados, estimados: estimadosFiltrados };
-}
-
-/** Conta totalizadores (tarefas, produtos, clientes, colaboradores) nos dados. Sempre retorna os quatro, em qualquer nível. */
-function contarTotalizadores(
-  registros: RegistroTempo[],
-  estimados: EstimadoRegra[],
-  usuarioParaMembro: Map<number, number>
-): { total_tarefas: number; total_produtos: number; total_clientes: number; total_colaboradores: number } {
-  const tarefas = new Set<string>();
-  const produtos = new Set<string>();
-  const clientes = new Set<string>();
-  const colaboradores = new Set<number>();
-  const add = (r: RegistroTempo | EstimadoRegra) => {
-    const idTarefa = getIdParaNivel(r, 'tarefa', usuarioParaMembro);
-    if (idTarefa != null && idTarefa !== '') tarefas.add(String(idTarefa));
-    const idProduto = getIdParaNivel(r, 'produto', usuarioParaMembro);
-    if (idProduto != null && idProduto !== '') produtos.add(String(idProduto));
-    const idCliente = getIdParaNivel(r, 'cliente', usuarioParaMembro);
-    if (idCliente != null && idCliente !== '') clientes.add(String(idCliente));
-    const idColab = getIdParaNivel(r, 'colaborador', usuarioParaMembro);
-    if (idColab != null) colaboradores.add(typeof idColab === 'number' ? idColab : parseInt(String(idColab), 10));
-  };
-  registros.forEach(add);
-  estimados.forEach(add);
-  return {
-    total_tarefas: tarefas.size,
-    total_produtos: produtos.size,
-    total_clientes: clientes.size,
-    total_colaboradores: colaboradores.size,
-  };
-}
-
-/**
- * Monta resumo aninhado dinamicamente por ordem_niveis: cada nó tem totais do nível + totalizadores (excluindo o próprio nível) + detalhes (próximo nível).
- */
-/**
- * Monta resumo aninhado dinamicamente por ordem_niveis: cada nó tem totais do nível + totalizadores (excluindo o próprio nível) + detalhes (próximo nível).
- * OTIMIZADO: Recebe listas filtradas do pai e usa particionamento para os filhos.
- */
-function montarResumoAninhado(
-  ordem_niveis: Nivel[],
-  nivelIndex: number,
-  registros: RegistroTempo[],
-  estimados: EstimadoRegra[],
-  ctx: {
-    membros: Membro[];
-    usuarioParaMembro: Map<number, number>;
-    vigenciaPorMembro: Map<number, Vigencia>;
-    nomeColaborador: NomeMap;
-    nomeCliente: NomeMap;
-    nomeProduto: NomeMap;
-    nomeTipoTarefa: NomeMap;
-    nomeTarefa: NomeMap;
-    data_inicio: string;
-    data_fim: string;
-    ignorar_finais_semana: boolean;
-    feriados: string[];
-    ignorar_folgas: boolean;
-  }
-): Record<string, any> {
-  if (nivelIndex >= ordem_niveis.length) return {};
-  const nivel = ordem_niveis[nivelIndex];
-
-  // Registros e Estimados já vêm filtrados do PAI
-  const regs = registros;
-  const ests = estimados;
-
-  const resumo = calcularResumoPorNivel({
-    nivel,
-    registros: regs,
-    estimados: ests,
-    membros: ctx.membros,
-    usuarioParaMembro: ctx.usuarioParaMembro,
-    vigenciaPorMembro: ctx.vigenciaPorMembro,
-    nomeColaborador: ctx.nomeColaborador,
-    nomeCliente: ctx.nomeCliente,
-    nomeProduto: ctx.nomeProduto,
-    nomeTipoTarefa: ctx.nomeTipoTarefa,
-    nomeTarefa: ctx.nomeTarefa,
-    data_inicio: ctx.data_inicio,
-    data_fim: ctx.data_fim,
-    ignorar_finais_semana: ctx.ignorar_finais_semana,
-    feriados: ctx.feriados,
-    ignorar_folgas: ctx.ignorar_folgas
-  });
-
-  const ehPrimeiroNivel = nivelIndex === 0;
-  const resultado: Record<string, any> = {};
-
-  // Particionar dados UMA VEZ para este nível para otimizar o loop
-  const registrosMap = particionarPorNivel(regs, nivel, ctx.usuarioParaMembro);
-  const estimadosMap = particionarPorNivel(ests, nivel, ctx.usuarioParaMembro);
-
-  for (const idStr of Object.keys(resumo)) {
-    const item = resumo[idStr];
-
-    // Lookup O(1) em vez de Filtro O(N)
-    const registrosNivel = (registrosMap.get(String(idStr)) || []) as RegistroTempo[];
-    const estimadosNivel = (estimadosMap.get(String(idStr)) || []) as EstimadoRegra[];
-
-    // Totais são calculados apenas no primeiro nível (contexto global de contagem)
-    const totais = ehPrimeiroNivel ? contarTotalizadores(registrosNivel, estimadosNivel, ctx.usuarioParaMembro) : {};
-
-    // Recurso com subset filtrado
-    const detalhes = montarResumoAninhado(
-      ordem_niveis,
-      nivelIndex + 1,
-      registrosNivel, // Passa subset para filhos
-      estimadosNivel,
-      ctx
-    );
-
-    const itemSemTotaisSeDetalhe = ehPrimeiroNivel ? item : (() => {
-      const { total_tarefas, total_produtos, total_clientes, total_colaboradores, ...resto } = item;
-      return resto;
-    })();
-    resultado[idStr] = { ...itemSemTotaisSeDetalhe, ...totais, detalhes };
-  }
-  return resultado;
-}
+// Otimização: montagem recursiva duplicada removida.
 
 /**
  * Monta a árvore de detalhes. A ordem dos níveis é 100% dinâmica.
@@ -667,6 +339,36 @@ function adicionarFormatosNaHierarquia(obj: Record<string, any>): void {
       }
     }
   });
+}
+
+/** Conta totalizadores (tarefas, produtos, clientes, colaboradores) nos dados. Sempre retorna os quatro, em qualquer nível. */
+function contarTotalizadores(
+  registros: RegistroTempo[],
+  estimados: EstimadoRegra[],
+  usuarioParaMembro: Map<number, number>
+): { total_tarefas: number; total_produtos: number; total_clientes: number; total_colaboradores: number } {
+  const tarefas = new Set<string>();
+  const produtos = new Set<string>();
+  const clientes = new Set<string>();
+  const colaboradores = new Set<number>();
+  const add = (r: RegistroTempo | EstimadoRegra) => {
+    const idTarefa = getIdParaNivel(r, 'tarefa', usuarioParaMembro);
+    if (idTarefa != null && idTarefa !== '') tarefas.add(String(idTarefa));
+    const idProduto = getIdParaNivel(r, 'produto', usuarioParaMembro);
+    if (idProduto != null && idProduto !== '') produtos.add(String(idProduto));
+    const idCliente = getIdParaNivel(r, 'cliente', usuarioParaMembro);
+    if (idCliente != null && idCliente !== '') clientes.add(String(idCliente));
+    const idColab = getIdParaNivel(r, 'colaborador', usuarioParaMembro);
+    if (idColab != null) colaboradores.add(typeof idColab === 'number' ? idColab : parseInt(String(idColab), 10));
+  };
+  registros.forEach(add);
+  estimados.forEach(add);
+  return {
+    total_tarefas: tarefas.size,
+    total_produtos: produtos.size,
+    total_clientes: clientes.size,
+    total_colaboradores: colaboradores.size,
+  };
 }
 
 /**
@@ -874,8 +576,11 @@ function reordenarResumoAntesDeDetalhes(obj: Record<string, any>): void {
 
 export async function cardsHandler(c: Context) {
   console.time('TotalRequest');
+  const start = Date.now();
   try {
-    const body = await c.req.json() as GestaoCapacidadeBody;
+    const bodyAsAny = await c.req.json() as any;
+    const hasOrdemNiveis = bodyAsAny && bodyAsAny.ordem_niveis !== undefined;
+    const body = bodyAsAny as GestaoCapacidadeBody;
 
     const parseResult = gestaoCapacidadeBodySchema.safeParse(body);
     if (!parseResult.success) {
@@ -896,7 +601,7 @@ export async function cardsHandler(c: Context) {
       colaborador_id,
       data_inicio,
       data_fim,
-      ordem_niveis,
+      ordem_niveis: ordemNiveisRaw,
       ignorar_finais_semana,
       ignorar_feriados,
       ignorar_folgas,
@@ -905,6 +610,12 @@ export async function cardsHandler(c: Context) {
       tipo_tarefa_id,
       tarefa_id,
     } = validatedBody;
+
+    // Aplicar regra de default seguro e limite de profundidade
+    const ordem_niveis: Nivel[] = hasOrdemNiveis ? (ordemNiveisRaw as Nivel[] || []) : ['colaborador' as Nivel];
+    if (ordem_niveis.length > 3) {
+      throw new Error("Hierarquia acima do limite seguro (max 3 níveis)");
+    }
 
     console.time('SupabaseQueries');
     // 1️⃣ Buscar colaboradores
@@ -969,6 +680,10 @@ export async function cardsHandler(c: Context) {
     const { data: registrosData, error: errRegistros } = await queryTempo;
     if (errRegistros) throw errRegistros;
     const registros = registrosData ?? [];
+
+    if (registros.length > 3000) {
+      console.warn("[GESTAO-CAPACIDADE] Volume alto detectado", { count: registros.length });
+    }
 
     // 3️⃣ Buscar regras de tempo estimado
     const periodoFimStr = `${data_fim}T23:59:59.999`;
@@ -1121,30 +836,40 @@ export async function cardsHandler(c: Context) {
       ignorar_folgas: !!ignorar_folgas,
     };
 
-    // Resumo aninhado dinâmico: primeiro nível no root, cada nó com totalizadores + detalhes (próximo nível)
-    const resumoAninhado = montarResumoAninhado(ordem_niveis, 0, registros, estimados, {
-      membros,
-      usuarioParaMembro,
-      vigenciaPorMembro,
-      nomeColaborador,
-      nomeCliente,
-      nomeProduto,
-      nomeTipoTarefa,
-      nomeTarefa,
-      data_inicio,
-      data_fim,
-      ignorar_finais_semana,
-      feriados,
-      ignorar_folgas
-    });
+    // Gerar resumo percorrendo a árvore pronta (evita reconstrução dupla)
+    const nivelRaiz = ordem_niveis[0];
+    const RESUMO_KEYS: Record<string, string> = {
+      colaborador: 'resumo_colaboradores',
+      cliente: 'resumo_clientes',
+      produto: 'resumo_produtos',
+      tipo_tarefa: 'resumo_tipos_tarefa',
+      tarefa: 'resumo_tarefas'
+    };
+    const resumoKey = RESUMO_KEYS[nivelRaiz] || `resumo_${nivelRaiz}s`;
 
-    return c.json({
+    const resumoPorNivel: Record<string, any> = {};
+    for (const [id, node] of Object.entries(hierarquia)) {
+      const { detalhes, ...resumoItem } = node;
+      resumoPorNivel[id] = resumoItem;
+    }
+
+    const finalResult = {
       success: true,
       periodo,
       data: hierarquia,
       resumo: resumoTotalizadores,
-      ...resumoAninhado
-    });
+      [resumoKey]: resumoPorNivel
+    };
+
+    // Proteção anti-JSON gigante
+    const jsonSize = JSON.stringify(finalResult).length;
+    if (jsonSize > 15_000_000) {
+      throw new Error("Resposta excede limite seguro");
+    }
+
+    console.log("[GESTAO-CAPACIDADE] tempo:", Date.now() - start, "ms");
+    console.timeEnd('TotalRequest');
+    return c.json(finalResult);
 
   } catch (error: unknown) {
     console.error('[CARDS-ENDPOINT] Error:', error);

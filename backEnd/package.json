@@ -1,6 +1,6 @@
 {
   "name": "up-gestao-inteligente-backend",
-  "version": "1.0.5",
+  "version": "1.0.9",
   "description": "Backend API - UP Gestão Inteligente",
   "main": "src/index.js",
   "scripts": {
