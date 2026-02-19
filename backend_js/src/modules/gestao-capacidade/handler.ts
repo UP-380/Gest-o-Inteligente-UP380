@@ -421,7 +421,7 @@ function contarTotalizadores(
  */
 /**
  * Monta resumo aninhado dinamicamente por ordem_niveis: cada nó tem totais do nível + totalizadores (excluindo o próprio nível) + detalhes (próximo nível).
- * OTIMIZADO: Recebe listas já filtradas do nível pai.
+ * OTIMIZADO: Recebe listas filtradas do pai e usa particionamento para os filhos.
  */
 function montarResumoAninhado(
   ordem_niveis: Nivel[],
@@ -473,18 +473,16 @@ function montarResumoAninhado(
   const ehPrimeiroNivel = nivelIndex === 0;
   const resultado: Record<string, any> = {};
 
+  // Particionar dados UMA VEZ para este nível para otimizar o loop
+  const registrosMap = particionarPorNivel(regs, nivel, ctx.usuarioParaMembro);
+  const estimadosMap = particionarPorNivel(ests, nivel, ctx.usuarioParaMembro);
+
   for (const idStr of Object.keys(resumo)) {
     const item = resumo[idStr];
 
-    // Filtrar subset para este nó específico a partir da lista do pai
-    const registrosNivel = regs.filter((r) => {
-      const id = getIdParaNivel(r, nivel, ctx.usuarioParaMembro);
-      return id != null && String(id) === String(idStr);
-    });
-    const estimadosNivel = ests.filter((e) => {
-      const id = getIdParaNivel(e, nivel, ctx.usuarioParaMembro);
-      return id != null && String(id) === String(idStr);
-    });
+    // Lookup O(1) em vez de Filtro O(N)
+    const registrosNivel = (registrosMap.get(String(idStr)) || []) as RegistroTempo[];
+    const estimadosNivel = (estimadosMap.get(String(idStr)) || []) as EstimadoRegra[];
 
     // Totais são calculados apenas no primeiro nível (contexto global de contagem)
     const totais = ehPrimeiroNivel ? contarTotalizadores(registrosNivel, estimadosNivel, ctx.usuarioParaMembro) : {};
@@ -606,6 +604,27 @@ function montarHierarquia({
   return hierarquia;
 }
 
+/**
+ * Particiona registros/estimados por ID do nível atual.
+ * Retorna Map<id, array>.
+ */
+function particionarPorNivel(
+  lista: (RegistroTempo | EstimadoRegra)[],
+  nivel: Nivel,
+  usuarioParaMembro: Map<number, number>
+): Map<string, any[]> {
+  const mapa = new Map<string, any[]>();
+  for (const item of lista) {
+    const id = getIdParaNivel(item, nivel, usuarioParaMembro);
+    if (id != null) {
+      const key = String(id);
+      if (!mapa.has(key)) mapa.set(key, []);
+      mapa.get(key)?.push(item);
+    }
+  }
+  return mapa;
+}
+
 function adicionarFormatosNaHierarquia(obj: Record<string, any>): void {
   if (!obj || typeof obj !== 'object') return;
   Object.values(obj).forEach((node) => {
@@ -624,12 +643,8 @@ function adicionarFormatosNaHierarquia(obj: Record<string, any>): void {
 }
 
 /**
- * Adiciona total_tarefas, total_produtos, total_clientes, total_colaboradores em cada nó de "data",
- * no mesmo formato para qualquer primeiro nível (colaborador, cliente, produto, etc.).
- */
-/**
  * Adiciona total_tarefas, total_produtos, total_clientes, total_colaboradores em cada nó de "data".
- * OTIMIZADO: Recebe listas já filtradas do nível pai, evitando re-scan global.
+ * OTIMIZADO: Usa particionamento para O(N) por nível.
  */
 function adicionarTotalizadoresNaHierarquia(
   obj: Record<string, any>,
@@ -643,19 +658,16 @@ function adicionarTotalizadoresNaHierarquia(
   const nivel = ordem_niveis[nivelIndex];
   const ehPrimeiroNivel = nivelIndex === 0;
 
+  // Particionar dados UMA VEZ para este nível
+  const registrosMap = particionarPorNivel(registros, nivel, usuarioParaMembro);
+  const estimadosMap = particionarPorNivel(estimados, nivel, usuarioParaMembro);
+
   for (const chave of Object.keys(obj)) {
     const node = obj[chave];
     if (!node || typeof node !== 'object') continue;
 
-    // Filtrar apenas o subset deste nó a partir da lista do pai
-    const registrosNode = registros.filter(r => {
-      const id = getIdParaNivel(r, nivel, usuarioParaMembro);
-      return id != null && String(id) === String(chave);
-    });
-    const estimadosNode = estimados.filter(e => {
-      const id = getIdParaNivel(e, nivel, usuarioParaMembro);
-      return id != null && String(id) === String(chave);
-    });
+    const registrosNode = (registrosMap.get(String(chave)) || []) as RegistroTempo[];
+    const estimadosNode = (estimadosMap.get(String(chave)) || []) as EstimadoRegra[];
 
     if (ehPrimeiroNivel) {
       const totais = contarTotalizadores(registrosNode, estimadosNode, usuarioParaMembro);
@@ -670,7 +682,7 @@ function adicionarTotalizadoresNaHierarquia(
         node.detalhes,
         ordem_niveis,
         nivelIndex + 1,
-        registrosNode, // Passar subset para os filhos
+        registrosNode,
         estimadosNode,
         usuarioParaMembro
       );
@@ -680,7 +692,7 @@ function adicionarTotalizadoresNaHierarquia(
 
 /**
  * Adiciona custo_estimado e custo_realizado em cada nó de "data".
- * OTIMIZADO: Recebe listas já filtradas do nível pai.
+ * OTIMIZADO: Usa particionamento.
  */
 function adicionarCustoNaHierarquia(
   obj: Record<string, any>,
@@ -699,19 +711,16 @@ function adicionarCustoNaHierarquia(
   if (!obj || typeof obj !== 'object' || nivelIndex >= ordem_niveis.length) return;
   const nivel = ordem_niveis[nivelIndex];
 
+  // Particionar dados UMA VEZ para este nível
+  const registrosMap = particionarPorNivel(registros, nivel, usuarioParaMembro);
+  const estimadosMap = particionarPorNivel(estimados, nivel, usuarioParaMembro);
+
   for (const chave of Object.keys(obj)) {
     const node = obj[chave];
     if (!node || typeof node !== 'object') continue;
 
-    // Filtrar apenas o subset deste nó a partir da lista do pai
-    const registrosNode = registros.filter(r => {
-      const id = getIdParaNivel(r, nivel, usuarioParaMembro);
-      return id != null && String(id) === String(chave);
-    });
-    const estimadosNode = estimados.filter(e => {
-      const id = getIdParaNivel(e, nivel, usuarioParaMembro);
-      return id != null && String(id) === String(chave);
-    });
+    const registrosNode = (registrosMap.get(String(chave)) || []) as RegistroTempo[];
+    const estimadosNode = (estimadosMap.get(String(chave)) || []) as EstimadoRegra[];
 
     const { custo_estimado, custo_realizado } = calcularCusto(
       registrosNode,
