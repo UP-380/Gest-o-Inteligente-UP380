@@ -26,6 +26,11 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/tipo-contratos': ['/cadastro/tipo-contrato'],
   '/cadastro/colaboradores': ['/cadastro/colaborador', '/cadastro/vigencia', '/cadastro/colaborador/vigencias'],
   '/cadastro/custo-colaborador': ['/cadastro/config-custo'],
+  '/cadastro/equipamentos': ['/cadastro/equipamento'],
+  '/gestao-equipamentos': [
+    '/gestao-equipamentos/inventario',
+    '/gestao-equipamentos/operadores'
+  ],
   '/gestao-capacidade': [
     '/atribuicao/cliente',
     '/atribuicao/nova',
@@ -35,7 +40,9 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   ],
   '/base-conhecimento': [
     '/base-conhecimento/conteudos-clientes',
-    '/base-conhecimento/cliente'
+    '/base-conhecimento/cliente',
+    '/base-conhecimento/tutoriais',
+    '/base-conhecimento/notas-atualizacao'
   ],
   // Adicionando página de edição de cliente explicitamente para UI
   '/cadastro/cliente': ['/cadastro/cliente'],
@@ -76,15 +83,19 @@ const TODAS_PAGINAS = [
   { path: '/cadastro/adquirentes', label: 'Adquirentes', categoria: 'Cadastros' },
   { path: '/cadastro/sistemas', label: 'Sistemas', categoria: 'Cadastros' },
   { path: '/cadastro/vinculacoes', label: 'Vinculações', categoria: 'Cadastros' },
+  { path: '/cadastro/equipamentos', label: 'Equipamentos', categoria: 'Cadastros' },
 
   // Atribuições
   { path: '/gestao-capacidade', label: 'Gestão de Capacidade', categoria: 'Atribuições' },
   { path: '/gestao-capacidade/historico', label: 'Histórico de Atribuições', categoria: 'Atribuições' },
   { path: '/aprovacoes-pendentes', label: 'Aprovações Pendentes', categoria: 'Atribuições' },
+  { path: '/gestao-equipamentos', label: 'Gestão de Equipamentos', categoria: 'Atribuições' },
 
   // Base de Conhecimento
   { path: '/base-conhecimento', label: 'Início', categoria: 'Base de Conhecimento' },
   { path: '/base-conhecimento/conteudos-clientes', label: 'Conteúdos Clientes', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/tutoriais', label: 'Tutoriais', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/notas-atualizacao', label: 'Notas de Atualização', categoria: 'Base de Conhecimento' },
   // Adicionando explicitamente a página de edição (que redireciona para cadastro, mas é acessada via base conhecimento)
   { path: '/cadastro/cliente', label: 'Edição de Cliente (Base Conhecimento)', categoria: 'Base de Conhecimento' },
 
