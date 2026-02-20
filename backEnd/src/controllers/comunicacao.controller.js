@@ -105,6 +105,38 @@ async function enviarMensagem(req, res) {
             const isNovoChamado = !mensagem_pai_id;
 
             if (isNovoChamado) {
+                // Lógica de SLA e Categoria
+                const { categoria_id } = metadata || {};
+                let prazo_sla = null;
+
+                if (categoria_id) {
+                    // Buscar SLA da categoria
+                    const { data: categoria } = await supabase
+                        .from('cp_chamados_categorias')
+                        .select('sla_horas, departamento_id')
+                        .eq('id', categoria_id)
+                        .single();
+
+                    if (categoria) {
+                        const horasSla = categoria.sla_horas || 24;
+                        prazo_sla = new Date();
+                        prazo_sla.setHours(prazo_sla.getHours() + horasSla);
+
+                        // Atualizar a mensagem com categoria_id e prazo_sla
+                        await supabase
+                            .from('comunicacao_mensagens')
+                            .update({
+                                categoria_id,
+                                prazo_sla: prazo_sla.toISOString()
+                            })
+                            .eq('id', mensagem.id);
+
+                        // Metadata extra para o front
+                        mensagem.categoria_id = categoria_id;
+                        mensagem.prazo_sla = prazo_sla.toISOString();
+                    }
+                }
+
                 // Notificar gestores sobre novo chamado
                 await distribuirNotificacao({
                     tipo: 'CHAMADO_NOVO',
@@ -359,11 +391,50 @@ async function listarChamados(req, res) {
 
         if (error) throw error;
 
+        // Se for gestor/admin, pode ver todos. Se for membro de depto, vê os do seu depto + os que criou.
+        // Implementação simplificada de visibilidade por depto nas categorias
         return res.json({ success: true, data });
 
     } catch (error) {
         console.error('Erro ao listar chamados:', error);
         return res.status(500).json({ success: false, error: 'Erro ao listar chamados.' });
+    }
+}
+
+/**
+ * Lista Categorias de Chamados (Tópicos de Ajuda)
+ */
+async function listarCategorias(req, res) {
+    try {
+        const { data, error } = await supabase
+            .from('cp_chamados_categorias')
+            .select('*')
+            .eq('status', 'Ativo')
+            .order('nome', { ascending: true });
+
+        if (error) throw error;
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error('Erro ao listar categorias:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao listar tópicos de ajuda.' });
+    }
+}
+
+/**
+ * Lista Templates de Resposta (Respostas Rápidas)
+ */
+async function listarTemplates(req, res) {
+    try {
+        const { data, error } = await supabase
+            .from('cp_chamados_templates')
+            .select('*')
+            .order('titulo', { ascending: true });
+
+        if (error) throw error;
+        return res.json({ success: true, data });
+    } catch (error) {
+        console.error('Erro ao listar templates:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao listar respostas rápidas.' });
     }
 }
 
@@ -419,6 +490,15 @@ async function atualizarStatusChamado(req, res) {
             .eq('id', id);
 
         if (error) throw error;
+
+        // Inserir mensagem de SISTEMA no chat para transparência
+        await supabase.from('comunicacao_mensagens').insert({
+            tipo: 'CHAMADO', // Mantemos tipo CHAMADO mas com metadado ou conteudo indicando sistema
+            mensagem_pai_id: id,
+            criador_id: usuario_id,
+            conteudo: `Status alterado para **${status}**`,
+            metadata: { sistema: true, acao: 'STATUS_CHANGE', novo_status: status }
+        });
 
         // Notificar o criador sobre a mudança de status
         if (chamado.criador_id !== usuario_id) {
@@ -590,5 +670,7 @@ module.exports = {
     atualizarStatusChamado,
     marcarMensagemLida,
     listarComunicadoDestaque,
-    atualizarMensagem
+    atualizarMensagem,
+    listarCategorias,
+    listarTemplates
 };

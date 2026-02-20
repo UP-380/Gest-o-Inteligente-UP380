@@ -576,6 +576,8 @@ router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoCo
 router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+router.get('/api/comunicacao/categorias', requireAuth, comunicacaoController.listarCategorias);
+router.get('/api/comunicacao/templates', requireAuth, comunicacaoController.listarTemplates);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
 
 // Rotas de Upload

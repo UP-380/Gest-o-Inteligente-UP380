@@ -23,4 +23,6 @@ export const comunicacaoAPI = {
     // New methods
     uploadMedia: (formData) => api.post('/upload/chamado', formData),
     atualizarMensagem: (id, payload) => api.put(`/comunicacao/mensagem/${id}`, payload),
+    listarCategorias: () => api.get('/comunicacao/categorias'),
+    listarTemplates: () => api.get('/comunicacao/templates'),
 };

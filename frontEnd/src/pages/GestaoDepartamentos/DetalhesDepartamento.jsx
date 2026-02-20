@@ -36,6 +36,7 @@ const DetalhesDepartamento = () => {
         colaboradorId: ''
     });
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [openUpwards, setOpenUpwards] = useState(false);
     const menuRef = useRef(null);
 
     // Fechar menu ao clicar fora
@@ -186,7 +187,22 @@ const DetalhesDepartamento = () => {
 
     const toggleMenu = (id, e) => {
         e.stopPropagation();
-        setOpenMenuId(openMenuId === id ? null : id);
+        if (openMenuId === id) {
+            setOpenMenuId(null);
+        } else {
+            // Verificar a posição vertical do botão de ação
+            const rect = e.currentTarget.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+
+            // Se o botão estiver a menos de 150px do final da tela, abre para cima
+            if (viewportHeight - rect.bottom < 150) {
+                setOpenUpwards(true);
+            } else {
+                setOpenUpwards(false);
+            }
+
+            setOpenMenuId(id);
+        }
     };
 
     const handleEditClick = (member) => {
@@ -328,7 +344,7 @@ const DetalhesDepartamento = () => {
 
     return (
         <Layout>
-            <div className="container">
+            <div className="container detalhes-full-page">
                 <main className="main-content">
                     <div className="detalhes-departamento-section">
 
@@ -476,7 +492,7 @@ const DetalhesDepartamento = () => {
                                                     </button>
 
                                                     {openMenuId === member.id && (
-                                                        <div className="member-action-menu" ref={menuRef}>
+                                                        <div className={`member-action-menu ${openUpwards ? 'open-upwards' : ''}`} ref={menuRef}>
                                                             <button onClick={() => handleEditClick(member)}>
                                                                 <i className="fas fa-edit"></i>
                                                                 Editar
@@ -613,13 +629,12 @@ const DetalhesDepartamento = () => {
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Email</label>
+                                        <label>Email (Opcional)</label>
                                         <input
                                             type="email"
                                             className="form-control"
                                             value={newMemberData.email}
                                             onChange={e => setNewMemberData({ ...newMemberData, email: e.target.value })}
-                                            required
                                         />
                                     </div>
                                 </div>
@@ -709,13 +724,12 @@ const DetalhesDepartamento = () => {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label>Email</label>
+                                        <label>Email (Opcional)</label>
                                         <input
                                             type="email"
                                             className="form-control"
                                             value={editingMember.email}
                                             onChange={e => setEditingMember({ ...editingMember, email: e.target.value })}
-                                            required
                                         />
                                     </div>
                                 </div>

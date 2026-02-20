@@ -574,3 +574,22 @@ video.media-preview {
         right: -100vw;
     }
 }
+
+.system-msg {
+    align-self: center !important;
+    background: transparent !important;
+    color: #334155 !important;
+    font-style: italic;
+    font-size: 0.8rem;
+    padding: 0 !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    text-align: center;
+    opacity: 0.95;
+    margin: 8px 0 !important;
+    border: none !important;
+}
+
+.system-msg .msg-content {
+    padding: 0 !important;
+}

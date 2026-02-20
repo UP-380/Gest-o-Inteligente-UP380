@@ -209,7 +209,7 @@ const GestaoDepartamentos = () => {
                                 </div>
                                 <div className="stat-card">
                                     <span className="stat-title">Vagas Abertas</span>
-                                    <span className="stat-value highlight">6</span>
+                                    <span className="stat-value highlight">---</span>
                                 </div>
                             </div>
 

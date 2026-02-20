@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
+import { departamentosAPI } from '../../services/api';
 import './ChamadosView.css';
 
 const ChamadosView = () => {
@@ -9,23 +10,19 @@ const ChamadosView = () => {
     const [newChamado, setNewChamado] = useState({
         titulo: '',
         conteudo: '',
-        categoria: '',
+        categoria_id: '',
         metadata: { prioridade: 'media' }
     });
+    const [categorias, setCategorias] = useState([]);
+    const [dynamicFields, setDynamicFields] = useState({});
     const [selectedFile, setSelectedFile] = useState(null);
     const [expandedImage, setExpandedImage] = useState(null);
     const fileInputRef = useRef(null);
 
-    const OPERADORES_POR_CATEGORIA = {
-        'Hardware': 'Carlos Ferreira',
-        'Software': 'Ana Clara',
-        'Rede': 'Roberto Mendes',
-        'Acesso': 'Fernanda Lima',
-        'Outros': 'Suporte Geral'
-    };
 
     useEffect(() => {
         loadChamados();
+        loadCategorias();
     }, []);
 
     const loadChamados = async () => {
@@ -39,6 +36,17 @@ const ChamadosView = () => {
             console.error('Erro ao listar chamados:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadCategorias = async () => {
+        try {
+            const response = await comunicacaoAPI.listarCategorias();
+            if (response.success) {
+                setCategorias(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar categorias:', error);
         }
     };
 
@@ -81,14 +89,16 @@ const ChamadosView = () => {
                 status_chamado: 'ABERTO',
                 metadata: {
                     ...newChamado.metadata,
-                    categoria: newChamado.categoria,
+                    categoria_id: newChamado.categoria_id,
+                    campos_dinamicos: dynamicFields,
                     anexos: anexos
                 }
             };
             const response = await comunicacaoAPI.enviarMensagem(payload);
             if (response.success) {
                 setShowModal(false);
-                setNewChamado({ titulo: '', conteudo: '', categoria: '', metadata: { prioridade: 'media' } });
+                setNewChamado({ titulo: '', conteudo: '', categoria_id: '', metadata: { prioridade: 'media' } });
+                setDynamicFields({});
                 setSelectedFile(null);
                 loadChamados();
             }
@@ -133,13 +143,20 @@ const ChamadosView = () => {
                                     <div className="chamado-info">
                                         <h3 className="chamado-title">{chamado.titulo}</h3>
                                         <span className="chamado-date">
-                                            Criado em: {new Date(chamado.created_at).toLocaleDateString()}
+                                            Aberto por: <strong>{chamado.criador?.nome_usuario || 'Usuário'}</strong>
                                         </span>
-                                        {chamado.metadata?.categoria && (
+                                        {chamado.metadata?.responsavel ? (
                                             <span className="chamado-category">
-                                                Categoria: {chamado.metadata.categoria}
+                                                Responsável: <strong>{chamado.metadata.responsavel}</strong>
+                                            </span>
+                                        ) : (
+                                            <span className="chamado-category">
+                                                Categoria: {chamado.metadata?.categoria || 'Geral'}
                                             </span>
                                         )}
+                                        <span className="chamado-date">
+                                            Criado em: {new Date(chamado.created_at).toLocaleDateString()}
+                                        </span>
                                     </div>
                                     <div className="chamado-meta">
                                         <span className="badge status" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}>
@@ -161,26 +178,40 @@ const ChamadosView = () => {
                             <h3>Novo Chamado</h3>
                             <form onSubmit={handleCreate}>
                                 <div className="form-group">
-                                    <label>Categoria</label>
+                                    <label>Tópico de Ajuda (Categoria)</label>
                                     <select
-                                        value={newChamado.categoria}
-                                        onChange={e => setNewChamado({ ...newChamado, categoria: e.target.value })}
+                                        value={newChamado.categoria_id}
+                                        onChange={e => {
+                                            const catId = e.target.value;
+                                            setNewChamado({ ...newChamado, categoria_id: catId });
+                                            setDynamicFields({}); // Reset campos dinâmicos ao trocar categoria
+                                        }}
                                         required
                                     >
-                                        <option value="">Selecione uma categoria</option>
-                                        {Object.keys(OPERADORES_POR_CATEGORIA).map(cat => (
-                                            <option key={cat} value={cat}>{cat}</option>
+                                        <option value="">Selecione o tipo de problema</option>
+                                        {categorias.map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.nome}
+                                            </option>
                                         ))}
                                     </select>
-                                    {newChamado.categoria && (
-                                        <small className="operator-hint">
-                                            Responsável: {OPERADORES_POR_CATEGORIA[newChamado.categoria]}
-                                        </small>
-                                    )}
                                 </div>
 
-                                {newChamado.categoria && (
+                                {newChamado.categoria_id && (
                                     <>
+                                        {/* Renderizar campos dinâmicos se existirem */}
+                                        {categorias.find(c => String(c.id) === String(newChamado.categoria_id))?.campos_esquema?.map(field => (
+                                            <div className="form-group" key={field.name}>
+                                                <label>{field.label} {field.required && '*'}</label>
+                                                <input
+                                                    type={field.type || 'text'}
+                                                    value={dynamicFields[field.name] || ''}
+                                                    onChange={e => setDynamicFields({ ...dynamicFields, [field.name]: e.target.value })}
+                                                    required={field.required}
+                                                    placeholder={field.placeholder || ''}
+                                                />
+                                            </div>
+                                        ))}
                                         <div className="form-group">
                                             <label>Assunto</label>
                                             <input

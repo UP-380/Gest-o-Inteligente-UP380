@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
-import { usuariosAPI, authAPI } from '../../services/api';
+import { usuariosAPI, authAPI, departamentosAPI } from '../../services/api';
 import { hasPermissionSync } from '../../utils/permissions';
 import Avatar from '../user/Avatar';
 import './CommunicationDrawer.css';
@@ -476,16 +476,12 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria: '' });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '' });
+    const [categorias, setCategorias] = useState([]);
+    const [templates, setTemplates] = useState([]);
+    const [dynamicFields, setDynamicFields] = useState({});
     const [isSaving, setIsSaving] = useState(false);
 
-    const OPERADORES_POR_CATEGORIA = {
-        'Hardware': 'Carlos Ferreira',
-        'Software': 'Ana Clara',
-        'Rede': 'Roberto Mendes',
-        'Acesso': 'Fernanda Lima',
-        'Outros': 'Suporte Geral'
-    };
 
     // Edit & Upload States
     const [editingMessageId, setEditingMessageId] = useState(null);
@@ -614,11 +610,37 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    const loadCategorias = async () => {
+        try {
+            const response = await comunicacaoAPI.listarCategorias();
+            if (response.success) {
+                setCategorias(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar categorias:', error);
+        }
+    };
+
+    const loadTemplates = async () => {
+        try {
+            const response = await comunicacaoAPI.listarTemplates();
+            if (response.success) {
+                setTemplates(response.data);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar templates:', error);
+        }
+    }
+
     useEffect(() => {
         if (isOpen) {
             if (activeTab === 'chats' && !selectedChat) loadConversas();
             if (activeTab === 'comunicados') loadComunicados();
-            if (activeTab === 'chamados' && !selectedChamado) loadChamados();
+            if (activeTab === 'chamados' && !selectedChamado) {
+                loadChamados();
+                loadCategorias();
+                loadTemplates();
+            }
         }
     }, [isOpen, activeTab, selectedChat, selectedChamado]);
 
@@ -723,6 +745,8 @@ const CommunicationDrawer = ({ user }) => {
             if (response.success) {
                 setSelectedChamado({ ...selectedChamado, status_chamado: newStatus });
                 loadChamados();
+                // Recarregar mensagens imediatamente para mostrar o log de sistema
+                loadMessages(selectedChamado.id, true);
             }
         } catch (error) {
             console.error('Erro ao atualizar status:', error);
@@ -813,19 +837,24 @@ const CommunicationDrawer = ({ user }) => {
         if (!formData.titulo.trim() || !formData.conteudo.trim()) return;
         setIsSaving(true);
         try {
-            const response = await comunicacaoAPI.enviarMensagem({
+            const payload = {
                 tipo,
                 titulo: formData.titulo,
                 conteudo: formData.conteudo,
+                status_chamado: tipo === 'CHAMADO' ? 'ABERTO' : undefined,
                 metadata: tipo === 'COMUNICADO' ? {
                     destacado: formData.destacado
                 } : (tipo === 'CHAMADO' ? {
-                    categoria: formData.categoria
+                    categoria_id: formData.categoria_id,
+                    campos_dinamicos: dynamicFields
                 } : {})
-            });
+            };
+
+            const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, categoria: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '' });
+                setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
                 if (tipo === 'COMUNICADO') loadComunicados();
@@ -1070,6 +1099,9 @@ const CommunicationDrawer = ({ user }) => {
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
+                                    {cham.metadata?.responsavel && (
+                                        <span>Responsável: <strong>{cham.metadata.responsavel}</strong></span>
+                                    )}
                                     <span>{formatDate(cham.created_at)}</span>
                                 </div>
                                 <i className="fas fa-chevron-right" style={{ opacity: 0.3 }}></i>
@@ -1089,7 +1121,21 @@ const CommunicationDrawer = ({ user }) => {
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span className="chat-target-name">{selectedChamado.titulo}</span>
-                    <span style={{ fontSize: '11px', opacity: 0.7 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', opacity: 0.7 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
+                        {selectedChamado.prazo_sla && (
+                            <span style={{
+                                fontSize: '10px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                backgroundColor: new Date(selectedChamado.prazo_sla) < new Date() ? '#fee2e2' : '#f0f9ff',
+                                color: new Date(selectedChamado.prazo_sla) < new Date() ? '#991b1b' : '#075985',
+                                fontWeight: 'bold'
+                            }}>
+                                <i className="far fa-clock"></i> SLA: {formatDate(selectedChamado.prazo_sla)}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1185,23 +1231,28 @@ const CommunicationDrawer = ({ user }) => {
                                         </span>
                                     </div>
                                 )}
-                                <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`} style={{ position: 'relative' }}>
-                                    {isMe && (
-                                        <div className="msg-actions" style={{ position: 'absolute', top: '5px', right: '5px', opacity: 0.5, cursor: 'pointer', zIndex: 10 }}>
-                                            <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)} style={{ fontSize: '10px' }}></i>
-                                        </div>
-                                    )}
-                                    <div className="msg-author" style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '2px', opacity: 0.7 }}>
-                                        {msg.criador?.nome_usuario || 'Sistema'}
-                                    </div>
-                                    <div className="msg-content" onClick={handleImageClick} style={{ cursor: 'pointer' }}>
-                                        {/* Use formatMessageContent only for viewing, RichEditor handles raw HTML internally but outputs Markdown */}
+                                {msg.metadata?.sistema ? (
+                                    <div className="system-msg" style={{ width: '100%' }}>
                                         <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                     </div>
-                                    <div className="msg-time">
-                                        {formatTime(msg.created_at)}
+                                ) : (
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`} style={{ position: 'relative' }}>
+                                        {isMe && (
+                                            <div className="msg-actions" style={{ position: 'absolute', top: '5px', right: '5px', opacity: 0.5, cursor: 'pointer', zIndex: 10 }}>
+                                                <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)} style={{ fontSize: '10px' }}></i>
+                                            </div>
+                                        )}
+                                        <div className="msg-author" style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '2px', opacity: 0.7 }}>
+                                            {msg.criador?.nome_usuario || 'Sistema'}
+                                        </div>
+                                        <div className="msg-content" onClick={handleImageClick} style={{ cursor: 'pointer' }}>
+                                            <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
+                                        </div>
+                                        <div className="msg-time">
+                                            {formatTime(msg.created_at)}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </React.Fragment>
                         );
                     })
@@ -1211,7 +1262,22 @@ const CommunicationDrawer = ({ user }) => {
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
                 <form className="comm-chat-input" onSubmit={handleSendChamadoReply} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && templates.length > 0 && (
+                        <div className="templates-selector" style={{ padding: '5px 10px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '5px', overflowX: 'auto' }}>
+                            {templates.map(t => (
+                                <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setNewMessage(prev => prev + (prev ? '\n' : '') + t.conteudo)}
+                                    style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap', borderRadius: '10px', background: '#fff', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                                    title={t.conteudo}
+                                >
+                                    {t.titulo}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '10px', padding: '10px' }}>
                         <input
                             type="text"
                             placeholder="Responder chamado..."
@@ -1251,33 +1317,40 @@ const CommunicationDrawer = ({ user }) => {
 
                 {tipo === 'CHAMADO' && (
                     <div className="form-group" style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Categoria *</label>
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Tópico de Ajuda (Categoria) *</label>
                         <select
-                            value={formData.categoria}
-                            onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+                            value={formData.categoria_id}
+                            onChange={(e) => {
+                                setFormData({ ...formData, categoria_id: e.target.value });
+                                setDynamicFields({});
+                            }}
                             style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
                         >
-                            <option value="">Selecione uma categoria</option>
-                            {Object.keys(OPERADORES_POR_CATEGORIA).map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
+                            <option value="">Selecione o tipo de problema</option>
+                            {categorias.map(cat => (
+                                <option key={cat.id} value={cat.id}>
+                                    {cat.nome}
+                                </option>
                             ))}
                         </select>
-                        {formData.categoria && (
-                            <small style={{
-                                display: 'block',
-                                fontSize: '0.85rem',
-                                fontStyle: 'italic',
-                                color: '#0e3b6f',
-                                marginTop: '5px'
-                            }}>
-                                Responsável: {OPERADORES_POR_CATEGORIA[formData.categoria]}
-                            </small>
-                        )}
                     </div>
                 )}
 
-                {(tipo === 'COMUNICADO' || formData.categoria) && (
+                {(tipo === 'COMUNICADO' || formData.categoria_id) && (
                     <>
+                        {tipo === 'CHAMADO' && categorias.find(c => String(c.id) === String(formData.categoria_id))?.campos_esquema?.map(field => (
+                            <div className="form-group" key={field.name} style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>{field.label} {field.required && '*'}</label>
+                                <input
+                                    type={field.type || 'text'}
+                                    value={dynamicFields[field.name] || ''}
+                                    onChange={e => setDynamicFields({ ...dynamicFields, [field.name]: e.target.value })}
+                                    required={field.required}
+                                    placeholder={field.placeholder || ''}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                />
+                            </div>
+                        ))}
                         <div className="form-group" style={{ marginBottom: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Título *</label>
                             <input
@@ -1355,12 +1428,12 @@ const CommunicationDrawer = ({ user }) => {
                     style={{
                         width: '100%',
                         padding: '12px',
-                        backgroundColor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria)) ? '#cbd5e1' : '#0e3b6f',
+                        backgroundColor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)) ? '#cbd5e1' : '#0e3b6f',
                         color: 'white',
                         borderRadius: '8px',
                         border: 'none',
                         fontWeight: 'bold',
-                        cursor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria)) ? 'not-allowed' : 'pointer'
+                        cursor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)) ? 'not-allowed' : 'pointer'
                     }}
                 >
                     {isSaving ? 'Salvando...' : (tipo === 'COMUNICADO' ? 'Publicar Aviso' : 'Abrir Chamado')}
