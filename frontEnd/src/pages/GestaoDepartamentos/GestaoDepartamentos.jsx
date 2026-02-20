@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import { useToast } from '../../hooks/useToast';
+import { departamentosAPI } from '../../services/api';
 import './GestaoDepartamentos.css';
 
 // Ícones disponíveis para seleção
@@ -34,12 +35,24 @@ const GestaoDepartamentos = () => {
     const [activeMenuId, setActiveMenuId] = useState(null);
     const [formData, setFormData] = useState({ nome: '', descricao: '' });
 
-    // Simular carregamento
-    useEffect(() => {
-        setTimeout(() => {
-            setDepartamentos(MOCK_DEPARTAMENTOS);
+    // Carregar departamentos
+    const loadDepartamentos = async () => {
+        setLoading(true);
+        try {
+            const result = await departamentosAPI.getAll(1, 100);
+            if (result.success) {
+                setDepartamentos(result.data);
+            }
+        } catch (error) {
+            console.error('Erro ao carregar departamentos:', error);
+            showToast('error', 'Erro ao carregar departamentos');
+        } finally {
             setLoading(false);
-        }, 800);
+        }
+    };
+
+    useEffect(() => {
+        loadDepartamentos();
     }, []);
 
     // Fechar menu ao clicar fora
@@ -53,37 +66,48 @@ const GestaoDepartamentos = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.nome) {
             showToast('error', 'Nome do departamento é obrigatório');
             return;
         }
 
-        if (deptEditando) {
-            // Edição
-            setDepartamentos(departamentos.map(d =>
-                d.id === deptEditando.id ? { ...d, ...formData } : d
-            ));
-            showToast('success', 'Departamento atualizado com sucesso!');
-        } else {
-            // Criação
-            const novoDepartamento = {
-                id: Math.max(0, ...departamentos.map(d => d.id)) + 1,
-                nome: formData.nome,
-                descricao: formData.descricao || 'Nova divisão corporativa',
-                colaboradores: 0,
-                status: 'Ativo',
-                icon: 'fa-building',
-                color: '#f1f5f9',
-                iconColor: '#475569'
-            };
-            setDepartamentos([...departamentos, novoDepartamento]);
-            showToast('success', 'Departamento criado com sucesso!');
-        }
+        try {
+            if (deptEditando) {
+                // Edição
+                const result = await departamentosAPI.update(deptEditando.id, formData);
+                if (result.success) {
+                    showToast('success', 'Departamento atualizado com sucesso!');
+                    loadDepartamentos();
+                } else {
+                    showToast('error', 'Erro ao atualizar departamento');
+                }
+            } else {
+                // Criação
+                const novoDepartamento = {
+                    nome: formData.nome,
+                    descricao: formData.descricao || 'Nova divisão corporativa',
+                    status: 'Ativo',
+                    icon: 'fa-building',
+                    color: '#f1f5f9',
+                    iconColor: '#475569'
+                };
+                const result = await departamentosAPI.create(novoDepartamento);
+                if (result.success) {
+                    showToast('success', 'Departamento criado com sucesso!');
+                    loadDepartamentos();
+                } else {
+                    showToast('error', 'Erro ao criar departamento');
+                }
+            }
 
-        setShowModal(false);
-        setDeptEditando(null);
-        setFormData({ nome: '', descricao: '' });
+            setShowModal(false);
+            setDeptEditando(null);
+            setFormData({ nome: '', descricao: '' });
+        } catch (error) {
+            console.error('Erro ao salvar departamento:', error);
+            showToast('error', 'Erro ao salvar departamento');
+        }
     };
 
     const handleEdit = (dept) => {
@@ -93,10 +117,20 @@ const GestaoDepartamentos = () => {
         setActiveMenuId(null);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('Tem certeza que deseja excluir este departamento?')) {
-            setDepartamentos(departamentos.filter(d => d.id !== id));
-            showToast('success', 'Departamento excluído com sucesso!');
+            try {
+                const result = await departamentosAPI.delete(id);
+                if (result.success) {
+                    showToast('success', 'Departamento excluído com sucesso!');
+                    loadDepartamentos();
+                } else {
+                    showToast('error', 'Erro ao excluir departamento');
+                }
+            } catch (error) {
+                console.error('Erro ao excluir departamento:', error);
+                showToast('error', 'Erro ao excluir departamento');
+            }
         }
         setActiveMenuId(null);
     };
@@ -107,13 +141,21 @@ const GestaoDepartamentos = () => {
         setActiveMenuId(null);
     };
 
-    const handleSelectIcon = (icon) => {
-        setDepartamentos(departamentos.map(d =>
-            d.id === deptEditando.id ? { ...d, icon: icon } : d
-        ));
+    const handleSelectIcon = async (icon) => {
+        try {
+            const result = await departamentosAPI.update(deptEditando.id, { icon });
+            if (result.success) {
+                showToast('success', 'Ícone atualizado!');
+                loadDepartamentos();
+            } else {
+                showToast('error', 'Erro ao atualizar ícone');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar ícone:', error);
+            showToast('error', 'Erro ao atualizar ícone');
+        }
         setShowIconModal(false);
         setDeptEditando(null);
-        showToast('success', 'Ícone atualizado!');
     };
 
     const totalColaboradores = departamentos.reduce((acc, curr) => acc + curr.colaboradores, 0);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../filters/FilterPeriodo.css';
 
-const DatePicker = ({ value, onChange, disabled = false, className = '', error = false, size = 'small' }) => {
+const DatePicker = ({ value, onChange, disabled = false, className = '', error = false, size = 'small', simple = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localDate, setLocalDate] = useState(value || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -55,7 +55,7 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     const dateStr = formatDateForInput(date);
     setLocalDate(dateStr);
     setIsOpen(false);
-    
+
     if (onChange) {
       onChange({ target: { value: dateStr } });
     }
@@ -70,8 +70,8 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
   const handlePrevMonth = () => {
@@ -85,9 +85,9 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    
-    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
-                      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     const monthYear = `${monthNames[month]} de ${year}`;
 
     const firstDay = new Date(year, month, 1);
@@ -106,13 +106,13 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(year, month, day);
       let dayClasses = 'periodo-calendar-day';
-      
+
       // Verificar se é a data selecionada
       if (localDate) {
         const selectedDate = new Date(localDate + 'T00:00:00');
         const selectedDateObj = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
         const isSelected = isSameDay(currentDate, selectedDateObj);
-        
+
         if (isSelected) {
           dayClasses += ' selected';
         }
@@ -137,7 +137,7 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
   return (
     <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${className}`} ref={containerRef}>
       <div className="periodo-select-field">
-        <div 
+        <div
           className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''} ${error ? 'error' : ''}`}
           onClick={handleOpen}
         >
@@ -150,13 +150,18 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
         {isOpen && !disabled && (
           <div className="periodo-dropdown" onClick={(e) => e.stopPropagation()}>
             <div className="periodo-dropdown-content">
-              <div style={{ padding: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                  <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: '14px' }}></i>
-                  <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>Selecionar data</span>
-                </div>
+              <div style={{ padding: simple ? '6px' : '12px' }}>
+                {!simple && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                    <i className="fas fa-calendar-alt" style={{ color: '#4b5563', fontSize: '14px' }}></i>
+                    <span style={{ fontWeight: 600, color: '#111827', fontSize: '13px' }}>Selecionar data</span>
+                  </div>
+                )}
 
-                <div className="periodo-calendar-container">
+                <div
+                  className={`periodo-calendar-container ${simple ? 'simple' : ''}`}
+                  style={simple ? { marginTop: 0, border: 'none', background: 'transparent', padding: 0 } : {}}
+                >
                   <div className="periodo-calendar-header">
                     <button className="periodo-calendar-nav" type="button" onClick={handlePrevMonth}>
                       <i className="fas fa-chevron-left"></i>

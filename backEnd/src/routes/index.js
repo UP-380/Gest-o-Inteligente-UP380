@@ -142,6 +142,20 @@ router.delete('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroCo
 // Rota antiga mantida para compatibilidade (retorna apenas id e nome)
 router.get('/api/tipos-contrato', requireAuth, colaboradoresController.getTiposContrato);
 
+// Rotas de Departamentos (CRUD completo)
+const departamentosController = require('../controllers/departamentos.controller'); // Certifique-se de importar no topo se preferir, ou aqui
+router.get('/api/departamentos', requireAuth, departamentosController.getDepartamentos);
+router.get('/api/departamentos/:id', requireAuth, departamentosController.getDepartamentoPorId);
+router.post('/api/departamentos', requireAuth, departamentosController.criarDepartamento);
+router.put('/api/departamentos/:id', requireAuth, departamentosController.atualizarDepartamento);
+router.delete('/api/departamentos/:id', requireAuth, departamentosController.deletarDepartamento);
+
+// Rotas de Membros de Departamentos
+router.get('/api/departamentos/:id/membros', requireAuth, departamentosController.getMembrosDepartamento);
+router.post('/api/departamentos/:id/membros', requireAuth, departamentosController.addMembroDepartamento);
+router.put('/api/departamentos/:id/membros/:membroId', requireAuth, departamentosController.updateMembroDepartamento); // membroId pode ser o ID da associação
+router.delete('/api/departamentos/:id/membros/:membroId', requireAuth, departamentosController.removeMembroDepartamento);
+
 // Rotas de Colaboradores (CRUD completo)
 router.get('/api/colaboradores', requireAuth, colaboradoresController.getColaboradores);
 router.get('/api/colaboradores/:id', requireAuth, colaboradoresController.getColaboradorPorId);

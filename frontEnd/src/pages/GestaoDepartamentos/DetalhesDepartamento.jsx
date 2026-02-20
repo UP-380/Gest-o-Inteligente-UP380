@@ -2,25 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useToast } from '../../hooks/useToast';
+import { colaboradoresAPI, departamentosAPI } from '../../services/api';
+import DatePicker from '../../components/vigencia/DatePicker';
 import './DetalhesDepartamento.css';
 
-// Mock Data
-const MOCK_DEPT_INFO = {
-    1: { name: 'Marketing', description: 'Comunicação & Branding', head: 'Sarah Jenkins', headRole: 'Director', icon: 'fa-bullhorn', color: '#eff6ff', iconColor: '#3b82f6' },
-    2: { name: 'Vendas', description: 'Comercial & Growth', head: 'Michael Scott', headRole: 'Manager', icon: 'fa-wallet', color: '#fff7ed', iconColor: '#f97316' },
-    3: { name: 'Recursos Humanos', description: 'Gente & Gestão', head: 'Pam Beesly', headRole: 'Coordinator', icon: 'fa-id-card', color: '#fdf4ff', iconColor: '#d946ef' },
-    4: { name: 'Tecnologia', description: 'Engenharia & Produto', head: 'Gilfoyle', headRole: 'CTO', icon: 'fa-laptop-code', color: '#f0fdf4', iconColor: '#22c55e' },
-    5: { name: 'Financeiro', description: 'Contabilidade & Fiscal', head: 'Oscar Martinez', headRole: 'Accountant', icon: 'fa-chart-line', color: '#f8fafc', iconColor: '#64748b' },
-};
-
-const INITIAL_MEMBERS = [
-    { id: 101, name: 'John Doe', email: 'john.doe@upmap.com', role: 'Senior Marketer', status: 'Ativo', joined: 'Out 12, 2021' },
-    { id: 102, name: 'Jane Smith', email: 'jane.smith@upmap.com', role: 'Content Writer', status: 'Férias', joined: 'Jan 05, 2022' },
-    { id: 103, name: 'Robert Chen', email: 'r.chen@upmap.com', role: 'SEO Specialist', status: 'Ativo', joined: 'Mar 22, 2022' },
-    { id: 104, name: 'Emily Watson', email: 'e.watson@upmap.com', role: 'Social Media Manager', status: 'Ativo', joined: 'Jun 14, 2022' },
-    { id: 105, name: 'Michael Brown', email: 'm.brown@upmap.com', role: 'Designer', status: 'Ativo', joined: 'Jul 20, 2022' },
-    { id: 106, name: 'Sarah Connor', email: 's.connor@upmap.com', role: 'Security', status: 'Ativo', joined: 'Aug 15, 2022' },
-    { id: 107, name: 'Rick Deckard', email: 'r.deckard@upmap.com', role: 'Investigator', status: 'Inativo', joined: 'Sep 01, 2019' },
+// Ícones disponíveis para seleção
+const AVAILABLE_ICONS = [
+    'fa-bullhorn', 'fa-wallet', 'fa-id-card', 'fa-laptop-code', 'fa-chart-line',
+    'fa-users', 'fa-building', 'fa-handshake', 'fa-briefcase', 'fa-headset',
+    'fa-cog', 'fa-shield-alt', 'fa-brain', 'fa-database', 'fa-globe'
 ];
 
 const DetalhesDepartamento = () => {
@@ -28,11 +18,23 @@ const DetalhesDepartamento = () => {
     const navigate = useNavigate();
     const showToast = useToast();
 
-    const deptInfo = MOCK_DEPT_INFO[id] || MOCK_DEPT_INFO[1];
-    const [members, setMembers] = useState(INITIAL_MEMBERS);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [deptInfo, setDeptInfo] = useState({ name: '', description: '', head: '', headRole: '', icon: 'fa-building', color: '#f1f5f9', iconColor: '#64748b' });
+    const [members, setMembers] = useState([]);
+    const [colaboradores, setColaboradores] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showIconModal, setShowIconModal] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
+    const [newMemberData, setNewMemberData] = useState({
+        name: '',
+        email: '',
+        role: '',
+        status: 'Ativo',
+        joined: '',
+        colaboradorId: ''
+    });
     const [openMenuId, setOpenMenuId] = useState(null);
     const menuRef = useRef(null);
 
@@ -49,6 +51,75 @@ const DetalhesDepartamento = () => {
         };
     }, []);
 
+    // Carregar dados
+    const loadData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            // Carregar colaboradores para o select
+            const colabsResult = await colaboradoresAPI.getAll();
+            if (colabsResult.success && colabsResult.data) {
+                setColaboradores(colabsResult.data);
+            }
+
+            // Carregar info do departamento
+            const deptResult = await departamentosAPI.getById(id);
+            if (deptResult.success) {
+                const data = deptResult.data;
+                setDeptInfo({
+                    name: data.nome || 'Departamento sem nome',
+                    description: data.descricao || '',
+                    head: data.head || 'Não definido',
+                    headRole: data.head_role || 'N/A',
+                    icon: data.icon || 'fa-building',
+                    color: data.color || '#f1f5f9',
+                    iconColor: data.icon_color || '#64748b'
+                });
+            } else {
+                setError('Departamento não encontrado');
+            }
+
+            // Carregar membros do departamento
+            const membersResult = await departamentosAPI.getMembros(id);
+            if (membersResult.success) {
+                // Formatar datas para exibição
+                const membersWithRawDate = (membersResult.data || []).map(m => {
+                    if (m.joined && /^\d{4}-\d{2}-\d{2}/.test(m.joined)) {
+                        const dateOnly = m.joined.split('T')[0];
+                        return { ...m, joined: dateOnly };
+                    }
+                    return m;
+                });
+                setMembers(membersWithRawDate);
+            }
+        } catch (err) {
+            console.error('Erro ao carregar dados:', err);
+            setError('Erro ao carregar dados do departamento');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, [id]);
+
+    const handleSelectIcon = async (iconName) => {
+        try {
+            const result = await departamentosAPI.update(id, { icon: iconName });
+            if (result.success) {
+                showToast('success', 'Ícone atualizado com sucesso!');
+                setDeptInfo(prev => ({ ...prev, icon: iconName }));
+                setShowIconModal(false);
+            } else {
+                showToast('error', 'Erro ao atualizar ícone');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar ícone:', error);
+            showToast('error', 'Erro de conexão ao atualizar ícone');
+        }
+    };
+
     // Paginação
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
@@ -57,26 +128,60 @@ const DetalhesDepartamento = () => {
     const currentMembers = members.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(members.length / itemsPerPage);
 
-    const handleRemoveMember = (memberId) => {
+    const handleRemoveMember = async (memberAssocId) => {
         if (window.confirm('Tem certeza que deseja remover este colaborador do departamento?')) {
-            setMembers(members.filter(m => m.id !== memberId));
-            showToast('success', 'Colaborador removido com sucesso!');
+            try {
+                const result = await departamentosAPI.removeMembro(id, memberAssocId);
+                if (result.success) {
+                    showToast('success', 'Colaborador removido com sucesso!');
+                    loadData(); // Recarregar lista
+                } else {
+                    showToast('error', 'Erro ao remover colaborador');
+                }
+            } catch (error) {
+                console.error('Erro ao remover colaborador:', error);
+                showToast('error', 'Erro ao remover colaborador');
+            }
         }
     };
 
-    const handleAddMember = (e) => {
+    const handleAddMember = async (e) => {
         e.preventDefault();
-        const newMember = {
-            id: Date.now(),
-            name: 'Novo Colaborador',
-            email: 'novo.colaborador@upmap.com',
-            role: 'Junior Analyst',
-            status: 'Ativo',
-            joined: new Date().toLocaleDateString('pt-BR', { month: 'short', day: '2-digit', year: 'numeric' })
+
+        if (!newMemberData.colaboradorId) {
+            showToast('error', 'Selecione um colaborador');
+            return;
+        }
+
+        let formattedDate = newMemberData.joined;
+        // Assegurar formato YYYY-MM-DD para salvar
+        if (!formattedDate) {
+            const today = new Date();
+            formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+
+        const newMemberPayload = {
+            membro_id: newMemberData.colaboradorId,
+            cargo: newMemberData.role,
+            email: newMemberData.email,
+            status: newMemberData.status,
+            data_entrada: formattedDate
         };
-        setMembers([...members, newMember]);
-        setShowAddModal(false);
-        showToast('success', 'Colaborador adicionado ao departamento!');
+
+        try {
+            const result = await departamentosAPI.addMembro(id, newMemberPayload);
+            if (result.success) {
+                showToast('success', 'Colaborador adicionado ao departamento!');
+                loadData();
+                setShowAddModal(false);
+                setNewMemberData({ name: '', email: '', role: '', status: 'Ativo', joined: '', colaboradorId: '' });
+            } else {
+                showToast('error', result.error || 'Erro ao adicionar colaborador');
+            }
+        } catch (error) {
+            console.error('Erro ao adicionar membro:', error);
+            showToast('error', 'Erro ao adicionar colaborador');
+        }
     };
 
     const toggleMenu = (id, e) => {
@@ -85,17 +190,141 @@ const DetalhesDepartamento = () => {
     };
 
     const handleEditClick = (member) => {
-        setEditingMember({ ...member });
+        let formattedJoined = member.joined;
+
+        // Tentar converter de "MMM DD, YYYY" para "YYYY-MM-DD"
+        // Ex: "Jan 01, 2023" ou "Out 12, 2021"
+        try {
+            if (member.joined && !/^\d{4}-\d{2}-\d{2}$/.test(member.joined)) {
+                // Tentar converter de DD/MM/YYYY para YYYY-MM-DD
+                if (member.joined.includes('/')) {
+                    const parts = member.joined.split('/');
+                    if (parts.length === 3) {
+                        const [day, month, year] = parts;
+                        if (year.length === 4) {
+                            formattedJoined = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        } else if (day.length === 4) {
+                            // Caso esteja YYYY/MM/DD
+                            formattedJoined = `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
+                        }
+                    }
+                } else {
+                    // Tentar converter de "MMM DD, YYYY" para "YYYY-MM-DD"
+                    const months = {
+                        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+                        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+                        'out': '10', 'abr': '04', 'mai': '05', 'ago': '08', 'set': '09', 'dez': '12'
+                    };
+
+                    const parts = member.joined.toLowerCase().replace(',', '').split(' ');
+                    if (parts.length === 3) {
+                        const monthStr = parts[0];
+                        const day = parts[1].padStart(2, '0');
+                        const year = parts[2];
+
+                        const month = months[monthStr.substring(0, 3)];
+
+                        if (month) {
+                            formattedJoined = `${year}-${month}-${day}`;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Erro ao converter data:", e);
+        }
+
+        setEditingMember({ ...member, joined: formattedJoined });
         setShowEditModal(true);
         setOpenMenuId(null);
     };
 
-    const handleSaveEdit = (e) => {
+    const handleSaveEdit = async (e) => {
         e.preventDefault();
-        setMembers(members.map(m => m.id === editingMember.id ? editingMember : m));
-        setShowEditModal(false);
-        showToast('success', 'Dados do colaborador atualizados!');
+
+        let formattedDate = editingMember.joined;
+        let dateForApi = null;
+
+        // Check if date is in YYYY-MM-DD format (from DatePicker)
+        if (formattedDate && /^\d{4}-\d{2}-\d{2}$/.test(formattedDate)) {
+            dateForApi = formattedDate;
+        } else if (formattedDate) {
+            // Tentar converter de volta para YYYY-MM-DD se estiver em outro formato (ex: MMM DD, YYYY)
+            try {
+                const months = {
+                    'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+                    'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                };
+                const parts = formattedDate.replace(',', '').split(' ');
+                if (parts.length === 3) {
+                    const month = months[parts[0]];
+                    const day = parts[1].padStart(2, '0');
+                    const year = parts[2];
+                    if (month) dateForApi = `${year}-${month}-${day}`;
+                }
+            } catch (e) {
+                console.error("Erro parse data", e);
+            }
+        }
+
+        const updatePayload = {
+            cargo: editingMember.role,
+            email: editingMember.email,
+            status: editingMember.status,
+            data_entrada: dateForApi
+        };
+
+        try {
+            const result = await departamentosAPI.updateMembro(id, editingMember.id, updatePayload);
+            if (result.success) {
+                showToast('success', 'Alterações salvas com sucesso!');
+                loadData();
+                setShowEditModal(false);
+                setEditingMember(null);
+            } else {
+                showToast('error', 'Erro ao atualizar membro');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar membro:', error);
+            showToast('error', 'Erro ao atualizar membro');
+        }
     };
+
+    if (loading) {
+        return (
+            <Layout>
+                <div className="container">
+                    <main className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+                        <div style={{ textAlign: 'center', color: '#64748b' }}>
+                            <i className="fas fa-spinner fa-spin fa-3x" style={{ marginBottom: '1rem' }}></i>
+                            <p>Carregando dados do departamento...</p>
+                        </div>
+                    </main>
+                </div>
+            </Layout>
+        );
+    }
+
+    if (error) {
+        return (
+            <Layout>
+                <div className="container">
+                    <main className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+                        <div style={{ textAlign: 'center', color: '#ef4444' }}>
+                            <i className="fas fa-exclamation-triangle fa-3x" style={{ marginBottom: '1rem' }}></i>
+                            <p>{error}</p>
+                            <button
+                                onClick={() => navigate('/gestao/departamentos')}
+                                style={{ marginTop: '20px', padding: '10px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer' }}
+                            >
+                                Voltar para Departamentos
+                            </button>
+                        </div>
+                    </main>
+                </div>
+            </Layout>
+        );
+    }
 
     return (
         <Layout>
@@ -106,14 +335,47 @@ const DetalhesDepartamento = () => {
                         {/* Header */}
                         <div className="detalhes-header">
                             <div className="breadcrumbs">
+                                <button
+                                    className="back-btn"
+                                    onClick={() => navigate('/gestao/departamentos')}
+                                    title="Voltar para Departamentos"
+                                >
+                                    <i className="fas fa-arrow-left"></i>
+                                </button>
                                 <Link to="/gestao/departamentos">Departamentos</Link>
                                 <i className="fas fa-chevron-right" style={{ fontSize: '10px' }}></i>
                                 <span>{deptInfo.name}</span>
                             </div>
                             <div className="dept-title-row">
-                                <div>
-                                    <h1>{deptInfo.name}</h1>
-                                    <p className="dept-subtitle">{deptInfo.description}</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                    <div
+                                        className="dept-icon clickable"
+                                        onClick={() => setShowIconModal(true)}
+                                        style={{
+                                            width: '64px',
+                                            height: '64px',
+                                            borderRadius: '16px',
+                                            background: deptInfo.color || '#f1f5f9',
+                                            color: deptInfo.iconColor || '#64748b',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '28px',
+                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                                            cursor: 'pointer',
+                                            position: 'relative'
+                                        }}
+                                        title="Clique para mudar o ícone"
+                                    >
+                                        <i className={`fas ${deptInfo.icon || 'fa-building'}`}></i>
+                                        <div className="icon-overlay">
+                                            <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h1>{deptInfo.name}</h1>
+                                        <p className="dept-subtitle">{deptInfo.description}</p>
+                                    </div>
                                 </div>
                                 <button className="add-member-btn" onClick={() => setShowAddModal(true)}>
                                     <i className="fas fa-user-plus"></i>
@@ -141,8 +403,8 @@ const DetalhesDepartamento = () => {
                                     <span className="card-label">Responsável pelo Departamento</span>
                                     <div className="head-profile">
                                         <div className="head-info">
-                                            <h3>{deptInfo.head}</h3>
-                                            <span className="role-badge">{deptInfo.headRole}</span>
+                                            <h3>{deptInfo.head || 'Não definido'}</h3>
+                                            <span className="role-badge">{deptInfo.headRole || 'N/A'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -171,7 +433,7 @@ const DetalhesDepartamento = () => {
                                             <td>
                                                 <div className="member-profile">
                                                     <div className="member-avatar-placeholder">
-                                                        {member.name.charAt(0)}
+                                                        {(member.name || '?').charAt(0)}
                                                     </div>
                                                     <div className="member-info">
                                                         <div>{member.name}</div>
@@ -184,17 +446,25 @@ const DetalhesDepartamento = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                                     <span
                                                         className="status-dot"
-                                                        style={{ background: member.status === 'Ativo' ? '#22c55e' : '#f59e0b' }}
+                                                        style={{
+                                                            background: member.status === 'Ativo' ? '#22c55e' :
+                                                                member.status === 'Inativo' ? '#ef4444' :
+                                                                    member.status === 'Férias' ? '#3b82f6' : '#f59e0b'
+                                                        }}
                                                     ></span>
                                                     <span
                                                         className="status-text"
-                                                        style={{ color: member.status === 'Ativo' ? '#166534' : '#b45309' }}
+                                                        style={{
+                                                            color: member.status === 'Ativo' ? '#166534' :
+                                                                member.status === 'Inativo' ? '#b91c1c' :
+                                                                    member.status === 'Férias' ? '#1e40af' : '#b45309'
+                                                        }}
                                                     >
                                                         {member.status}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td>{member.joined}</td>
+                                            <td>{member.joined && member.joined.includes('-') ? member.joined.split('-').reverse().join('/') : member.joined}</td>
                                             <td style={{ textAlign: 'right', position: 'relative' }}>
                                                 <div className="action-menu-container">
                                                     <button
@@ -302,26 +572,92 @@ const DetalhesDepartamento = () => {
             {/* Modal Adicionar Membro */}
             {showAddModal && (
                 <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-                    <div className="modal-content" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 style={{ margin: 0 }}>Adicionar Membro</h3>
                         </div>
                         <div className="modal-body">
                             <p>Selecione um colaborador para adicionar ao departamento de <strong>{deptInfo.name}</strong>.</p>
                             <form onSubmit={handleAddMember}>
-                                <div className="form-group">
-                                    <label>Colaborador</label>
-                                    <select className="form-control" autoFocus>
-                                        <option>Selecione...</option>
-                                        <option>Carlos Oliveira</option>
-                                        <option>Ana Souza</option>
-                                        <option>Pedro Santos</option>
-                                    </select>
+                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', position: 'relative', zIndex: 1 }}>
+                                    <div className="form-group">
+                                        <label>Nome</label>
+                                        <select
+                                            className="form-control"
+                                            value={newMemberData.colaboradorId}
+                                            onChange={e => {
+                                                const selectedId = e.target.value;
+                                                const selectedColab = colaboradores.find(c => String(c.id) === String(selectedId));
+                                                if (selectedColab) {
+                                                    setNewMemberData({
+                                                        ...newMemberData,
+                                                        colaboradorId: selectedId,
+                                                        name: selectedColab.nome,
+                                                        email: selectedColab.email || ''
+                                                    });
+                                                } else {
+                                                    setNewMemberData({
+                                                        ...newMemberData,
+                                                        colaboradorId: '',
+                                                        name: '',
+                                                        email: ''
+                                                    });
+                                                }
+                                            }}
+                                            required
+                                        >
+                                            <option value="">Selecione um colaborador</option>
+                                            {colaboradores.map(colab => (
+                                                <option key={colab.id} value={colab.id}>{colab.nome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Email</label>
+                                        <input
+                                            type="email"
+                                            className="form-control"
+                                            value={newMemberData.email}
+                                            onChange={e => setNewMemberData({ ...newMemberData, email: e.target.value })}
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Cargo no Departamento</label>
-                                    <input type="text" className="form-control" placeholder="Ex: Analista Junior" />
+
+                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px', position: 'relative', zIndex: 1 }}>
+                                    <div className="form-group">
+                                        <label>Cargo</label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            value={newMemberData.role}
+                                            onChange={e => setNewMemberData({ ...newMemberData, role: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Status</label>
+                                        <select
+                                            className="form-control"
+                                            value={newMemberData.status}
+                                            onChange={e => setNewMemberData({ ...newMemberData, status: e.target.value })}
+                                        >
+                                            <option value="Ativo">Ativo</option>
+                                            <option value="Inativo">Inativo</option>
+                                            <option value="Férias">Férias</option>
+                                        </select>
+                                    </div>
                                 </div>
+
+                                <div className="form-group" style={{ marginTop: '12px', position: 'relative', zIndex: 100 }}>
+                                    <label>Data de Entrada</label>
+                                    <DatePicker
+                                        value={newMemberData.joined}
+                                        onChange={(e) => setNewMemberData({ ...newMemberData, joined: e.target.value })}
+                                        className="date-picker-up"
+                                    />
+                                </div>
+
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
                                     <button
                                         type="button"
@@ -361,7 +697,7 @@ const DetalhesDepartamento = () => {
                         </div>
                         <div className="modal-body">
                             <form onSubmit={handleSaveEdit}>
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', position: 'relative', zIndex: 1 }}>
                                     <div className="form-group">
                                         <label>Nome</label>
                                         <input
@@ -384,7 +720,7 @@ const DetalhesDepartamento = () => {
                                     </div>
                                 </div>
 
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
+                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px', position: 'relative', zIndex: 1 }}>
                                     <div className="form-group">
                                         <label>Cargo</label>
                                         <input
@@ -409,14 +745,12 @@ const DetalhesDepartamento = () => {
                                     </div>
                                 </div>
 
-                                <div className="form-group" style={{ marginTop: '12px' }}>
+                                <div className="form-group" style={{ marginTop: '12px', position: 'relative', zIndex: 100 }}>
                                     <label>Data de Entrada</label>
-                                    <input
-                                        type="text"
-                                        className="form-control"
+                                    <DatePicker
                                         value={editingMember.joined}
-                                        onChange={e => setEditingMember({ ...editingMember, joined: e.target.value })}
-                                        placeholder="Ex: Jan 01, 2023"
+                                        onChange={(e) => setEditingMember({ ...editingMember, joined: e.target.value })}
+                                        className="date-picker-up"
                                     />
                                 </div>
 
@@ -445,6 +779,64 @@ const DetalhesDepartamento = () => {
                                     </button>
                                 </div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Seleção de Ícone */}
+            {showIconModal && (
+                <div className="modal-overlay" onClick={() => setShowIconModal(false)}>
+                    <div className="modal-content" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0' }}>
+                            <h3 style={{ margin: 0 }}>Selecionar Ícone</h3>
+                        </div>
+                        <div className="modal-body">
+                            <div className="icon-selector-grid" style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(5, 1fr)',
+                                gap: '12px',
+                                padding: '8px'
+                            }}>
+                                {AVAILABLE_ICONS.map(icon => (
+                                    <div
+                                        key={icon}
+                                        className={`icon-option ${deptInfo.icon === icon ? 'selected' : ''}`}
+                                        onClick={() => handleSelectIcon(icon)}
+                                        style={{
+                                            aspectRatio: '1',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '8px',
+                                            border: '1px solid #e2e8f0',
+                                            cursor: 'pointer',
+                                            fontSize: '20px',
+                                            color: '#64748b',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        title={icon}
+                                    >
+                                        <i className={`fas ${icon}`}></i>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="modal-footer" style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                            <button
+                                onClick={() => setShowIconModal(false)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    background: 'white',
+                                    cursor: 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Cancelar
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -1040,6 +1040,24 @@ export const usuariosAPI = {
   }
 };
 
+// ============================================
+// DEPARTAMENTOS
+// ============================================
+
+export const departamentosAPI = {
+  getAll: (page = 1, limit = 50, search = '') => request(`${API_BASE_URL}/departamentos?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`),
+  getById: (id) => request(`${API_BASE_URL}/departamentos/${id}`),
+  create: (data) => request(`${API_BASE_URL}/departamentos`, { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) => request(`${API_BASE_URL}/departamentos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => request(`${API_BASE_URL}/departamentos/${id}`, { method: 'DELETE' }),
+
+  // Membros
+  getMembros: (deptId) => request(`${API_BASE_URL}/departamentos/${deptId}/membros`),
+  addMembro: (deptId, data) => request(`${API_BASE_URL}/departamentos/${deptId}/membros`, { method: 'POST', body: JSON.stringify(data) }),
+  updateMembro: (deptId, membroId, data) => request(`${API_BASE_URL}/departamentos/${deptId}/membros/${membroId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  removeMembro: (deptId, membroId) => request(`${API_BASE_URL}/departamentos/${deptId}/membros/${membroId}`, { method: 'DELETE' })
+};
+
 // Exportar api genérica
 // Helper para verificar FormData
 const isFormData = (body) => typeof FormData !== 'undefined' && body instanceof FormData;
