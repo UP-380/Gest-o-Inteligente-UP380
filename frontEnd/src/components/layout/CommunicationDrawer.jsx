@@ -362,39 +362,20 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
     const fileInputRef = useRef(null);
 
     return (
-        <div
-            className="rich-editor-wrapper"
-            style={{
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                backgroundColor: 'white',
-                cursor: 'text',
-                position: 'relative',
-                width: '100%'
-            }}
-            onClick={() => editorRef.current?.focus()}
-        >
+        <div className="rich-editor-wrapper" onClick={() => editorRef.current?.focus()}>
             <div
                 ref={editorRef}
+                className="rich-editor-content"
                 contentEditable={true}
                 onInput={handleInput}
                 onClick={handleEditorClick}
                 onPaste={handlePaste}
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
-                style={{
-                    minHeight: minHeight,
-                    padding: '12px',
-                    outline: 'none',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    maxHeight: '400px',
-                    overflowY: 'auto',
-                    color: 'black'
-                }}
+                style={{ minHeight }}
             />
             {(!editorRef.current?.innerText && !editorRef.current?.innerHTML && placeholder) && (
-                <div style={{ position: 'absolute', top: '12px', left: '12px', color: '#94a3b8', pointerEvents: 'none' }}>
+                <div className="rich-editor-placeholder">
                     {placeholder}
                 </div>
             )}
@@ -405,20 +386,9 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
             )}
             {showUploadIcon && (
                 <div
-                    style={{
-                        position: 'absolute',
-                        right: '10px',
-                        bottom: '10px',
-                        opacity: 0.5,
-                        cursor: 'pointer',
-                        fontSize: '1.2rem',
-                        color: '#64748b',
-                        zIndex: 5
-                    }}
+                    className="rich-editor-upload-trigger"
                     title="Anexar imagem/vídeo"
                     onClick={() => fileInputRef.current?.click()}
-                    onMouseEnter={(e) => e.target.style.opacity = 1}
-                    onMouseLeave={(e) => e.target.style.opacity = 0.5}
                 >
                     <i className="fas fa-folder-open"></i>
                 </div>
@@ -1005,18 +975,18 @@ const CommunicationDrawer = ({ user }) => {
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <form className="comm-chat-input" onSubmit={handleSendMessage} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1, border: '1px solid #ccc', borderRadius: '8px', overflow: 'hidden' }}>
+            <form className="comm-chat-form" onSubmit={handleSendMessage}>
+                <div className="comm-chat-form-row">
+                    <div className="comm-chat-editor-container">
                         <RichEditor
                             initialValue={newMessage}
                             onContentChange={setNewMessage}
-                            placeholder="Digite aqui... Cole imagens ou vídeos"
+                            placeholder="Digite aqui..."
                             minHeight="40px"
                             onImageClick={setExpandedImage}
                         />
                     </div>
-                    <button type="submit" disabled={!newMessage.trim()} style={{ height: '40px', alignSelf: 'flex-end', marginBottom: '1px' }}>
+                    <button type="submit" className="comm-send-btn" disabled={!newMessage.trim()}>
                         <i className="fas fa-paper-plane"></i>
                     </button>
                 </div>
@@ -1111,15 +1081,15 @@ const CommunicationDrawer = ({ user }) => {
                 <button className="back-btn" onClick={() => setSelectedChamado(null)}>
                     <i className="fas fa-arrow-left"></i>
                 </button>
-                <div className="flex flex-col">
+                <div className="chat-detail-info">
                     <span className="chat-target-name">{selectedChamado.titulo}</span>
-                    <div className="flex gap-2 items-center">
+                    <div className="chat-detail-sub">
                         {selectedChamado.prazo_sla && (
                             <span className={`comm-drawer-sla-badge ${new Date(selectedChamado.prazo_sla) < new Date() ? 'overdue' : 'on-time'}`}>
                                 <i className="far fa-clock"></i> Data estimada: {formatDate(selectedChamado.prazo_sla)}
                             </span>
                         )}
-                        <span className="text-xs opacity-70">Aberto em {formatDate(selectedChamado.created_at)}</span>
+                        <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
                     </div>
                 </div>
             </div>
@@ -1172,8 +1142,8 @@ const CommunicationDrawer = ({ user }) => {
                                             </span>
                                         </div>
                                     )}
-                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} intellisense-edit-mode flex flex-col w-[90%] !max-w-none`}>
-                                        <div className="mb-2 font-bold text-xs">Editando mensagem...</div>
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} comm-msg-edit-container`}>
+                                        <div className="comm-msg-edit-label">Editando mensagem...</div>
                                         <RichEditor
                                             initialValue={editContent}
                                             onContentChange={setEditContent}
@@ -1182,9 +1152,9 @@ const CommunicationDrawer = ({ user }) => {
                                             showUploadIcon={true}
                                             onImageClick={setExpandedImage}
                                         />
-                                        <div className="flex gap-2 justify-end mt-2">
-                                            <button onClick={handleCancelEdit} className="px-2 py-1 bg-transparent border border-gray-300 rounded cursor-pointer text-xs">Cancelar</button>
-                                            <button onClick={() => handleSaveEdit(msg.id)} className="px-2 py-1 bg-[#0e3b6f] text-white border-none rounded cursor-pointer text-xs">Salvar</button>
+                                        <div className="comm-msg-edit-actions">
+                                            <button onClick={handleCancelEdit} className="comm-btn-cancel">Cancelar</button>
+                                            <button onClick={() => handleSaveEdit(msg.id)} className="comm-btn-save">Salvar</button>
                                         </div>
                                     </div>
                                 </React.Fragment>
@@ -1230,7 +1200,7 @@ const CommunicationDrawer = ({ user }) => {
             </div>
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
-                <form className="comm-chat-input flex flex-col !items-stretch" onSubmit={handleSendChamadoReply}>
+                <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
                     {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && templates.length > 0 && (
                         <div className="comm-drawer-templates-bar">
                             {templates.map(t => (
@@ -1246,8 +1216,8 @@ const CommunicationDrawer = ({ user }) => {
                             ))}
                         </div>
                     )}
-                    <div className="flex gap-2 p-2 items-end">
-                        <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden bg-white">
+                    <div className="comm-chat-form-row">
+                        <div className="comm-chat-editor-container">
                             <RichEditor
                                 initialValue={newMessage}
                                 onContentChange={setNewMessage}
@@ -1256,7 +1226,7 @@ const CommunicationDrawer = ({ user }) => {
                                 onImageClick={setExpandedImage}
                             />
                         </div>
-                        <button type="submit" disabled={!newMessage.trim() || replyingToChamado} className="h-[40px] mb-[-1px]">
+                        <button type="submit" className="comm-send-btn" disabled={!newMessage.trim() || replyingToChamado}>
                             <i className="fas fa-paper-plane"></i>
                         </button>
                     </div>

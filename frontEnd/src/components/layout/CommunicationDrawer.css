@@ -358,31 +358,7 @@
     color: #7dd3fc;
 }
 
-.comm-chat-input {
-    padding: 16px;
-    background: white;
-    border-top: 1px solid #f1f5f9;
-    display: flex;
-    gap: 10px;
-}
-
-.comm-chat-input input {
-    flex: 1;
-    padding: 12px 18px;
-    border: 1px solid #e2e8f0;
-    border-radius: 24px;
-    outline: none;
-    font-size: 0.9rem;
-    background: #f8fafc;
-    transition: border 0.2s;
-}
-
-.comm-chat-input input:focus {
-    border-color: #0e3b6f;
-    background: white;
-}
-
-.comm-chat-input button {
+.comm-send-btn {
     width: 44px;
     height: 44px;
     border-radius: 50%;
@@ -394,11 +370,46 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
-.comm-chat-input button:hover:not(:disabled) {
+.comm-send-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(14, 59, 111, 0.2);
+}
+
+.comm-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.comm-chat-form {
+    padding: 12px 16px;
+    background: white;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comm-chat-form-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.comm-chat-editor-container {
+    flex: 1;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.comm-chat-editor-container:focus-within {
+    border-color: #0e3b6f;
+    background: white;
 }
 
 /* Cards (Comunicados/Chamados) */
@@ -693,6 +704,50 @@ video.media-preview {
     font-size: 14px;
 }
 
+/* Ajustes RichEditor */
+.rich-editor-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.rich-editor-content {
+    min-height: 40px;
+    padding: 12px 40px 12px 12px;
+    /* Espaço para o ícone de upload à direita */
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+    color: #1e293b;
+}
+
+.rich-editor-placeholder {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    color: #94a3b8;
+    pointer-events: none;
+    font-size: 0.9rem;
+}
+
+.rich-editor-upload-trigger {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: #64748b;
+    z-index: 5;
+    transition: opacity 0.2s;
+}
+
+.rich-editor-upload-trigger:hover {
+    opacity: 1;
+    color: #0e3b6f;
+}
+
 .system-msg {
     align-self: center !important;
     background: transparent !important;
@@ -814,4 +869,75 @@ video.media-preview {
     to {
         opacity: 1;
     }
+}
+
+/* Edição de Mensagem */
+.comm-msg-edit-container {
+    display: flex;
+    flex-direction: column;
+    width: 90% !important;
+    max-width: none !important;
+}
+
+.comm-msg-edit-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.comm-msg-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.comm-msg-edit-actions button {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.comm-btn-cancel {
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    color: #64748b;
+}
+
+.comm-btn-cancel:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.comm-btn-save {
+    background: #0e3b6f;
+    border: none;
+    color: white;
+}
+
+.comm-btn-save:hover {
+    background: #0a2b53;
+    transform: translateY(-1px);
+}
+
+/* Informações de Detalhe do Chat/Chamado */
+.chat-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.chat-detail-sub {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chat-detail-created {
+    font-size: 0.75rem;
+    opacity: 0.7;
 }
