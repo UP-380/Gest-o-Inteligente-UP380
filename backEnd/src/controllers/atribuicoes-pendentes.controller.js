@@ -551,7 +551,7 @@ async function aprovarAtribuicao(req, res) {
             cliente_id: cliente_id || pendente.cliente_id,
             produto_id: produto_id || pendente.produto_id,
             tarefa_id: tarefa_id || pendente.tarefa_id,
-            tempo_estimado_dia: tempo_estimado_dia || pendente.tempo_estimado_dia,
+            tempo_estimado_dia: tempo_estimado_dia || pendente.tempo_estimado_dia || 28800000, // Fallback 8h se ambos forem 0 (constraint chk_tempo_positivo)
 
             // IMUTÁVEIS (Regra de Negócio)
             usuario_id: pendente.usuario_id, // ID da tabela USUARIOS
