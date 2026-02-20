@@ -196,6 +196,11 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/adquirentes': ['/cadastro/adquirente'],
   '/cadastro/sistemas': ['/cadastro/sistema'],
   '/cadastro/vinculacoes': ['/cadastro/vinculacao', '/vinculacoes/nova'],
+  '/cadastro/equipamentos': ['/cadastro/equipamento'],
+  '/gestao-equipamentos': [
+    '/gestao-equipamentos/inventario',
+    '/gestao-equipamentos/operadores'
+  ],
   '/gestao-capacidade': [
     '/atribuicao/cliente',
     '/atribuicao/nova',
@@ -206,6 +211,7 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/base-conhecimento': [
     '/base-conhecimento/conteudos-clientes',
     '/base-conhecimento/tutoriais',
+    '/base-conhecimento/notas-atualizacao',
     '/base-conhecimento/cliente'
   ],
   // Adicionando página de edição de cliente explicitamente
