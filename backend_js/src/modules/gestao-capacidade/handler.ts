@@ -290,6 +290,7 @@ function montarHierarquia({
       const regraFim = estimado.data_fim ?? data_fim;
       const qtdDias = diasNaInterseccao(regraInicio, regraFim, data_inicio, data_fim, ignorar_finais_semana, feriados);
       const tempoMs = tempoEstimadoDiaParaMs(estimado.tempo_estimado_dia);
+
       obj[chave].total_estimado_ms += qtdDias * tempoMs;
     }
     obj[chave].total_realizado_ms += registro ? registroTempoParaMs(registro) : 0;
@@ -718,7 +719,8 @@ export async function cardsHandler(c: Context) {
 
     const { data: estimadosData, error: errEstimados } = await queryEstimado;
     if (errEstimados) throw errEstimados;
-    const estimados = estimadosData ?? [];
+    // Filtrar para ignorar estimativas de Plug Rápido na Gestão de Capacidade
+    const estimados = (estimadosData ?? []).filter((e: EstimadoRegra) => !e.is_plug_rapido);
 
     // 4️⃣ Buscar vigência
     const { data: vigenciasData, error: errVigencias } = await supabase.schema(SCHEMA)

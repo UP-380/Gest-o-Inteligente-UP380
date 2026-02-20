@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CustomSelect from '../../components/vinculacoes/CustomSelect';
 import SelecaoTarefasPlugRapido from '../../components/vinculacoes/SelecaoTarefasPlugRapido';
-import FilterPeriodo from '../../components/filters/FilterPeriodo';
+import DatePicker from '../../components/vigencia/DatePicker';
 import TempoEstimadoInput from '../../components/common/TempoEstimadoInput';
 import ModalNovaTarefaRapida from '../../components/vinculacoes/ModalNovaTarefaRapida';
 import Avatar from '../../components/user/Avatar';
@@ -55,9 +55,8 @@ const AprovacoesPendentes = () => {
         cliente_id: '',
         produto_id: '',
         tarefa_id: '',
-        data_inicio: '',
-        data_fim: '',
-        tempo_estimado_ms: 28800000, // 8h default
+        data: '',
+        tempo_estimado_ms: 0,
         habilitarFinaisSemana: false,
         habilitarFeriados: false
     });
@@ -157,9 +156,8 @@ const AprovacoesPendentes = () => {
             cliente_id: item.cliente_id ? String(item.cliente_id) : '',
             produto_id: item.produto_id ? String(item.produto_id) : '',
             tarefa_id: item.tarefa_id ? String(item.tarefa_id) : '',
-            data_inicio: item.data_inicio ? item.data_inicio.split('T')[0] : '',
-            data_fim: item.data_fim ? item.data_fim.split('T')[0] : '',
-            tempo_estimado_ms: tempoMs,
+            data: item.data_inicio ? item.data_inicio.split('T')[0] : '',
+            tempo_estimado_ms: 0,
             habilitarFinaisSemana: false,
             habilitarFeriados: false
         });
@@ -167,78 +165,12 @@ const AprovacoesPendentes = () => {
         setModalOpen(true);
     };
 
+    // Efeito para recarregar se necessário (removido fetchTempoDisponivel)
     useEffect(() => {
-        if (modalOpen && selectedItem && editForm.data_inicio && editForm.data_fim) {
-            fetchTempoDisponivel();
-        }
-    }, [
-        modalOpen,
-        editForm.data_inicio,
-        editForm.data_fim,
-        editForm.tempo_estimado_ms,
-        editForm.habilitarFinaisSemana,
-        editForm.habilitarFeriados,
-        selectedItem?.usuario_id
-    ]);
+        // Nada necessário por enquanto
+    }, [modalOpen]);
 
-    const fetchTempoDisponivel = async () => {
-        if (!selectedItem?.usuario_id) return;
 
-        try {
-            let currentMembroId = membroId;
-            if (!currentMembroId) {
-                const resMembro = await fetch(`${API_BASE_URL}/membros-por-usuario/${selectedItem.usuario_id}`);
-                const jsonMembro = await resMembro.json();
-                if (jsonMembro.success && jsonMembro.data && jsonMembro.data.length > 0) {
-                    currentMembroId = jsonMembro.data[0].id;
-                    setMembroId(currentMembroId);
-                } else {
-                    setTempoDisponivel(null);
-                    return;
-                }
-            }
-
-            const resContratadas = await fetch(`${API_BASE_URL}/custo-colaborador-vigencia/horas-contratadas?membro_id=${currentMembroId}&data_inicio=${editForm.data_inicio}&data_fim=${editForm.data_fim}`);
-            const jsonContratadas = await resContratadas.json();
-            const horasContratadasPorDia = (jsonContratadas.success && jsonContratadas.data) ? (jsonContratadas.data.horascontratadasdia || 0) : 0;
-
-            const params = new URLSearchParams({
-                data_inicio: editForm.data_inicio,
-                data_fim: editForm.data_fim,
-                responsavel_id: currentMembroId
-            });
-            const resAssigned = await fetch(`${API_BASE_URL}/tempo-estimado/total?${params}`);
-            const jsonAssigned = await resAssigned.json();
-            const tempoAssignedMs = jsonAssigned.success && jsonAssigned.data ? (jsonAssigned.data[currentMembroId] || 0) : 0;
-
-            const dataInicio = new Date(editForm.data_inicio + 'T12:00:00');
-            const dataFim = new Date(editForm.data_fim + 'T12:00:00');
-            let diasValidos = 0;
-            let current = new Date(dataInicio);
-
-            while (current <= dataFim) {
-                const dateStr = current.toISOString().split('T')[0];
-                const dayOfWeek = current.getDay();
-                const isW = dayOfWeek === 0 || dayOfWeek === 6;
-                const isH = feriadosCache[dateStr] !== undefined;
-
-                let contar = true;
-                if (isW && !editForm.habilitarFinaisSemana) contar = false;
-                if (isH && !editForm.habilitarFeriados) contar = false;
-
-                if (contar) diasValidos++;
-                current.setDate(current.getDate() + 1);
-            }
-
-            const capacidadeTotalMsAtribuida = horasContratadasPorDia * diasValidos * 3600000;
-            const novoComprometimentoMs = (editForm.tempo_estimado_ms || 0) * diasValidos;
-            const disponivelMs = capacidadeTotalMsAtribuida - tempoAssignedMs - novoComprometimentoMs;
-
-            setTempoDisponivel(disponivelMs);
-        } catch (error) {
-            setTempoDisponivel(null);
-        }
-    };
 
     const formatarTempoEstimado = (raw) => {
         if (!raw && raw !== 0) return '—';
@@ -279,9 +211,9 @@ const AprovacoesPendentes = () => {
             cliente_id: editForm.cliente_id,
             produto_id: editForm.produto_id,
             tarefa_id: editForm.tarefa_id,
-            data_inicio: `${editForm.data_inicio}T00:00:00`,
-            data_fim: `${editForm.data_fim}T23:59:59`,
-            tempo_estimado_dia: editForm.tempo_estimado_ms
+            data_inicio: `${editForm.data}T00:00:00`,
+            data_fim: `${editForm.data}T23:59:59`,
+            tempo_estimado_dia: 0
         };
 
         setSaving(true);
@@ -429,12 +361,14 @@ const AprovacoesPendentes = () => {
                                                     <div className="aprovacao-time-label">Realizado</div>
                                                     <div className="aprovacao-time-value" style={{ color: '#2563eb' }}>{p.tempo_realizado_formatado || '00:00:00'}</div>
                                                 </div>
-                                                <div className="aprovacao-time-item">
-                                                    <div className="aprovacao-time-label">Estimado/Dia</div>
-                                                    <div className="aprovacao-time-value">
-                                                        {formatarTempoEstimado(p.tempo_estimado_dia)}
+                                                {p.tempo_estimado_dia > 0 && (
+                                                    <div className="aprovacao-time-item">
+                                                        <div className="aprovacao-time-label">Estimado/Dia</div>
+                                                        <div className="aprovacao-time-value">
+                                                            {formatarTempoEstimado(p.tempo_estimado_dia)}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -460,33 +394,6 @@ const AprovacoesPendentes = () => {
                                     <i className="fas fa-clipboard-check" style={{ color: '#0e3b6f', marginRight: '6px' }}></i>
                                     Aprovar Atribuição
                                 </h3>
-
-                                {tempoDisponivel !== null && (
-                                    <div
-                                        title="Tempo disponível restante após aprovar esta atribuição"
-                                        style={{
-                                            padding: '4px 8px',
-                                            backgroundColor: tempoDisponivel < 0 ? '#fef2f2' : 'rgb(240, 249, 255)',
-                                            border: `1px solid ${tempoDisponivel < 0 ? '#ef4444' : 'rgb(14, 165, 233)'}`,
-                                            borderRadius: '4px',
-                                            fontSize: '11px',
-                                            color: tempoDisponivel < 0 ? '#991b1b' : 'rgb(12, 74, 110)',
-                                            fontWeight: '500',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px',
-                                            whiteSpace: 'nowrap',
-                                            boxSizing: 'border-box',
-                                            cursor: 'help',
-                                            position: 'relative'
-                                        }}
-                                    >
-                                        <i className="fas fa-clock" style={{ fontSize: '10px', flexShrink: 0 }}></i>
-                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {formatarTempoDisponivel(tempoDisponivel)}
-                                        </span>
-                                    </div>
-                                )}
                             </div>
                             <button className="modal-plug-rapido-close" onClick={() => setModalOpen(false)}>&times;</button>
                         </div>
@@ -605,27 +512,12 @@ const AprovacoesPendentes = () => {
                                 />
                             </div>
 
-                            <div className="form-row-plug">
-                                <div className="form-group-plug">
-                                    <label>Período</label>
-                                    <FilterPeriodo
-                                        dataInicio={editForm.data_inicio}
-                                        dataFim={editForm.data_fim}
-                                        onInicioChange={(e) => setEditForm(prev => ({ ...prev, data_inicio: e.target.value }))}
-                                        onFimChange={(e) => setEditForm(prev => ({ ...prev, data_fim: e.target.value }))}
-                                        showWeekendToggle={true}
-                                        showHolidayToggle={true}
-                                        onWeekendToggleChange={(val) => setEditForm(prev => ({ ...prev, habilitarFinaisSemana: val }))}
-                                        onHolidayToggleChange={(val) => setEditForm(prev => ({ ...prev, habilitarFeriados: val }))}
-                                    />
-                                </div>
-                                <div className="form-group-plug">
-                                    <label>Tempo Estimado / Dia</label>
-                                    <TempoEstimadoInput
-                                        value={editForm.tempo_estimado_ms}
-                                        onChange={(val) => setEditForm(prev => ({ ...prev, tempo_estimado_ms: val }))}
-                                    />
-                                </div>
+                            <div className="form-group-plug">
+                                <label>Dia</label>
+                                <DatePicker
+                                    value={editForm.data}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, data: e.target.value }))}
+                                />
                             </div>
                         </div>
                         <div className="modal-plug-rapido-footer">

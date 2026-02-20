@@ -43,6 +43,7 @@ export interface EstimadoRegra {
   data_inicio?: string;
   data_fim?: string;
   incluir_finais_semana?: boolean;
+  is_plug_rapido?: boolean;
   cliente_id?: string;
   produto_id?: string;
   tipo_tarefa_id?: string;

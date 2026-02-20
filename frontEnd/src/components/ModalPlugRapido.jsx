@@ -4,8 +4,7 @@ import { useToast } from '../hooks/useToast';
 import './ModalPlugRapido.css';
 import CustomSelect from './vinculacoes/CustomSelect';
 import SelecaoTarefasPlugRapido from './vinculacoes/SelecaoTarefasPlugRapido';
-import FilterPeriodo from './filters/FilterPeriodo';
-import TempoEstimadoInput from './common/TempoEstimadoInput';
+import DatePicker from './vigencia/DatePicker';
 import ModalNovaTarefaRapida from './vinculacoes/ModalNovaTarefaRapida';
 
 const API_BASE_URL = '/api';
@@ -23,9 +22,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
         cliente_id: '',
         produto_id: '',
         tarefa_id: '',
-        data_inicio: '',
-        data_fim: '',
-        tempo_estimado_ms: 28800000,
+        data: '',
         iniciar_timer: true,
         nova_tarefa_criada: false,
         sem_tarefa_definida: false,
@@ -45,9 +42,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 cliente_id: '',
                 produto_id: '',
                 tarefa_id: '',
-                data_inicio: `${yyyy}-${mm}-${dd}`,
-                data_fim: `${yyyy}-${mm}-${dd}`,
-                tempo_estimado_ms: 28800000,
+                data: `${yyyy}-${mm}-${dd}`,
                 nova_tarefa_criada: false,
                 sem_tarefa_definida: false,
                 comentario_colaborador: ''
@@ -142,12 +137,12 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
 
         try {
             const payload = {
-                cliente_id: formData.cliente_id,
-                produto_id: formData.produto_id,
-                tarefa_id: formData.tarefa_id,
-                data_inicio: `${formData.data_inicio}T00:00:00`,
-                data_fim: `${formData.data_fim}T23:59:59`,
-                tempo_estimado_dia: formData.tempo_estimado_ms,
+                cliente_id: formData.cliente_id || null,
+                produto_id: formData.produto_id || null,
+                tarefa_id: formData.tarefa_id || null,
+                data_inicio: `${formData.data}T00:00:00`,
+                data_fim: `${formData.data}T23:59:59`,
+                tempo_estimado_dia: 0,
                 iniciar_timer: formData.iniciar_timer,
                 nova_tarefa_criada: formData.nova_tarefa_criada,
                 comentario_colaborador: formData.sem_tarefa_definida ? formData.comentario_colaborador : null
@@ -188,9 +183,7 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
 
     if (!isOpen) return null;
 
-    const isFormValid = formData.data_inicio &&
-        formData.data_fim &&
-        formData.tempo_estimado_ms > 0 &&
+    const isFormValid = formData.data &&
         (formData.sem_tarefa_definida
             ? (formData.comentario_colaborador && formData.comentario_colaborador.length >= 5)
             : (formData.cliente_id && formData.produto_id && formData.tarefa_id)
@@ -202,15 +195,15 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
             const dataInicio = (c.data_inicio || '').toString().split('T')[0];
             const dataFim = (c.data_fim || '').toString().split('T')[0];
             return (c.comentario_colaborador || '').trim() === (formData.comentario_colaborador || '').trim() &&
-                dataInicio === formData.data_inicio &&
-                dataFim === formData.data_fim;
+                dataInicio === formData.data &&
+                dataFim === formData.data;
         })
         : configuracoesExistentes.some(c =>
             String(c.cliente_id || '') === String(formData.cliente_id || '') &&
             String(c.produto_id || '') === String(formData.produto_id || '') &&
             String(c.tarefa_id || '') === String(formData.tarefa_id || '') &&
-            (c.data_inicio || '').toString().split('T')[0] === formData.data_inicio &&
-            (c.data_fim || '').toString().split('T')[0] === formData.data_fim
+            (c.data_inicio || '').toString().split('T')[0] === formData.data &&
+            (c.data_fim || '').toString().split('T')[0] === formData.data
         );
 
     return createPortal(
@@ -286,7 +279,6 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                                         </button>
                                     )}
                                 </div>
-                                {/* Componente especializado para buscar tarefas via Cliente+Produto (Vinculados) */}
                                 <SelecaoTarefasPlugRapido
                                     key={tasksRefreshToken}
                                     clienteId={formData.cliente_id}
@@ -312,21 +304,10 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                     )}
 
                     <div className="form-group-plug">
-                        <label>Período</label>
-                        <FilterPeriodo
-                            dataInicio={formData.data_inicio}
-                            dataFim={formData.data_fim}
-                            onInicioChange={(e) => setFormData(d => ({ ...d, data_inicio: e.target.value }))}
-                            onFimChange={(e) => setFormData(d => ({ ...d, data_fim: e.target.value }))}
-                            disabled={loading}
-                        />
-                    </div>
-
-                    <div className="form-group-plug">
-                        <label>Tempo Estimado / Dia</label>
-                        <TempoEstimadoInput
-                            value={formData.tempo_estimado_ms}
-                            onChange={(val) => setFormData(d => ({ ...d, tempo_estimado_ms: val }))}
+                        <label>Dia</label>
+                        <DatePicker
+                            value={formData.data}
+                            onChange={(e) => setFormData(d => ({ ...d, data: e.target.value }))}
                             disabled={loading}
                         />
                     </div>
@@ -374,7 +355,6 @@ const ModalPlugRapido = ({ isOpen, onClose, onSuccess }) => {
                 </div>
             </div>
 
-            {/* Modal de Criação Rápida de Tarefa */}
             <ModalNovaTarefaRapida
                 isOpen={showNewTaskModal}
                 onClose={() => setShowNewTaskModal(false)}
