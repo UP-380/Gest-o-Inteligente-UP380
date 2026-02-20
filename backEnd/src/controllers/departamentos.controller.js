@@ -17,7 +17,6 @@ async function getDepartamentos(req, res) {
         const offset = (pageNum - 1) * limitNum;
 
         let query = supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamentos')
             .select(`
         *,
@@ -65,7 +64,6 @@ async function getDepartamentoPorId(req, res) {
         const { id } = req.params;
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamentos')
             .select('*')
             .eq('id', id)
@@ -108,7 +106,6 @@ async function criarDepartamento(req, res) {
         };
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamentos')
             .insert([novoDept])
             .select()
@@ -144,7 +141,6 @@ async function atualizarDepartamento(req, res) {
         updates.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamentos')
             .update(updates)
             .eq('id', id)
@@ -169,7 +165,6 @@ async function deletarDepartamento(req, res) {
         const { id } = req.params;
 
         const { error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamentos')
             .delete()
             .eq('id', id);
@@ -195,7 +190,6 @@ async function getMembrosDepartamento(req, res) {
 
         // Buscar associação + dados do membro (join)
         const { data, error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamento_membros')
             .select(`
         id,
@@ -248,7 +242,6 @@ async function addMembroDepartamento(req, res) {
         }
 
         const { data, error } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamento_membros')
             .insert([{
                 departamento_id: id,
@@ -286,7 +279,6 @@ async function updateMembroDepartamento(req, res) {
 
         // Vamos tentar atualizar pelo ID da associação primeiro.
         let query = supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamento_membros')
             .update({
                 cargo,
@@ -346,7 +338,6 @@ async function removeMembroDepartamento(req, res) {
 
         // Tentar deletar por ID da associação
         let { error, count } = await supabase
-            .schema('up_gestaointeligente_dev')
             .from('departamento_membros')
             .delete({ count: 'exact' })
             .eq('id', membroId);

@@ -977,22 +977,14 @@ const CommunicationDrawer = ({ user }) => {
                             return (
                                 <React.Fragment key={msg.id}>
                                     {showDateSeparator && (
-                                        <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
-                                            <span style={{
-                                                backgroundColor: '#e1f5fe',
-                                                color: '#0e3b6f',
-                                                fontSize: '11px',
-                                                padding: '4px 12px',
-                                                borderRadius: '12px',
-                                                fontWeight: '600',
-                                                display: 'inline-block'
-                                            }}>
+                                        <div className="chat-date-separator">
+                                            <span className="date-label">
                                                 {currentDateLabel}
                                             </span>
                                         </div>
                                     )}
                                     <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'}`}>
-                                        <div className="msg-content" onClick={handleImageClick} style={{ color: 'inherit', cursor: 'pointer' }} dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
+                                        <div className="msg-content" onClick={handleImageClick} dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                         <div className="msg-time msg-time-with-receipt">
                                             {formatTime(msg.created_at)}
                                             {isMe && (
@@ -1119,42 +1111,27 @@ const CommunicationDrawer = ({ user }) => {
                 <button className="back-btn" onClick={() => setSelectedChamado(null)}>
                     <i className="fas fa-arrow-left"></i>
                 </button>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div className="flex flex-col">
                     <span className="chat-target-name">{selectedChamado.titulo}</span>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', opacity: 0.7 }}>Aberto em {formatDate(selectedChamado.created_at)}</span>
+                    <div className="flex gap-2 items-center">
                         {selectedChamado.prazo_sla && (
-                            <span style={{
-                                fontSize: '10px',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                backgroundColor: new Date(selectedChamado.prazo_sla) < new Date() ? '#fee2e2' : '#f0f9ff',
-                                color: new Date(selectedChamado.prazo_sla) < new Date() ? '#991b1b' : '#075985',
-                                fontWeight: 'bold'
-                            }}>
-                                <i className="far fa-clock"></i> SLA: {formatDate(selectedChamado.prazo_sla)}
+                            <span className={`comm-drawer-sla-badge ${new Date(selectedChamado.prazo_sla) < new Date() ? 'overdue' : 'on-time'}`}>
+                                <i className="far fa-clock"></i> Data estimada: {formatDate(selectedChamado.prazo_sla)}
                             </span>
                         )}
+                        <span className="text-xs opacity-70">Aberto em {formatDate(selectedChamado.created_at)}</span>
                     </div>
                 </div>
             </div>
 
             {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && (
-                <div className="chamado-status-selector" style={{ padding: '10px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '5px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', marginRight: '5px' }}>Status:</span>
+                <div className="comm-drawer-status-selector">
+                    <span className="label">Status:</span>
                     {['ABERTO', 'EM_ANALISE', 'EM_PROCESSO', 'CONCLUIDO'].map(status => (
                         <button
                             key={status}
                             onClick={() => handleChangeChamadoStatus(status)}
-                            style={{
-                                padding: '4px 8px',
-                                fontSize: '10px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '4px',
-                                backgroundColor: selectedChamado.status_chamado === status ? '#0e3b6f' : 'white',
-                                color: selectedChamado.status_chamado === status ? 'white' : '#64748b',
-                                cursor: 'pointer'
-                            }}
+                            className={`comm-drawer-status-btn ${selectedChamado.status_chamado === status ? 'active' : ''}`}
                         >
                             {status.replace('_', ' ')}
                         </button>
@@ -1195,8 +1172,8 @@ const CommunicationDrawer = ({ user }) => {
                                             </span>
                                         </div>
                                     )}
-                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} intellisense-edit-mode`} style={{ width: '90%', maxWidth: 'none', flexDirection: 'column' }}>
-                                        <div style={{ marginBottom: '5px', fontWeight: 'bold', fontSize: '12px' }}>Editando mensagem...</div>
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} intellisense-edit-mode flex flex-col w-[90%] !max-w-none`}>
+                                        <div className="mb-2 font-bold text-xs">Editando mensagem...</div>
                                         <RichEditor
                                             initialValue={editContent}
                                             onContentChange={setEditContent}
@@ -1205,9 +1182,9 @@ const CommunicationDrawer = ({ user }) => {
                                             showUploadIcon={true}
                                             onImageClick={setExpandedImage}
                                         />
-                                        <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', marginTop: '5px' }}>
-                                            <button onClick={handleCancelEdit} style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
-                                            <button onClick={() => handleSaveEdit(msg.id)} style={{ padding: '4px 8px', background: '#0e3b6f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Salvar</button>
+                                        <div className="flex gap-2 justify-end mt-2">
+                                            <button onClick={handleCancelEdit} className="px-2 py-1 bg-transparent border border-gray-300 rounded cursor-pointer text-xs">Cancelar</button>
+                                            <button onClick={() => handleSaveEdit(msg.id)} className="px-2 py-1 bg-[#0e3b6f] text-white border-none rounded cursor-pointer text-xs">Salvar</button>
                                         </div>
                                     </div>
                                 </React.Fragment>
@@ -1217,35 +1194,27 @@ const CommunicationDrawer = ({ user }) => {
                         return (
                             <React.Fragment key={msg.id}>
                                 {showDateSeparator && (
-                                    <div className="chat-date-separator" style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
-                                        <span style={{
-                                            backgroundColor: '#e1f5fe',
-                                            color: '#0e3b6f',
-                                            fontSize: '11px',
-                                            padding: '4px 12px',
-                                            borderRadius: '12px',
-                                            fontWeight: '600',
-                                            display: 'inline-block'
-                                        }}>
+                                    <div className="chat-date-separator">
+                                        <span className="date-label">
                                             {currentDateLabel}
                                         </span>
                                     </div>
                                 )}
                                 {msg.metadata?.sistema ? (
-                                    <div className="system-msg" style={{ width: '100%' }}>
+                                    <div className="system-msg">
                                         <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                     </div>
                                 ) : (
-                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`} style={{ position: 'relative' }}>
+                                    <div className={`comm-msg-bubble ${isMe ? 'me' : 'other'} chamado-msg`}>
                                         {isMe && (
-                                            <div className="msg-actions" style={{ position: 'absolute', top: '5px', right: '5px', opacity: 0.5, cursor: 'pointer', zIndex: 10 }}>
-                                                <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)} style={{ fontSize: '10px' }}></i>
+                                            <div className="msg-actions">
+                                                <i className="fas fa-pencil-alt" title="Editar" onClick={() => handleStartEdit(msg)}></i>
                                             </div>
                                         )}
-                                        <div className="msg-author" style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '2px', opacity: 0.7 }}>
+                                        <div className="msg-author">
                                             {msg.criador?.nome_usuario || 'Sistema'}
                                         </div>
-                                        <div className="msg-content" onClick={handleImageClick} style={{ cursor: 'pointer' }}>
+                                        <div className="msg-content" onClick={handleImageClick}>
                                             <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                         </div>
                                         <div className="msg-time">
@@ -1261,15 +1230,15 @@ const CommunicationDrawer = ({ user }) => {
             </div>
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
-                <form className="comm-chat-input" onSubmit={handleSendChamadoReply} style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                <form className="comm-chat-input flex flex-col !items-stretch" onSubmit={handleSendChamadoReply}>
                     {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && templates.length > 0 && (
-                        <div className="templates-selector" style={{ padding: '5px 10px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '5px', overflowX: 'auto' }}>
+                        <div className="comm-drawer-templates-bar">
                             {templates.map(t => (
                                 <button
                                     key={t.id}
                                     type="button"
                                     onClick={() => setNewMessage(prev => prev + (prev ? '\n' : '') + t.conteudo)}
-                                    style={{ padding: '2px 8px', fontSize: '10px', whiteSpace: 'nowrap', borderRadius: '10px', background: '#fff', border: '1px solid #cbd5e1', cursor: 'pointer' }}
+                                    className="comm-drawer-template-btn"
                                     title={t.conteudo}
                                 >
                                     {t.titulo}
@@ -1277,19 +1246,17 @@ const CommunicationDrawer = ({ user }) => {
                             ))}
                         </div>
                     )}
-                    <div style={{ display: 'flex', gap: '10px', padding: '10px' }}>
-                        <input
-                            type="text"
-                            placeholder="Responder chamado..."
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            disabled={replyingToChamado}
-                            style={{ flex: 1 }}
-                        />
-                        <button type="button" onClick={() => triggerUpload('REPLY')} disabled={uploading}>
-                            <i className={`fas ${uploading ? 'fa-spinner fa-spin' : 'fa-paperclip'}`}></i>
-                        </button>
-                        <button type="submit" disabled={!newMessage.trim() || replyingToChamado}>
+                    <div className="flex gap-2 p-2 items-end">
+                        <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden bg-white">
+                            <RichEditor
+                                initialValue={newMessage}
+                                onContentChange={setNewMessage}
+                                placeholder="Responder chamado..."
+                                minHeight="40px"
+                                onImageClick={setExpandedImage}
+                            />
+                        </div>
+                        <button type="submit" disabled={!newMessage.trim() || replyingToChamado} className="h-[40px] mb-[-1px]">
                             <i className="fas fa-paper-plane"></i>
                         </button>
                     </div>
@@ -1311,20 +1278,20 @@ const CommunicationDrawer = ({ user }) => {
                 <span className="chat-target-name">{tipo === 'COMUNICADO' ? 'Novo Aviso' : 'Novo Chamado'}</span>
             </div>
             <div className="comm-form-body" style={{ padding: '20px' }}>
-                <div style={{ marginBottom: '15px', color: '#64748b', fontSize: '12px' }}>
+                <div className="mb-4 text-gray-500 text-xs flex items-center gap-1">
                     <i className="fas fa-info-circle"></i> Todos os campos marcados com * são obrigatórios.
                 </div>
 
                 {tipo === 'CHAMADO' && (
-                    <div className="form-group" style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Tópico de Ajuda (Categoria) *</label>
+                    <div className="comm-drawer-form-group">
+                        <label className="comm-drawer-form-label">Tópico de Ajuda (Categoria) *</label>
                         <select
                             value={formData.categoria_id}
                             onChange={(e) => {
                                 setFormData({ ...formData, categoria_id: e.target.value });
                                 setDynamicFields({});
                             }}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'white' }}
+                            className="comm-drawer-form-select"
                         >
                             <option value="">Selecione o tipo de problema</option>
                             {categorias.map(cat => (
@@ -1339,30 +1306,30 @@ const CommunicationDrawer = ({ user }) => {
                 {(tipo === 'COMUNICADO' || formData.categoria_id) && (
                     <>
                         {tipo === 'CHAMADO' && categorias.find(c => String(c.id) === String(formData.categoria_id))?.campos_esquema?.map(field => (
-                            <div className="form-group" key={field.name} style={{ marginBottom: '15px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>{field.label} {field.required && '*'}</label>
+                            <div className="comm-drawer-form-group" key={field.name}>
+                                <label className="comm-drawer-form-label">{field.label} {field.required && '*'}</label>
                                 <input
                                     type={field.type || 'text'}
                                     value={dynamicFields[field.name] || ''}
                                     onChange={e => setDynamicFields({ ...dynamicFields, [field.name]: e.target.value })}
                                     required={field.required}
                                     placeholder={field.placeholder || ''}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    className="comm-drawer-form-input"
                                 />
                             </div>
                         ))}
-                        <div className="form-group" style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Título *</label>
+                        <div className="comm-drawer-form-group">
+                            <label className="comm-drawer-form-label">Título *</label>
                             <input
                                 type="text"
                                 placeholder="Digite o título..."
                                 value={formData.titulo}
                                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                className="comm-drawer-form-input"
                             />
                         </div>
-                        <div className="form-group" style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Descrição *</label>
+                        <div className="comm-drawer-form-group !mb-5">
+                            <label className="comm-drawer-form-label">Descrição *</label>
                             <RichEditor
                                 initialValue={formData.conteudo}
                                 onContentChange={(val) => setFormData({ ...formData, conteudo: val })}
@@ -1374,72 +1341,42 @@ const CommunicationDrawer = ({ user }) => {
                             {tipo === 'CHAMADO' && (
                                 <button
                                     type="button"
-                                    className="attach-file-btn"
-                                    style={{
-                                        width: '100%',
-                                        padding: '14px',
-                                        border: 'none',
-                                        backgroundImage: `url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%230e3b6f' stroke-width='2.5' stroke-dasharray='1, 12' stroke-dashoffset='0' stroke-linecap='round'/%3e%3c/svg%3e")`,
-                                        backgroundColor: '#f8fafc',
-                                        color: '#0e3b6f',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        marginTop: '10px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        fontWeight: '600',
-                                        transition: 'all 0.2s'
-                                    }}
+                                    className="comm-drawer-attach-btn"
                                     onClick={() => triggerUpload('NEW_CHAMADO')}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#eff6ff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#f8fafc';
-                                    }}
                                 >
-                                    <i className="fas fa-paperclip"></i> Anexar arquivo
+                                    <i className="fas fa-paperclip"></i> Anexar Arquivos ou Mídias
                                 </button>
                             )}
                         </div>
                     </>
                 )}
                 {tipo === 'COMUNICADO' && (
-                    <div className="form-group" style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="comm-drawer-form-group flex items-center gap-2">
                         <input
                             type="checkbox"
                             id="destacar-aviso"
                             checked={formData.destacado}
                             onChange={(e) => setFormData({ ...formData, destacado: e.target.checked })}
-                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            className="w-4 h-4 cursor-pointer"
                         />
-                        <label htmlFor="destacar-aviso" style={{ fontWeight: '600', color: '#0e3b6f', cursor: 'pointer' }}>
+                        <label htmlFor="destacar-aviso" className="font-semibold text-[#0e3b6f] cursor-pointer">
                             Destacar este aviso no topo do painel
                         </label>
                     </div>
                 )}
 
                 <button
-                    className="btn-confirm"
+                    className={`btn-confirm w-full p-3 rounded-lg border-none font-bold transition-all ${(isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id))
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                        : 'bg-[#0e3b6f] text-white cursor-pointer hover:bg-[#0a2b53]'
+                        }`}
                     onClick={() => handleCreateItem(tipo)}
-                    disabled={isSaving || !formData.titulo.trim() || !formData.conteudo.trim()}
-                    style={{
-                        width: '100%',
-                        padding: '12px',
-                        backgroundColor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)) ? '#cbd5e1' : '#0e3b6f',
-                        color: 'white',
-                        borderRadius: '8px',
-                        border: 'none',
-                        fontWeight: 'bold',
-                        cursor: (isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)) ? 'not-allowed' : 'pointer'
-                    }}
+                    disabled={isSaving || !formData.titulo.trim() || !formData.conteudo.trim() || (tipo === 'CHAMADO' && !formData.categoria_id)}
                 >
                     {isSaving ? 'Salvando...' : (tipo === 'COMUNICADO' ? 'Publicar Aviso' : 'Abrir Chamado')}
                 </button>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 
     if (!canSeeComm) return null;
@@ -1495,47 +1432,14 @@ const CommunicationDrawer = ({ user }) => {
 
             {/* Lightbox for Images */}
             {expandedImage && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0,0,0,0.9)',
-                        zIndex: 99999,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '20px'
-                    }}
-                    onClick={() => setExpandedImage(null)}
-                >
-                    <button
-                        style={{
-                            position: 'absolute',
-                            top: '20px',
-                            right: '20px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'white',
-                            fontSize: '30px',
-                            cursor: 'pointer'
-                        }}
-                        onClick={() => setExpandedImage(null)}
-                    >
+                <div className="image-lightbox" onClick={() => setExpandedImage(null)}>
+                    <button className="lightbox-close" onClick={() => setExpandedImage(null)}>
                         &times;
                     </button>
                     <img
                         src={expandedImage}
                         alt="Expanded"
-                        style={{
-                            maxWidth: '90%',
-                            maxHeight: '90%',
-                            objectFit: 'contain',
-                            borderRadius: '4px',
-                            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
-                        }}
+                        className="expanded-image"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>

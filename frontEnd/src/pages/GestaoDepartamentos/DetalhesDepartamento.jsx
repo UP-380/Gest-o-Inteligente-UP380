@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useToast } from '../../hooks/useToast';
 import { colaboradoresAPI, departamentosAPI } from '../../services/api';
+import { formatDate } from '../../utils/dateUtils';
 import DatePicker from '../../components/vigencia/DatePicker';
 import './DetalhesDepartamento.css';
 
@@ -83,15 +84,7 @@ const DetalhesDepartamento = () => {
             // Carregar membros do departamento
             const membersResult = await departamentosAPI.getMembros(id);
             if (membersResult.success) {
-                // Formatar datas para exibição
-                const membersWithRawDate = (membersResult.data || []).map(m => {
-                    if (m.joined && /^\d{4}-\d{2}-\d{2}/.test(m.joined)) {
-                        const dateOnly = m.joined.split('T')[0];
-                        return { ...m, joined: dateOnly };
-                    }
-                    return m;
-                });
-                setMembers(membersWithRawDate);
+                setMembers(membersResult.data || []);
             }
         } catch (err) {
             console.error('Erro ao carregar dados:', err);
@@ -208,46 +201,15 @@ const DetalhesDepartamento = () => {
     const handleEditClick = (member) => {
         let formattedJoined = member.joined;
 
-        // Tentar converter de "MMM DD, YYYY" para "YYYY-MM-DD"
-        // Ex: "Jan 01, 2023" ou "Out 12, 2021"
-        try {
-            if (member.joined && !/^\d{4}-\d{2}-\d{2}$/.test(member.joined)) {
-                // Tentar converter de DD/MM/YYYY para YYYY-MM-DD
-                if (member.joined.includes('/')) {
-                    const parts = member.joined.split('/');
-                    if (parts.length === 3) {
-                        const [day, month, year] = parts;
-                        if (year.length === 4) {
-                            formattedJoined = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                        } else if (day.length === 4) {
-                            // Caso esteja YYYY/MM/DD
-                            formattedJoined = `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
-                        }
-                    }
-                } else {
-                    // Tentar converter de "MMM DD, YYYY" para "YYYY-MM-DD"
-                    const months = {
-                        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
-                        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
-                        'out': '10', 'abr': '04', 'mai': '05', 'ago': '08', 'set': '09', 'dez': '12'
-                    };
-
-                    const parts = member.joined.toLowerCase().replace(',', '').split(' ');
-                    if (parts.length === 3) {
-                        const monthStr = parts[0];
-                        const day = parts[1].padStart(2, '0');
-                        const year = parts[2];
-
-                        const month = months[monthStr.substring(0, 3)];
-
-                        if (month) {
-                            formattedJoined = `${year}-${month}-${day}`;
-                        }
-                    }
-                }
+        // Garantir formato YYYY-MM-DD para o DatePicker
+        if (member.joined && member.joined.includes('T')) {
+            formattedJoined = member.joined.split('T')[0];
+        } else if (member.joined && member.joined.includes('/')) {
+            // Se por algum motivo estiver em DD/MM/YYYY
+            const parts = member.joined.split('/');
+            if (parts.length === 3 && parts[2].length === 4) {
+                formattedJoined = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
             }
-        } catch (e) {
-            console.error("Erro ao converter data:", e);
         }
 
         setEditingMember({ ...member, joined: formattedJoined });
@@ -480,7 +442,7 @@ const DetalhesDepartamento = () => {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td>{member.joined && member.joined.includes('-') ? member.joined.split('-').reverse().join('/') : member.joined}</td>
+                                            <td>{formatDate(member.joined)}</td>
                                             <td style={{ textAlign: 'right', position: 'relative' }}>
                                                 <div className="action-menu-container">
                                                     <button

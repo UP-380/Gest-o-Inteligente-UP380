@@ -1,6 +1,7 @@
 const supabase = require('../config/database');
 const { distribuirNotificacao } = require('./notificacoes.controller');
 const { resolveAvatarUrl } = require('../utils/storage');
+const { sendSuccess, sendError, sendCreated, sendValidationError, sendNotFound } = require('../utils/responseHelper');
 
 async function getChamadoRoot(sb, messageId) {
     const { data: m } = await sb.from('comunicacao_mensagens').select('id, mensagem_pai_id').eq('id', messageId).single();
@@ -24,7 +25,7 @@ async function enviarMensagem(req, res) {
         console.log('[COMUNICACAO] enviarMensagem:', { tipo, destinatario_id, criador_id });
 
         if (!tipo || !conteudo) {
-            return res.status(400).json({ success: false, error: 'Tipo e conteúdo são obrigatórios.' });
+            return sendValidationError(res, 'Tipo e conteúdo são obrigatórios.');
         }
 
         // 1. Inserir Mensagem
@@ -143,7 +144,8 @@ async function enviarMensagem(req, res) {
                     titulo: 'Novo Chamado Aberto',
                     mensagem: `${req.session.usuario.nome_usuario} abriu um chamado: ${titulo || (conteudo && conteudo.substring(0, 30)) + '...'}`,
                     referencia_id: mensagem.id,
-                    link: '/comunicacao?tab=chamados'
+                    link: '/comunicacao?tab=chamados',
+                    departamento_id: categoria?.departamento_id || null
                 });
             } else {
                 // É uma resposta. Notificar dono original e gestores.
@@ -189,11 +191,11 @@ async function enviarMensagem(req, res) {
             }
         }
 
-        return res.json({ success: true, data: mensagem });
+        return sendCreated(res, mensagem, 'Mensagem enviada com sucesso.');
 
     } catch (error) {
         console.error('Erro ao enviar mensagem:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao enviar mensagem.' });
+        return sendError(res, 500, 'Erro ao enviar mensagem.', error.message);
     }
 }
 
@@ -205,7 +207,7 @@ async function listarMensagensChat(req, res) {
         const usuario_id = req.session.usuario.id;
         const { com_usuario } = req.query; // ID do outro usuário
 
-        if (!com_usuario) return res.status(400).json({ success: false, error: 'Usuário alvo não informado.' });
+        if (!com_usuario) return sendValidationError(res, 'Usuário alvo não informado.');
 
         const { data, error } = await supabase
 
@@ -244,10 +246,10 @@ async function listarMensagensChat(req, res) {
             return base;
         });
 
-        return res.json({ success: true, data: dataComLeitura });
+        return sendSuccess(res, 200, dataComLeitura);
     } catch (error) {
         console.error('Erro ao listar chat:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar chat.' });
+        return sendError(res, 500, 'Erro ao listar chat.', error.message);
     }
 }
 
@@ -321,11 +323,11 @@ async function listarConversasRecentes(req, res) {
             ...c,
             nao_lidas_count: naoLidasPorCriador[Number(c.usuario.id)] || 0
         }));
-        return res.json({ success: true, data: conversas });
+        return sendSuccess(res, 200, conversas);
 
     } catch (error) {
         console.error('Erro ao listar conversas:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar conversas.' });
+        return sendError(res, 500, 'Erro ao listar conversas.', error.message);
     }
 }
 
@@ -352,10 +354,10 @@ async function listarComunicados(req, res) {
 
         if (error) throw error;
 
-        return res.json({ success: true, data });
+        return sendSuccess(res, 200, data);
     } catch (error) {
         console.error('Erro ao listar comunicados:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar comunicados.' });
+        return sendError(res, 500, 'Erro ao listar comunicados.', error.message);
     }
 }
 
@@ -393,11 +395,11 @@ async function listarChamados(req, res) {
 
         // Se for gestor/admin, pode ver todos. Se for membro de depto, vê os do seu depto + os que criou.
         // Implementação simplificada de visibilidade por depto nas categorias
-        return res.json({ success: true, data });
+        return sendSuccess(res, 200, data);
 
     } catch (error) {
         console.error('Erro ao listar chamados:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar chamados.' });
+        return sendError(res, 500, 'Erro ao listar chamados.', error.message);
     }
 }
 
@@ -413,10 +415,10 @@ async function listarCategorias(req, res) {
             .order('nome', { ascending: true });
 
         if (error) throw error;
-        return res.json({ success: true, data });
+        return sendSuccess(res, 200, data);
     } catch (error) {
         console.error('Erro ao listar categorias:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar tópicos de ajuda.' });
+        return sendError(res, 500, 'Erro ao listar tópicos de ajuda.', error.message);
     }
 }
 
@@ -431,10 +433,10 @@ async function listarTemplates(req, res) {
             .order('titulo', { ascending: true });
 
         if (error) throw error;
-        return res.json({ success: true, data });
+        return sendSuccess(res, 200, data);
     } catch (error) {
         console.error('Erro ao listar templates:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao listar respostas rápidas.' });
+        return sendError(res, 500, 'Erro ao listar respostas rápidas.', error.message);
     }
 }
 
@@ -458,10 +460,10 @@ async function listarRespostasChamado(req, res) {
 
         if (error) throw error;
 
-        return res.json({ success: true, data });
+        return sendSuccess(res, 200, data);
     } catch (error) {
         console.error('Erro ao listar respostas do chamado:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao carregar conversa.' });
+        return sendError(res, 500, 'Erro ao carregar conversa.', error.message);
     }
 }
 
@@ -481,7 +483,7 @@ async function atualizarStatusChamado(req, res) {
             .eq('id', id)
             .single();
 
-        if (errorBusca || !chamado) return res.status(404).json({ success: false, error: 'Chamado não encontrado.' });
+        if (errorBusca || !chamado) return sendNotFound(res, 'Chamado');
 
         const { error } = await supabase
 
@@ -512,10 +514,10 @@ async function atualizarStatusChamado(req, res) {
             });
         }
 
-        return res.json({ success: true, message: 'Status atualizado com sucesso.' });
+        return sendSuccess(res, 200, null, 'Status atualizado com sucesso.');
     } catch (error) {
         console.error('Erro ao atualizar status do chamado:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao atualizar status.' });
+        return sendError(res, 500, 'Erro ao atualizar status.', error.message);
     }
 }
 
@@ -559,10 +561,10 @@ async function marcarMensagemLida(req, res) {
             if (error) throw error;
         }
 
-        return res.json({ success: true });
+        return sendSuccess(res, 200);
     } catch (error) {
         console.error('Erro ao marcar como lida:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao processar leitura.' });
+        return sendError(res, 500, 'Erro ao processar leitura.', error.message);
     }
 }
 
@@ -600,10 +602,10 @@ async function listarComunicadoDestaque(req, res) {
             return res.json({ success: true, data: null });
         }
 
-        return res.json({ success: true, data: mensagem });
+        return sendSuccess(res, 200, mensagem);
     } catch (error) {
         console.error('Erro ao buscar comunicado de destaque:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao carregar avisos.' });
+        return sendError(res, 500, 'Erro ao carregar avisos.', error.message);
     }
 }
 
@@ -625,11 +627,11 @@ async function atualizarMensagem(req, res) {
             .single();
 
         if (errorBusca || !mensagem) {
-            return res.status(404).json({ success: false, error: 'Mensagem não encontrada.' });
+            return sendNotFound(res, 'Mensagem');
         }
 
         if (mensagem.criador_id !== usuario_id) {
-            return res.status(403).json({ success: false, error: 'Você só pode editar suas próprias mensagens.' });
+            return sendError(res, 403, 'Você só pode editar suas próprias mensagens.');
         }
 
         // 2. Atualizar
@@ -652,11 +654,11 @@ async function atualizarMensagem(req, res) {
 
         if (error) throw error;
 
-        return res.json({ success: true, data: updated });
+        return sendUpdated(res, updated, 'Mensagem atualizada com sucesso.');
 
     } catch (error) {
         console.error('Erro ao atualizar mensagem:', error);
-        return res.status(500).json({ success: false, error: 'Erro ao atualizar mensagem.' });
+        return sendError(res, 500, 'Erro ao atualizar mensagem.', error.message);
     }
 }
 
