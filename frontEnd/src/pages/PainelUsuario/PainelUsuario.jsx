@@ -5376,9 +5376,11 @@ const PainelUsuario = () => {
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
                             <i className="far fa-calendar"></i> {formatarData(p.data_inicio)}
                           </span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
-                            <i className="far fa-clock"></i> Est: {formatarTempoHMS(p.tempo_estimado_dia * 1000)}/dia
-                          </span>
+                          {p.tempo_estimado_dia > 0 && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#4b5563' }}>
+                              <i className="far fa-clock"></i> Est: {formatarTempoHMS(p.tempo_estimado_dia * 1000)}/dia
+                            </span>
+                          )}
                         </div>
                       </div>
 

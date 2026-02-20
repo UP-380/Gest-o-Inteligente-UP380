@@ -53,7 +53,7 @@ async function criarAtribuicaoPendente(req, res) {
 
         if (!data_inicio) missingFields.push('data_inicio');
         if (!data_fim) missingFields.push('data_fim');
-        if (tempo_estimado_dia === undefined || tempo_estimado_dia === null) missingFields.push('tempo_estimado_dia');
+        // tempo_estimado_dia não é mais obrigatório e pode ser 0
 
         if (missingFields.length > 0) {
             console.error('Campos faltando no Plug Rápido:', missingFields, req.body);

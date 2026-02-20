@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import '../filters/FilterPeriodo.css';
 
 const DatePicker = ({ value, onChange, disabled = false, className = '', error = false, size = 'small' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [localDate, setLocalDate] = useState(value || '');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [dropdownStyle, setDropdownStyle] = useState({});
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   // Formatar data para exibição
   const formatarData = (dataStr) => {
@@ -27,9 +30,54 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     }
   }, [value]);
 
+  // Lógica de posicionamento fixo (Portal)
+  useEffect(() => {
+    if (!isOpen || disabled) return;
+
+    const updatePosition = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const dropdownHeight = 350; // Altura aproximada do calendário
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        const style = {
+          position: 'fixed',
+          width: `${Math.max(280, rect.width)}px`,
+          left: `${rect.left}px`,
+          zIndex: 1000000,
+        };
+
+        // Decidir se abre para cima ou para baixo
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+          style.bottom = `${viewportHeight - rect.top + 4}px`;
+          style.top = 'auto';
+        } else {
+          style.top = `${rect.bottom + 4}px`;
+          style.bottom = 'auto';
+        }
+
+        setDropdownStyle(style);
+      }
+    };
+
+    updatePosition();
+    // Capturar scroll em qualquer elemento (como o modal)
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen, disabled]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      // Verificar se clicou fora tanto do container quanto do dropdown (que está no portal)
+      if (containerRef.current && !containerRef.current.contains(event.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -43,8 +91,10 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     };
   }, [isOpen]);
 
-  const handleOpen = () => {
+  const handleOpen = (e) => {
     if (!disabled) {
+      e.preventDefault();
+      e.stopPropagation();
       setIsOpen(!isOpen);
     }
   };
@@ -55,7 +105,7 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     const dateStr = formatDateForInput(date);
     setLocalDate(dateStr);
     setIsOpen(false);
-    
+
     if (onChange) {
       onChange({ target: { value: dateStr } });
     }
@@ -70,24 +120,28 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
 
   const isSameDay = (date1, date2) => {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate();
   };
 
-  const handlePrevMonth = () => {
+  const handlePrevMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   };
 
-  const handleNextMonth = () => {
+  const handleNextMonth = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    
-    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 
-                      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+    const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     const monthYear = `${monthNames[month]} de ${year}`;
 
     const firstDay = new Date(year, month, 1);
@@ -106,13 +160,12 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(year, month, day);
       let dayClasses = 'periodo-calendar-day';
-      
+
       // Verificar se é a data selecionada
       if (localDate) {
         const selectedDate = new Date(localDate + 'T00:00:00');
-        const selectedDateObj = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-        const isSelected = isSameDay(currentDate, selectedDateObj);
-        
+        const isSelected = isSameDay(currentDate, selectedDate);
+
         if (isSelected) {
           dayClasses += ' selected';
         }
@@ -122,7 +175,11 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
         <div
           key={day}
           className={dayClasses}
-          onClick={() => handleDateClick(currentDate)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDateClick(currentDate);
+          }}
         >
           {day}
         </div>
@@ -137,7 +194,7 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
   return (
     <div className={`periodo-filter-container ${size === 'small' ? 'size-small' : ''} ${className}`} ref={containerRef}>
       <div className="periodo-select-field">
-        <div 
+        <div
           className={`periodo-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''} ${error ? 'error' : ''}`}
           onClick={handleOpen}
         >
@@ -147,8 +204,14 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
           </span>
           <i className={`fas ${isOpen ? 'fa-chevron-down' : 'fa-chevron-up'} periodo-select-arrow ${isOpen ? 'rotated' : ''}`} style={{ fontSize: '12px', lineHeight: '1.4' }}></i>
         </div>
-        {isOpen && !disabled && (
-          <div className="periodo-dropdown" onClick={(e) => e.stopPropagation()}>
+
+        {isOpen && !disabled && createPortal(
+          <div
+            className="periodo-dropdown"
+            ref={dropdownRef}
+            style={dropdownStyle}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="periodo-dropdown-content">
               <div style={{ padding: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
@@ -181,7 +244,8 @@ const DatePicker = ({ value, onChange, disabled = false, className = '', error =
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>

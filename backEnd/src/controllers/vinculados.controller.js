@@ -2231,19 +2231,45 @@ async function getProdutosPorCliente(req, res) {
 
     const clienteIdStr = String(clienteId).trim();
 
-    // Buscar TODOS os produtos disponíveis (não apenas os já vinculados)
-    // O usuário pode escolher qualquer produto para vincular ao cliente
-    const { data: produtos, error: produtosError } = await supabase
+    // 1. Buscar os IDs de produtos vinculados a este cliente na tabela 'vinculados'
+    const { data: vinculados, error: vinculadosError } = await supabase
+      .from('vinculados')
+      .select('produto_id')
+      .eq('cliente_id', clienteIdStr)
+      .not('produto_id', 'is', null);
 
+    if (vinculadosError) {
+      console.error('❌ Erro ao buscar vínculos de produtos:', vinculadosError);
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao buscar vínculos de produtos',
+        details: vinculadosError.message
+      });
+    }
+
+    // Extrair IDs únicos de produtos
+    const produtoIds = [...new Set((vinculados || []).map(v => v.produto_id))];
+
+    if (produtoIds.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        count: 0
+      });
+    }
+
+    // 2. Buscar os detalhes (nome) dos produtos encontrados
+    const { data: produtos, error: produtosError } = await supabase
       .from('cp_produto')
       .select('id, nome')
+      .in('id', produtoIds)
       .order('nome', { ascending: true });
 
     if (produtosError) {
-      console.error('❌ Erro ao buscar produtos:', produtosError);
+      console.error('❌ Erro ao buscar detalhes dos produtos:', produtosError);
       return res.status(500).json({
         success: false,
-        error: 'Erro ao buscar produtos',
+        error: 'Erro ao buscar detalhes dos produtos',
         details: produtosError.message
       });
     }
