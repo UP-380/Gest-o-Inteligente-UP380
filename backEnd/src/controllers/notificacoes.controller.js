@@ -318,37 +318,38 @@ async function distribuirNotificacao({ tipo, titulo, mensagem, referencia_id, li
             } else if (errMembros) {
                 console.error('Erro ao buscar membros do departamento para notificação:', errMembros);
             }
-        }
+        } else {
+            // 3. Identificar NÍVEIS adicionais permitidos por configuração (permissoes_config)
+            // Apenas se NÃO for uma notificação restrita a um departamento
+            const { data: configs } = await supabase
+                .from('permissoes_config')
+                .select('nivel, notificacoes');
 
-        // 3. Identificar NÍVEIS adicionais permitidos por configuração (permissoes_config)
-        const { data: configs } = await supabase
-            .from('permissoes_config')
-            .select('nivel, notificacoes');
+            if (configs) {
+                const niveisAdicionais = [];
+                configs.forEach(config => {
+                    let allowedTypes = [];
+                    try {
+                        allowedTypes = typeof config.notificacoes === 'string'
+                            ? JSON.parse(config.notificacoes)
+                            : config.notificacoes;
+                    } catch (e) { allowedTypes = []; }
 
-        if (configs) {
-            const niveisAdicionais = [];
-            configs.forEach(config => {
-                let allowedTypes = [];
-                try {
-                    allowedTypes = typeof config.notificacoes === 'string'
-                        ? JSON.parse(config.notificacoes)
-                        : config.notificacoes;
-                } catch (e) { allowedTypes = []; }
-
-                if (Array.isArray(allowedTypes) && allowedTypes.includes(tipo)) {
-                    if (config.nivel !== 'administrador') {
-                        niveisAdicionais.push(config.nivel);
+                    if (Array.isArray(allowedTypes) && allowedTypes.includes(tipo)) {
+                        if (config.nivel !== 'administrador') {
+                            niveisAdicionais.push(config.nivel);
+                        }
                     }
+                });
+
+                if (niveisAdicionais.length > 0) {
+                    const { data: outrosDest } = await supabase
+                        .from('usuarios')
+                        .select('id')
+                        .in('permissoes', niveisAdicionais);
+
+                    if (outrosDest) outrosDest.forEach(u => destinatariosIds.add(u.id));
                 }
-            });
-
-            if (niveisAdicionais.length > 0) {
-                const { data: outrosDest } = await supabase
-                    .from('usuarios')
-                    .select('id')
-                    .in('permissoes', niveisAdicionais);
-
-                if (outrosDest) outrosDest.forEach(u => destinatariosIds.add(u.id));
             }
         }
 

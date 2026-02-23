@@ -197,7 +197,9 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
     const handleInput = () => {
         if (editorRef.current) {
             const markdown = htmlToMarkdown(editorRef.current.innerHTML);
-            onContentChange(markdown);
+            // Normaliza: se o markdown resultante for apenas espaços ou quebras de linha, vira vazio
+            const normalized = markdown.replace(/\s/g, '') === '' ? '' : markdown;
+            onContentChange(normalized);
         }
     };
 
@@ -374,7 +376,7 @@ const RichEditor = ({ initialValue, onContentChange, placeholder, minHeight = '1
                 onDragOver={(e) => e.preventDefault()}
                 style={{ minHeight }}
             />
-            {(!editorRef.current?.innerText && !editorRef.current?.innerHTML && placeholder) && (
+            {(!initialValue || initialValue.trim() === '') && placeholder && (
                 <div className="rich-editor-placeholder">
                     {placeholder}
                 </div>
@@ -593,9 +595,21 @@ const CommunicationDrawer = ({ user }) => {
 
     const loadTemplates = async () => {
         try {
+            console.log('[DEBUG] Carregando templates...');
             const response = await comunicacaoAPI.listarTemplates();
             if (response.success) {
-                setTemplates(response.data);
+                console.log('[DEBUG] Templates carregados:', response.data?.length);
+                // Se não houver templates no banco, adiciona alguns padrão para teste
+                if (!response.data || response.data.length === 0) {
+                    const defaults = [
+                        { id: 'd1', titulo: 'Saudação Padrão', conteudo: 'Olá! Recebemos seu chamado e já estamos analisando. Em breve daremos um retorno.' },
+                        { id: 'd2', titulo: 'Pedido de Detalhes', conteudo: 'Poderia, por gentileza, nos enviar mais detalhes ou capturas de tela sobre o problema?' },
+                        { id: 'd3', titulo: 'Chamado Concluído', conteudo: 'Informamos que o seu chamado foi concluído com sucesso. Se precisar de mais algo, estamos à disposição.' }
+                    ];
+                    setTemplates(defaults);
+                } else {
+                    setTemplates(response.data);
+                }
             }
         } catch (error) {
             console.error('Erro ao buscar templates:', error);
@@ -606,10 +620,10 @@ const CommunicationDrawer = ({ user }) => {
         if (isOpen) {
             if (activeTab === 'chats' && !selectedChat) loadConversas();
             if (activeTab === 'comunicados') loadComunicados();
-            if (activeTab === 'chamados' && !selectedChamado) {
-                loadChamados();
-                loadCategorias();
-                loadTemplates();
+            if (activeTab === 'chamados') {
+                if (!selectedChamado) loadChamados();
+                if (categorias.length === 0) loadCategorias();
+                if (templates.length === 0) loadTemplates();
             }
         }
     }, [isOpen, activeTab, selectedChat, selectedChamado]);
@@ -674,6 +688,9 @@ const CommunicationDrawer = ({ user }) => {
             const response = await comunicacaoAPI.listarRespostasChamado(chamado.id);
             if (response.success) {
                 setChamadoMessages(response.data);
+                // O primeiro item da lista (ou o que tem id igual ao chamado) é o chamado raiz
+                const root = response.data.find(m => m.id === chamado.id);
+                if (root) setSelectedChamado(root);
             }
         } catch (error) {
             console.error('Erro ao carregar mensagens do chamado:', error);
@@ -1061,10 +1078,28 @@ const CommunicationDrawer = ({ user }) => {
                             <div className="comm-card-footer">
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <span>Aberto por: <strong>{cham.criador?.nome_usuario || 'Usuário'}</strong></span>
+                                    <span className="chamado-preview-dept">
+                                        <i className="fas fa-building"></i>
+                                        Departamento: <strong>{cham.categoria?.departamento?.nome || 'Não especificado'}</strong>
+                                    </span>
                                     {cham.metadata?.responsavel && (
                                         <span>Responsável: <strong>{cham.metadata.responsavel}</strong></span>
                                     )}
-                                    <span>{formatDate(cham.created_at)}</span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span>{formatDate(cham.created_at)}</span>
+                                        {cham.prazo_sla && (
+                                            <span style={{
+                                                fontSize: '0.7rem',
+                                                padding: '1px 6px',
+                                                borderRadius: '4px',
+                                                backgroundColor: new Date(cham.prazo_sla) < new Date() ? '#fee2e2' : '#dcfce7',
+                                                color: new Date(cham.prazo_sla) < new Date() ? '#b91c1c' : '#15803d',
+                                                fontWeight: '600'
+                                            }}>
+                                                Prazo: {formatDate(cham.prazo_sla)}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <i className="fas fa-chevron-right" style={{ opacity: 0.3 }}></i>
                             </div>
@@ -1201,19 +1236,30 @@ const CommunicationDrawer = ({ user }) => {
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
                 <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
-                    {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && templates.length > 0 && (
-                        <div className="comm-drawer-templates-bar">
-                            {templates.map(t => (
-                                <button
-                                    key={t.id}
-                                    type="button"
-                                    onClick={() => setNewMessage(prev => prev + (prev ? '\n' : '') + t.conteudo)}
-                                    className="comm-drawer-template-btn"
-                                    title={t.conteudo}
-                                >
-                                    {t.titulo}
-                                </button>
-                            ))}
+                    {templates.length > 0 && selectedChamado.pode_gerenciar && (
+                        <div className="comm-templates-container">
+                            <div className="comm-templates-header">
+                                <i className="fas fa-magic"></i>
+                                <span>Respostas Rápidas</span>
+                            </div>
+                            <select
+                                className="comm-templates-select"
+                                value=""
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                        setNewMessage(prev => {
+                                            const current = (prev || '').trim();
+                                            return current ? `${current}\n${val}` : val;
+                                        });
+                                    }
+                                }}
+                            >
+                                <option value="" disabled>Selecione um modelo...</option>
+                                {templates.map(t => (
+                                    <option key={t.id} value={t.conteudo}>{t.titulo}</option>
+                                ))}
+                            </select>
                         </div>
                     )}
                     <div className="comm-chat-form-row">
@@ -1270,6 +1316,12 @@ const CommunicationDrawer = ({ user }) => {
                                 </option>
                             ))}
                         </select>
+                        {formData.categoria_id && (
+                            <div className="mt-1 ml-1 text-[10px] text-gray-500 flex items-center gap-1 opacity-80">
+                                <i className="fas fa-building"></i>
+                                Departamento: <strong>{categorias.find(c => String(c.id) === String(formData.categoria_id))?.departamento?.nome || 'Não especificado'}</strong>
+                            </div>
+                        )}
                     </div>
                 )}
 

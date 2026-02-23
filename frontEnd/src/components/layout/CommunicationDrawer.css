@@ -640,24 +640,50 @@ video.media-preview {
     border-color: #0e3b6f;
 }
 
-.comm-drawer-templates-bar {
-    padding: 5px 10px;
-    background-color: #f1f5f9;
+.comm-templates-container {
+    padding: 8px 12px;
+    background-color: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
-    gap: 5px;
-    overflow-x: auto;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.comm-drawer-template-btn {
-    padding: 2px 8px;
-    font-size: 10px;
-    white-space: nowrap;
-    border-radius: 10px;
-    background-color: #fff;
-    border: 1px solid #cbd5e1;
-    cursor: pointer;
+.comm-templates-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
     color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.comm-templates-header i {
+    color: #0e3b6f;
+}
+
+.comm-templates-select {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background-color: white;
+    color: #1e293b;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.comm-templates-select:hover {
+    border-color: #0e3b6f;
+}
+
+.comm-templates-select:focus {
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 2px rgba(14, 59, 111, 0.1);
 }
 
 .comm-drawer-attach-btn {
@@ -940,4 +966,22 @@ video.media-preview {
 .chat-detail-created {
     font-size: 0.75rem;
     opacity: 0.7;
+}
+
+.chamado-preview-dept {
+    font-size: 0.75rem;
+    color: #475569;
+    opacity: 0.8;
+    margin: 1px 0;
+    display: flex;
+    align-items: center;
+}
+
+.chamado-preview-dept i {
+    color: #0e3b6f;
+    margin-right: 4px;
+}
+
+.chamado-preview-dept strong {
+    margin-left: 3px;
 }

@@ -58,8 +58,8 @@ const DetalhesDepartamento = () => {
         setLoading(true);
         setError(null);
         try {
-            // Carregar colaboradores para o select
-            const colabsResult = await colaboradoresAPI.getAll();
+            // Carregar colaboradores para o select - Buscar todos (mesmo sem usuário vinculado)
+            const colabsResult = await colaboradoresAPI.getAllIncludingWithoutUser();
             if (colabsResult.success && colabsResult.data) {
                 setColaboradores(colabsResult.data);
             }
