@@ -339,23 +339,23 @@
 .msg-time-with-receipt {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
+    gap: 4px;
 }
 
 .msg-read-receipt {
-    display: inline-flex;
     margin-left: 2px;
     font-size: 0.7rem;
     opacity: 0.9;
 }
 
 .msg-read-receipt .msg-sent {
-    color: rgba(255, 255, 255, 0.8);
+    color: #9ca3af;
+    /* Cinza claro */
 }
 
 .msg-read-receipt .msg-read {
-    color: #7dd3fc;
+    color: #38bdf8;
+    /* Azul vivo para legibilidade */
 }
 
 .comm-send-btn {
@@ -485,12 +485,6 @@
     background: #fff7ed;
     color: #c2410c;
     border: 1px solid #ffedd5;
-}
-
-.chamado-status-tag[data-status='EM_ANALISE'] {
-    background: #eff6ff;
-    color: #1e40af;
-    border: 1px solid #dbeafe;
 }
 
 .chamado-status-tag[data-status='EM_PROCESSO'] {

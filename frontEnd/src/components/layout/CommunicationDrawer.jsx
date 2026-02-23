@@ -444,6 +444,9 @@ const CommunicationDrawer = ({ user }) => {
     const [chamadoMessages, setChamadoMessages] = useState([]);
     const [loadingChamadoMessages, setLoadingChamadoMessages] = useState(false);
     const [replyingToChamado, setReplyingToChamado] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('Todos');
+
+    const filteredChamados = chamados.filter(c => statusFilter === 'Todos' || c.status_chamado === statusFilter);
 
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
@@ -568,6 +571,20 @@ const CommunicationDrawer = ({ user }) => {
         }
     };
 
+    const handleDeleteChamado = async (chamadoId) => {
+        if (!window.confirm('Tem certeza que deseja excluir este chamado? Esta ação é irreversível.')) return;
+        try {
+            const response = await comunicacaoAPI.excluirMensagem(chamadoId);
+            if (response.success) {
+                setSelectedChamado(null);
+                loadChamados();
+            }
+        } catch (error) {
+            console.error('Erro ao excluir chamado:', error);
+            alert('Erro ao excluir chamado.');
+        }
+    };
+
     const loadChamados = async () => {
         setLoadingChamados(true);
         try {
@@ -579,6 +596,27 @@ const CommunicationDrawer = ({ user }) => {
             console.error('Erro ao listar chamados:', error);
         } finally {
             setLoadingChamados(false);
+        }
+    };
+
+    const handleAssumirChamado = async () => {
+        if (!selectedChamado) return;
+        const currentMetadata = selectedChamado.metadata || {};
+        const payload = {
+            metadata: {
+                ...currentMetadata,
+                responsavel: user?.nome_usuario || user?.nome || 'Usuário'
+            }
+        };
+        try {
+            const response = await comunicacaoAPI.atualizarMensagem(selectedChamado.id, payload);
+            if (response.success) {
+                setSelectedChamado({ ...selectedChamado, metadata: payload.metadata });
+                loadChamados();
+            }
+        } catch (error) {
+            console.error('Erro ao assumir chamado:', error);
+            alert('Erro ao assumir chamado.');
         }
     };
 
@@ -891,8 +929,21 @@ const CommunicationDrawer = ({ user }) => {
                                 <div className="comm-item-name">{c.usuario.nome_usuario || c.usuario.nome}</div>
                                 <div className="comm-item-last-msg">
                                     {c.ultima_mensagem ? (
-                                        c.ultima_mensagem.criador_id === user?.id ? 'Você: ' : ''
-                                    ) + conteudoParaPreview(c.ultima_mensagem?.conteudo || 'Nova conversa') : 'Nova conversa'}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            {c.ultima_mensagem.criador_id === user?.id && (
+                                                <i
+                                                    className={`fas fa-check-double ${c.ultima_mensagem.lida_por_destinatario === true || c.ultima_mensagem.lida_por_destinatario === 'true' ? 'msg-read' : 'msg-sent'}`}
+                                                    style={{ fontSize: '10px', color: (c.ultima_mensagem.lida_por_destinatario === true || c.ultima_mensagem.lida_por_destinatario === 'true') ? '#38bdf8' : '#9ca3af' }}
+                                                ></i>
+                                            )}
+                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {c.ultima_mensagem.criador_id === user?.id ? 'Você: ' : ''}
+                                                {conteudoParaPreview(c.ultima_mensagem?.conteudo || 'Nova conversa')}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        'Nova conversa'
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -977,9 +1028,9 @@ const CommunicationDrawer = ({ user }) => {
                                             {isMe && (
                                                 <span className="msg-read-receipt" title={msg.lida_por_destinatario === true || msg.lida_por_destinatario === 'true' ? 'Visto' : 'Enviado'}>
                                                     {msg.lida_por_destinatario === true || msg.lida_por_destinatario === 'true' ? (
-                                                        <i className="fas fa-check-double msg-read" aria-hidden></i>
+                                                        <i className="fas fa-check-double msg-read" aria-hidden="true" title="Lida"></i>
                                                     ) : (
-                                                        <i className="fas fa-check msg-sent" aria-hidden></i>
+                                                        <i className="fas fa-check-double msg-sent" aria-hidden="true" title="Enviada mas não lida"></i>
                                                     )}
                                                 </span>
                                             )}
@@ -1057,19 +1108,53 @@ const CommunicationDrawer = ({ user }) => {
 
     const renderChamados = () => (
         <div className="comm-list-view">
-            <div className="comm-actions">
+            <div className="comm-actions" style={{ flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
                 <button className="new-chat-btn" onClick={() => setShowNewChamadoForm(true)}>
                     <i className="fas fa-headset"></i> Abrir Chamado
                 </button>
+                <div className="chamados-filters" style={{ display: 'flex', gap: '5px', overflowX: 'auto', paddingBottom: '4px' }}>
+                    {['Todos', 'ABERTO', 'EM_PROCESSO', 'CONCLUIDO'].map(st => (
+                        <button
+                            key={st}
+                            onClick={() => setStatusFilter(st)}
+                            style={{
+                                padding: '4px 12px',
+                                borderRadius: '15px',
+                                border: '1px solid #e2e8f0',
+                                background: statusFilter === st ? '#0e3b6f' : '#f8fafc',
+                                color: statusFilter === st ? '#ffffff' : '#475569',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {st === 'Todos' ? 'Todos' : st.replace('_', ' ')}
+                        </button>
+                    ))}
+                </div>
             </div>
             <div className="comm-list chamados-list">
                 {loadingChamados ? (
                     <div className="comm-loading"><i className="fas fa-spinner fa-spin"></i></div>
-                ) : (chamados || []).length === 0 ? (
-                    <div className="comm-empty">Nenhum chamado</div>
+                ) : (filteredChamados || []).length === 0 ? (
+                    <div className="comm-empty">Nenhum chamado com este status</div>
                 ) : (
-                    chamados.map(cham => (
-                        <div key={cham.id} className="comm-card chamado-card" onClick={() => handleSelectChamado(cham)}>
+                    filteredChamados.map(cham => (
+                        <div key={cham.id} className="comm-card chamado-card" onClick={() => handleSelectChamado(cham)} style={{ position: 'relative' }}>
+                            {cham.has_unread && (
+                                <span style={{
+                                    position: 'absolute',
+                                    top: '12px',
+                                    right: '12px',
+                                    width: '10px',
+                                    height: '10px',
+                                    borderRadius: '50%',
+                                    backgroundColor: '#ef4444',
+                                    boxShadow: '0 0 0 2px #fff'
+                                }} title="Há mensagens novas neste chamado"></span>
+                            )}
                             <div className="chamado-status-tag" data-status={cham.status_chamado}>
                                 {cham.status_chamado}
                             </div>
@@ -1132,7 +1217,7 @@ const CommunicationDrawer = ({ user }) => {
             {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && (
                 <div className="comm-drawer-status-selector">
                     <span className="label">Status:</span>
-                    {['ABERTO', 'EM_ANALISE', 'EM_PROCESSO', 'CONCLUIDO'].map(status => (
+                    {['ABERTO', 'EM_PROCESSO', 'CONCLUIDO'].map(status => (
                         <button
                             key={status}
                             onClick={() => handleChangeChamadoStatus(status)}
@@ -1222,8 +1307,13 @@ const CommunicationDrawer = ({ user }) => {
                                         <div className="msg-content" onClick={handleImageClick}>
                                             <div dangerouslySetInnerHTML={{ __html: markdownToHtml(msg.conteudo) }} />
                                         </div>
-                                        <div className="msg-time">
+                                        <div className="msg-time msg-time-with-receipt">
                                             {formatTime(msg.created_at)}
+                                            {isMe && (
+                                                <span className="msg-read-receipt" title="Enviado">
+                                                    <i className="fas fa-check-double msg-sent" aria-hidden="true"></i>
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1236,7 +1326,7 @@ const CommunicationDrawer = ({ user }) => {
 
             {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
                 <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
-                    {templates.length > 0 && selectedChamado.pode_gerenciar && (
+                    {templates.length > 0 && selectedChamado.pode_gerenciar && selectedChamado.criador_id !== user?.id && (
                         <div className="comm-templates-container">
                             <div className="comm-templates-header">
                                 <i className="fas fa-magic"></i>

@@ -111,7 +111,6 @@ const ChamadosView = () => {
     const getStatusColor = (status) => {
         switch (status) {
             case 'ABERTO': return '#ffc107'; // yellow
-            case 'EM_ANALISE': return '#17a2b8'; // teal
             case 'RESPONDIDO': return '#007bff'; // blue
             case 'CONCLUIDO': return '#28a745'; // green
             default: return '#6c757d'; // gray

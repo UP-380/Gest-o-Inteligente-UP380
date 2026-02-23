@@ -334,10 +334,35 @@ async function listarConversasRecentes(req, res) {
             naoLidasPorCriador[criador] = (naoLidasPorCriador[criador] || 0) + 1;
         });
 
-        const conversas = Array.from(conversasMap.values()).map(c => ({
-            ...c,
-            nao_lidas_count: naoLidasPorCriador[Number(c.usuario.id)] || 0
-        }));
+        const idsUltimasEnviadas = Array.from(conversasMap.values())
+            .filter(c => Number(c.ultima_mensagem.criador_id) === Number(usuario_id))
+            .map(c => c.ultima_mensagem.id);
+
+        let ultimasLidasMap = {};
+        if (idsUltimasEnviadas.length > 0) {
+            const { data: leiturasUltimas } = await supabase
+                .from('comunicacao_leituras')
+                .select('mensagem_id, lida')
+                .in('mensagem_id', idsUltimasEnviadas);
+            if (leiturasUltimas) {
+                leiturasUltimas.forEach(l => {
+                    const isLida = String(l.lida || '').toLowerCase() === 'true' || l.lida === true || l.lida === 1;
+                    ultimasLidasMap[l.mensagem_id] = isLida;
+                });
+            }
+        }
+
+        const conversas = Array.from(conversasMap.values()).map(c => {
+            const result = {
+                ...c,
+                nao_lidas_count: naoLidasPorCriador[Number(c.usuario.id)] || 0
+            };
+            if (Number(c.ultima_mensagem.criador_id) === Number(usuario_id)) {
+                result.ultima_mensagem.lida_por_destinatario = !!ultimasLidasMap[c.ultima_mensagem.id];
+            }
+            return result;
+        });
+
         return sendSuccess(res, 200, conversas);
 
     } catch (error) {
@@ -386,11 +411,20 @@ async function listarChamados(req, res) {
         const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor';
 
         // Buscar departamentos do usuário para filtro/permissão
-        const { data: deptosMembros } = await supabase
-            .from('departamento_membros')
-            .select('departamento_id')
-            .eq('usuario_id', usuario_id);
-        const meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+        const { data: colab } = await supabase
+            .from('colaboradores')
+            .select('id')
+            .eq('usuario_id', usuario_id)
+            .single();
+
+        let meusDeptos = [];
+        if (colab) {
+            const { data: deptosMembros } = await supabase
+                .from('departamento_membros')
+                .select('departamento_id')
+                .eq('membro_id', colab.id);
+            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+        }
 
         let query = supabase
             .from('comunicacao_mensagens')
@@ -432,12 +466,28 @@ async function listarChamados(req, res) {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Adicionar flag pode_gerenciar
+        // Buscar notificacoes nao lidas para este usuario atreladas aos chamados
+        const chamadosIds = data.map(c => String(c.id));
+        let unreadSet = new Set();
+        if (chamadosIds.length > 0) {
+            const { data: notificacoes } = await supabase
+                .from('notificacoes')
+                .select('referencia_id')
+                .eq('usuario_id', usuario_id)
+                .eq('visualizada', false)
+                .in('tipo', ['CHAMADO_NOVO', 'CHAMADO_ATUALIZADO'])
+                .in('referencia_id', chamadosIds);
+
+            unreadSet = new Set((notificacoes || []).map(n => String(n.referencia_id)));
+        }
+
+        // Adicionar flag pode_gerenciar e has_unread
         const enrichedData = data.map(cham => {
             const deptoId = cham.categoria?.departamento?.id;
             return {
                 ...cham,
-                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
+                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId)),
+                has_unread: unreadSet.has(String(cham.id))
             };
         });
 
@@ -514,14 +564,23 @@ async function listarRespostasChamado(req, res) {
         if (error) throw error;
 
         // Buscar departamentos do usuário para flag pode_gerenciar
-        const { data: deptosMembros } = await supabase
-            .from('departamento_membros')
-            .select('departamento_id')
-            .eq('usuario_id', usuario_id);
-        const meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+        const { data: colab } = await supabase
+            .from('colaboradores')
+            .select('id')
+            .eq('usuario_id', usuario_id)
+            .single();
+
+        let meusDeptos = [];
+        if (colab) {
+            const { data: deptosMembros } = await supabase
+                .from('departamento_membros')
+                .select('departamento_id')
+                .eq('membro_id', colab.id);
+            meusDeptos = (deptosMembros || []).map(d => d.departamento_id);
+        }
 
         const enrichedData = data.map(msg => {
-            if (msg.id === parseInt(id)) {
+            if (msg.id === id || msg.id === String(id)) {
                 const deptoId = msg.categoria?.departamento_id;
                 return {
                     ...msg,
