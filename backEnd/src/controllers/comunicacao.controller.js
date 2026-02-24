@@ -1,5 +1,5 @@
 const supabase = require('../config/database');
-const { distribuirNotificacao } = require('./notificacoes.controller');
+const { distribuirNotificacao, notificarClienteSSE } = require('./notificacoes.controller');
 const { resolveAvatarUrl } = require('../utils/storage');
 const { sendSuccess, sendError, sendCreated, sendValidationError, sendNotFound } = require('../utils/responseHelper');
 
@@ -172,7 +172,7 @@ async function enviarMensagem(req, res) {
                         tipo: 'CHAMADO_ATUALIZADO',
                         titulo: 'Resposta em seu Chamado',
                         mensagem: (conteudo && String(conteudo).trim()) ? String(conteudo).trim().substring(0, 200) : `${req.session.usuario.nome_usuario} respondeu ao seu chamado.`,
-                        referencia_id: mensagem.id,
+                        referencia_id: String(chamadoRootId || mensagem_pai_id),
                         link: '/comunicacao?tab=chamados',
                         usuario_id: rootTicket.criador_id,
                         metadata: {
@@ -199,7 +199,7 @@ async function enviarMensagem(req, res) {
                     tipo: 'CHAMADO_ATUALIZADO',
                     titulo: 'Movimentação em Chamado',
                     mensagem: `${req.session.usuario.nome_usuario} atualizou um chamado.`,
-                    referencia_id: mensagem.id,
+                    referencia_id: String(chamadoRootId || mensagem_pai_id),
                     link: '/comunicacao?tab=chamados',
                     departamento_id: deptoId
                 });
@@ -466,28 +466,12 @@ async function listarChamados(req, res) {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Buscar notificacoes nao lidas para este usuario atreladas aos chamados
-        const chamadosIds = data.map(c => String(c.id));
-        let unreadSet = new Set();
-        if (chamadosIds.length > 0) {
-            const { data: notificacoes } = await supabase
-                .from('notificacoes')
-                .select('referencia_id')
-                .eq('usuario_id', usuario_id)
-                .eq('visualizada', false)
-                .in('tipo', ['CHAMADO_NOVO', 'CHAMADO_ATUALIZADO'])
-                .in('referencia_id', chamadosIds);
-
-            unreadSet = new Set((notificacoes || []).map(n => String(n.referencia_id)));
-        }
-
-        // Adicionar flag pode_gerenciar e has_unread
+        // Adicionar flag pode_gerenciar
         const enrichedData = data.map(cham => {
             const deptoId = cham.categoria?.departamento?.id;
             return {
                 ...cham,
-                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId)),
-                has_unread: unreadSet.has(String(cham.id))
+                pode_gerenciar: isGestorOuAdmin || (deptoId && meusDeptos.includes(deptoId))
             };
         });
 
@@ -550,6 +534,7 @@ async function listarRespostasChamado(req, res) {
         const usuario_id = req.session.usuario.id;
         const permissoes = req.session.usuario.permissoes;
         const isGestorOuAdmin = permissoes === 'administrador' || permissoes === 'gestor';
+
 
         const { data, error } = await supabase
             .from('comunicacao_mensagens')

@@ -134,6 +134,9 @@
 /* Actions */
 .comm-actions {
     padding: 0 16px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .new-chat-btn {
@@ -487,10 +490,10 @@
     border: 1px solid #ffedd5;
 }
 
-.chamado-status-tag[data-status='EM_PROCESSO'] {
-    background: #fefce8;
-    color: #a16207;
-    border: 1px solid #fef9c3;
+.chamado-status-tag[data-status='RESPONDIDO'] {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #dbeafe;
 }
 
 .chamado-status-tag[data-status='CONCLUIDO'] {

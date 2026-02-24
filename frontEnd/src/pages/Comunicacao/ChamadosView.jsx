@@ -160,7 +160,7 @@ const ChamadosView = () => {
                                     </div>
                                     <div className="chamado-meta">
                                         <span className="badge status" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}>
-                                            {chamado.status_chamado}
+                                            {chamado.status_chamado === 'RESPONDIDO' ? 'EM PROCESSO' : chamado.status_chamado}
                                         </span>
                                         <span className="badge priority">
                                             {chamado.metadata?.prioridade || 'Normal'}
