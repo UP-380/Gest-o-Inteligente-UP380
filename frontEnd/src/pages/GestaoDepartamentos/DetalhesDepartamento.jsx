@@ -29,6 +29,9 @@ const DetalhesDepartamento = () => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showIconModal, setShowIconModal] = useState(false);
+    const [isEditingInfo, setIsEditingInfo] = useState(false);
+    const [editInfoData, setEditInfoData] = useState({ name: '', description: '' });
+    const [savingInfo, setSavingInfo] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
     const [newMemberData, setNewMemberData] = useState({
         name: '',
@@ -83,6 +86,29 @@ const DetalhesDepartamento = () => {
     useEffect(() => {
         loadData();
     }, [id]);
+
+    const handleSaveInfo = async () => {
+        if (!editInfoData.name.trim()) {
+            showToast('error', 'O nome do departamento é obrigatório');
+            return;
+        }
+        setSavingInfo(true);
+        try {
+            const result = await departamentosAPI.update(id, { nome: editInfoData.name, descricao: editInfoData.description });
+            if (result.success) {
+                showToast('success', 'Departamento atualizado com sucesso!');
+                setDeptInfo(prev => ({ ...prev, name: editInfoData.name, description: editInfoData.description }));
+                setIsEditingInfo(false);
+            } else {
+                showToast('error', 'Erro ao atualizar departamento');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar departamento:', error);
+            showToast('error', 'Erro de conexão ao atualizar departamento');
+        } finally {
+            setSavingInfo(false);
+        }
+    };
 
     const handleSelectIcon = async (iconName) => {
         try {
@@ -304,9 +330,86 @@ const DetalhesDepartamento = () => {
                                                 <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
                                             </div>
                                         </div>
-                                        <div>
-                                            <h1>{deptInfo.name}</h1>
-                                            <p className="dept-subtitle">{deptInfo.description}</p>
+
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            {isEditingInfo ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '300px' }}>
+                                                        <input
+                                                            type="text"
+                                                            value={editInfoData.name}
+                                                            onChange={(e) => setEditInfoData({ ...editInfoData, name: e.target.value })}
+                                                            className="form-control"
+                                                            placeholder="Nome do Departamento"
+                                                            autoFocus
+                                                            style={{ fontSize: '1.25rem', fontWeight: 'bold', padding: '6px 10px', height: '36px', margin: 0 }}
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            value={editInfoData.description}
+                                                            onChange={(e) => setEditInfoData({ ...editInfoData, description: e.target.value })}
+                                                            className="form-control"
+                                                            placeholder="Descrição do Departamento"
+                                                            style={{ fontSize: '0.875rem', padding: '6px 10px', height: '32px', margin: 0 }}
+                                                        />
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button
+                                                            className="btn-primary"
+                                                            style={{ padding: '6px 12px', fontSize: '13px', height: '36px' }}
+                                                            onClick={handleSaveInfo}
+                                                            disabled={savingInfo}
+                                                        >
+                                                            {savingInfo ? 'Salvando...' : 'Salvar'}
+                                                        </button>
+                                                        <button
+                                                            className="btn-secondary"
+                                                            style={{ padding: '6px 12px', fontSize: '13px', height: '36px' }}
+                                                            onClick={() => setIsEditingInfo(false)}
+                                                            disabled={savingInfo}
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="dept-title-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', group: 'title' }}>
+                                                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                                                        {deptInfo.name}
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditInfoData({ name: deptInfo.name, description: deptInfo.description });
+                                                                setIsEditingInfo(true);
+                                                            }}
+                                                            style={{
+                                                                background: 'transparent',
+                                                                border: 'none',
+                                                                color: '#64748b',
+                                                                cursor: 'pointer',
+                                                                fontSize: '16px',
+                                                                padding: '4px',
+                                                                borderRadius: '4px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            title="Editar informações"
+                                                            onMouseEnter={e => {
+                                                                e.currentTarget.style.color = '#3b82f6';
+                                                                e.currentTarget.style.backgroundColor = '#eff6ff';
+                                                            }}
+                                                            onMouseLeave={e => {
+                                                                e.currentTarget.style.color = '#64748b';
+                                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                                            }}
+                                                        >
+                                                            <i className="fas fa-pencil-alt"></i>
+                                                        </button>
+                                                    </h1>
+                                                </div>
+                                            )}
+                                            {!isEditingInfo && <p className="dept-subtitle">{deptInfo.description}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -331,7 +434,7 @@ const DetalhesDepartamento = () => {
                         {/* Top Cards */}
                         <div className="top-cards-grid">
                             <div className="info-card">
-                                <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#fd7e14' }}>
+                                <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#0e3b6f' }}>
                                     <i className="fas fa-users"></i>
                                 </div>
                                 <div className="card-content">

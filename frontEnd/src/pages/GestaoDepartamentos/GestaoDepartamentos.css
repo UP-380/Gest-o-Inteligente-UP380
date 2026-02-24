@@ -115,30 +115,24 @@
 .add-dept-btn {
     height: 40px;
     padding: 0 20px;
-    background: #fd7e14;
+    background: #0e3b6f;
     color: white;
     border: none;
-    border-radius: 6px;
-    font-weight: 600;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 8px rgba(14, 59, 111, 0.4);
 }
 
 .add-dept-btn:hover {
-    background: #e86b00;
-}
-
-.back-btn {
-    padding: 10px 20px;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    flex-shrink: 0;
+    background: #144577;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(14, 59, 111, 0.3);
 }
 
 .modal-overlay {
@@ -281,7 +275,6 @@ textarea.form-control {
 .dept-icon.clickable:hover .icon-overlay {
     opacity: 1;
 }
-
 
 
 /* Seletor de Ícones no Modal */

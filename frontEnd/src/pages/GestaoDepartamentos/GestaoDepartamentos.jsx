@@ -254,7 +254,7 @@ const GestaoDepartamentos = () => {
                                                 </div>
                                                 <div style={{ textAlign: 'right', display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                                     <EditButton
-                                                        onClick={() => handleEdit(dept)}
+                                                        onClick={() => navigate(`/gestao/departamentos/${dept.id}`)}
                                                         title="Editar Departamento"
                                                     />
                                                     <DeleteButton

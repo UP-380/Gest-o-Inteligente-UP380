@@ -351,7 +351,7 @@
 .add-member-btn {
     height: 40px;
     padding: 0 20px;
-    background: #fd7e14;
+    background: #0e3b6f;
     color: white;
     border: none;
     border-radius: 8px;
@@ -361,12 +361,13 @@
     align-items: center;
     gap: 8px;
     transition: background 0.2s;
-    box-shadow: 0 2px 4px rgba(253, 126, 20, 0.2);
+    box-shadow: 0 2px 4px rgba(14, 59, 111, 0.4);
 }
 
 .add-member-btn:hover {
-    background: #e86b00;
+    background: #144577;
     transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(14, 59, 111, 0.3);
 }
 
 /* DatePicker customization for top direction */
