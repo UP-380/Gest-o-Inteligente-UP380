@@ -1352,7 +1352,7 @@ const CommunicationDrawer = ({ user }) => {
                 <span className="chat-target-name">{tipo === 'COMUNICADO' ? 'Novo Aviso' : 'Novo Chamado'}</span>
             </div>
             <div className="comm-form-body" style={{ padding: '20px' }}>
-                <div className="mb-4 text-gray-500 text-xs flex items-center gap-1">
+                <div className="comm-form-tip">
                     <i className="fas fa-info-circle"></i> Todos os campos marcados com * são obrigatórios.
                 </div>
 
