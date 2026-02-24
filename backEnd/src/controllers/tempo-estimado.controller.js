@@ -404,12 +404,12 @@ async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFi
 
     // Criar registros virtuais
     const registros = datasDoPeriodo.map(dataStr => {
-      const regraId = regra.id || String(regra.agrupador_id);
-      const idVirtual = gerarIdVirtual(regraId, dataStr);
+      const realRegraId = regra.id; // Deve ser o BIGINT da tabela tempo_estimado_regra
+      const idVirtual = gerarIdVirtual(realRegraId, dataStr);
 
       return {
-        id: idVirtual, // ID virtual estável
-        tempo_estimado_id: idVirtual, // Compatibilidade com frontend (usado em registro_tempo)
+        id: idVirtual, // ID virtual para uso no DOM/Frontend
+        tempo_estimado_id: idVirtual, // Compatibilidade (Timetrack)
         agrupador_id: regra.agrupador_id,
         cliente_id: regra.cliente_id,
         produto_id: regra.produto_id,
@@ -418,12 +418,11 @@ async function calcularRegistrosDinamicos(regra, dataInicioFiltro = null, dataFi
         tipo_tarefa_id: regra.tipo_tarefa_id,
         data: dataStr,
         tempo_estimado_dia: regra.tempo_estimado_dia,
-        // Campos adicionais para compatibilidade
         incluir_finais_semana: incluirFinaisSemana,
         incluir_feriados: incluirFeriados,
         is_plug_rapido: regra.is_plug_rapido,
-        // Metadados da regra (úteis para debug)
-        regra_id: regra.id,
+        // CRÍTICO: regra_id deve ser o ID real para a tabela de status
+        regra_id: realRegraId,
         created_at: regra.created_at,
         updated_at: regra.updated_at
       };
@@ -1520,12 +1519,12 @@ async function getTempoEstimado(req, res) {
 
     const regrasFiltradas = regrasEncontradas || [];
 
-    // NOVA LÓGICA: Se houver filtro por data específica (data_inicio === data_fim ou parâmetro 'data'),
-    // expandir as regras em registros dinâmicos para o PainelUsuario
+    // NOVA LÓGICA: Se houver filtro por período (data_inicio e data_fim) ou parâmetro 'data',
+    // expandir as regras em registros dinâmicos para o PainelUsuario e para a Agenda (semana/mês).
     // Normalizar datas para comparação (remover hora se houver)
     const dataInicioNormalizada = data_inicio ? (data_inicio.includes('T') ? data_inicio.split('T')[0] : data_inicio) : null;
     const dataFimNormalizada = data_fim ? (data_fim.includes('T') ? data_fim.split('T')[0] : data_fim) : null;
-    const deveExpandirRegras = (dataInicioNormalizada && dataFimNormalizada && dataInicioNormalizada === dataFimNormalizada) || data;
+    const deveExpandirRegras = (dataInicioNormalizada && dataFimNormalizada) || data;
 
     // DEBUG: Log informações sobre filtros e decisão de expansão
     console.log('🔍 [DEBUG-TEMPO-ESTIMADO] Parâmetros recebidos:', {
@@ -1542,10 +1541,10 @@ async function getTempoEstimado(req, res) {
     let totalParaRetornar = 0;
 
     if (deveExpandirRegras) {
-      // Expandir regras em registros dinâmicos
-      console.log('🔄 Expandindo regras em registros dinâmicos para filtro por data específica');
+      // Expandir regras em registros dinâmicos (uma data ou intervalo, ex.: Agenda semana/mês)
+      console.log('🔄 Expandindo regras em registros dinâmicos para o período solicitado');
 
-      // Determinar data(s) para filtrar
+      // Determinar data(s) para filtrar (único dia ou intervalo)
       let dataInicioFiltro = null;
       let dataFimFiltro = null;
 
@@ -1553,7 +1552,7 @@ async function getTempoEstimado(req, res) {
         const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
         dataInicioFiltro = dataFormatada;
         dataFimFiltro = dataFormatada;
-      } else if (dataInicioNormalizada && dataFimNormalizada && dataInicioNormalizada === dataFimNormalizada) {
+      } else if (dataInicioNormalizada && dataFimNormalizada) {
         dataInicioFiltro = dataInicioNormalizada;
         dataFimFiltro = dataFimNormalizada;
       }
@@ -1589,8 +1588,71 @@ async function getTempoEstimado(req, res) {
         }
       }
 
+      // ======== JOIN COM TABELA DE STATUS (em lote) ========
+      // Buscar todos os status de uma vez para performance
+      if (todosRegistros.length > 0) {
+        try {
+          const regraIdsUnicos = [...new Set(todosRegistros.map(r => r.regra_id).filter(Boolean))];
+          const datasUnicas = [...new Set(todosRegistros.map(r => {
+            const d = r.data ? (r.data.includes('T') ? r.data.split('T')[0] : r.data) : null;
+            return d;
+          }).filter(Boolean))];
+          const responsavelIdsUnicos = [...new Set(todosRegistros.map(r => String(r.responsavel_id)).filter(Boolean))];
+
+          if (regraIdsUnicos.length > 0 && datasUnicas.length > 0 && responsavelIdsUnicos.length > 0) {
+            const { data: statusRecords, error: statusError } = await supabase
+              .from('tempo_estimado_status')
+              .select('regra_id, data, responsavel_id, status')
+              .in('regra_id', regraIdsUnicos)
+              .in('data', datasUnicas)
+              .in('responsavel_id', responsavelIdsUnicos);
+
+            if (!statusError && statusRecords && statusRecords.length > 0) {
+              // Criar mapa para lookup rápido: chave = "regraId|data|responsavelId"
+              const statusMap = new Map();
+              statusRecords.forEach(sr => {
+                const dataFormatada = sr.data ? (sr.data.includes('T') ? sr.data.split('T')[0] : sr.data) : sr.data;
+                const chave = `${sr.regra_id}|${dataFormatada}|${sr.responsavel_id}`;
+                statusMap.set(chave, sr.status);
+              });
+
+              // Aplicar status a cada registro virtual
+              todosRegistros.forEach(reg => {
+                const dataReg = reg.data ? (reg.data.includes('T') ? reg.data.split('T')[0] : reg.data) : reg.data;
+                const chave = `${reg.regra_id}|${dataReg}|${reg.responsavel_id}`;
+                reg.status = statusMap.get(chave) || 'NAO_INICIADA';
+              });
+              console.log(`✅ [STATUS] Aplicados ${statusRecords.length} status de ${todosRegistros.length} registros virtuais`);
+            } else {
+              // Se não há registros de status ou houve erro, definir todos como NAO_INICIADA
+              todosRegistros.forEach(reg => { reg.status = 'NAO_INICIADA'; });
+              if (statusError) console.warn('⚠️ Erro ao buscar status:', statusError.message);
+            }
+          } else {
+            todosRegistros.forEach(reg => { reg.status = 'NAO_INICIADA'; });
+          }
+        } catch (statusErr) {
+          console.error('❌ Erro ao fazer JOIN com status:', statusErr);
+          todosRegistros.forEach(reg => { reg.status = 'NAO_INICIADA'; });
+        }
+      }
+      // ======== FIM JOIN STATUS ========
+
       dadosParaRetornar = todosRegistros;
       totalParaRetornar = todosRegistros.length;
+
+      // DEBUG: Log detalhado de amostra dos registros gerados
+      if (todosRegistros.length > 0) {
+        console.log(`🔍 [DEBUG-TEMPO-ESTIMADO] Amostra do primeiro registro expandido:`, {
+          id: todosRegistros[0].id,
+          regra_id: todosRegistros[0].regra_id, // CRÍTICO: Verificar se isso existe
+          tarefa_id: todosRegistros[0].tarefa_id,
+          cliente_id: todosRegistros[0].cliente_id,
+          responsavel_id: todosRegistros[0].responsavel_id,
+          data: todosRegistros[0].data,
+          status: todosRegistros[0].status
+        });
+      }
 
       // DEBUG: Log amostra dos registros gerados
       if (todosRegistros.length > 0) {
@@ -3158,6 +3220,93 @@ async function getTempoRealizadoComFiltros(req, res) {
   }
 }
 
+// PUT /api/tempo-estimado/status - Atualizar status de um registro virtual
+async function atualizarStatusTarefa(req, res) {
+  try {
+    const { regra_id, data, responsavel_id, status } = req.body;
+
+    // LOG DE ENTRADA PARA DEBUG
+    console.log(`📡 [STATUS] Recebido body:`, JSON.stringify(req.body));
+
+    // Validação de campos obrigatórios
+    if (!regra_id || !data || !responsavel_id || !status) {
+      console.warn('⚠️ [STATUS] Falha na validação de campos:', { regra_id, data, responsavel_id, status });
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: regra_id, data, responsavel_id, status'
+      });
+    }
+
+    // Validar regra_id (pode ser número ou UUID)
+    if (!regra_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'regra_id é obrigatório'
+      });
+    }
+
+    const regraIdSaneado = String(regra_id).trim();
+
+    // Validação de status: A validação estrita foi removida (o frontend já busca da tabela dinamicamente).
+    // Qualquer status enviado será salvo, pois a fonte de verdade na UI é a tabela de configurações.
+
+    // Formatar data (remover hora se houver)
+    const dataFormatada = data.includes('T') ? data.split('T')[0] : data;
+    const responsavelIdStr = String(responsavel_id).trim();
+
+    console.log(`📝 [STATUS] Saneado: regra_id=${regraIdSaneado}, data=${dataFormatada}, responsavel_id=${responsavelIdStr}, status=${status}`);
+
+    // UPSERT: Inserir ou atualizar
+    const { data: resultado, error } = await supabase
+      .from('tempo_estimado_status')
+      .upsert(
+        {
+          regra_id: regraIdSaneado,
+          data: dataFormatada,
+          responsavel_id: responsavelIdStr,
+          status: status,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'regra_id,data,responsavel_id'
+        }
+      )
+      .select();
+
+    if (error) {
+      console.error('❌ [STATUS] Erro ao atualizar status:', error);
+      // LOG TEMPORÁRIO PARA DIAGNÓSTICO
+      try {
+        const fs = require('fs');
+        const logMsg = `\n[${new Date().toISOString()}] BODY: ${JSON.stringify(req.body)} - ERROR: ${error.message} - CODE: ${error.code} - HINT: ${error.hint}\n`;
+        fs.appendFileSync('c:/Aplicacao/Gest-o-Inteligente-UP380/error_log.txt', logMsg);
+      } catch (e) { }
+
+      return res.status(500).json({
+        success: false,
+        error: 'Erro ao atualizar status',
+        details: error.message,
+        body_sent: req.body // Retornar body para debug no frontend
+      });
+    }
+
+    console.log(`✅ [STATUS] Status atualizado com sucesso:`, resultado);
+
+    return res.json({
+      success: true,
+      data: resultado?.[0] || { regra_id, data: dataFormatada, responsavel_id: responsavelIdStr, status },
+      message: `Status atualizado para ${status}`
+    });
+  } catch (error) {
+    console.error('❌ [STATUS] Erro inesperado:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarTempoEstimado,
   getTempoEstimado,
@@ -3170,7 +3319,8 @@ module.exports = {
   getTempoRealizadoPorTarefasEstimadas,
   getTempoRealizadoComFiltros,
   getTempoEstimadoTotal,
-  calcularRegistrosDinamicos
+  calcularRegistrosDinamicos,
+  atualizarStatusTarefa
 };
 
 

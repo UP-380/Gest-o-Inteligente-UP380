@@ -346,6 +346,7 @@
     position: relative;
     z-index: 60;
     overflow: visible;
+    flex: 1;
 }
 
 .toolbar-item {
@@ -818,4 +819,203 @@
     margin-left: 6px;
     font-size: 0.75rem;
     color: #94a3b8;
+}
+
+/* ========== Modo Live – card por responsável (estilo Minhas Tarefas) ========== */
+.relatorio-live-container .relatorio-live-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #10b981;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.relatorio-live-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+}
+
+.rt-live-user-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: 290px;
+}
+
+.rt-live-user-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.rt-live-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rt-live-user-nome {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.9375rem;
+}
+
+.rt-live-chat-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 16px;
+    padding: 6px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rt-live-chat-btn:hover {
+    color: #3b82f6;
+    background: #e2e8f0;
+}
+
+.rt-live-timer {
+    font-weight: 700;
+    color: #3b82f6;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rt-live-timer i {
+    font-size: 12px;
+}
+
+.relatorio-live-container .rt-live-tarefa-card {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: none;
+    border-radius: 0;
+    padding: 12px 16px;
+    background: #ffffff;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.relatorio-live-container .rt-live-tarefa-card .painel-usuario-tarefa-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.relatorio-live-container .rt-live-tarefa-card .painel-usuario-tarefa-nome {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #0b1e3a;
+    line-height: 1.35;
+}
+
+.relatorio-live-container .rt-live-tarefa-card .painel-usuario-tarefa-produto {
+    font-weight: 500;
+    font-size: 12px;
+    color: #64748b;
+    margin-left: 4px;
+}
+
+.rt-live-meta-cliente {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.rt-live-meta-cliente i {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.relatorio-live-container .rt-live-tags {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px 14px;
+    font-size: 12px;
+    color: #1f2937;
+}
+
+.relatorio-live-container .rt-live-tags .painel-usuario-badge-estimado,
+.relatorio-live-container .rt-live-tags .painel-usuario-badge-realizado {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+.relatorio-live-container .rt-live-tags .painel-usuario-estimado-icon-inline {
+    color: #0e3b6f;
+    font-size: 12px;
+}
+
+.relatorio-live-container .rt-live-tags .painel-usuario-estimado-label,
+.relatorio-live-container .rt-live-tags .painel-usuario-realizado-label {
+    color: #1f2937;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.relatorio-live-container .rt-live-tags .painel-usuario-estimado-pill,
+.relatorio-live-container .rt-live-tags .painel-usuario-realizado-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #eef2ff;
+    border-radius: 999px;
+    color: #1e3a8a;
+    border: none;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.relatorio-live-container .rt-live-tags .painel-usuario-realizado-icon-inline {
+    color: #fd7e14;
+    font-size: 12px;
+}
+
+.rt-live-badge-pendentes {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.rt-live-fixed-pill {
+    min-width: 60px;
+    text-align: center;
+}
+
+.rt-live-pendentes-count {
+    font-size: 11px;
+    font-weight: 500;
 }

@@ -646,25 +646,9 @@ const GestaoCapacidade = () => {
                     Gestão de Capacidade – Visão Hierárquica
                   </h3>
 
-                  <div className="hierarchy-root-grid">
-                    {Object.entries(hierarquia).map(([nodeId, nodeData]) => (
-                      <HierarchyNode
-                        key={nodeId}
-                        nodeId={nodeId}
-                        nodeData={nodeData}
-                        nivelAtual={ordemNiveisAPI[0] || 'colaborador'}
-                        proximosNiveis={ordemNiveisAPI.slice(1)}
-                        depth={0}
-                        iniciarExpandido={false}
-                        onToggleExpand={handleOpenHierarquiaDetail}
-                        isActive={detailCardHierarquia?.nodeId === nodeId}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Resumo global */}
+                  {/* Resumo global - dashboards acima dos cards */}
                   {resumoHierarquia && (
-                    <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
                       {resumoHierarquia.total_tarefas != null && (
                         <span style={{ fontSize: '12px', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
                           <i className="fas fa-list" style={{ marginRight: '4px', color: '#64748b' }}></i>
@@ -685,6 +669,22 @@ const GestaoCapacidade = () => {
                       )}
                     </div>
                   )}
+
+                  <div className="hierarchy-root-grid">
+                    {Object.entries(hierarquia).map(([nodeId, nodeData]) => (
+                      <HierarchyNode
+                        key={nodeId}
+                        nodeId={nodeId}
+                        nodeData={nodeData}
+                        nivelAtual={ordemNiveisAPI[0] || 'colaborador'}
+                        proximosNiveis={ordemNiveisAPI.slice(1)}
+                        depth={0}
+                        iniciarExpandido={false}
+                        onToggleExpand={handleOpenHierarquiaDetail}
+                        isActive={detailCardHierarquia?.nodeId === nodeId}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

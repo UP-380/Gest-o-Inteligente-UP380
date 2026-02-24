@@ -120,7 +120,7 @@
     0 10px 24px rgba(15, 23, 42, 0.08),
     0 4px 12px rgba(15, 23, 42, 0.06);
   transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
   z-index: 1;
   margin-top: 2px;
@@ -139,9 +139,7 @@
 }
 
 .painel-usuario-coluna-body {
-  max-height: 360px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   min-width: 0;
   box-sizing: border-box;
   display: flex;
@@ -1192,4 +1190,200 @@
 
 .painel-usuario-play-btn.painel-usuario-btn-disabled:disabled i {
   animation: none !important;
+}
+
+/* ---------- Sistema de Status Premium (Estilo ClickUp) ---------- */
+.status-dropdown-container {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.status-icon-trigger {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid transparent;
+  background: transparent;
+  font-size: 14px;
+}
+
+.status-icon-trigger:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.status-icon-trigger i {
+  transition: transform 0.2s ease;
+}
+
+/* Menu do Dropdown */
+.status-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #f1f5f9;
+  min-width: 180px;
+  z-index: 1000;
+  display: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 205px;
+  /* Exato para caber Header + ~4 itens antes de rolar */
+
+  padding: 6px;
+  animation: statusMenuFadeIn 0.2s ease-out;
+}
+
+.status-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.status-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.status-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+
+.status-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+@keyframes statusMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.status-dropdown-menu.active {
+  display: block;
+}
+
+.status-menu-header {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.status-menu-item:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.status-menu-item i {
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.status-menu-item.selected {
+  background: #f1f5f9;
+  color: #0e3b6f;
+}
+
+/* Cores por Status (Reutilizadas para o Icon Trigger e Menu) */
+.status-icon-trigger.status-nao-iniciada,
+.status-menu-item.status-nao-iniciada i {
+  color: #94a3b8;
+}
+
+.status-icon-trigger.status-em-andamento,
+.status-menu-item.status-em-andamento i {
+  color: #3b82f6;
+}
+
+.status-icon-trigger.status-concluida,
+.status-menu-item.status-concluida i {
+  color: #10b981;
+}
+
+.status-icon-trigger.status-pausada,
+.status-menu-item.status-pausada i {
+  color: #f59e0b;
+}
+
+.status-icon-trigger.status-aguardando,
+.status-menu-item.status-aguardando i {
+  color: #8b5cf6;
+}
+
+/* Especial: Borda sutil para não iniciada */
+.status-icon-trigger.status-nao-iniciada {
+  border: 2px dashed #cbd5e1;
+}
+
+/* Estilo para tarefas pendentes (Fixo) */
+.painel-usuario-status-badge-pendente {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  background: #f5f3ff;
+  color: #8b5cf6;
+  border: 1px solid #ddd6fe;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* Ajustes de layout para o nome da tarefa */
+.painel-usuario-tarefa-nome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  flex: 1;
+}
+
+.painel-usuario-tarefa-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* Ajuste no modo board */
+.painel-usuario-tarefa-top {
+  display: flex;
+  align-items: flex-start;
+  /* Alinhado ao topo para nomes longos */
+  gap: 10px;
 }

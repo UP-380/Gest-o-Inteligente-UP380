@@ -44,6 +44,7 @@ const uploadController = require('../controllers/upload.controller');
 const apiKeyController = require('../controllers/api-key.controller');
 const atualizacoesController = require('../controllers/atualizacoes.controller');
 const equipamentosController = require('../controllers/equipamentos.controller');
+const tempoEstimadoConfigStatusController = require('../controllers/tempo-estimado-config-status.controller');
 
 const apiClientes = require('../services/api-clientes');
 
@@ -221,6 +222,7 @@ router.get('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.get
 router.post('/api/tempo-estimado/total', requireAuth, tempoEstimadoController.getTempoEstimadoTotal);
 router.post('/api/tempo-estimado/tempo-realizado', requireAuth, tempoEstimadoController.getTempoRealizadoPorTarefasEstimadas);
 router.post('/api/tempo-estimado/tempo-realizado-filtros', requireAuth, tempoEstimadoController.getTempoRealizadoComFiltros);
+router.put('/api/tempo-estimado/status', requireAuth, tempoEstimadoController.atualizarStatusTarefa);
 router.get('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.getTempoEstimadoPorAgrupador);
 router.put('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.atualizarTempoEstimadoPorAgrupador);
 router.delete('/api/tempo-estimado/agrupador/:agrupador_id', requireAuth, tempoEstimadoController.deletarTempoEstimadoPorAgrupador);
@@ -230,6 +232,13 @@ router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTe
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
 router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.deletarTempoEstimado);
+
+// Rotas de Configuração de Status de Tarefa (CRUD completo em tabela dedicada)
+router.get('/api/tempo-estimado-config-status', requireAuth, tempoEstimadoConfigStatusController.getStatuses);
+router.get('/api/tempo-estimado-config-status/:id', requireAuth, tempoEstimadoConfigStatusController.getStatusById);
+router.post('/api/tempo-estimado-config-status', requireAuth, tempoEstimadoConfigStatusController.criarStatus);
+router.put('/api/tempo-estimado-config-status/:id', requireAuth, tempoEstimadoConfigStatusController.atualizarStatus);
+router.delete('/api/tempo-estimado-config-status/:id', requireAuth, tempoEstimadoConfigStatusController.deletarStatus);
 
 // Rotas de Histórico de Atribuições
 console.log('✅ Registrando rotas de histórico de atribuições...');
@@ -647,6 +656,29 @@ router.post('/api/gestao-capacidade-v2', requireAuth, async (req, res) => {
     return res.status(502).json({
       success: false,
       error: `Erro ao conectar com o serviço de capacidade: ${error.message}`
+    });
+  }
+});
+
+router.get('/api/live/active-sessions', requireAuth, async (req, res) => {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-User-Id': String(req.session.usuario.id),
+    };
+
+    const response = await fetch(`${BUN_API_BASE}/live/active-sessions`, {
+      method: 'GET',
+      headers,
+    });
+
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (error) {
+    console.error('[PROXY-BUN-LIVE] Erro ao redirecionar para Bun:', error.message);
+    return res.status(502).json({
+      success: false,
+      error: `Erro ao conectar com o serviço de monitoramento: ${error.message}`
     });
   }
 });

@@ -1,0 +1,332 @@
+.agenda-colaborador-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 10px;
+    background-color: #f9fafb;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.agenda-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.agenda-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.agenda-btn-nav {
+    padding: 6px 12px;
+    background-color: #e5e7eb;
+    color: #4b5563;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.agenda-btn-nav:hover {
+    background-color: #d1d5db;
+}
+
+.agenda-current-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1f2937;
+    min-width: 200px;
+    text-align: center;
+}
+
+.agenda-view-toggle {
+    display: flex;
+    background-color: #e5e7eb;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.agenda-view-btn {
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    color: #4b5563;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.agenda-view-btn.active {
+    background-color: #ffffff;
+    color: #0e3b6f;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.agenda-loading,
+.agenda-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #6b7280;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.agenda-main-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+}
+
+.agenda-grid {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.agenda-detalhe-card-wrapper {
+    flex-shrink: 0;
+    width: 320px;
+    max-width: 100%;
+}
+
+.agenda-detalhe-card {
+    position: sticky;
+    top: 16px;
+}
+
+.agenda-detalhe-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.agenda-detalhe-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.agenda-detalhe-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.agenda-detalhe-close:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+.agenda-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background-color: #f3f4f6;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.agenda-weekday {
+    padding: 12px;
+    text-align: center;
+    font-weight: 600;
+    color: #4b5563;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.agenda-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.agenda-day-cell {
+    min-height: 120px;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background-color: #ffffff;
+    min-width: 0;
+}
+
+.agenda-day-cell:nth-child(7n) {
+    border-right: none;
+}
+
+.agenda-day-cell.is-outside-month {
+    background-color: #f9fafb;
+    color: #9ca3af;
+}
+
+.agenda-day-cell.is-today {
+    background-color: #eff6ff;
+}
+
+.agenda-day-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+}
+
+.agenda-day-number {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #374151;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.agenda-day-cell.is-today .agenda-day-number {
+    background-color: #3b82f6;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.agenda-tasks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    max-height: 100px;
+    min-height: 0;
+}
+
+.agenda-tasks-list::-webkit-scrollbar {
+    width: 5px;
+}
+
+.agenda-tasks-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.agenda-tasks-list::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+}
+
+.agenda-tasks-list::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b8;
+}
+
+.agenda-task-item {
+    background-color: #e0f2fe;
+    border-left: 3px solid #0284c7;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    min-height: 28px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #0369a1;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.agenda-task-item:hover {
+    background-color: #bae6fd;
+    transform: translateY(-1px);
+}
+
+.agenda-task-cliente {
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+.agenda-task-nome {
+    opacity: 0.9;
+}
+
+/* Modo Semana */
+.agenda-days-grid.is-week-view .agenda-day-cell {
+    min-height: 400px;
+}
+
+.agenda-days-grid.is-week-view .agenda-tasks-list {
+    max-height: none;
+    overflow-y: visible;
+}
+
+/* Modo Mês: altura fixa por linha, célula fixa e lista com scroll (cabem ~3 tarefas) */
+.agenda-days-grid.is-month-view {
+    grid-auto-rows: 140px;
+}
+
+.agenda-days-grid.is-month-view .agenda-day-cell {
+    height: 140px;
+    min-height: 140px;
+    max-height: 140px;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.agenda-days-grid.is-month-view .agenda-day-header {
+    flex-shrink: 0;
+}
+
+/* Altura da lista no mês = exatamente 3 tarefas (3 × 28px + 2 × 4px gap) = 92px; mais de 3 → scroll */
+.agenda-days-grid.is-month-view .agenda-tasks-list,
+.agenda-tasks-list.agenda-tasks-list--month {
+    flex: 1 1 0;
+    min-height: 0;
+    height: 92px;
+    max-height: 92px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Barra de rolagem visível no modo mês */
+.agenda-days-grid.is-month-view .agenda-tasks-list::-webkit-scrollbar,
+.agenda-tasks-list--month::-webkit-scrollbar {
+    width: 6px;
+}

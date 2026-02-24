@@ -60,33 +60,48 @@ const RelatorioTempoSpreadsheet = ({
 
     // Nível 1: Por responsável (total por dia + total período)
     const porResponsavel = useMemo(() => {
-        if (!registros || registros.length === 0) return [];
         const map = {};
-        registros.forEach(reg => {
-            const uid = reg.usuario_id;
-            if (!uid) return;
-            const id = String(uid);
-            if (!map[id]) {
-                const u = usuariosMap[id];
-                map[id] = {
-                    usuario_id: uid,
-                    nome: u ? (u.nome_usuario || u.email_usuario) : `ID ${uid}`,
-                    foto: u?.foto_perfil,
-                    dias: {},
-                    total: 0,
-                    registros: []
-                };
-            }
-            const dia = reg.data_inicio ? reg.data_inicio.split('T')[0] : null;
-            const duration = reg.tempo_realizado || (reg.data_fim && reg.data_inicio ? new Date(reg.data_fim) - new Date(reg.data_inicio) : 0);
-            if (dia) {
-                map[id].dias[dia] = (map[id].dias[dia] || 0) + duration;
-            }
-            map[id].total += duration;
-            map[id].registros.push(reg);
+
+        // Inicializar com todos os usuários conhecidos para garantir paridade com o modo Lista
+        (usuarios || []).forEach(u => {
+            const id = String(u.id);
+            map[id] = {
+                usuario_id: u.id,
+                nome: u.nome_usuario || u.email_usuario || `Responsável ${u.id}`,
+                foto: u.foto_perfil,
+                dias: {},
+                total: 0,
+                registros: []
+            };
         });
+
+        if (registros && registros.length > 0) {
+            registros.forEach(reg => {
+                const uid = reg.usuario_id;
+                if (!uid) return;
+                const id = String(uid);
+                if (!map[id]) {
+                    const u = usuariosMap[id];
+                    map[id] = {
+                        usuario_id: uid,
+                        nome: u ? (u.nome_usuario || u.email_usuario) : `ID ${uid}`,
+                        foto: u?.foto_perfil,
+                        dias: {},
+                        total: 0,
+                        registros: []
+                    };
+                }
+                const dia = reg.data_inicio ? reg.data_inicio.split('T')[0] : null;
+                const duration = reg.tempo_realizado || (reg.data_fim && reg.data_inicio ? new Date(reg.data_fim) - new Date(reg.data_inicio) : 0);
+                if (dia) {
+                    map[id].dias[dia] = (map[id].dias[dia] || 0) + duration;
+                }
+                map[id].total += duration;
+                map[id].registros.push(reg);
+            });
+        }
         return Object.values(map).sort((a, b) => b.total - a.total);
-    }, [registros, usuariosMap]);
+    }, [registros, usuariosMap, usuarios]);
 
     // Detalhe expandido: para um usuario_id, agrupar por groupBy (cliente/tarefa/produto)
     const detalhePorResponsavel = useMemo(() => {
