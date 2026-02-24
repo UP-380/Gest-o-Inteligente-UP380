@@ -1,0 +1,35 @@
+/* Reuse the logic from Tutorials but specific for Release Notes if needed */
+@import '../BaseConhecimento/TutoriaisPublicos.css';
+
+.nav-item-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nav-item-subtext {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.sidebar-nav-item .fas.fa-history {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.sidebar-nav-item.active .fas.fa-history {
+    color: #0e3b6f;
+}
+
+/* Adjustments for Release Notes specific feel */
+.doc-metadata-top {
+    color: #0e3b6f;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.meta-author .author-avatar {
+    background-color: #0e3b6f;
+}

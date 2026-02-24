@@ -20,6 +20,8 @@ import CadastroSubtarefas from './pages/CadastroSubtarefas/CadastroSubtarefas';
 import CadastroSubtarefaIndividual from './pages/CadastroSubtarefaIndividual/CadastroSubtarefaIndividual';
 import CadastroTipoTarefas from './pages/CadastroTipoTarefas/CadastroTipoTarefas';
 import CadastroTipoTarefaIndividual from './pages/CadastroTipoTarefaIndividual/CadastroTipoTarefaIndividual';
+import CadastroStatusTarefas from './pages/CadastroStatusTarefas/CadastroStatusTarefas';
+import CadastroStatusTarefaIndividual from './pages/CadastroStatusTarefaIndividual/CadastroStatusTarefaIndividual';
 import CadastroTipoContratos from './pages/CadastroTipoContratos/CadastroTipoContratos';
 import CadastroTipoContrato from './pages/CadastroTipoContrato/CadastroTipoContrato';
 import CadastroVinculacoes from './pages/CadastroVinculacoes/CadastroVinculacoes';
@@ -58,6 +60,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AprovacoesPendentes from './pages/Aprovacoes/AprovacoesPendentes';
 import MinhasNotificacoes from './pages/Notificacoes/MinhasNotificacoes';
+import TutoriaisPublicos from './pages/BaseConhecimento/TutoriaisPublicos';
+import NotasAtualizacaoPublicas from './pages/NotasAtualizacao/NotasAtualizacaoPublicas';
 
 // Componente para redirecionar rota antiga
 const RedirectToCadastroCliente = () => {
@@ -290,6 +294,22 @@ function App() {
           }
         />
         <Route
+          path="/cadastro/status-tarefas"
+          element={
+            <ProtectedRoute>
+              <CadastroStatusTarefas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cadastro/status-tarefa"
+          element={
+            <ProtectedRoute>
+              <CadastroStatusTarefaIndividual />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cadastro/tipo-contratos"
           element={
             <ProtectedRoute>
@@ -488,10 +508,26 @@ function App() {
           }
         />
         <Route
+          path="/base-conhecimento/tutoriais-apresentacao"
+          element={
+            <ProtectedRoute>
+              <TutoriaisPublicos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/base-conhecimento/notas-atualizacao"
           element={
             <ProtectedRoute>
               <NotasAtualizacao />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/base-conhecimento/notas-atualizacao-apresentacao"
+          element={
+            <ProtectedRoute>
+              <NotasAtualizacaoPublicas />
             </ProtectedRoute>
           }
         />
@@ -600,6 +636,14 @@ function App() {
           element={
             <ProtectedRoute>
               <PlanilhaHoras />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relatorio-tempo"
+          element={
+            <ProtectedRoute>
+              <RelatorioTempo />
             </ProtectedRoute>
           }
         />

@@ -6,6 +6,8 @@ import { useToast } from '../../hooks/useToast';
 import Avatar from '../../components/user/Avatar';
 import './RelatorioTempo.css';
 import RelatorioTempoSpreadsheet from './RelatorioTempoSpreadsheet';
+import RelatorioTempoLive from './RelatorioTempoLive';
+import { hasPermissionSync } from '../../utils/permissions';
 
 const MAX_PLANILHA_RECORDS = 5000;
 const CHUNK_TAREFAS = 50;
@@ -65,15 +67,22 @@ const RelatorioTempo = () => {
 
     const fetchUsuarios = async () => {
         try {
-            const response = await fetch('/api/usuarios?limit=1000');
+            const response = await fetch('/api/colaboradores?limit=1000');
             if (response.ok) {
                 const result = await response.json();
-                if (result.success) {
-                    setUsuarios(result.data);
+                if (result.success && result.data) {
+                    // Mapear para manter compatibilidade com o estado 'usuarios' existente
+                    const mapped = result.data.map(m => ({
+                        id: m.usuario_id,
+                        membro_id: m.id,
+                        nome_usuario: m.nome,
+                        foto_perfil: m.foto_perfil
+                    })).filter(u => u.id); // Apenas quem tem usuário vinculado pode ter registros/cards completos
+                    setUsuarios(mapped);
                 }
             }
         } catch (error) {
-            console.error('Erro ao buscar usuários:', error);
+            console.error('Erro ao buscar responsáveis (membros):', error);
         }
     };
 
@@ -132,19 +141,14 @@ const RelatorioTempo = () => {
 
             let summariesMap = {}; // { userId: { totalRealizado, totalEstimado } }
 
-            // Need Member Mapping First
             let userToMember = {};
             let memberToUser = {};
-            const resColab = await fetch('/api/colaboradores?limit=1000');
-            if (resColab.ok) {
-                const json = await resColab.json();
-                (json.data || []).forEach(m => {
-                    if (m.usuario_id) {
-                        userToMember[m.usuario_id] = m.id;
-                        memberToUser[m.id] = m.usuario_id;
-                    }
-                });
-            }
+            usuarios.forEach(u => {
+                if (u.id && u.membro_id) {
+                    userToMember[u.id] = u.membro_id;
+                    memberToUser[u.membro_id] = u.id;
+                }
+            });
 
             const targetMemberIds = targetUserIds.map(uid => userToMember[uid]).filter(Boolean);
 
@@ -285,18 +289,50 @@ const RelatorioTempo = () => {
 
         setSpreadsheetLoading(true);
         try {
+            const targetUserIds = selectedResponsaveis.length > 0
+                ? selectedResponsaveis.filter(id => usuarios.some(u => u.id === id))
+                : usuarios.map(u => u.id).filter(Boolean);
+
             let url = `/api/registro-tempo?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=${MAX_PLANILHA_RECORDS}`;
-            if (selectedResponsaveis.length > 0) {
-                url += `&usuario_id=${selectedResponsaveis.join(',')}`;
+            if (targetUserIds.length > 0) {
+                url += `&usuario_id=${targetUserIds.join(',')}`;
             }
 
-            const response = await fetch(url, { signal: ac.signal });
+            const [response, resPendentes] = await Promise.all([
+                fetch(url, { signal: ac.signal }),
+                fetch('/api/atribuicoes-pendentes/aprovacao', { signal: ac.signal })
+            ]);
+
             if (!response.ok) {
                 if (response.status !== 499) setSpreadsheetRecords([]);
                 return;
             }
+
             const json = await response.json();
-            let records = json.data || [];
+            let confirmedRecords = json.data || [];
+
+            // Processar Pendentes
+            let pendentesRecords = [];
+            if (resPendentes.ok) {
+                const jsonP = await resPendentes.json();
+                const rawP = jsonP.data || [];
+                const startMs = new Date(dataInicio).getTime();
+                const endMs = new Date(dataFim).getTime() + (24 * 60 * 60 * 1000);
+
+                pendentesRecords = rawP.filter(p => {
+                    const d = new Date(p.data_inicio).getTime();
+                    // Filtro por data e também pelo usuário se tiver seleção
+                    const matchesUser = targetUserIds.includes(p.usuario_id);
+                    return d >= startMs && d < endMs && matchesUser;
+                }).map(p => ({
+                    ...p,
+                    id: `pendente_${p.id}`,
+                    is_pendente: true,
+                    tempo_realizado: Number(p.tempo_realizado) || Number(p.tempo_realizado_ms) || (p.data_inicio && p.data_fim ? (new Date(p.data_fim) - new Date(p.data_inicio)) : 0)
+                }));
+            }
+
+            let records = [...confirmedRecords, ...pendentesRecords];
             const totalCount = json.count != null ? json.count : records.length;
             const truncated = totalCount > MAX_PLANILHA_RECORDS;
 
@@ -656,12 +692,24 @@ const RelatorioTempo = () => {
                             <FilterPeriodo
                                 dataInicio={dataInicio}
                                 dataFim={dataFim}
-                                onInicioChange={(e) => setDataInicio(e.target.value)}
-                                onFimChange={(e) => setDataFim(e.target.value)}
+                                onInicioChange={(e) => {
+                                    if (viewMode === 'live') setViewMode('list');
+                                    setDataInicio(e.target.value);
+                                }}
+                                onFimChange={(e) => {
+                                    if (viewMode === 'live') setViewMode('list');
+                                    setDataFim(e.target.value);
+                                }}
                                 showWeekendToggle={true}
-                                onWeekendToggleChange={setHabilitarFinaisSemana}
+                                onWeekendToggleChange={(v) => {
+                                    if (viewMode === 'live') setViewMode('list');
+                                    setHabilitarFinaisSemana(v);
+                                }}
                                 showHolidayToggle={true}
-                                onHolidayToggleChange={setHabilitarFeriados}
+                                onHolidayToggleChange={(v) => {
+                                    if (viewMode === 'live') setViewMode('list');
+                                    setHabilitarFeriados(v);
+                                }}
                             />
                         </div>
 
@@ -670,7 +718,10 @@ const RelatorioTempo = () => {
                             <div className="toolbar-item toolbar-item-responsavel">
                                 <div
                                     className={`toolbar-icon-wrap-responsavel ${activePopover === 'responsavel' ? 'active' : ''}`}
-                                    onClick={() => setActivePopover(activePopover === 'responsavel' ? null : 'responsavel')}
+                                    onClick={() => {
+                                        if (viewMode === 'live') setViewMode('list');
+                                        setActivePopover(activePopover === 'responsavel' ? null : 'responsavel');
+                                    }}
                                     title="Filtrar Responsáveis"
                                     role="button"
                                     tabIndex={0}
@@ -704,7 +755,10 @@ const RelatorioTempo = () => {
                                         <div className="responsavel-card-dropdown-content custom-scrollbar">
                                             <div
                                                 className={`responsavel-card-option ${selectedResponsaveis.length === 0 ? 'selected' : ''}`}
-                                                onClick={() => setSelectedResponsaveis([])}
+                                                onClick={() => {
+                                                    if (viewMode === 'live') setViewMode('list');
+                                                    setSelectedResponsaveis([]);
+                                                }}
                                             >
                                                 <div className="responsavel-card-option-avatar" style={{ background: '#e2e8f0', color: '#64748b' }}>
                                                     <i className="fas fa-users"></i>
@@ -718,6 +772,7 @@ const RelatorioTempo = () => {
                                                         key={u.id}
                                                         className={`responsavel-card-option ${isSelected ? 'selected' : ''}`}
                                                         onClick={() => {
+                                                            if (viewMode === 'live') setViewMode('list');
                                                             setSelectedResponsaveis(prev =>
                                                                 isSelected ? prev.filter(id => id !== u.id) : [...prev, u.id]
                                                             );
@@ -743,7 +798,10 @@ const RelatorioTempo = () => {
                             <div className="toolbar-item">
                                 <div
                                     className={`toolbar-icon ${activePopover === 'group' ? 'active' : ''}`}
-                                    onClick={() => setActivePopover(activePopover === 'group' ? null : 'group')}
+                                    onClick={() => {
+                                        if (viewMode === 'live') setViewMode('list');
+                                        setActivePopover(activePopover === 'group' ? null : 'group');
+                                    }}
                                     title="Agrupar Por"
                                 >
                                     <i className="fas fa-layer-group"></i>
@@ -759,6 +817,7 @@ const RelatorioTempo = () => {
                                                 key={opt.id}
                                                 className={`grouphub-option ${groupBy === opt.id ? 'selected' : ''}`}
                                                 onClick={() => {
+                                                    if (viewMode === 'live') setViewMode('list');
                                                     setGroupBy(opt.id);
                                                     setActivePopover(null);
                                                 }}
@@ -801,12 +860,35 @@ const RelatorioTempo = () => {
                                     <span>Planilha</span>
                                 </button>
                             </div>
+
+                            {hasPermissionSync(usuario?.permissoes, 'action/relatorio/modo-live') && (
+                                <div className="rt-view-switcher" style={{ marginLeft: 'auto' }}>
+                                    <button
+                                        type="button"
+                                        className={`rt-view-option ${viewMode === 'live' ? 'active' : ''}`}
+                                        onClick={() => {
+                                            setViewMode('live');
+                                            // Ao ativar Live: limpar outros filtros (não usar filtros + live ao mesmo tempo)
+                                            setSelectedResponsaveis([]);
+                                            setGroupBy('cliente');
+                                            setActivePopover(null);
+                                        }}
+                                        title="Monitoramento em Tempo Real"
+                                        style={{ color: viewMode === 'live' ? '#10b981' : undefined }}
+                                    >
+                                        <i className="fas fa-broadcast-tower"></i>
+                                        <span>Live</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Content */}
                     <div className="relatorio-main-area">
-                        {(!dataInicio || !dataFim) ? (
+                        {viewMode === 'live' ? (
+                            <RelatorioTempoLive showToast={showToast} />
+                        ) : (!dataInicio || !dataFim) ? (
                             <div className="relatorio-empty relatorio-empty-periodo">
                                 <i className="fas fa-calendar-alt" style={{ fontSize: '2rem', marginBottom: '1rem', display: 'block', color: '#94a3b8' }}></i>
                                 <p>Selecione o período para exibir o relatório</p>

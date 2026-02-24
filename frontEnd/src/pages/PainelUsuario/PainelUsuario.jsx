@@ -13,11 +13,15 @@ import { DEFAULT_AVATAR } from '../../utils/avatars';
 import './PainelUsuario.css';
 import '../../pages/ConteudosClientes/ConteudosClientes.css';
 import ModalPlugRapido from '../../components/ModalPlugRapido';
-import '../../components/user/TimerAtivo.css'; // Garantir estilos se necessário
+import '../../components/user/TimerAtivo.css';
 import TimerButton from '../../components/common/TimerButton';
+import RelatorioTempoLive from '../RelatorioTempo/RelatorioTempoLive';
+import AgendaColaborador from './AgendaColaborador';
+import { useToast } from '../../hooks/useToast';
 import '../../components/ModalPlugRapido.css';
 import '../../components/common/Tooltip.css';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
+import { hasPermissionSync } from '../../utils/permissions';
 
 const API_BASE_URL = '/api';
 
@@ -223,6 +227,7 @@ const ClienteKnowledgeCards = ({ clientes, informacoesCache, onOpenContas, onOpe
  */
 const PainelUsuario = () => {
   const { usuario } = useAuth();
+  const showToast = useToast();
   const tarefasContainerRef = useRef(null);
   const [carregandoTarefas, setCarregandoTarefas] = useState(false);
   const [tarefasAgrupadas, setTarefasAgrupadas] = useState([]);
@@ -1285,6 +1290,334 @@ const PainelUsuario = () => {
       return 0;
     }
   }, [usuario]);
+  // ======== STATUS DA TAREFA (DINÂMICOS) ========
+  const [statusConfig, setStatusConfig] = useState({
+    'NAO_INICIADA': { label: 'Não Iniciada', cor: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', icon: 'fa-circle' },
+    'EM_ANDAMENTO': { label: 'Em Andamento', cor: '#2563eb', bg: '#eff6ff', border: '#93c5fd', icon: 'fa-spinner' },
+    'CONCLUIDA': { label: 'Concluída', cor: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: 'fa-check-circle' },
+    'PAUSADA': { label: 'Pausada', cor: '#d97706', bg: '#fffbeb', border: '#fcd34d', icon: 'fa-pause-circle' },
+    'AGUARDANDO_APROVACAO': { label: 'Aguardando', cor: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd', icon: 'fa-hourglass-half' }
+  });
+
+  const [statusOptions, setStatusOptions] = useState(['NAO_INICIADA', 'EM_ANDAMENTO', 'CONCLUIDA', 'PAUSADA']);
+
+  // Efeito para carregar as configurações de status do banco de dados
+  useEffect(() => {
+    const carregarConfiguracoesStatus = async () => {
+      try {
+        const response = await fetch(`/api/tempo-estimado-config-status?t=${new Date().getTime()}`, {
+          credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        const result = await response.json();
+        console.log('📡 [STATUS] Configurações recebidas da API:', result);
+        if (result.success && result.data && result.data.length > 0) {
+          const newConfig = {};
+          const newOptions = [];
+          result.data.forEach(s => {
+            newConfig[s.chave] = {
+              label: s.nome,
+              cor: s.cor_texto,
+              bg: s.cor_fundo,
+              border: s.cor_borda,
+              icon: s.icone
+            };
+            // Se estiver ativo, vai para as opções de troca
+            if (s.ativo !== false) {
+              newOptions.push(s.chave);
+            }
+          });
+          console.log('📡 [STATUS] Novas opções de status aplicadas:', newOptions);
+          setStatusConfig(prev => ({ ...prev, ...newConfig }));
+          setStatusOptions(newOptions);
+        } else {
+          console.warn('⚠️ [STATUS] API não retornou configurações válidas:', result);
+        }
+      } catch (error) {
+        console.error('❌ [STATUS] Erro ao carregar configurações:', error);
+      }
+    };
+    carregarConfiguracoesStatus();
+  }, []);
+
+  // Função para atualizar o status de uma tarefa via API
+  const atualizarStatusTarefaAPI = useCallback(async (reg, novoStatus) => {
+    // LOG DE ENVIADO PARA DEBUG
+    console.log(`📡 [STATUS] Enviando status:`, { reg, novoStatus });
+
+    if (!reg.regra_id || !reg.data || !reg.responsavel_id) {
+      console.warn('⚠️ [STATUS] Dados insuficientes para atualizar status (abortando fetch):', reg);
+      return false;
+    }
+
+    const dataFormatada = reg.data.includes('T') ? reg.data.split('T')[0] : reg.data;
+
+    try {
+      const response = await fetch('/api/tempo-estimado/status', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          regra_id: reg.regra_id,
+          data: dataFormatada,
+          responsavel_id: String(reg.responsavel_id),
+          status: novoStatus
+        })
+      });
+
+      const result = await response.json();
+      if (response.ok && result.success) {
+        // Atualizar o registro local em memória
+        reg.status = novoStatus;
+        return true;
+      } else {
+        console.error('❌ [STATUS] Erro ao atualizar:', result.error, result.details, result.body_sent);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ [STATUS] Erro de rede:', error);
+      return false;
+    }
+  }, []);
+
+  // Função para atualizar visualmente o badge de status de um card
+  const atualizarBadgeStatusDOM = useCallback((tempoEstimadoId, novoStatus) => {
+    const config = statusConfig[novoStatus] || statusConfig['NAO_INICIADA'];
+
+    // Mapear status para as classes CSS
+    const classMap = {
+      'NAO_INICIADA': 'status-nao-iniciada',
+      'EM_ANDAMENTO': 'status-em-andamento',
+      'CONCLUIDA': 'status-concluida',
+      'PAUSADA': 'status-pausada',
+      'AGUARDANDO_APROVACAO': 'status-aguardando'
+    };
+    const className = classMap[novoStatus] || 'status-custom';
+
+    // 1. Atualizar o Trigger (Ícone principal)
+    const triggers = document.querySelectorAll(`.status-dropdown-container[data-tempo-estimado-id="${tempoEstimadoId}"] .status-icon-trigger`);
+    triggers.forEach(trigger => {
+      // Limpar classes antigas
+      Object.values(classMap).forEach(cls => trigger.classList.remove(cls));
+      trigger.classList.remove('status-custom');
+      trigger.classList.add(className);
+      trigger.setAttribute('title', `Status atual: ${config.label}`);
+
+      // Aplicar cores dinâmicas se for status customizado
+      if (className === 'status-custom') {
+        trigger.style.color = config.cor;
+        trigger.style.backgroundColor = config.bg;
+        trigger.style.borderColor = config.border;
+        trigger.style.borderStyle = 'solid';
+      } else {
+        trigger.style.color = '';
+        trigger.style.backgroundColor = '';
+        trigger.style.borderColor = '';
+        trigger.style.borderStyle = '';
+      }
+
+      const iconEl = trigger.querySelector('i');
+      if (iconEl) {
+        iconEl.className = `fas ${config.icon}`;
+      }
+    });
+
+    // 2. Atualizar seleção no menu
+    const menuItems = document.querySelectorAll(`.status-dropdown-container[data-tempo-estimado-id="${tempoEstimadoId}"] .status-menu-item`);
+    menuItems.forEach(item => {
+      if (item.getAttribute('data-status') === novoStatus) {
+        item.classList.add('selected');
+      } else {
+        item.classList.remove('selected');
+      }
+    });
+
+    // 3. Atualizar o badge hidden (para compatibilidade com outras partes que o leiam)
+    const badges = document.querySelectorAll(`.painel-usuario-status-badge[data-tempo-estimado-id="${tempoEstimadoId}"]`);
+    badges.forEach(badge => {
+      badge.setAttribute('data-status', novoStatus);
+    });
+
+    // 4. Sincronizar o atributo status-atual do container
+    const containers = document.querySelectorAll(`.status-dropdown-container[data-tempo-estimado-id="${tempoEstimadoId}"]`);
+    containers.forEach(c => c.setAttribute('data-status-atual', novoStatus));
+  }, [statusConfig]);
+
+  // Função para gerar o HTML do badge de status + dropdown
+  const renderizarStatusBadge = useCallback((reg) => {
+    const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+    const isPendente = reg.is_pendente === true;
+    const statusAtual = isPendente ? 'AGUARDANDO_APROVACAO' : (reg.status || 'NAO_INICIADA');
+    const config = statusConfig[statusAtual] || statusConfig['NAO_INICIADA'];
+
+    const classMap = {
+      'NAO_INICIADA': 'status-nao-iniciada',
+      'EM_ANDAMENTO': 'status-em-andamento',
+      'CONCLUIDA': 'status-concluida',
+      'PAUSADA': 'status-pausada',
+      'AGUARDANDO_APROVACAO': 'status-aguardando'
+    };
+    const className = classMap[statusAtual] || 'status-custom';
+
+    // Regra ID pode ser UUID ou Número.
+    let regraIdFinal = reg.regra_id || (reg.id && !isNaN(reg.id) ? reg.id : (reg.tempo_estimado_id_real && !isNaN(reg.tempo_estimado_id_real) ? reg.tempo_estimado_id_real : ''));
+
+    if (isPendente) {
+      // Pendentes: badge fixo circular
+      return `
+        <div class="painel-usuario-status-badge-pendente ${className}" title="Status: ${config.label}">
+          <i class="fas ${config.icon}"></i>
+        </div>`;
+    }
+
+    // Gerar itens do menu
+    const menuItemsHtml = statusOptions.map(opt => {
+      const optCfg = statusConfig[opt];
+      const isSelected = opt === statusAtual;
+      const optClassName = classMap[opt] || 'status-custom';
+      const customStyle = optClassName === 'status-custom' ? `style="color: ${optCfg.cor};"` : '';
+
+      return `
+        <div class="status-menu-item ${optClassName} ${isSelected ? 'selected' : ''}" data-status="${opt}">
+          <i class="fas ${optCfg.icon}" ${customStyle}></i>
+          <span>${optCfg.label}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="status-dropdown-container" 
+           data-tempo-estimado-id="${tempoEstimadoId}" 
+           data-regra-id="${regraIdFinal}" 
+           data-data="${reg.data || ''}" 
+           data-responsavel-id="${reg.responsavel_id || ''}"
+           data-status-atual="${statusAtual}">
+        <div class="status-icon-trigger ${className}" 
+             style="${className === 'status-custom' ? `color: ${config.cor}; background-color: ${config.bg} !important; border-color: ${config.border} !important; border-style: solid !important;` : ''}"
+             title="Status atual: ${config.label}">
+          <i class="fas ${config.icon}"></i>
+        </div>
+        <div class="status-dropdown-menu">
+           <div class="status-menu-header">Alterar Status</div>
+           ${menuItemsHtml}
+        </div>
+      </div>
+      <span class="painel-usuario-status-badge" data-tempo-estimado-id="${tempoEstimadoId}" data-status="${statusAtual}" style="display: none;"></span>`;
+  }, [statusConfig, statusOptions]);
+
+  // Função para adicionar listeners de mudança de status nos dropdowns customizados
+  const adicionarListenersStatus = useCallback((container) => {
+    const dropdowns = container.querySelectorAll('.status-dropdown-container');
+
+    dropdowns.forEach(dropdown => {
+      const trigger = dropdown.querySelector('.status-icon-trigger');
+      const menu = dropdown.querySelector('.status-dropdown-menu');
+      const items = dropdown.querySelectorAll('.status-menu-item');
+
+      const toggleZIndexOverrides = (menuElement, isActive) => {
+        const parentCard = menuElement.closest('.painel-usuario-tarefa-item, .painel-usuario-tarefa-card, .painel-usuario-tarefa-item-lista');
+        if (parentCard) parentCard.style.zIndex = isActive ? '9999' : '';
+        const parentCol = menuElement.closest('.painel-usuario-coluna');
+        if (parentCol) parentCol.style.zIndex = isActive ? '9998' : '';
+      };
+
+      // Abrir/Fechar menu
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+
+        // Fechar outros menus abertos antes de abrir este
+        document.querySelectorAll('.status-dropdown-menu.active').forEach(openMenu => {
+          if (openMenu !== menu) {
+            openMenu.classList.remove('active');
+            toggleZIndexOverrides(openMenu, false);
+          }
+        });
+
+        const isNowActive = menu.classList.toggle('active');
+        toggleZIndexOverrides(menu, isNowActive);
+      });
+
+      // Clique nos itens do menu
+      items.forEach(item => {
+        item.addEventListener('click', async function (e) {
+          e.stopPropagation();
+          const novoStatus = this.getAttribute('data-status');
+          const statusAtual = dropdown.getAttribute('data-status-atual');
+
+          if (novoStatus === statusAtual) {
+            menu.classList.remove('active');
+            toggleZIndexOverrides(menu, false);
+            return;
+          }
+
+          const tempoEstimadoId = dropdown.getAttribute('data-tempo-estimado-id');
+          const regraId = dropdown.getAttribute('data-regra-id');
+          const dataVal = dropdown.getAttribute('data-data');
+          const responsavelId = dropdown.getAttribute('data-responsavel-id');
+
+          // Fechar menu imediatamente
+          menu.classList.remove('active');
+          toggleZIndexOverrides(menu, false);
+
+          if (!regraId || !dataVal || !responsavelId) {
+            console.warn('⚠️ [STATUS] Dados faltando no dropdown:', { regraId, dataVal, responsavelId });
+            return;
+          }
+
+          // Atualizar visual imediatamente
+          atualizarBadgeStatusDOM(tempoEstimadoId, novoStatus);
+
+          // Chamar API
+          const sucesso = await atualizarStatusTarefaAPI(
+            { regra_id: regraId, data: dataVal, responsavel_id: responsavelId, status: novoStatus },
+            novoStatus
+          );
+
+          if (!sucesso) {
+            // Reverter em caso de erro
+            atualizarBadgeStatusDOM(tempoEstimadoId, statusAtual);
+          } else {
+            // Atualizar o registro no ref para que ao trocar o modo de visualização o novo status seja exibido
+            if (tarefasRegistrosRef && tarefasRegistrosRef.current) {
+              const regParaAtualizar = tarefasRegistrosRef.current.find(r =>
+                String(r.id) === String(tempoEstimadoId) || String(r.tempo_estimado_id) === String(tempoEstimadoId)
+              );
+              if (regParaAtualizar) {
+                regParaAtualizar.status = novoStatus;
+              }
+            }
+          }
+        });
+      });
+
+      // Prevenir propagação de cliques no menu para o card
+      menu.addEventListener('click', (e) => e.stopPropagation());
+    });
+
+    // Listener global para fechar menus ao clicar fora (apenas uma vez)
+    if (!document._statusDropdownClickRegistered) {
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.status-dropdown-container')) {
+          document.querySelectorAll('.status-dropdown-menu.active').forEach(m => {
+            m.classList.remove('active');
+            const pCard = m.closest('.painel-usuario-tarefa-item, .painel-usuario-tarefa-card, .painel-usuario-tarefa-item-lista');
+            if (pCard) pCard.style.zIndex = '';
+            const pCol = m.closest('.painel-usuario-coluna');
+            if (pCol) pCol.style.zIndex = '';
+          });
+        }
+      });
+      document._statusDropdownClickRegistered = true;
+    }
+  }, [atualizarStatusTarefaAPI, atualizarBadgeStatusDOM]);
+  // ======== FIM STATUS DA TAREFA ========
 
   // Função para iniciar registro de tempo
   const iniciarRegistroTempo = useCallback(async (reg) => {
@@ -1466,6 +1799,17 @@ const PainelUsuario = () => {
       // Disparar evento para atualizar timer no header
       window.dispatchEvent(new CustomEvent('registro-tempo-iniciado'));
 
+      // [INTEGRAÇÃO STATUS] Auto-atualizar status para EM_ANDAMENTO ao iniciar timer
+      // Só atualizar se o status atual não for CONCLUIDA (respeitando a escolha do usuário)
+      if (reg.status !== 'CONCLUIDA' && reg.regra_id && reg.data && reg.responsavel_id) {
+        const tempoEstimadoId = reg.id || reg.tempo_estimado_id;
+        atualizarStatusTarefaAPI(reg, 'EM_ANDAMENTO').then(sucesso => {
+          if (sucesso && tempoEstimadoId) {
+            atualizarBadgeStatusDOM(String(tempoEstimadoId).trim(), 'EM_ANDAMENTO');
+          }
+        });
+      }
+
       // [NOVO] Sincronizar todos os registros ativos para garantir que apenas um botão mostre "Stop"
       verificarRegistrosAtivos();
     } catch (error) {
@@ -1476,7 +1820,7 @@ const PainelUsuario = () => {
         atualizarBotaoTempoEstimado(tempoEstimadoId, false);
       }
     }
-  }, [usuario, criarChaveTempo, buscarTempoRealizado, atualizarBotaoTempoEstimado]);
+  }, [usuario, criarChaveTempo, buscarTempoRealizado, atualizarBotaoTempoEstimado, atualizarStatusTarefaAPI, atualizarBadgeStatusDOM]);
 
   // Função para parar registro de tempo
   const pararRegistroTempo = useCallback(async (reg) => {
@@ -3057,7 +3401,7 @@ const PainelUsuario = () => {
         }
       }, 150); // Aguardar um pouco mais para garantir que o DOM foi atualizado
     }
-  }, [clientesExpandidosLista]);
+  }, [clientesExpandidosLista, statusOptions]);
 
   const renderTarefasEmLista = (registros, wrapper, dataSelecionada = null) => {
     const lista = document.createElement('div');
@@ -3261,8 +3605,11 @@ const PainelUsuario = () => {
                 <div class="painel-usuario-tarefa-item-lista-main">
                   <div class="painel-usuario-tarefa-item-lista-left">
                     <div class="painel-usuario-tarefa-nome">
-                      ${getNomeTarefa(reg.tarefa_id, reg)}
-                      ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                      ${renderizarStatusBadge(reg)}
+                      <span class="painel-usuario-tarefa-text">
+                        ${getNomeTarefa(reg.tarefa_id, reg)}
+                        ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                      </span>
                       ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
                     </div>
                     ${renderizarBarraProgressoTarefa(reg, 'lista')}
@@ -3339,6 +3686,9 @@ const PainelUsuario = () => {
             </div>
               </div>
             `;
+
+            // Adicionar listeners de status nos selects (lista)
+            adicionarListenersStatus(item);
 
             // Verificar se já temos subtarefas no cache e atualizar contador imediatamente
             const chaveSubtarefas = criarChaveSubtarefas(reg);
@@ -3730,7 +4080,8 @@ const PainelUsuario = () => {
             // Garantir que cliques no item não bloqueiem o header
             item.addEventListener('click', (e) => {
               // Se não foi o botão que foi clicado, não fazer nada (deixar propagar)
-              if (e.target !== btn && !btn.contains(e.target) && !newExpandArrow.contains(e.target)) {
+              const clickedInsideArrow = typeof newExpandArrow !== 'undefined' && newExpandArrow && newExpandArrow.contains(e.target);
+              if (e.target !== btn && (!btn || !btn.contains(e.target)) && !clickedInsideArrow) {
                 // Não fazer nada - deixar o evento propagar normalmente
                 return;
               }
@@ -3739,6 +4090,8 @@ const PainelUsuario = () => {
             content.appendChild(item);
           });
 
+          // Ocultado/Removido: a chamada adicionarListenersStatus(content) foi removida 
+          // pois adicionarListenersStatus(item) já é chamado para cada item individualmente na linha 3665.
           grupoDiv.appendChild(content);
         }
 
@@ -3943,8 +4296,11 @@ const PainelUsuario = () => {
           item.innerHTML = `
             <div class="painel-usuario-tarefa-top">
               <div class="painel-usuario-tarefa-nome">
-                ${getNomeTarefa(reg.tarefa_id, reg)}
-                ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                ${renderizarStatusBadge(reg)}
+                <span class="painel-usuario-tarefa-text">
+                  ${getNomeTarefa(reg.tarefa_id, reg)}
+                  ${reg.produto_id ? `<span class="painel-usuario-tarefa-produto"> - ${getNomeProduto(reg.produto_id)}</span>` : ''}
+                </span>
                 ${reg.is_plug_rapido ? `<span style="background-color: #ecfdf5; color: #059669; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid #a7f3d0; margin-left: 8px; display: inline-block; vertical-align: middle;" title="Tarefa criada via Plug Rápido">Plug Rápido</span>` : ''}
               </div>
               <div style="display: flex; gap: 6px; align-items: center;">
@@ -4356,6 +4712,9 @@ const PainelUsuario = () => {
             });
           }
 
+          // Adicionar listeners de status nos selects (quadro)
+          adicionarListenersStatus(item);
+
           colunaBody.appendChild(item);
         });
 
@@ -4657,6 +5016,43 @@ const PainelUsuario = () => {
 
     return null;
   }, [carregarColaboradores, usuario]);
+
+  // Mesmos IDs usados por carregarMinhasTarefas (inclui descobrirResponsavelId) para a Agenda usar na busca
+  const getIdsParaAgenda = useCallback(async () => {
+    const usuarioStorage = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('usuario') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const coletarIds = (obj) => {
+      const ids = [];
+      const chavesId = ['id', 'membro_id', 'colaborador_id', 'usuario_id', 'membroId', 'colaboradorId'];
+      Object.entries(obj || {}).forEach(([k, v]) => {
+        if (v == null) return;
+        const keyNorm = k.toLowerCase().replace(/_/g, '');
+        const isChaveId = chavesId.some((c) => keyNorm === c.toLowerCase().replace(/_/g, ''));
+        if (!isChaveId) return;
+        if (typeof v === 'number' && !Number.isNaN(v)) ids.push(String(v));
+        else if (typeof v === 'string' && v.trim()) {
+          const s = v.trim();
+          if (/^\d+$/.test(s)) ids.push(s);
+          else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) ids.push(s);
+        }
+      });
+      return ids;
+    };
+    const idsPossiveisBase = [...coletarIds(usuario), ...coletarIds(usuarioStorage)];
+    const responsavelIdDescoberto = await descobrirResponsavelId();
+    const idsPossiveis = [...idsPossiveisBase, responsavelIdDescoberto].filter(Boolean);
+    const ehIdValido = (v) => {
+      if (typeof v === 'number' && !Number.isNaN(v)) return true;
+      const s = String(v).trim();
+      return /^\d+$/.test(s) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    };
+    return Array.from(new Set(idsPossiveis)).filter(ehIdValido);
+  }, [usuario, descobrirResponsavelId]);
 
   const agruparRegistros = (registros) => {
     const grupos = new Map();
@@ -5089,7 +5485,7 @@ const PainelUsuario = () => {
         renderTarefasNoCard(tarefasRegistrosRef.current, tarefasContainerRef.current, dataTarefasSelecionada);
       }
     }
-  }, [clientesExpandidosLista]);
+  }, [clientesExpandidosLista, statusOptions]);
 
   // Re-renderizar tarefas quando clientes selecionados mudarem (apenas filtro, sem recarregar dados)
   useEffect(() => {
@@ -5192,7 +5588,7 @@ const PainelUsuario = () => {
 
     return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteSelecionadoId]);
+  }, [clienteSelecionadoId, statusOptions]);
 
 
   return (
@@ -5308,8 +5704,8 @@ const PainelUsuario = () => {
               </div>
             </div>
 
-            {/* TABS DE NAVEGAÇÃO - Apenas exibe se houver pendentes */}
-            {pendentes.length > 0 && (
+            {/* TABS DE NAVEGAÇÃO - Apenas exibe se houver mais de uma opção */}
+            {(true) && (
               <div className="painel-usuario-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '15px', padding: '0 5px' }}>
                 <button
                   onClick={() => setActiveTab('minhas')}
@@ -5327,13 +5723,13 @@ const PainelUsuario = () => {
                   Atribuídas
                 </button>
                 <button
-                  onClick={() => setActiveTab('pendentes')}
+                  onClick={() => setActiveTab('agenda')}
                   style={{
                     padding: '8px 16px',
                     borderRadius: '20px',
                     border: 'none',
-                    backgroundColor: activeTab === 'pendentes' ? '#f59e0b' : '#e5e7eb',
-                    color: activeTab === 'pendentes' ? '#fff' : '#4b5563',
+                    backgroundColor: activeTab === 'agenda' ? '#0e3b6f' : '#e5e7eb',
+                    color: activeTab === 'agenda' ? '#fff' : '#4b5563',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
@@ -5342,13 +5738,65 @@ const PainelUsuario = () => {
                     gap: '6px'
                   }}
                 >
-                  Pendentes {pendentes.length > 0 && <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '1px 6px', borderRadius: '10px' }}>{pendentes.length}</span>}
+                  <i className="far fa-calendar-alt"></i> Agenda
                 </button>
+                {pendentes.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab('pendentes')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'pendentes' ? '#f59e0b' : '#e5e7eb',
+                      color: activeTab === 'pendentes' ? '#fff' : '#4b5563',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    Pendentes {pendentes.length > 0 && <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '1px 6px', borderRadius: '10px' }}>{pendentes.length}</span>}
+                  </button>
+                )}
+                {hasPermissionSync(usuario?.permissoes, 'action/painel/modo-live') && (
+                  <button
+                    onClick={() => setActiveTab('live')}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      backgroundColor: activeTab === 'live' ? '#10b981' : '#e5e7eb',
+                      color: activeTab === 'live' ? '#fff' : '#4b5563',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <i className="fas fa-broadcast-tower"></i> Live
+                  </button>
+                )}
               </div>
             )}
 
-            {/* Container das tarefas (Lista Principal) - Exibe se tab 'minhas' está ativa OU se não há pendentes (fallback) */}
-            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container" style={{ display: (activeTab === 'minhas' || pendentes.length === 0) ? 'block' : 'none' }}></div>
+            {/* Container das tarefas (Lista Principal) */}
+            <div ref={tarefasContainerRef} className="painel-usuario-tarefas-container" style={{ display: activeTab === 'minhas' ? 'block' : 'none' }}></div>
+
+            {/* Container Agenda */}
+            {activeTab === 'agenda' && (
+              <AgendaColaborador usuario={usuario} getIdsParaAgenda={getIdsParaAgenda} />
+            )}
+
+            {/* Container Live */}
+            {activeTab === 'live' && (
+              <div className="painel-usuario-live-lista" style={{ padding: '0 5px' }}>
+                <RelatorioTempoLive showToast={showToast} />
+              </div>
+            )}
 
             {/* Container das Pendentes */}
             {activeTab === 'pendentes' && pendentes.length > 0 && (

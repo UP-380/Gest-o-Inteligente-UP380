@@ -1,0 +1,211 @@
+/* Estrutura de Listagem (Padrão do Sistema) */
+.status-listing-section {
+    padding: 10px;
+}
+
+/* Header da Página (Reusado de CadastroBanco) */
+.cadastro-listing-page-header {
+    margin-bottom: 24px;
+}
+
+.cadastro-listing-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.cadastro-listing-header-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.cadastro-listing-header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: #e6f0ff;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.cadastro-listing-page-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 4px 0;
+}
+
+.cadastro-listing-page-subtitle {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+}
+
+/* Célula de Nome de Status com Ícone */
+.status-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.status-info {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Seletor de Ícones no Modal */
+.icon-selector-grid-std {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+.icon-option-std {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 6px;
+    color: #64748b;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.icon-option-std:hover {
+    background: #e2e8ff;
+    color: #0e3b6f;
+}
+
+.icon-option-std.selected {
+    background: #0e3b6f;
+    color: white;
+    border-color: #0e3b6f;
+}
+
+/* Badge de Status (Ativo/Inativo) */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.active {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.status-badge.inactive {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* Modal Fixes (caso não estejam no global) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9fafb;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #1f2937;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background: #f9fafb;
+}
+
+.warning-text {
+    color: #dc2626;
+    font-size: 13px;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.form-control-color {
+    height: 40px;
+    width: 100%;
+    padding: 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+}

@@ -18,6 +18,15 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  useEffect(() => {
+    // Se a página de login for montada e o usuário já estiver logado
+    // (ou tiver sessão no local storage), joga ele direto pro painel.
+    const usuarioCached = localStorage.getItem('usuario');
+    if (usuarioCached) {
+      navigate('/painel-colaborador', { replace: true });
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -34,11 +43,11 @@ const Login = () => {
 
     try {
       const result = await login(email.trim(), senha);
-      
+
       if (result.success) {
         showToast('success', 'Login realizado com sucesso! Redirecionando...');
         setTimeout(() => {
-          navigate('/painel-colaborador');
+          navigate('/painel-colaborador', { replace: true });
         }, 1500);
       } else {
         showToast('error', result.error || 'Email ou senha incorretos.');
@@ -60,14 +69,14 @@ const Login = () => {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type === 'error' ? 'toast--error' : 'toast--success'}`;
-    
+
     const icon = document.createElement('i');
     icon.className = `toast-icon fas ${type === 'error' ? 'fa-times-circle' : 'fa-check-circle'}`;
-    
+
     const msg = document.createElement('div');
     msg.className = 'toast-text';
     msg.textContent = message;
-    
+
     toast.appendChild(icon);
     toast.appendChild(msg);
     container.appendChild(toast);
@@ -109,14 +118,14 @@ const Login = () => {
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
     }
-    
+
     const newCount = logoClickCount + 1;
     setLogoClickCount(newCount);
-    
+
     if (newCount >= 4) {
       setShowEasterEgg(true);
       setLogoClickCount(0); // Resetar contador
-      
+
       // Esconder o tooltip após 5 segundos
       if (easterEggTimeoutRef.current) {
         clearTimeout(easterEggTimeoutRef.current);
@@ -152,13 +161,13 @@ const Login = () => {
       <div className="login-container">
         <div className={`login-box ${shake ? 'shake' : ''}`}>
           <div className="login-header" style={{ position: 'relative' }}>
-            <div 
+            <div
               ref={logoRef}
               style={{ position: 'relative', display: 'inline-block' }}
               className={showEasterEgg ? 'has-tooltip' : ''}
             >
-              <img 
-                src="/assets/images/LOGO SISTEMA LOGIN.png" 
+              <img
+                src="/assets/images/LOGO SISTEMA LOGIN.png"
                 alt="UP Gestão Inteligente"
                 onClick={handleLogoClick}
                 style={{ cursor: 'pointer' }}
@@ -176,7 +185,7 @@ const Login = () => {
             </div>
             <p>Acesse sua área de Gestão Inteligente</p>
           </div>
-          
+
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="email">Email:</label>
@@ -192,7 +201,7 @@ const Login = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="senha">Senha:</label>
               <div className="password-container">
@@ -213,7 +222,7 @@ const Login = () => {
                 ></i>
               </div>
             </div>
-            
+
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </button>

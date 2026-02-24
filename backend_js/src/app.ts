@@ -3,6 +3,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { authMiddleware, requireAuth } from './middleware/auth';
 import { erroHandler } from './middleware/erro';
 import { gestaoCapacidadeRoute, cardsHandler } from './modules/gestao-capacidade/index.js';
+import { liveMonitoringRoute, activeSessionsHandler } from './modules/live-monitoring/index.js';
 import { healthRoute, healthHandler } from './modules/health/index.js';
 import { generateTokenRoute, generateTokenHandler } from './modules/auth/index.js';
 import { openAPIConfig } from './openapi/config.js';
@@ -40,6 +41,14 @@ app.get('/gestao-capacidade', (c) =>
 );
 
 // Rotas protegidas (requerem autenticação JWT)
+app.openapi(liveMonitoringRoute, async (c) => {
+  const userId = c.get('userId');
+  if (!userId) {
+    return c.json({ success: false, error: 'Não autorizado' }, 401 as const);
+  }
+  return activeSessionsHandler(c);
+});
+
 app.openapi(gestaoCapacidadeRoute, async (c) => {
   // Verificar autenticação
   const userId = c.get('userId');
@@ -69,7 +78,7 @@ app.get('/assets/*', async (c) => {
       `src/public/assets/${path}`,
       `assets/${path}`,
     ];
-    
+
     for (const filePath of paths) {
       const file = Bun.file(filePath);
       if (await file.exists()) {
@@ -84,7 +93,7 @@ app.get('/assets/*', async (c) => {
           'webp': 'image/webp',
         };
         const contentType = mimeTypes[ext || ''] || 'application/octet-stream';
-        
+
         return new Response(file, {
           headers: {
             'Content-Type': contentType,
@@ -92,7 +101,7 @@ app.get('/assets/*', async (c) => {
         });
       }
     }
-    
+
     return c.json({ error: 'Arquivo não encontrado' }, 404);
   } catch (error) {
     console.error('Erro ao servir asset:', error);

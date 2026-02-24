@@ -44,6 +44,7 @@ const Sidebar = () => {
       isActive('/cadastro/tipo-tarefas') || location.pathname.startsWith('/cadastro/tipo-tarefa') ||
       isActive('/cadastro/tarefas') || location.pathname.startsWith('/cadastro/tarefa') ||
       isActive('/cadastro/subtarefas') || location.pathname.startsWith('/cadastro/subtarefa') ||
+      isActive('/cadastro/status-tarefas') ||
       isActive('/cadastro/bancos') ||
       isActive('/cadastro/banco') ||
       isActive('/cadastro/adquirentes') ||
@@ -67,7 +68,7 @@ const Sidebar = () => {
 
   // Expandir automaticamente o menu Relatórios se estiver em uma das páginas relacionadas
   useEffect(() => {
-    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas' || location.pathname === '/relatorios/vigencias';
+    const isRelatoriosActive = location.pathname === '/relatorios-clientes' || location.pathname === '/relatorios-colaboradores' || location.pathname === '/planilha-horas' || location.pathname === '/relatorios/vigencias' || location.pathname === '/relatorio-tempo';
     if (isRelatoriosActive) {
       setRelatoriosExpanded(true);
     }
@@ -82,6 +83,7 @@ const Sidebar = () => {
       (location.pathname === '/cadastro/tipo-tarefas' || location.pathname.startsWith('/cadastro/tipo-tarefa')) ||
       (location.pathname === '/cadastro/tarefas' || location.pathname.startsWith('/cadastro/tarefa')) ||
       (location.pathname === '/cadastro/subtarefas' || location.pathname.startsWith('/cadastro/subtarefa')) ||
+      location.pathname === '/cadastro/status-tarefas' ||
       location.pathname === '/cadastro/bancos' ||
       location.pathname === '/cadastro/banco' ||
       (location.pathname === '/cadastro/adquirentes' || location.pathname.startsWith('/cadastro/adquirente')) ||
@@ -92,7 +94,8 @@ const Sidebar = () => {
       // Se for uma página de tarefas, expandir também o submenu Tarefas
       const isTarefasPage = (location.pathname === '/cadastro/tipo-tarefas' || location.pathname.startsWith('/cadastro/tipo-tarefa')) ||
         (location.pathname === '/cadastro/tarefas' || location.pathname.startsWith('/cadastro/tarefa')) ||
-        (location.pathname === '/cadastro/subtarefas' || location.pathname.startsWith('/cadastro/subtarefa'));
+        (location.pathname === '/cadastro/subtarefas' || location.pathname.startsWith('/cadastro/subtarefa')) ||
+        location.pathname === '/cadastro/status-tarefas';
       if (isTarefasPage) {
         setCadastrosTarefasExpanded(true);
       }
@@ -272,6 +275,13 @@ const Sidebar = () => {
         icon: 'fa-calendar-check',
         label: 'Relatório de Vigências',
         title: 'Relatório de Vigências'
+      },
+      {
+        path: '/relatorio-tempo',
+        icon: 'fa-clock',
+        label: 'Relatório de Tempo',
+        title: 'Relatório de Tempo',
+        beta: true
       }
     ];
     // Filtrar itens: se tiver path, verificar permissão; se tiver subItems, filtrar subItems e manter se houver algum acessível
@@ -348,6 +358,12 @@ const Sidebar = () => {
             icon: 'fa-list-ul',
             label: 'Subtarefas',
             title: 'Cadastro de Subtarefas'
+          },
+          {
+            path: '/cadastro/status-tarefas',
+            icon: 'fa-cog',
+            label: 'Status de Tarefas',
+            title: 'Configuração de Status de Tarefas'
           }
         ]
       },
@@ -372,8 +388,9 @@ const Sidebar = () => {
       {
         path: '/cadastro/equipamentos',
         icon: 'fa-laptop',
-        label: 'Cadastro de Equipamentos',
-        title: 'Cadastro de Equipamentos'
+        label: 'Equipamentos',
+        title: 'Equipamentos',
+        beta: true
       }
     ];
     // Filtrar itens: se tiver path, verificar permissão; se tiver subItems, filtrar subItems e manter se houver algum acessível
@@ -442,22 +459,25 @@ const Sidebar = () => {
         title: 'Conteúdos Clientes'
       },
       {
-        path: '/base-conhecimento/tutoriais',
-        icon: 'fa-paperclip',
+        path: '/base-conhecimento/tutoriais-apresentacao',
+        icon: 'fa-book-open',
         label: 'Tutoriais',
-        title: 'Tutoriais'
+        title: 'Tutoriais',
+        beta: true
       },
       {
-        path: '/base-conhecimento/notas-atualizacao',
+        path: '/base-conhecimento/notas-atualizacao-apresentacao',
         icon: 'fa-clipboard-check',
         label: 'Notas de Atualização',
-        title: 'Notas de Atualização'
+        title: 'Notas de Atualização',
+        beta: true
       },
       {
         path: '/gestao-equipamentos',
         icon: 'fa-tasks',
         label: 'Gestão de Equipamentos',
-        title: 'Gestão de Equipamentos'
+        title: 'Gestão de Equipamentos',
+        beta: true
       }
     ];
     return allItems.filter(item => {
@@ -660,6 +680,7 @@ const Sidebar = () => {
                       >
                         <i className={`fas ${subItem.icon}`}></i>
                         <span className="sidebar-text">{subItem.label}</span>
+                        {subItem.beta && <span className="sidebar-beta-badge">BETA</span>}
                       </Link>
                     );
                   })}
@@ -731,6 +752,7 @@ const Sidebar = () => {
                       >
                         <i className={`fas ${subItem.icon}`}></i>
                         <span className="sidebar-text">{subItem.label}</span>
+                        {subItem.beta && <span className="sidebar-beta-badge">BETA</span>}
                       </Link>
                     );
                   })}
@@ -803,6 +825,7 @@ const Sidebar = () => {
                       >
                         <i className={`fas ${subItem.icon}`}></i>
                         <span className="sidebar-text">{subItem.label}</span>
+                        {subItem.beta && <span className="sidebar-beta-badge">BETA</span>}
                       </Link>
                     );
                   })}

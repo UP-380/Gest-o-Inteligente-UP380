@@ -12,27 +12,27 @@ const { getProdutosPorIds, getProdutosPorClickupIds } = apiClientes;
 async function getTarefasIncompletas(req, res) {
   try {
     console.log('🔍 [TAREFAS INCOMPLETAS] Buscando tarefas com campos null...');
-    
+
     // Buscar tarefas que têm pelo menos um campo null
     // Usar múltiplas queries e combinar os resultados
     const [result1, result2, result3] = await Promise.all([
       // Tarefas sem dt_inicio
       supabase
-        
+
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('dt_inicio', null),
-      
+
       // Tarefas sem dt_vencimento
       supabase
-        
+
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('dt_vencimento', null),
-      
+
       // Tarefas sem cliente_id
       supabase
-        
+
         .from('tarefa')
         .select('id,tarefa_nome,dt_inicio,dt_vencimento,cliente_id,url,created_at')
         .is('cliente_id', null)
@@ -40,7 +40,7 @@ async function getTarefasIncompletas(req, res) {
 
     // Combinar resultados e remover duplicatas
     const tarefasMap = new Map();
-    
+
     [result1, result2, result3].forEach((result, index) => {
       if (result.error) {
         console.error(`❌ Erro na query ${index + 1}:`, result.error);
@@ -58,7 +58,7 @@ async function getTarefasIncompletas(req, res) {
 
     // Buscar todos os clientes para mapear IDs para nomes
     const { data: todosClientes, error: clientesError } = await supabase
-      
+
       .from('cp_cliente')
       .select('id, nome');
 
@@ -76,7 +76,7 @@ async function getTarefasIncompletas(req, res) {
         clientesMap[idStr.toUpperCase()] = cliente.nome;
       });
     }
-    
+
     console.log(`📋 [TAREFAS INCOMPLETAS] Mapeados ${Object.keys(clientesMap).length} clientes (total de clientes: ${todosClientes?.length || 0})`);
 
     // Primeiro, coletar todos os cliente_ids únicos de todas as tarefas
@@ -90,39 +90,39 @@ async function getTarefasIncompletas(req, res) {
         }
       }
     });
-    
+
     console.log(`📋 [TAREFAS INCOMPLETAS] Total de cliente_ids únicos encontrados: ${todosClienteIds.size}`);
-    
+
     // Buscar todos os clientes que não estão no mapa inicial
     const clienteIdsParaBuscar = Array.from(todosClienteIds).filter(id => {
-      return !clientesMap[id] && 
-             !clientesMap[id.toLowerCase()] && 
-             !clientesMap[id.toUpperCase()] &&
-             !todosClientes?.find(c => {
-               const cId = String(c.id).trim();
-               return cId === id || cId.toLowerCase() === id.toLowerCase();
-             });
+      return !clientesMap[id] &&
+        !clientesMap[id.toLowerCase()] &&
+        !clientesMap[id.toUpperCase()] &&
+        !todosClientes?.find(c => {
+          const cId = String(c.id).trim();
+          return cId === id || cId.toLowerCase() === id.toLowerCase();
+        });
     });
-    
+
     if (clienteIdsParaBuscar.length > 0) {
       console.log(`🔍 [TAREFAS INCOMPLETAS] Buscando ${clienteIdsParaBuscar.length} clientes que não estão no mapa inicial`);
-      
+
       // Buscar em lotes para evitar queries muito grandes
       const batchSize = 50;
       for (let i = 0; i < clienteIdsParaBuscar.length; i += batchSize) {
         const batch = clienteIdsParaBuscar.slice(i, i + batchSize);
-        
+
         try {
           const { data: clientesBatch, error: batchError } = await supabase
-            
+
             .from('cp_cliente')
             .select('id, nome')
             .in('id', batch);
-          
+
           if (batchError) {
-            console.error(`❌ [TAREFAS INCOMPLETAS] Erro no batch ${Math.floor(i/batchSize) + 1}:`, batchError);
+            console.error(`❌ [TAREFAS INCOMPLETAS] Erro no batch ${Math.floor(i / batchSize) + 1}:`, batchError);
           }
-          
+
           if (!batchError && clientesBatch) {
             clientesBatch.forEach(cliente => {
               const idStr = String(cliente.id).trim();
@@ -130,7 +130,7 @@ async function getTarefasIncompletas(req, res) {
               clientesMap[idStr.toLowerCase()] = cliente.nome;
               clientesMap[idStr.toUpperCase()] = cliente.nome;
             });
-            console.log(`✅ [TAREFAS INCOMPLETAS] Encontrados ${clientesBatch.length} clientes no batch ${Math.floor(i/batchSize) + 1}`);
+            console.log(`✅ [TAREFAS INCOMPLETAS] Encontrados ${clientesBatch.length} clientes no batch ${Math.floor(i / batchSize) + 1}`);
           }
         } catch (err) {
           console.error(`❌ [TAREFAS INCOMPLETAS] Erro ao buscar batch de clientes:`, err);
@@ -141,34 +141,34 @@ async function getTarefasIncompletas(req, res) {
     const items = data.map((t) => {
       // Processar cliente_id - pode ser um único ID ou múltiplos separados por ", "
       let clientes = [];
-      
+
       // Verificar se cliente_id existe e não é vazio/null
       const clienteIdRaw = t.cliente_id;
       if (clienteIdRaw !== null && clienteIdRaw !== undefined) {
         const clienteIdStr = String(clienteIdRaw).trim();
-        
+
         // Verificar se não é string vazia ou "null"
         if (clienteIdStr !== '' && clienteIdStr.toLowerCase() !== 'null') {
           const clienteIds = clienteIdStr.split(',').map(id => id.trim()).filter(Boolean);
-          
+
           if (clienteIds.length > 0) {
             clientes = clienteIds.map(clienteId => {
               const clienteIdTrim = clienteId.trim();
-              
+
               // Tentar encontrar o cliente no mapa (com diferentes formatos)
-              let nome = clientesMap[clienteIdTrim] || 
-                         clientesMap[clienteIdTrim.toLowerCase()] || 
-                         clientesMap[clienteIdTrim.toUpperCase()] ||
-                         null;
-              
+              let nome = clientesMap[clienteIdTrim] ||
+                clientesMap[clienteIdTrim.toLowerCase()] ||
+                clientesMap[clienteIdTrim.toUpperCase()] ||
+                null;
+
               // Se não encontrou, buscar diretamente no array de clientes
               if (!nome && todosClientes) {
                 const clienteEncontrado = todosClientes.find(c => {
                   const cId = String(c.id).trim();
-                  return cId === clienteIdTrim || 
-                         cId.toLowerCase() === clienteIdTrim.toLowerCase() ||
-                         cId === clienteIdTrim.toLowerCase() ||
-                         cId === clienteIdTrim.toUpperCase();
+                  return cId === clienteIdTrim ||
+                    cId.toLowerCase() === clienteIdTrim.toLowerCase() ||
+                    cId === clienteIdTrim.toLowerCase() ||
+                    cId === clienteIdTrim.toUpperCase();
                 });
                 if (clienteEncontrado) {
                   nome = clienteEncontrado.nome;
@@ -178,18 +178,18 @@ async function getTarefasIncompletas(req, res) {
                   clientesMap[clienteIdTrim.toUpperCase()] = nome;
                 }
               }
-              
+
               if (!nome) {
                 console.log(`⚠️ [TAREFAS INCOMPLETAS] Cliente não encontrado para ID: "${clienteIdTrim}" (tarefa: ${t.id})`);
                 nome = `Cliente #${clienteIdTrim}`;
               }
-              
+
               return { id: clienteIdTrim, nome };
             });
           }
         }
       }
-      
+
       // Log para debug se não encontrou clientes mas tem cliente_id
       if (clientes.length === 0 && clienteIdRaw) {
         console.log(`⚠️ [TAREFAS INCOMPLETAS] Tarefa ${t.id} tem cliente_id="${clienteIdRaw}" mas não foi mapeado`);
@@ -236,7 +236,7 @@ async function getTarefasIncompletas(req, res) {
 async function getTarefasPorIds(req, res) {
   try {
     const { ids } = req.query;
-    
+
     if (!ids) {
       return res.status(400).json({
         success: false,
@@ -260,12 +260,24 @@ async function getTarefasPorIds(req, res) {
       });
     }
 
-    // Buscar da tabela cp_tarefa, coluna 'nome'
-    const { data: tarefas, error: tarefasError } = await supabase
-      
-      .from('cp_tarefa')
-      .select('id, nome')
-      .in('id', tarefaIds);
+    // Separar IDs numéricos de IDs alfanuméricos (ClickUp)
+    // Isso evita erro de cast no Postgres ao tentar buscar "86adkz7uz" em uma coluna integer
+    const numericIds = tarefaIds.filter(id => /^\d+$/.test(id));
+
+    let query = supabase.from('cp_tarefa').select('id, nome, clickup_id');
+
+    // Construir condições OR para buscar em id (se numérico) ou em clickup_id
+    const orConditions = [];
+
+    // Sempre busca por clickup_id para todos os IDs fornecidos (coluna de texto)
+    orConditions.push(`clickup_id.in.(${tarefaIds.join(',')})`);
+
+    // Busca por id apenas para os que são numéricos
+    if (numericIds.length > 0) {
+      orConditions.push(`id.in.(${numericIds.join(',')})`);
+    }
+
+    const { data: tarefas, error: tarefasError } = await query.or(orConditions.join(','));
 
     if (tarefasError) {
       console.error('Erro ao buscar tarefas por IDs:', tarefasError);
@@ -276,10 +288,20 @@ async function getTarefasPorIds(req, res) {
       });
     }
 
-    // Criar mapa de ID -> nome
+    // Criar mapa de ID -> nome e ClickUp ID -> nome
     const tarefasMap = {};
     (tarefas || []).forEach(tarefa => {
-      tarefasMap[tarefa.id] = tarefa.nome || null;
+      // Mapear pelo ID interno (integer)
+      if (tarefa.id) {
+        tarefasMap[tarefa.id] = tarefa.nome || null;
+      }
+      // Mapear pelo ClickUp ID (string)
+      if (tarefa.clickup_id) {
+        const cId = String(tarefa.clickup_id).trim();
+        if (cId) {
+          tarefasMap[cId] = tarefa.nome || null;
+        }
+      }
     });
 
     res.json({
@@ -303,7 +325,7 @@ async function getTarefasPorIds(req, res) {
 async function getProdutosPorIdsEndpoint(req, res) {
   try {
     const { ids } = req.query;
-    
+
     if (!ids) {
       return res.status(400).json({
         success: false,

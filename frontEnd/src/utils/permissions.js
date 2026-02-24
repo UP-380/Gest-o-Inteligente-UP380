@@ -185,6 +185,9 @@ export const normalizePermissionLevel = (permissoes) => {
   }
 };
 
+// Páginas "pai" que NÃO concedem acesso a subrotas por prefixo (cada subrota é permissionada separadamente)
+const PAGINAS_SEM_SUBROTA_AUTOMATICA = ['/base-conhecimento'];
+
 // Mapeamento de páginas principais e suas subpáginas relacionadas
 const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
   '/cadastro/clientes': ['/cadastro/cliente', '/cadastro/contato-cliente'],
@@ -208,21 +211,17 @@ const PAGINAS_PRINCIPAIS_COM_SUBPAGINAS = {
     '/aprovacoes-pendentes',
     '/atribuicoes/pendentes/aprovacao'
   ],
-  '/base-conhecimento': [
-    '/base-conhecimento/conteudos-clientes',
-    '/base-conhecimento/tutoriais',
-    '/base-conhecimento/notas-atualizacao',
-    '/base-conhecimento/cliente'
-  ],
-  // Adicionando página de edição de cliente explicitamente
+  // base-conhecimento: subrotas NÃO são concedidas automaticamente; devem estar explicitamente em allowedPages
   '/cadastro/cliente': ['/cadastro/cliente'],
 };
 
 /**
- * Verifica se uma rota é subpágina de uma página principal permitida
+ * Verifica se uma rota é subpágina de uma página principal permitida.
+ * Não aplica para páginas em PAGINAS_SEM_SUBROTA_AUTOMATICA (ex.: /base-conhecimento).
  */
 const isSubpaginaPermitida = (route, allowedPages) => {
   for (const [paginaPrincipal, subpaginas] of Object.entries(PAGINAS_PRINCIPAIS_COM_SUBPAGINAS)) {
+    if (PAGINAS_SEM_SUBROTA_AUTOMATICA.includes(paginaPrincipal)) continue;
     if (subpaginas.includes(route) && allowedPages.includes(paginaPrincipal)) {
       return true;
     }
@@ -270,11 +269,14 @@ export const hasPermission = async (permissoes, route) => {
     // Verificar se a rota está nas páginas permitidas
     if (Array.isArray(allowedPages)) {
       for (const allowedPage of allowedPages) {
-        if (normalizedRoute === allowedPage ||
-          normalizedRouteNoTrailing === allowedPage ||
-          normalizedRoute.startsWith(allowedPage) ||
-          normalizedRouteNoTrailing.startsWith(allowedPage)) {
-          return true;
+        const exactMatch = normalizedRoute === allowedPage || normalizedRouteNoTrailing === allowedPage;
+        if (exactMatch) return true;
+        // Prefixo: só permitir subrotas (allowedPage + '/') exceto para páginas que não concedem subrota automática
+        if (!PAGINAS_SEM_SUBROTA_AUTOMATICA.includes(allowedPage)) {
+          const prefix = allowedPage.endsWith('/') ? allowedPage : allowedPage + '/';
+          if (normalizedRoute.startsWith(prefix) || normalizedRouteNoTrailing.startsWith(prefix)) {
+            return true;
+          }
         }
       }
 
@@ -326,11 +328,13 @@ export const hasPermissionSync = (permissoes, route) => {
 
     if (Array.isArray(allowedPages)) {
       for (const allowedPage of allowedPages) {
-        if (normalizedRoute === allowedPage ||
-          normalizedRouteNoTrailing === allowedPage ||
-          normalizedRoute.startsWith(allowedPage) ||
-          normalizedRouteNoTrailing.startsWith(allowedPage)) {
-          return true;
+        const exactMatch = normalizedRoute === allowedPage || normalizedRouteNoTrailing === allowedPage;
+        if (exactMatch) return true;
+        if (!PAGINAS_SEM_SUBROTA_AUTOMATICA.includes(allowedPage)) {
+          const prefix = allowedPage.endsWith('/') ? allowedPage : allowedPage + '/';
+          if (normalizedRoute.startsWith(prefix) || normalizedRouteNoTrailing.startsWith(prefix)) {
+            return true;
+          }
         }
       }
 

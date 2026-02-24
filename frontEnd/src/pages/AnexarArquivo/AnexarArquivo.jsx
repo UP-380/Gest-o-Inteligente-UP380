@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import PageHeader from '../../components/common/PageHeader';
@@ -36,6 +37,7 @@ const MENSAGENS = {
 };
 
 const AnexarArquivo = () => {
+  const navigate = useNavigate();
   const showToast = useToast();
   const [pastas, setPastas] = useState([]);
   const [pastaSelecionada, setPastaSelecionada] = useState(null);
@@ -452,16 +454,17 @@ const AnexarArquivo = () => {
         <main className="main-content">
           <CardContainer>
             <div className="anexar-arquivo-container">
-              <div className="anexar-arquivo-header-content">
+              <div className="anexar-arquivo-header-content" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div className="anexar-arquivo-header-left">
                   <div className="anexar-arquivo-header-icon">
-                    <i className="fas fa-paperclip" style={{ fontSize: '32px', color: 'rgb(14, 59, 111)' }}></i>
+                    <i className="fas fa-book-open" style={{ fontSize: '32px', color: 'rgb(14, 59, 111)' }}></i>
                   </div>
                   <div>
                     <h1 className="anexar-arquivo-title">Tutoriais</h1>
                     <p className="anexar-arquivo-subtitle">Organize e salve tutoriais em texto e mídia</p>
                   </div>
                 </div>
+                <button type="button" className="btn-secondary knowledge-back-btn" onClick={() => navigate('/base-conhecimento/tutoriais-apresentacao')}><i className="fas fa-arrow-left"></i>Voltar</button>
               </div>
               <div className="anexar-arquivo-layout">
                 {/* Coluna esquerda: pastas */}

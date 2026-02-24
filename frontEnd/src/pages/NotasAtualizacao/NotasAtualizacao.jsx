@@ -9,7 +9,7 @@ import { useToast } from '../../hooks/useToast';
 import { baseConhecimentoAPI } from '../../services/api';
 import { comunicacaoAPI } from '../../services/comunicacao.service';
 import { usePermissions } from '../../hooks/usePermissions';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './NotasAtualizacao.css';
 
 const MENSAGENS = {
@@ -32,6 +32,7 @@ const NotasAtualizacao = () => {
     const showToast = useToast();
     const { isAdmin } = usePermissions();
     const { search } = useLocation();
+    const navigate = useNavigate();
 
     const [notas, setNotas] = useState([]);
     const [notaSelecionadaId, setNotaSelecionadaId] = useState(null);
@@ -344,7 +345,7 @@ const NotasAtualizacao = () => {
                 <main className="main-content">
                     <CardContainer>
                         <div className="anexar-arquivo-container"> {/* Reusing CSS class for layout structure */}
-                            <div className="notas-atualizacao-header-content">
+                            <div className="notas-atualizacao-header-content" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                                 <div className="notas-atualizacao-header-left">
                                     <div className="notas-atualizacao-header-icon">
                                         <i className="fas fa-clipboard-check" style={{ fontSize: '32px', color: 'rgb(14, 59, 111)' }}></i>
@@ -354,6 +355,7 @@ const NotasAtualizacao = () => {
                                         <p className="notas-atualizacao-subtitle">Registro de alterações e melhorias do sistema</p>
                                     </div>
                                 </div>
+                                <button type="button" className="btn-secondary knowledge-back-btn" onClick={() => navigate('/base-conhecimento/notas-atualizacao-apresentacao')}><i className="fas fa-arrow-left"></i>Voltar</button>
                             </div>
 
                             <div className="anexar-arquivo-layout">

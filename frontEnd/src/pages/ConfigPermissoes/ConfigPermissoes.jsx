@@ -62,6 +62,7 @@ const ICONES_CATEGORIAS = {
 const TODAS_PAGINAS = [
   // Painéis
   { path: '/painel-colaborador', label: 'Minhas Tarefas', categoria: 'Painéis' },
+  { path: 'action/painel/modo-live', label: 'Modo Live (Painel)', categoria: 'Painéis' },
   { path: '/comunicacao', label: 'Comunicação', categoria: 'Painéis' },
   { path: '/notificacoes', label: 'Notificações', categoria: 'Painéis' },
 
@@ -70,6 +71,7 @@ const TODAS_PAGINAS = [
   { path: '/relatorios-colaboradores', label: 'Relatórios de Colaboradores', categoria: 'Relatórios' },
   { path: '/planilha-horas', label: 'Planilha de Horas', categoria: 'Relatórios' },
   { path: '/relatorio-tempo', label: 'Relatório de Tempo', categoria: 'Relatórios' },
+  { path: 'action/relatorio/modo-live', label: 'Modo Live (Relatório)', categoria: 'Relatórios' },
   { path: '/relatorios/vigencias', label: 'Relatório de Vigências', categoria: 'Relatórios' },
 
   // Cadastros
@@ -94,8 +96,10 @@ const TODAS_PAGINAS = [
   // Base de Conhecimento
   { path: '/base-conhecimento', label: 'Início', categoria: 'Base de Conhecimento' },
   { path: '/base-conhecimento/conteudos-clientes', label: 'Conteúdos Clientes', categoria: 'Base de Conhecimento' },
-  { path: '/base-conhecimento/tutoriais', label: 'Tutoriais', categoria: 'Base de Conhecimento' },
-  { path: '/base-conhecimento/notas-atualizacao', label: 'Notas de Atualização', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/tutoriais-apresentacao', label: 'Tutoriais (Visualização)', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/tutoriais', label: 'Tutoriais (Edição)', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/notas-atualizacao-apresentacao', label: 'Notas de Atualização (Visualização)', categoria: 'Base de Conhecimento' },
+  { path: '/base-conhecimento/notas-atualizacao', label: 'Notas de Atualização (Edição)', categoria: 'Base de Conhecimento' },
   // Adicionando explicitamente a página de edição (que redireciona para cadastro, mas é acessada via base conhecimento)
   { path: '/cadastro/cliente', label: 'Edição de Cliente (Base Conhecimento)', categoria: 'Base de Conhecimento' },
 

@@ -1,0 +1,388 @@
+/* Base Layout */
+.tutoriais-publicos-view {
+    display: flex;
+    position: fixed;
+    /* Ensures it stays in place relative to the viewport */
+    top: 64px;
+    /* Matches header height */
+    left: 60px;
+    /* Matches collapsed main sidebar width */
+    bottom: 0;
+    right: 0;
+    background-color: #f0f2f5;
+    /* Light grey for the main background */
+    overflow: hidden;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Sidebar Styling - ClickUp Style */
+.tutoriais-sidebar-nav {
+    width: 240px;
+    min-width: 240px;
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    background-color: #ffffff;
+    /* White sidebar as in ClickUp Docs */
+    padding: 16px 0;
+    overflow-y: auto;
+    z-index: 5;
+}
+
+/* Sidebar Header Styling - ClickUp + System Mix */
+.sidebar-doc-header {
+    padding: 24px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 1px solid #e9ebed;
+    margin-bottom: 16px;
+}
+
+.sidebar-doc-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: #e6f0ff;
+    /* Light blue background as in other system headers */
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.sidebar-doc-icon i {
+    font-size: 28px;
+    color: #0e3b6f;
+}
+
+.sidebar-doc-brand {
+    font-weight: 700;
+    color: #0e3b6f;
+    font-size: 16px;
+    /* Reduced from 20px */
+    letter-spacing: -0.01em;
+}
+
+.sidebar-search-compact {
+    padding: 0 16px 16px;
+}
+
+.sidebar-search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.search-input-wrapper {
+    position: relative;
+}
+
+.search-input-wrapper i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+.search-input-wrapper input {
+    width: 100%;
+    padding: 8px 12px 8px 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background-color: white;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.search-input-wrapper input:focus {
+    outline: none;
+    border-color: #0e3b6f;
+    box-shadow: 0 0 0 3px rgba(14, 59, 111, 0.1);
+}
+
+.sidebar-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 20px 8px;
+}
+
+.sidebar-items {
+    display: flex;
+    flex-direction: column;
+    padding: 0 8px;
+}
+
+.sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 400;
+    transition: all 0.1s;
+    width: 100%;
+}
+
+.sidebar-nav-item i {
+    font-size: 14px;
+    color: #94a3b8;
+    width: 16px;
+}
+
+.sidebar-nav-item:hover {
+    background-color: #f1f5f9;
+    color: #0e3b6f;
+}
+
+.sidebar-nav-item.active {
+    background-color: #eff6ff;
+    color: #0e3b6f;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(14, 59, 111, 0.05);
+}
+
+.sidebar-nav-item.active i {
+    color: #0e3b6f;
+}
+
+/* Main Content Wrapper */
+.tutoriais-doc-content-wrapper {
+    flex: 1;
+    background-color: #f9fbfd;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+}
+
+/* Document Paper Styling */
+.tutoriais-doc-paper {
+    width: 100%;
+    max-width: 860px;
+    background-color: #ffffff;
+    height: auto;
+    min-height: 100%;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    padding: 60px 80px;
+    margin-bottom: 60px;
+    /* Essential to ensure card doesn't touch the bottom edge */
+    flex-shrink: 0;
+    /* Prevents flex box from squashing the card height */
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.doc-metadata-top {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.doc-main-title {
+    font-size: 32px;
+    /* Reduced from 42px */
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 16px 0;
+    line-height: 1.2;
+}
+
+.doc-author-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.meta-author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.author-avatar {
+    width: 24px;
+    height: 24px;
+    background-color: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.author-name {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 500;
+}
+
+.meta-divider {
+    width: 4px;
+    height: 4px;
+    background-color: #cbd5e1;
+    border-radius: 50%;
+}
+
+.meta-update {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+/* Content Body */
+.doc-content-body-wrapper {
+    color: #334155;
+    font-size: 16px;
+    line-height: 1.7;
+}
+
+.doc-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 100px 0;
+    color: #94a3b8;
+}
+
+.doc-loading i {
+    font-size: 32px;
+}
+
+.doc-section {
+    margin-bottom: 40px;
+}
+
+.doc-section-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 16px 0;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+}
+
+/* Quill Styling Integration */
+.tutorial-content-body.ql-editor {
+    padding: 0;
+}
+
+.tutorial-content-body.ql-editor p {
+    margin-bottom: 1.25em;
+}
+
+.tutorial-content-body.ql-editor h1,
+.tutorial-content-body.ql-editor h2,
+.tutorial-content-body.ql-editor h3 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    color: #0f172a;
+}
+
+.tutorial-content-body.ql-editor img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 16px 0;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Not Selected State */
+.doc-not-selected {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+}
+
+.not-selected-icon {
+    font-size: 64px;
+    color: #e2e8f0;
+    margin-bottom: 24px;
+}
+
+.doc-not-selected h2 {
+    font-size: 24px;
+    color: #475569;
+    margin-bottom: 12px;
+}
+
+.doc-not-selected p {
+    color: #94a3b8;
+    max-width: 320px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .tutoriais-doc-paper {
+        padding: 40px 60px;
+    }
+}
+
+@media (max-width: 900px) {
+    .tutoriais-sidebar-nav {
+        display: none;
+        /* In a real app we'd add a toggle */
+    }
+
+    .tutoriais-doc-paper {
+        padding: 30px 40px;
+    }
+}
+
+@media (max-width: 768px) {
+    .tutoriais-publicos-view {
+        left: 50px;
+    }
+}
+
+@media (max-width: 600px) {
+    .tutoriais-publicos-view {
+        left: 0;
+    }
+}

@@ -4,10 +4,12 @@ import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import PageHeader from '../../components/common/PageHeader';
 import ButtonPrimary from '../../components/common/ButtonPrimary';
+import { usePermissions } from '../../hooks/usePermissions';
 import './BaseConhecimento.css';
 
 const BaseConhecimento = () => {
   const navigate = useNavigate();
+  const { canAccessRoute } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
 
   const categorias = [
@@ -64,7 +66,7 @@ const BaseConhecimento = () => {
         <main className="main-content">
           <CardContainer>
             <div className="base-conhecimento-container">
-              <PageHeader 
+              <PageHeader
                 title="Base de Conhecimento"
                 subtitle="Encontre respostas e aprenda a usar o sistema"
               />
@@ -97,6 +99,68 @@ const BaseConhecimento = () => {
                   />
                 </div>
               </div>
+
+              {/* Seção de Tutoriais (Apresentação) - só exibe se tiver permissão */}
+              {canAccessRoute('/base-conhecimento/tutoriais-apresentacao') && (
+              <div style={{
+                marginBottom: '24px',
+                padding: '24px',
+                backgroundColor: '#f0fdf4',
+                borderRadius: '12px',
+                border: '2px solid #22c55e'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '12px',
+                      backgroundColor: '#22c55e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: '24px'
+                    }}>
+                      <i className="fas fa-book-open"></i>
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 4px 0', color: '#1f2937' }}>
+                        Tutoriais e Guias
+                      </h3>
+                      <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
+                        Acesse nossa central de aprendizado com guias interativos
+                      </p>
+                    </div>
+                  </div>
+                  <ButtonPrimary
+                    onClick={() => navigate('/base-conhecimento/tutoriais-apresentacao')}
+                    icon="fa-book-open"
+                    label="Abrir Central"
+                    style={{
+                      padding: '12px 24px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      backgroundColor: '#22c55e',
+                      borderColor: '#16a34a'
+                    }}
+                  />
+                </div>
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#fff',
+                  borderRadius: '8px',
+                  border: '1px solid #bbf7d0'
+                }}>
+                  <p style={{ fontSize: '14px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
+                    <i className="fas fa-check-circle" style={{ marginRight: '8px', color: '#22c55e' }}></i>
+                    Visualize todos os tutoriais disponíveis de forma organizada e limpa.
+                    Ideal para consulta rápida de procedimentos, utilização de ferramentas
+                    e treinamentos internos, com suporte a imagens e vídeos.
+                  </p>
+                </div>
+              </div>
+              )}
 
               {/* Seção de Conteúdos dos Clientes */}
               <div style={{
@@ -141,20 +205,82 @@ const BaseConhecimento = () => {
                     }}
                   />
                 </div>
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#fff',
+                  borderRadius: '8px',
+                  border: '1px solid #bfdbfe'
+                }}>
+                  <p style={{ fontSize: '14px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
+                    <i className="fas fa-info-circle" style={{ marginRight: '8px', color: '#3b82f6' }}></i>
+                    Visualize um template único que consome automaticamente os dados já cadastrados do cliente,
+                    incluindo dados básicos, acessos de sistema, contas bancárias e adquirentes.
+                    Todas as informações são exibidas de forma organizada e consolidada.
+                  </p>
+                </div>
+              </div>
+
+              {/* Seção de Notas de Atualização (Apresentação) - só exibe se tiver permissão */}
+              {canAccessRoute('/base-conhecimento/notas-atualizacao-apresentacao') && (
+              <div style={{
+                marginBottom: '32px',
+                padding: '24px',
+                backgroundColor: '#f5f3ff',
+                borderRadius: '12px',
+                border: '2px solid #8b5cf6'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
-                      padding: '16px',
-                      backgroundColor: '#fff',
-                      borderRadius: '8px',
-                      border: '1px solid #bfdbfe'
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '12px',
+                      backgroundColor: '#8b5cf6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: '24px'
                     }}>
-                      <p style={{ fontSize: '14px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
-                        <i className="fas fa-info-circle" style={{ marginRight: '8px', color: '#3b82f6' }}></i>
-                        Visualize um template único que consome automaticamente os dados já cadastrados do cliente, 
-                        incluindo dados básicos, acessos de sistema, contas bancárias e adquirentes. 
-                        Todas as informações são exibidas de forma organizada e consolidada.
+                      <i className="fas fa-history"></i>
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '600', margin: '0 0 4px 0', color: '#1f2937' }}>
+                        Notas de Atualização
+                      </h3>
+                      <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
+                        Fique por dentro das novidades e melhorias do sistema
                       </p>
                     </div>
+                  </div>
+                  <ButtonPrimary
+                    onClick={() => navigate('/base-conhecimento/notas-atualizacao-apresentacao')}
+                    icon="fa-clipboard-check"
+                    label="Ver Versões"
+                    style={{
+                      padding: '12px 24px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      backgroundColor: '#8b5cf6',
+                      borderColor: '#7c3aed'
+                    }}
+                  />
+                </div>
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#fff',
+                  borderRadius: '8px',
+                  border: '1px solid #ddd6fe'
+                }}>
+                  <p style={{ fontSize: '14px', color: '#475569', margin: 0, lineHeight: '1.6' }}>
+                    <i className="fas fa-check-circle" style={{ marginRight: '8px', color: '#8b5cf6' }}></i>
+                    Acompanhe o histórico completo de evoluções da plataforma.
+                    Confira novas funcionalidades, correções de bugs e otimizações
+                    realizadas pela equipe de engenharia.
+                  </p>
+                </div>
               </div>
+              )}
 
               {/* Grid de Categorias */}
               <div className="categorias-grid">
@@ -203,10 +329,10 @@ const BaseConhecimento = () => {
               </div>
 
               {/* Seção de Ajuda Rápida */}
-              <div style={{ 
-                marginTop: '32px', 
-                padding: '24px', 
-                backgroundColor: '#f8fafc', 
+              <div style={{
+                marginTop: '32px',
+                padding: '24px',
+                backgroundColor: '#f8fafc',
                 borderRadius: '12px',
                 border: '1px solid #e2e8f0'
               }}>
