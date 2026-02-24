@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import { useToast } from '../../hooks/useToast';
 import { colaboradoresAPI, departamentosAPI } from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 import DatePicker from '../../components/vigencia/DatePicker';
+import EditButton from '../../components/common/EditButton';
+import DeleteButton from '../../components/common/DeleteButton';
 import './DetalhesDepartamento.css';
 
 // Ícones disponíveis para seleção
@@ -36,22 +38,6 @@ const DetalhesDepartamento = () => {
         joined: '',
         colaboradorId: ''
     });
-    const [openMenuId, setOpenMenuId] = useState(null);
-    const [openUpwards, setOpenUpwards] = useState(false);
-    const menuRef = useRef(null);
-
-    // Fechar menu ao clicar fora
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setOpenMenuId(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
 
     // Carregar dados
     const loadData = async () => {
@@ -178,26 +164,6 @@ const DetalhesDepartamento = () => {
         }
     };
 
-    const toggleMenu = (id, e) => {
-        e.stopPropagation();
-        if (openMenuId === id) {
-            setOpenMenuId(null);
-        } else {
-            // Verificar a posição vertical do botão de ação
-            const rect = e.currentTarget.getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-
-            // Se o botão estiver a menos de 150px do final da tela, abre para cima
-            if (viewportHeight - rect.bottom < 150) {
-                setOpenUpwards(true);
-            } else {
-                setOpenUpwards(false);
-            }
-
-            setOpenMenuId(id);
-        }
-    };
-
     const handleEditClick = (member) => {
         let formattedJoined = member.joined;
 
@@ -214,7 +180,6 @@ const DetalhesDepartamento = () => {
 
         setEditingMember({ ...member, joined: formattedJoined });
         setShowEditModal(true);
-        setOpenMenuId(null);
     };
 
     const handleSaveEdit = async (e) => {
@@ -311,50 +276,51 @@ const DetalhesDepartamento = () => {
                     <div className="detalhes-departamento-section">
 
                         {/* Header */}
-                        <div className="detalhes-header">
-                            <div className="breadcrumbs">
+                        <div className="detalhes-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <div className="dept-title-row">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                        <div
+                                            className="dept-icon clickable"
+                                            onClick={() => setShowIconModal(true)}
+                                            style={{
+                                                width: '64px',
+                                                height: '64px',
+                                                borderRadius: '16px',
+                                                background: deptInfo.color || '#f1f5f9',
+                                                color: deptInfo.iconColor || '#64748b',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '28px',
+                                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                                                cursor: 'pointer',
+                                                position: 'relative'
+                                            }}
+                                            title="Clique para mudar o ícone"
+                                        >
+                                            <i className={`fas ${deptInfo.icon || 'fa-building'}`}></i>
+                                            <div className="icon-overlay">
+                                                <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h1>{deptInfo.name}</h1>
+                                            <p className="dept-subtitle">{deptInfo.description}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botoes de acao da pagina (Direita) */}
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                 <button
-                                    className="back-btn"
+                                    className="btn-secondary"
                                     onClick={() => navigate('/gestao/departamentos')}
                                     title="Voltar para Departamentos"
                                 >
-                                    <i className="fas fa-arrow-left"></i>
+                                    <i className="fas fa-arrow-left"></i> Voltar
                                 </button>
-                                <Link to="/gestao/departamentos">Departamentos</Link>
-                                <i className="fas fa-chevron-right" style={{ fontSize: '10px' }}></i>
-                                <span>{deptInfo.name}</span>
-                            </div>
-                            <div className="dept-title-row">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                    <div
-                                        className="dept-icon clickable"
-                                        onClick={() => setShowIconModal(true)}
-                                        style={{
-                                            width: '64px',
-                                            height: '64px',
-                                            borderRadius: '16px',
-                                            background: deptInfo.color || '#f1f5f9',
-                                            color: deptInfo.iconColor || '#64748b',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '28px',
-                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                                            cursor: 'pointer',
-                                            position: 'relative'
-                                        }}
-                                        title="Clique para mudar o ícone"
-                                    >
-                                        <i className={`fas ${deptInfo.icon || 'fa-building'}`}></i>
-                                        <div className="icon-overlay">
-                                            <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h1>{deptInfo.name}</h1>
-                                        <p className="dept-subtitle">{deptInfo.description}</p>
-                                    </div>
-                                </div>
                                 <button className="add-member-btn" onClick={() => setShowAddModal(true)}>
                                     <i className="fas fa-user-plus"></i>
                                     Adicionar Membro
@@ -443,34 +409,16 @@ const DetalhesDepartamento = () => {
                                                 </div>
                                             </td>
                                             <td>{formatDate(member.joined)}</td>
-                                            <td style={{ textAlign: 'right', position: 'relative' }}>
-                                                <div className="action-menu-container">
-                                                    <button
-                                                        className="action-btn"
-                                                        onClick={(e) => toggleMenu(member.id, e)}
-                                                        title="Ações"
-                                                    >
-                                                        <i className="fas fa-ellipsis-v"></i>
-                                                    </button>
-
-                                                    {openMenuId === member.id && (
-                                                        <div className={`member-action-menu ${openUpwards ? 'open-upwards' : ''}`} ref={menuRef}>
-                                                            <button onClick={() => handleEditClick(member)}>
-                                                                <i className="fas fa-edit"></i>
-                                                                Editar
-                                                            </button>
-                                                            <button
-                                                                className="delete-option"
-                                                                onClick={() => {
-                                                                    handleRemoveMember(member.id);
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                            >
-                                                                <i className="fas fa-trash-alt"></i>
-                                                                Remover
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                            <td style={{ textAlign: 'right' }}>
+                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    <EditButton
+                                                        onClick={() => handleEditClick(member)}
+                                                        title="Editar Membro"
+                                                    />
+                                                    <DeleteButton
+                                                        onClick={() => handleRemoveMember(member.id)}
+                                                        title="Remover Membro"
+                                                    />
                                                 </div>
                                             </td>
                                         </tr>

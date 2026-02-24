@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import CardContainer from '../../components/common/CardContainer';
 import { useToast } from '../../hooks/useToast';
 import { departamentosAPI } from '../../services/api';
+import EditButton from '../../components/common/EditButton';
+import DeleteButton from '../../components/common/DeleteButton';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import './GestaoDepartamentos.css';
 
 // Ícones disponíveis para seleção
@@ -13,27 +16,21 @@ const AVAILABLE_ICONS = [
     'fa-cog', 'fa-shield-alt', 'fa-brain', 'fa-database', 'fa-globe'
 ];
 
-// Dados mockados para exemplo
-const MOCK_DEPARTAMENTOS = [
-    { id: 1, nome: 'Marketing', descricao: 'Comunicação & Branding', colaboradores: 12, status: 'Ativo', icon: 'fa-bullhorn', color: '#eff6ff', iconColor: '#3b82f6' },
-    { id: 2, nome: 'Vendas', descricao: 'Comercial & Growth', colaboradores: 25, status: 'Ativo', icon: 'fa-wallet', color: '#fff7ed', iconColor: '#f97316' },
-    { id: 3, nome: 'Recursos Humanos', descricao: 'Gente & Gestão', colaboradores: 5, status: 'Ativo', icon: 'fa-id-card', color: '#fdf4ff', iconColor: '#d946ef' },
-    { id: 4, nome: 'Tecnologia', descricao: 'Engenharia & Produto', colaboradores: 18, status: 'Ativo', icon: 'fa-laptop-code', color: '#f0fdf4', iconColor: '#22c55e' },
-    { id: 5, nome: 'Financeiro', descricao: 'Contabilidade & Fiscal', colaboradores: 8, status: 'Ativo', icon: 'fa-chart-line', color: '#f8fafc', iconColor: '#64748b' },
-];
-
 const GestaoDepartamentos = () => {
     const navigate = useNavigate();
     const showToast = useToast();
-    const menuRef = useRef(null);
 
     const [departamentos, setDepartamentos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [showIconModal, setShowIconModal] = useState(false);
     const [deptEditando, setDeptEditando] = useState(null);
-    const [activeMenuId, setActiveMenuId] = useState(null);
     const [formData, setFormData] = useState({ nome: '', descricao: '' });
+
+    // Estados para modal de confirmação de exclusão
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [deptParaExcluir, setDeptParaExcluir] = useState(null);
+    const [deletando, setDeletando] = useState(false);
 
     // Carregar departamentos
     const loadDepartamentos = async () => {
@@ -53,17 +50,6 @@ const GestaoDepartamentos = () => {
 
     useEffect(() => {
         loadDepartamentos();
-    }, []);
-
-    // Fechar menu ao clicar fora
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
-                setActiveMenuId(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const handleSave = async () => {
@@ -114,31 +100,38 @@ const GestaoDepartamentos = () => {
         setDeptEditando(dept);
         setFormData({ nome: dept.nome, descricao: dept.descricao });
         setShowModal(true);
-        setActiveMenuId(null);
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Tem certeza que deseja excluir este departamento?')) {
-            try {
-                const result = await departamentosAPI.delete(id);
-                if (result.success) {
-                    showToast('success', 'Departamento excluído com sucesso!');
-                    loadDepartamentos();
-                } else {
-                    showToast('error', 'Erro ao excluir departamento');
-                }
-            } catch (error) {
-                console.error('Erro ao excluir departamento:', error);
+    const handleDeleteClick = (dept) => {
+        setDeptParaExcluir(dept);
+        setShowDeleteModal(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deptParaExcluir) return;
+
+        setDeletando(true);
+        try {
+            const result = await departamentosAPI.delete(deptParaExcluir.id);
+            if (result.success) {
+                showToast('success', 'Departamento excluído com sucesso!');
+                loadDepartamentos();
+            } else {
                 showToast('error', 'Erro ao excluir departamento');
             }
+        } catch (error) {
+            console.error('Erro ao excluir departamento:', error);
+            showToast('error', 'Erro ao excluir departamento');
+        } finally {
+            setDeletando(false);
+            setShowDeleteModal(false);
+            setDeptParaExcluir(null);
         }
-        setActiveMenuId(null);
     };
 
     const handleOpenIconModal = (dept) => {
         setDeptEditando(dept);
         setShowIconModal(true);
-        setActiveMenuId(null);
     };
 
     const handleSelectIcon = async (icon) => {
@@ -158,9 +151,6 @@ const GestaoDepartamentos = () => {
         setDeptEditando(null);
     };
 
-    const totalColaboradores = departamentos.reduce((acc, curr) => acc + curr.colaboradores, 0);
-    const mediaEquipe = departamentos.length ? (totalColaboradores / departamentos.length).toFixed(1) : 0;
-
     return (
         <Layout>
             <div className="container">
@@ -169,47 +159,47 @@ const GestaoDepartamentos = () => {
                         <div className="gestao-departamentos-section">
                             {/* Header */}
                             <div className="form-header">
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                                        <button
-                                            className="back-btn"
-                                            onClick={() => navigate('/gestao/usuarios')}
-                                            title="Voltar para Gestão de Usuários"
-                                        >
-                                            <i className="fas fa-arrow-left"></i>
-                                        </button>
-                                        <h2 className="form-title" style={{ margin: 0 }}>Departamentos</h2>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div style={{
+                                        width: '48px',
+                                        height: '48px',
+                                        borderRadius: '12px',
+                                        background: '#f8fafc',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '24px',
+                                        color: '#0e3b6f',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                    }}>
+                                        <i className="fas fa-building"></i>
                                     </div>
-                                    <p className="form-subtitle" style={{ marginLeft: '60px' }}>
-                                        Gerencie os departamentos da sua empresa
-                                    </p>
+                                    <div>
+                                        <h2 className="form-title" style={{ margin: 0 }}>Departamentos</h2>
+                                        <p className="form-subtitle" style={{ margin: 0 }}>
+                                            Gerencie os departamentos da sua empresa
+                                        </p>
+                                    </div>
                                 </div>
-                                <button
-                                    className="add-dept-btn"
-                                    onClick={() => {
-                                        setDeptEditando(null);
-                                        setFormData({ nome: '', descricao: '' });
-                                        setShowModal(true);
-                                    }}
-                                >
-                                    <i className="fas fa-plus"></i>
-                                    Adicionar Departamento
-                                </button>
-                            </div>
-
-                            {/* Stats Cards */}
-                            <div className="stats-grid">
-                                <div className="stat-card">
-                                    <span className="stat-title">Total de Unidades</span>
-                                    <span className="stat-value">{departamentos.length}</span>
-                                </div>
-                                <div className="stat-card">
-                                    <span className="stat-title">Média por Equipe</span>
-                                    <span className="stat-value">{mediaEquipe}</span>
-                                </div>
-                                <div className="stat-card">
-                                    <span className="stat-title">Vagas Abertas</span>
-                                    <span className="stat-value highlight">---</span>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                    <button
+                                        className="btn-secondary"
+                                        onClick={() => navigate('/gestao/usuarios')}
+                                        title="Voltar para Gestão de Usuários"
+                                    >
+                                        <i className="fas fa-arrow-left"></i> Voltar
+                                    </button>
+                                    <button
+                                        className="add-dept-btn"
+                                        onClick={() => {
+                                            setDeptEditando(null);
+                                            setFormData({ nome: '', descricao: '' });
+                                            setShowModal(true);
+                                        }}
+                                    >
+                                        <i className="fas fa-plus"></i>
+                                        Adicionar Departamento
+                                    </button>
                                 </div>
                             </div>
 
@@ -262,33 +252,24 @@ const GestaoDepartamentos = () => {
                                                         {dept.status}
                                                     </span>
                                                 </div>
-                                                <div style={{ textAlign: 'right', position: 'relative' }}>
-                                                    <button
-                                                        className={`btn-icon ${activeMenuId === dept.id ? 'active' : ''}`}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setActiveMenuId(activeMenuId === dept.id ? null : dept.id);
-                                                        }}
-                                                    >
-                                                        <i className="fas fa-ellipsis-v"></i>
-                                                    </button>
-
-                                                    {activeMenuId === dept.id && (
-                                                        <div className="dept-action-menu" ref={menuRef}>
-                                                            <button onClick={() => handleEdit(dept)}>
-                                                                <i className="fas fa-edit"></i> Editar
-                                                            </button>
-                                                            <button
-                                                                className="delete"
-                                                                onClick={() => handleDelete(dept.id)}
-                                                            >
-                                                                <i className="fas fa-trash"></i> Excluir
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                <div style={{ textAlign: 'right', display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    <EditButton
+                                                        onClick={() => handleEdit(dept)}
+                                                        title="Editar Departamento"
+                                                    />
+                                                    <DeleteButton
+                                                        onClick={() => handleDeleteClick(dept)}
+                                                        title="Excluir Departamento"
+                                                    />
                                                 </div>
                                             </div>
                                         ))}
+
+                                        {departamentos.length === 0 && !loading && (
+                                            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                                                Nenhum departamento encontrado.
+                                            </div>
+                                        )}
                                     </>
                                 )}
 
@@ -327,8 +308,6 @@ const GestaoDepartamentos = () => {
                                 </h3>
                             </div>
                             <button
-                                className="btn-icon"
-                                onClick={() => setShowModal(false)}
                                 style={{
                                     position: 'absolute',
                                     top: '50%',
@@ -344,9 +323,9 @@ const GestaoDepartamentos = () => {
                                     justifyContent: 'center',
                                     width: '32px',
                                     height: '32px',
-                                    borderRadius: '50%',
-                                    transition: 'background 0.2s'
+                                    borderRadius: '50%'
                                 }}
+                                onClick={() => setShowModal(false)}
                             >
                                 <i className="fas fa-times"></i>
                             </button>
@@ -417,8 +396,6 @@ const GestaoDepartamentos = () => {
                                 <h3 style={{ margin: 0, fontSize: '18px' }}>Selecionar Ícone</h3>
                             </div>
                             <button
-                                className="btn-icon"
-                                onClick={() => setShowIconModal(false)}
                                 style={{
                                     position: 'absolute',
                                     top: '50%',
@@ -434,9 +411,9 @@ const GestaoDepartamentos = () => {
                                     justifyContent: 'center',
                                     width: '32px',
                                     height: '32px',
-                                    borderRadius: '50%',
-                                    transition: 'background 0.2s'
+                                    borderRadius: '50%'
                                 }}
+                                onClick={() => setShowIconModal(false)}
                             >
                                 <i className="fas fa-times"></i>
                             </button>
@@ -457,6 +434,31 @@ const GestaoDepartamentos = () => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de confirmação de exclusão */}
+            <ConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => {
+                    setShowDeleteModal(false);
+                    setDeptParaExcluir(null);
+                }}
+                onConfirm={handleConfirmDelete}
+                title="Deletar Departamento"
+                message={
+                    deptParaExcluir ? (
+                        <>
+                            <p>
+                                Tem certeza que deseja deletar o departamento <strong>{deptParaExcluir.nome}</strong>?
+                            </p>
+                            <p style={{ color: '#b45309', marginTop: '8px' }}>Esta ação não pode ser desfeita e pode afetar colaboradores vinculados.</p>
+                        </>
+                    ) : (
+                        ''
+                    )
+                }
+                confirmText="Deletar"
+                loading={deletando}
+            />
         </Layout>
     );
 };

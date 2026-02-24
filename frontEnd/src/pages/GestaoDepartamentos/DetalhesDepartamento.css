@@ -349,10 +349,11 @@
 }
 
 .add-member-btn {
+    height: 40px;
+    padding: 0 20px;
     background: #fd7e14;
     color: white;
     border: none;
-    padding: 10px 20px;
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
@@ -514,27 +515,6 @@
     outline: none;
     border-color: #fd7e14;
     box-shadow: 0 0 0 3px rgba(253, 126, 20, 0.1);
-}
-
-.back-btn {
-    background: white;
-    border: 1px solid #e2e8f0;
-    color: #64748b;
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-right: 12px;
-}
-
-.back-btn:hover {
-    background: #f1f5f9;
-    color: #1e293b;
-    transform: translateX(-2px);
 }
 
 /* Responsividade Adicional */
