@@ -468,9 +468,6 @@ const DetalhesDepartamento = () => {
                                 <thead>
                                     <tr>
                                         <th>Membro</th>
-                                        <th>Cargo</th>
-                                        <th>Status</th>
-                                        <th>Data de Entrada</th>
                                         <th style={{ textAlign: 'right' }}>Ações</th>
                                     </tr>
                                 </thead>
@@ -488,30 +485,6 @@ const DetalhesDepartamento = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>{member.role}</td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                    <span
-                                                        className="status-dot"
-                                                        style={{
-                                                            background: member.status === 'Ativo' ? '#22c55e' :
-                                                                member.status === 'Inativo' ? '#ef4444' :
-                                                                    member.status === 'Férias' ? '#3b82f6' : '#f59e0b'
-                                                        }}
-                                                    ></span>
-                                                    <span
-                                                        className="status-text"
-                                                        style={{
-                                                            color: member.status === 'Ativo' ? '#166534' :
-                                                                member.status === 'Inativo' ? '#b91c1c' :
-                                                                    member.status === 'Férias' ? '#1e40af' : '#b45309'
-                                                        }}
-                                                    >
-                                                        {member.status}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td>{formatDate(member.joined)}</td>
                                             <td style={{ textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                                     <EditButton
