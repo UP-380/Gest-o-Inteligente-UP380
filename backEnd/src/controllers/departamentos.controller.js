@@ -4,7 +4,6 @@
 
 const apiClientes = require('../services/api-clientes');
 const { supabase } = apiClientes;
-const { resolveAvatarUrl } = require('../utils/storage');
 const { sendSuccess, sendError, sendCreated, sendUpdated, sendDeleted, sendValidationError, sendNotFound } = require('../utils/responseHelper');
 
 // === DEPARTAMENTOS ===
@@ -189,28 +188,23 @@ async function getMembrosDepartamento(req, res) {
     try {
         const { id } = req.params; // ID do departamento
 
-        // Buscar associação + dados do membro (join) + usuário para foto
+        // Buscar associação + dados do membro (join)
         const { data, error } = await supabase
             .from('departamento_membros')
             .select(`
-                id,
-                departamento_id,
-                membro_id,
-                cargo,
-                status,
-                data_entrada,
-                email,
-                membro:membro_id (
-                    id,
-                    nome,
-                    cpf,
-                    usuario_id,
-                    usuario:usuario_id (
-                        id,
-                        foto_perfil
-                    )
-                )
-            `)
+        id,
+        departamento_id,
+        membro_id,
+        cargo,
+        status,
+        data_entrada,
+        email,
+        membro:membro_id (
+          id,
+          nome,
+          cpf
+        )
+      `)
             .eq('departamento_id', id);
 
         if (error) {
@@ -218,29 +212,16 @@ async function getMembrosDepartamento(req, res) {
             return sendError(res, 500, 'Erro ao buscar membros', error.message);
         }
 
-        // Formatar resposta e resolver fotos em paralelo
-        const formattedData = await Promise.all(data.map(async record => {
-            const fotoPerfil = record.membro?.usuario?.foto_perfil;
-            let avatarUrl = null;
-
-            if (fotoPerfil) {
-                avatarUrl = await resolveAvatarUrl(fotoPerfil, 'user');
-                if (!avatarUrl && fotoPerfil && (fotoPerfil.startsWith('http') || fotoPerfil.includes('/'))) {
-                    avatarUrl = fotoPerfil;
-                }
-            }
-
-            return {
-                id: record.id, // ID da associação
-                membro_id: record.membro_id,
-                departamento_id: record.departamento_id,
-                name: record.membro?.nome || 'Desconhecido', // Usar nome da tabela membro
-                email: record.email,
-                role: record.cargo,
-                status: record.status,
-                joined: record.data_entrada,
-                avatar_url: avatarUrl
-            };
+        // Formatar resposta para facilitar frontend (flattening)
+        const formattedData = data.map(record => ({
+            id: record.id, // ID da associação
+            membro_id: record.membro_id,
+            departamento_id: record.departamento_id,
+            name: record.membro?.nome || 'Desconhecido', // Usar nome da tabela membro
+            email: record.email, // Email pode estar na associação ou buscar de outro lugar se necessário
+            role: record.cargo,
+            status: record.status,
+            joined: record.data_entrada
         }));
 
         return sendSuccess(res, 200, formattedData);
