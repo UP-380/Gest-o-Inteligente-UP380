@@ -59,7 +59,8 @@ async function publicarNotasAgendadas() {
                             destacado: true,
                             origem: 'notas_atualizacao',
                             nota_id: nota.id
-                        }
+                        },
+                        created_at: new Date().toISOString()
                     })
                     .select()
                     .single();
@@ -194,8 +195,15 @@ async function criarAtualizacao(req, res) {
         const agora = new Date();
         const dataPub = data_publicacao ? new Date(data_publicacao) : new Date();
 
-        // Agendamento é ativado se a data for futura em relação ao momento atual
-        const isAgendado = dataPub.getTime() > agora.getTime();
+        // Agendamento simplificado por DATA (ignorando horas para o localhost e UX simplificado)
+        // Comparamos apenas as datas no formato YYYY-MM-DD
+        const dataHojeStr = agora.toISOString().split('T')[0];
+        const dataPubStr = dataPub.toISOString().split('T')[0];
+
+        // Se a data de publicação for estritamente posterior a hoje, é agendado
+        const isAgendado = dataPubStr > dataHojeStr;
+
+        console.log(`[DEBUG] Criando nota. Pub: ${dataPubStr}, Hoje: ${dataHojeStr}, isAgendado: ${isAgendado}`);
 
         const { data, error } = await supabase
             .from('base_conhecimento_atualizacoes')
@@ -230,7 +238,8 @@ async function criarAtualizacao(req, res) {
                             destacado: true,
                             origem: 'notas_atualizacao',
                             nota_id: data.id
-                        }
+                        },
+                        created_at: new Date().toISOString()
                     })
                     .select()
                     .single();
@@ -286,8 +295,11 @@ async function atualizarAtualizacao(req, res) {
         if (data_publicacao !== undefined) {
             updateData.data_publicacao = data_publicacao;
             // Se mover para o futuro, vira rascunho (agendado). Se for passado/agora, vira publicado.
+            // Agendamento simplificado por DATA
             const dataPub = new Date(data_publicacao);
-            updateData.anunciado = dataPub.getTime() <= (new Date()).getTime();
+            const dataHojeStr = new Date().toISOString().split('T')[0];
+            const dataPubStr = dataPub.toISOString().split('T')[0];
+            updateData.anunciado = dataPubStr <= dataHojeStr;
         }
         updateData.updated_at = new Date();
 
@@ -339,7 +351,8 @@ async function atualizarAtualizacao(req, res) {
                             destacado: true,
                             origem: 'notas_atualizacao',
                             nota_id: data.id
-                        }
+                        },
+                        created_at: new Date().toISOString()
                     })
                     .select()
                     .single();

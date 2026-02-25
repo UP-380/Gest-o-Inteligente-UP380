@@ -928,6 +928,19 @@ const CommunicationDrawer = ({ user }) => {
         </div>
     );
 
+    const handleMarkAllComunicadosRead = async () => {
+        try {
+            const res = await comunicacaoAPI.marcarTodosComunicadosLidos();
+            if (res.success) {
+                loadComunicados();
+                // Também dispara evento para limpar o banner de destaque se houver
+                window.dispatchEvent(new CustomEvent('refresh-comunicado-destaque'));
+            }
+        } catch (err) {
+            console.error('Erro ao marcar todos como lidos:', err);
+        }
+    };
+
     const renderComunicados = () => (
         <div className="comm-list-view">
             <div className="comm-actions">
@@ -936,6 +949,13 @@ const CommunicationDrawer = ({ user }) => {
                         <i className="fas fa-bullhorn"></i> Criar Aviso
                     </button>
                 )}
+                <button
+                    className="mark-all-read-btn-header"
+                    onClick={handleMarkAllComunicadosRead}
+                    title="Marcar todos os comunicados como lidos"
+                >
+                    <i className="fas fa-check-double"></i> Marcar todas
+                </button>
             </div>
             <div className="comm-list comunicados-list">
                 {loadingComunicados ? (
@@ -975,7 +995,7 @@ const CommunicationDrawer = ({ user }) => {
                                     {isUpdateNote && notaId && (
                                         <button
                                             onClick={() => {
-                                                window.location.href = `/base-conhecimento/notas-atualizacao?id=${notaId}`;
+                                                window.location.href = `/base-conhecimento/notas-atualizacao-apresentacao?id=${notaId}`;
                                             }}
                                             className="action-link-btn"
                                             style={{

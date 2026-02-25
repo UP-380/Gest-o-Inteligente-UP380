@@ -134,10 +134,13 @@
 /* Actions */
 .comm-actions {
     padding: 0 16px 16px 16px;
+    display: flex;
+    gap: 10px;
 }
 
 .new-chat-btn {
-    width: 100%;
+    flex: 2;
+    /* Dando um pouco mais de peso para o botão principal */
     padding: 12px;
     background: #f8fafc;
     border: 1px dashed #cbd5e1;
@@ -557,4 +560,29 @@
         width: 100vw;
         right: -100vw;
     }
+}
+
+.mark-all-read-btn-header {
+    background: none;
+    border: 1px solid #e5e7eb;
+    background-color: #fff;
+    color: #0e3b6f;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    font-weight: 500;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.mark-all-read-btn-header:hover {
+    background-color: #0e3b6f;
+    color: #fff;
+    border-color: #0e3b6f;
 }

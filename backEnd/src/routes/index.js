@@ -608,6 +608,7 @@ router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoCo
 router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+router.post('/api/comunicacao/comunicados/marcar-todos-lidos', requireAuth, comunicacaoController.marcarTodosComunicadosLidos);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
 
 // Rotas de Upload

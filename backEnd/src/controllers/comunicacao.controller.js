@@ -493,34 +493,38 @@ async function listarComunicadoDestaque(req, res) {
     try {
         const usuario_id = req.session.usuario.id;
 
-        // 1. Buscar o ID do último comunicado marcado como destacado
-        const { data: mensagem, error } = await supabase
+        // 1. Buscar IDs das mensagens já lidas por este usuário
+        const { data: lidas } = await supabase
+            .from('comunicacao_leituras')
+            .select('mensagem_id')
+            .eq('usuario_id', usuario_id)
+            .eq('lida', true);
 
+        const idsLidas = lidas?.map(l => l.mensagem_id) || [];
+
+        // 2. Buscar o comunicado mais recente que:
+        // - Seja do tipo COMUNICADO
+        // - Esteja marcado como destacado no metadata
+        // - NÃO tenha sido lido ainda
+        let query = supabase
             .from('comunicacao_mensagens')
             .select('*, criador:criador_id(nome_usuario)')
             .eq('tipo', 'COMUNICADO')
             .filter('metadata->>destacado', 'eq', 'true')
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .order('id', { ascending: false }); // Desempate se criados no mesmo ms
 
-        if (error) throw error;
-        if (!mensagem) return res.json({ success: true, data: null });
-
-        // 2. Verificar se o usuário já leu este comunicado
-        const { data: leitura } = await supabase
-
-            .from('comunicacao_leituras')
-            .select('lida')
-            .eq('mensagem_id', mensagem.id)
-            .eq('usuario_id', usuario_id)
-            .maybeSingle();
-
-        if (leitura && leitura.lida) {
-            return res.json({ success: true, data: null });
+        if (idsLidas.length > 0) {
+            // Se houver muitas lidas, o filtro 'in' pode ficar grande. 
+            // Para o MVP funciona bem, mas em escala o ideal é um join ou subquery.
+            query = query.not('id', 'in', `(${idsLidas.join(',')})`);
         }
 
-        return res.json({ success: true, data: mensagem });
+        const { data: mensagem, error } = await query.limit(1).maybeSingle();
+
+        if (error) throw error;
+
+        return res.json({ success: true, data: mensagem || null });
     } catch (error) {
         console.error('Erro ao buscar comunicado de destaque:', error);
         return res.status(500).json({ success: false, error: 'Erro ao carregar avisos.' });
@@ -580,6 +584,44 @@ async function atualizarMensagem(req, res) {
     }
 }
 
+/**
+ * Marca todos os comunicados como lidos para o usuário atual
+ */
+async function marcarTodosComunicadosLidos(req, res) {
+    try {
+        const usuario_id = req.session.usuario.id;
+
+        // 1. Buscar todos os IDs de mensagens do tipo COMUNICADO
+        const { data: comunicados, error: errBusca } = await supabase
+            .from('comunicacao_mensagens')
+            .select('id')
+            .eq('tipo', 'COMUNICADO');
+
+        if (errBusca) throw errBusca;
+        if (!comunicados || comunicados.length === 0) return res.json({ success: true });
+
+        const ids = comunicados.map(c => c.id);
+
+        // 2. Para cada ID, garantir que existe um registro de leitura como LIDO
+        // Em vez de fazer um por um, vamos usar o approach de:
+        // - Marcar como lido os que já existem
+        // - Opcional: Criar os que não existem (mas geralmente comunicados criam leituras para todos no disparo)
+
+        const { error: errUpdate } = await supabase
+            .from('comunicacao_leituras')
+            .update({ lida: true, data_leitura: new Date().toISOString() })
+            .in('mensagem_id', ids)
+            .eq('usuario_id', usuario_id);
+
+        if (errUpdate) throw errUpdate;
+
+        return res.json({ success: true, message: 'Todos os comunicados marcados como lidos.' });
+    } catch (error) {
+        console.error('Erro ao marcar todos os comunicados como lidos:', error);
+        return res.status(500).json({ success: false, error: 'Erro ao processar leituras.' });
+    }
+}
+
 module.exports = {
     enviarMensagem,
     listarMensagensChat,
@@ -590,5 +632,6 @@ module.exports = {
     atualizarStatusChamado,
     marcarMensagemLida,
     listarComunicadoDestaque,
-    atualizarMensagem
+    atualizarMensagem,
+    marcarTodosComunicadosLidos
 };
