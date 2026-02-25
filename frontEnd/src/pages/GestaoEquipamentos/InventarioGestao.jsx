@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { equipamentosAPI } from '../../services/equipamentos.service';
 import { colaboradoresAPI } from '../../services/api'; // Import colaboradoresAPI to match Assignments page source
+import Pagination from '../../components/common/Pagination';
 import ResponsavelCard from '../../components/atribuicoes/ResponsavelCard';
 import '../../components/atribuicoes/ResponsavelCard.css';
 import './InventarioGestao.css';
@@ -17,6 +18,8 @@ const InventarioGestao = () => {
     const [statusFilter, setStatusFilter] = useState('todos');
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
 
     // Modals
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -38,11 +41,12 @@ const InventarioGestao = () => {
     const fetchEquipamentos = async () => {
         setLoading(true);
         try {
-            const response = await equipamentosAPI.getEquipamentos(page, 10, searchTerm);
+            const response = await equipamentosAPI.getEquipamentos(page, itemsPerPage, searchTerm);
             if (response.success) {
                 const list = response.data.equipamentos || response.data; // Handle potential API structure variations
                 setEquipamentos(list);
-                setTotalPages(response.data.totalPages || 1);
+                setTotalItems(response.total || list.length);
+                setTotalPages(response.total ? Math.ceil(response.total / itemsPerPage) : 1);
             }
         } catch (error) {
             console.error('Erro ao buscar equipamentos:', error);
@@ -150,12 +154,6 @@ const InventarioGestao = () => {
         setFilteredEquipamentos(result);
     };
 
-    const handlePageChange = (newPage) => {
-        if (newPage >= 1 && newPage <= totalPages) {
-            setPage(newPage);
-        }
-    };
-
     const handleOpenAssign = (equip) => {
         setAssignmentData({ colaborador_id: '', observacoes: '', horario_entrada: '', horario_saida: '' });
         setSelectedEquip(equip);
@@ -213,7 +211,7 @@ const InventarioGestao = () => {
 
     useEffect(() => {
         fetchEquipamentos();
-    }, [page, searchTerm]);
+    }, [page, searchTerm, itemsPerPage]);
 
     useEffect(() => {
         fetchResponsaveis();
@@ -222,8 +220,6 @@ const InventarioGestao = () => {
     useEffect(() => {
         applyFilters();
     }, [equipamentos, statusFilter]);
-
-    if (loading) return <div>Carregando lista...</div>;
 
     return (
         <div className="inventario-gestao">
@@ -250,183 +246,164 @@ const InventarioGestao = () => {
             </div>
 
             <div className="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Equipamento</th>
-                            <th>Tipo</th>
-                            <th>Status / Usuário</th>
-                            <th style={{ textAlign: 'center' }}>Avaria</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredEquipamentos.map(equip => (
-                            <tr key={equip.id}>
-                                <td>
-                                    <div className="equip-name-cell">
-                                        <strong>{equip.nome}</strong>
-                                        <span>{equip.marca} {equip.modelo}</span>
-                                    </div>
-                                </td>
-                                <td>{equip.tipo}</td>
-                                <td>
-                                    {(() => {
-                                        let statusText = equip.status === 'ativo' ? 'Disponível' : (equip.status || 'Disponível');
-                                        let statusClass = equip.status?.replace(' ', '-') || 'disponivel';
-                                        let scheduleInfo = null;
+                {loading && equipamentos.length === 0 ? (
+                    <div className="loading-container" style={{ textAlign: 'center', padding: '40px' }}>
+                        <i className="fas fa-spinner fa-spin" style={{ fontSize: '24px', color: '#0e3b6f' }}></i>
+                        <p style={{ marginTop: '10px', color: '#64748b' }}>Carregando equipamentos...</p>
+                    </div>
+                ) : filteredEquipamentos.length === 0 ? (
+                    <div className="empty-state" style={{ textAlign: 'center', padding: '40px', background: 'white', borderRadius: '8px' }}>
+                        <i className="fas fa-laptop" style={{ fontSize: '48px', color: '#cbd5e1', marginBottom: '16px' }}></i>
+                        <p style={{ color: '#64748b' }}>Nenhum equipamento encontrado nesta página.</p>
+                    </div>
+                ) : (
+                    <>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Equipamento</th>
+                                    <th>Tipo</th>
+                                    <th>Status / Usuário</th>
+                                    <th style={{ textAlign: 'center' }}>Avaria</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredEquipamentos.map(equip => (
+                                    <tr key={equip.id}>
+                                        <td>
+                                            <div className="equip-name-cell">
+                                                <strong>{equip.nome}</strong>
+                                                <span>{equip.marca} {equip.modelo}</span>
+                                            </div>
+                                        </td>
+                                        <td>{equip.tipo}</td>
+                                        <td>
+                                            {(() => {
+                                                let statusText = equip.status === 'ativo' ? 'Disponível' : (equip.status || 'Disponível');
+                                                let statusClass = equip.status?.replace(' ', '-') || 'disponivel';
+                                                let scheduleInfo = null;
 
-                                        if (equip.status === 'inativo') {
-                                            statusText = 'Indisponível';
-                                        } else if (equip.status === 'em uso' && equip.usuario_atual) {
-                                            // Lógica de disponibilidade por horário
-                                            const user = equip.usuario_atual;
-                                            if (user.horario_entrada && user.horario_saida) {
-                                                const now = new Date();
-                                                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                                                if (equip.status === 'inativo') {
+                                                    statusText = 'Indisponível';
+                                                } else if (equip.status === 'em uso' && equip.usuario_atual) {
+                                                    // Lógica de disponibilidade por horário
+                                                    const user = equip.usuario_atual;
+                                                    if (user.horario_entrada && user.horario_saida) {
+                                                        const now = new Date();
+                                                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-                                                const [startH, startM] = user.horario_entrada.split(':').map(Number);
-                                                const [endH, endM] = user.horario_saida.split(':').map(Number);
+                                                        const [startH, startM] = user.horario_entrada.split(':').map(Number);
+                                                        const [endH, endM] = user.horario_saida.split(':').map(Number);
 
-                                                const startMinutes = startH * 60 + startM;
-                                                const endMinutes = endH * 60 + endM;
+                                                        const startMinutes = startH * 60 + startM;
+                                                        const endMinutes = endH * 60 + endM;
 
-                                                const isWorking = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+                                                        const isWorking = currentMinutes >= startMinutes && currentMinutes < endMinutes;
 
-                                                statusText = isWorking ? 'Ocupado' : 'Disponível (Fora de horário)';
-                                                statusClass = isWorking ? 'em-uso' : 'ativo'; // 'ativo' geralmente é verde/disponível
-                                                scheduleInfo = `${user.horario_entrada} às ${user.horario_saida}`;
-                                            } else {
-                                                statusText = 'Ocupado';
-                                                statusClass = 'em-uso';
-                                            }
-                                        } else if (equip.status === 'em uso') {
-                                            statusText = 'Ocupado';
-                                        }
+                                                        statusText = isWorking ? 'Ocupado' : 'Disponível (Fora de horário)';
+                                                        statusClass = isWorking ? 'em-uso' : 'ativo'; // 'ativo' geralmente é verde/disponível
+                                                        scheduleInfo = `${user.horario_entrada} às ${user.horario_saida}`;
+                                                    } else {
+                                                        statusText = 'Ocupado';
+                                                        statusClass = 'em-uso';
+                                                    }
+                                                } else if (equip.status === 'em uso') {
+                                                    statusText = 'Ocupado';
+                                                }
 
-                                        return (
-                                            <>
-                                                <div className={`status-chip ${statusClass}`}>
-                                                    {statusText}
-                                                </div>
-                                                {equip.status === 'em uso' && equip.usuario_atual && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', marginTop: '6px', gap: '2px' }}>
-                                                        <div
-                                                            onClick={() => navigate(`/gestao-equipamentos/operadores/${equip.usuario_atual.id}`)}
-                                                            style={{
-                                                                fontSize: '11px',
-                                                                color: '#0e3b6f',
-                                                                cursor: 'pointer',
-                                                                textDecoration: 'underline',
-                                                                fontWeight: '600',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}
-                                                            title="Ver perfil do colaborador"
-                                                        >
-                                                            <i className="fas fa-user" style={{ fontSize: '10px' }}></i>
-                                                            {equip.usuario_atual.nome}
+                                                return (
+                                                    <>
+                                                        <div className={`status-chip ${statusClass}`}>
+                                                            {statusText}
                                                         </div>
-                                                        {scheduleInfo && (
-                                                            <div style={{ fontSize: '10px', color: '#64748b' }}>
-                                                                <i className="far fa-clock" style={{ marginRight: '3px' }}></i>
-                                                                {scheduleInfo}
+                                                        {equip.status === 'em uso' && equip.usuario_atual && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', marginTop: '6px', gap: '2px' }}>
+                                                                <div
+                                                                    onClick={() => navigate(`/gestao-equipamentos/operadores/${equip.usuario_atual.id}`)}
+                                                                    style={{
+                                                                        fontSize: '11px',
+                                                                        color: '#0e3b6f',
+                                                                        cursor: 'pointer',
+                                                                        textDecoration: 'underline',
+                                                                        fontWeight: '600',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px'
+                                                                    }}
+                                                                    title="Ver perfil do colaborador"
+                                                                >
+                                                                    <i className="fas fa-user" style={{ fontSize: '10px' }}></i>
+                                                                    {equip.usuario_atual.nome}
+                                                                </div>
+                                                                {scheduleInfo && (
+                                                                    <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                                                        <i className="far fa-clock" style={{ marginRight: '3px' }}></i>
+                                                                        {scheduleInfo}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </td>
+                                        <td>
+                                            <div className="avaria-cell">
+                                                {equip.tem_avaria ? (
+                                                    <div className="avaria-status has-damage">
+                                                        <i className="fas fa-times-circle" title="Com avaria"></i>
+                                                        {equip.descricao && equip.descricao !== '<p><br></p>' && (
+                                                            <button
+                                                                className="btn-view-damage"
+                                                                onClick={() => setPreviewDamage(equip)}
+                                                                title="Ver detalhes/fotos da avaria"
+                                                            >
+                                                                <i className="fas fa-image"></i>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="avaria-status no-damage">
+                                                        <i className="fas fa-check-circle" title="Sem avaria"></i>
                                                     </div>
                                                 )}
-                                            </>
-                                        );
-                                    })()}
-                                </td>
-                                <td>
-                                    <div className="avaria-cell">
-                                        {equip.tem_avaria ? (
-                                            <div className="avaria-status has-damage">
-                                                <i className="fas fa-times-circle" title="Com avaria"></i>
-                                                {equip.descricao && equip.descricao !== '<p><br></p>' && (
-                                                    <button
-                                                        className="btn-view-damage"
-                                                        onClick={() => setPreviewDamage(equip)}
-                                                        title="Ver detalhes/fotos da avaria"
-                                                    >
-                                                        <i className="fas fa-image"></i>
-                                                    </button>
-                                                )}
                                             </div>
-                                        ) : (
-                                            <div className="avaria-status no-damage">
-                                                <i className="fas fa-check-circle" title="Sem avaria"></i>
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                                <td>
-                                    {equip.status === 'manutencao' ? (
-                                        <button className="btn-assign disabled" disabled title="Item em manutenção não pode ser atribuído">
-                                            <i className="fas fa-tools"></i> Em manutenção
-                                        </button>
-                                    ) : !checkAvailability(equip).isAvailable ? (
-                                        <button className="btn-return" onClick={() => handleOpenReturn(equip)}>
-                                            <i className="fas fa-undo"></i> Receber devolução
-                                        </button>
-                                    ) : (
-                                        <button className="btn-assign" onClick={() => handleOpenAssign(equip)}>
-                                            <i className="fas fa-user-plus"></i> Atribuir
-                                        </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {filteredEquipamentos.length === 0 && (
-                    <div className="empty-inventory">
-                        <i className="fas fa-search"></i>
-                        <p>Nenhum equipamento encontrado nesta página.</p>
-                    </div>
+                                        </td>
+                                        <td>
+                                            {equip.status === 'manutencao' ? (
+                                                <button className="btn-assign disabled" disabled title="Item em manutenção não pode ser atribuído">
+                                                    <i className="fas fa-tools"></i> Em manutenção
+                                                </button>
+                                            ) : !checkAvailability(equip).isAvailable ? (
+                                                <button className="btn-return" onClick={() => handleOpenReturn(equip)}>
+                                                    <i className="fas fa-undo"></i> Receber devolução
+                                                </button>
+                                            ) : (
+                                                <button className="btn-assign" onClick={() => handleOpenAssign(equip)}>
+                                                    <i className="fas fa-user-plus"></i> Atribuir
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </>
                 )}
             </div>
 
             {/* Paginação */}
-            {totalPages > 1 && (
-                <div className="pagination-container" style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-                    <div className="pagination" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button
-                            onClick={() => handlePageChange(page - 1)}
-                            disabled={page === 1}
-                            style={{
-                                padding: '8px 16px',
-                                border: '1px solid #e2e8f0',
-                                background: 'white',
-                                borderRadius: '6px',
-                                color: page === 1 ? '#cbd5e1' : '#475569',
-                                cursor: page === 1 ? 'not-allowed' : 'pointer'
-                            }}
-                        >
-                            Anterior
-                        </button>
-                        <span style={{ fontSize: '14px', color: '#64748b' }}>
-                            Página {page} de {totalPages}
-                        </span>
-                        <button
-                            onClick={() => handlePageChange(page + 1)}
-                            disabled={page === totalPages}
-                            style={{
-                                padding: '8px 16px',
-                                border: '1px solid #e2e8f0',
-                                background: 'white',
-                                borderRadius: '6px',
-                                color: page === totalPages ? '#cbd5e1' : '#475569',
-                                cursor: page === totalPages ? 'not-allowed' : 'pointer'
-                            }}
-                        >
-                            Próximo
-                        </button>
-                    </div>
-                </div>
-            )}
+            <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setPage}
+                onItemsPerPageChange={setItemsPerPage}
+                loading={loading}
+                itemName="equipamentos"
+            />
 
             {/* Modal Atribuição */}
             {showAssignModal && (
