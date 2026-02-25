@@ -22,10 +22,8 @@ const GestaoDepartamentos = () => {
 
     const [departamentos, setDepartamentos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
     const [showIconModal, setShowIconModal] = useState(false);
     const [deptEditando, setDeptEditando] = useState(null);
-    const [formData, setFormData] = useState({ nome: '', descricao: '' });
 
     // Estados para modal de confirmação de exclusão
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -52,55 +50,7 @@ const GestaoDepartamentos = () => {
         loadDepartamentos();
     }, []);
 
-    const handleSave = async () => {
-        if (!formData.nome) {
-            showToast('error', 'Nome do departamento é obrigatório');
-            return;
-        }
 
-        try {
-            if (deptEditando) {
-                // Edição
-                const result = await departamentosAPI.update(deptEditando.id, formData);
-                if (result.success) {
-                    showToast('success', 'Departamento atualizado com sucesso!');
-                    loadDepartamentos();
-                } else {
-                    showToast('error', 'Erro ao atualizar departamento');
-                }
-            } else {
-                // Criação
-                const novoDepartamento = {
-                    nome: formData.nome,
-                    descricao: formData.descricao || 'Nova divisão corporativa',
-                    status: 'Ativo',
-                    icon: 'fa-building',
-                    color: '#f1f5f9',
-                    iconColor: '#475569'
-                };
-                const result = await departamentosAPI.create(novoDepartamento);
-                if (result.success) {
-                    showToast('success', 'Departamento criado com sucesso!');
-                    loadDepartamentos();
-                } else {
-                    showToast('error', 'Erro ao criar departamento');
-                }
-            }
-
-            setShowModal(false);
-            setDeptEditando(null);
-            setFormData({ nome: '', descricao: '' });
-        } catch (error) {
-            console.error('Erro ao salvar departamento:', error);
-            showToast('error', 'Erro ao salvar departamento');
-        }
-    };
-
-    const handleEdit = (dept) => {
-        setDeptEditando(dept);
-        setFormData({ nome: dept.nome, descricao: dept.descricao });
-        setShowModal(true);
-    };
 
     const handleDeleteClick = (dept) => {
         setDeptParaExcluir(dept);
@@ -191,11 +141,7 @@ const GestaoDepartamentos = () => {
                                     </button>
                                     <button
                                         className="add-dept-btn"
-                                        onClick={() => {
-                                            setDeptEditando(null);
-                                            setFormData({ nome: '', descricao: '' });
-                                            setShowModal(true);
-                                        }}
+                                        onClick={() => navigate('/gestao/departamentos/novo')}
                                     >
                                         <i className="fas fa-plus"></i>
                                         Adicionar Departamento
@@ -287,105 +233,7 @@ const GestaoDepartamentos = () => {
                 </main>
             </div>
 
-            {/* Modal Editar/Criar Departamento */}
-            {showModal && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div
-                        className="modal-content"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                            maxWidth: '800px',
-                            width: '90%',
-                            minHeight: '400px',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }}
-                    >
-                        <div className="modal-header" style={{ position: 'relative' }}>
-                            <div style={{ padding: '20px 24px' }}>
-                                <h3 style={{ margin: 0, fontSize: '18px' }}>
-                                    {deptEditando ? 'Editar Departamento' : 'Novo Departamento'}
-                                </h3>
-                            </div>
-                            <button
-                                style={{
-                                    position: 'absolute',
-                                    top: '50%',
-                                    right: '24px',
-                                    transform: 'translateY(-50%)',
-                                    fontSize: '20px',
-                                    color: '#94a3b8',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '32px',
-                                    height: '32px',
-                                    borderRadius: '50%'
-                                }}
-                                onClick={() => setShowModal(false)}
-                            >
-                                <i className="fas fa-times"></i>
-                            </button>
-                        </div>
-                        <div className="modal-body" style={{ flex: 1 }}>
-                            <p style={{ color: '#64748b', marginBottom: '24px' }}>
-                                {deptEditando
-                                    ? 'Atualize as informações do departamento selecionado.'
-                                    : 'Preencha as informações para criar uma nova divisão corporativa.'}
-                            </p>
 
-                            <div className="form-group">
-                                <label>Nome do Departamento</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    placeholder="Ex: Financeiro"
-                                    value={formData.nome}
-                                    onChange={e => setFormData({ ...formData, nome: e.target.value })}
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Descrição curta (Opcional)</label>
-                                <textarea
-                                    className="form-control"
-                                    placeholder="Descreva brevemente a função deste departamento..."
-                                    value={formData.descricao}
-                                    onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className="btn-secondary"
-                                onClick={() => setShowModal(false)}
-                                style={{
-                                    padding: '10px 20px',
-                                    borderRadius: '6px',
-                                    border: '1px solid #d1d5db',
-                                    background: 'white',
-                                    color: '#64748b',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                className="add-dept-btn"
-                                style={{ margin: 0 }}
-                                onClick={handleSave}
-                            >
-                                {deptEditando ? 'Salvar Alterações' : 'Salvar Departamento'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Modal Seleção de Ícones */}
             {showIconModal && (

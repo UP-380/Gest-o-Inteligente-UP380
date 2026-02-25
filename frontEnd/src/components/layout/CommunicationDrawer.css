@@ -38,8 +38,8 @@
 .comm-drawer {
     position: fixed;
     top: 0;
-    right: -420px;
-    width: 400px;
+    right: -61%;
+    width: 60%;
     height: 100vh;
     background: #ffffff;
     box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
@@ -496,10 +496,23 @@
     border: 1px solid #dbeafe;
 }
 
+.chamado-status-tag[data-status='EM_ANALISE'] {
+    background: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fef08a;
+}
+
+.chamado-status-tag[data-status='ENCERRADO'],
 .chamado-status-tag[data-status='CONCLUIDO'] {
     background: #f0fdf4;
     color: #15803d;
     border: 1px solid #dcfce7;
+}
+
+.chamado-status-tag[data-status='CANCELADO'] {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
 }
 
 /* Previews de imagem e vídeo nas mensagens e editor */

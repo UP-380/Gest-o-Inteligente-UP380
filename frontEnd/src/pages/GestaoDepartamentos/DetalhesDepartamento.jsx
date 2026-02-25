@@ -5,8 +5,9 @@ import { useToast } from '../../hooks/useToast';
 import { colaboradoresAPI, departamentosAPI } from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 import DatePicker from '../../components/vigencia/DatePicker';
-import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import FilterColaborador from '../../components/filters/FilterColaborador';
 import './DetalhesDepartamento.css';
 
 // Ícones disponíveis para seleção
@@ -26,24 +27,42 @@ const DetalhesDepartamento = () => {
     const [deptInfo, setDeptInfo] = useState({ name: '', description: '', head: '', headRole: '', icon: 'fa-building', color: '#f1f5f9', iconColor: '#64748b' });
     const [members, setMembers] = useState([]);
     const [colaboradores, setColaboradores] = useState([]);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
     const [showIconModal, setShowIconModal] = useState(false);
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [editInfoData, setEditInfoData] = useState({ name: '', description: '' });
     const [savingInfo, setSavingInfo] = useState(false);
-    const [editingMember, setEditingMember] = useState(null);
+    const [isEditingHead, setIsEditingHead] = useState(false);
+    const [editHeadData, setEditHeadData] = useState({ head: '', headRole: '', headIds: [] });
     const [newMemberData, setNewMemberData] = useState({
         name: '',
         email: '',
         role: '',
         status: 'Ativo',
         joined: '',
-        colaboradorId: ''
+        colaboradoresIds: []
     });
+
+    // Estados para o modal customizado de confirmação de exclusão do Membro
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [memberParaExcluir, setMemberParaExcluir] = useState(null);
+    const [deletandoMember, setDeletandoMember] = useState(false);
 
     // Carregar dados
     const loadData = async () => {
+        if (id === 'novo') {
+            setDeptInfo({
+                name: 'Novo Departamento',
+                description: '',
+                icon: 'fa-building',
+                color: '#f1f5f9',
+                iconColor: '#475569'
+            });
+            setIsEditingInfo(true);
+            setEditInfoData({ name: '', description: '' });
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         setError(null);
         try {
@@ -55,25 +74,45 @@ const DetalhesDepartamento = () => {
 
             // Carregar info do departamento
             const deptResult = await departamentosAPI.getById(id);
+            let deptData = null;
+
             if (deptResult.success) {
-                const data = deptResult.data;
+                deptData = deptResult.data;
                 setDeptInfo({
-                    name: data.nome || 'Departamento sem nome',
-                    description: data.descricao || '',
-                    head: data.head || 'Não definido',
-                    headRole: data.head_role || 'N/A',
-                    icon: data.icon || 'fa-building',
-                    color: data.color || '#f1f5f9',
-                    iconColor: data.icon_color || '#64748b'
+                    name: deptData.nome || 'Departamento sem nome',
+                    description: deptData.descricao || '',
+                    head: deptData.head || 'Não definido',
+                    headRole: deptData.head_role || 'N/A',
+                    icon: deptData.icon || 'fa-building',
+                    color: deptData.color || '#f1f5f9',
+                    iconColor: deptData.icon_color || '#64748b'
                 });
             } else {
                 setError('Departamento não encontrado');
+                return;
             }
 
             // Carregar membros do departamento
             const membersResult = await departamentosAPI.getMembros(id);
             if (membersResult.success) {
-                setMembers(membersResult.data || []);
+                // Sort members alphabetically by name
+                const sortedMembers = (membersResult.data || []).sort((a, b) =>
+                    (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' })
+                );
+                setMembers(sortedMembers);
+
+                // Inicializar dados do responsável para edição (suporta múltiplos nomes separados por vírgula)
+                const savedHeadNames = (deptData.head || '').split(',').map(n => n.trim()).filter(n => n);
+                const matchingMembers = sortedMembers.filter(m =>
+                    savedHeadNames.includes(m.name) ||
+                    (deptData.head_id && String(m.membro_id || m.id) === String(deptData.head_id))
+                );
+
+                setEditHeadData({
+                    head: deptData.head || '',
+                    headRole: deptData.head_role || 'Responsável',
+                    headIds: matchingMembers.map(m => m.membro_id || m.id)
+                });
             }
         } catch (err) {
             console.error('Erro ao carregar dados:', err);
@@ -94,17 +133,61 @@ const DetalhesDepartamento = () => {
         }
         setSavingInfo(true);
         try {
-            const result = await departamentosAPI.update(id, { nome: editInfoData.name, descricao: editInfoData.description });
-            if (result.success) {
-                showToast('success', 'Departamento atualizado com sucesso!');
-                setDeptInfo(prev => ({ ...prev, name: editInfoData.name, description: editInfoData.description }));
-                setIsEditingInfo(false);
+            if (id === 'novo') {
+                const novoDepartamento = {
+                    nome: editInfoData.name,
+                    descricao: editInfoData.description || 'Nova divisão corporativa',
+                    status: 'Ativo',
+                    icon: 'fa-building',
+                    color: '#f1f5f9',
+                    iconColor: '#475569'
+                };
+                const result = await departamentosAPI.create(novoDepartamento);
+                if (result.success) {
+                    showToast('success', 'Departamento criado com sucesso!');
+                    navigate('/gestao/departamentos');
+                } else {
+                    showToast('error', 'Erro ao criar departamento');
+                }
             } else {
-                showToast('error', 'Erro ao atualizar departamento');
+                const result = await departamentosAPI.update(id, { nome: editInfoData.name, descricao: editInfoData.description });
+                if (result.success) {
+                    showToast('success', 'Departamento atualizado com sucesso!');
+                    setDeptInfo(prev => ({ ...prev, name: editInfoData.name, description: editInfoData.description }));
+                    setIsEditingInfo(false);
+                } else {
+                    showToast('error', 'Erro ao atualizar departamento');
+                }
             }
         } catch (error) {
-            console.error('Erro ao atualizar departamento:', error);
-            showToast('error', 'Erro de conexão ao atualizar departamento');
+            console.error('Erro ao salvar departamento:', error);
+            showToast('error', 'Erro de conexão ao salvar departamento');
+        } finally {
+            setSavingInfo(false);
+        }
+    };
+
+    const handleSaveHead = async () => {
+        setSavingInfo(true);
+        try {
+            const result = await departamentosAPI.update(id, {
+                head: editHeadData.head,
+                head_role: editHeadData.headRole
+            });
+            if (result.success) {
+                showToast('success', 'Responsável atualizado com sucesso!');
+                setDeptInfo(prev => ({
+                    ...prev,
+                    head: editHeadData.head,
+                    headRole: editHeadData.headRole
+                }));
+                setIsEditingHead(false);
+            } else {
+                showToast('error', 'Erro ao atualizar responsável');
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar responsável:', error);
+            showToast('error', 'Erro de conexão ao atualizar responsável');
         } finally {
             setSavingInfo(false);
         }
@@ -134,130 +217,94 @@ const DetalhesDepartamento = () => {
     const currentMembers = members.slice(indexOfFirstItem, indexOfLastItem);
     const totalPages = Math.ceil(members.length / itemsPerPage);
 
-    const handleRemoveMember = async (memberAssocId) => {
-        if (window.confirm('Tem certeza que deseja remover este colaborador do departamento?')) {
-            try {
-                const result = await departamentosAPI.removeMembro(id, memberAssocId);
-                if (result.success) {
-                    showToast('success', 'Colaborador removido com sucesso!');
-                    loadData(); // Recarregar lista
-                } else {
-                    showToast('error', 'Erro ao remover colaborador');
-                }
-            } catch (error) {
-                console.error('Erro ao remover colaborador:', error);
+    const handleRemoveMemberClick = (member) => {
+        setMemberParaExcluir(member);
+        setShowDeleteModal(true);
+    };
+
+    const handleConfirmRemoveMember = async () => {
+        if (!memberParaExcluir) return;
+
+        setDeletandoMember(true);
+        try {
+            const result = await departamentosAPI.removeMembro(id, memberParaExcluir.id);
+            if (result.success) {
+                showToast('success', 'Colaborador removido com sucesso!');
+                loadData(); // Recarregar lista
+            } else {
                 showToast('error', 'Erro ao remover colaborador');
             }
+        } catch (error) {
+            console.error('Erro ao remover colaborador:', error);
+            showToast('error', 'Erro ao remover colaborador');
+        } finally {
+            setDeletandoMember(false);
+            setShowDeleteModal(false);
+            setMemberParaExcluir(null);
         }
     };
 
-    const handleAddMember = async (e) => {
-        e.preventDefault();
+    const handleAddMember = async (idsToUse = null) => {
+        const targetIds = idsToUse || newMemberData.colaboradoresIds;
 
-        if (!newMemberData.colaboradorId) {
-            showToast('error', 'Selecione um colaborador');
+        if (!targetIds || targetIds.length === 0) {
+            showToast('error', 'Selecione pelo menos um colaborador');
+            return;
+        }
+
+        // Filtrar membros que já estão no departamento para evitar duplicatas visuais no toast
+        const existingMemberIds = members.map(m => String(m.membro_id));
+        const finalIds = targetIds.filter(id => !existingMemberIds.includes(String(id)));
+
+        if (finalIds.length === 0) {
+            setNewMemberData(prev => ({ ...prev, colaboradoresIds: [] }));
             return;
         }
 
         let formattedDate = newMemberData.joined;
-        // Assegurar formato YYYY-MM-DD para salvar
         if (!formattedDate) {
             const today = new Date();
             formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         }
 
-        const newMemberPayload = {
-            membro_id: newMemberData.colaboradorId,
-            cargo: newMemberData.role,
-            email: newMemberData.email,
-            status: newMemberData.status,
-            data_entrada: formattedDate
-        };
-
+        setSavingInfo(true);
         try {
-            const result = await departamentosAPI.addMembro(id, newMemberPayload);
-            if (result.success) {
-                showToast('success', 'Colaborador adicionado ao departamento!');
-                loadData();
-                setShowAddModal(false);
-                setNewMemberData({ name: '', email: '', role: '', status: 'Ativo', joined: '', colaboradorId: '' });
-            } else {
-                showToast('error', result.error || 'Erro ao adicionar colaborador');
-            }
-        } catch (error) {
-            console.error('Erro ao adicionar membro:', error);
-            showToast('error', 'Erro ao adicionar colaborador');
-        }
-    };
+            const results = await Promise.all(finalIds.map(async (colabId) => {
+                const selectedColab = colaboradores.find(c => String(c.id) === String(colabId));
 
-    const handleEditClick = (member) => {
-        let formattedJoined = member.joined;
-
-        // Garantir formato YYYY-MM-DD para o DatePicker
-        if (member.joined && member.joined.includes('T')) {
-            formattedJoined = member.joined.split('T')[0];
-        } else if (member.joined && member.joined.includes('/')) {
-            // Se por algum motivo estiver em DD/MM/YYYY
-            const parts = member.joined.split('/');
-            if (parts.length === 3 && parts[2].length === 4) {
-                formattedJoined = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            }
-        }
-
-        setEditingMember({ ...member, joined: formattedJoined });
-        setShowEditModal(true);
-    };
-
-    const handleSaveEdit = async (e) => {
-        e.preventDefault();
-
-        let formattedDate = editingMember.joined;
-        let dateForApi = null;
-
-        // Check if date is in YYYY-MM-DD format (from DatePicker)
-        if (formattedDate && /^\d{4}-\d{2}-\d{2}$/.test(formattedDate)) {
-            dateForApi = formattedDate;
-        } else if (formattedDate) {
-            // Tentar converter de volta para YYYY-MM-DD se estiver em outro formato (ex: MMM DD, YYYY)
-            try {
-                const months = {
-                    'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-                    'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+                const newMemberPayload = {
+                    membro_id: colabId,
+                    cargo: newMemberData.role || 'Colaborador',
+                    email: selectedColab?.email || '',
+                    status: newMemberData.status || 'Ativo',
+                    data_entrada: formattedDate
                 };
-                const parts = formattedDate.replace(',', '').split(' ');
-                if (parts.length === 3) {
-                    const month = months[parts[0]];
-                    const day = parts[1].padStart(2, '0');
-                    const year = parts[2];
-                    if (month) dateForApi = `${year}-${month}-${day}`;
-                }
-            } catch (e) {
-                console.error("Erro parse data", e);
-            }
-        }
 
-        const updatePayload = {
-            cargo: editingMember.role,
-            email: editingMember.email,
-            status: editingMember.status,
-            data_entrada: dateForApi
-        };
+                return await departamentosAPI.addMembro(id, newMemberPayload);
+            }));
 
-        try {
-            const result = await departamentosAPI.updateMembro(id, editingMember.id, updatePayload);
-            if (result.success) {
-                showToast('success', 'Alterações salvas com sucesso!');
+            const allSuccess = results.every(r => r.success);
+            const someFail = results.some(r => !r.success);
+
+            if (allSuccess) {
+                showToast('success', `${finalIds.length} colaborador(es) adicionado(s) com sucesso!`);
                 loadData();
-                setShowEditModal(false);
-                setEditingMember(null);
+                setNewMemberData({ name: '', email: '', role: '', status: 'Ativo', joined: '', colaboradoresIds: [] });
+            } else if (someFail) {
+                showToast('warning', 'Alguns colaboradores não puderam ser adicionados.');
+                loadData();
+                setNewMemberData(prev => ({ ...prev, colaboradoresIds: [] }));
             } else {
-                showToast('error', 'Erro ao atualizar membro');
+                showToast('error', 'Erro ao adicionar colaboradores');
             }
         } catch (error) {
-            console.error('Erro ao atualizar membro:', error);
-            showToast('error', 'Erro ao atualizar membro');
+            console.error('Erro ao adicionar membros:', error);
+            showToast('error', 'Erro ao adicionar colaboradores');
+        } finally {
+            setSavingInfo(false);
         }
     };
+
 
     if (loading) {
         return (
@@ -365,7 +412,13 @@ const DetalhesDepartamento = () => {
                                                         <button
                                                             className="btn-secondary"
                                                             style={{ padding: '6px 12px', fontSize: '13px', height: '36px' }}
-                                                            onClick={() => setIsEditingInfo(false)}
+                                                            onClick={() => {
+                                                                if (id === 'novo') {
+                                                                    navigate('/gestao/departamentos');
+                                                                } else {
+                                                                    setIsEditingInfo(false);
+                                                                }
+                                                            }}
                                                             disabled={savingInfo}
                                                         >
                                                             Cancelar
@@ -424,365 +477,240 @@ const DetalhesDepartamento = () => {
                                 >
                                     <i className="fas fa-arrow-left"></i> Voltar
                                 </button>
-                                <button className="add-member-btn" onClick={() => setShowAddModal(true)}>
-                                    <i className="fas fa-user-plus"></i>
-                                    Adicionar Membro
-                                </button>
+                                {id !== 'novo' && (
+                                    <div className="add-member-container" style={{ width: '300px' }}>
+                                        <FilterColaborador
+                                            hideLabel
+                                            placeholder="Adicionar Membros..."
+                                            value={newMemberData.colaboradoresIds}
+                                            options={colaboradores.filter(c => !members.some(m => String(m.membro_id) === String(c.id)))}
+                                            onChange={(e) => {
+                                                setNewMemberData(prev => ({
+                                                    ...prev,
+                                                    colaboradoresIds: e.target.value || []
+                                                }));
+                                            }}
+                                            disabled={savingInfo}
+                                            showConfirmButton={true}
+                                            confirmButtonLabel={savingInfo ? "Adicionando..." : "Adicionar ao Departamento"}
+                                            onConfirm={() => handleAddMember()}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        {/* Top Cards */}
-                        <div className="top-cards-grid">
-                            <div className="info-card">
-                                <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#0e3b6f' }}>
-                                    <i className="fas fa-users"></i>
-                                </div>
-                                <div className="card-content">
-                                    <span className="card-label">Total de Membros</span>
-                                    <span className="card-value">{members.length}</span>
-                                </div>
-                            </div>
-                            <div className="info-card">
-                                <div className="card-icon-wrapper" style={{ background: '#eff6ff', color: '#3b82f6' }}>
-                                    <i className="fas fa-user-shield"></i>
-                                </div>
-                                <div className="card-content">
-                                    <span className="card-label">Responsável pelo Departamento</span>
-                                    <div className="head-profile">
-                                        <div className="head-info">
-                                            <h3>{deptInfo.head || 'Não definido'}</h3>
-                                            <span className="role-badge">{deptInfo.headRole || 'N/A'}</span>
+                        {id !== 'novo' && (
+                            <>
+                                {/* Top Cards */}
+                                <div className="top-cards-grid">
+                                    <div className="info-card">
+                                        <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#0e3b6f' }}>
+                                            <i className="fas fa-users"></i>
+                                        </div>
+                                        <div className="card-content">
+                                            <span className="card-label">Total de Membros</span>
+                                            <span className="card-value">{members.length}</span>
+                                        </div>
+                                    </div>
+                                    <div className="info-card">
+                                        <div className="card-icon-wrapper" style={{ background: '#eff6ff', color: '#3b82f6' }}>
+                                            {editHeadData.headIds && editHeadData.headIds.length > 0 ? (
+                                                <div className="avatar-stack">
+                                                    {editHeadData.headIds.slice(0, 3).map((id, index) => {
+                                                        const member = members.find(m => String(m.membro_id || m.id) === String(id));
+                                                        return (
+                                                            <div key={id} className="avatar-stack-item" title={member?.name || 'Responsável'}>
+                                                                {member?.avatar_url ? (
+                                                                    <img src={member.avatar_url} alt={member.name} className="avatar-stack-img" />
+                                                                ) : (
+                                                                    (member?.name || 'R').charAt(0)
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {editHeadData.headIds.length > 3 && (
+                                                        <div className="avatar-stack-more">
+                                                            +{editHeadData.headIds.length - 3}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <i className="fas fa-user-plus" style={{ opacity: 0.5 }}></i>
+                                            )}
+                                        </div>
+                                        <div className="card-content">
+                                            <span className="card-label">Responsável pelo Departamento</span>
+                                            <div className="head-profile">
+                                                <div className="head-info">
+                                                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, flexWrap: 'wrap' }}>
+                                                        {deptInfo.head ? (
+                                                            deptInfo.head.split(',').map((name, idx, arr) => (
+                                                                <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    {name.trim()}
+                                                                    {idx < arr.length - 1 && <span style={{ color: '#cbd5e1', fontSize: '12px' }}>•</span>}
+                                                                </span>
+                                                            ))
+                                                        ) : 'Não definido'}
+                                                        <FilterColaborador
+                                                            className="edit-head-filter"
+                                                            hideLabel
+                                                            isIconButton={true}
+                                                            icon="fa-plus"
+                                                            placeholder="Selecionar Responsáveis"
+                                                            value={editHeadData.headIds || []}
+                                                            options={members.map(m => ({ id: m.membro_id || m.id, nome: m.name }))}
+                                                            onChange={(e) => {
+                                                                const ids = e.target.value || [];
+                                                                const selectedMembers = members.filter(m =>
+                                                                    ids.map(String).includes(String(m.membro_id || m.id))
+                                                                );
+
+                                                                if (selectedMembers.length > 0) {
+                                                                    setEditHeadData(prev => ({
+                                                                        ...prev,
+                                                                        head: selectedMembers.map(m => m.name).join(', '),
+                                                                        headIds: ids,
+                                                                        headRole: 'Responsável'
+                                                                    }));
+                                                                } else {
+                                                                    setEditHeadData(prev => ({
+                                                                        ...prev,
+                                                                        head: '',
+                                                                        headIds: [],
+                                                                        headRole: 'Responsável'
+                                                                    }));
+                                                                }
+                                                            }}
+                                                            allowEmpty={true}
+                                                            showConfirmButton={true}
+                                                            confirmButtonLabel={savingInfo ? "Salvando..." : "Definir Responsáveis"}
+                                                            onConfirm={handleSaveHead}
+                                                            disabled={savingInfo}
+                                                        />
+                                                    </h3>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Members List */}
-                        <div className="members-section">
-                            <div className="members-header">
-                                <h2>Membros do Departamento</h2>
-                            </div>
-
-                            <table className="members-table">
-                                <thead>
-                                    <tr>
-                                        <th>Membro</th>
-                                        <th style={{ textAlign: 'right' }}>Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {currentMembers.map(member => (
-                                        <tr key={member.id}>
-                                            <td>
-                                                <div className="member-profile">
-                                                    <div className="member-avatar-placeholder">
-                                                        {(member.name || '?').charAt(0)}
-                                                    </div>
-                                                    <div className="member-info">
-                                                        <div>{member.name}</div>
-                                                        <div>{member.email}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td style={{ textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                    <EditButton
-                                                        onClick={() => handleEditClick(member)}
-                                                        title="Editar Membro"
-                                                    />
-                                                    <DeleteButton
-                                                        onClick={() => handleRemoveMember(member.id)}
-                                                        title="Remover Membro"
-                                                    />
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-
-                            {currentMembers.length === 0 && (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                                    Nenhum membro encontrado.
-                                </div>
-                            )}
-
-                            {/* Controles de Paginação */}
-                            {totalPages > 1 && (
-                                <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '14px', color: '#64748b' }}>
-                                        Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, members.length)} de {members.length} membros
-                                    </span>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                            disabled={currentPage === 1}
-                                            style={{
-                                                padding: '6px 12px',
-                                                border: '1px solid #e2e8f0',
-                                                background: 'white',
-                                                borderRadius: '6px',
-                                                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                                opacity: currentPage === 1 ? 0.5 : 1
-                                            }}
-                                        >
-                                            <i className="fas fa-chevron-left"></i>
-                                        </button>
-
-                                        {Array.from({ length: totalPages }, (_, i) => (
-                                            <button
-                                                key={i + 1}
-                                                onClick={() => setCurrentPage(i + 1)}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    border: `1px solid ${currentPage === i + 1 ? '#3b82f6' : '#e2e8f0'}`,
-                                                    background: currentPage === i + 1 ? '#eff6ff' : 'white',
-                                                    color: currentPage === i + 1 ? '#3b82f6' : '#64748b',
-                                                    borderRadius: '6px',
-                                                    cursor: 'pointer',
-                                                    fontWeight: '600'
-                                                }}
-                                            >
-                                                {i + 1}
-                                            </button>
-                                        ))}
-
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                            disabled={currentPage === totalPages}
-                                            style={{
-                                                padding: '6px 12px',
-                                                border: '1px solid #e2e8f0',
-                                                background: 'white',
-                                                borderRadius: '6px',
-                                                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                                                opacity: currentPage === totalPages ? 0.5 : 1
-                                            }}
-                                        >
-                                            <i className="fas fa-chevron-right"></i>
-                                        </button>
+                                {/* Members List */}
+                                <div className="members-section">
+                                    <div className="members-header">
+                                        <h2>Membros do Departamento</h2>
                                     </div>
-                                </div>
-                            )}
-                        </div>
 
+                                    <table className="members-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Membro</th>
+                                                <th style={{ textAlign: 'right' }}>Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {currentMembers.map(member => (
+                                                <tr key={member.id}>
+                                                    <td>
+                                                        <div className="member-profile">
+                                                            {member.avatar_url ? (
+                                                                <img src={member.avatar_url} alt={member.name} className="member-avatar" />
+                                                            ) : (
+                                                                <div className="member-avatar-placeholder">
+                                                                    {(member.name || '?').charAt(0)}
+                                                                </div>
+                                                            )}
+                                                            <div className="member-info">
+                                                                <div>{member.name}</div>
+                                                                <div>{member.email}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ textAlign: 'right' }}>
+                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                            <DeleteButton
+                                                                onClick={() => handleRemoveMemberClick(member)}
+                                                                title="Remover Membro"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+
+                                    {currentMembers.length === 0 && (
+                                        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                                            Nenhum membro encontrado.
+                                        </div>
+                                    )}
+
+                                    {/* Controles de Paginação */}
+                                    {totalPages > 1 && (
+                                        <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '14px', color: '#64748b' }}>
+                                                Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, members.length)} de {members.length} membros
+                                            </span>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                                    disabled={currentPage === 1}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        border: '1px solid #e2e8f0',
+                                                        background: 'white',
+                                                        borderRadius: '6px',
+                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                                        opacity: currentPage === 1 ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <i className="fas fa-chevron-left"></i>
+                                                </button>
+
+                                                {Array.from({ length: totalPages }, (_, i) => (
+                                                    <button
+                                                        key={i + 1}
+                                                        onClick={() => setCurrentPage(i + 1)}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            border: `1px solid ${currentPage === i + 1 ? '#3b82f6' : '#e2e8f0'}`,
+                                                            background: currentPage === i + 1 ? '#eff6ff' : 'white',
+                                                            color: currentPage === i + 1 ? '#3b82f6' : '#64748b',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            fontWeight: '600'
+                                                        }}
+                                                    >
+                                                        {i + 1}
+                                                    </button>
+                                                ))}
+
+                                                <button
+                                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                                    disabled={currentPage === totalPages}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        border: '1px solid #e2e8f0',
+                                                        background: 'white',
+                                                        borderRadius: '6px',
+                                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                                        opacity: currentPage === totalPages ? 0.5 : 1
+                                                    }}
+                                                >
+                                                    <i className="fas fa-chevron-right"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </main>
             </div>
 
-            {/* Modal Adicionar Membro */}
-            {showAddModal && (
-                <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-                    <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3 style={{ margin: 0 }}>Adicionar Membro</h3>
-                        </div>
-                        <div className="modal-body">
-                            <p>Selecione um colaborador para adicionar ao departamento de <strong>{deptInfo.name}</strong>.</p>
-                            <form onSubmit={handleAddMember}>
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', position: 'relative', zIndex: 1 }}>
-                                    <div className="form-group">
-                                        <label>Nome</label>
-                                        <select
-                                            className="form-control"
-                                            value={newMemberData.colaboradorId}
-                                            onChange={e => {
-                                                const selectedId = e.target.value;
-                                                const selectedColab = colaboradores.find(c => String(c.id) === String(selectedId));
-                                                if (selectedColab) {
-                                                    setNewMemberData({
-                                                        ...newMemberData,
-                                                        colaboradorId: selectedId,
-                                                        name: selectedColab.nome,
-                                                        email: selectedColab.email || ''
-                                                    });
-                                                } else {
-                                                    setNewMemberData({
-                                                        ...newMemberData,
-                                                        colaboradorId: '',
-                                                        name: '',
-                                                        email: ''
-                                                    });
-                                                }
-                                            }}
-                                            required
-                                        >
-                                            <option value="">Selecione um colaborador</option>
-                                            {colaboradores.map(colab => (
-                                                <option key={colab.id} value={colab.id}>{colab.nome}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Email (Opcional)</label>
-                                        <input
-                                            type="email"
-                                            className="form-control"
-                                            value={newMemberData.email}
-                                            onChange={e => setNewMemberData({ ...newMemberData, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
 
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px', position: 'relative', zIndex: 1 }}>
-                                    <div className="form-group">
-                                        <label>Cargo</label>
-                                        <input
-                                            type="text"
-                                            className="form-control"
-                                            value={newMemberData.role}
-                                            onChange={e => setNewMemberData({ ...newMemberData, role: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Status</label>
-                                        <select
-                                            className="form-control"
-                                            value={newMemberData.status}
-                                            onChange={e => setNewMemberData({ ...newMemberData, status: e.target.value })}
-                                        >
-                                            <option value="Ativo">Ativo</option>
-                                            <option value="Inativo">Inativo</option>
-                                            <option value="Férias">Férias</option>
-                                        </select>
-                                    </div>
-                                </div>
 
-                                <div className="form-group" style={{ marginTop: '12px', position: 'relative', zIndex: 100 }}>
-                                    <label>Data de Entrada</label>
-                                    <DatePicker
-                                        value={newMemberData.joined}
-                                        onChange={(e) => setNewMemberData({ ...newMemberData, joined: e.target.value })}
-                                        className="date-picker-up"
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAddModal(false)}
-                                        style={{
-                                            padding: '10px 20px',
-                                            borderRadius: '6px',
-                                            border: '1px solid #d1d5db',
-                                            background: 'white',
-                                            color: '#64748b',
-                                            cursor: 'pointer',
-                                            fontWeight: '600'
-                                        }}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="add-member-btn"
-                                        style={{ border: 'none' }}
-                                    >
-                                        Adicionar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal Editar Membro */}
-            {showEditModal && editingMember && (
-                <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-                    <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3 style={{ margin: 0 }}>Editar Membro</h3>
-                        </div>
-                        <div className="modal-body">
-                            <form onSubmit={handleSaveEdit}>
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', position: 'relative', zIndex: 1 }}>
-                                    <div className="form-group">
-                                        <label>Nome</label>
-                                        <input
-                                            type="text"
-                                            className="form-control"
-                                            value={editingMember.name}
-                                            onChange={e => setEditingMember({ ...editingMember, name: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Email (Opcional)</label>
-                                        <input
-                                            type="email"
-                                            className="form-control"
-                                            value={editingMember.email}
-                                            onChange={e => setEditingMember({ ...editingMember, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px', position: 'relative', zIndex: 1 }}>
-                                    <div className="form-group">
-                                        <label>Cargo</label>
-                                        <input
-                                            type="text"
-                                            className="form-control"
-                                            value={editingMember.role}
-                                            onChange={e => setEditingMember({ ...editingMember, role: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Status</label>
-                                        <select
-                                            className="form-control"
-                                            value={editingMember.status}
-                                            onChange={e => setEditingMember({ ...editingMember, status: e.target.value })}
-                                        >
-                                            <option value="Ativo">Ativo</option>
-                                            <option value="Inativo">Inativo</option>
-                                            <option value="Férias">Férias</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="form-group" style={{ marginTop: '12px', position: 'relative', zIndex: 100 }}>
-                                    <label>Data de Entrada</label>
-                                    <DatePicker
-                                        value={editingMember.joined}
-                                        onChange={(e) => setEditingMember({ ...editingMember, joined: e.target.value })}
-                                        className="date-picker-up"
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowEditModal(false)}
-                                        style={{
-                                            padding: '10px 20px',
-                                            borderRadius: '6px',
-                                            border: '1px solid #d1d5db',
-                                            background: 'white',
-                                            color: '#64748b',
-                                            cursor: 'pointer',
-                                            fontWeight: '600'
-                                        }}
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="add-member-btn"
-                                        style={{ border: 'none' }}
-                                    >
-                                        Salvar Alterações
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Modal Seleção de Ícone */}
             {showIconModal && (
@@ -841,6 +769,31 @@ const DetalhesDepartamento = () => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de confirmação de exclusão */}
+            <ConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => {
+                    setShowDeleteModal(false);
+                    setMemberParaExcluir(null);
+                }}
+                onConfirm={handleConfirmRemoveMember}
+                title="Remover Membro"
+                message={
+                    memberParaExcluir ? (
+                        <>
+                            <p>
+                                Tem certeza que deseja remover o colaborador <strong>{memberParaExcluir.name}</strong> deste departamento?
+                            </p>
+                            <p style={{ color: '#b45309', marginTop: '8px' }}>Poderão ser perdidos vínculos e responsabilidades atribuídas a ele dentro do departamento.</p>
+                        </>
+                    ) : (
+                        ''
+                    )
+                }
+                confirmText="Remover"
+                loading={deletandoMember}
+            />
         </Layout>
     );
 };

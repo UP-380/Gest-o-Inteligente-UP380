@@ -111,8 +111,11 @@ const ChamadosView = () => {
     const getStatusColor = (status) => {
         switch (status) {
             case 'ABERTO': return '#ffc107'; // yellow
+            case 'EM_ANALISE': return '#fd7e14'; // orange
             case 'RESPONDIDO': return '#007bff'; // blue
+            case 'ENCERRADO':
             case 'CONCLUIDO': return '#28a745'; // green
+            case 'CANCELADO': return '#dc3545'; // red
             default: return '#6c757d'; // gray
         }
     };
@@ -160,7 +163,12 @@ const ChamadosView = () => {
                                     </div>
                                     <div className="chamado-meta">
                                         <span className="badge status" style={{ backgroundColor: getStatusColor(chamado.status_chamado) }}>
-                                            {chamado.status_chamado === 'RESPONDIDO' ? 'EM PROCESSO' : chamado.status_chamado}
+                                            {chamado.status_chamado === 'RESPONDIDO' ? 'EM PROCESSO' :
+                                                chamado.status_chamado === 'EM_ANALISE' ? 'EM ANÁLISE' :
+                                                    chamado.status_chamado === 'CONCLUIDO' ? 'ENCERRADO' :
+                                                        chamado.status_chamado === 'ENCERRADO' ? 'ENCERRADO' :
+                                                            chamado.status_chamado === 'CANCELADO' ? 'CANCELADO' :
+                                                                chamado.status_chamado}
                                         </span>
                                         <span className="badge priority">
                                             {chamado.metadata?.prioridade || 'Normal'}

@@ -10,7 +10,26 @@ const removerAcentos = (texto) => {
     .toLowerCase();
 };
 
-const FilterColaborador = ({ value, options = [], onChange, disabled = false, showInactiveToggle = false, onInactiveToggleChange }) => {
+const FilterColaborador = ({
+  value,
+  options = [],
+  onChange,
+  disabled = false,
+  showInactiveToggle = false,
+  onInactiveToggleChange,
+  placeholder = 'Selecionar colaboradores',
+  label = 'Colaboradores',
+  hideLabel = false,
+  showConfirmButton = false,
+  confirmButtonLabel = 'Adicionar',
+  onConfirm = null,
+  allowEmpty = false,
+  isIconButton = false,
+  icon = 'fa-plus',
+  dropdownHeader = null,
+  dropdownFooter = null,
+  className = ''
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mostrarInativos, setMostrarInativos] = useState(false);
@@ -19,21 +38,21 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
 
   // Normalizar IDs para string para comparação consistente
   const normalizeId = useCallback((id) => String(id).trim(), []);
-  
+
   // Converter value para array (suporta tanto string quanto array)
   const selectedIds = useMemo(() => {
-    return Array.isArray(value) 
-      ? value.map(normalizeId) 
+    return Array.isArray(value)
+      ? value.map(normalizeId)
       : (value ? [normalizeId(value)] : []);
   }, [value, normalizeId]);
-  
+
   // Obter colaboradores selecionados
   const selectedColaboradores = options.filter(c => selectedIds.includes(normalizeId(c.id)));
-  
+
   // Texto de exibição
   const getSelectedText = () => {
     if (selectedColaboradores.length === 0) {
-      return 'Selecionar colaboradores';
+      return placeholder;
     } else if (selectedColaboradores.length === 1) {
       const colaborador = selectedColaboradores[0];
       const nome = colaborador.nome || `Colaborador #${colaborador.id}`;
@@ -48,7 +67,7 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
   // Filtrar opções baseado na busca (nome ou CPF) e status - sem considerar acentos
   const filteredOptions = options.filter(colaborador => {
     if (!colaborador) return false;
-    
+
     // Se mostrarInativos estiver desativado, filtrar colaboradores inativos
     if (!mostrarInativos) {
       const status = colaborador.status || 'ativo';
@@ -56,29 +75,23 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
         return false;
       }
     }
-    
+
     if (!searchQuery.trim()) return true;
-    
+
     const queryNormalizado = removerAcentos(searchQuery.trim());
     const nomeNormalizado = removerAcentos(colaborador.nome || '');
     const nomeMatch = nomeNormalizado.includes(queryNormalizado);
-    
+
     // Buscar por CPF (remover formatação para comparação)
     const cpfMatch = colaborador.cpf && colaborador.cpf.replace(/\D/g, '').includes(queryNormalizado.replace(/\D/g, ''));
-    
+
     return nomeMatch || cpfMatch;
   });
 
-  // Ordenar: selecionados primeiro, depois os não selecionados
+  // No longer sorting selected first, per user request. Maintaining original list order.
   const sortedOptions = useMemo(() => {
-    const selected = filteredOptions.filter(colaborador => 
-      selectedIds.includes(normalizeId(colaborador.id))
-    );
-    const notSelected = filteredOptions.filter(colaborador => 
-      !selectedIds.includes(normalizeId(colaborador.id))
-    );
-    return [...selected, ...notSelected];
-  }, [filteredOptions, selectedIds, normalizeId]);
+    return filteredOptions;
+  }, [filteredOptions]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -105,13 +118,13 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
     if (!disabled) {
       // Normalizar ID para comparação
       const normalizedId = normalizeId(colaboradorId);
-      
+
       // Toggle do colaborador selecionado
       const newSelectedIds = selectedIds.includes(normalizedId)
         ? selectedIds.filter(id => id !== normalizedId)
         : [...selectedIds, normalizedId];
 
-      
+
       if (onChange) {
         const fakeEvent = {
           target: { value: newSelectedIds.length > 0 ? newSelectedIds : null }
@@ -143,7 +156,9 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
   // Focar no input quando o dropdown abrir
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
     }
   }, [isOpen]);
 
@@ -156,40 +171,77 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
 
   return (
     <>
-      <label className="filter-label">Colaboradores</label>
-      <div className="colaborador-filter-container" ref={containerRef}>
+      {!hideLabel && <label className="filter-label">{label}</label>}
+      <div className={`colaborador-filter-container ${isIconButton ? 'is-icon-button' : ''} ${className}`} ref={containerRef}>
         <div className="colaborador-select-field">
-          <div 
-            className={`colaborador-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
-            onClick={!isOpen ? handleOpen : undefined}
-          >
-            {isOpen ? (
-              <input
-                ref={searchInputRef}
-                type="text"
-                className="colaborador-select-input"
-                placeholder="Buscar colaborador por nome ou CPF..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setIsOpen(false);
-                    setSearchQuery('');
-                  }
-                }}
-                autoComplete="off"
-              />
-            ) : (
-              <span className={`colaborador-select-text ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
-                {selectedText}
-              </span>
-            )}
-            <i className={`fas fa-chevron-down colaborador-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
-          </div>
+          {isIconButton ? (
+            <button
+              type="button"
+              className={`colaborador-icon-trigger ${isOpen ? 'active' : ''}`}
+              onClick={handleOpen}
+              title={placeholder}
+              disabled={disabled}
+            >
+              <i className={`fas ${icon}`}></i>
+            </button>
+          ) : (
+            <div
+              className={`colaborador-select-display ${disabled ? 'disabled' : ''} ${isOpen ? 'active' : ''}`}
+              onClick={!isOpen ? handleOpen : undefined}
+            >
+              {isOpen ? (
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  className="colaborador-select-input"
+                  placeholder={placeholder}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsOpen(false);
+                      setSearchQuery('');
+                    }
+                  }}
+                  autoComplete="off"
+                />
+              ) : (
+                <span className={`colaborador-select-text ${selectedIds.length > 0 ? 'has-selection' : ''}`}>
+                  {selectedText}
+                </span>
+              )}
+              <i className={`fas fa-chevron-down colaborador-select-arrow ${isOpen ? 'rotated' : ''}`}></i>
+            </div>
+          )}
           {isOpen && !disabled && (
             <div className="colaborador-dropdown">
               <div className="colaborador-dropdown-content">
+                {dropdownHeader && (
+                  <div className="colaborador-dropdown-custom-header">
+                    {dropdownHeader}
+                  </div>
+                )}
+                {/* Busca interna quando usado como botão de ícone */}
+                {isIconButton && (
+                  <div className="colaborador-dropdown-search">
+                    <i className="fas fa-search"></i>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder={placeholder}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setIsOpen(false);
+                          setSearchQuery('');
+                        }
+                      }}
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
                 {/* Toggle para habilitar colaboradores inativos */}
                 {showInactiveToggle && (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '6px', marginBottom: '4px', padding: '8px 12px', borderBottom: '1px solid #e5e7eb' }}>
@@ -252,10 +304,31 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
                           }}
                           onMouseDown={(e) => e.stopPropagation()}
                         >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => { }} // Handle is done in parent div's onClick
+                            style={{ display: 'none' }}
+                          />
                           <div className="colaborador-option-checkbox">
                             {isSelected && <i className="fas fa-check"></i>}
                           </div>
-                          <span>
+
+                          <div className="colaborador-option-avatar-container">
+                            {(colaborador.foto_perfil || colaborador.avatar_url) ? (
+                              <img
+                                src={colaborador.foto_perfil || colaborador.avatar_url}
+                                alt={colaborador.nome}
+                                className="colaborador-option-avatar"
+                              />
+                            ) : (
+                              <div className="colaborador-option-initial">
+                                {(colaborador.nome || '?').charAt(0)}
+                              </div>
+                            )}
+                          </div>
+
+                          <span className="colaborador-option-name">
                             {colaborador.nome || `Colaborador #${colaborador.id}`}
                             {colaborador.cpf && ` (${colaborador.cpf})`}
                           </span>
@@ -266,15 +339,36 @@ const FilterColaborador = ({ value, options = [], onChange, disabled = false, sh
                   ) : (
                     <div className="colaborador-option no-results">
                       <span>
-                        {options.length === 0 
-                          ? 'Carregando colaboradores...' 
-                          : searchQuery.trim() 
-                            ? 'Nenhum colaborador encontrado' 
+                        {options.length === 0
+                          ? 'Carregando colaboradores...'
+                          : searchQuery.trim()
+                            ? 'Nenhum colaborador encontrado'
                             : 'Nenhum colaborador disponível'}
                       </span>
                     </div>
                   )}
                 </div>
+                {showConfirmButton && (
+                  <div className="colaborador-dropdown-footer">
+                    <button
+                      type="button"
+                      className="colaborador-confirm-btn"
+                      disabled={!allowEmpty && selectedIds.length === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onConfirm) onConfirm();
+                        setIsOpen(false);
+                      }}
+                    >
+                      {confirmButtonLabel}
+                    </button>
+                  </div>
+                )}
+                {dropdownFooter && (
+                  <div className="colaborador-dropdown-custom-footer">
+                    {dropdownFooter}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -446,7 +446,11 @@ const CommunicationDrawer = ({ user }) => {
     const [replyingToChamado, setReplyingToChamado] = useState(false);
     const [statusFilter, setStatusFilter] = useState('Todos');
 
-    const filteredChamados = chamados.filter(c => statusFilter === 'Todos' || c.status_chamado === statusFilter);
+    const filteredChamados = chamados.filter(c => {
+        if (statusFilter === 'Todos') return true;
+        if (statusFilter === 'ENCERRADO') return c.status_chamado === 'ENCERRADO' || c.status_chamado === 'CONCLUIDO';
+        return c.status_chamado === statusFilter;
+    });
 
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
@@ -1093,7 +1097,7 @@ const CommunicationDrawer = ({ user }) => {
                     <i className="fas fa-headset"></i> Abrir Chamado
                 </button>
                 <div className="chamados-filters" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                    {['Todos', 'ABERTO', 'EM PROCESSO', 'CONCLUIDO'].map(st => (
+                    {['Todos', 'ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(st => (
                         <button
                             key={st}
                             onClick={() => setStatusFilter(st)}
@@ -1110,7 +1114,12 @@ const CommunicationDrawer = ({ user }) => {
                                 transition: 'all 0.2s'
                             }}
                         >
-                            {st === 'Todos' ? 'Todos' : (st === 'RESPONDIDO' ? 'EM PROCESSO' : st.replace('_', ' '))}
+                            {st === 'Todos' ? 'Todos' :
+                                st === 'EM_ANALISE' ? 'Em análise' :
+                                    st === 'RESPONDIDO' ? 'Em processo' :
+                                        st === 'ENCERRADO' ? 'Encerrado' :
+                                            st === 'CANCELADO' ? 'Cancelado' :
+                                                st}
                         </button>
                     ))}
                 </div>
@@ -1124,7 +1133,12 @@ const CommunicationDrawer = ({ user }) => {
                     filteredChamados.map(cham => (
                         <div key={cham.id} className="comm-card chamado-card" onClick={() => handleSelectChamado(cham)} style={{ position: 'relative' }}>
                             <div className="chamado-status-tag" data-status={cham.status_chamado}>
-                                {cham.status_chamado === 'RESPONDIDO' ? 'EM PROCESSO' : cham.status_chamado}
+                                {cham.status_chamado === 'RESPONDIDO' ? 'EM PROCESSO' :
+                                    cham.status_chamado === 'EM_ANALISE' ? 'EM ANÁLISE' :
+                                        cham.status_chamado === 'CONCLUIDO' ? 'ENCERRADO' :
+                                            cham.status_chamado === 'ENCERRADO' ? 'ENCERRADO' :
+                                                cham.status_chamado === 'CANCELADO' ? 'CANCELADO' :
+                                                    cham.status_chamado}
                             </div>
                             <h4 className="comm-card-title">{cham.titulo}</h4>
                             <p className="comm-card-content">{getPreviewText(cham.conteudo)}</p>
@@ -1185,13 +1199,16 @@ const CommunicationDrawer = ({ user }) => {
             {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && (
                 <div className="comm-drawer-status-selector">
                     <span className="label">Status:</span>
-                    {['ABERTO', 'RESPONDIDO', 'CONCLUIDO'].map(status => (
+                    {['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(status => (
                         <button
                             key={status}
                             onClick={() => handleChangeChamadoStatus(status)}
                             className={`comm-drawer-status-btn ${selectedChamado.status_chamado === status ? 'active' : ''}`}
                         >
-                            {status === 'RESPONDIDO' ? 'EM PROCESSO' : status.replace('_', ' ')}
+                            {status === 'RESPONDIDO' ? 'EM PROCESSO' :
+                                status === 'EM_ANALISE' ? 'EM ANÁLISE' :
+                                    status === 'ENCERRADO' ? 'ENCERRADO' :
+                                        status.replace('_', ' ')}
                         </button>
                     ))}
                 </div>
@@ -1292,7 +1309,7 @@ const CommunicationDrawer = ({ user }) => {
                 <div ref={messagesEndRef} />
             </div>
 
-            {selectedChamado.status_chamado !== 'CONCLUIDO' ? (
+            {selectedChamado.status_chamado !== 'CONCLUIDO' && selectedChamado.status_chamado !== 'ENCERRADO' && selectedChamado.status_chamado !== 'CANCELADO' ? (
                 <form className="comm-chat-form" onSubmit={handleSendChamadoReply}>
                     {templates.length > 0 && selectedChamado.pode_gerenciar && selectedChamado.criador_id !== user?.id && (
                         <div className="comm-templates-container">
@@ -1337,7 +1354,7 @@ const CommunicationDrawer = ({ user }) => {
                 </form>
             ) : (
                 <div style={{ padding: '15px', textAlign: 'center', backgroundColor: '#f1f5f9', fontSize: '12px', color: '#64748b' }}>
-                    <i className="fas fa-lock"></i> Este chamado foi concluído e está fechado para novas respostas.
+                    <i className="fas fa-lock"></i> Este chamado foi {selectedChamado.status_chamado === 'CANCELADO' ? 'cancelado' : 'encerrado'} e está fechado para novas respostas.
                 </div>
             )}
         </div>
