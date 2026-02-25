@@ -98,11 +98,9 @@ async function criarDepartamento(req, res) {
             nome,
             descricao,
             head,
-            head_role,
             icon: icon || 'fa-building',
             color: color || '#f1f5f9',
-            icon_color: icon_color || '#475569',
-            status: status || 'Ativo'
+            icon_color: icon_color || '#475569'
         };
 
         const { data, error } = await supabase
@@ -133,11 +131,9 @@ async function atualizarDepartamento(req, res) {
         if (nome !== undefined) updates.nome = nome;
         if (descricao !== undefined) updates.descricao = descricao;
         if (head !== undefined) updates.head = head;
-        if (head_role !== undefined) updates.head_role = head_role;
         if (icon !== undefined) updates.icon = icon;
         if (color !== undefined) updates.color = color;
         if (icon_color !== undefined) updates.icon_color = icon_color;
-        if (status !== undefined) updates.status = status;
         updates.updated_at = new Date().toISOString();
 
         const { data, error } = await supabase
@@ -195,10 +191,6 @@ async function getMembrosDepartamento(req, res) {
         id,
         departamento_id,
         membro_id,
-        cargo,
-        status,
-        data_entrada,
-        email,
         membro:membro_id (
           id,
           nome,
@@ -218,10 +210,10 @@ async function getMembrosDepartamento(req, res) {
             membro_id: record.membro_id,
             departamento_id: record.departamento_id,
             name: record.membro?.nome || 'Desconhecido', // Usar nome da tabela membro
-            email: record.email, // Email pode estar na associação ou buscar de outro lugar se necessário
-            role: record.cargo,
-            status: record.status,
-            joined: record.data_entrada
+            email: record.membro?.email || '', // Email pode estar na associação ou buscar de outro lugar se necessário
+            role: 'Colaborador',
+            status: 'Ativo',
+            joined: ''
         }));
 
         return sendSuccess(res, 200, formattedData);
@@ -245,11 +237,7 @@ async function addMembroDepartamento(req, res) {
             .from('departamento_membros')
             .insert([{
                 departamento_id: id,
-                membro_id,
-                cargo,
-                email,
-                status: status || 'Ativo',
-                data_entrada
+                membro_id
             }])
             .select()
             .single();
@@ -281,10 +269,6 @@ async function updateMembroDepartamento(req, res) {
         let query = supabase
             .from('departamento_membros')
             .update({
-                cargo,
-                email,
-                status,
-                data_entrada,
                 updated_at: new Date().toISOString()
             })
             .eq('id', membroId) // Assumindo que membroId é o PK da tabela de associação
@@ -303,10 +287,6 @@ async function updateMembroDepartamento(req, res) {
                 .schema('up_gestaointeligente_dev')
                 .from('departamento_membros')
                 .update({
-                    cargo,
-                    email,
-                    status,
-                    data_entrada,
                     updated_at: new Date().toISOString()
                 })
                 .eq('departamento_id', id)

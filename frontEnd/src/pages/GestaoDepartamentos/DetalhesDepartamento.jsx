@@ -82,7 +82,6 @@ const DetalhesDepartamento = () => {
                     name: deptData.nome || 'Departamento sem nome',
                     description: deptData.descricao || '',
                     head: deptData.head || 'Não definido',
-                    headRole: deptData.head_role || 'N/A',
                     icon: deptData.icon || 'fa-building',
                     color: deptData.color || '#f1f5f9',
                     iconColor: deptData.icon_color || '#64748b'
@@ -104,13 +103,11 @@ const DetalhesDepartamento = () => {
                 // Inicializar dados do responsável para edição (suporta múltiplos nomes separados por vírgula)
                 const savedHeadNames = (deptData.head || '').split(',').map(n => n.trim()).filter(n => n);
                 const matchingMembers = sortedMembers.filter(m =>
-                    savedHeadNames.includes(m.name) ||
-                    (deptData.head_id && String(m.membro_id || m.id) === String(deptData.head_id))
+                    savedHeadNames.includes(m.name)
                 );
 
                 setEditHeadData({
                     head: deptData.head || '',
-                    headRole: deptData.head_role || 'Responsável',
                     headIds: matchingMembers.map(m => m.membro_id || m.id)
                 });
             }
@@ -137,7 +134,6 @@ const DetalhesDepartamento = () => {
                 const novoDepartamento = {
                     nome: editInfoData.name,
                     descricao: editInfoData.description || 'Nova divisão corporativa',
-                    status: 'Ativo',
                     icon: 'fa-building',
                     color: '#f1f5f9',
                     iconColor: '#475569'
@@ -171,15 +167,13 @@ const DetalhesDepartamento = () => {
         setSavingInfo(true);
         try {
             const result = await departamentosAPI.update(id, {
-                head: editHeadData.head,
-                head_role: editHeadData.headRole
+                head: editHeadData.head
             });
             if (result.success) {
                 showToast('success', 'Responsável atualizado com sucesso!');
                 setDeptInfo(prev => ({
                     ...prev,
-                    head: editHeadData.head,
-                    headRole: editHeadData.headRole
+                    head: editHeadData.head
                 }));
                 setIsEditingHead(false);
             } else {
@@ -354,8 +348,8 @@ const DetalhesDepartamento = () => {
                                 <div className="dept-title-row">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                                         <div
-                                            className="dept-icon clickable"
-                                            onClick={() => setShowIconModal(true)}
+                                            className={`dept-icon ${id !== 'novo' ? 'clickable' : ''}`}
+                                            onClick={() => id !== 'novo' && setShowIconModal(true)}
                                             style={{
                                                 width: '64px',
                                                 height: '64px',
@@ -367,15 +361,17 @@ const DetalhesDepartamento = () => {
                                                 justifyContent: 'center',
                                                 fontSize: '28px',
                                                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                                                cursor: 'pointer',
+                                                cursor: id !== 'novo' ? 'pointer' : 'default',
                                                 position: 'relative'
                                             }}
-                                            title="Clique para mudar o ícone"
+                                            title={id !== 'novo' ? "Clique para mudar o ícone" : "O ícone é gerado após salvar"}
                                         >
                                             <i className={`fas ${deptInfo.icon || 'fa-building'}`}></i>
-                                            <div className="icon-overlay">
-                                                <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
-                                            </div>
+                                            {id !== 'novo' && (
+                                                <div className="icon-overlay">
+                                                    <i className="fas fa-sync-alt" style={{ fontSize: '14px' }}></i>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -477,234 +473,246 @@ const DetalhesDepartamento = () => {
                                 >
                                     <i className="fas fa-arrow-left"></i> Voltar
                                 </button>
-                                {id !== 'novo' && (
-                                    <div className="add-member-container" style={{ width: '300px' }}>
-                                        <FilterColaborador
-                                            hideLabel
-                                            placeholder="Adicionar Membros..."
-                                            value={newMemberData.colaboradoresIds}
-                                            options={colaboradores.filter(c => !members.some(m => String(m.membro_id) === String(c.id)))}
-                                            onChange={(e) => {
-                                                setNewMemberData(prev => ({
-                                                    ...prev,
-                                                    colaboradoresIds: e.target.value || []
-                                                }));
-                                            }}
-                                            disabled={savingInfo}
-                                            showConfirmButton={true}
-                                            confirmButtonLabel={savingInfo ? "Adicionando..." : "Adicionar ao Departamento"}
-                                            onConfirm={() => handleAddMember()}
-                                        />
-                                    </div>
-                                )}
+                                <div className="add-member-container" style={{ width: '300px' }}>
+                                    <FilterColaborador
+                                        hideLabel
+                                        placeholder="Adicionar Membros..."
+                                        value={newMemberData.colaboradoresIds}
+                                        options={colaboradores.filter(c => !members.some(m => String(m.membro_id) === String(c.id)))}
+                                        onChange={(e) => {
+                                            setNewMemberData(prev => ({
+                                                ...prev,
+                                                colaboradoresIds: e.target.value || []
+                                            }));
+                                        }}
+                                        disabled={savingInfo || id === 'novo'}
+                                        showConfirmButton={true}
+                                        confirmButtonLabel={savingInfo ? "Adicionando..." : "Adicionar ao Departamento"}
+                                        onConfirm={() => handleAddMember()}
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        {id !== 'novo' && (
-                            <>
-                                {/* Top Cards */}
-                                <div className="top-cards-grid">
-                                    <div className="info-card">
-                                        <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#0e3b6f' }}>
-                                            <i className="fas fa-users"></i>
-                                        </div>
-                                        <div className="card-content">
-                                            <span className="card-label">Total de Membros</span>
-                                            <span className="card-value">{members.length}</span>
-                                        </div>
-                                    </div>
-                                    <div className="info-card">
-                                        <div className="card-icon-wrapper" style={{ background: '#eff6ff', color: '#3b82f6' }}>
-                                            {editHeadData.headIds && editHeadData.headIds.length > 0 ? (
-                                                <div className="avatar-stack">
-                                                    {editHeadData.headIds.slice(0, 3).map((id, index) => {
-                                                        const member = members.find(m => String(m.membro_id || m.id) === String(id));
-                                                        return (
-                                                            <div key={id} className="avatar-stack-item" title={member?.name || 'Responsável'}>
-                                                                {member?.avatar_url ? (
-                                                                    <img src={member.avatar_url} alt={member.name} className="avatar-stack-img" />
-                                                                ) : (
-                                                                    (member?.name || 'R').charAt(0)
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    {editHeadData.headIds.length > 3 && (
-                                                        <div className="avatar-stack-more">
-                                                            +{editHeadData.headIds.length - 3}
-                                                        </div>
-                                                    )}
+                        {/* Top Cards */}
+                        <div className="top-cards-grid">
+                            <div className="info-card">
+                                <div className="card-icon-wrapper" style={{ background: '#fff7ed', color: '#0e3b6f' }}>
+                                    <i className="fas fa-users"></i>
+                                </div>
+                                <div className="card-content">
+                                    <span className="card-label">Total de Membros</span>
+                                    <span className="card-value">{members.length}</span>
+                                </div>
+                            </div>
+                            <div className="info-card">
+                                <div className="card-icon-wrapper" style={{ background: '#eff6ff', color: '#3b82f6' }}>
+                                    {editHeadData.headIds && editHeadData.headIds.length > 0 ? (
+                                        <div className="avatar-stack">
+                                            {editHeadData.headIds.slice(0, 3).map((id, index) => {
+                                                const member = members.find(m => String(m.membro_id || m.id) === String(id));
+                                                return (
+                                                    <div key={id} className="avatar-stack-item" title={member?.name || 'Responsável'}>
+                                                        {member?.avatar_url ? (
+                                                            <img src={member.avatar_url} alt={member.name} className="avatar-stack-img" />
+                                                        ) : (
+                                                            (member?.name || 'R').charAt(0)
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            {editHeadData.headIds.length > 3 && (
+                                                <div className="avatar-stack-more">
+                                                    +{editHeadData.headIds.length - 3}
                                                 </div>
-                                            ) : (
-                                                <i className="fas fa-user-plus" style={{ opacity: 0.5 }}></i>
                                             )}
                                         </div>
-                                        <div className="card-content">
-                                            <span className="card-label">Responsável pelo Departamento</span>
-                                            <div className="head-profile">
-                                                <div className="head-info">
-                                                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, flexWrap: 'wrap' }}>
-                                                        {deptInfo.head ? (
-                                                            deptInfo.head.split(',').map((name, idx, arr) => (
-                                                                <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    {name.trim()}
-                                                                    {idx < arr.length - 1 && <span style={{ color: '#cbd5e1', fontSize: '12px' }}>•</span>}
+                                    ) : (
+                                        <i className="fas fa-user-plus" style={{ opacity: 0.5 }}></i>
+                                    )}
+                                </div>
+                                <div className="card-content">
+                                    <span className="card-label">Responsável pelo Departamento</span>
+                                    <div className="head-profile">
+                                        <div className="head-info">
+                                            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, flexWrap: 'wrap' }}>
+                                                {deptInfo.head ? (
+                                                    deptInfo.head.split(',').map((name, idx, arr) => (
+                                                        <span key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {name.trim()}
+                                                            {idx < arr.length - 1 && <span style={{ color: '#cbd5e1', fontSize: '12px' }}>•</span>}
+                                                        </span>
+                                                    ))
+                                                ) : 'Não definido'}
+                                                <FilterColaborador
+                                                    className="edit-head-filter"
+                                                    hideLabel
+                                                    isIconButton={true}
+                                                    icon="fa-plus"
+                                                    placeholder="Selecionar Responsáveis"
+                                                    value={editHeadData.headIds || []}
+                                                    options={members.map(m => ({ id: m.membro_id || m.id, nome: m.name }))}
+                                                    onChange={(e) => {
+                                                        const ids = e.target.value || [];
+                                                        const selectedMembers = members.filter(m =>
+                                                            ids.map(String).includes(String(m.membro_id || m.id))
+                                                        );
+
+                                                        if (selectedMembers.length > 0) {
+                                                            setEditHeadData(prev => ({
+                                                                ...prev,
+                                                                head: selectedMembers.map(m => m.name).join(', '),
+                                                                headIds: ids,
+                                                                headRole: 'Responsável'
+                                                            }));
+                                                        } else {
+                                                            setEditHeadData(prev => ({
+                                                                ...prev,
+                                                                head: '',
+                                                                headIds: [],
+                                                                headRole: 'Responsável'
+                                                            }));
+                                                        }
+                                                    }}
+                                                    allowEmpty={true}
+                                                    showConfirmButton={true}
+                                                    confirmButtonLabel={savingInfo ? "Salvando..." : "Definir Responsáveis"}
+                                                    onConfirm={handleSaveHead}
+                                                    disabled={savingInfo || id === 'novo'}
+                                                />
+                                            </h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Members List */}
+                        <div className="members-section">
+                            <div className="members-header">
+                                <h2>Membros do Departamento</h2>
+                            </div>
+
+                            <table className="members-table">
+                                <thead>
+                                    <tr>
+                                        <th>Membro</th>
+                                        <th style={{ textAlign: 'right' }}>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentMembers.map(member => (
+                                        <tr key={member.id}>
+                                            <td>
+                                                <div className="member-profile">
+                                                    {member.avatar_url ? (
+                                                        <img src={member.avatar_url} alt={member.name} className="member-avatar" />
+                                                    ) : (
+                                                        <div className="member-avatar-placeholder">
+                                                            {(member.name || '?').charAt(0)}
+                                                        </div>
+                                                    )}
+                                                    <div className="member-info">
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span>{member.name}</span>
+                                                            {editHeadData.headIds && editHeadData.headIds.map(String).includes(String(member.membro_id || member.id)) && (
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    padding: '4px 12px',
+                                                                    borderRadius: '12px',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: '500',
+                                                                    fontStyle: 'italic',
+                                                                    background: '#eff6ff',
+                                                                    color: '#3b82f6',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}>
+                                                                    Responsável
                                                                 </span>
-                                                            ))
-                                                        ) : 'Não definido'}
-                                                        <FilterColaborador
-                                                            className="edit-head-filter"
-                                                            hideLabel
-                                                            isIconButton={true}
-                                                            icon="fa-plus"
-                                                            placeholder="Selecionar Responsáveis"
-                                                            value={editHeadData.headIds || []}
-                                                            options={members.map(m => ({ id: m.membro_id || m.id, nome: m.name }))}
-                                                            onChange={(e) => {
-                                                                const ids = e.target.value || [];
-                                                                const selectedMembers = members.filter(m =>
-                                                                    ids.map(String).includes(String(m.membro_id || m.id))
-                                                                );
-
-                                                                if (selectedMembers.length > 0) {
-                                                                    setEditHeadData(prev => ({
-                                                                        ...prev,
-                                                                        head: selectedMembers.map(m => m.name).join(', '),
-                                                                        headIds: ids,
-                                                                        headRole: 'Responsável'
-                                                                    }));
-                                                                } else {
-                                                                    setEditHeadData(prev => ({
-                                                                        ...prev,
-                                                                        head: '',
-                                                                        headIds: [],
-                                                                        headRole: 'Responsável'
-                                                                    }));
-                                                                }
-                                                            }}
-                                                            allowEmpty={true}
-                                                            showConfirmButton={true}
-                                                            confirmButtonLabel={savingInfo ? "Salvando..." : "Definir Responsáveis"}
-                                                            onConfirm={handleSaveHead}
-                                                            disabled={savingInfo}
-                                                        />
-                                                    </h3>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Members List */}
-                                <div className="members-section">
-                                    <div className="members-header">
-                                        <h2>Membros do Departamento</h2>
-                                    </div>
-
-                                    <table className="members-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Membro</th>
-                                                <th style={{ textAlign: 'right' }}>Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {currentMembers.map(member => (
-                                                <tr key={member.id}>
-                                                    <td>
-                                                        <div className="member-profile">
-                                                            {member.avatar_url ? (
-                                                                <img src={member.avatar_url} alt={member.name} className="member-avatar" />
-                                                            ) : (
-                                                                <div className="member-avatar-placeholder">
-                                                                    {(member.name || '?').charAt(0)}
-                                                                </div>
                                                             )}
-                                                            <div className="member-info">
-                                                                <div>{member.name}</div>
-                                                                <div>{member.email}</div>
-                                                            </div>
                                                         </div>
-                                                    </td>
-                                                    <td style={{ textAlign: 'right' }}>
-                                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                            <DeleteButton
-                                                                onClick={() => handleRemoveMemberClick(member)}
-                                                                title="Remover Membro"
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                        <div>{member.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    <DeleteButton
+                                                        onClick={() => handleRemoveMemberClick(member)}
+                                                        title="Remover Membro"
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
 
-                                    {currentMembers.length === 0 && (
-                                        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-                                            Nenhum membro encontrado.
-                                        </div>
-                                    )}
-
-                                    {/* Controles de Paginação */}
-                                    {totalPages > 1 && (
-                                        <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '14px', color: '#64748b' }}>
-                                                Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, members.length)} de {members.length} membros
-                                            </span>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button
-                                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                                    disabled={currentPage === 1}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        border: '1px solid #e2e8f0',
-                                                        background: 'white',
-                                                        borderRadius: '6px',
-                                                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                                        opacity: currentPage === 1 ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <i className="fas fa-chevron-left"></i>
-                                                </button>
-
-                                                {Array.from({ length: totalPages }, (_, i) => (
-                                                    <button
-                                                        key={i + 1}
-                                                        onClick={() => setCurrentPage(i + 1)}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            border: `1px solid ${currentPage === i + 1 ? '#3b82f6' : '#e2e8f0'}`,
-                                                            background: currentPage === i + 1 ? '#eff6ff' : 'white',
-                                                            color: currentPage === i + 1 ? '#3b82f6' : '#64748b',
-                                                            borderRadius: '6px',
-                                                            cursor: 'pointer',
-                                                            fontWeight: '600'
-                                                        }}
-                                                    >
-                                                        {i + 1}
-                                                    </button>
-                                                ))}
-
-                                                <button
-                                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                                    disabled={currentPage === totalPages}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        border: '1px solid #e2e8f0',
-                                                        background: 'white',
-                                                        borderRadius: '6px',
-                                                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                                                        opacity: currentPage === totalPages ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <i className="fas fa-chevron-right"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
+                            {currentMembers.length === 0 && (
+                                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                                    Nenhum membro encontrado.
                                 </div>
-                            </>
-                        )}
+                            )}
+
+                            {/* Controles de Paginação */}
+                            {totalPages > 1 && (
+                                <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '14px', color: '#64748b' }}>
+                                        Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, members.length)} de {members.length} membros
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={currentPage === 1}
+                                            style={{
+                                                padding: '6px 12px',
+                                                border: '1px solid #e2e8f0',
+                                                background: 'white',
+                                                borderRadius: '6px',
+                                                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                                opacity: currentPage === 1 ? 0.5 : 1
+                                            }}
+                                        >
+                                            <i className="fas fa-chevron-left"></i>
+                                        </button>
+
+                                        {Array.from({ length: totalPages }, (_, i) => (
+                                            <button
+                                                key={i + 1}
+                                                onClick={() => setCurrentPage(i + 1)}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    border: `1px solid ${currentPage === i + 1 ? '#3b82f6' : '#e2e8f0'}`,
+                                                    background: currentPage === i + 1 ? '#eff6ff' : 'white',
+                                                    color: currentPage === i + 1 ? '#3b82f6' : '#64748b',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontWeight: '600'
+                                                }}
+                                            >
+                                                {i + 1}
+                                            </button>
+                                        ))}
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                            disabled={currentPage === totalPages}
+                                            style={{
+                                                padding: '6px 12px',
+                                                border: '1px solid #e2e8f0',
+                                                background: 'white',
+                                                borderRadius: '6px',
+                                                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                                opacity: currentPage === totalPages ? 0.5 : 1
+                                            }}
+                                        >
+                                            <i className="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </main>
             </div>
