@@ -350,12 +350,6 @@ router.post('/api/tipo-tarefa', requireAuth, tipoTarefaController.criarTipoTaref
 router.put('/api/tipo-tarefa/:id', requireAuth, tipoTarefaController.atualizarTipoTarefa);
 router.delete('/api/tipo-tarefa/:id', requireAuth, tipoTarefaController.deletarTipoTarefa);
 
-// Rotas de Tipo de Contrato Membro (cp_tipo_contrato_membro) (CRUD completo)
-router.get('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.getTiposContrato);
-router.get('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.getTipoContratoPorId);
-router.post('/api/tipo-contrato-membro', requireAuth, tipoContratoMembroController.criarTipoContrato);
-router.put('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.atualizarTipoContrato);
-router.delete('/api/tipo-contrato-membro/:id', requireAuth, tipoContratoMembroController.deletarTipoContrato);
 
 // Rotas de Cliente Conta Bancária (CRUD completo)
 router.get('/api/clientes/:cliente_id/contas-bancarias', requireAuth, clienteContaBancariaController.getContasBancarias);
@@ -608,6 +602,7 @@ router.get('/api/comunicacao/chamados/:id/respostas', requireAuth, comunicacaoCo
 router.put('/api/comunicacao/chamados/:id/status', requireAuth, comunicacaoController.atualizarStatusChamado);
 router.post('/api/comunicacao/mensagem/:id/ler', requireAuth, comunicacaoController.marcarMensagemLida);
 router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoController.listarComunicadoDestaque);
+router.post('/api/comunicacao/comunicados/marcar-todos-lidos', requireAuth, comunicacaoController.marcarTodosComunicadosLidos);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
 
 // Rotas de Upload

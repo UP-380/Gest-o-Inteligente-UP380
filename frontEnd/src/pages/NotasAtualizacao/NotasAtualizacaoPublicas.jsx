@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../../components/layout/Layout';
 import LoadingState from '../../components/common/LoadingState';
 import EditButton from '../../components/common/EditButton';
@@ -9,11 +9,18 @@ import './NotasAtualizacaoPublicas.css';
 
 const NotasAtualizacaoPublicas = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { canAccessRoute } = usePermissions();
     const [notas, setNotas] = useState([]);
     const [notaSelecionada, setNotaSelecionada] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Extrair ID da nota da URL
+    const noteIdFromUrl = useMemo(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get('id');
+    }, [location.search]);
 
     const carregarNotas = useCallback(async () => {
         setLoading(true);
@@ -22,8 +29,19 @@ const NotasAtualizacaoPublicas = () => {
             if (res.success) {
                 const data = res.data || [];
                 setNotas(data);
+
                 if (data.length > 0) {
-                    setNotaSelecionada(data[0]);
+                    // Se houver ID na URL, tenta encontrar essa nota específica
+                    if (noteIdFromUrl) {
+                        const target = data.find(n => String(n.id) === String(noteIdFromUrl));
+                        if (target) {
+                            setNotaSelecionada(target);
+                        } else {
+                            setNotaSelecionada(data[0]);
+                        }
+                    } else {
+                        setNotaSelecionada(data[0]);
+                    }
                 }
             }
         } catch (err) {
@@ -31,7 +49,7 @@ const NotasAtualizacaoPublicas = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [noteIdFromUrl]);
 
     useEffect(() => {
         carregarNotas();

@@ -33,7 +33,15 @@ const Layout = ({ children }) => {
     fetchDestaque();
     // Polling a cada 30 segundos para novos avisos sem precisar recarregar
     const interval = setInterval(fetchDestaque, 30000);
-    return () => clearInterval(interval);
+
+    // Ouvir evento para recarregar destaque imediatamente
+    const handleRefresh = () => fetchDestaque();
+    window.addEventListener('refresh-comunicado-destaque', handleRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('refresh-comunicado-destaque', handleRefresh);
+    };
   }, [fetchDestaque]);
 
   const handleVisualizarDestaque = async () => {
@@ -50,7 +58,8 @@ const Layout = ({ children }) => {
     if (!comunicadoDestaque) return;
 
     if (comunicadoDestaque.metadata?.origem === 'notas_atualizacao') {
-      navigate('/base-conhecimento/notas-atualizacao');
+      const notaId = comunicadoDestaque.metadata.nota_id;
+      navigate(`/base-conhecimento/notas-atualizacao-apresentacao?id=${notaId}`);
     } else {
       window.dispatchEvent(new CustomEvent('open-communication-drawer', { detail: { tab: 'comunicados' } }));
     }

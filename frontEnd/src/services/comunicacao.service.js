@@ -19,6 +19,7 @@ export const comunicacaoAPI = {
 
     // Mark as read
     marcarMensagemLida: (mensagemId) => api.post(`/comunicacao/mensagem/${mensagemId}/ler`),
+    marcarTodosComunicadosLidos: () => api.post('/comunicacao/comunicados/marcar-todos-lidos'),
 
     // New methods
     uploadMedia: (formData) => api.post('/upload/chamado', formData),

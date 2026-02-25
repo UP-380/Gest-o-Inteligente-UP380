@@ -44,7 +44,6 @@ const NotasAtualizacao = () => {
     const [dataPublicacao, setDataPublicacao] = useState(new Date().toISOString());
     const [showSchedPopover, setShowSchedPopover] = useState(false);
     const [tempData, setTempData] = useState(new Date().toISOString().split('T')[0]);
-    const [tempHora, setTempHora] = useState(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
     const [salvando, setSalvando] = useState(false);
     const [excluindo, setExcluindo] = useState(false);
 
@@ -96,7 +95,6 @@ const NotasAtualizacao = () => {
                 setDataPublicacao(res.data.data_publicacao || new Date().toISOString());
                 const dateObj = new Date(res.data.data_publicacao || new Date());
                 setTempData(dateObj.toISOString().split('T')[0]);
-                setTempHora(dateObj.getHours().toString().padStart(2, '0') + ':' + dateObj.getMinutes().toString().padStart(2, '0'));
                 setIsEditing(false);
                 setIsCreating(false);
             } else {
@@ -146,7 +144,6 @@ const NotasAtualizacao = () => {
             setConteudo('');
             setDataPublicacao(new Date().toISOString());
             setTempData(new Date().toISOString().split('T')[0]);
-            setTempHora(new Date().getHours().toString().padStart(2, '0') + ':' + new Date().getMinutes().toString().padStart(2, '0'));
             setIsCreating(false);
             setIsEditing(false);
             setShowSchedPopover(false);
@@ -184,6 +181,8 @@ const NotasAtualizacao = () => {
                     setNotaSelecionadaId(res.data.id);
                     setIsCreating(false);
                     setIsEditing(false);
+                    // Forçar atualização do banner de destaque
+                    window.dispatchEvent(new CustomEvent('refresh-comunicado-destaque'));
                 } else {
                     showToast('error', res.error || MENSAGENS.ERRO_SALVAR);
                 }
@@ -193,6 +192,8 @@ const NotasAtualizacao = () => {
                     showToast('success', MENSAGENS.ATUALIZADO_SUCESSO);
                     await carregarNotas(); // Atualizar lista para refletir titulo novo
                     setIsEditing(false);
+                    // Forçar atualização do banner de destaque
+                    window.dispatchEvent(new CustomEvent('refresh-comunicado-destaque'));
                 } else {
                     showToast('error', res.error || MENSAGENS.ERRO_SALVAR);
                 }
@@ -206,22 +207,22 @@ const NotasAtualizacao = () => {
 
     const handleAplicarAgendamento = useCallback(() => {
         try {
-            // Unir data e hora garantindo formato ISO local (YYYY-MM-DDTHH:mm:00)
-            // Usamos a string direta no construtor para evitar deslocamentos de timezone do navegador
-            const fullDate = new Date(`${tempData}T${tempHora}:00`);
-
-            if (isNaN(fullDate.getTime())) {
-                showToast('error', 'Data ou horário inválidos.');
+            if (!tempData) {
+                showToast('error', 'Data inválida.');
                 return;
             }
 
-            setDataPublicacao(fullDate.toISOString());
+            // Usamos a data pura. O backend tratará hoje como imediato.
+            setDataPublicacao(tempData);
             setShowSchedPopover(false);
-            showToast('info', `Agendado para: ${fullDate.toLocaleString('pt-BR')}`);
+
+            // Formatando apenas para exibição no toast
+            const displayDate = new Date(tempData + 'T12:00:00').toLocaleDateString('pt-BR');
+            showToast('info', `Publicação marcada para: ${displayDate}`);
         } catch (e) {
-            showToast('error', 'Erro ao formatar data/horário.');
+            showToast('error', 'Erro ao formatar data.');
         }
-    }, [tempData, tempHora, showToast]);
+    }, [tempData, showToast]);
 
     const handleExcluir = useCallback(async () => {
         if (!notaParaExcluir || !isAdmin) return;
@@ -247,6 +248,20 @@ const NotasAtualizacao = () => {
             setExcluindo(false);
         }
     }, [notaParaExcluir, notaSelecionadaId, isAdmin, showToast, carregarNotas]);
+
+    // Função para extrair headers do conteúdo HTML
+    const handleFormatData = useCallback((dataStr) => {
+        if (!dataStr) return '';
+        if (dataStr.includes('T')) {
+            return new Date(dataStr).toLocaleDateString('pt-BR');
+        }
+        // Formato YYYY-MM-DD
+        const parts = dataStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return new Date(dataStr).toLocaleDateString('pt-BR');
+    }, []);
 
     // Função para extrair headers do conteúdo HTML
     const extractHeaders = useCallback((html, notaId) => {
@@ -392,7 +407,9 @@ const NotasAtualizacao = () => {
                                                                     {isDraft && <i className="fas fa-clock" style={{ fontSize: '10px', color: '#f59e0b' }} title="Agendado"></i>}
                                                                     {nota.titulo}
                                                                 </span>
-                                                                <span className="notas-data-badge">{new Date(nota.data_publicacao || nota.created_at).toLocaleDateString()}</span>
+                                                                <span className="notas-data-badge">
+                                                                    {handleFormatData(nota.data_publicacao || nota.created_at)}
+                                                                </span>
                                                             </div>
                                                         </div>
 
@@ -477,14 +494,6 @@ const NotasAtualizacao = () => {
                                                                                 onChange={e => setTempData(e.target.value)}
                                                                             />
                                                                         </div>
-                                                                        <div className="notas-sched-field">
-                                                                            <label>Horário</label>
-                                                                            <input
-                                                                                type="time"
-                                                                                value={tempHora}
-                                                                                onChange={e => setTempHora(e.target.value)}
-                                                                            />
-                                                                        </div>
                                                                         <button
                                                                             type="button"
                                                                             className="notas-sched-btn-apply"
@@ -549,7 +558,7 @@ const NotasAtualizacao = () => {
                                                                         <div className="nota-card-title-group">
                                                                             <h3>{nota.titulo}</h3>
                                                                             <span className="nota-card-date">
-                                                                                {new Date(nota.data_publicacao).toLocaleDateString('pt-BR')}
+                                                                                {handleFormatData(nota.data_publicacao)}
                                                                             </span>
                                                                         </div>
                                                                         {isAdmin && (
@@ -604,7 +613,7 @@ const NotasAtualizacao = () => {
                     title={MENSAGENS.EXCLUIR_TITULO}
                     message={MENSAGENS.EXCLUIR_TEXTO}
                     confirmText="Excluir"
-                    confirmButtonClass="btn-danger" // Assuming you have red button style
+                    confirmButtonClass="btn-danger"
                     isLoading={excluindo}
                 />
             )}
