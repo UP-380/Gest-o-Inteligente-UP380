@@ -5,6 +5,7 @@ import { useToast } from '../../hooks/useToast';
 import { colaboradoresAPI, departamentosAPI } from '../../services/api';
 import { formatDate } from '../../utils/dateUtils';
 import DatePicker from '../../components/vigencia/DatePicker';
+import EditButton from '../../components/common/EditButton';
 import DeleteButton from '../../components/common/DeleteButton';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import FilterColaborador from '../../components/filters/FilterColaborador';
@@ -425,36 +426,13 @@ const DetalhesDepartamento = () => {
                                                 <div className="dept-title-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', group: 'title' }}>
                                                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                                                         {deptInfo.name}
-                                                        <button
+                                                        <EditButton
                                                             onClick={() => {
                                                                 setEditInfoData({ name: deptInfo.name, description: deptInfo.description });
                                                                 setIsEditingInfo(true);
                                                             }}
-                                                            style={{
-                                                                background: 'transparent',
-                                                                border: 'none',
-                                                                color: '#64748b',
-                                                                cursor: 'pointer',
-                                                                fontSize: '16px',
-                                                                padding: '4px',
-                                                                borderRadius: '4px',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                transition: 'all 0.2s'
-                                                            }}
                                                             title="Editar informações"
-                                                            onMouseEnter={e => {
-                                                                e.currentTarget.style.color = '#3b82f6';
-                                                                e.currentTarget.style.backgroundColor = '#eff6ff';
-                                                            }}
-                                                            onMouseLeave={e => {
-                                                                e.currentTarget.style.color = '#64748b';
-                                                                e.currentTarget.style.backgroundColor = 'transparent';
-                                                            }}
-                                                        >
-                                                            <i className="fas fa-pencil-alt"></i>
-                                                        </button>
+                                                        />
                                                     </h1>
                                                 </div>
                                             )}
