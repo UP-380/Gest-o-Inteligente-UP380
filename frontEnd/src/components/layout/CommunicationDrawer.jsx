@@ -125,12 +125,27 @@ const formatTime = (dateString) => {
 
 const formatDate = (dateString) => {
     try {
-        const date = dateString ? new Date(dateString) : new Date();
+        if (!dateString) return '';
+
+        // Se for uma string de data pura (YYYY-MM-DD), forçamos o meio do dia local
+        if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString.substring(0, 10))) {
+            const [year, month, day] = dateString.substring(0, 10).split('-').map(Number);
+            const date = new Date(year, month - 1, day, 12, 0, 0);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        const date = new Date(dateString);
         if (isNaN(date.getTime())) return '';
+
+        // Se o horário for exatamente meia-noite UTC (comum em campos DATE via Supabase),
+        // usamos o fuso horário UTC para exibir a data conforme salva.
+        if (typeof dateString === 'string' && (dateString.endsWith('T00:00:00Z') || dateString.endsWith('T00:00:00.000Z') || dateString.includes(' 00:00:00'))) {
+            return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        }
+
         return date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     } catch (e) {
-        const date = dateString ? new Date(dateString) : new Date();
-        return date.toLocaleDateString('pt-BR');
+        return dateString || '';
     }
 };
 
@@ -455,7 +470,7 @@ const CommunicationDrawer = ({ user }) => {
     // Form States para Novos Itens
     const [showNewAvisoForm, setShowNewAvisoForm] = useState(false);
     const [showNewChamadoForm, setShowNewChamadoForm] = useState(false);
-    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '' });
+    const [formData, setFormData] = useState({ titulo: '', conteudo: '', destacado: false, categoria_id: '', prazo_desejado: '' });
     const [categorias, setCategorias] = useState([]);
     const [templates, setTemplates] = useState([]);
     const [dynamicFields, setDynamicFields] = useState({});
@@ -851,6 +866,7 @@ const CommunicationDrawer = ({ user }) => {
                 titulo: formData.titulo,
                 conteudo: formData.conteudo,
                 status_chamado: tipo === 'CHAMADO' ? 'ABERTO' : undefined,
+                prazo_desejado: tipo === 'CHAMADO' ? formData.prazo_desejado : undefined,
                 metadata: tipo === 'COMUNICADO' ? {
                     destacado: formData.destacado
                 } : (tipo === 'CHAMADO' ? {
@@ -862,7 +878,7 @@ const CommunicationDrawer = ({ user }) => {
             const response = await comunicacaoAPI.enviarMensagem(payload);
 
             if (response.success) {
-                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '' });
+                setFormData({ titulo: '', conteudo: '', destacado: false, categoria_id: '', prazo_desejado: '' });
                 setDynamicFields({});
                 setShowNewAvisoForm(false);
                 setShowNewChamadoForm(false);
@@ -1154,18 +1170,20 @@ const CommunicationDrawer = ({ user }) => {
                                     )}
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                         <span>{formatDate(cham.created_at)}</span>
-                                        {cham.prazo_sla && (
-                                            <span style={{
-                                                fontSize: '0.7rem',
-                                                padding: '1px 6px',
-                                                borderRadius: '4px',
-                                                backgroundColor: new Date(cham.prazo_sla) < new Date() ? '#fee2e2' : '#dcfce7',
-                                                color: new Date(cham.prazo_sla) < new Date() ? '#b91c1c' : '#15803d',
-                                                fontWeight: '600'
-                                            }}>
-                                                Prazo: {formatDate(cham.prazo_sla)}
-                                            </span>
-                                        )}
+                                        <span style={{
+                                            fontSize: '0.7rem',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: cham.prazo_confirmado
+                                                ? (new Date(cham.prazo_confirmado) < new Date() ? '#fee2e2' : '#dcfce7')
+                                                : '#f1f5f9',
+                                            color: cham.prazo_confirmado
+                                                ? (new Date(cham.prazo_confirmado) < new Date() ? '#b91c1c' : '#15803d')
+                                                : '#64748b',
+                                            fontWeight: '600'
+                                        }}>
+                                            Prazo: {cham.prazo_confirmado ? formatDate(cham.prazo_confirmado) : 'não confirmado'}
+                                        </span>
                                     </div>
                                 </div>
                                 <i className="fas fa-chevron-right" style={{ opacity: 0.3 }}></i>
@@ -1186,15 +1204,85 @@ const CommunicationDrawer = ({ user }) => {
                 <div className="chat-detail-info">
                     <span className="chat-target-name">{selectedChamado.titulo}</span>
                     <div className="chat-detail-sub">
-                        {selectedChamado.prazo_sla && (
-                            <span className={`comm-drawer-sla-badge ${new Date(selectedChamado.prazo_sla) < new Date() ? 'overdue' : 'on-time'}`}>
-                                <i className="far fa-clock"></i> Data estimada: {formatDate(selectedChamado.prazo_sla)}
-                            </span>
-                        )}
+                        <span className={`comm-drawer-sla-badge ${selectedChamado.prazo_confirmado ? (new Date(selectedChamado.prazo_confirmado) < new Date() ? 'overdue' : 'on-time') : ''}`}
+                            style={!selectedChamado.prazo_confirmado ? { backgroundColor: '#f1f5f9', color: '#64748b' } : {}}>
+                            <i className="far fa-clock"></i> Data estimada: {selectedChamado.prazo_confirmado ? formatDate(selectedChamado.prazo_confirmado) : 'não confirmado'}
+                        </span>
                         <span className="chat-detail-created">Aberto em {formatDate(selectedChamado.created_at)}</span>
                     </div>
                 </div>
             </div>
+
+            {selectedChamado.prazo_desejado && (
+                <div style={{ padding: '8px 15px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                    <div style={{ color: '#0e3b6f' }}>
+                        <i className="far fa-calendar-alt"></i> Prazo desejado: <strong>{formatDate(selectedChamado.prazo_desejado)}</strong>
+                    </div>
+                    {selectedChamado.prazo_confirmado && (
+                        <div style={{ color: '#15803d' }}>
+                            <i className="fas fa-check-circle"></i> Prazo confirmado: <strong>{formatDate(selectedChamado.prazo_confirmado)}</strong>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {selectedChamado.pode_gerenciar && !selectedChamado.prazo_confirmado && (
+                <div style={{ padding: '12px 15px', backgroundColor: '#f0f9ff', borderBottom: '1px solid #bae6fd' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>CONFIRMAR ESTIMATIVA</div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                            className="comm-btn-save"
+                            style={{ flex: 1, padding: '6px', fontSize: '11px' }}
+                            onClick={() => {
+                                if (!selectedChamado.prazo_desejado) {
+                                    alert('O usuário não definiu um prazo desejado. Por favor, proponha uma data.');
+                                    return;
+                                }
+                                if (window.confirm(`Confirmar prazo para ${formatDate(selectedChamado.prazo_desejado)}?`)) {
+                                    comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: selectedChamado.prazo_desejado })
+                                        .then(res => {
+                                            if (res.success) {
+                                                setSelectedChamado({ ...selectedChamado, prazo_confirmado: selectedChamado.prazo_desejado });
+                                                // Recarregar mensagens para ver a mensagem de sistema
+                                                comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
+                                            }
+                                        });
+                                }
+                            }}
+                        >
+                            Aceitar Prazo Desejado
+                        </button>
+                        <div style={{ flex: 1 }}>
+                            <input
+                                type="date"
+                                className="comm-drawer-form-input"
+                                style={{ padding: '5px', fontSize: '11px', height: '28px' }}
+                                id="new-prazo-confirmado"
+                                min={new Date().toISOString().split('T')[0]}
+                            />
+                        </div>
+                        <button
+                            className="comm-btn-save"
+                            style={{ padding: '6px 12px', fontSize: '11px', backgroundColor: '#0ea5e9' }}
+                            onClick={() => {
+                                const val = document.getElementById('new-prazo-confirmado').value;
+                                if (!val) return alert('Selecione uma data.');
+                                if (window.confirm(`Definir novo prazo para ${formatDate(val)}?`)) {
+                                    comunicacaoAPI.confirmarEstimativaChamado(selectedChamado.id, { prazo_confirmado: val })
+                                        .then(res => {
+                                            if (res.success) {
+                                                setSelectedChamado({ ...selectedChamado, prazo_confirmado: val });
+                                                comunicacaoAPI.listarRespostasChamado(selectedChamado.id).then(r => r.success && setChamadoMessages(r.data));
+                                            }
+                                        });
+                                }
+                            }}
+                        >
+                            <i className="fas fa-check"></i> Propor Outro
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="comm-drawer-status-selector">
                 <span className="label">Status:</span>
@@ -1441,6 +1529,18 @@ const CommunicationDrawer = ({ user }) => {
                                 >
                                     <i className="fas fa-paperclip"></i> Anexar Arquivos ou Mídias
                                 </button>
+                            )}
+                            {tipo === 'CHAMADO' && (
+                                <div className="comm-drawer-form-group" style={{ marginTop: '15px' }}>
+                                    <label className="comm-drawer-form-label">Data de Estimativa Desejada para Conclusão</label>
+                                    <input
+                                        type="date"
+                                        value={formData.prazo_desejado}
+                                        onChange={(e) => setFormData({ ...formData, prazo_desejado: e.target.value })}
+                                        className="comm-drawer-form-input"
+                                        min={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
                             )}
                         </div>
                     </>

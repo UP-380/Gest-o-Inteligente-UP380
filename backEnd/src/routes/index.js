@@ -579,6 +579,7 @@ router.get('/api/comunicacao/comunicados/destaque', requireAuth, comunicacaoCont
 router.get('/api/comunicacao/categorias', requireAuth, comunicacaoController.listarCategorias);
 router.get('/api/comunicacao/templates', requireAuth, comunicacaoController.listarTemplates);
 router.put('/api/comunicacao/mensagem/:id', requireAuth, comunicacaoController.atualizarMensagem);
+router.put('/api/comunicacao/chamados/:id/confirmar-estimativa', requireAuth, comunicacaoController.confirmarEstimativaChamado);
 
 // Rotas de Upload
 router.post('/api/upload/chamado',

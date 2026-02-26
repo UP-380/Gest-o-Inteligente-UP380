@@ -20,7 +20,7 @@ async function getChamadoRoot(sb, messageId) {
 async function enviarMensagem(req, res) {
     try {
         const criador_id = req.session.usuario.id;
-        const { tipo, destinatario_id, titulo, conteudo, status_chamado, mensagem_pai_id, metadata } = req.body;
+        const { tipo, destinatario_id, titulo, conteudo, status_chamado, mensagem_pai_id, metadata, prazo_desejado } = req.body;
 
         console.log('[COMUNICACAO] enviarMensagem:', { tipo, destinatario_id, criador_id });
 
@@ -40,7 +40,8 @@ async function enviarMensagem(req, res) {
                 titulo: titulo || null,
                 conteudo,
                 status_chamado: status_chamado || (tipo === 'CHAMADO' ? 'ABERTO' : null),
-                metadata: metadata || {}
+                metadata: metadata || {},
+                prazo_desejado: prazo_desejado || null
             })
             .select()
             .single();
@@ -793,10 +794,72 @@ async function atualizarMensagem(req, res) {
         if (error) throw error;
 
         return sendUpdated(res, updated, 'Mensagem atualizada com sucesso.');
-
     } catch (error) {
         console.error('Erro ao atualizar mensagem:', error);
         return sendError(res, 500, 'Erro ao atualizar mensagem.', error.message);
+    }
+}
+
+/**
+ * Confirma a data estimada de conclusão de um chamado pelo gestor
+ */
+async function confirmarEstimativaChamado(req, res) {
+    try {
+        const { id } = req.params;
+        const { prazo_confirmado } = req.body;
+        const usuario_id = req.session.usuario.id;
+
+        if (!prazo_confirmado) {
+            return sendValidationError(res, 'Data confirmada é obrigatória.');
+        }
+
+        // 1. Verificar se o chamado existe
+        const { data: chamado, error: errorBusca } = await supabase
+            .from('comunicacao_mensagens')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (errorBusca || !chamado) {
+            return sendNotFound(res, 'Chamado');
+        }
+
+        // 2. Atualizar prazo_confirmado - Forçar meio-dia para evitar shifts de fuso horário
+        const safePrazo = prazo_confirmado.includes('T') ? prazo_confirmado : `${prazo_confirmado}T12:00:00`;
+        const { error } = await supabase
+            .from('comunicacao_mensagens')
+            .update({ prazo_confirmado: safePrazo })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        // 3. Inserir mensagem de SISTEMA no chat - Formatar manualmente para evitar shift de timezone
+        const [y, m, d] = prazo_confirmado.split('-').map(Number);
+        const formattedDate = `${d.toString().padStart(2, '0')}/${m.toString().padStart(2, '0')}/${y}`;
+        await supabase.from('comunicacao_mensagens').insert({
+            tipo: 'CHAMADO',
+            mensagem_pai_id: id,
+            criador_id: usuario_id,
+            conteudo: `Prazo de conclusão confirmado/alterado para **${formattedDate}**`,
+            metadata: { sistema: true, acao: 'ESTIMATIVA_CONFIRMADA', prazo_confirmado }
+        });
+
+        // 4. Notificar criador
+        if (chamado.criador_id !== usuario_id) {
+            await distribuirNotificacao({
+                tipo: 'CHAMADO_ATUALIZADO',
+                titulo: 'Prazo do Chamado Confirmado',
+                mensagem: `O prazo do seu chamado foi definido para: ${formattedDate}`,
+                referencia_id: id,
+                link: '/comunicacao?tab=chamados',
+                usuario_id: chamado.criador_id
+            });
+        }
+
+        return sendSuccess(res, 200, null, 'Prazo confirmado com sucesso.');
+    } catch (error) {
+        console.error('Erro ao confirmar estimativa:', error);
+        return sendError(res, 500, 'Erro ao confirmar estimativa.', error.message);
     }
 }
 
@@ -812,5 +875,6 @@ module.exports = {
     listarComunicadoDestaque,
     atualizarMensagem,
     listarCategorias,
-    listarTemplates
+    listarTemplates,
+    confirmarEstimativaChamado
 };
