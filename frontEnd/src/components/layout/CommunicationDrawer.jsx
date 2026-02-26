@@ -1196,23 +1196,21 @@ const CommunicationDrawer = ({ user }) => {
                 </div>
             </div>
 
-            {(user?.permissoes === 'administrador' || user?.permissoes === 'gestor') && (
-                <div className="comm-drawer-status-selector">
-                    <span className="label">Status:</span>
-                    {['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(status => (
-                        <button
-                            key={status}
-                            onClick={() => handleChangeChamadoStatus(status)}
-                            className={`comm-drawer-status-btn ${selectedChamado.status_chamado === status ? 'active' : ''}`}
-                        >
-                            {status === 'RESPONDIDO' ? 'EM PROCESSO' :
-                                status === 'EM_ANALISE' ? 'EM ANÁLISE' :
-                                    status === 'ENCERRADO' ? 'ENCERRADO' :
-                                        status.replace('_', ' ')}
-                        </button>
-                    ))}
-                </div>
-            )}
+            <div className="comm-drawer-status-selector">
+                <span className="label">Status:</span>
+                {['ABERTO', 'EM_ANALISE', 'RESPONDIDO', 'ENCERRADO', 'CANCELADO'].map(status => (
+                    <button
+                        key={status}
+                        onClick={() => handleChangeChamadoStatus(status)}
+                        className={`comm-drawer-status-btn ${selectedChamado.status_chamado === status ? 'active' : ''}`}
+                    >
+                        {status === 'RESPONDIDO' ? 'EM PROCESSO' :
+                            status === 'EM_ANALISE' ? 'EM ANÁLISE' :
+                                status === 'ENCERRADO' ? 'ENCERRADO' :
+                                    status.replace('_', ' ')}
+                    </button>
+                ))}
+            </div>
 
             <div className="comm-messages-list">
                 {loadingChamadoMessages ? (

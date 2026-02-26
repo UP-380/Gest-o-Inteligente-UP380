@@ -608,12 +608,14 @@ async function atualizarStatusChamado(req, res) {
 
         if (error) throw error;
 
+        const displayStatus = status === 'RESPONDIDO' ? 'EM PROCESSO' : status;
+
         // Inserir mensagem de SISTEMA no chat para transparência
         await supabase.from('comunicacao_mensagens').insert({
             tipo: 'CHAMADO', // Mantemos tipo CHAMADO mas com metadado ou conteudo indicando sistema
             mensagem_pai_id: id,
             criador_id: usuario_id,
-            conteudo: `Status alterado para **${status}**`,
+            conteudo: `Status alterado para **${displayStatus}**`,
             metadata: { sistema: true, acao: 'STATUS_CHANGE', novo_status: status }
         });
 
@@ -633,7 +635,7 @@ async function atualizarStatusChamado(req, res) {
             await distribuirNotificacao({
                 tipo: 'CHAMADO_ATUALIZADO',
                 titulo: 'Status do Chamado Atualizado',
-                mensagem: `O status do seu chamado foi alterado para: ${status}`,
+                mensagem: `O status do seu chamado foi alterado para: ${displayStatus}`,
                 referencia_id: id,
                 link: '/comunicacao?tab=chamados',
                 usuario_id: chamado.criador_id
@@ -644,7 +646,7 @@ async function atualizarStatusChamado(req, res) {
         await distribuirNotificacao({
             tipo: 'CHAMADO_ATUALIZADO',
             titulo: 'Status alterado',
-            mensagem: `Chamado #${id} teve status alterado para ${status}`,
+            mensagem: `Chamado #${id} teve status alterado para ${displayStatus}`,
             referencia_id: id,
             link: '/comunicacao?tab=chamados',
             departamento_id: deptoId

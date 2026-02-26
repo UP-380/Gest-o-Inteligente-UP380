@@ -642,6 +642,14 @@ video.media-preview {
     color: #64748b;
     cursor: pointer;
     transition: all 0.2s;
+    z-index: 10;
+    position: relative;
+    pointer-events: auto;
+}
+
+.comm-drawer-status-btn:hover {
+    border-color: #0e3b6f;
+    color: #0e3b6f;
 }
 
 .comm-drawer-status-btn.active {
