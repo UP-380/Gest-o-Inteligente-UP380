@@ -632,8 +632,7 @@ async function criarTempoEstimado(req, res) {
       });
     }
 
-    // responsavel_id global é obrigatório APENAS se nenhuma tarefa tiver responsavel_id próprio
-    // Verificar se pelo menos uma tarefa tem responsavel_id ou se há responsavel_id global
+    // responsavel_id global é OPCIONAL (se não informado, será salvo como NULL para estimativa estrutural)
     let temResponsavelGlobal = !!responsavel_id;
     let temResponsavelPorTarefa = false;
 
@@ -647,13 +646,6 @@ async function criarTempoEstimado(req, res) {
         }
         if (temResponsavelPorTarefa) break;
       }
-    }
-
-    if (!temResponsavelGlobal && !temResponsavelPorTarefa) {
-      return res.status(400).json({
-        success: false,
-        error: 'É necessário fornecer responsavel_id global ou responsavel_id em cada tarefa'
-      });
     }
 
     // Função para gerar todas as datas entre início e fim
@@ -3329,8 +3321,178 @@ async function atualizarStatusTarefa(req, res) {
   }
 }
 
+/**
+ * Segmenta vigências de tempo para uma tarefa baseado em datas de início subsequentes
+ */
+function segmentarVigenciasTempo(estimativas, dataFimGeral) {
+  if (!estimativas || estimativas.length === 0) return [];
+
+  // Ordenar por data de início
+  const sorted = [...estimativas].sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
+  const result = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const atual = sorted[i];
+    const proxima = sorted[i + 1];
+
+    // O fim do segmento atual é o dia anterior ao próximo, ou a data_fim geral
+    let fim = dataFimGeral;
+    if (proxima && proxima.data_inicio) {
+      const d = new Date(proxima.data_inicio + 'T12:00:00');
+      d.setDate(d.getDate() - 1);
+      fim = d.toISOString().split('T')[0];
+    }
+
+    // Garantir que fim não seja anterior ao início (proteção contra dados inválidos)
+    if (fim < atual.data_inicio) fim = atual.data_inicio;
+
+    result.push({
+      data_inicio: atual.data_inicio,
+      data_fim: fim,
+      tempo_minutos: parseInt(atual.tempo_minutos, 10),
+      tempo_estimado_dia: parseInt(atual.tempo_minutos, 10) * 60000
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Salva a configuração estrutural de estimativas de um cliente (NOVA ARQUITETURA ESTRUTURAL)
+ * Realiza o cleanup (delete) de todas as regras anteriores do cliente e insere as novas.
+ */
+async function salvarConfiguracaoCliente(req, res) {
+  try {
+    console.log('📥 [STRUCTURAL] Recebendo configuração de estimativa por cliente');
+    const { cliente_id, data_fim_geral, configuracoes, usuario_id } = req.body;
+
+    if (!cliente_id) {
+      return res.status(400).json({ success: false, error: 'cliente_id é obrigatório' });
+    }
+
+    // Identificar o criador (membro_id)
+    let membroIdCriador = null;
+    const uid = usuario_id || req.session?.usuario?.id;
+    if (uid) {
+      const { data: membro } = await supabase
+        .from('membro')
+        .select('id')
+        .eq('usuario_id', String(uid).trim())
+        .maybeSingle();
+      if (membro) membroIdCriador = parseInt(membro.id, 10);
+    }
+
+    // 1. Limpar regras existentes do cliente (Atomicidade conceitual para "MODO CONFIGURAÇÃO ESTRUTURAL")
+    console.log(`🧹 Limpando ${cliente_id} para nova configuração...`);
+    const { error: deleteError } = await supabase
+      .from('tempo_estimado_regra')
+      .delete()
+      .eq('cliente_id', String(cliente_id).trim());
+
+    if (deleteError) {
+      throw new Error(`Erro ao limpar regras anteriores: ${deleteError.message}`);
+    }
+
+    // 2. Processar e Preparar Novas Regras
+    const regrasParaInserir = [];
+    const agrupador_id = uuidv4();
+    const dataFimLimite = data_fim_geral || '2050-12-31';
+
+    for (const config of configuracoes) {
+      const {
+        produto_id,
+        tarefa_id,
+        estimativas = [],
+        responsaveis = [],
+        incluir_finais_semana = false,
+        incluir_feriados = false
+      } = config;
+
+      // Se não houver estimativas, usar um fallback simples de 0 ou ignorar
+      if (estimativas.length === 0) continue;
+
+      // Segmentar as estimativas de tempo ao longo do calendário
+      const segmentosTempo = segmentarVigenciasTempo(estimativas, dataFimLimite);
+
+      // Se houver responsáveis, as regras são vinculadas a eles.
+      // Caso contrário, cria-se uma regra estrutural (responsavel_id = NULL)
+      const respsFinal = (responsaveis && responsaveis.length > 0)
+        ? responsaveis.map(r => ({ id: r.responsavel_id }))
+        : [{ id: null }];
+
+      for (const resp of respsFinal) {
+        for (const seg of segmentosTempo) {
+          regrasParaInserir.push({
+            agrupador_id,
+            cliente_id: String(cliente_id).trim(),
+            produto_id: produto_id ? parseInt(produto_id, 10) : null,
+            tarefa_id: parseInt(tarefa_id, 10),
+            responsavel_id: resp.id ? parseInt(resp.id, 10) : null,
+            data_inicio: seg.data_inicio,
+            data_fim: seg.data_fim,
+            tempo_minutos: seg.tempo_minutos,
+            tempo_estimado_dia: seg.tempo_estimado_dia,
+            incluir_finais_semana,
+            incluir_feriados,
+            created_by: membroIdCriador
+          });
+        }
+      }
+    }
+
+    // 3. Inserir as novas regras
+    if (regrasParaInserir.length > 0) {
+      console.log(`💾 Inserindo ${regrasParaInserir.length} novas regras estruturais...`);
+      const { error: insertError } = await supabase
+        .from('tempo_estimado_regra')
+        .insert(regrasParaInserir);
+
+      if (insertError) {
+        throw new Error(`Erro ao inserir novas regras: ${insertError.message}`);
+      }
+    }
+
+    // 4. Criar Histórico Consolidado
+    const { error: histError } = await supabase
+      .from('historico_atribuicoes')
+      .insert({
+        agrupador_id,
+        cliente_id: String(cliente_id).trim(),
+        responsavel_id: null, // No modo estrutural, o histórico não foca em um responsável único
+        usuario_criador_id: membroIdCriador,
+        data_inicio: regrasParaInserir[0]?.data_inicio || null,
+        data_fim: dataFimLimite,
+        produto_ids: [...new Set(regrasParaInserir.map(r => String(r.produto_id)))],
+        tarefas: configuracoes.map(c => ({
+          tarefa_id: c.tarefa_id,
+          produto_id: c.produto_id,
+          tempo_minutos: c.estimativas[0]?.tempo_minutos || 0
+        })),
+        is_plug_rapido: false
+      });
+
+    if (histError) console.warn('⚠️ Falha ao registrar log de histórico:', histError.message);
+
+    return res.json({
+      success: true,
+      message: 'Configuração estrutural de estimativas salva com sucesso',
+      agrupador_id,
+      count: regrasParaInserir.length
+    });
+
+  } catch (error) {
+    console.error('❌ [SALVAR-CONFIG] Erro fatal:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao salvar configuração de estimativas',
+      details: error.message
+    });
+  }
+}
+
 module.exports = {
   criarTempoEstimado,
+  salvarConfiguracaoCliente,
   getTempoEstimado,
   getTempoEstimadoPorId,
   atualizarTempoEstimado,

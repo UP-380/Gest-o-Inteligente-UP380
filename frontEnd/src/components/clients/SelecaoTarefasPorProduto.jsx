@@ -1339,12 +1339,7 @@ const SelecaoTarefasPorProduto = ({
                                       />
                                     )}
                                   </div>
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
-                                    <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
-                                      Preencha o responsável primeiro
-                                    </div>
-                                  )}
-                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && !ordemPreenchimento.podePreencherResponsavel(produtoIdNum, tarefa.id) && (
+                                  {ordemPreenchimento && !ordemPreenchimento.podePreencherTempo(produtoIdNum, tarefa.id) && (
                                     <div className="filter-tooltip" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 1000, whiteSpace: 'nowrap' }}>
                                       Preencha o período primeiro
                                     </div>

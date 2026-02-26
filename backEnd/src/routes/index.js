@@ -230,6 +230,7 @@ router.get('/api/tempo-estimado', requireAuth, tempoEstimadoController.getTempoE
 router.post('/api/tempo-estimado/listar', requireAuth, tempoEstimadoController.getTempoEstimado); // POST com body para evitar 414 URI Too Long
 router.get('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.getTempoEstimadoPorId);
 router.post('/api/tempo-estimado', requireAuth, tempoEstimadoController.criarTempoEstimado);
+router.post('/api/tempo-estimado/salvar-configuracao-cliente', requireAuth, tempoEstimadoController.salvarConfiguracaoCliente);
 router.put('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.atualizarTempoEstimado);
 router.delete('/api/tempo-estimado/:id', requireAuth, tempoEstimadoController.deletarTempoEstimado);
 

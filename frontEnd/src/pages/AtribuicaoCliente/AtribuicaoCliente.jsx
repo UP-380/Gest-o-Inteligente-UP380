@@ -1638,25 +1638,91 @@ const AtribuicaoCliente = () => {
   // Como cada tarefa pode ter um responsável diferente, a validação deveria ser feita por responsável
   // Isso pode ser implementado no futuro se necessário
 
-  // Carregar produtos vinculados ao cliente selecionado (usando tabela de vinculados)
-  useEffect(() => {
-    // Se estiver editando, NÃO carregar dados automaticamente aqui
-    // O loadDadosEdicao já cuidará disso
-    if (editingAgrupamento) {
+
+  const loadTarefasPorClienteEProdutos = useCallback(async (clienteId, produtoIds, shouldSelectAll = true) => {
+    if (!clienteId || !produtoIds || produtoIds.length === 0) {
+      setTarefas([]);
       return;
     }
 
-    if (clienteSelecionado) {
-      loadProdutosPorCliente(clienteSelecionado);
-    } else {
-      setProdutos([]);
-      setProdutosSelecionados([]);
-      setTarefas([]);
-      setTarefasSelecionadas([]);
-    }
-  }, [clienteSelecionado, editingAgrupamento]);
+    setLoading(true);
+    try {
+      const produtoIdsNum = produtoIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
+      if (produtoIdsNum.length === 0) {
+        setTarefas([]);
+        setLoading(false);
+        return;
+      }
 
-  const loadProdutosPorCliente = async (clienteId) => {
+      const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIdsNum.join(',')}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const todasTarefas = [];
+          const tarefasIds = new Set();
+
+          result.data.forEach(item => {
+            (item.tarefas || []).forEach(tarefa => {
+              if (!tarefasIds.has(tarefa.id)) {
+                tarefasIds.add(tarefa.id);
+                todasTarefas.push(tarefa);
+              }
+            });
+          });
+
+          setTarefas(todasTarefas);
+          // Selecionar apenas tarefas que estão vinculadas ao cliente (estaVinculadaAoCliente === true)
+          // ou que têm subtarefas vinculadas ao cliente
+          const tarefasVinculadas = [];
+          result.data.forEach(item => {
+            (item.tarefas || []).forEach(tarefa => {
+              const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
+              const subtarefasVinculadas = tarefa.subtarefasVinculadasCliente || [];
+              const temSubtarefasVinculadas = subtarefasVinculadas.length > 0;
+
+              // Selecionar tarefa se está vinculada ao cliente OU tem subtarefas vinculadas
+              if (estaVinculadaAoCliente || temSubtarefasVinculadas) {
+                if (!tarefasVinculadas.includes(String(tarefa.id))) {
+                  tarefasVinculadas.push(String(tarefa.id));
+                }
+              }
+            });
+          });
+
+          if (shouldSelectAll) {
+            setTarefasSelecionadas(tarefasVinculadas);
+          }
+
+          if (!editingAgrupamento) {
+            setTempoEstimadoDia(prev => {
+              const novosTempos = { ...prev };
+              tarefasVinculadas.forEach(tarefaId => {
+                if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
+                  novosTempos[tarefaId] = 0;
+                }
+              });
+              return novosTempos;
+            });
+          }
+        } else {
+          setTarefas([]);
+        }
+      } else {
+        setTarefas([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar tarefas vinculadas:', error);
+      setTarefas([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [editingAgrupamento]);
+
+  const loadProdutosPorCliente = useCallback(async (clienteId) => {
     console.log('🔄 [AtribuicaoCliente] Carregando produtos vinculados ao cliente:', clienteId);
     setLoading(true);
     try {
@@ -1739,7 +1805,93 @@ const AtribuicaoCliente = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadTarefasPorClienteEProdutos, showToast]);
+
+  const loadConfiguracaoExistente = useCallback(async (clienteId) => {
+    if (!clienteId) return;
+    try {
+      console.log('🔄 [CONFIG] Carregando estimativas existentes para o cliente:', clienteId);
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado?cliente_id=${clienteId}`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) return;
+
+      const result = await response.json();
+      if (!result.success || !result.data || result.data.length === 0) return;
+
+      const regras = result.data;
+
+      // Reconstruir estado a partir das regras do banco
+      const tSelPorProd = {};
+      const respPorTarefa = {};
+      const tConfPorTarefa = {};
+      const perPorTarefa = {};
+
+      regras.forEach(reg => {
+        const pId = String(reg.produto_id).trim();
+        const tId = String(reg.tarefa_id).trim();
+        const key = `${pId}_${tId}`;
+
+        // Seleção
+        if (!tSelPorProd[pId]) tSelPorProd[pId] = {};
+        tSelPorProd[pId][tId] = { selecionada: true };
+
+        // Responsáveis
+        if (reg.responsavel_id) {
+          if (!respPorTarefa[key]) respPorTarefa[key] = [];
+          const rIdStr = String(reg.responsavel_id);
+          if (!respPorTarefa[key].includes(rIdStr)) {
+            respPorTarefa[key].push(rIdStr);
+          }
+        }
+
+        // Configuração de Tempo (Escalonamento)
+        const rIdKey = reg.responsavel_id ? String(reg.responsavel_id) : 'null';
+        if (!tConfPorTarefa[key]) tConfPorTarefa[key] = {};
+        if (!tConfPorTarefa[key][rIdKey]) tConfPorTarefa[key][rIdKey] = [];
+        tConfPorTarefa[key][rIdKey].push({
+          tempo_minutos: reg.tempo_minutos,
+          data_inicio: reg.data_inicio
+        });
+
+        // Período
+        if (!perPorTarefa[key]) {
+          perPorTarefa[key] = {
+            inicio: reg.data_inicio,
+            fim: reg.data_fim,
+            incluir_finais_semana: reg.incluir_finais_semana,
+            incluir_feriados: reg.incluir_feriados,
+            datasIndividuais: [],
+            source: 'existente'
+          };
+        } else {
+          if (reg.data_inicio < perPorTarefa[key].inicio) perPorTarefa[key].inicio = reg.data_inicio;
+          if (reg.data_fim > perPorTarefa[key].fim) perPorTarefa[key].fim = reg.data_fim;
+        }
+      });
+
+      // Reconstruir formato para initialTarefas (array por produto) - Necessário para SelecaoTarefasPorProduto saber o que marcar
+      const initialTasks = {};
+      regras.forEach(reg => {
+        const pId = String(reg.produto_id).trim();
+        if (!initialTasks[pId]) initialTasks[pId] = [];
+        if (!initialTasks[pId].find(t => String(t.id) === String(reg.tarefa_id))) {
+          initialTasks[pId].push({ id: reg.tarefa_id });
+        }
+      });
+      setInitialTarefas(initialTasks);
+
+      setTarefasSelecionadasPorProduto(tSelPorProd);
+      setResponsaveisPorTarefa(respPorTarefa);
+      setTempoConfigPorTarefa(tConfPorTarefa);
+      setPeriodosPorTarefa(perPorTarefa);
+
+    } catch (error) {
+      console.error('❌ Erro ao carregar configuração existente:', error);
+    }
+  }, []);
 
   // Quando tarefas são selecionadas via SelecaoTarefasPorProduto, atualizar lista de tarefas selecionadas
   useEffect(() => {
@@ -1763,91 +1915,31 @@ const AtribuicaoCliente = () => {
     });
   }, [tarefasSelecionadasPorProduto]);
 
-  // Removido: useEffect que limpava tempos baseado apenas em tarefasSelecionadas
-  // Agora o tempo é gerenciado por produto x tarefa, então não precisamos limpar dessa forma
-
-  const loadTarefasPorClienteEProdutos = async (clienteId, produtoIds, shouldSelectAll = true) => {
-    if (!clienteId || !produtoIds || produtoIds.length === 0) {
-      setTarefas([]);
+  // Carregar produtos vinculados ao cliente selecionado (usando tabela de vinculados)
+  useEffect(() => {
+    // Se estiver editando, NÃO carregar dados automaticamente aqui
+    // O loadDadosEdicao já cuidará disso
+    if (editingAgrupamento) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const produtoIdsNum = produtoIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id) && id > 0);
-      if (produtoIdsNum.length === 0) {
-        setTarefas([]);
-        setLoading(false);
-        return;
-      }
+    if (clienteSelecionado) {
+      // Limpar estados antes de carregar novo cliente para evitar mistura
+      setInitialTarefas(null);
+      setTarefasSelecionadasPorProduto({});
+      setResponsaveisPorTarefa({});
+      setTempoConfigPorTarefa({});
+      setPeriodosPorTarefa({});
 
-      const response = await fetch(`${API_BASE_URL}/tarefas-por-cliente-produtos?clienteId=${clienteId}&produtoIds=${produtoIdsNum.join(',')}`, {
-        credentials: 'include',
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.data) {
-          const todasTarefas = [];
-          const tarefasIds = new Set();
-
-          result.data.forEach(item => {
-            (item.tarefas || []).forEach(tarefa => {
-              if (!tarefasIds.has(tarefa.id)) {
-                tarefasIds.add(tarefa.id);
-                todasTarefas.push(tarefa);
-              }
-            });
-          });
-
-          setTarefas(todasTarefas);
-          // Selecionar apenas tarefas que estão vinculadas ao cliente (estaVinculadaAoCliente === true)
-          // ou que têm subtarefas vinculadas ao cliente
-          const tarefasVinculadas = [];
-          result.data.forEach(item => {
-            (item.tarefas || []).forEach(tarefa => {
-              const estaVinculadaAoCliente = tarefa.estaVinculadaAoCliente === true;
-              const subtarefasVinculadas = tarefa.subtarefasVinculadasCliente || [];
-              const temSubtarefasVinculadas = subtarefasVinculadas.length > 0;
-
-              // Selecionar tarefa se está vinculada ao cliente OU tem subtarefas vinculadas
-              if (estaVinculadaAoCliente || temSubtarefasVinculadas) {
-                if (!tarefasVinculadas.includes(String(tarefa.id))) {
-                  tarefasVinculadas.push(String(tarefa.id));
-                }
-              }
-            });
-          });
-
-          if (shouldSelectAll) {
-            setTarefasSelecionadas(tarefasVinculadas);
-          }
-
-          if (!editingAgrupamento) {
-            setTempoEstimadoDia(prev => {
-              const novosTempos = { ...prev };
-              tarefasVinculadas.forEach(tarefaId => {
-                if (!novosTempos[tarefaId] || novosTempos[tarefaId] <= 0) {
-                  novosTempos[tarefaId] = 0;
-                }
-              });
-              return novosTempos;
-            });
-          }
-        } else {
-          setTarefas([]);
-        }
-      } else {
-        setTarefas([]);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar tarefas vinculadas:', error);
+      loadProdutosPorCliente(clienteSelecionado);
+      loadConfiguracaoExistente(clienteSelecionado);
+    } else {
+      setProdutos([]);
+      setProdutosSelecionados([]);
       setTarefas([]);
-    } finally {
-      setLoading(false);
+      setTarefasSelecionadas([]);
     }
-  };
+  }, [clienteSelecionado, editingAgrupamento, loadProdutosPorCliente, loadConfiguracaoExistente]);
 
   const handleClienteChange = (e) => {
     const novoClienteId = e.target.value;
@@ -2257,224 +2349,21 @@ const AtribuicaoCliente = () => {
         }
       });
     });
-
-    if (tarefasSemTempo.length > 0) {
-      if (modoSelecionarVarios && tarefasSelecionadasParaTempo.size > 0 && (!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0)) {
-        showToast('warning', 'Informe o tempo estimado no campo "Selecionar vários" para aplicar às tarefas selecionadas.');
-      } else {
-        showToast('warning', `Informe o tempo estimado para todas as tarefas. ${tarefasSemTempo.length} tarefa(s) sem tempo definido.`);
-      }
-      return;
-    }
-
-    if (tarefasSemResponsavel.length > 0) {
-      showToast('warning', `Selecione um responsável para todas as tarefas. ${tarefasSemResponsavel.length} tarefa(s) sem responsável definido.`);
-      return;
-    }
-
-    if (erroDuplicata) {
-      console.warn('Aviso de duplicata:', erroDuplicata);
-    }
-
-    if (horasContratadasDia && tarefasSelecionadasPorProduto && Object.keys(tarefasSelecionadasPorProduto).length > 0) {
-      let totalTempoMs = 0;
-      Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoId, tarefaId);
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-            totalTempoMs += tempo;
-          }
-        });
-      });
-      const totalHorasPorDia = totalTempoMs / (1000 * 60 * 60);
-
-      if (totalHorasPorDia > horasContratadasDia) {
-        console.warn('Tempo estimado ultrapassa horas contratadas');
-      }
-    }
-
-    setSubmitting(true);
     try {
-      // Construir array de tarefas com tempo, mas agrupadas por produto
-      // Usar tarefasSelecionadasPorProduto para garantir que só enviamos tarefas selecionadas para cada produto específico
-      const tarefasComTempo = [];
+      setSubmitting(true);
 
-      // Iterar sobre cada produto e suas tarefas selecionadas
-      Object.entries(tarefasSelecionadasPorProduto).forEach(([produtoId, tarefasDoProduto]) => {
-        // Verificar se o produto está na lista de produtos selecionados
-        const produtoIdStr = String(produtoId).trim();
-        if (!produtosSelecionados.includes(produtoIdStr)) {
-          return; // Pular produtos não selecionados
-        }
+      const obterPeriodoPara = (pId, tId) => {
+        const key = getPeriodoKey(pId, tId);
+        const per = periodosPorTarefa[key];
 
-        // Para cada tarefa selecionada neste produto
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-
-            const tempoInt = Math.round(Number(tempo));
-
-            // Adicionar tarefa com informação do produto
-            tarefasComTempo.push({
-              tarefa_id: String(tarefaId).trim(),
-              tempo_estimado_dia: tempoInt,
-              produto_id: produtoIdStr // Incluir produto_id para identificar a qual produto esta tarefa pertence
-            });
-          }
-        });
-      });
-
-      // Agrupar tarefas por produto para enviar ao backend
-      // O backend precisa receber: produto_ids e tarefas (mas as tarefas devem ser filtradas por produto)
-      // Vamos enviar um formato que permita ao backend criar apenas as combinações corretas
-      const produtosComTarefas = {};
-
-      produtosSelecionados.forEach(produtoId => {
-        const produtoIdStr = String(produtoId).trim();
-        const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
-
-        const tarefasParaEsteProduto = [];
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada === true) {
-            let tempo = getTempoEstimado(produtoIdStr, tarefaId);
-
-            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-              tempo = tempoGlobalParaAplicar;
-            }
-
-            const tempoInt = Math.round(Number(tempo));
-
-            // Obter responsável da tarefa
-            const responsavelId = getResponsavelTarefa(produtoIdStr, tarefaId);
-
-            tarefasParaEsteProduto.push({
-              tarefa_id: String(tarefaId).trim(),
-              tempo_estimado_dia: tempoInt,
-              responsavel_id: responsavelId ? String(responsavelId).trim() : null
-            });
-          }
-        });
-
-        if (tarefasParaEsteProduto.length > 0) {
-          produtosComTarefas[produtoIdStr] = tarefasParaEsteProduto;
-        }
-      });
-
-      // Agrupamento por período (por tarefa) ou período global
-      // Helper para gerar datas entre início e fim
-      const gerarDatasIntervalo = (inicioStr, fimStr) => {
-        const datas = [];
-        if (!inicioStr || !fimStr) return datas;
-        // Usar T12:00:00 para evitar problemas de timezone
-        const dataAtual = new Date(inicioStr + 'T12:00:00');
-        const dataFim = new Date(fimStr + 'T12:00:00');
-        const MAX_DAYS = 3660;
-        let count = 0;
-        while (dataAtual <= dataFim && count < MAX_DAYS) {
-          const ano = dataAtual.getFullYear();
-          const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
-          const dia = String(dataAtual.getDate()).padStart(2, '0');
-          datas.push(`${ano}-${mes}-${dia}`);
-          dataAtual.setDate(dataAtual.getDate() + 1);
-          count++;
-        }
-        return datas;
-      };
-
-      const obterPeriodoPara = (produtoId, tarefaId) => {
-        const key = getPeriodoKey(produtoId, tarefaId);
-        const p = periodosPorTarefa[key];
-
-        if (p) {
-          const temPeriodoCompleto = p.inicio && p.fim;
-          const temDatasIndividuais = Array.isArray(p.datasIndividuais) && p.datasIndividuais.length > 0;
-
-          if (temPeriodoCompleto || temDatasIndividuais) {
-
-            // CORREÇÃO: Se tem período completo E datas individuais (exceções marcadas com Ctrl),
-            // calular a lista exata de datas válidas (Range - Exceções) e enviar apenas essa lista.
-            if (temPeriodoCompleto && temDatasIndividuais) {
-              // Se a fonte for recorrência, as datas individuais JÁ SÃO a whitelist (datas a incluir)
-              if (p.source === 'recorrencia') {
-                return {
-                  inicio: null,
-                  fim: null,
-                  incluir_finais_semana: !!p.habilitarFinaisSemana,
-                  incluir_feriados: !!p.habilitarFeriados,
-                  datas_individuais: p.datasIndividuais
-                };
-              }
-
-              // Caso contrário (manual), são exceções a serem removidas do range
-              const todasDatas = gerarDatasIntervalo(p.inicio, p.fim);
-              const datasValidas = todasDatas.filter(d => !p.datasIndividuais.includes(d));
-
-              if (datasValidas.length > 0) {
-                return {
-                  inicio: null,
-                  fim: null,
-                  incluir_finais_semana: !!p.habilitarFinaisSemana,
-                  incluir_feriados: !!p.habilitarFeriados,
-                  datas_individuais: datasValidas
-                };
-              }
-            }
-
-            let inicio = p.inicio;
-            let fim = p.fim;
-
-            // Se há apenas datas individuais, usar min/max das datas para inicio e fim
-            if (!temPeriodoCompleto && temDatasIndividuais) {
-              const datasOrdenadas = [...p.datasIndividuais].sort();
-              inicio = datasOrdenadas[0];
-              fim = datasOrdenadas[datasOrdenadas.length - 1];
-            }
-
-            return {
-              inicio,
-              fim,
-              incluir_finais_semana: !!p.habilitarFinaisSemana,
-              incluir_feriados: !!p.habilitarFeriados,
-              datas_individuais: Array.isArray(p.datasIndividuais) ? p.datasIndividuais : []
-            };
-          }
-        }
-
-        // Fallback para período global da tela
-        // Tenta usar datas individuais globais se disponíveis
-        const temPeriodoGlobal = dataInicio && dataFim;
-        const temDatasIndividuaisGlobal = Array.isArray(periodoGlobal.datasIndividuais) && periodoGlobal.datasIndividuais.length > 0;
-
-        if (temPeriodoGlobal && temDatasIndividuaisGlobal) {
-          // Se a fonte global for recorrência, usar como whitelist
-          if (periodoGlobal.source === 'recorrencia') {
-            return {
-              inicio: null,
-              fim: null,
-              incluir_finais_semana: !!habilitarFinaisSemana,
-              incluir_feriados: !!habilitarFeriados,
-              datas_individuais: periodoGlobal.datasIndividuais
-            };
-          }
-
-          const todasDatas = gerarDatasIntervalo(dataInicio, dataFim);
-          const datasValidas = todasDatas.filter(d => !periodoGlobal.datasIndividuais.includes(d));
-          if (datasValidas.length > 0) {
-            return {
-              inicio: null,
-              fim: null,
-              incluir_finais_semana: !!habilitarFinaisSemana,
-              incluir_feriados: !!habilitarFeriados,
-              datas_individuais: datasValidas
-            };
-          }
+        if (per) {
+          return {
+            inicio: per.inicio || dataInicio,
+            fim: per.fim || dataFim,
+            incluir_finais_semana: per.habilitarFinaisSemana !== undefined ? per.habilitarFinaisSemana : !!habilitarFinaisSemana,
+            incluir_feriados: per.habilitarFeriados !== undefined ? per.habilitarFeriados : !!habilitarFeriados,
+            datas_individuais: Array.isArray(per.datasIndividuais) ? per.datasIndividuais : []
+          };
         }
 
         return {
@@ -2486,231 +2375,81 @@ const AtribuicaoCliente = () => {
         };
       };
 
-      const stringifyPeriodo = (per) => {
-        const di = (per.datas_individuais || []).slice().sort().join(',');
-        return `${per.inicio}|${per.fim}|${per.incluir_finais_semana ? 1 : 0}|${per.incluir_feriados ? 1 : 0}|${di}`;
+      // Montar payload consolidado por tarefa
+      const configuracoesParaSalvar = [];
+
+      Object.entries(tarefasSelecionadasPorProduto).forEach(([pId, tarefasDoProduto]) => {
+        Object.entries(tarefasDoProduto).forEach(([tId, dadosTarefa]) => {
+          if (!dadosTarefa.selecionada) return;
+
+          const pIdStr = String(pId).trim();
+          const tIdStr = String(tId).trim();
+          const key = `${pIdStr}_${tIdStr}`;
+          const periodo = obterPeriodoPara(pIdStr, tIdStr);
+          const responsaveisIds = responsaveisPorTarefa[key] || [];
+          const configTempo = tempoConfigPorTarefa[key] || tempoConfigGlobal || {};
+
+          // Se não houver config avançada de tempo, usar o tempo padrão
+          let estimativas = [];
+
+          // Tentar pegar estimativas de tempo (independentemente de responsável)
+          if (configTempo['null'] && configTempo['null'].length > 0) {
+            estimativas = configTempo['null'];
+          } else if (responsaveisIds.length > 0) {
+            estimativas = configTempo[responsaveisIds[0]] || [];
+          }
+
+          if (estimativas.length === 0) {
+            let tempoPadrao = getTempoEstimado(pIdStr, tIdStr);
+            if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tIdStr) && tempoGlobalParaAplicar > 0) {
+              tempoPadrao = tempoGlobalParaAplicar;
+            }
+            const min = Math.round(Number(tempoPadrao) / 60000);
+            estimativas = [{ tempo_minutos: min, data_inicio: periodo.inicio || new Date().toISOString().split('T')[0] }];
+          }
+
+          configuracoesParaSalvar.push({
+            produto_id: pIdStr,
+            tarefa_id: tIdStr,
+            estimativas: estimativas,
+            responsaveis: responsaveisIds.map(rId => ({ responsavel_id: rId })),
+            incluir_finais_semana: periodo.incluir_finais_semana,
+            incluir_feriados: periodo.incluir_feriados
+          });
+        });
+      });
+
+      const payload = {
+        cliente_id: clienteSelecionado,
+        data_fim_geral: dataFim || '2050-12-31',
+        configuracoes: configuracoesParaSalvar
       };
 
-      // Agrupar por período E responsável E tempo (agora suportando escalonamento de tempo no mesmo agrupador)
-      const gruposParaSalvar = []; // { periodo, responsavel_id, tempo_minutos, produto_id, tarefa_id }
+      console.log('💾 [ATRIBUICAO] Salvando configuração consolidada:', JSON.stringify(payload, null, 2));
 
-      produtosSelecionados.forEach(produtoId => {
-        const produtoIdStr = String(produtoId).trim();
-        const tarefasDoProduto = tarefasSelecionadasPorProduto[parseInt(produtoIdStr, 10)] || {};
-
-        Object.entries(tarefasDoProduto).forEach(([tarefaId, dadosTarefa]) => {
-          if (dadosTarefa.selecionada !== true) return;
-
-          const keyTarefa = `${produtoIdStr}_${tarefaId}`;
-          const periodoOriginal = obterPeriodoPara(produtoIdStr, tarefaId);
-          const responsaveisIds = getResponsavelTarefa(produtoIdStr, tarefaId);
-          const configTempo = tempoConfigPorTarefa[keyTarefa] || tempoConfigGlobal || {};
-
-          let tempoPadrao = getTempoEstimado(produtoIdStr, tarefaId);
-          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaId) && tempoGlobalParaAplicar > 0) {
-            tempoPadrao = tempoGlobalParaAplicar;
-          }
-          const tempoPadraoMinutos = Math.round(Number(tempoPadrao) / 60000);
-
-          const escalonamentoAtivo = escalonamentoPorTarefaAtivo[keyTarefa] || false;
-          const vigencias = vigenciasPorTarefa[keyTarefa] || {};
-
-          // 1. Preparar lista de responsáveis com seus intervalos de "vincular"
-          let vigilantes = [];
-          if (escalonamentoAtivo && responsaveisIds.length > 1) {
-            vigilantes = responsaveisIds
-              .map(id => ({ id: String(id), data: vigencias[id] }))
-              .filter(v => v.data)
-              .sort((a, b) => a.data.localeCompare(b.data));
-          } else {
-            // Se não houver escalonamento, um único bloco para cada responsável (ou sem responsável)
-            const resps = responsaveisIds.length > 0 ? responsaveisIds : [null];
-            vigilantes = resps.map(id => ({ id: id ? String(id) : null, data: periodoOriginal.inicio }));
-          }
-
-          // 2. Para cada responsável, processar seus segmentos de tempo
-          vigilantes.forEach((v, index) => {
-            const respId = v.id;
-            const respInicio = v.data;
-            let respFim = periodoOriginal.fim;
-
-            // Se escalonado, o fim deste responsável é o dia anterior ao próximo
-            if (escalonamentoAtivo && index < vigilantes.length - 1) {
-              const dataProxima = new Date(vigilantes[index + 1].data + 'T12:00:00');
-              dataProxima.setDate(dataProxima.getDate() - 1);
-              respFim = dataProxima.toISOString().split('T')[0];
-            }
-
-            // Obter segmentos de tempo para este responsável
-            let segments = configTempo[respId];
-            if (!segments || !Array.isArray(segments) || segments.length === 0) {
-              // Fallback: Segmento único com o tempo padrão da tarefa
-              segments = [{ tempo_minutos: tempoPadraoMinutos, data_inicio: respInicio }];
-            }
-
-            // Ordenar segmentos e filtrar/ajustar para o intervalo [respInicio, respFim]
-            const sortedSegments = [...segments].sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
-
-            sortedSegments.forEach((seg, sIdx) => {
-              let segInicio = seg.data_inicio;
-              let segFim = respFim;
-
-              // Se não for o último segmento de tempo deste responsável, o fim é antes do próximo segmento
-              if (sIdx < sortedSegments.length - 1) {
-                const dataProximaSeg = new Date(sortedSegments[sIdx + 1].data_inicio + 'T12:00:00');
-                dataProximaSeg.setDate(dataProximaSeg.getDate() - 1);
-                segFim = dataProximaSeg.toISOString().split('T')[0];
-              }
-
-              // Validação de intervalo: O segmento deve estar dentro do tempo de responsabilidade ou ser o inicial
-              // Se o segmento começa ANTES da responsabilidade do cara, mas é o único ou o mais próximo,
-              // devemos "puxar" ele para o início da responsabilidade.
-              if (segInicio < respInicio) segInicio = respInicio;
-
-              // Se o segmento já termina antes de começar a responsabilidade, ignora
-              if (segFim < respInicio) return;
-
-              // Se o segmento começa após o fim da responsabilidade, ignora
-              if (segInicio > respFim) return;
-
-              gruposParaSalvar.push({
-                periodo: { ...periodoOriginal, inicio: segInicio, fim: segFim },
-                responsavel_id: respId,
-                tempo_minutos: seg.tempo_minutos,
-                produto_id: produtoIdStr,
-                tarefa_id: String(tarefaId).trim()
-              });
-            });
-          });
-        });
+      const response = await fetch(`${API_BASE_URL}/tempo-estimado/salvar-configuracao-cliente`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
 
-      // 3. Converter gruposParaSalvar em formato para o controller (produtos_com_tarefas agrupados por periodo+responsavel)
-      const gruposPorPeriodoEResponsavelETempo = {};
-
-      gruposParaSalvar.forEach(item => {
-        const keyPeriodo = stringifyPeriodo(item.periodo);
-        const keyGrupo = `${keyPeriodo}_${item.responsavel_id || 'sem-responsavel'}_${item.tempo_minutos}`;
-
-        if (!gruposPorPeriodoEResponsavelETempo[keyGrupo]) {
-          gruposPorPeriodoEResponsavelETempo[keyGrupo] = {
-            periodo: item.periodo,
-            responsavel_id: item.responsavel_id,
-            tempo_minutos: item.tempo_minutos,
-            produtos_com_tarefas: {}
-          };
-        }
-
-        const g = gruposPorPeriodoEResponsavelETempo[keyGrupo];
-        if (!g.produtos_com_tarefas[item.produto_id]) {
-          g.produtos_com_tarefas[item.produto_id] = [];
-        }
-        g.produtos_com_tarefas[item.produto_id].push({
-          tarefa_id: item.tarefa_id,
-          tempo_estimado_dia: item.tempo_minutos * 60000, // milissegundos para compatibilidade se não mudar backend
-          tempo_minutos: item.tempo_minutos,
-          responsavel_id: item.responsavel_id
-        });
-      });
-
-      const grupos = Object.values(gruposPorPeriodoEResponsavelETempo);
-
-      console.log('💾 [ATRIBUICAO] Total de grupos de período, responsável e tempo:', grupos.length);
-
-      const urlBase = editingAgrupamento
-        ? `${API_BASE_URL}/tempo-estimado/agrupador/${editingAgrupamento.agrupador_id}`
-        : `${API_BASE_URL}/tempo-estimado`;
-      const method = editingAgrupamento ? 'PUT' : 'POST';
-
-      let totalLinhas = 0;
-
-      if (editingAgrupamento) {
-        // MODO EDIÇÃO (PUT): Enviar todos os grupos em uma única requisição para atualização atômica
-        const gruposPayload = grupos.map(grupo => ({
-          produtos_com_tarefas: grupo.produtos_com_tarefas,
-          data_inicio: grupo.periodo.inicio,
-          data_fim: grupo.periodo.fim,
-          responsavel_id: grupo.responsavel_id,
-          tempo_minutos: grupo.tempo_minutos,
-          incluir_finais_semana: grupo.periodo.incluir_finais_semana,
-          incluir_feriados: grupo.periodo.incluir_feriados,
-          datas_individuais: grupo.periodo.datas_individuais
-        }));
-
-        const payload = {
-          cliente_id: clienteSelecionado,
-          grupos: gruposPayload
-        };
-
-        console.log('💾 [ATRIBUICAO] Salvando atualização em lote (PUT):', JSON.stringify(payload, null, 2));
-
-        const response = await fetch(urlBase, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
-
-        if (response.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-
-        const result = await response.json();
-
-        if (!response.ok || !result.success) {
-          const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-          showToast('error', errorMsg);
-          return;
-        }
-
-        totalLinhas = result.count || 0;
-
-      } else {
-        // MODO CRIAÇÃO (POST)
-        for (const grupo of grupos) {
-          const payload = {
-            cliente_id: clienteSelecionado,
-            produtos_com_tarefas: grupo.produtos_com_tarefas,
-            data_inicio: grupo.periodo.inicio,
-            data_fim: grupo.periodo.fim,
-            responsavel_id: grupo.responsavel_id,
-            tempo_minutos: grupo.tempo_minutos,
-            incluir_finais_semana: grupo.periodo.incluir_finais_semana,
-            incluir_feriados: grupo.periodo.incluir_feriados,
-            datas_individuais: grupo.periodo.datas_individuais
-          };
-
-          console.log('💾 [ATRIBUICAO] Salvando novo grupo (POST):', JSON.stringify(payload, null, 2));
-
-          const response = await fetch(urlBase, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(payload),
-          });
-
-          if (response.status === 401) {
-            window.location.href = '/login';
-            return;
-          }
-
-          const result = await response.json();
-
-          if (!response.ok || !result.success) {
-            const errorMsg = result.error || result.details || result.hint || result.message || `Erro HTTP ${response.status}`;
-            showToast('error', errorMsg);
-            return;
-          }
-          totalLinhas += (result.count || result.data?.length || 0);
-        }
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
       }
 
-      showToast('success', `Atribuição salva com sucesso! ${totalLinhas} dia(s) atribuídos/atualizados em ${grupos.length} grupo(s) de período.`);
-      navigate(editingAgrupamento ? '/gestao-capacidade/historico' : '/gestao-capacidade');
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.details || 'Erro ao salvar configuração');
+      }
+
+      showToast('success', 'Configuração estrutural de estimativas salva com sucesso!');
+      navigate('/gestao-capacidade');
     } catch (error) {
-      console.error('Erro ao salvar atribuição:', error);
-      showToast('error', error.message || 'Erro ao salvar atribuição. Verifique sua conexão e tente novamente.');
+      console.error('❌ Erro ao salvar configuração:', error);
+      showToast('error', error.message || 'Erro ao salvar. Verifique o console para detalhes.');
     } finally {
       setSubmitting(false);
     }
@@ -3150,10 +2889,8 @@ const AtribuicaoCliente = () => {
                             },
                             podePreencherTempo: (produtoId, tarefaId) => {
                               const keyPeriodo = getPeriodoKey(produtoId, tarefaId);
-                              const keyResponsavel = getResponsavelKey(produtoId, tarefaId);
                               const periodo = periodosPorTarefa[keyPeriodo];
-                              const responsavel = responsaveisPorTarefa[keyResponsavel];
-                              if (!periodo || !responsavel) return false;
+                              if (!periodo) return false;
                               const temPeriodoCompleto = periodo.inicio && periodo.fim;
                               const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
                               return !!(temPeriodoCompleto || temDatasIndividuais);
@@ -3444,47 +3181,23 @@ const AtribuicaoCliente = () => {
                   className="btn-primary"
                   onClick={handleSave}
                   disabled={loading || submitting || !clienteSelecionado || produtosSelecionados.length === 0 || tarefasSelecionadas.length === 0 || verificandoDuplicata || (() => {
-                    // Verificar se há tarefas sem tempo, sem responsável ou sem período considerando produto x tarefa
+                    // Validação simplificada: Apenas tarefas com tempo são obrigatórias
                     if (!tarefasSelecionadasPorProduto || Object.keys(tarefasSelecionadasPorProduto).length === 0) {
                       return true;
                     }
                     for (const [produtoId, tarefasDoProduto] of Object.entries(tarefasSelecionadasPorProduto)) {
-                      const produtoIdNormalizado = String(produtoId).trim();
+                      const pId = String(produtoId).trim();
                       for (const [tarefaId, dadosTarefa] of Object.entries(tarefasDoProduto)) {
                         if (dadosTarefa.selecionada === true) {
-                          const tarefaIdNormalizado = String(tarefaId).trim();
-                          const key = getResponsavelKey(produtoIdNormalizado, tarefaIdNormalizado);
+                          const tId = String(tarefaId).trim();
+                          const key = `${pId}_${tId}`;
 
-                          // Verificar tempo
-                          const hasTempoConfig = tempoConfigPorTarefa[key];
-                          if (modoSelecionarVarios && tarefasSelecionadasParaTempo.has(tarefaIdNormalizado)) {
-                            const hasGlobalConfig = tempoConfigGlobal && Object.keys(tempoConfigGlobal).length > 0;
-                            if ((!tempoGlobalParaAplicar || tempoGlobalParaAplicar <= 0) && !hasGlobalConfig) {
-                              return true;
-                            }
-                          } else {
-                            const tempo = getTempoEstimado(produtoIdNormalizado, tarefaIdNormalizado);
-                            const hasConfig = hasTempoConfig && Object.keys(hasTempoConfig).length > 0;
-                            if ((!tempo || tempo <= 0) && !hasConfig) {
-                              return true;
-                            }
-                          }
-                          // Verificar responsável
-                          const responsaveisTarefa = getResponsavelTarefa(produtoIdNormalizado, tarefaIdNormalizado);
-                          if (!responsaveisTarefa || responsaveisTarefa.length === 0) {
-                            return true;
-                          }
-                          // Verificar período (período completo OU apenas datas individuais OU recorrência)
-                          const periodoKey = getPeriodoKey(produtoIdNormalizado, tarefaIdNormalizado);
-                          const periodo = periodosPorTarefa[periodoKey];
-                          if (!periodo) {
-                            return true;
-                          }
-                          const temPeriodoCompleto = periodo.inicio && periodo.fim;
-                          const temDatasIndividuais = Array.isArray(periodo.datasIndividuais) && periodo.datasIndividuais.length > 0;
-                          const isRecorrente = periodo.source === 'recorrencia';
+                          // Verificar se tem pelo menos um tempo (direto ou config)
+                          const tempo = getTempoEstimado(pId, tId);
+                          const config = tempoConfigPorTarefa[key];
+                          const hasConfig = config && (Object.keys(config).length > 0);
 
-                          if (!temPeriodoCompleto && !temDatasIndividuais && !isRecorrente) {
+                          if ((!tempo || tempo <= 0) && !hasConfig) {
                             return true;
                           }
                         }
